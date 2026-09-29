@@ -29,7 +29,7 @@ const CONFIG_DIR = path.join(os.homedir(), ".nusa", "cloud");
 const TOKEN_FILE = path.join(CONFIG_DIR, "dashboard-token");
 const DEFAULT_PORT = "41731";
 const DEFAULT_HOST = "127.0.0.1";
-const DEFAULT_PAPER_CAPITAL_KRW = "10000000";
+const DEFAULT_PAPER_CAPITAL_KRW = "10000";
 const SUPERVISOR_CHILD_ENV = "NUSA_PAPER_RUNTIME_SUPERVISOR_CHILD";
 const PRODUCTION_RUNTIME_ENTRYPOINT = "dist/apps/cloud/src/closedLearningProductionRuntime.js";
 
@@ -66,8 +66,29 @@ function resolveDashboardToken(tokenFile = TOKEN_FILE) {
 
 const isBlank = (value) => value === undefined || value.trim() === "";
 
+const OWNER_PAPER_ACCOUNT_FILE = path.join(__dirname, "..", "deploy", "oracle", "paper-account.json");
+
+/**
+ * Owner-decided PAPER account (initial capital), versioned with the release. It is applied over
+ * the host environment so the owner's decision reaches the host through a normal release; a
+ * malformed file fails closed. Absent file: nothing is applied.
+ */
+function readOwnerPaperAccount(file = OWNER_PAPER_ACCOUNT_FILE) {
+  if (!existsSync(file)) return null;
+  const parsed = JSON.parse(readFileSync(file, "utf8"));
+  const capital = parsed?.initialCapitalKrw;
+  if (parsed?.schemaVersion !== 1 || typeof capital !== "number" || !Number.isFinite(capital) || capital <= 0) {
+    throw new Error(`owner PAPER account file is invalid: ${file}`);
+  }
+  const retired = parsed.retiredAccountIds ?? [];
+  if (!Array.isArray(retired) || retired.some((id) => typeof id !== "string" || !/^paper-[a-z0-9_-]{1,64}$/.test(id))) {
+    throw new Error(`owner PAPER account file has invalid retiredAccountIds: ${file}`);
+  }
+  return Object.freeze({ initialCapitalKrw: capital, retiredAccountIds: Object.freeze([...retired]) });
+}
+
 /** Fills in operational defaults without overriding anything the caller set explicitly. */
-function buildRuntimeEnv(baseEnv, token) {
+function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccount()) {
   const { env, stripped } = stripPrivateExchangeCredentials(baseEnv);
   const defaults = {
     NUSA_MODE: "PAPER",
@@ -86,6 +107,19 @@ function buildRuntimeEnv(baseEnv, token) {
     if (isBlank(env[key])) {
       env[key] = value;
       applied.push(key);
+    }
+  }
+  if (ownerPaperAccount != null) {
+    const value = String(ownerPaperAccount.initialCapitalKrw);
+    if (env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW !== value) {
+      env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW = value;
+      if (!applied.includes("NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW")) applied.push("NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW");
+    }
+    // Owner-retired PAPER accounts are purged once by the runtime (paperAccountRetirement.ts).
+    const retired = (ownerPaperAccount.retiredAccountIds ?? []).join(",");
+    if (retired && env.NUSA_PAPER_RETIRED_ACCOUNT_IDS !== retired) {
+      env.NUSA_PAPER_RETIRED_ACCOUNT_IDS = retired;
+      applied.push("NUSA_PAPER_RETIRED_ACCOUNT_IDS");
     }
   }
   return { env, applied: Object.freeze(applied), stripped };
@@ -209,6 +243,8 @@ if (require.main === module) runManaged();
 
 module.exports = {
   buildRuntimeEnv,
+  OWNER_PAPER_ACCOUNT_FILE,
+  readOwnerPaperAccount,
   launcherExitCode,
   PRODUCTION_RUNTIME_ENTRYPOINT,
   resolveDashboardToken,

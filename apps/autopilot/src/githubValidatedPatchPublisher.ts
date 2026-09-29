@@ -52,11 +52,11 @@ async function jsonRequest(
   url: string,
   token: string,
   init?: RequestInit,
-): Promise<{ status: number; payload: Record<string, unknown> }> {
+): Promise<{ status: number; payload: unknown }> {
   const response = await fetchImpl(url, { ...init, headers: { ...header(token), ...(init?.headers as Record<string, string> | undefined) } });
-  let payload: Record<string, unknown> = {};
+  let payload: unknown = {};
   try {
-    payload = object(await response.json());
+    payload = await response.json();
   } catch {
     if (!response.ok) throw new Error(`CODING_PUBLISH_GITHUB_HTTP_${response.status}`);
   }
@@ -87,12 +87,38 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
     const base = (this.config.apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
     const repository = request.repository.split("/").map(encodeURIComponent).join("/");
     const mainRef = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/ref/heads/main`, token);
-    const currentMainSha = object(mainRef.payload.object).sha;
+    const currentMainSha = object(object(mainRef.payload).object).sha;
     if (typeof currentMainSha !== "string" || !SHA40.test(currentMainSha)) throw new Error("CODING_PUBLISH_MAIN_HEAD_INVALID");
     if (currentMainSha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_PUBLISH_STALE_HEAD_SUPPRESSED");
 
+    const branch = branchFor(request);
+    let existingBranchSha: string | null = null;
+    try {
+      const existingRef = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`, token);
+      const sha = object(object(existingRef.payload).object).sha;
+      if (typeof sha !== "string" || !SHA40.test(sha)) throw new Error("CODING_PUBLISH_EXISTING_BRANCH_INVALID");
+      existingBranchSha = sha;
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "CODING_PUBLISH_GITHUB_HTTP_404") throw error;
+    }
+    if (existingBranchSha) {
+      const existingPulls = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/pulls?state=open&head=${encodeURIComponent(repository.split("/")[0] + ":" + branch)}`, token);
+      const pulls = Array.isArray(existingPulls.payload) ? existingPulls.payload : [];
+      const existingPull = pulls.find((candidate) => candidate && typeof candidate === "object" && (candidate as Record<string, unknown>).head);
+      if (!existingPull || typeof (existingPull as Record<string, unknown>).number !== "number" || typeof (existingPull as Record<string, unknown>).html_url !== "string") {
+        throw new Error("CODING_PUBLISH_DUPLICATE_EXECUTION_PR_MISSING");
+      }
+      return Object.freeze({
+        publisher: this.name,
+        branch,
+        commitSha: existingBranchSha,
+        pullRequestNumber: Number((existingPull as Record<string, unknown>).number),
+        pullRequestUrl: String((existingPull as Record<string, unknown>).html_url),
+      });
+    }
+
     const baseCommit = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/commits/${request.headSha}`, token);
-    const baseTreeSha = object(baseCommit.payload.tree).sha;
+    const baseTreeSha = object(object(baseCommit.payload).tree).sha;
     if (typeof baseTreeSha !== "string" || !SHA40.test(baseTreeSha)) throw new Error("CODING_PUBLISH_BASE_TREE_INVALID");
 
     const treeEntries: Array<Record<string, unknown>> = [];
@@ -101,7 +127,7 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
         method: "POST",
         body: JSON.stringify({ content: file.content, encoding: "utf-8" }),
       });
-      const blobSha = blob.payload.sha;
+      const blobSha = object(blob.payload).sha;
       if (typeof blobSha !== "string" || !SHA40.test(blobSha)) throw new Error("CODING_PUBLISH_BLOB_INVALID");
       treeEntries.push({ path: file.path, mode: "100644", type: "blob", sha: blobSha });
     }
@@ -110,7 +136,7 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
       method: "POST",
       body: JSON.stringify({ base_tree: baseTreeSha, tree: treeEntries }),
     });
-    const treeSha = tree.payload.sha;
+    const treeSha = object(tree.payload).sha;
     if (typeof treeSha !== "string" || !SHA40.test(treeSha)) throw new Error("CODING_PUBLISH_TREE_INVALID");
 
     const commit = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/commits`, token, {
@@ -121,10 +147,9 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
         parents: [request.headSha],
       }),
     });
-    const commitSha = commit.payload.sha;
+    const commitSha = object(commit.payload).sha;
     if (typeof commitSha !== "string" || !SHA40.test(commitSha)) throw new Error("CODING_PUBLISH_COMMIT_INVALID");
 
-    const branch = branchFor(request);
     await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/refs`, token, {
       method: "POST",
       body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commitSha }),
@@ -136,7 +161,9 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
         title: "chore(autopilot): validated autonomous coding proposal",
         head: branch,
         base: "main",
-        draft: false,
+        // Autonomous publication is always Draft. Ready-for-review requires a separate,
+        // explicit control-plane transition after canonical HOLD/freeze clearance.
+        draft: true,
         body: [
           "Autonomously proposed repository change validated in Cloudflare Sandbox before publication.",
           "",
@@ -150,8 +177,8 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
         ].join("\n"),
       }),
     });
-    const pullRequestNumber = pull.payload.number;
-    const pullRequestUrl = pull.payload.html_url;
+    const pullRequestNumber = object(pull.payload).number;
+    const pullRequestUrl = object(pull.payload).html_url;
     if (!Number.isSafeInteger(pullRequestNumber) || Number(pullRequestNumber) <= 0 || typeof pullRequestUrl !== "string") {
       throw new Error("CODING_PUBLISH_PULL_REQUEST_INVALID");
     }

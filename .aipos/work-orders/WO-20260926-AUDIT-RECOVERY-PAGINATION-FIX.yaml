@@ -1,0 +1,21 @@
+id: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
+title: Audit recovery pagination compatibility
+status: READY_FOR_REVIEW
+branch: fix/audit-recovery-gh-pagination
+base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
+implementation_head: 30b378c2afcedb796f6f33e59bc92aee1192ec6f
+pull_request: 2328
+scope: "Converge the canonical Audit recovery lane: compatible GitHub pagination plus lifecycle-safe provider-capacity wait persistence, without changing Audit, Release, or authority semantics."
+finding: "Audit recovery first hit unsupported gh pagination flags; later #2329 Audit run 36282589505 proved provider-capacity wait persistence also failed because taskId audit:cinamoncandy/NUSA#2329 violates the shared lifecycle ID alphabet."
+change: "Keep the supported pagination fix and emit Audit provider-wait taskId as audit:<repository>:<prNumber>; add regression coverage for the exact ID and allowed lifecycle alphabet."
+validation:
+  implementation_head: 30b378c2afcedb796f6f33e59bc92aee1192ec6f
+  github_validation_job: 108518383625
+  github_validation_status: PASS
+  exact_head_ci: PENDING_AFTER_METADATA_RECONCILIATION
+  review_threads: RESOLVED
+  observed_audit_failure_run: 36282589505
+  observed_failure: PROVIDER_CAPACITY_WAIT_RECORD_FAILED
+blocker: "none in repository code; independent Audit may still be externally capacity-gated, but the wait can now be persisted and classified normally."
+next_permitted_action: "Run fresh exact-head CI on the metadata-reconciled head; then independent Audit -> canonical Release -> merge -> protected-main deployment/recovery verification. No parallel Audit implementation."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

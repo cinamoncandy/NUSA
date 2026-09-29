@@ -74,14 +74,15 @@ test("Android release networking fails closed without an unresolved manifest pla
   assert.match(gradle, /nusa_canonical_origin/);
 });
 
-test("mobile foundation exposes a Home screen, theme, and five primary decision-flow tabs", () => {
+test("mobile foundation exposes the canonical four-destination PAPER/LIVE presentation shell", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
-  assert.match(app, /useState<Tab>\("Home"\)/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
-  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI"/);
+  const navigation = fs.readFileSync(path.join(mobile, "src", "navigationContract.ts"), "utf8");
+  const primaryNavigation = fs.readFileSync(path.join(mobile, "src", "primaryNavigation.tsx"), "utf8");
+  assert.match(app, /useState<PrimaryDestination>\("Home"\)/);
+  assert.match(app, /<PrimaryNavigation/);
+  assert.match(navigation, /\["Home", "Paper", "Live", "More"\]/);
+  assert.match(primaryNavigation, /accessibilityRole="tab"/);
   assert.match(app, /const theme =/);
-  assert.match(app, /accessibilityRole="button"/);
 });
 
 test("fresh-install entry is explicitly local and does not impersonate account authentication", () => {

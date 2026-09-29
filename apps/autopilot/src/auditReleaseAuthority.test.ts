@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
-const workflowPath = resolve(process.cwd(), ".github/workflows/autopilot-execution-consumer.yml");
-const workflow = readFileSync(workflowPath, "utf8");
+const consumerWorkflow = readFileSync(resolve(process.cwd(), ".github/workflows/autopilot-execution-consumer.yml"), "utf8");
+const releaseWorkflow = readFileSync(resolve(process.cwd(), ".github/workflows/autopilot-deterministic-audit-release.yml"), "utf8");
 
-function jobSlice(name: string, nextName?: string): string {
+function jobSlice(workflow: string, name: string, nextName?: string): string {
   const startToken = `\n  ${name}:`;
   const start = workflow.indexOf(startToken);
   assert.notEqual(start, -1, `missing ${name} job`);
@@ -17,7 +17,7 @@ function jobSlice(name: string, nextName?: string): string {
 }
 
 test("PR comments cannot skip independent Audit execution", () => {
-  const audit = jobSlice("audit-request", "audit-recovery");
+  const audit = jobSlice(consumerWorkflow, "audit-request", "audit-recovery");
   assert.doesNotMatch(audit, /Detect existing exact-head Audit verdict/);
   assert.doesNotMatch(audit, /steps\.existing-audit/);
   assert.match(audit, /Execute independent read-only Audit with GitHub OIDC/);
@@ -26,32 +26,49 @@ test("PR comments cannot skip independent Audit execution", () => {
   assert.match(audit, /auditExecutionAttempt/);
 });
 
-test("Release never derives Audit authority from PR comment JSON", () => {
-  const release = jobSlice("release", "release-recovery");
-  assert.match(release, /AUDIT_AUTHORITY: \$\{\{ needs\.audit-request\.outputs\.authority \}\}/);
-  assert.match(release, /Buffer\.from\(process\.env\.AUDIT_AUTHORITY, 'base64url'\)/);
-  assert.match(release, /Release Audit execution provenance mismatch/);
+test("Release authority comes only from deterministic Audit, never PR comment JSON", () => {
+  const release = jobSlice(releaseWorkflow, "release");
+  assert.match(releaseWorkflow, /needs\.audit\.outputs\.authority == 'DETERMINISTIC_AUDIT_PASS'/);
+  assert.match(release, /environment: nusa-release-authority/);
+  assert.match(release, /Mint dedicated release authority token/);
+  assert.match(release, /steps\.release_authority_token\.outputs\.token/);
   assert.doesNotMatch(release, /nusa-audit-verdict/);
   assert.doesNotMatch(release, /Audit verdict JSON missing/);
   assert.doesNotMatch(release, /auditComments/);
 });
 
-test("canonical P0 #903 control-plane repair serializes repository-native Release", () => {
-  const release = jobSlice("release", "release-recovery");
-  assert.match(release, /open-issues-pages\.json/);
-  assert.match(release, /\^P0/);
-  assert.match(release, /Refs\\s\+\#903/);
-  assert.match(release, /Release serialized behind canonical P0 #903 repair/);
-  assert.match(release, /close\[sd\]\?/);
+test("execution consumer cannot perform repository-native Release", () => {
+  assert.doesNotMatch(consumerWorkflow, /\n  release:/);
+  assert.doesNotMatch(consumerWorkflow, /\n  release-recovery:/);
+  assert.doesNotMatch(consumerWorkflow, /pulls\/[^\s"']+\/merge/);
+
+  const release = jobSlice(releaseWorkflow, "release");
+  assert.match(release, /concurrency:\r?\n\s+group: deterministic-release-main/);
+  assert.match(release, /Canonical expected-head merge/);
+  assert.match(release, /-f sha="\$EXPECTED_HEAD"/);
+  assert.match(release, /AUDITED_BASE/);
+});
+
+test("canonical merge is bound to the dedicated GitHub App token", () => {
+  const release = jobSlice(releaseWorkflow, "release");
+  assert.match(release, /app-id: \$\{\{ secrets\.NUSA_RELEASE_AUTH_APP_ID \}\}/);
+  assert.match(release, /private-key: \$\{\{ secrets\.NUSA_RELEASE_AUTH_APP_PRIVATE_KEY \}\}/);
+  const mergeStart = release.indexOf("      - name: Canonical expected-head merge");
+  const mergeEnd = release.indexOf("\n      - name:", mergeStart + 1);
+  assert.notEqual(mergeStart, -1, "missing canonical merge step");
+  const merge = release.slice(mergeStart, mergeEnd === -1 ? undefined : mergeEnd);
+  assert.match(merge, /GH_TOKEN: \$\{\{ steps\.release_authority_token\.outputs\.token \}\}/);
+  assert.doesNotMatch(merge, /GH_TOKEN: \$\{\{ github\.token \}\}/);
 });
 
 test("Audit and Release keep zero-authority fail-closed safety invariants", () => {
-  const audit = jobSlice("audit-request", "audit-recovery");
-  const release = jobSlice("release", "release-recovery");
-  for (const source of [audit, release]) {
-    assert.match(source, /liveAuthority/);
-    assert.match(source, /productionMutationAllowed/);
-    assert.match(source, /aiAuthority/);
+  const audit = jobSlice(consumerWorkflow, "audit-request", "audit-recovery");
+  const deterministicAudit = jobSlice(releaseWorkflow, "audit", "release");
+  const release = jobSlice(releaseWorkflow, "release");
+  for (const source of [audit, deterministicAudit, release]) {
+    assert.match(source, /liveAuthority|live_authority/);
+    assert.match(source, /productionMutationAllowed|production_mutation_allowed/);
+    assert.match(source, /aiAuthority|ai_authority/);
     assert.match(source, /ZERO_AUTHORITY/);
   }
 });

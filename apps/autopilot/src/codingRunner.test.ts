@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { describe, it } from "node:test";
-import { executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { buildDeterministicCodingPatch, CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 
 const request = {
   kind: "REPOSITORY_AUTOPILOT" as const,
@@ -36,15 +40,317 @@ const verifiedGithubFetch = async (url: string) => {
   });
 };
 
+const verifiedFailureGithubFetch = async (url: string) => {
+  if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+  if (url.includes("/jobs?")) {
+    return response(200, {
+      total_count: 1,
+      jobs: [{
+        run_id: request.workflowRunId,
+        name: "validation",
+        conclusion: "failure",
+        steps: [
+          { name: "Checkout", conclusion: "success" },
+          { name: "Preflight", conclusion: "failure" },
+          { name: ["gh", "p_", "12345678901234567890"].join(""), conclusion: "failure" },
+        ],
+      }],
+    });
+  }
+  return response(200, {
+    id: request.workflowRunId,
+    name: "CI",
+    event: "pull_request",
+    head_sha: request.headSha,
+    head_branch: "feature/failing-ci",
+    status: "completed",
+    conclusion: "failure",
+    repository: { full_name: request.repository },
+  });
+};
+
 const runtimeEnv = {
   NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
   NUSA_AI_CODING_TOKEN: "ai-token",
   NUSA_GITHUB_TOKEN: "github-token",
 };
+const jevTestKey = () => ["unit", "jev", "credential"].join("-");
 
 describe("coding runner", () => {
+  it("constructs a deterministic single-file patch from one exact edit", () => {
+    const context = {
+      path: "apps/autopilot/src/example.ts",
+      startLine: 7,
+      content: "export const before = true;\nexport const oldValue = true;\nexport const after = true;\n",
+    };
+    const edit = {
+      path: context.path,
+      expectedText: "export const oldValue = true;",
+      replacementText: "export const oldValue = false;",
+    };
+    const patch = buildDeterministicCodingPatch(context, edit);
+    assert.match(patch, /@@ -7,3 \+7,3 @@/);
+    assert.match(patch, /-export const oldValue = true;/);
+    assert.match(patch, /\+export const oldValue = false;/);
+    assert.equal(patch, buildDeterministicCodingPatch(context, edit));
+  });
+
+  it("constructs a patch accepted by strict git apply check", () => {
+    const context = { path: "apps/autopilot/src/example.ts", startLine: 7, content: "export const before = true;\nexport const oldValue = true;\nexport const after = true;\n" };
+    const patch = buildDeterministicCodingPatch(context, { path: context.path, expectedText: "export const oldValue = true;", replacementText: "export const oldValue = false;" });
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-edit-"));
+    try {
+      const target = path.join(root, context.path);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, `${"// prelude\n".repeat(6)}${context.content}`, "utf8");
+      const patchPath = path.join(root, ".patch");
+      fs.writeFileSync(patchPath, patch, "utf8");
+      const result = spawnSync("git", ["apply", "--check", patchPath], { cwd: root, encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed for missing and ambiguous edit anchors", () => {
+    const context = { path: "apps/autopilot/src/example.ts", startLine: 1, content: "const value = true;\nconst value = true;\n" };
+    assert.throws(
+      () => buildDeterministicCodingPatch(context, { path: context.path, expectedText: "missing", replacementText: "new" }),
+      /CODING_EDIT_ANCHOR_NOT_FOUND/,
+    );
+    assert.throws(
+      () => buildDeterministicCodingPatch(context, { path: context.path, expectedText: "const value = true;", replacementText: "const value = false;" }),
+      /CODING_EDIT_ANCHOR_AMBIGUOUS/,
+    );
+  });
+
+  it("materializes a structured edit before sandbox execution", async () => {
+    const contextual = {
+      ...request,
+      proposalContext: {
+        path: "apps/autopilot/src/example.ts",
+        startLine: 7,
+        content: "export const before = true;\nexport const oldValue = true;\nexport const after = true;\n",
+      },
+    };
+    let observedPatch = "";
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(_value, proposal) {
+        observedPatch = proposal?.patch ?? "";
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run(_model, input) {
+        assert.deepEqual(input.response_format?.json_schema.required, ["edit"]);
+        return { response: { edit: { path: contextual.proposalContext.path, expectedText: "export const oldValue = true;", replacementText: "export const oldValue = false;" } } };
+      },
+    };
+    const result = await executeCodingRunner(contextual, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.match(observedPatch, /diff --git a\/apps\/autopilot\/src\/example\.ts/);
+    assert.match(observedPatch, /@@ -7,3 \+7,3 @@/);
+  });
+
+  it("replaces a substring within complete source lines and rejects empty replacements", () => {
+    const context = { path: "apps/autopilot/src/example.ts", startLine: 1, content: "const value = true;\nconst after = true;\n" };
+    const patch = buildDeterministicCodingPatch(context, { path: context.path, expectedText: "value = true", replacementText: "value = false" });
+    assert.match(patch, /-const value = true;/);
+    assert.match(patch, /\+const value = false;/);
+    assert.throws(
+      () => buildDeterministicCodingPatch(context, { path: context.path, expectedText: "value = true", replacementText: "" }),
+      /CODING_EDIT_REPLACEMENT_INVALID/,
+    );
+  });
+
+  it("rejects structured edits outside the bounded authority surface", async () => {
+    const contextual = {
+      ...request,
+      proposalContext: { path: "apps/autopilot/src/example.ts", startLine: 1, content: "const value = true;\n" },
+    };
+    const ai: WorkersAiBinding = {
+      async run() {
+        return { response: { edit: { path: "apps/autopilot/src/worker.ts", expectedText: "const value = true;", replacementText: "const value = false;" } } };
+      },
+    };
+    const result = await executeCodingRunner(contextual, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "CODING_EDIT_PATH_FORBIDDEN");
+  });
+
   it("accepts only the fail-closed repository contract with lifecycle identity", () => {
     assert.deepEqual(validateCodingRunnerRequest(request), request);
+  });
+
+  it("accepts only bounded printable proposal repair feedback", () => {
+    const repair = { ...request, proposalFeedback: "attempt=2;rejection=SANDBOX_PATCH_APPLY_CHECK_FAILED;repair=regenerate" };
+    assert.deepEqual(validateCodingRunnerRequest(repair), repair);
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalFeedback: "attempt=2\nsecret=unexpected" }),
+      /CODING_RUNNER_PROPOSAL_FEEDBACK_INVALID/,
+    );
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalFeedback: "x".repeat(513) }),
+      /CODING_RUNNER_PROPOSAL_FEEDBACK_INVALID/,
+    );
+  });
+
+  it("accepts only bounded read-only retry source context", async () => {
+    const contextual = {
+      ...request,
+      proposalContext: {
+        path: "apps/autopilot/src/example.ts",
+        startLine: 7,
+        content: "export const oldValue = true;\n",
+      },
+    };
+    assert.deepEqual(validateCodingRunnerRequest(contextual), contextual);
+
+    let observedPrompt = "";
+    const ai: WorkersAiBinding = {
+      async run(_model, input) {
+        observedPrompt = input.prompt;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(contextual, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.match(observedPrompt, /Target path: apps\/autopilot\/src\/example\.ts/);
+    assert.match(observedPrompt, /Excerpt starts at source line 7/);
+    assert.match(observedPrompt, /export const oldValue = true/);
+
+    let configuredBody: Record<string, unknown> | undefined;
+    const configuredResult = await executeCodingRunner(contextual, runtimeEnv, async (url, init) => {
+      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/actions/runs/")) return response(200, {
+        id: request.workflowRunId,
+        head_sha: request.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: request.repository },
+      });
+      configuredBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return response(200, { patch });
+    });
+    assert.equal(configuredResult.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(configuredBody?.proposalContext, contextual.proposalContext);
+
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/worker.ts", startLine: 1, content: "x" } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_PATH_INVALID/,
+    );
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/example.ts", startLine: 0, content: "x" } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_LINE_INVALID/,
+    );
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/example.ts", startLine: 1, content: "x".repeat(20_001) } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_CONTENT_INVALID/,
+    );
+  });
+
+  it("escalates apply-check repair with exact context to GitHub Models before Workers AI", async () => {
+    const repairRequest = {
+      ...request,
+      proposalFeedback: "attempt=2;rejection=SANDBOX_PATCH_APPLY_CHECK_FAILED;repair=regenerate",
+      proposalContext: {
+        path: "apps/autopilot/src/example.ts",
+        startLine: 7,
+        content: "export const oldValue = true;\n",
+      },
+    };
+    let workersAiCalls = 0;
+    let githubModelsCalls = 0;
+    let observedPrompt = "";
+    const ai: WorkersAiBinding = {
+      async run() {
+        workersAiCalls += 1;
+        return { response: { patch } };
+      },
+    };
+
+    const result = await executeCodingRunner(
+      repairRequest,
+      { NUSA_GITHUB_TOKEN: "github-token", AI: ai },
+      async (url, init) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        if (url.includes("/actions/runs/")) return response(200, {
+          id: request.workflowRunId,
+          head_sha: request.headSha,
+          head_branch: "main",
+          status: "completed",
+          conclusion: "success",
+          repository: { full_name: request.repository },
+        });
+        if (url === "https://models.github.ai/inference/chat/completions") {
+          githubModelsCalls += 1;
+          const body = JSON.parse(String(init?.body)) as { messages?: Array<{ content?: string }> };
+          observedPrompt = body.messages?.[1]?.content ?? "";
+          return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] });
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    );
+
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(githubModelsCalls, 1);
+    assert.equal(workersAiCalls, 0);
+    assert.match(observedPrompt, /Repair feedback: .*SANDBOX_PATCH_APPLY_CHECK_FAILED/);
+    assert.match(observedPrompt, /Target path: apps\/autopilot\/src\/example\.ts/);
+    assert.match(observedPrompt, /export const oldValue = true/);
+  });
+
+  it("escalates normalized apply-check repair with exact context to GitHub Models", async () => {
+    const repairRequest = {
+      ...request,
+      proposalFeedback: "attempt=3;rejection=SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED;repair=regenerate",
+      proposalContext: {
+        path: "apps/autopilot/src/example.ts",
+        startLine: 7,
+        content: "export const oldValue = true;\n",
+      },
+    };
+    let workersAiCalls = 0;
+    let githubModelsCalls = 0;
+    const ai: WorkersAiBinding = {
+      async run() {
+        workersAiCalls += 1;
+        return { response: { patch } };
+      },
+    };
+
+    const result = await executeCodingRunner(
+      repairRequest,
+      { NUSA_GITHUB_TOKEN: "github-token", AI: ai },
+      async (url) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        if (url.includes("/actions/runs/")) return response(200, {
+          id: request.workflowRunId,
+          head_sha: request.headSha,
+          head_branch: "main",
+          status: "completed",
+          conclusion: "success",
+          repository: { full_name: request.repository },
+        });
+        if (url === "https://models.github.ai/inference/chat/completions") {
+          githubModelsCalls += 1;
+          return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] });
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    );
+
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(githubModelsCalls, 1);
+    assert.equal(workersAiCalls, 0);
   });
 
   it("rejects missing or malformed lifecycle identity", () => {
@@ -116,7 +422,7 @@ describe("coding runner", () => {
   });
 
   it("accepts a failed workflow only for an explicit gha failure-repair request", async () => {
-    const failureRequest = { ...request, reason: "gha:CI:123:failure" };
+    const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
     await verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
       return response(200, {
@@ -178,13 +484,57 @@ describe("coding runner", () => {
     assert.equal(calls.length, 3);
   });
 
+  it("skips Workers AI coding inference only after verified failed job/step evidence", async () => {
+    const failureRequest = {
+      ...request,
+      reason: `gha:${request.workflowRunId}:${request.headSha}:failure`,
+    };
+    let workersAiCalls = 0;
+    let jevCalls = 0;
+    let observedFailureEvidence: unknown = null;
+    const ai: WorkersAiBinding = {
+      async run() {
+        workersAiCalls += 1;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(failureRequest, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: ai,
+      NUSA_JEV_SHADOW_ENABLED: "true",
+      NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+      NUSA_JEV_API_KEY: jevTestKey(),
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+    }, verifiedFailureGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async (input) => {
+        jevCalls += 1;
+        observedFailureEvidence = input.failureEvidence;
+        return {
+          rootCause: "INFRA",
+          safeToAutofix: "NO",
+          severity: 2,
+          requiredModel: "HUMAN",
+          confidence: 0.97,
+        };
+      },
+    });
+    assert.equal(result.status, "JEV_ROUTING_ABSTAINED");
+    assert.equal(result.jevAdmissionAction, "ABSTAIN_EXPENSIVE_INFERENCE");
+    assert.equal(result.jevAdmissionReason, "NON_CODE_AUTOFIX_FORBIDDEN");
+    assert.equal(workersAiCalls, 0);
+    assert.equal(jevCalls, 1);
+    const evidence = observedFailureEvidence as { failedJobs?: string[]; failedSteps?: string[] } | null;
+    assert.deepEqual(evidence?.failedJobs, ["validation"]);
+    assert.deepEqual(evidence?.failedSteps, ["Preflight"]);
+  });
+
   it("prefers the canonical Workers AI binding over a configured legacy endpoint", async () => {
     let endpointCalls = 0;
     let aiCalls = 0;
     const ai: WorkersAiBinding = {
       async run(model, input) {
         aiCalls += 1;
-        assert.equal(model, "@cf/meta/llama-3.1-8b-instruct-fast");
+        assert.equal(model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
         assert.match(input.prompt, /unified diff/);
         return { response: JSON.stringify({ patch }) };
       },
@@ -231,7 +581,7 @@ describe("coding runner", () => {
     assert.equal(result.proposalValidated, true);
     assert.equal(runtimeCalls, 1);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0]?.model, "@cf/meta/llama-3.1-8b-instruct-fast");
+    assert.equal(calls[0]?.model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
     assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
     assert.deepEqual(calls[0]?.input.response_format, {
       type: "json_schema",
@@ -242,6 +592,64 @@ describe("coding runner", () => {
         additionalProperties: false,
       },
     });
+  });
+
+  it("accepts Workers AI structured chat-completion parsed responses", async () => {
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run() {
+        return {
+          id: "chatcmpl-test",
+          object: "chat.completion",
+          choices: [{ index: 0, message: { role: "assistant", content: null, parsed: { patch } } }],
+        };
+      },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
+  });
+
+  it("accepts current Workers AI chat-completion response envelopes", async () => {
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run() {
+        return {
+          id: "chatcmpl-test",
+          object: "chat.completion",
+          choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ patch }) } }],
+        };
+      },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
   });
 
   it("accepts Workers AI JSON mode object responses", async () => {
@@ -388,6 +796,30 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_FAILED");
     assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
+    assert.equal(result.proposalAttempts, 3);
+    assert.equal(result.failureStage, "proposal-parse");
+  });
+
+  it("allows the external GitHub runner to cap one AI generation per proposal request", async () => {
+    let attempts = 0;
+    const ai: WorkersAiBinding = {
+      async run() {
+        attempts += 1;
+        return { response: JSON.stringify({ patch: 42, explanation: "invalid patch shape" }) };
+      },
+    };
+    const result = await executeCodingRunner(
+      request,
+      { NUSA_GITHUB_TOKEN: "github-token", AI: ai },
+      verifiedGithubFetch,
+      undefined,
+      undefined,
+      { maxProposalAttempts: 1 },
+    );
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
+    assert.equal(result.proposalAttempts, 1);
+    assert.equal(attempts, 1);
   });
 
   it("rejects forbidden authority-surface proposal paths before sandbox execution", async () => {
@@ -399,6 +831,58 @@ describe("coding runner", () => {
     assert.equal(result.status, "EXECUTION_FAILED");
     assert.equal(result.reason, "CODING_PROPOSAL_PATH_FORBIDDEN");
   });
+  it("records bounded sandbox failure diagnostics without proposal contents", async () => {
+    let attempts = 0;
+    const ai: WorkersAiBinding = {
+      async run() { attempts += 1; return { response: JSON.stringify({ patch }) }; },
+    };
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute() { throw new Error("SANDBOX_PATCH_APPLY_CHECK_FAILED"); },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "SANDBOX_PATCH_APPLY_CHECK_FAILED");
+    assert.equal(result.proposalAttempts, 3);
+    assert.equal(result.failureStage, "sandbox-validation");
+    assert.equal(attempts, 3);
+    assert.equal("patch" in result, false);
+  });
+
+  it("falls back from GLM because the coding contract requires documented Workers AI JSON Mode support", async () => {
+    const calls: string[] = [];
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        calls.push(model);
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      NUSA_AI_CODING_MODEL: "@cf/zai-org/glm-4.7-flash",
+      AI: ai,
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
+  });
+
+  it("falls back from a JSON-mode-incompatible fast model to the JSON-mode default", async () => {
+    const calls: string[] = [];
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        calls.push(model);
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      NUSA_AI_CODING_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
+      AI: ai,
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
+  });
+
   it("falls back from the retired dashboard model to the supported default", async () => {
     const calls: string[] = [];
     const ai: WorkersAiBinding = {
@@ -413,13 +897,70 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct-fast"]);
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
   });
 
   it("stays interface-ready when no provider-neutral coding engine is configured", async () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch);
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "ai-coding-engine-not-configured");
+  });
+
+  it("falls back from the deprecated llama 3.1 model to the active JSON-schema default", async () => {
+    const calls: string[] = [];
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        calls.push(model);
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      NUSA_AI_CODING_MODEL: "@cf/meta/llama-3.1-8b-instruct",
+      AI: ai,
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
+  });
+
+  it("classifies Workers AI daily quota exhaustion as blocked before proposal generation", async () => {
+    let calls = 0;
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: { async run() { calls += 1; throw new Error("4006: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage."); } },
+    }, verifiedGithubFetch, undefined, undefined, { now: () => 1_000 });
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+    assert.equal(result.proposalAttempts, 0);
+    assert.equal(calls, 1);
+    assert.equal(result.provider, "workers-ai");
+    assert.equal(result.nextRetryAt, 86_400_000);
+    assert.equal(result.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+    assert.equal(result.fallbackProvider, "github-models");
+    assert.equal(result.fallbackFailureReason, "GITHUB_MODELS_CODING_RESPONSE_INVALID");
+  });
+
+  it("waits for the next UTC day on daily quota exhaustion instead of re-probing every cycle", async () => {
+    const quotaError = { async run(): Promise<never> { throw new Error("4006: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage."); } };
+    const midDay = Date.parse("2026-09-23T10:12:49.000Z");
+    const midDayResult = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: quotaError }, verifiedGithubFetch, undefined, undefined, { now: () => midDay });
+    assert.equal(midDayResult.nextRetryAt, Date.parse("2026-09-24T00:00:00.000Z"));
+    const nearReset = Date.parse("2026-09-23T23:59:50.000Z");
+    const nearResetResult = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: quotaError }, verifiedGithubFetch, undefined, undefined, { now: () => nearReset });
+    assert.equal(nearResetResult.nextRetryAt, nearReset + 60_000);
+  });
+
+  it("classifies generic Workers AI rate limiting without hot-loop proposal retries", async () => {
+    let calls = 0;
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: { async run() { calls += 1; throw new Error("429 Too Many Requests: rate limit exceeded"); } },
+    }, verifiedGithubFetch, undefined, undefined, { now: () => 2_000 });
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WORKERS_AI_RATE_LIMITED");
+    assert.equal(result.proposalAttempts, 0);
+    assert.equal(calls, 1);
+    assert.equal(result.nextRetryAt, 3_000);
   });
 
   it("fails closed when the Workers AI binding is unavailable", async () => {
@@ -551,5 +1092,105 @@ describe("coding runner", () => {
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "ai-coding-engine-not-configured");
     assert.deepEqual(seenAuthorization, [undefined, undefined]);
+  });
+});
+
+
+describe("coding runner workflow failure evidence", () => {
+  it("preserves bounded terminal workflow identity when non-repair evidence is not successful", async () => {
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(request, "github-token", (async (url: string) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        return response(200, {
+          id: request.workflowRunId,
+          name: "Scheduled Autopilot",
+          event: "schedule",
+          head_sha: request.headSha,
+          head_branch: "main",
+          status: "completed",
+          conclusion: "failure",
+          repository: { full_name: request.repository },
+        });
+      }) as typeof verifiedGithubFetch),
+      (error: unknown) => {
+        assert.ok(error instanceof CodingRunnerEvidenceError);
+        assert.equal(error.message, "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL");
+        assert.deepEqual(error.evidence, {
+          code: "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL",
+          workflowRunId: request.workflowRunId,
+          workflowName: "Scheduled Autopilot",
+          workflowEvent: "schedule",
+          workflowStatus: "completed",
+          workflowConclusion: "failure",
+          headSha: request.headSha,
+        });
+        return true;
+      },
+    );
+  });
+
+  describe("provider capacity wait at the call", () => {
+    const acceptingRuntime = (): CodingRuntime => ({
+      name: "fake-sandbox",
+      async execute() {
+        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true, proposalValidated: true, changedFiles: ["apps/autopilot/src/example.ts"] };
+      },
+    });
+
+    it("does not call the provider when a wait was recorded after the request was admitted", async () => {
+      let aiCalls = 0;
+      const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async () => 61_000,
+      });
+      assert.equal(aiCalls, 0);
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      assert.equal(result.reason, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(result.nextRetryAt, 61_000);
+      assert.equal(result.proposalAttempts, 0);
+      assert.equal(result.fallbackProvider, "github-models");
+      assert.equal(result.fallbackFailureReason, "GITHUB_MODELS_CODING_RESPONSE_INVALID");
+    });
+
+    it("stops before a repair attempt when a wait appears between attempts", async () => {
+      let aiCalls = 0;
+      let waitUntil: number | null = null;
+      const ai: WorkersAiBinding = {
+        async run() {
+          aiCalls += 1;
+          waitUntil = 90_000; // another execution records a provider stop while this attempt runs
+          return { response: "not a json proposal" };
+        },
+      };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async () => waitUntil,
+      });
+      assert.equal(aiCalls, 1, "the repair attempt must not spend a call inside the new window");
+      assert.equal(result.reason, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(result.proposalAttempts, 1);
+    });
+
+    it("fails closed without a provider call when the wait cannot be read", async () => {
+      let aiCalls = 0;
+      const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
+        providerWaitUntil: async () => { throw new Error("coordinator unavailable"); },
+      });
+      assert.equal(aiCalls, 0);
+      assert.equal(result.status, "EXECUTION_FAILED");
+      assert.equal(result.reason, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
+    });
+
+    it("proceeds normally when no wait is recorded", async () => {
+      let aiCalls = 0;
+      const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
+        providerWaitUntil: async () => null,
+      });
+      assert.equal(aiCalls, 1);
+      assert.equal(result.status, "EXECUTION_ACCEPTED");
+    });
   });
 });

@@ -4,13 +4,15 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
-import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
-import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
+import { createShutdownController, handleRuntimeFault, type ShutdownController } from "./cloudRuntimeShutdown";
+import { readPreviousRuntimeFailure, recordRuntimeFailure } from "./runtimeFailureRecord";
+import { paperExecutionObservedAt } from "./paperExecutionObservation";
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
@@ -25,6 +27,7 @@ import {
   type PersonalPaperOperationsSnapshot,
   type PersonalPaperOrderProjection,
   type PersonalPaperPortfolioProjection,
+  type PersonalPaperRuntimeHaltReason,
   type PersonalPaperRuntimeHeartbeat
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
@@ -37,8 +40,9 @@ import { InMemoryInvestmentAllocationSettingsRepository, SqliteInvestmentAllocat
 import { SqliteNusaUserAccessRepository } from "./operatorUserAccess";
 import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
+import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
-import { buildPaperLearningReadOnlyProjection } from "./paperLearningReadOnlyProjection";
+import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { validateShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
@@ -55,6 +59,7 @@ import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRe
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
+import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
 import {
@@ -82,6 +87,7 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   /** Canonical account-boundary path; no caller-supplied outcome metrics are accepted. */
   readonly openPaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly closePaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodCanonicalCloseInput) => PersistedPaperPeriodEnvelope;
+  readonly retirePaperRealizedPeriodForAccountChange: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
@@ -179,6 +185,9 @@ export function startCloudRuntime(
     paperFillCount: 0,
     lastError: null
   };
+  // Why the previous process stopped, kept apart from lastError so market start-up cannot overwrite it
+  // and a supervisor restart loop stays diagnosable from /health.
+  const previousStop = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readPreviousRuntimeFailure(config.cloudStateDbPath);
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => Object.freeze({ ...heartbeat });
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
@@ -195,6 +204,7 @@ export function startCloudRuntime(
   const paperMarketObservationRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqlitePaperMarketObservationRepository(durableRepository.database())
     : undefined;
+  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database(), { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) }) : undefined);
   let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
@@ -211,6 +221,10 @@ export function startCloudRuntime(
         if (loop == null) throw new Error("canonical PAPER account source is unavailable");
         return loop.snapshot();
       },
+      readCanonicalPaperFills: () => {
+        if (effectivePaperRepository?.loadFills == null) throw new Error("canonical PAPER fill ledger is unavailable");
+        return effectivePaperRepository.loadFills();
+      },
       ...(paperMarketObservationRepository == null ? {} : { readCanonicalBenchmarkEvidence: (periodStartAt: number, periodEndAt: number, market?: string) => readCanonicalPaperTickerBenchmark(paperMarketObservationRepository, market, periodStartAt, periodEndAt) }),
     })
     : undefined;
@@ -223,13 +237,15 @@ export function startCloudRuntime(
   const userAccessRepository = durableAuthDatabase == null ? undefined : new SqliteNusaUserAccessRepository(durableAuthDatabase);
   const desktopSessionService = durableAuthDatabase == null || userAccessRepository == null ? undefined : new DesktopSessionService(durableAuthDatabase, userAccessRepository);
   const mobileSessionService = durableAuthDatabase == null || userAccessRepository == null ? undefined : new MobileSessionService(durableAuthDatabase, userAccessRepository);
+  const ownerDeviceCredentialService = durableAuthDatabase == null || userAccessRepository == null || mobileSessionService == null
+    ? undefined
+    : new OwnerDeviceCredentialService(durableAuthDatabase, userAccessRepository, mobileSessionService);
   const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteP0AlertRepository(durableRepository.database()) : undefined;
   const investmentAllocationSettings: InvestmentAllocationSettingsRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteInvestmentAllocationSettingsRepository(durableRepository.database())
     : new InMemoryInvestmentAllocationSettingsRepository();
   const readPaperP0State = () => { if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable"); return effectiveP0Repository.readState(); };
   const readAiP0State = (): CloudRuntimeAiP0State => { if (effectiveP0Repository == null) return "UNAVAILABLE"; try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; } catch { return "UNVERIFIABLE"; } };
-  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
   const productionPaperRiskGate = config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
@@ -269,8 +285,24 @@ export function startCloudRuntime(
   };
   const liveReadinessSourceProvider = createLiveReadinessSourceProvider({ now: () => new Date().toISOString(), sourceVersion, readers: defaultLiveReadinessReaders });
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
-  try { researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover(); } catch { /* Research owns its fail-closed state. */ }
-  const clearPaperProjection = (): void => { try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ } effectiveProvider.clear(); };
+  // researchAutomation gates itself: a non-READY recover() halts its own RUNNING sessions, so its
+  // onMarketData sees none left and no-ops. The plain researchRuntime path has no such self-gate --
+  // without this flag a FAIL_CLOSED researchRecoveryCoordinator result (corrupted candidate/audit
+  // state) was silently discarded here and the market-data loop kept calling onMarketData on
+  // unverified research state below.
+  let researchRecoveryFailClosed = false;
+  try {
+    const recovery = researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
+    if (recovery != null && recovery.status !== "READY") researchRecoveryFailClosed = true;
+  } catch { researchRecoveryFailClosed = true; }
+  // Fail closed by withholding the dashboard projection only. This used to also call
+  // effectivePaperRepository.clear(), which deletes the durable PAPER account, its history and the
+  // canonical fill ledger. It ran whenever the dashboard had no state on a tick (stale or missing
+  // market data closes the kill switch and clears the provider), when a projection threw, or when
+  // one execution result FAILED -- so an ordinary data gap destroyed canonical PAPER truth, and the
+  // next restart loaded no account and reset NAV to initial capital. A projection problem is never
+  // a reason to erase the ledger; an explicit reset still goes through the repository itself.
+  const clearPaperProjection = (): void => { effectiveProvider.clear(); };
   const projectPaperAccount = (): void => {
     if (effectivePaperLoop == null) return;
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
@@ -286,9 +318,6 @@ export function startCloudRuntime(
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
     heartbeat.eventCount += 1;
-    latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
-    try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h }); }
-    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
     if (!observation) {
@@ -305,9 +334,14 @@ export function startCloudRuntime(
       safeHydrate([...observations.values()]);
       return;
     }
+    // Only accepted public-market events may become durable PAPER evidence.
+    // This keeps stale/future/malformed transport input out of the canonical observation store.
+    latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
+    try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h, sourceFingerprint: canonicalUpbitSourceFingerprint(ticker) }); }
+    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
-    try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
+    if (!researchRecoveryFailClosed) { try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ } }
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
     if (state != null) {
       // Hydration samples its own clock while producing decision.decidedAt. Re-sample only after
@@ -324,7 +358,7 @@ export function startCloudRuntime(
       } catch { /* advisory AI only */ }
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get(config.ownerId)?.investmentPercent ?? config.paperInvestmentPercent;
-        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
+        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: paperExecutionObservedAt(ticker.trade_timestamp, executionNow), mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, portfolio: state.portfolio, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
@@ -384,12 +418,20 @@ export function startCloudRuntime(
     const p0State = readAiP0State();
     const p0Halted = p0State === "OPEN" || p0State === "UNVERIFIABLE";
     const autoRunning = effectivePaperLoop != null && config.upbitPublicDataEnabled;
-    const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || p0Halted ? "HALTED" as const : dashboard.mode === "STOPPED" ? "STOPPED" as const : !autoRunning ? "STOPPED" as const : transport === "ONLINE" ? "RUNNING" as const : "DEGRADED" as const;
-    const learningRuntimeStatus = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || p0Halted || heartbeat.lastError != null ? "HALTED" as const : autoRunning && transport === "ONLINE" ? "RUNNING" as const : "PAUSED" as const;
+    // The reasons and the state come from one evaluation on purpose. Computing HALTED from these
+    // three inputs and then separately describing why would let the two drift, which is exactly the
+    // gap that left a HALTED soak observation unattributable (#1855).
+    const runtimeHaltReasons: PersonalPaperRuntimeHaltReason[] = [];
+    if (dashboard.mode === "FAULTED") runtimeHaltReasons.push("DASHBOARD_FAULTED");
+    if (dashboard.killSwitchActive) runtimeHaltReasons.push("KILL_SWITCH_ACTIVE");
+    if (p0State === "OPEN") runtimeHaltReasons.push("AI_P0_OPEN");
+    if (p0State === "UNVERIFIABLE") runtimeHaltReasons.push("AI_P0_UNVERIFIABLE");
+    const runtimeState = runtimeHaltReasons.length > 0 ? "HALTED" as const : dashboard.mode === "STOPPED" ? "STOPPED" as const : !autoRunning ? "STOPPED" as const : transport === "ONLINE" ? "RUNNING" as const : "DEGRADED" as const;
+    const learningRuntimeStatus = classifyPaperLearningRuntimeStatus({ hasRuntimeHaltReason: runtimeHaltReasons.length > 0, lastError: heartbeat.lastError, autoRunning, transport });
     const primaryMarket = latestTickers.get(config.upbitMarkets[0] ?? "");
     const generatedAt = Math.max(dashboard.generatedAt, heartbeat.lastHeartbeatAt);
     const paperLearning = { schemaVersion: 1 as const, mode: "PAPER" as const, readOnly: true as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, runtimeStatus: learningRuntimeStatus, generatedAt, events: buildPaperLearningReadOnlyProjection(paperLearningRecorder.replay(), 250) };
-    return buildPersonalPaperOperationsSnapshot({ dashboard, research: researchAutomation?.statusProjection?.() ?? null, ai: aiRuntime == null ? null : projectAiReadOnly(aiRuntime.latest(Date.now())), paperLearning, operations: { runtimeState, schedulerRunning: autoRunning, schedulerMode: autoRunning ? "ACTIVE" : "OFF", pipelineStage: effectivePaperLoop == null ? "READ_ONLY_DASHBOARD" : "PAPER_EXECUTION_LOOP", transport, killSwitchActive: dashboard.killSwitchActive, accountHalted: dashboard.mode === "FAULTED" || p0Halted, pendingWrites: 0, ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}), updatedAt: generatedAt, heartbeat: readHeartbeat(), ...(paperSupervisor == null ? {} : { supervisor: paperSupervisor }) }, portfolio: buildReadOnlyPortfolio(paperSnapshot, primaryMarket), orders: buildReadOnlyOrders(paperSnapshot), markets: [...latestTickers.values()].sort((left, right) => left.market.localeCompare(right.market)) }, generatedAt);
+    return buildPersonalPaperOperationsSnapshot({ dashboard, research: researchAutomation?.statusProjection?.() ?? null, ai: aiRuntime == null ? null : projectAiReadOnly(aiRuntime.latest(Date.now())), paperLearning, operations: { runtimeState, schedulerRunning: autoRunning, schedulerMode: autoRunning ? "ACTIVE" : "OFF", pipelineStage: effectivePaperLoop == null ? "READ_ONLY_DASHBOARD" : "PAPER_EXECUTION_LOOP", transport, killSwitchActive: dashboard.killSwitchActive, accountHalted: dashboard.mode === "FAULTED" || p0Halted, ...(runtimeHaltReasons.length > 0 ? { runtimeHaltReasons: Object.freeze([...runtimeHaltReasons]) } : {}), pendingWrites: 0, ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}), updatedAt: generatedAt, heartbeat: readHeartbeat(), ...(paperSupervisor == null ? {} : { supervisor: paperSupervisor }) }, portfolio: buildReadOnlyPortfolio(paperSnapshot, primaryMarket), orders: buildReadOnlyOrders(paperSnapshot), markets: [...latestTickers.values()].sort((left, right) => left.market.localeCompare(right.market)) }, generatedAt);
   };
 
   const submitPaperOrder = (principal: DashboardPrincipal, command: PersonalPaperOrderCommand): PersonalPaperOrderCommandResult => {
@@ -416,11 +458,29 @@ export function startCloudRuntime(
 
   const handle = startCloudDashboardServer({
     port: config.port,
+    // The PAPER loop runs off a persistent ticker subscription, so its liveness is only visible
+    // from these counters. Publishing them makes 24-hour operation something that can be checked
+    // rather than assumed from the process being up.
+    runtimeLiveness: () => Object.freeze({
+      startedAt: heartbeat.startedAt,
+      lastHeartbeatAt: heartbeat.lastHeartbeatAt,
+      lastMarketEventAt: heartbeat.lastMarketEventAt,
+      lastPaperDecisionAt: heartbeat.lastPaperDecisionAt,
+      lastPaperOrderAt: heartbeat.lastPaperOrderAt,
+      lastPaperFillAt: heartbeat.lastPaperFillAt,
+      eventCount: heartbeat.eventCount,
+      decisionCount: heartbeat.decisionCount,
+      paperOrderCount: heartbeat.paperOrderCount,
+      paperFillCount: heartbeat.paperFillCount,
+      lastError: heartbeat.lastError,
+      ...(previousStop === undefined ? {} : { previousStop })
+    }),
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
     ...(userAccessRepository == null ? {} : { userAccessRepository }),
     ...(desktopSessionService == null ? {} : { desktopSessionService }),
     ...(mobileSessionService == null ? {} : { mobileSessionService }),
+    ...(ownerDeviceCredentialService == null ? {} : { ownerDeviceCredentialService }),
     readiness: () => buildCloudRuntimeReadiness(durableRepository, effectiveProvider),
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
@@ -447,24 +507,25 @@ export function startCloudRuntime(
     closePaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().closePeriod(input),
     openPaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().openPeriodFromCanonicalAccount(input),
     closePaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().closePeriodFromCanonicalAccount(input),
+    retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
     stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 
-export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
+export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit, cloudStateDbPath?: string): ShutdownController {
   const controller = createShutdownController({ stop: () => handle.stop(), exit });
   process.on("SIGTERM", () => controller.trigger("SIGTERM")); process.on("SIGINT", () => controller.trigger("SIGINT"));
 
   // Unrecoverable runtime faults must terminate the process so supervisors can restart
   // from a fail-closed state instead of serving potentially stale mutation paths.
   process.on("uncaughtException", (error) => {
-    console.error("[cloud-runtime-crash] uncaught exception", error instanceof Error ? error.message : "unknown error");
-    exit(1);
+    if (cloudStateDbPath !== undefined) recordRuntimeFailure(cloudStateDbPath, "UNCAUGHT_EXCEPTION", error);
+    handleRuntimeFault(controller, "uncaught exception", error, exit);
   });
   process.on("unhandledRejection", (reason) => {
-    console.error("[cloud-runtime-crash] unhandled rejection", reason instanceof Error ? reason.message : "unknown error");
-    exit(1);
+    if (cloudStateDbPath !== undefined) recordRuntimeFailure(cloudStateDbPath, "UNHANDLED_REJECTION", reason);
+    handleRuntimeFault(controller, "unhandled rejection", reason, exit);
   });
 
   return controller;

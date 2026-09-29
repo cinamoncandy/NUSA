@@ -27,6 +27,12 @@ function buildResearchEnv(source = process.env) {
   } else if (!path.isAbsolute(snapshotPath) || snapshotPath === ":memory:") {
     throw new Error("cloud Research snapshot path must be absolute and durable");
   }
+  const learningLedgerPath = String(env.NUSA_RESEARCH_LEARNING_LEDGER_PATH || "").trim();
+  if (!learningLedgerPath) {
+    env.NUSA_RESEARCH_LEARNING_LEDGER_PATH = path.join(path.dirname(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH), "research-investment-learning.jsonl");
+  } else if (!path.isAbsolute(learningLedgerPath) || learningLedgerPath === ":memory:") {
+    throw new Error("cloud Research investment learning ledger path must be absolute and durable");
+  }
   return env;
 }
 
@@ -40,7 +46,7 @@ function run(options = {}) {
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`cloud Research snapshot terminated by ${result.signal}`);
   if (result.status !== 0) throw new Error(`cloud Research snapshot failed with exit ${String(result.status)}`);
-  return Object.freeze({ status: "COMPLETED", sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA, snapshotPath: env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, costModelVersion: env.NUSA_RESEARCH_COST_MODEL_VERSION });
+  return Object.freeze({ status: "COMPLETED", sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA, snapshotPath: env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, learningLedgerPath: env.NUSA_RESEARCH_LEARNING_LEDGER_PATH, costModelVersion: env.NUSA_RESEARCH_COST_MODEL_VERSION });
 }
 
 if (require.main === module) {

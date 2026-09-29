@@ -1,12 +1,16 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("node:path");
 const {
   RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
+  RESEARCH_TIMEFRAMES,
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  SUPPORTED_RESEARCH_FAMILIES,
   researchStrategyFamily,
+  researchLearningLedgerPath,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest
@@ -28,10 +32,16 @@ function pageFor(request) {
 }
 
 test("research horizon is bounded and never selected from performance", () => {
+  // The default stays the daily declaration. The accepted ceiling tracks the deepest DECLARED
+  // timeframe, so an explicit override can never be rejected for a depth the defaults already
+  // use -- and it stays bounded, so no run can widen its own horizon. Every declared depth is
+  // fixed by verified contiguity before any return is observed, never by what performed well.
   assert.equal(researchCandleCount(undefined), 2000);
-  for (const value of [200, 1000, 2000]) assert.equal(researchCandleCount(String(value)), value);
-  for (const value of [0, 199, 2001, Infinity, "", "200.5", "1e3", " 200", null]) {
-    assert.throws(() => researchCandleCount(value), /integer from 200 to 2000/);
+  const ceiling = Math.max(...Object.values(RESEARCH_TIMEFRAMES).map((entry) => entry.candleCount));
+  assert.ok(Number.isInteger(ceiling) && ceiling >= 2000, "ceiling must remain a finite declared bound");
+  for (const value of [200, 1000, 2000, ceiling]) assert.equal(researchCandleCount(String(value)), Number(value));
+  for (const value of [0, 199, ceiling + 1, Infinity, "", "200.5", "1e3", " 200", null]) {
+    assert.throws(() => researchCandleCount(value), /integer from 200 to/);
   }
 });
 
@@ -88,6 +98,16 @@ test("Donchian candidate neighborhood is the immutable precommitted five-period 
   assert.ok(Object.isFrozen(DONCHIAN_PARAMETER_NEIGHBORHOOD));
   assert.ok(DONCHIAN_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
   assert.equal(researchStrategyFamily("donchian-breakout"), "donchian-breakout");
+  assert.deepEqual(SUPPORTED_RESEARCH_FAMILIES, ["sma-crossover", "rsi-mean-reversion", "donchian-breakout"]);
+  assert.equal(
+    researchLearningLedgerPath({ NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: path.resolve("/var/lib/nusa/research-replay-snapshots.json") }),
+    path.resolve("/var/lib/nusa/research-investment-learning.jsonl")
+  );
+  assert.equal(
+    researchLearningLedgerPath({ NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") }),
+    path.resolve("/var/lib/nusa/research-investment-learning.jsonl")
+  );
+  assert.throws(() => researchLearningLedgerPath({ NUSA_RESEARCH_LEARNING_LEDGER_PATH: "relative.jsonl" }), /absolute durable path/);
 });
 
 test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {

@@ -5,21 +5,20 @@ const path = require("node:path");
 
 const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
-test("bottom navigation exposes five semantic primary jobs and preserves deeper routes", () => {
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
-  assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "MARKETS"/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /Portfolio: "PORTFOLIO"/);
-  assert.match(app, /AiSignal: "AI"/);
-  assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
-  assert.match(app, /accessibilityRole="tablist"/);
-  assert.match(app, /accessibilityRole="tab"/);
-  assert.match(app, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(app, /testID=\{`tab-\$\{tab\}`\}/);
-  assert.match(app, /navIndicator: \{ height: 2/);
+test("bottom navigation exposes four semantic primary jobs and preserves deeper routes", () => {
+  const contract = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "navigationContract.ts"), "utf8");
+  const nav = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "primaryNavigation.tsx"), "utf8");
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(app, /<PrimaryNavigation/);
+  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
+  assert.match(app, /activeTab === "More" \? <MoreMenuView/);
+  assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
+  assert.doesNotMatch(app, /activeTab === "AiSignal" \? <AiView/);
+  assert.match(nav, /accessibilityRole="tablist"/);
+  assert.match(nav, /accessibilityRole="tab"/);
+  assert.match(nav, /accessibilityState=\{\{ selected: active \}\}/);
+  assert.match(nav, /testID=\{`tab-\$\{destination\}`\}/);
   assert.doesNotMatch(app, /tabGlyphs|navGlyphWrap|styles\.navGlyph|⌁|◫|⇄|◒|✦/);
 });
 
@@ -43,7 +42,8 @@ test("nav and chrome preserve PAPER-only authority and utility routing", () => {
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
   assert.doesNotMatch(app, /실행 권한 없음/);
-  assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
+  assert.match(app, /detailSurface === "Order" \? <OrderHistoryView/);
+  assert.doesNotMatch(app, /activeTab === "Order" \? <OrderHistoryView/);
   assert.match(app, /utilityView === "NOTIFICATIONS" \? <NotificationView/);
   assert.match(app, /utilityView === "SETTINGS" \? <SettingsView/);
   assert.match(app, /<HomeView/);

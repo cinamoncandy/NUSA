@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "initialCapitalKrw": 10000,
+  "decidedBy": "owner",
+  "decidedAt": "2026-09-28",
+  "note": "PAPER only. Changing this value opens a separate PAPER account. Accounts in retiredAccountIds (owner decision 2026-09-29) are purged once by the runtime after the release backup; others are never reset or deleted.",
+  "retiredAccountIds": [
+    "paper-default"
+  ]
+}

@@ -2,14 +2,27 @@ import type { ResearchRunReplaySnapshotReader } from "../../desktop/src/cloud/re
 import type { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
 import type { ClosedLearningResearchReplayResult, ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
 import type { QualifiedPaperChallengerArtifactWriter } from "./qualifiedPaperChallengerArtifactStore";
-import type { PaperChallengerDeploymentAdapter, ClosedLearningPaperDeploymentReceipt } from "./closedLearningLoopCoordinator";
+import { isGovernanceApprovalUnavailable, type PaperChallengerDeploymentAdapter, type ClosedLearningPaperDeploymentReceipt } from "./closedLearningLoopCoordinator";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
+
+const STALE_SNAPSHOT_MESSAGE = "research replay snapshot provenance drift";
+
+/**
+ * The latest Research snapshot no longer reproduces its original run under the current release
+ * (captured by an older Research/League version). It can never be deployed, so it is a wait for the
+ * next Research run, not a fault. Throwing would stop the whole PAPER runtime on every restart.
+ */
+export function isResearchSnapshotStale(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message === STALE_SNAPSHOT_MESSAGE || error.message.endsWith(`: ${STALE_SNAPSHOT_MESSAGE}`);
+}
 
 export type ClosedLearningInitialPaperBootstrapStatus =
   | "WAITING_RESEARCH_SNAPSHOT"
   | "EXISTING_PAPER_STATE"
   | "RESEARCH_NOT_DEPLOYABLE"
+  | "WAITING_GOVERNANCE_APPROVAL"
   | "DEPLOYED";
 
 export interface ClosedLearningInitialPaperBootstrapResult {
@@ -106,14 +119,24 @@ export class ClosedLearningInitialPaperBootstrap {
       throw new Error("initial PAPER bootstrap persisted artifact identity drifted");
     }
     const decision = bootstrapDecision(result);
-    const deployment = this.options.deployment.deploy({
-      cycleId: `closed-learning-initial:${result.replayRunFingerprintSha256}`,
-      decision,
-      authority: "PAPER_RESEARCH_ONLY",
-      liveAuthority: "NONE",
-      productionMutationAllowed: false,
-      aiAuthority: "ZERO_AUTHORITY",
-    });
+    let deployment: ClosedLearningPaperDeploymentReceipt;
+    try {
+      deployment = this.options.deployment.deploy({
+        cycleId: `closed-learning-initial:${result.replayRunFingerprintSha256}`,
+        decision,
+        authority: "PAPER_RESEARCH_ONLY",
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      });
+    } catch (error) {
+      // A qualified candidate without a Governance approval is a wait, not a fault: failing here
+      // would stop the whole PAPER runtime and crash-loop it on every restart.
+      if (isGovernanceApprovalUnavailable(error)) {
+        return Object.freeze({ status: "WAITING_GOVERNANCE_APPROVAL", originalRunFingerprintSha256, reasons: Object.freeze(["PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE"]) });
+      }
+      throw error;
+    }
     return Object.freeze({
       status: "DEPLOYED",
       originalRunFingerprintSha256,
@@ -138,7 +161,14 @@ export class ClosedLearningInitialPaperBootstrap {
     const fingerprint = eligible.fingerprint!;
     const cached = this.cachedResult(fingerprint);
     if (cached != null) return cached;
-    return this.remember(fingerprint, this.finalize(fingerprint, this.options.worker.replayInitialResearch(fingerprint)));
+    let result: ClosedLearningResearchReplayResult;
+    try {
+      result = this.options.worker.replayInitialResearch(fingerprint);
+    } catch (error) {
+      if (isResearchSnapshotStale(error)) return this.remember(fingerprint, staleSnapshot(fingerprint));
+      throw error;
+    }
+    return this.remember(fingerprint, this.finalize(fingerprint, result));
   }
 
   /** Async production path yields while the isolated Research/League child process executes when supported. */
@@ -148,9 +178,24 @@ export class ClosedLearningInitialPaperBootstrap {
     const fingerprint = eligible.fingerprint!;
     const cached = this.cachedResult(fingerprint);
     if (cached != null) return cached;
-    const result = this.options.worker.replayInitialResearchAsync == null
-      ? this.options.worker.replayInitialResearch(fingerprint)
-      : await this.options.worker.replayInitialResearchAsync(fingerprint);
+    let result: ClosedLearningResearchReplayResult;
+    try {
+      result = this.options.worker.replayInitialResearchAsync == null
+        ? this.options.worker.replayInitialResearch(fingerprint)
+        : await this.options.worker.replayInitialResearchAsync(fingerprint);
+    } catch (error) {
+      if (isResearchSnapshotStale(error)) return this.remember(fingerprint, staleSnapshot(fingerprint));
+      throw error;
+    }
     return this.remember(fingerprint, this.finalize(fingerprint, result));
   }
+}
+
+/** Remembered per fingerprint, so a stale snapshot is replayed once and the next Research run is retried. */
+function staleSnapshot(originalRunFingerprintSha256: string): ClosedLearningInitialPaperBootstrapResult {
+  return Object.freeze({
+    status: "WAITING_RESEARCH_SNAPSHOT",
+    originalRunFingerprintSha256,
+    reasons: Object.freeze(["RESEARCH_SNAPSHOT_STALE"]),
+  });
 }

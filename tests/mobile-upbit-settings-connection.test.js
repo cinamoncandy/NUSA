@@ -11,7 +11,7 @@ test("settings mounts a dedicated Upbit read-only connection panel", () => {
   assert.match(settings, /<UpbitConnectionPanel\s*\/>/);
 });
 
-test("Upbit settings connection is tokenless, HTTPS-only, process-memory-only, and refreshes globally", () => {
+test("Upbit settings connection is tokenless, HTTPS-only, and refreshes the approved PAPER session globally", () => {
   const panel = read("apps/mobile/src/upbitConnectionPanel.tsx");
   const lifecycle = read("apps/mobile/src/upbitReadOnlyAccount.ts");
   const approvedSession = read("apps/mobile/src/mobileApprovedSession.ts");
@@ -34,12 +34,13 @@ test("Upbit settings connection is tokenless, HTTPS-only, process-memory-only, a
   assert.match(lifecycle, /lastSuccessAt/);
   assert.doesNotMatch(lifecycle, /upbitCredentialSession|setSecret|getSecret|AsyncStorage|SecureStore/);
 
-  // Mobile PAPER credentials may exist only in process memory. The storage port
-  // is used solely to delete legacy keys left by older builds.
+  // Access tokens remain process-memory-only; the rotating refresh session is protected by the
+  // platform SecureStoragePort so an already-approved device can reconnect after restart.
   assert.match(approvedSession, /private refreshToken: string \| null = null/);
-  assert.match(approvedSession, /destroyLegacyPersistedCredentials/);
-  assert.doesNotMatch(approvedSession, /\.setSecret\(/);
-  assert.doesNotMatch(approvedSession, /\.getSecret\(/);
+  assert.match(approvedSession, /persistOrClear/);
+  assert.match(approvedSession, /\.setSecret\(/);
+  assert.match(approvedSession, /\.getSecret\(/);
+  assert.doesNotMatch(approvedSession, /accessToken: tokens\.accessToken/);
 
   assert.match(client, /url\.protocol !== "https:"/);
   assert.match(client, /\/api\/v1\/account\/summary/);
@@ -76,5 +77,4 @@ test("real-account client and monitor source do not persist or echo exchange sec
   assert.doesNotMatch(combined, /UPBIT_ACCESS_KEY|UPBIT_SECRET_KEY/);
   assert.doesNotMatch(approvedSession, /console\.(?:log|error|warn)\([^\n]*(?:authorization|token)/i);
   assert.doesNotMatch(client, /console\.(?:log|error|warn)\([^\n]*(?:authorization|token)/i);
-  assert.doesNotMatch(approvedSession, /\.setSecret\(|\.getSecret\(/);
 });

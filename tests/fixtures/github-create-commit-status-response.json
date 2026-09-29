@@ -1,0 +1,15 @@
+{
+  "url": "https://api.github.com/repos/cinamoncandy/NUSA/statuses/4f2a0402b1ba96b0dfaac0554f0d03c566e1e4f6",
+  "avatar_url": "https://avatars.githubusercontent.com/u/213270074?v=4",
+  "id": 54096591422,
+  "node_id": "SC_kwDOTUbne88AAAAMmGh6Pg",
+  "state": "success",
+  "description": "canonical Audit PASS; pr=1875; base=79289f9f33f63e6b699bdbc42863c3e458f782a4",
+  "target_url": "https://github.com/cinamoncandy/NUSA/actions/runs/34813290255",
+  "context": "nusa/release-authorized",
+  "creator": {
+    "login": "nusa-release-authority[bot]",
+    "id": 328901042,
+    "type": "Bot"
+  }
+}

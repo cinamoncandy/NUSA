@@ -7,6 +7,39 @@ const DEFAULT_WEBHOOK_URL = "https://nusa-autopilot.desporin12.workers.dev/githu
 const DEFAULT_OIDC_AUDIENCE = "nusa-autopilot";
 const SUPPORTED_EVENTS = new Set(["push", "pull_request", "workflow_run", "ping"]);
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
+/**
+ * Executor decisions that are the control plane working, not a delivery problem.
+ *
+ * The webhook itself succeeded; the executor then looked at the pull request's current state and
+ * correctly declined to request an Audit for it. Sticky HOLD (#1876) exists precisely so a closed,
+ * Draft or HOLD-labelled pull request cannot be advanced by an event, so treating that refusal as a
+ * bridge failure reports the guard doing its job as a red run on main - and real delivery failures
+ * then hide among the noise.
+ *
+ * Every other non-dispatch outcome still throws. In particular `github-executor-pr-number-required`
+ * is also REJECTED but means the request was malformed, which is a defect and must stay loud.
+ */
+const EXECUTOR_STATE_DECLINES = new Set([
+  "github-executor-pr-not-open",
+  "github-executor-pr-draft-hold-active",
+  "github-executor-pr-hold-label-active",
+  "github-executor-duplicate-execution-suppressed",
+  "github-executor-duplicate-audit-run-suppressed"
+]);
+
+/**
+ * Statuses the control plane returns when it has decided, deliberately, not to execute.
+ *
+ * These carry no executor evidence because no executor was consulted. They are not malformed
+ * responses, and treating them as such hides the `reason` that says why - the one field anyone
+ * debugging a stuck pull request actually needs.
+ */
+const CONTROL_PLANE_TERMINAL_STATUSES = new Set([
+  "NOOP",
+  "NO_ACTION",
+  "DUPLICATE_EXECUTION_SUPPRESSED"
+]);
+
 const MAX_ATTEMPTS = 2;
 const REQUEST_TIMEOUT_MS = 20_000;
 const AUDIT_CREDENTIAL_FAILURES = new Set([
@@ -97,7 +130,32 @@ async function responseSafety(response) {
   if (payload.productionMutationAllowed !== false) throw new Error("WEBHOOK_RESPONSE_PRODUCTION_MUTATION_INVALID");
   if (payload.aiAuthority !== "ZERO_AUTHORITY") throw new Error("WEBHOOK_RESPONSE_AI_AUTHORITY_INVALID");
   const executor = object(payload.executor);
-  if (!executor) throw new Error("WEBHOOK_EXECUTOR_EVIDENCE_INVALID");
+  if (!executor) {
+    // The control plane can reach a terminal decision without ever consulting an executor: an
+    // explicit NOOP when a Ready replay resolves no canonical CI identity (#1955), a NO_ACTION
+    // under an active control-plane hold, or a suppressed duplicate. Those responses carry a
+    // `reason` and no executor evidence, and demanding evidence from them reports a designed
+    // decision as a malformed payload - which is how the reason the control plane actually gave
+    // stops reaching anyone. Accept them, and carry the reason through.
+    if (!CONTROL_PLANE_TERMINAL_STATUSES.has(String(payload.status ?? ""))) {
+      throw new Error("WEBHOOK_EXECUTOR_EVIDENCE_INVALID");
+    }
+    const noopReason = payload.reason;
+    if (noopReason !== null && noopReason !== undefined && (typeof noopReason !== "string" || !/^[A-Za-z0-9_.:-]{1,200}$/.test(noopReason))) {
+      throw new Error("WEBHOOK_CONTROL_PLANE_REASON_INVALID");
+    }
+    return Object.freeze({
+      payload,
+      executor: Object.freeze({
+        status: "NOOP",
+        reason: noopReason ?? null,
+        httpStatus: null,
+        requestedHeadSha: null,
+        observedHeadSha: null,
+        controlPlaneStatus: String(payload.status)
+      })
+    });
+  }
   const status = executor.status;
   if (!["NOOP", "INTERFACE_READY", "DISPATCHED", "REJECTED", "FAILED"].includes(status)) throw new Error("WEBHOOK_EXECUTOR_STATUS_INVALID");
   const reason = executor.reason;
@@ -191,7 +249,8 @@ export async function dispatchGithubEvent({
       const { payload, executor } = await responseSafety(response);
       const fallbackEligible = isAuditFallbackEligible(payload);
       const execution = object(payload.execution);
-      if (execution?.kind === "AUDIT_REQUEST" && executor.status !== "DISPATCHED" && !fallbackEligible) {
+      const declined = executor.status === "REJECTED" && EXECUTOR_STATE_DECLINES.has(String(executor.reason ?? ""));
+      if (execution?.kind === "AUDIT_REQUEST" && executor.status !== "DISPATCHED" && !fallbackEligible && !declined) {
         throw new Error(`WEBHOOK_AUDIT_NOT_DISPATCHED:${executor.status}:${executor.reason ?? "none"}:${executor.httpStatus ?? "none"}`);
       }
       return Object.freeze({

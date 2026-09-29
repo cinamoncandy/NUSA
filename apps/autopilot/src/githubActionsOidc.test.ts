@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
+import {
+  verifyGithubActionsOidcToken,
+  verifyGithubEventBridgeOidcToken,
+  verifyGithubReleaseControlOidcToken,
+} from "./githubActionsOidc";
 
 const repository = "cinamoncandy/NUSA";
 const now = 1_788_061_200;
+const releaseWorkflowRef = `${repository}/.github/workflows/autopilot-deterministic-audit-release.yml@refs/heads/main`;
 
 function base64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -84,7 +89,35 @@ describe("GitHub Actions OIDC", () => {
     await assert.rejects(() => verifyGithubEventBridgeOidcToken(wrongEvent.token, repository, wrongEvent.fetch, now), /EVENT_BRIDGE_OIDC_EVENT_INVALID/);
   });
 
-  it("rejects wrong audience and expired tokens", async () => {
+  it("accepts only the canonical Release control workflow identity", async () => {
+    const valid = await fixture({ workflow_ref: releaseWorkflowRef });
+    await verifyGithubReleaseControlOidcToken(valid.token, repository, valid.fetch, now);
+
+    const wrongWorkflow = await fixture({ workflow_ref: `${repository}/.github/workflows/autopilot-execution-consumer.yml@refs/heads/main` });
+    await assert.rejects(() => verifyGithubReleaseControlOidcToken(wrongWorkflow.token, repository, wrongWorkflow.fetch, now), /RELEASE_CONTROL_OIDC_WORKFLOW_INVALID/);
+
+    const wrongRepository = await fixture({ repository: "other/NUSA", workflow_ref: releaseWorkflowRef });
+    await assert.rejects(() => verifyGithubReleaseControlOidcToken(wrongRepository.token, repository, wrongRepository.fetch, now), /RELEASE_CONTROL_OIDC_REPOSITORY_INVALID/);
+
+    const wrongAudience = await fixture({ aud: "other-service", workflow_ref: releaseWorkflowRef });
+    await assert.rejects(() => verifyGithubReleaseControlOidcToken(wrongAudience.token, repository, wrongAudience.fetch, now), /RELEASE_CONTROL_OIDC_AUDIENCE_INVALID/);
+
+    const wrongRef = await fixture({ ref: "refs/heads/feature", workflow_ref: releaseWorkflowRef });
+    await assert.rejects(() => verifyGithubReleaseControlOidcToken(wrongRef.token, repository, wrongRef.fetch, now), /RELEASE_CONTROL_OIDC_REF_INVALID/);
+
+    const wrongEvent = await fixture({ event_name: "workflow_run", workflow_ref: releaseWorkflowRef });
+    await assert.rejects(() => verifyGithubReleaseControlOidcToken(wrongEvent.token, repository, wrongEvent.fetch, now), /RELEASE_CONTROL_OIDC_EVENT_INVALID/);
+
+    const expired = await fixture({ exp: now - 120, workflow_ref: releaseWorkflowRef });
+    await assert.rejects(() => verifyGithubReleaseControlOidcToken(expired.token, repository, expired.fetch, now), /RELEASE_CONTROL_OIDC_EXPIRED/);
+
+    const badSignature = await fixture({ workflow_ref: releaseWorkflowRef });
+    const [header, claims] = badSignature.token.split(".");
+    const forged = `${header}.${claims}.${base64Url(new Uint8Array(256))}`;
+    await assert.rejects(() => verifyGithubReleaseControlOidcToken(forged, repository, badSignature.fetch, now), /RELEASE_CONTROL_OIDC_SIGNATURE_INVALID/);
+  });
+
+  it("rejects wrong audience and expired coding tokens", async () => {
     const wrongAudience = await fixture({ aud: "other-service" });
     await assert.rejects(() => verifyGithubActionsOidcToken(wrongAudience.token, repository, wrongAudience.fetch, now), /CODING_RUNNER_OIDC_AUDIENCE_INVALID/);
 

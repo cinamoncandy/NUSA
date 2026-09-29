@@ -62,6 +62,7 @@ describe("github validated patch publisher", () => {
       if (url.endsWith("/git/blobs")) return response(201, { sha: blobSha });
       if (url.endsWith("/git/trees")) return response(201, { sha: newTreeSha });
       if (url.endsWith("/git/commits")) return response(201, { sha: commitSha });
+      if (url.includes("/git/ref/heads/nusa/autopilot/")) return response(404, {});
       if (url.endsWith("/git/refs")) return response(201, { ref: "refs/heads/nusa/autopilot/test" });
       if (url.endsWith("/pulls")) return response(201, { number: 77, html_url: "https://github.com/cinamoncandy/NUSA/pull/77" });
       return response(404, {});
@@ -71,7 +72,7 @@ describe("github validated patch publisher", () => {
     assert.equal(result.commitSha, commitSha);
     assert.equal(result.pullRequestNumber, 77);
     assert.match(result.branch, /^nusa\/autopilot\//);
-    assert.equal(calls.length, 7);
+    assert.equal(calls.length, 8);
 
     const blobCall = calls.find((call) => call.url.endsWith("/git/blobs"));
     assert.deepEqual(JSON.parse(String(blobCall?.init?.body)), { content: "export const value = 2;\n", encoding: "utf-8" });
@@ -85,5 +86,35 @@ describe("github validated patch publisher", () => {
     const pullBody = JSON.parse(String(pullCall?.init?.body));
     assert.equal(pullBody.base, "main");
     assert.equal(pullBody.head, result.branch);
+    assert.equal(pullBody.draft, true, "autonomous publication must remain Draft until explicit HOLD clearance");
   });
+
+  it("reuses the exact existing execution branch and open pull request", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const treeSha = "b".repeat(40);
+    const blobSha = "c".repeat(40);
+    const newTreeSha = "d".repeat(40);
+    const commitSha = "e".repeat(40);
+    const publisher = new GithubValidatedPatchPublisher({ token: "token", allowedRepository: request.repository }, async (url, init) => {
+      calls.push({ url, init });
+      if (url.endsWith("/git/ref/heads/main")) return response(200, { object: { sha: request.headSha } });
+      if (url.includes("/git/ref/heads/nusa/autopilot/")) return response(200, { object: { sha: commitSha } });
+      if (url.endsWith(`/git/commits/${request.headSha}`)) return response(200, { tree: { sha: treeSha } });
+      if (url.endsWith("/git/blobs")) return response(201, { sha: blobSha });
+      if (url.endsWith("/git/trees")) return response(201, { sha: newTreeSha });
+      if (url.endsWith("/git/commits")) return response(201, { sha: commitSha });
+      if (url.includes("/pulls?state=open&head=")) return response(200, [{ number: 77, html_url: "https://github.com/cinamoncandy/NUSA/pull/77", head: { sha: commitSha } }]);
+      return response(404, {});
+    });
+
+    const result = await publisher.publish(request, runtime);
+    assert.equal(result.commitSha, commitSha);
+    assert.equal(result.pullRequestNumber, 77);
+    assert.equal(calls.some((call) => call.url.endsWith("/git/blobs")), false, "replay must not create a new blob");
+    assert.equal(calls.some((call) => call.url.endsWith("/git/trees")), false, "replay must not create a new tree");
+    assert.equal(calls.some((call) => call.url.endsWith("/git/commits")), false, "replay must not create a new commit");
+    assert.equal(calls.some((call) => call.url.endsWith("/git/refs") && call.init?.method === "POST"), false);
+    assert.equal(calls.some((call) => call.url.endsWith("/pulls") && call.init?.method === "POST"), false);
+  });
+
 });

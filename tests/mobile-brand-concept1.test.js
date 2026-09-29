@@ -18,6 +18,7 @@ test("runtime mobile brand keeps the provisional symbol hidden while logo produc
 test("Android launcher resources expose Concept 1, monochrome, notification, and splash assets", () => {
   const manifest = read("apps/mobile/android/app/src/main/AndroidManifest.xml");
   const fallback = read("apps/mobile/android/app/src/main/res/mipmap-anydpi-v24/ic_launcher.xml");
+  const fallbackRound = read("apps/mobile/android/app/src/main/res/mipmap-anydpi-v24/ic_launcher_round.xml");
   const adaptive = read("apps/mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml");
   const logo = read("apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo.xml");
   const notification = read("apps/mobile/android/app/src/main/res/drawable/ic_nusa_notification.xml");
@@ -26,10 +27,16 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  assert.match(fallback, /M54,24L82,62H26Z/);
-  assert.match(logo, /M54,24L82,62H26Z/);
-  assert.match(splash, /M54,22L84,64H24Z/);
+  // Intelligence Field mark: amber diamond core inside an orbit of five subsystem arcs.
+  for (const drawable of [fallback, fallbackRound, logo, splash]) {
+    assert.match(drawable, /orbit of five subsystem arcs/);
+    assert.match(drawable, /NUSA Intelligence Field mark/);
+    assert.match(drawable, /#FFB547/);
+    for (const hue of ["#4FC3F7", "#9B7BFF", "#3DDC97", "#7C8CFF", "#FFA94D"]) assert.ok(drawable.includes(hue), hue);
+  }
+  assert.match(fallback, /#010204/);
   assert.match(adaptive, /<monochrome android:drawable="@drawable\/ic_nusa_logo_monochrome"\s*\/>/);
-  assert.match(notification, /M12,3L20,14H4Z/);
+  assert.match(notification, /NUSA Intelligence Field mark/);
+  assert.doesNotMatch(notification, /#(?!FFFFFFFF|00000000)[0-9A-F]{6}/i, "notification icon must stay monochrome");
   assert.match(api31Theme, /windowSplashScreenAnimatedIcon/);
 });

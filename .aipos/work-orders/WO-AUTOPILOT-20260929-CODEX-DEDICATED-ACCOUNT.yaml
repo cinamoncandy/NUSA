@@ -1,0 +1,32 @@
+id: WO-AUTOPILOT-20260929-CODEX-DEDICATED-ACCOUNT
+title: "Autopilot develops through one dedicated ChatGPT Codex account"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-autopilot-codex
+authority_impact: none
+owner_decision: "2026-09-29 owner: autopilot must actually develop, using ChatGPT (Codex) usage from one specific account (the one logged in on the evening of 2026-09-28), not the account the owner uses for interactive Codex work and not Cloudflare Workers AI."
+objective: "The last 120 scheduled autopilot cycles were all WAITING_RATE_LIMIT / waiting-provider-capacity: the Workers AI free quota is exhausted daily and shared with Audit, so the autopilot produced no code."
+scope:
+  - "selectCodexBacklogTask (apps/autopilot/src/evolveGithubIssueBacklog.ts): same owner-backlog eligibility as the Workers AI path (open, owner-authored, not blocked, priority title, safety contract, valid metadata, no linked open PR) but also RESEARCH/GENERAL issues; UNKNOWN excluded; one issue at a time."
+  - "scripts/autopilot-codex-select.js: read-only selection plus a Codex prompt carrying the AGENTS/AIPOS/CORE contract (no commit/push/PR, no LIVE/credential/workflow/deploy paths)."
+  - ".github/workflows/autopilot-codex-coding.yml: every 2 hours and on dispatch; skips while an autopilot/codex PR is open; runs Codex only on the runner labelled nusa-codex-autopilot (the dedicated account); a ChatGPT usage limit is a wait with no fallback account; the patch is applied to current main on GitHub-hosted hardware, the protected-path boundary is enforced, build/typecheck/validate/work-order index/tests must pass, and only then the workflow pushes autopilot/codex/issue-N-<run> and opens a PR (Refs #N)."
+exclusions:
+  - "Codex gets no commit, push, PR, merge or deploy authority. PRs merge only through CI, Audit and the deterministic Release. No LIVE, credential or production authority."
+owner_setup_required:
+  - "Add the label nusa-codex-autopilot to exactly one self-hosted runner (Settings -> Actions -> Runners) and keep it logged in to the dedicated ChatGPT account (codex login --device-auth)."
+  - "Runners must be online (all were offline on 2026-09-29)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "tests/autopilot-codex-coding.test.js: RESEARCH/GENERAL selection by priority; unsafe/outsider/blocked/linked/LIVE issues rejected; prompt contract; runner pinned to nusa-codex-autopilot; Codex job has no push/PR/token; usage-limit wait; validation gates ordered before PR creation; single open autopilot PR."

@@ -1,0 +1,55 @@
+id: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
+title: "Define canonical NUSA-wide Jev domain observation and task-type registry"
+status: BLOCKED
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+implementation_branch: feat/2326-jev-domain-observation-registry
+authority_impact: none
+objective: "Prevent per-domain Jev contract drift by introducing one reusable metadata-only observation envelope and task-type policy registry on top of the existing JevShadowRouter/Model Router foundation."
+canonical_owner: "AI Platform / Model Router"
+scope:
+  include:
+    - "Register the initial Jev task types across all 17 NUSA rollout domains."
+    - "Bind every task type to one canonical owner and an explicit rollout ceiling."
+    - "Start every registered task type at SHADOW with no calibration evidence."
+    - "Provide one metadata-only observation envelope with replay/correlation identity and model/provider provenance."
+    - "Reject secret-shaped decision fields and obvious bearer/private-key values."
+    - "Mechanically assert ZERO_AUTHORITY, no production mutation, no LIVE authority, and protected-action prohibitions."
+    - "Reuse existing WORKFLOW_FAILURE_CLASSIFICATION and RESEARCH_INTELLIGENCE_ATTENTION_SHADOW names without replacing their current contracts."
+  exclude:
+    - "Domain adapters or new provider transport in this increment."
+    - "Calibration promotion to CALIBRATED_ASSIST or ACTIVE_ROUTING_ADVISORY."
+    - "New scheduler, orchestrator, evidence store, governance engine, Audit engine, Release engine, or trading authority."
+acceptance:
+  - "One task-type registry covers all currently planned NUSA Jev rollout domains."
+  - "All initial policies remain SHADOW until versioned calibration evidence is introduced in a later successor."
+  - "No protected transition or canonical truth mutation can be registered as an allowed Jev action."
+  - "Common observations are replay-identifiable and contain provider/model/fallback/correlation metadata without raw secrets."
+  - "usableForRouting remains false for all currently approved task policies."
+  - "Existing #2310 and #2315 Jev contracts are referenced/reused, not duplicated or rewritten."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "pnpm run build"
+  - "node --test tests/jev-domain-observation.test.js"
+  - "pnpm exec tsc -p tsconfig.json --noEmit"
+  - "pnpm run lint"
+  - "pnpm run ai:architecture"
+  - "pnpm run safety:invariants"
+  - "pnpm run aipos:yaml"
+  - "pnpm run aipos:drift"
+  - "pnpm run aipos:provenance"
+  - "git diff --check"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  implementation_head: ca56eb2a21ae93c84031ed210a62805508d8908a
+  local_validation: "Local focused TypeScript compile PASS; runtime checks for credential-prefix rejection, requiredModel enum validation, and provenance boolean validation PASS; AIPOS YAML and git diff checks PASS. Full-repository tsc on the 1 GB nusa-vcn verifier was boundedly stopped for resource pressure, not a diagnostic failure."
+  external_validation: "Implementation head ca56eb2a exact-head CI 36287313910 PASS with validation, all coverage shards, aggregate coverage, and test; review threads RESOLVED. This metadata-only reconciliation requires fresh exact-head CI. Independent Audit is externally BLOCKED by WORKERS_AI_DAILY_QUOTA_EXHAUSTED until 2026-09-28T00:00:00Z (2026-09-28 09:00 KST), then canonical Release/merge remain required."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Run one fresh exact-head CI for this metadata-only reconciliation. Do not retry Audit before 2026-09-28T00:00:00Z; after the persisted provider wait expires, request independent Audit, then canonical Release/merge. No rollout above SHADOW."

@@ -79,7 +79,12 @@ test("deployment convergence receipt requires every exact-main proof surface", (
     assert.match(receipt, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(watchdog, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
-  assert.match(receipt, /status: \$status/);
+  assert.match(receipt, /convergence_status: \$convergence_status/);
+  assert.match(receipt, /release_status: \$release_status/);
+  assert.match(receipt, /CONVERGENCE_STATUS=CONVERGENCE_INCOMPLETE/);
+  assert.match(receipt, /CONVERGENCE_STATUS=CONVERGED/);
+  assert.match(receipt, /RELEASE_STATUS=RELEASE_PROVENANCE_UNKNOWN/);
+  assert.doesNotMatch(receipt, /RELEASE_STATUS=RELEASE_COMPLETE/);
   assert.match(receipt, /liveAuthority: "NONE"/);
   assert.match(receipt, /productionMutationAllowed: false/);
   assert.match(receipt, /aiAuthority: "ZERO_AUTHORITY"/);

@@ -4,6 +4,7 @@ const DEFAULT_AUDIENCE = "nusa-autopilot";
 const CLOCK_SKEW_SECONDS = 60;
 const CODING_RUNNER_WORKFLOW = ".github/workflows/autopilot-execution-consumer.yml";
 const EVENT_BRIDGE_WORKFLOW = ".github/workflows/autopilot-github-event-bridge.yml";
+const RELEASE_CONTROL_WORKFLOW = ".github/workflows/autopilot-deterministic-audit-release.yml";
 const EVENT_BRIDGE_EVENTS = new Set(["push", "pull_request_target", "workflow_run"]);
 
 interface JsonResponse {
@@ -38,7 +39,7 @@ interface JsonWebKeySet {
 }
 
 interface OidcPolicy {
-  readonly errorPrefix: "CODING_RUNNER_OIDC" | "EVENT_BRIDGE_OIDC";
+  readonly errorPrefix: "CODING_RUNNER_OIDC" | "EVENT_BRIDGE_OIDC" | "RELEASE_CONTROL_OIDC";
   readonly workflowPath: string;
   readonly requireMainRef: boolean;
   readonly allowedEvents: ReadonlySet<string>;
@@ -56,6 +57,13 @@ const EVENT_BRIDGE_POLICY: OidcPolicy = Object.freeze({
   workflowPath: EVENT_BRIDGE_WORKFLOW,
   requireMainRef: false,
   allowedEvents: EVENT_BRIDGE_EVENTS,
+});
+
+const RELEASE_CONTROL_POLICY: OidcPolicy = Object.freeze({
+  errorPrefix: "RELEASE_CONTROL_OIDC",
+  workflowPath: RELEASE_CONTROL_WORKFLOW,
+  requireMainRef: true,
+  allowedEvents: new Set(["repository_dispatch"]),
 });
 
 function decodeBase64Url(value: string): Uint8Array {
@@ -179,4 +187,14 @@ export async function verifyGithubEventBridgeOidcToken(
   audience = DEFAULT_AUDIENCE,
 ): Promise<void> {
   return verifyWithPolicy(token, allowedRepository, EVENT_BRIDGE_POLICY, fetchImpl, nowSeconds, audience);
+}
+
+export async function verifyGithubReleaseControlOidcToken(
+  token: string,
+  allowedRepository: string,
+  fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
+  nowSeconds = Math.floor(Date.now() / 1000),
+  audience = DEFAULT_AUDIENCE,
+): Promise<void> {
+  return verifyWithPolicy(token, allowedRepository, RELEASE_CONTROL_POLICY, fetchImpl, nowSeconds, audience);
 }
