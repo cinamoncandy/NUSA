@@ -1,0 +1,50 @@
+id: WO-AUTOPILOT-20260929-WORKFLOW-ACTIONABILITY
+title: "Bind workflow repair to exact run and preserve ready Core issue progression"
+status: READY_FOR_EXACT_HEAD_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
+implementation_branch: codex/autopilot-actionability-1851
+pull_request: 1854
+authority_impact: none
+objective: "Prevent non-code workflow failures from consuming the existing #903 coding path or starving an eligible owner-approved Core issue."
+scope:
+  include:
+    - "Continue existing issue #1851 and PR #1854 actionability gate on latest main."
+    - "Bind selected workflow failure to exact run id and protected-main SHA."
+    - "After non-code failure, consider eligible issue backlog only against successful exact-main canonical CI."
+    - "Keep existing coordinator, dedupe, active WIP and provider wait contracts."
+  exclude:
+    - "No new queue, scheduler, coding provider or audit authority."
+    - "No quota bypass, credential or LIVE changes, or financial execution."
+acceptance:
+  - "Credential, deployment and evidence failures never dispatch CodingRunner."
+  - "Unrelated failed workflow does not override successful canonical CI and a ready Core issue."
+  - "Stale/malformed run metadata fails closed."
+  - "Provider wait, dedupe and active WIP protections remain effective."
+  - "Two concurrent CI failure events with different run IDs but the same workflow, main SHA and conclusion dispatch only one logical repair."
+verification_commands:
+  - "pnpm run build"
+  - "node --test dist/apps/autopilot/src/scheduledEvolutionCoding.test.js dist/apps/autopilot/src/scheduledRuntime.failureRouting.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run test"
+  - "git diff --check"
+verification_results:
+  focused_tests: "PASS 30/30, including distinct-run same-logical-work concurrent replay suppression"
+  build: PASS
+  validate_full: PASS
+  security_gate: "PASS; 0 secrets, 0 unmitigated findings"
+  typecheck: PASS
+  lint: "PASS; 13 pre-existing warnings, 0 errors"
+  full_tests: "PASS; clean-head isolated suite 1,090 files, including final replay regression"
+  exact_head_ci: PENDING
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  paper_only: true
+next_permitted_action: "Complete local tests, push only validated exact head to existing PR #1854, then independent Audit and Release; observe provider recovery separately."

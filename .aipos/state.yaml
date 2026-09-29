@@ -1,4 +1,15 @@
 version: 1
+current_autopilot_workflow_actionability:
+  work_order: WO-AUTOPILOT-20260929-WORKFLOW-ACTIONABILITY
+  status: READY_FOR_EXACT_HEAD_CI
+  branch: codex/autopilot-actionability-1851
+  pull_request: 1854
+  base_sha: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
+  authority_impact: none
+  finding: "Unrelated exact-main workflow failures were selected ahead of ready Core issue work; a successful canonical CI run could inherit another run's failure signal."
+  validation: "Focused tests 30/30, build, validate:full, security:gate, typecheck, lint PASS; clean-head full isolated tests PASS (1,090 files), including same-logical-work replay regression. Exact-head CI pending."
+  remaining: push_then_exact_head_CI_then_independent_Audit_then_Release_then_runtime_proof
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_security_fast_uri_backport:
   work_order: WO-SECURITY-20260929-FAST-URI
   status: READY_FOR_REVIEW
