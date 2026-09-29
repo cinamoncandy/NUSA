@@ -22,6 +22,19 @@ current_autopilot_runtime_provider_wait:
   validation: "Focused runtime tests 7/7, lint:scripts, AI zero-authority, safety invariants, and diff check PASS; fresh exact-head CI required."
   remaining: exact-head-CI_then-independent-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-runtime-observation
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_capacity_efficiency:
+  work_order: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
+  status: MERGED_VERIFIED_RUNTIME_EVIDENCE_PENDING
+  branch: codex/autopilot-provider-wait-cost-efficiency
+  pull_request: 2378
+  base_sha: ea54b66274a238b37c36b66d227003f6246b7392
+  implementation_head: 7308a988bb9421389b6c428a3431644eedac067f
+  merge_commit: 963890b80ea79a17f8889c278463524b847af180
+  validation: "PR #2378 final head 7308a988 exact-head CI 36511138656 PASS; required PAPER/read-only/Restricted LIVE workflows 36511138621, 36511138631, 36511138653, 36511138692, 36511138714 PASS. Independent Audit and canonical Release 36511552908 PASS; merged as main 963890b80ea79a17f8889c278463524b847af180. Post-merge CI 36511589685, Cloudflare deploy 36511589835, and exact-main runtime proof 36511653054 PASS. Runtime remains WAITING_RATE_LIMIT / waiting-provider-capacity; no Jev inference or runtime neuron savings was measured."
+  scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
+  authority_impact: none
+  remaining: local-validation_then_exact-head-CI_then_independent-Audit_then_canonical-Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_capital_5000_account:
   work_order: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
   status: ROLLED_BACK
