@@ -69,7 +69,7 @@ test("native Workers AI binding uses the lower-neuron Jev shadow model with boun
       },
     });
     assert.equal(calls, 1);
-    assert.equal(seenModel, "@cf/meta/llama-3.1-8b-instruct-fp8");
+    assert.equal(seenModel, "@cf/meta/llama-3.1-8b-instruct-fast");
     assert.match(seenPrompt, /TEST_ASSERTION_MISMATCH/);
     assert.doesNotMatch(seenPrompt, /secret-value/);
     assert.equal(receipt.selectedOutcome, "TEST");
@@ -77,8 +77,10 @@ test("native Workers AI binding uses the lower-neuron Jev shadow model with boun
     assert.equal(receipt.usableForRouting, false);
     const usage = JSON.parse(lines.find((line) => line.includes('"NUSA_AI_CALL"')));
     assert.equal(usage.caller, "C3_JEV");
+    assert.equal(usage.model, seenModel);
     assert.equal(usage.promptTokens, 11);
     assert.equal(usage.completionTokens, 7);
+    assert.equal(usage.estimatedNeurons, 0.29);
     const event = JSON.parse(lines.find((line) => line.includes("NUSA_JEV_WORKERS_AI_SHADOW_CALL")));
     assert.equal(event.provider, "workers-ai");
     assert.equal(event.promptTokens, 11);

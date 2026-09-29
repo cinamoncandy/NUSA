@@ -24,10 +24,12 @@ current_autopilot_runtime_provider_wait:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_capacity_efficiency:
   work_order: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
-  status: READY_FOR_REVIEW
+  status: IN_PROGRESS
   branch: codex/autopilot-provider-wait-cost-efficiency
+  pull_request: 2378
   base_sha: ea54b66274a238b37c36b66d227003f6246b7392
-  validation: "After merging current main ea54b662, build, scheduled runtime 10/10, scheduled state gate 2/2, Jev SHADOW 5/5, native provider 13/13, validate:full, security:gate, typecheck, AIPOS YAML, and diff check PASS; lint:scripts PASS with 13 pre-existing warnings. PR CI run 36508865762 passed on pre-refresh head 72e6648; fresh head CI required. Runtime neuron savings remain unmeasured while provider wait is active."
+  implementation_head: 6e3ef4550658bec80fc6bc3e6e95fab03795c639
+  validation: "PR head 6e3ef455 exact-head CI run 36509934933 PASS, PAPER runtime run 36509934946 PASS, deterministic Audit run 36510322088 PASS. Canonical Release stopped before merge because GitHub returned HTTP 405: all review comments must be resolved. One unresolved Jev model/telemetry comment is being addressed; all evidence on 6e3ef455 becomes stale after the follow-up commit. Follow-up local build, Jev SHADOW 5/5, typecheck, security:gate, validate:full, lint:scripts, AIPOS YAML/drift, and diff check PASS. No native runtime call or neuron savings claimed during provider capacity wait."
   scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
   authority_impact: none
   remaining: local-validation_then_exact-head-CI_then_independent-Audit_then_canonical-Release
