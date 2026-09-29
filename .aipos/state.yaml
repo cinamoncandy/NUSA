@@ -27,7 +27,7 @@ current_autopilot_capacity_efficiency:
   status: READY_FOR_REVIEW
   branch: codex/autopilot-provider-wait-cost-efficiency
   base_sha: dab4f6a3e9b794f94e752099b6f4a2a48f9e5829
-  validation: "Build, targeted tests (scheduled 10/10, Jev SHADOW 5/5, native provider 13/13), validate:full, security:gate, typecheck, AIPOS YAML, and diff check PASS; lint:scripts PASS with 13 pre-existing warnings. Runtime neuron savings remain unmeasured while provider wait is active."
+  validation: "Local build, scheduled runtime 10/10, scheduled state gate 2/2, Jev SHADOW 5/5, native provider 13/13, validate:full, security:gate, typecheck, AIPOS YAML, and diff check PASS; lint:scripts PASS with 13 pre-existing warnings. First exact-head CI exposed a missing coordinator test-double response; corrected and new exact-head CI pending. Runtime neuron savings remain unmeasured while provider wait is active."
   scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
   authority_impact: none
   remaining: local-validation_then_exact-head-CI_then_independent-Audit_then_canonical-Release

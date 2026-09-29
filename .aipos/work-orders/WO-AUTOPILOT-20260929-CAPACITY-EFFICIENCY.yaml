@@ -30,6 +30,7 @@ acceptance:
 verification_commands:
   - "pnpm run build"
   - "node --test dist/apps/autopilot/src/scheduledRuntime.test.js"
+  - "node --test dist/apps/autopilot/src/scheduledStateGate.test.js"
   - "node --test tests/autopilot-jev-coding-failure-shadow.test.js"
   - "node --test dist/apps/cloud/src/ai/jevWorkersAiProvider.test.js"
   - "pnpm run validate:full"
@@ -40,6 +41,7 @@ verification_results:
   base_sha: dab4f6a3e9b794f94e752099b6f4a2a48f9e5829
   build: "PASS (Node 24.18.0, pnpm 11.7.0; changed-test fast gate correctly deferred to canonical PR CI)"
   scheduled_runtime_tests: "PASS 10/10, including provider-wait request suppression and fail-closed state-read failure"
+  scheduled_state_gate_tests: "PASS 2/2 after updating the existing coordinator test double for the new provider-wait read"
   jev_shadow_tests: "PASS 5/5, including lower-neuron default, provider-stop no-call, redaction, and zero-authority telemetry"
   native_jev_provider_tests: "PASS 13/13"
   validate_full: "PASS"
@@ -49,7 +51,7 @@ verification_results:
   aipos_yaml: "PASS, 208 files parsed strictly"
   diff_check: "PASS (Windows line-ending advisory only)"
   runtime_cost_measurement: "NOT_YET_AVAILABLE; no live model call claimed during provider-capacity wait"
-  exact_head_ci: "PENDING"
+  exact_head_ci: "Initial PR head b9b158d CI run 36508425701 failed coverage-core-3 because scheduledStateGate's coordinator test double lacked the new provider-wait endpoint; production fail-closed behavior was correct. Test double corrected; new exact-head CI pending after follow-up commit."
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
