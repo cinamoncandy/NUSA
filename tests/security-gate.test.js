@@ -30,6 +30,10 @@ test("lockfile pins the patched versions for audited high advisories", () => {
   assert.equal(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.4"), false);
   assert.equal(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.6"), false);
   assert.equal(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.17"), false);
+  for (const [name, fixed, vulnerable] of [["undici", "7.29.1", "7.29.0"], ["undici", "6.28.1", "6.28.0"], ["joi", "17.13.7", "17.13.6"]]) {
+    assert.ok(packages.some((item) => item.name === name && item.version === fixed), `${name} ${fixed} is pinned`);
+    assert.equal(packages.some((item) => item.name === name && item.version === vulnerable), false, `${name} ${vulnerable} is gone`);
+  }
 });
 
 test("peer suffix normalization removes every trailing peer group", () => {

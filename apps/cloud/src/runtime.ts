@@ -42,6 +42,7 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
+import { createJevMarketMicrostructureShadowObserverFromEnvironment } from "./ai/jevMarketMicrostructureShadow";
 import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
@@ -193,6 +194,10 @@ export function startCloudRuntime(
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
   // This recorder observes the canonical PAPER boundary below. It is deliberately
   // downstream-only: it never submits orders or mutates runtime state.
+  const jevMarketMicrostructureObserver = createJevMarketMicrostructureShadowObserverFromEnvironment(env);
+  const jevMarketMicrostructureLastObservedAt = new Map<string, number>();
+  const JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS = 30_000;
+
   const paperLearningRecorder = new PaperLearningEventRecorder(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository
       ? { persistencePath: config.cloudStateDbPath }
@@ -403,6 +408,27 @@ export function startCloudRuntime(
     try {
       const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: Date.now(), totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
+      if (jevMarketMicrostructureObserver != null) {
+        const previousObservedAt = jevMarketMicrostructureLastObservedAt.get(quote.market) ?? 0;
+        if (quote.observedAt - previousObservedAt >= JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS) {
+          jevMarketMicrostructureLastObservedAt.set(quote.market, quote.observedAt);
+          void jevMarketMicrostructureObserver.observe(quote, env).then((receipt) => {
+            console.log(JSON.stringify({
+              event: "NUSA_JEV_MARKET_MICROSTRUCTURE_SHADOW",
+              market: receipt.market,
+              observedAt: receipt.observedAt,
+              state: receipt.selectedState,
+              action: receipt.selectedAction,
+              confidence: receipt.confidence,
+              reasonCode: receipt.reasonCode,
+              fallbackApplied: receipt.fallbackApplied,
+              usableForRouting: receipt.usableForRouting,
+              aiAuthority: receipt.aiAuthority,
+              liveAuthority: receipt.liveAuthority,
+            }));
+          }).catch(() => { /* SHADOW telemetry must never affect PAPER execution */ });
+        }
+      }
     } catch { heartbeat.lastError = "PAPER_ORDERBOOK_OBSERVATION_REJECTED"; }
   }) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }

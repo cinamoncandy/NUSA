@@ -52,3 +52,13 @@ test("contract exposes no execution or LIVE authority", async () => {
   const source=await import("node:fs").then(fs=>fs.readFileSync(new URL("../apps/desktop/src/cloud/researchIntegrity.ts",import.meta.url),"utf8"));
   assert.doesNotMatch(source,/placeOrder|withdraw|transfer|liveAuthority\s*=\s*(?!NONE)/i);
 });
+
+test("real-market runner binds canonical integrity before factory qualification", async () => {
+  const source=await import("node:fs").then(fs=>fs.readFileSync(new URL("../scripts/research-real-market-run.js",import.meta.url),"utf8"));
+  assert.match(source,/researchIntegrity\.js/);
+  assert.match(source,/datasetFingerprint:\s*manifest\.contentSha256/);
+  assert.match(source,/featureFingerprint\(featureIdentity\)/);
+  assert.match(source,/validateEvidenceProvenance\(provenance,\s*\{\s*promotionEligible:\s*true\s*\}\)/);
+  assert.match(source,/validateEvidenceProvenance[\s\S]*qualifyResearchFactoryRun\(league\)/);
+  assert.match(source,/evidenceKind:\s*"REAL"/);
+});

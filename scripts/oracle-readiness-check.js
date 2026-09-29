@@ -34,14 +34,16 @@ const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 180_000);
 const retryDelayMs = Number(process.env.NUSA_READY_RETRY_DELAY_MS || 1_000);
 if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 300_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 300000]");
 if (!Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1 || retryDelayMs > 5_000) throw new Error("NUSA_READY_RETRY_DELAY_MS must be an integer in [1, 5000]");
-const requestStatus = (path, headers = {}) => new Promise((resolve, reject) => {
+const requestStatus = (path, headers = {}, deadline = Number.POSITIVE_INFINITY) => new Promise((resolve, reject) => {
+  const configuredTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000;
+  const remainingMs = Number.isFinite(deadline) ? Math.max(1, deadline - Date.now()) : configuredTimeoutMs;
   const req = http.request({
     host,
     port,
     method: "GET",
     path,
     headers,
-    timeout: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000
+    timeout: Math.min(configuredTimeoutMs, remainingMs)
   }, (res) => {
     let body = "";
     res.setEncoding("utf8");
@@ -74,14 +76,13 @@ const parseReadiness = (response) => {
  * This only delays acceptance: a missing, malformed, or unhealthy readiness
  * response still fails closed once the deadline expires.
  */
-const awaitReadiness = async () => {
-  const deadline = Date.now() + startupWaitMs;
+const awaitReadiness = async (deadline) => {
   let attempts = 0;
   let last = { kind: "transport", message: "readiness request was not attempted" };
   for (;;) {
     attempts += 1;
     try {
-      const response = await requestStatus("/ready", { authorization: `Bearer ${token}` });
+      const response = await requestStatus("/ready", { authorization: `Bearer ${token}` }, deadline);
       const parsed = parseReadiness(response);
       if (parsed.healthy) return { ...parsed, attempts };
       last = { kind: "response", ...parsed };
@@ -95,14 +96,13 @@ const awaitReadiness = async () => {
 };
 
 
-const awaitExpectedStatus = async (path, expectedStatus) => {
-  const deadline = Date.now() + startupWaitMs;
+const awaitExpectedStatus = async (path, expectedStatus, deadline) => {
   let attempts = 0;
   let last = { kind: "transport", message: "route probe was not attempted" };
   for (;;) {
     attempts += 1;
     try {
-      const response = await requestStatus(path);
+      const response = await requestStatus(path, {}, deadline);
       if (response.statusCode === expectedStatus) return { ok: true, statusCode: response.statusCode, attempts };
       last = { kind: "response", actualStatus: response.statusCode };
     } catch (error) {
@@ -136,7 +136,10 @@ function journalTail(unit = process.env.NUSA_READINESS_JOURNAL_UNIT || "nusa", l
 }
 
 const run = async () => {
-  const readiness = await awaitReadiness();
+  // One absolute startup deadline covers /ready and every required owner-route probe.
+  // Later probes consume only the remaining budget; they never reset the clock.
+  const deadline = Date.now() + startupWaitMs;
+  const readiness = await awaitReadiness(deadline);
   if (!readiness.healthy) {
     console.error(JSON.stringify({ status: "FAIL", stage: "startup_readiness", attempts: readiness.attempts, last: readiness.last ?? { httpStatus: readiness.httpStatus, ready: readiness.ready, checks: readiness.checks } }));
     for (const line of journalTail()) console.error(`[journal] ${line}`);
@@ -151,7 +154,7 @@ const run = async () => {
     // A freshly started 1 GB host can transiently stop servicing the event loop while bounded
     // PAPER/Research startup work begins, so retry the exact route within the same bounded
     // startup contract instead of treating one 5-second transport timeout as proof of absence.
-    const probe = await awaitExpectedStatus(path, 405);
+    const probe = await awaitExpectedStatus(path, 405, deadline);
     if (!probe.ok) {
       console.error(JSON.stringify({ status: "FAIL", stage: "mobile_owner_route", route: path, expectedStatus: 405, attempts: probe.attempts, last: probe.last }));
       process.exitCode = 1;
