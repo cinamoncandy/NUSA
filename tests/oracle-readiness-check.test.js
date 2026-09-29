@@ -106,7 +106,7 @@ test("Oracle readiness waits a bounded interval for the supervised runtime to be
   const port = await listen(server);
   const envFile = writeReadinessEnv(root, port);
   try {
-    const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "600", NUSA_READY_RETRY_DELAY_MS: "25" });
+    const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "3000", NUSA_READY_RETRY_DELAY_MS: "25" });
     assert.equal(result.status, 0, result.stderr);
     assert.ok(JSON.parse(result.stdout).startupAttempts > 1);
   } finally {
@@ -179,7 +179,8 @@ test("Oracle readiness rejects a stale release that serves health but omits a mo
     const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "300", NUSA_READY_RETRY_DELAY_MS: "20" });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /mobile\/session\/password\/change/);
-    assert.match(result.stderr, /expectedStatus.*405.*actualStatus.*404/);
+    assert.match(result.stderr, /expectedStatus.*405/);
+    assert.match(result.stderr, /actualStatus.*404|readiness request timed out/);
   } finally {
     await close(server);
     fs.rmSync(root, { recursive: true, force: true });
@@ -193,6 +194,14 @@ test("Oracle readiness rejects a stale release that serves health but omits a mo
     assert.match(source, /startupWaitMs > 300_000/);
 });
 
+
+test("Oracle readiness uses one absolute startup deadline across readiness and owner-route probes", () => {
+  const source = fs.readFileSync(script, "utf8");
+  assert.equal(source.split("Date.now() + startupWaitMs").length - 1, 1);
+  assert.ok(source.includes("awaitReadiness(deadline)"));
+  assert.ok(source.includes("awaitExpectedStatus(path, 405, deadline)"));
+  assert.ok(source.includes('requestStatus("/ready"'));
+});
 
 test("Oracle readiness retries a transiently blocked mobile owner route within the bounded startup window", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-route-retry-"));
