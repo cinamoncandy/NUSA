@@ -47,6 +47,7 @@ test("the workflow pins Codex to the single dedicated-account runner and publish
   const codexJob = workflow.slice(workflow.indexOf("  codex:"), workflow.indexOf("  publish:"));
   assert.doesNotMatch(codexJob, /git push|gh pr create|NUSA_AUTOPILOT_GITHUB_TOKEN/, "Codex has no commit or push authority");
   assert.match(codexJob, /usage limit/, "a ChatGPT usage limit is a wait, not a fallback to another account");
+  assert.match(codexJob, /\[ "\$rc" -ne 0 \] && grep -qiE "\^ERROR: \.\*hit your usage limit"/, "only a failed run's own usage-limit error line is a wait");
   assert.match(codexJob, /set \+e -uo pipefail/, "the default bash -e must not end the step before the usage-limit check");
   const publish = workflow.slice(workflow.indexOf("  publish:"));
   const order = ["protected path", "pnpm run build", "pnpm run typecheck", "pnpm run validate", "node --test tests/*.test.js", "gh pr create"].map((marker) => publish.indexOf(marker));
