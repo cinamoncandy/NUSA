@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20260929-WORKFLOW-ACTIONABILITY
 title: "Bind workflow repair to exact run and preserve ready Core issue progression"
-status: IN_PROGRESS
+status: READY_FOR_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -39,7 +39,7 @@ verification_results:
   security_gate: "PASS; 0 secrets, 0 unmitigated findings"
   typecheck: PASS
   lint: "PASS; 13 pre-existing warnings, 0 errors"
-  full_tests: "NOT_PASS; 4 CODING_RUNTIME_WORKSPACE_DIRTY guards in dirty merge checkout; rerun after clean commit"
+  full_tests: "PASS; clean-head isolated suite 1,090 files"
   exact_head_ci: PENDING
 safety:
   liveAuthority: NONE
