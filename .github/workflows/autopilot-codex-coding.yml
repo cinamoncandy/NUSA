@@ -16,6 +16,8 @@ on:
 
 permissions:
   contents: read
+  # Read-only: lets the host guard see whether an Oracle PAPER release is running.
+  actions: read
 
 concurrency:
   group: autopilot-codex-coding
@@ -93,13 +95,42 @@ jobs:
       - name: Run Codex without commit or push authority
         id: run
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Actions runs bash with -e; turn it off so a Codex failure reaches the usage-limit check.
           set +e -uo pipefail
           codex login status || exit 1
           log="${RUNNER_TEMP}/codex.log"
-          codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < "${RUNNER_TEMP}/prompt/codex-prompt.txt" 2>&1 | tee "$log"
-          rc=${PIPESTATUS[0]}
+          # This runner shares the 1 GB Oracle host with the PAPER runtime. PAPER always wins:
+          # Codex starts only with enough free memory and no PAPER release running, runs at the
+          # lowest CPU/IO priority, and is stopped (patch discarded) as soon as either changes.
+          if ! bash scripts/autopilot-codex-host-guard.sh start; then
+            echo "usage_limited=false" >> "$GITHUB_OUTPUT"
+            echo "host_deferred=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          setsid nice -n 19 ionice -c3 codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < "${RUNNER_TEMP}/prompt/codex-prompt.txt" > "$log" 2>&1 &
+          pid=$!
+          deferred=false
+          while kill -0 "$pid" 2>/dev/null; do
+            if ! bash scripts/autopilot-codex-host-guard.sh watch; then
+              kill -TERM -- "-$pid" 2>/dev/null; sleep 5; kill -KILL -- "-$pid" 2>/dev/null
+              deferred=true
+              break
+            fi
+            sleep 10
+          done
+          wait "$pid"; rc=$?
+          cat "$log"
+          if [ "$deferred" = true ]; then
+            # Nothing Codex half-wrote may be published.
+            git reset -q --hard; git clean -fdq
+            echo "usage_limited=false" >> "$GITHUB_OUTPUT"
+            echo "host_deferred=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "host_deferred=false" >> "$GITHUB_OUTPUT"
           # A ChatGPT usage limit is a wait, not a failure: never fall back to another account.
           # Only a failed run whose own error line reports the limit counts; Codex output that merely
           # quotes this workflow (or any text mentioning a usage limit) must not discard a real patch.
@@ -112,7 +143,7 @@ jobs:
           exit "$rc"
       - name: Collect patch
         id: collect
-        if: steps.run.outputs.usage_limited != 'true'
+        if: steps.run.outputs.usage_limited != 'true' && steps.run.outputs.host_deferred != 'true'
         shell: bash
         run: |
           set -euo pipefail

@@ -58,3 +58,30 @@ test("the workflow pins Codex to the single dedicated-account runner and publish
   assert.match(workflow, /group: autopilot-codex-coding/);
   assert.match(workflow, /head:autopilot\/codex\//, "one open autopilot Codex PR at a time");
 });
+
+test("the host guard keeps Codex off the shared Oracle host whenever PAPER needs it", () => {
+  const { spawnSync } = require("node:child_process");
+  const os = require("node:os");
+  const path = require("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-host-guard-"));
+  const meminfo = path.join(dir, "meminfo");
+  const guard = (mode, availableKb, releases, extra = {}) => {
+    fs.writeFileSync(meminfo, `MemTotal: 1000000 kB\nMemAvailable: ${availableKb} kB\n`);
+    return spawnSync("bash", ["scripts/autopilot-codex-host-guard.sh", mode], {
+      encoding: "utf8",
+      env: { ...process.env, RUNNER_TEMP: dir, NUSA_HOST_GUARD_MEMINFO: meminfo, NUSA_HOST_GUARD_ACTIVE_RELEASES: releases, ...extra },
+    }).status;
+  };
+  assert.equal(guard("start", 600000, "0"), 0, "enough memory and no release: Codex may start");
+  assert.equal(guard("start", 300000, "0"), 1, "low memory defers the start");
+  assert.equal(guard("start", 600000, "1"), 1, "a queued or running PAPER release defers the start");
+  assert.equal(guard("watch", 300000, "0"), 0, "above the floor Codex keeps running");
+  assert.equal(guard("watch", 150000, "0"), 1, "below the floor Codex is stopped");
+  assert.equal(guard("watch", 600000, "1", { NUSA_HOST_GUARD_RELEASE_CHECK_SECONDS: "0" }), 1, "a release that starts mid-run stops Codex");
+
+  const workflow = fs.readFileSync(".github/workflows/autopilot-codex-coding.yml", "utf8");
+  assert.match(workflow, /autopilot-codex-host-guard\.sh start/, "Codex starts only through the host guard");
+  assert.match(workflow, /autopilot-codex-host-guard\.sh watch/, "the host guard watches the whole Codex run");
+  assert.match(workflow, /nice -n 19 ionice -c3 codex exec/, "Codex runs at the lowest CPU and IO priority");
+  assert.match(workflow, /host_deferred != 'true'/, "a deferred or stopped run never publishes a patch");
+});
