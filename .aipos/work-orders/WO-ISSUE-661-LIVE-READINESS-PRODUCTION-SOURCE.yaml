@@ -47,8 +47,8 @@ validation:
   lint: PASS
   architecture_safety_security_aipos: PASS
   package_validation: PASS_AFTER_MAP_FREE_PACKAGED_FILE_SET_PREEXISTING_NORMAL_BUILD_MAP_MISMATCH
-  exact_head_remote_validation: PENDING
-  pull_request: PENDING
+  exact_head_remote_validation: PASS_6_OF_6_EXACT_HEAD
+  pull_request: 769
 next: "None. Historical Issue #661 implementation is merged/closed; any successor work belongs to the current canonical owner and must not remain as separate WIP."
 
 implementation_status: MERGED_PR_769
