@@ -40,3 +40,9 @@ verification_commands:
 evidence:
   - "tests/paper-exchange-minimum-order.test.js (7): owner-approved constants; KRW 600 plan on a KRW 10,000 account raised to KRW 5,050 with share 0.505 and a valid fingerprint; unchanged when the plan already meets the minimum; fails closed above the 60% equity ceiling; fails closed when cash cannot cover the order plus fee (and passes with just enough cash); 0% investment percentage still yields no order; only KRW markets are raised. tests/paper-execution-intent.test.js (existing) still passes."
 remaining: exact-head-CI_then-independent-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-observe-that-the-next-BUY-is-at-least-KRW-5000
+
+review_hardening_20260930:
+  - Cash committed to open BUY working orders is subtracted before a minimum-order raise is funded.
+  - Restored strategy working BUYs whose allocation is below the KRW 5,000 minimum are cancelled (risk-reducing) instead of continued.
+  - Automatic BUYs are blocked (PAPER_EXECUTION_INTENT_EXECUTABLE_QUOTE_BELOW_MINIMUM) when quantity x observed ask is below the minimum.
+  - Manual KRW BUYs below the minimum are rejected (PAPER_ORDER_BELOW_EXCHANGE_MINIMUM); SELL remains unaffected.

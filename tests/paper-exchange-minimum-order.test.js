@@ -128,3 +128,13 @@ test("only KRW markets are raised", () => {
   assert.deepEqual(applyExchangeMinimumOrder({ market: "USDT-BTC", plannedCapital: 600, equity: 10_000, cash: 10_000 }), { allocationCapital: 600, raised: false });
   assert.equal(applyExchangeMinimumOrder({ market: "krw-eth", plannedCapital: 600, equity: 10_000, cash: 10_000 }).allocationCapital, TARGET);
 });
+
+test("cash already promised to open BUY working orders is not spent again by a raised order", () => {
+  const working = Object.freeze({ side: "BUY", remainingAllocationCapital: 4_000, lifecycle: Object.freeze({ remainingQuantity: 0.04 }) });
+  const state = Object.freeze({ ...account(10_000, 10_000), workingOrders: Object.freeze([working]) });
+  const attempt = () => buildPaperExecutionIntent({ now: 1_000, market: "KRW-BTC", referencePrice: PRICE, portfolio: portfolio(10_000, 600, 0.06), decision: decision(0.1), state, investmentPercent: 100 });
+  // free cash is 6,000, so 5,050 * 1.005 fits; with 5,000 committed it no longer does
+  assert.equal(attempt().allocationCapital, TARGET);
+  const tight = Object.freeze({ ...state, workingOrders: Object.freeze([Object.freeze({ ...working, remainingAllocationCapital: 6_000 })]) });
+  assert.throws(() => buildPaperExecutionIntent({ now: 1_000, market: "KRW-BTC", referencePrice: PRICE, portfolio: portfolio(10_000, 600, 0.06), decision: decision(0.1), state: tight, investmentPercent: 100 }), /MINIMUM_ORDER_EXCEEDS_CASH/);
+});
