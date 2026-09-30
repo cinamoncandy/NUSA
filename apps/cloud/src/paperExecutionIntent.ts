@@ -124,7 +124,11 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
     const plannedCapital = Number((allocation.capital * (input.investmentPercent / 100)).toFixed(8));
     const plannedShare = Number((allocation.share * (input.investmentPercent / 100)).toFixed(8));
     if (plannedCapital <= 0 || plannedShare <= 0 || round8(plannedCapital / input.referencePrice) <= 0) throw new Error("PAPER_EXECUTION_INTENT_ALLOCATION_ZERO");
-    const minimumOrder = applyExchangeMinimumOrder({ market, plannedCapital, equity: input.state.equity, cash: input.state.cash });
+    // Cash already promised to open BUY working orders cannot pay for a second raised order.
+    const committedCash = (input.state.workingOrders ?? [])
+      .filter((order) => order.side === "BUY")
+      .reduce((sum, order) => sum + (order.remainingAllocationCapital ?? order.lifecycle.remainingQuantity * (order.limitPrice ?? input.referencePrice)), 0);
+    const minimumOrder = applyExchangeMinimumOrder({ market, plannedCapital, equity: input.state.equity, cash: input.state.cash - committedCash });
     allocationCapital = minimumOrder.allocationCapital;
     allocationShare = minimumOrder.raised ? Number((allocationCapital / input.state.equity).toFixed(8)) : plannedShare;
     quantity = round8(allocationCapital / input.referencePrice);
