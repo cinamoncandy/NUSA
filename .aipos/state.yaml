@@ -224,6 +224,13 @@ current_paper_decision_outcome:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-Oracle-exact-main-release_then-read-/health
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_ui_why_no_order:
+  work_order: WO-UI-20260930-WHY-NO-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-why-no-order
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-app-build_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_screens:
   work_order: WO-UI-20260928-FIELD-SCREENS
   status: READY_FOR_REVIEW
