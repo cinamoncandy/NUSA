@@ -19,6 +19,8 @@ const KNOWN: Readonly<Record<string, Readonly<{ category: PaperOrderReasonCatego
   "BLOCKED:PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_CASH": { category: "EXECUTION_BLOCKED", text: "업비트 최소 주문금액(₩5,000)을 맞출 가용 현금이 부족해 주문하지 않았습니다." },
   "BLOCKED:PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING": { category: "EXECUTION_BLOCKED", text: "최소 주문금액이 자산의 60% 한도를 넘어 주문하지 않았습니다." },
   "BLOCKED:PAPER_EXECUTION_INTENT_EXECUTABLE_QUOTE_BELOW_MINIMUM": { category: "EXECUTION_BLOCKED", text: "호가 기준 주문액이 최소 주문금액(₩5,000) 미만이라 주문하지 않았습니다." },
+  "REJECTED:INSUFFICIENT_PAPER_POSITION": { category: "EXECUTION_BLOCKED", text: "매도할 PAPER 포지션이 없어 주문하지 않았습니다." },
+  "REJECTED:DECISION_ALLOCATION_IS_ZERO": { category: "EXECUTION_BLOCKED", text: "배분 비중이 0이라 주문하지 않았습니다." },
   "BLOCKED:PAPER_PORTFOLIO_EXECUTION_INTENT_REQUIRED": { category: "EXECUTION_BLOCKED", text: "포트폴리오 실행 계획이 없어 주문하지 않았습니다." },
   "BLOCKED:OPEN_P0_ALERT": { category: "RISK_BLOCKED", text: "열린 중대 경보가 있어 주문을 막았습니다." },
   "BLOCKED:P0_STATE_UNVERIFIABLE": { category: "RISK_BLOCKED", text: "경보 상태를 확인할 수 없어 주문을 막았습니다." },
@@ -34,6 +36,12 @@ export function describePaperOrderReason(outcome: string | null | undefined): Pa
   const known = KNOWN[outcome];
   if (known != null) return Object.freeze({ ...known, code: outcome });
   if (status === "FILLED") return Object.freeze({ category: "FILLED" as const, text: "직전 판단이 체결되었습니다.", code: outcome });
-  if (status === "REJECTED") return Object.freeze({ category: "RISK_BLOCKED" as const, text: `위험 검사가 주문을 거부했습니다 (${match[2]}).`, code: outcome });
+  // Only outcomes that carry the risk gate's own prefix are labelled as risk results; any other
+  // rejection is shown neutrally because its source is not reported.
+  const riskMatch = /^PAPER_RISK_(REJECT|HALT):(.+)$/.exec(match[2]!);
+  if (riskMatch != null) {
+    return Object.freeze({ category: "RISK_BLOCKED" as const, text: riskMatch[1] === "HALT" ? `위험 검사가 거래를 중단시켰습니다 (${riskMatch[2]}).` : `위험 검사가 주문을 거부했습니다 (${riskMatch[2]}).`, code: outcome });
+  }
+  if (status === "REJECTED") return Object.freeze({ category: "UNKNOWN" as const, text: `주문이 거부되었습니다 (${match[2]}).`, code: outcome });
   return Object.freeze({ category: "UNKNOWN" as const, text: `직전 판단 결과: ${outcome}`, code: outcome });
 }

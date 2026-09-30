@@ -189,7 +189,7 @@ function validateOperations(operations: PersonalPaperRuntimeProjection): void {
     for (const [name, value] of [["lastMarketEventAt", heartbeat.lastMarketEventAt], ["lastPaperDecisionAt", heartbeat.lastPaperDecisionAt], ["lastPaperOrderAt", heartbeat.lastPaperOrderAt], ["lastPaperFillAt", heartbeat.lastPaperFillAt]] as const) if (value != null) finite(value, `operations.heartbeat.${name}`);
     for (const [name, value] of [["eventCount", heartbeat.eventCount], ["decisionCount", heartbeat.decisionCount], ["paperOrderCount", heartbeat.paperOrderCount], ["paperFillCount", heartbeat.paperFillCount]] as const) nonNegativeInteger(value, `operations.heartbeat.${name}`);
     if (heartbeat.lastError != null && !heartbeat.lastError.trim()) throw new Error("operations.heartbeat.lastError must be non-empty when present");
-    if (heartbeat.lastPaperDecisionOutcome != null && !/^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/.test(heartbeat.lastPaperDecisionOutcome)) throw new Error("operations.heartbeat.lastPaperDecisionOutcome must be a coded STATUS:REASON when present");
+    if (heartbeat.lastPaperDecisionOutcome != null && (typeof heartbeat.lastPaperDecisionOutcome !== "string" || !/^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/.test(heartbeat.lastPaperDecisionOutcome))) throw new Error("operations.heartbeat.lastPaperDecisionOutcome must be a coded STATUS:REASON when present");
     if (heartbeat.lastHeartbeatAt < heartbeat.startedAt) throw new Error("operations.heartbeat clock regressed");
   }
   if (operations.supervisor != null) {
