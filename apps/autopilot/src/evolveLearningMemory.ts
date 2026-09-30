@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { EvolutionOutcome } from "./evolveOutcome";
 
 export interface EvolutionLearningRecord {
@@ -34,6 +35,10 @@ const OUTCOMES = new Set<EvolutionOutcome>([
   "UNKNOWN",
 ]);
 
+function hypothesisSha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
 export function evolutionHypothesisFromProblem(problem: string): string {
   const normalized = problem.trim().replace(/\s+/g, " ");
   if (!normalized) throw new Error("EVOLVE_HYPOTHESIS_PROBLEM_REQUIRED");
@@ -43,7 +48,7 @@ export function evolutionHypothesisFromProblem(problem: string): string {
 export function evolutionHypothesisKey(hypothesis: string): string {
   const normalized = hypothesis.trim().replace(/\s+/g, " ").toLowerCase();
   if (!normalized) throw new Error("EVOLVE_HYPOTHESIS_REQUIRED");
-  return sha256(normalized);
+  return hypothesisSha256(normalized);
 }
 
 export function createEvolutionLearningRecord(input: EvolutionLearningRecord): EvolutionLearningRecord {
