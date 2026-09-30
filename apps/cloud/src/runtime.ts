@@ -45,6 +45,8 @@ import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearnin
 import { createJevMarketMicrostructureShadowObserverFromEnvironment } from "./ai/jevMarketMicrostructureShadow";
 import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
+import { projectPaperRuntimeHealth } from "./paperRuntimeHealth";
+import { DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS } from "./upbitTickerObservation";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { validateShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { createDormantLiveAuthority } from "./liveReadinessGate";
@@ -165,6 +167,8 @@ export function startCloudRuntime(
     startedAt: number;
     lastHeartbeatAt: number;
     lastMarketEventAt: number | null;
+    lastAcceptedMarketReceiptAt: number | null;
+    lastFailureAt: number | null;
     lastPaperDecisionAt: number | null;
     lastPaperOrderAt: number | null;
     lastPaperFillAt: number | null;
@@ -177,6 +181,8 @@ export function startCloudRuntime(
     startedAt: runtimeStartedAt,
     lastHeartbeatAt: runtimeStartedAt,
     lastMarketEventAt: null,
+    lastAcceptedMarketReceiptAt: null,
+    lastFailureAt: null,
     lastPaperDecisionAt: null,
     lastPaperOrderAt: null,
     lastPaperFillAt: null,
@@ -186,6 +192,7 @@ export function startCloudRuntime(
     paperFillCount: 0,
     lastError: null
   };
+  const recordFailure = (code: string): void => { heartbeat.lastError = code; heartbeat.lastFailureAt = Date.now(); };
   // Why the previous process stopped, kept apart from lastError so market start-up cannot overwrite it
   // and a supervisor restart loop stays diagnosable from /health.
   const previousStop = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readPreviousRuntimeFailure(config.cloudStateDbPath);
@@ -329,7 +336,7 @@ export function startCloudRuntime(
       // P2 diagnostic suffix only: an operator can now tell a silent feed
       // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
       // malformed tick. Acceptance thresholds are unchanged; a rejected tick never enters trusted observations.
-      heartbeat.lastError = `PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`;
+      recordFailure(`PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`);
       // Reject only the untrusted tick. Previously one stale/invalid market event cleared every
       // already-accepted market observation, so a quiet market (for example a >30s DOGE last-trade
       // timestamp) could latch the whole multi-market PAPER dashboard into NO_MARKET_DATA even while
@@ -339,11 +346,12 @@ export function startCloudRuntime(
       safeHydrate([...observations.values()]);
       return;
     }
+    heartbeat.lastAcceptedMarketReceiptAt = now;
     // Only accepted public-market events may become durable PAPER evidence.
     // This keeps stale/future/malformed transport input out of the canonical observation store.
     latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
     try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h, sourceFingerprint: canonicalUpbitSourceFingerprint(ticker) }); }
-    catch (error) { heartbeat.lastError = `PAPER_MARKET_OBSERVATION_REJECTED:${error instanceof PaperMarketObservationStoreError ? error.code : "UNKNOWN"}`; }
+    catch (error) { recordFailure(`PAPER_MARKET_OBSERVATION_REJECTED:${error instanceof PaperMarketObservationStoreError ? error.code : "UNKNOWN"}`); }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     if (!researchRecoveryFailClosed) { try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ } }
@@ -371,7 +379,7 @@ export function startCloudRuntime(
         // second mutation path for strategy ticks.
         const result = productionPaperBoundary?.processTick(tick);
           if (result != null) {
-          try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(ticker.code, ticker.trade_timestamp, result.status), observedAt: now, status: result.status }); } catch (error) { heartbeat.lastError = error instanceof Error ? "PAPER_PERIOD_EVIDENCE_REJECTED" : "PAPER_PERIOD_EVIDENCE_REJECTED"; }
+          try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(ticker.code, ticker.trade_timestamp, result.status), observedAt: now, status: result.status }); } catch { recordFailure("PAPER_PERIOD_EVIDENCE_REJECTED"); }
           }
         const cycleId = paperLearningCycleId(ticker.code, ticker.trade_timestamp);
         const canonicalDecision = state.decisions.find((decision) => decision.symbol === ticker.code) ?? state.decisions[0];
@@ -384,7 +392,7 @@ export function startCloudRuntime(
           if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
           heartbeat.paperOrderCount += result.orders.length;
           heartbeat.paperFillCount += result.fills.length;
-          if (result.status === "FAILED") heartbeat.lastError = result.reason ?? "PAPER_EXECUTION_FAILED";
+          if (result.status === "FAILED") recordFailure(result.reason ?? "PAPER_EXECUTION_FAILED");
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
           paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });
@@ -401,7 +409,7 @@ export function startCloudRuntime(
   }, (state) => {
     heartbeat.lastHeartbeatAt = Date.now();
     marketConnectionState = state;
-    heartbeat.lastError = state === "CONNECTED" ? null : `PUBLIC_MARKET_${state}`;
+    if (state === "CONNECTED") heartbeat.lastError = null; else recordFailure(`PUBLIC_MARKET_${state}`);
     if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); latestExecutionQuotes.clear(); safeHydrate([]); }
   }, (orderBook) => {
     heartbeat.lastHeartbeatAt = Date.now();
@@ -429,7 +437,7 @@ export function startCloudRuntime(
           }).catch(() => { /* SHADOW telemetry must never affect PAPER execution */ });
         }
       }
-    } catch { heartbeat.lastError = "PAPER_ORDERBOOK_OBSERVATION_REJECTED"; }
+    } catch { recordFailure("PAPER_ORDERBOOK_OBSERVATION_REJECTED"); }
   }) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
@@ -501,6 +509,11 @@ export function startCloudRuntime(
       lastError: heartbeat.lastError,
       ...(previousStop === undefined ? {} : { previousStop })
     }),
+    runtimeHealth: () => projectPaperRuntimeHealth(
+      Object.freeze({ ...heartbeat }),
+      Date.now(),
+      { heartbeatStaleAfterMs: 6_000, marketEventStaleAfterMs: DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS },
+    ),
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
     ...(userAccessRepository == null ? {} : { userAccessRepository }),
