@@ -1,0 +1,28 @@
+id: WO-PAPER-ORDERBOOK-SNAPSHOT-REFRESH
+title: "Refresh expired public orderbook snapshots without reconnecting"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P0
+owner: market-data
+repository: cinamoncandy/NUSA
+base_branch: main
+objective: "Recover execution-grade PAPER quotes after snapshot expiry on a healthy persistent connection."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the canonical reconciler and public REST fetch; coalesce refreshes and fence reconnect generations. No engine or authority changes."
+scope:
+  - public-orderbook-snapshot-refresh
+  - bounded-retry-and-reconnect-fencing
+acceptance:
+  - expired snapshots remain fail-closed until refreshed
+  - concurrent stream events do not duplicate REST requests
+  - reset rejects old in-flight snapshot installation
+  - failed refreshes use bounded backoff
+validation:
+  status: LOCAL_PASS
+  commands: "TypeScript compile; 18 focused reconciliation/liveness/restart tests; preflight; validate; diff check."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Focused regression, exact-head CI, independent Audit and canonical Release; no manual server mutation."

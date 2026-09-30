@@ -64,7 +64,7 @@ import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } fr
 import { codePaperDecisionOutcome } from "./paperDecisionOutcome";
 import { PaperMarketObservationStoreError, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
-import { fetchUpbitOrderBookSnapshot, UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
+import { UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
 import {
@@ -424,11 +424,10 @@ export function startCloudRuntime(
     if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); return; }
     // A transport connection is not execution-grade market data. Every connection/reconnect
     // generation must acquire a fresh public REST snapshot before any WebSocket orderbook quote
-    // can enter PAPER execution. Snapshot failure stays fail-closed; a later reconnect retries.
+    // can enter PAPER execution. Stream events retry expired or failed snapshots with bounded backoff.
     void Promise.all(config.upbitMarkets.map(async (market) => {
       try {
-        const snapshot = await fetchUpbitOrderBookSnapshot(market);
-        if (marketConnectionState === "CONNECTED" && generation === marketConnectionGeneration) orderBookReconciler.installSnapshot(snapshot);
+        await orderBookReconciler.refreshSnapshot(market);
       } catch {
         if (generation === marketConnectionGeneration) recordFailure("PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE");
       }
@@ -442,6 +441,12 @@ export function startCloudRuntime(
       if (reconciled == null) {
         latestExecutionQuotes.delete(orderBook.code);
         recordFailure("PAPER_ORDERBOOK_UNRECONCILED");
+        if (marketConnectionState === "CONNECTED") {
+          const generation = marketConnectionGeneration;
+          void orderBookReconciler.refreshSnapshot(orderBook.code).catch(() => {
+            if (generation === marketConnectionGeneration) recordFailure("PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE");
+          });
+        }
         return;
       }
       const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
