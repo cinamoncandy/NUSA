@@ -1,5 +1,6 @@
 export type ThemeMode = "light" | "dark";
-export type DesignPresetName = "classic" | "master";
+/** The Intelligence Field language is the only design preset; legacy presets were removed. */
+export type DesignPresetName = "field";
 export type ButtonTone = "primary" | "danger" | "neutral";
 
 export interface ShadowToken {
@@ -63,17 +64,23 @@ export interface Theme {
   }>;
 }
 
-export const intelligenceFieldColors = Object.freeze({
-  surface: "#070A12",
-  border: "#26324A",
-  ambientPurple: "#17122B",
-  ambientTeal: "#081E2A",
-  textMuted: "#8E9AB1",
-  textSubtle: "#68758D",
-  grid: "#273149",
-  text: "#F7F9FF",
-  heroBorder: "#222C40",
-  heroMuted: "#9AA6BA",
+/** Intelligence Field palette: subsystem hues, amber focus and the near-black void. */
+export const fieldPalette = Object.freeze({
+  void: "#010204",
+  paper: "#3DDC97",
+  market: "#4FC3F7",
+  dim: "#5B6670",
+  governance: "#7C8CFF",
+  muted: "#8A96A0",
+  axiom: "#9B7BFF",
+  label: "#C9D2D8",
+  text: "#EEF3F6",
+  heart: "#F4F8FA",
+  halt: "#FF5C5C",
+  risk: "#FFA94D",
+  focus: "#FFB547",
+  /** Selection/focus highlight for field visuals (focused subsystem, selected tab). Amber `focus` is kept for warning tones only. */
+  accent: "#B6F04B",
 });
 
 const interaction = Object.freeze({
@@ -85,42 +92,22 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
+/** Near-black void, hairline structure, one lime accent with a cyan focus ring. Identical in light and dark. Amber stays a warning-only tone; red stays a halt/danger-only tone. */
+const fieldSurface = Object.freeze({
+  background: "#010204", surface: "#06090D", surfaceRaised: "#0B1016", surfaceSunken: "#030507",
+  text: "#EEF3F6", textMuted: "#8A96A0", primary: "#B6F04B", primarySoft: "#0C1606", onPrimary: "#010204",
+  navSurface: "#010204", border: "#1A2129", borderStrong: "#39434D", info: "#4FC3F7", focus: "#4FC3F7",
+  neonGlow: "rgba(182, 240, 75, 0.10)",
+});
+
 export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({
-  classic: Object.freeze({
-    name: "classic" as const,
-    dark: Object.freeze({
-      background: "#05070D", surface: "#0A0F19", surfaceRaised: "#101827", surfaceSunken: "#070B13",
-      text: "#F4F6F8", textMuted: "#8D96A5", primary: "#E8F3FF", primarySoft: "#10233A", onPrimary: "#05070D",
-      navSurface: "#080D17", border: "#182337", borderStrong: "#30445F", info: "#8FA9C7", focus: "#FFFFFF",
-      neonGlow: "rgba(181, 107, 255, 0.2)",
-    }),
-    light: Object.freeze({
-      background: "#F6F7F9", surface: "#FFFFFF", surfaceRaised: "#F0F2F5", surfaceSunken: "#EAEDF1",
-      text: "#11151B", textMuted: "#626C7A", primary: "#11151B", primarySoft: "#EEF1F5", onPrimary: "#FFFFFF",
-      navSurface: "#FFFFFF", border: "#DDE1E7", borderStrong: "#BFC6D1", info: "#4C5665", focus: "#11151B",
-      neonGlow: "rgba(181, 107, 255, 0.1)",
-    }),
-    typography: Object.freeze({ micro: 10, caption: 12, body: 16, title: 21, heading: 30, display: 40, hero: 50 }),
-    layout: Object.freeze({ screenPadding: 20, sectionGap: 22, cardPadding: 20, heroRadius: 22 }),
-    radii: Object.freeze({ sm: 8, md: 12, lg: 16, xl: 24, full: 9999 as const }),
-  }),
-  master: Object.freeze({
-    name: "master" as const,
-    dark: Object.freeze({
-      background: "#101318", surface: "#1B2029", surfaceRaised: "#232A36", surfaceSunken: "#151A22",
-      text: "#F1F3FA", textMuted: "#A5AEC0", primary: "#9BABFF", primarySoft: "#29314F", onPrimary: "#101318",
-      navSurface: "#1B2029", border: "#303744", borderStrong: "#66728A", info: "#A5B9E2", focus: "#B6C2FF",
-      neonGlow: "rgba(155, 108, 255, 0.14)",
-    }),
-    light: Object.freeze({
-      background: "#F4F5F8", surface: "#FFFFFF", surfaceRaised: "#F0F3FA", surfaceSunken: "#EDF0F6",
-      text: "#171D2B", textMuted: "#616B7E", primary: "#304EE8", primarySoft: "#E9EEFF", onPrimary: "#FFFFFF",
-      navSurface: "#FFFFFF", border: "#E3E7EE", borderStrong: "#8994AA", info: "#43567D", focus: "#304EE8",
-      neonGlow: "rgba(155, 108, 255, 0.08)",
-    }),
-    typography: Object.freeze({ micro: 11, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 46 }),
-    layout: Object.freeze({ screenPadding: 20, sectionGap: 16, cardPadding: 18, heroRadius: 22 }),
-    radii: Object.freeze({ sm: 8, md: 12, lg: 22, xl: 24, full: 9999 as const }),
+  field: Object.freeze({
+    name: "field" as const,
+    dark: fieldSurface,
+    light: fieldSurface,
+    typography: Object.freeze({ micro: 10, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 44 }),
+    layout: Object.freeze({ screenPadding: 20, sectionGap: 18, cardPadding: 16, heroRadius: 6 }),
+    radii: Object.freeze({ sm: 4, md: 8, lg: 12, xl: 16, full: 9999 as const }),
   }),
 });
 
@@ -136,12 +123,13 @@ const freezeTheme = (theme: Theme): Theme => Object.freeze({
   layout: Object.freeze({ ...theme.layout }),
 });
 
-export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "master"): Theme {
-  const dark = mode === "dark";
+/** `mode` is accepted for API stability; the field language renders the same in both. */
+export function createTheme(_mode: ThemeMode = "dark", presetName: DesignPresetName = "field"): Theme {
   const preset = designPresets[presetName];
-  const palette = dark ? preset.dark : preset.light;
+  const palette = preset.dark;
+  const flat = { color: "#000000", offset: { width: 0, height: 0 }, opacity: 0, radius: 0, elevation: 0 };
   return freezeTheme({
-    mode,
+    mode: "dark",
     preset: preset.name,
     colors: {
       background: palette.background,
@@ -153,25 +141,26 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       primary: palette.primary,
       primarySoft: palette.primarySoft,
       onPrimary: palette.onPrimary,
-      aiSignalStart: dark ? "#9B6CFF" : "#7C3AED",
-      aiSignalMid: dark ? "#5B8CFF" : "#2563EB",
-      aiSignalEnd: dark ? "#36D8CB" : "#0B6B60",
-      aiSignalSoft: dark ? "#15122B" : "#F2EAFE",
-      terrain: dark ? "#DCEBFF" : "#23334A",
-      chartUp: dark ? "#36D8CB" : "#147A50",
-      chartDown: dark ? "#F17A94" : "#B83249",
+      aiSignalStart: fieldPalette.axiom,
+      aiSignalMid: fieldPalette.market,
+      // Informational AI tone stays distinct from success green.
+      aiSignalEnd: fieldPalette.label,
+      aiSignalSoft: "#0B0A14",
+      terrain: fieldPalette.label,
+      chartUp: fieldPalette.paper,
+      chartDown: fieldPalette.halt,
       navSurface: palette.navSurface,
       border: palette.border,
       borderStrong: palette.borderStrong,
-      success: dark ? "#34D399" : preset.name === "master" ? "#0F6843" : "#147A50",
-      warning: dark ? "#E5C06C" : "#8D681B",
-      danger: dark ? "#F17A94" : preset.name === "master" ? "#8F263B" : "#B83249",
+      success: fieldPalette.paper,
+      warning: fieldPalette.focus,
+      danger: fieldPalette.halt,
       info: palette.info,
-      onDanger: dark ? "#11151B" : "#FFFFFF",
+      onDanger: fieldPalette.void,
       focus: palette.focus,
-      neonPurple: "#9B6CFF",
-      neonBlue: "#5B8CFF",
-      neonTeal: "#36D8CB",
+      neonPurple: fieldPalette.axiom,
+      neonBlue: fieldPalette.market,
+      neonTeal: fieldPalette.paper,
       neonGlow: palette.neonGlow,
     },
     typography: {
@@ -183,10 +172,10 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: preset.radii,
     shadows: {
-      sm: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 3 }, opacity: dark ? 0.2 : 0.04, radius: 10, elevation: 1 },
-      md: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 10 }, opacity: dark ? 0.3 : 0.07, radius: 22, elevation: 3 },
+      sm: flat,
+      md: flat,
       focus: { color: palette.focus, offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
-      glow: { color: "#9B6CFF", offset: { width: 0, height: 0 }, opacity: dark ? 0.4 : 0.2, radius: 24, elevation: 2 },
+      glow: { color: palette.focus, offset: { width: 0, height: 0 }, opacity: 0.2, radius: 24, elevation: 0 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
@@ -195,8 +184,8 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
 }
 
 export const themes = Object.freeze({
-  light: createTheme("light", "master"),
-  dark: createTheme("dark", "master"),
+  light: createTheme("light"),
+  dark: createTheme("dark"),
 });
 
 export function buttonTokens(theme: Theme, tone: ButtonTone = "primary") {
@@ -235,19 +224,23 @@ export function designSystemSnapshot(theme: Theme): string {
   return JSON.stringify({ preset: theme.preset, mode: theme.mode, colors: theme.colors, typography: theme.typography, layout: theme.layout, spacing: theme.spacing, radii: theme.radii, icons: theme.icons, interaction: theme.interaction });
 }
 
-/** Intelligence Field palette: subsystem hues, amber focus and the near-black void. */
-export const fieldPalette = Object.freeze({
-  void: "#010204",
-  paper: "#3DDC97",
-  market: "#4FC3F7",
-  dim: "#5B6670",
-  governance: "#7C8CFF",
-  muted: "#8A96A0",
-  axiom: "#9B7BFF",
-  label: "#C9D2D8",
-  text: "#EEF3F6",
-  heart: "#F4F8FA",
-  halt: "#FF5C5C",
-  risk: "#FFA94D",
-  focus: "#FFB547",
+/**
+ * Field motion tokens. Every field animation reads its timing from here so a redesign can retune
+ * or replace motion in one place. Motion always runs only on a semantic state change.
+ */
+export const fieldMotion = Object.freeze({
+  settleMs: 900,
+  settleStaggerMs: 90,
+  coreTurnMs: 700,
+  signalMs: 950,
+  signalStaggerMs: 110,
+  pulseInMs: 260,
+  pulseOutMs: 900,
+  flareDelayMs: 700,
+  flareMs: 900,
+  headerGlowMs: 800,
+  headerSignalMs: 900,
+  tabTransitionMs: 320,
+  poseMs: 1100,
+  orbitStepDeg: 18,
 });

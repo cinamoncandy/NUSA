@@ -30,7 +30,7 @@ export function MoreDetailView({ destination, onClose }: Readonly<{ destination:
 }
 
 const styles = StyleSheet.create({
-  status: { fontSize: 12, fontWeight: "800", letterSpacing: 0.8 },
+  status: { fontSize: 12, fontWeight: "500", letterSpacing: 0.8 },
   detail: { fontSize: 14, lineHeight: 21 },
   button: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 12, paddingHorizontal: 16 },
   buttonText: { fontSize: 14, fontWeight: "700" },

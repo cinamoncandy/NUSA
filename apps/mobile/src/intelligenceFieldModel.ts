@@ -19,6 +19,9 @@ export interface IntelligenceFieldInput {
   readonly readyForPaperOperations: boolean;
   readonly decisionCount: number | null;
   readonly paperOrderCount: number | null;
+  /** Canonical runtime facts shown verbatim when execution is absent; never a guessed cause. */
+  readonly pipelineStage?: string | null;
+  readonly lastError?: string | null;
 }
 
 export interface IntelligenceFieldModel {
@@ -58,11 +61,49 @@ export function buildIntelligenceField(input: IntelligenceFieldInput): Intellige
   const deciding = (input.decisionCount ?? 0) > 0;
   const noOrders = input.paperOrderCount === 0;
   if (input.readyForPaperOperations && deciding && noOrders) {
-    return freeze({ phase: "ATTENTION", statusWord: "ONLINE", tone: "green", headline: "판단은 돌지만\n실행이 없습니다", detail: "판단은 기록되지만 PAPER 주문은 0건입니다. 원인은 PAPER 화면에서 확인하세요.", lit: ALL, focus: "paper", states: { governance: "ONLINE", market: "ONLINE", risk: "MONITORING", axiom: "DECIDING", paper: "NO ORDERS" }, coreLevel: 1 });
+    // External fields are untrusted: only non-empty strings are shown, verbatim.
+    const text = (value: unknown): string | null => (typeof value === "string" && value.trim() !== "" ? value.trim() : null);
+    const stage = text(input.pipelineStage);
+    // lastError is latched by the runtime until reconnect, so it is shown as a record, not a live warning.
+    const error = text(input.lastError);
+    const facts = [stage ? `현재 단계: ${stage}` : null, error ? `마지막 기록 오류: ${error}` : null].filter(Boolean).join(" · ");
+    return freeze({ phase: "ATTENTION", statusWord: "ONLINE", tone: "green", headline: "판단은 돌지만\n실행이 없습니다", detail: facts ? `PAPER 주문 0건 · ${facts}` : "판단은 기록되지만 PAPER 주문은 0건입니다. 원인은 PAPER 화면에서 확인하세요.", lit: ALL, focus: "paper", states: { governance: "ONLINE", market: "ONLINE", risk: "MONITORING", axiom: "DECIDING", paper: "NO ORDERS" }, coreLevel: 1 });
   }
   return freeze({ phase: "CONNECTED", statusWord: "ONLINE", tone: "green", headline: "시스템이 정상 작동 중", detail: "모든 서브시스템이 연결됐습니다.", lit: ALL, focus: null, states: { governance: "ONLINE", market: "ONLINE", risk: "MONITORING", axiom: "ONLINE", paper: input.readyForPaperOperations ? "ACTIVE" : "OBSERVING" }, coreLevel: 1 });
 }
 
 function freeze(model: IntelligenceFieldModel): IntelligenceFieldModel {
   return Object.freeze({ ...model, lit: Object.freeze([...model.lit]), states: Object.freeze({ ...model.states }) });
+}
+
+/**
+ * Physical pose of the particle field for a phase. `spread` scales the nebula around the core
+ * (HALTED collapses inward), `presence` fades it. Unverified phases scatter and fade so an
+ * uncertain state never looks like a healthy one.
+ */
+export interface FieldPose { readonly spread: number; readonly presence: number }
+
+export function fieldPose(phase: IntelligenceFieldModel["phase"]): FieldPose {
+  switch (phase) {
+    case "HALTED": return Object.freeze({ spread: 0.3, presence: 1 });
+    case "LAUNCH":
+    case "AUTHENTICATION":
+    case "DEGRADED": return Object.freeze({ spread: 1.12, presence: 0.45 });
+    case "RECOVERING": return Object.freeze({ spread: 0.85, presence: 0.7 });
+    default: return Object.freeze({ spread: 1, presence: 1 });
+  }
+}
+
+/**
+ * Evidence row under the HOME headline, in the same grammar as the tab headers. Values are the
+ * canonical counters verbatim; an unknown value is an em dash, never a guessed zero.
+ */
+export function buildHomeFieldFacts(input: IntelligenceFieldInput): readonly { readonly label: string; readonly value: string }[] {
+  const count = (value: number | null) => (value != null && Number.isFinite(value) ? Math.max(0, Math.trunc(value)).toLocaleString("en-US") : "—");
+  const stage = typeof input.pipelineStage === "string" && input.pipelineStage.trim() !== "" ? input.pipelineStage.trim().replace(/_/g, " ") : "—";
+  return Object.freeze([
+    Object.freeze({ label: "DECISIONS", value: count(input.decisionCount) }),
+    Object.freeze({ label: "PAPER ORDERS", value: count(input.paperOrderCount) }),
+    Object.freeze({ label: "STAGE", value: stage }),
+  ]);
 }

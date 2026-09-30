@@ -1,0 +1,54 @@
+id: WO-20260927-AUDIT-RECOVERY-BOUNDED-RETRY
+title: "Keep transient Audit recovery inside the Audit lane"
+status: READY_FOR_REVIEW
+owner: nusa-release-audit
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+implementation_branch: fix/audit-recovery-bounded-audit-retry
+authority_impact: none
+objective: "Prevent independent Audit provider failures from being converted into coding work while preserving one bounded retry for genuine transient executor failures."
+canonical_owner: "Autopilot Execution Consumer / independent Audit recovery"
+observed_evidence:
+  audit_run: 36287106676
+  recovery_run: 36287124525
+  provider_error: WORKERS_AI_DAILY_QUOTA_EXHAUSTED
+  provider_status: WAITING_PROVIDER_CAPACITY
+  next_retry_at: "2026-09-28T00:00:00Z"
+  broken_transition: "WAITING_PROVIDER_CAPACITY -> audit-recovery -> REPOSITORY_AUTOPILOT coding lane"
+scope:
+  include:
+    - "Classify structured provider-capacity/quota/429 outcomes as provider_capacity with recovery=hold."
+    - "Keep provider-capacity waits BLOCKED until their external wait expires; do not immediately re-dispatch."
+    - "Retry genuine 5xx/network/timeout Audit executor failures as the same AUDIT_REQUEST on the same exact PR/head/CI evidence."
+    - "Allow at most one automatic Audit retry using audit_retry_attempt=1."
+    - "Recheck PR open/head/base/main freshness before the bounded retry."
+    - "Preserve PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY."
+  exclude:
+    - "Coding-runner dispatch for Audit failures."
+    - "Unbounded retry loops."
+    - "Audit verdict, Release authorization, merge, or secret authority changes."
+acceptance:
+  - "WAITING_PROVIDER_CAPACITY never dispatches REPOSITORY_AUTOPILOT."
+  - "quota/429 outcomes remain hold rather than immediate retry."
+  - "generic transient 5xx/network/timeout may dispatch exactly one AUDIT_REQUEST retry."
+  - "retry preserves the original PR number, exact head, and canonical CI run id."
+  - "a retry request cannot create a second automatic retry."
+  - "stale/closed/head-moved/base-moved requests fail closed without successor."
+verification_commands:
+  - "node --test tests/autopilot-independent-audit-contract.test.js"
+  - "node --test --test-name-pattern='Audit' dist/apps/autopilot/src/auditReleaseAuthority.test.js"
+  - "pnpm run preflight"
+  - "git diff --check"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  implementation_head: ddba61e85f39628cdae0b7df1a3be3c522ad175d
+  local_validation: "Focused independent-Audit contract tests 13/13 PASS and git diff --check PASS on exact implementation head. Local full preflight/AIPOS YAML helper could not complete because the low-memory verifier's dependency install lacked js-yaml and stalled; this is validation-host tooling, not a repository diagnostic failure."
+  external_validation: "Required: fresh exact-head CI including validation/preflight/AIPOS gates, then independent Audit, canonical Release, merge."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain fresh exact-head CI including validation/preflight/AIPOS gates, resolve any review findings, then independent Audit and canonical Release."

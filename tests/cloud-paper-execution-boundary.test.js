@@ -405,3 +405,15 @@ test("P0 uncertainty fails closed before risk evaluation and before mutation", (
   assert.equal(evaluations, 0);
   assert.deepEqual(loop.snapshot(), before);
 });
+
+test("a manual KRW BUY below the exchange minimum is rejected before any order, and SELL is unaffected", () => {
+  const { loop, boundary } = build("ALLOW");
+  const command = (side, quantity, key) => ({ schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, idempotencyKey: key, market: "KRW-BTC", side, orderType: "MARKET", quantity });
+  const context = { now: 1_700_000_000_100, marketPrice: 50_000_000, observedAt: 1_700_000_000_090, mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY" };
+  const before = loop.snapshot();
+  const small = boundary.submitManualOrder("owner", command("BUY", 0.00005, "manual-below-min-0001"), context);
+  assert.equal(small.status, "REJECTED");
+  assert.deepEqual(loop.snapshot(), before);
+  const ok = boundary.submitManualOrder("owner", command("BUY", 0.0002, "manual-at-min-00001"), context);
+  assert.notEqual(ok.reason, "PAPER_ORDER_BELOW_EXCHANGE_MINIMUM");
+});

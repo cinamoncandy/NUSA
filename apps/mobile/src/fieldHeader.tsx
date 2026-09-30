@@ -1,15 +1,18 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { buildFieldGeometry } from "./intelligenceField";
-import { fieldPalette } from "./designSystem";
+import { buildFieldGeometry, buildStrandPaths, Signal } from "./intelligenceField";
+import { fieldMotion, fieldPalette } from "./designSystem";
 import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
-import type { FieldHeaderModel } from "./fieldScreensModel";
+import { fieldHeaderPose, type FieldHeaderModel } from "./fieldScreensModel";
 
 /**
- * Compact Intelligence Field band for secondary tabs: one lit strand toward the subsystem the
- * tab is about, the rest faint. Moves only when the tone or subsystem changes.
+ * Compact Intelligence Field band for secondary tabs: a smaller nebula with the arm the tab is
+ * about lit and the rest faint. Moves only when the tone or subsystem changes. A sealed LIVE tab
+ * draws a dashed seal ring around the nebula.
  */
 const HEIGHT = 150;
+const SEAL_RADIUS = 70;
 const HUE: Record<FieldSubsystem, string> = { market: fieldPalette.market, axiom: fieldPalette.axiom, paper: fieldPalette.paper, governance: fieldPalette.governance, risk: fieldPalette.risk };
 const TONE: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
 const ORDER: readonly FieldSubsystem[] = ["market", "axiom", "paper", "governance", "risk"];
@@ -21,8 +24,13 @@ const Dots = memo(function Dots({ dots, color, faint }: Readonly<{ dots: readonl
 export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderModel; testID: string }>) {
   const [width, setWidth] = useState(0);
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
-  const geometry = useMemo(() => (width > 0 ? buildFieldGeometry(width, HEIGHT) : null), [width]);
+  const geometry = useMemo(() => (width > 0 ? buildFieldGeometry(width, HEIGHT, 0.6) : null), [width]);
   const glow = useRef(new Animated.Value(1)).current;
+  const signal = useRef(new Animated.Value(0)).current;
+  const pose = fieldHeaderPose(model);
+  const spread = useRef(new Animated.Value(pose.spread)).current;
+  const presence = useRef(new Animated.Value(pose.presence)).current;
+  const paths = useMemo(() => (width > 0 ? buildStrandPaths(width, HEIGHT) : null), [width]);
 
   useEffect(() => {
     let mounted = true;
@@ -37,14 +45,22 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     const changed = previousKey.current != null && previousKey.current !== key;
     previousKey.current = key;
     // Mounting or revisiting a tab is not a state change: animate only on a later semantic change.
-    if (reducedMotion !== false || !changed) { glow.setValue(1); return undefined; }
+    if (reducedMotion !== false || !changed) { glow.setValue(1); signal.setValue(0); spread.setValue(pose.spread); presence.setValue(pose.presence); return undefined; }
     glow.setValue(0.25);
-    const animation = Animated.timing(glow, { toValue: 1, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    signal.setValue(0);
+    // Same language as HOME: one signal rides the lit strand, inward when the state is a problem.
+    const animation = Animated.parallel([
+      Animated.timing(spread, { toValue: pose.spread, duration: fieldMotion.poseMs, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(presence, { toValue: pose.presence, duration: fieldMotion.poseMs, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(glow, { toValue: 1, duration: fieldMotion.headerGlowMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(signal, { toValue: 1, duration: fieldMotion.headerSignalMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]);
     animation.start();
     return () => animation.stop();
-  }, [model.tone, model.subsystem, reducedMotion, glow]);
+  }, [model.tone, model.subsystem, reducedMotion, glow, signal, spread, presence, pose.spread, pose.presence]);
 
   const tone = TONE[model.tone];
+  const sealed = model.eyebrow === "LIVE" && model.statusWord === "SEALED";
   const onLayout = (event: LayoutChangeEvent) => setWidth(Math.round(event.nativeEvent.layout.width));
   return <View style={styles.shell} testID={testID} accessibilityRole="summary" accessibilityLabel={`${model.eyebrow} ${model.statusWord}. ${model.headline.replace("\n", " ")}. ${model.detail}`}>
     <View style={styles.statusRow}>
@@ -53,11 +69,15 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
       <Text style={[styles.status, { color: tone }]} testID={`${testID}-status`}>{model.statusWord}</Text>
     </View>
     <View style={styles.field} onLayout={onLayout}>
-      {geometry == null ? null : ORDER.map((id) => {
-        const lit = id === model.subsystem;
-        const dots = <Dots dots={geometry[id]} color={lit ? (model.tone === "dim" ? HUE[id] : tone) : HUE[id]} faint={!lit} />;
-        return lit ? <Animated.View key={id} pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: glow }]}>{dots}</Animated.View> : <View key={id} pointerEvents="none" style={StyleSheet.absoluteFill}>{dots}</View>;
-      })}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: presence, transform: [{ scale: spread }] }]}>
+        {geometry == null ? null : ORDER.map((id) => {
+          const lit = id === model.subsystem;
+          const dots = <Dots dots={geometry[id]} color={lit ? (model.tone === "dim" ? HUE[id] : tone) : HUE[id]} faint={!lit} />;
+          return lit ? <Animated.View key={id} style={[StyleSheet.absoluteFill, { opacity: glow }]}>{dots}</Animated.View> : <View key={id} style={StyleSheet.absoluteFill}>{dots}</View>;
+        })}
+        {paths == null ? null : <Signal path={paths[model.subsystem]} progress={signal} color={tone} inward={model.tone === "amber" || model.tone === "red"} />}
+      </Animated.View>
+      {width > 0 && sealed ? <View pointerEvents="none" style={[styles.seal, { left: width / 2 - SEAL_RADIUS, top: HEIGHT / 2 - SEAL_RADIUS }]} /> : null}
       {width > 0 ? <View pointerEvents="none" style={[styles.core, { left: width / 2 - 9, top: HEIGHT / 2 - 9, borderColor: tone }]} /> : null}
     </View>
     <Text style={styles.headline} testID={`${testID}-headline`}>{model.headline}</Text>
@@ -71,15 +91,16 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
 const styles = StyleSheet.create({
   shell: { backgroundColor: fieldPalette.void, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  eyebrow: { color: fieldPalette.text, fontSize: 11, letterSpacing: 2.4, fontWeight: "600", marginRight: "auto" },
+  eyebrow: { color: fieldPalette.text, fontSize: 11, letterSpacing: 2.4, marginRight: "auto", ...fieldFonts.monoMedium },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  status: { fontSize: 11, letterSpacing: 2, fontWeight: "600" },
+  status: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
   field: { height: HEIGHT, overflow: "hidden" },
+  seal: { position: "absolute", width: SEAL_RADIUS * 2, height: SEAL_RADIUS * 2, borderRadius: SEAL_RADIUS, borderWidth: 1, borderStyle: "dashed", borderColor: fieldPalette.dim },
   core: { position: "absolute", width: 18, height: 18, borderWidth: 1.2, transform: [{ rotate: "45deg" }] },
-  headline: { color: fieldPalette.text, fontSize: 24, lineHeight: 31, fontWeight: "300", letterSpacing: -0.3 },
+  headline: { color: fieldPalette.text, fontSize: 24, lineHeight: 31, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   facts: { flexDirection: "row", marginTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim, paddingTop: 10 },
   fact: { flex: 1, gap: 2 },
-  factLabel: { color: fieldPalette.dim, fontSize: 9, letterSpacing: 1.6 },
-  factValue: { color: fieldPalette.label, fontSize: 13, fontWeight: "500", fontVariant: ["tabular-nums"] },
+  factLabel: { color: fieldPalette.dim, fontSize: 9, letterSpacing: 1.6, ...fieldFonts.mono },
+  factValue: { color: fieldPalette.label, fontSize: 13, fontVariant: ["tabular-nums"], ...fieldFonts.mono },
 });

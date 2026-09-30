@@ -4,13 +4,15 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
-import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
 import { createShutdownController, handleRuntimeFault, type ShutdownController } from "./cloudRuntimeShutdown";
+import { readPreviousRuntimeFailure, recordRuntimeFailure } from "./runtimeFailureRecord";
+import { paperExecutionObservedAt } from "./paperExecutionObservation";
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
@@ -40,8 +42,11 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
+import { createJevMarketMicrostructureShadowObserverFromEnvironment } from "./ai/jevMarketMicrostructureShadow";
 import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
+import { projectPaperRuntimeHealth } from "./paperRuntimeHealth";
+import { DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS } from "./upbitTickerObservation";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { validateShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { createDormantLiveAuthority } from "./liveReadinessGate";
@@ -56,8 +61,10 @@ import { readCloudRuntimeSafety, readPaperAutoLearningReadiness } from "./liveRe
 import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRealizedPeriodRepository, type PaperRealizedPeriodCanonicalCloseInput, type PaperRealizedPeriodCloseInput, type PaperRealizedPeriodOpenInput, type PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
-import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
+import { codePaperDecisionOutcome } from "./paperDecisionOutcome";
+import { PaperMarketObservationStoreError, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
+import { UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
 import {
@@ -85,6 +92,7 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   /** Canonical account-boundary path; no caller-supplied outcome metrics are accepted. */
   readonly openPaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly closePaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodCanonicalCloseInput) => PersistedPaperPeriodEnvelope;
+  readonly retirePaperRealizedPeriodForAccountChange: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
@@ -161,6 +169,8 @@ export function startCloudRuntime(
     startedAt: number;
     lastHeartbeatAt: number;
     lastMarketEventAt: number | null;
+    lastAcceptedMarketReceiptAt: number | null;
+    lastFailureAt: number | null;
     lastPaperDecisionAt: number | null;
     lastPaperOrderAt: number | null;
     lastPaperFillAt: number | null;
@@ -168,11 +178,14 @@ export function startCloudRuntime(
     decisionCount: number;
     paperOrderCount: number;
     paperFillCount: number;
+    lastPaperDecisionOutcome: string | null;
     lastError: string | null;
   } = {
     startedAt: runtimeStartedAt,
     lastHeartbeatAt: runtimeStartedAt,
     lastMarketEventAt: null,
+    lastAcceptedMarketReceiptAt: null,
+    lastFailureAt: null,
     lastPaperDecisionAt: null,
     lastPaperOrderAt: null,
     lastPaperFillAt: null,
@@ -180,13 +193,22 @@ export function startCloudRuntime(
     decisionCount: 0,
     paperOrderCount: 0,
     paperFillCount: 0,
+    lastPaperDecisionOutcome: null,
     lastError: null
   };
+  const recordFailure = (code: string): void => { heartbeat.lastError = code; heartbeat.lastFailureAt = Date.now(); };
+  // Why the previous process stopped, kept apart from lastError so market start-up cannot overwrite it
+  // and a supervisor restart loop stays diagnosable from /health.
+  const previousStop = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readPreviousRuntimeFailure(config.cloudStateDbPath);
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => Object.freeze({ ...heartbeat });
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
   // This recorder observes the canonical PAPER boundary below. It is deliberately
   // downstream-only: it never submits orders or mutates runtime state.
+  const jevMarketMicrostructureObserver = createJevMarketMicrostructureShadowObserverFromEnvironment(env);
+  const jevMarketMicrostructureLastObservedAt = new Map<string, number>();
+  const JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS = 30_000;
+
   const paperLearningRecorder = new PaperLearningEventRecorder(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository
       ? { persistencePath: config.cloudStateDbPath }
@@ -198,7 +220,7 @@ export function startCloudRuntime(
   const paperMarketObservationRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqlitePaperMarketObservationRepository(durableRepository.database())
     : undefined;
-  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
+  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database(), { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) }) : undefined);
   let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
@@ -307,6 +329,8 @@ export function startCloudRuntime(
   const observations = new Map<string, IntelligenceObservation>();
   const latestTickers = new Map<string, PersonalPaperMarketProjection>();
   const latestExecutionQuotes = new Map<string, PaperObservedExecutionQuote>();
+  const orderBookReconciler = new UpbitOrderBookReconciler();
+  let marketConnectionGeneration = 0;
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
     heartbeat.lastHeartbeatAt = Date.now();
@@ -318,7 +342,7 @@ export function startCloudRuntime(
       // P2 diagnostic suffix only: an operator can now tell a silent feed
       // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
       // malformed tick. Acceptance thresholds are unchanged; a rejected tick never enters trusted observations.
-      heartbeat.lastError = `PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`;
+      recordFailure(`PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`);
       // Reject only the untrusted tick. Previously one stale/invalid market event cleared every
       // already-accepted market observation, so a quiet market (for example a >30s DOGE last-trade
       // timestamp) could latch the whole multi-market PAPER dashboard into NO_MARKET_DATA even while
@@ -328,11 +352,12 @@ export function startCloudRuntime(
       safeHydrate([...observations.values()]);
       return;
     }
+    heartbeat.lastAcceptedMarketReceiptAt = now;
     // Only accepted public-market events may become durable PAPER evidence.
     // This keeps stale/future/malformed transport input out of the canonical observation store.
     latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
     try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h, sourceFingerprint: canonicalUpbitSourceFingerprint(ticker) }); }
-    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
+    catch (error) { recordFailure(`PAPER_MARKET_OBSERVATION_REJECTED:${error instanceof PaperMarketObservationStoreError ? error.code : "UNKNOWN"}`); }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     if (!researchRecoveryFailClosed) { try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ } }
@@ -352,7 +377,7 @@ export function startCloudRuntime(
       } catch { /* advisory AI only */ }
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get(config.ownerId)?.investmentPercent ?? config.paperInvestmentPercent;
-        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, portfolio: state.portfolio, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
+        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: paperExecutionObservedAt(ticker.trade_timestamp, executionNow), mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, portfolio: state.portfolio, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
@@ -360,7 +385,7 @@ export function startCloudRuntime(
         // second mutation path for strategy ticks.
         const result = productionPaperBoundary?.processTick(tick);
           if (result != null) {
-          try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(ticker.code, ticker.trade_timestamp, result.status), observedAt: now, status: result.status }); } catch (error) { heartbeat.lastError = error instanceof Error ? "PAPER_PERIOD_EVIDENCE_REJECTED" : "PAPER_PERIOD_EVIDENCE_REJECTED"; }
+          try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(ticker.code, ticker.trade_timestamp, result.status), observedAt: now, status: result.status }); } catch { recordFailure("PAPER_PERIOD_EVIDENCE_REJECTED"); }
           }
         const cycleId = paperLearningCycleId(ticker.code, ticker.trade_timestamp);
         const canonicalDecision = state.decisions.find((decision) => decision.symbol === ticker.code) ?? state.decisions[0];
@@ -369,11 +394,12 @@ export function startCloudRuntime(
         paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
         paperLearningRecorder.record({ cycleId, stage: "PERMISSION", occurredAt: now, market: ticker.code, status: "SKIP", reason: "NO_CANONICAL_TRADE_PERMISSION_EVIDENCE" });
         if (result != null) {
+          heartbeat.lastPaperDecisionOutcome = codePaperDecisionOutcome(result);
           if (result.orders.length > 0) heartbeat.lastPaperOrderAt = now;
           if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
           heartbeat.paperOrderCount += result.orders.length;
           heartbeat.paperFillCount += result.fills.length;
-          if (result.status === "FAILED") heartbeat.lastError = result.reason ?? "PAPER_EXECUTION_FAILED";
+          if (result.status === "FAILED") recordFailure(result.reason ?? "PAPER_EXECUTION_FAILED");
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
           paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });
@@ -390,14 +416,70 @@ export function startCloudRuntime(
   }, (state) => {
     heartbeat.lastHeartbeatAt = Date.now();
     marketConnectionState = state;
-    heartbeat.lastError = state === "CONNECTED" ? null : `PUBLIC_MARKET_${state}`;
-    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); latestExecutionQuotes.clear(); safeHydrate([]); }
+    if (state === "CONNECTED") heartbeat.lastError = null; else recordFailure(`PUBLIC_MARKET_${state}`);
+    marketConnectionGeneration += 1;
+    const generation = marketConnectionGeneration;
+    orderBookReconciler.reset();
+    latestExecutionQuotes.clear();
+    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); return; }
+    // A transport connection is not execution-grade market data. Every connection/reconnect
+    // generation must acquire a fresh public REST snapshot before any WebSocket orderbook quote
+    // can enter PAPER execution. Stream events retry expired or failed snapshots with bounded backoff.
+    void Promise.all(config.upbitMarkets.map(async (market) => {
+      try {
+        await orderBookReconciler.refreshSnapshot(market);
+      } catch {
+        if (generation === marketConnectionGeneration) recordFailure("PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE");
+      }
+    }));
+    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); }
   }, (orderBook) => {
     heartbeat.lastHeartbeatAt = Date.now();
     try {
-      const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: Date.now(), totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
+      const receivedAt = Date.now();
+      const reconciled = orderBookReconciler.reconcile(orderBook, receivedAt);
+      if (reconciled == null) {
+        latestExecutionQuotes.delete(orderBook.code);
+        recordFailure("PAPER_ORDERBOOK_UNRECONCILED");
+        if (marketConnectionState === "CONNECTED") {
+          const generation = marketConnectionGeneration;
+          void orderBookReconciler.refreshSnapshot(orderBook.code).catch(() => {
+            if (generation === marketConnectionGeneration) recordFailure("PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE");
+          });
+        }
+        return;
+      }
+      const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
-    } catch { heartbeat.lastError = "PAPER_ORDERBOOK_OBSERVATION_REJECTED"; }
+      // Only observed, validated quotes recover this diagnostic; never clear other failures
+      // or the failure timestamp used by the post-failure market receipt health gate.
+      if ((heartbeat.lastError === "PAPER_ORDERBOOK_UNRECONCILED" || heartbeat.lastError === "PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE")
+        && config.upbitMarkets.every((market) => {
+          const latest = latestExecutionQuotes.get(market);
+          return latest != null && latest.observedAt <= receivedAt && receivedAt - latest.observedAt <= 30_000;
+        })) heartbeat.lastError = null;
+      if (jevMarketMicrostructureObserver != null) {
+        const previousObservedAt = jevMarketMicrostructureLastObservedAt.get(quote.market) ?? 0;
+        if (quote.observedAt - previousObservedAt >= JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS) {
+          jevMarketMicrostructureLastObservedAt.set(quote.market, quote.observedAt);
+          void jevMarketMicrostructureObserver.observe(quote, env).then((receipt) => {
+            console.log(JSON.stringify({
+              event: "NUSA_JEV_MARKET_MICROSTRUCTURE_SHADOW",
+              market: receipt.market,
+              observedAt: receipt.observedAt,
+              state: receipt.selectedState,
+              action: receipt.selectedAction,
+              confidence: receipt.confidence,
+              reasonCode: receipt.reasonCode,
+              fallbackApplied: receipt.fallbackApplied,
+              usableForRouting: receipt.usableForRouting,
+              aiAuthority: receipt.aiAuthority,
+              liveAuthority: receipt.liveAuthority,
+            }));
+          }).catch(() => { /* SHADOW telemetry must never affect PAPER execution */ });
+        }
+      }
+    } catch { recordFailure("PAPER_ORDERBOOK_OBSERVATION_REJECTED"); }
   }) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
@@ -466,8 +548,15 @@ export function startCloudRuntime(
       decisionCount: heartbeat.decisionCount,
       paperOrderCount: heartbeat.paperOrderCount,
       paperFillCount: heartbeat.paperFillCount,
-      lastError: heartbeat.lastError
+      ...(heartbeat.lastPaperDecisionOutcome === null ? {} : { lastPaperDecisionOutcome: heartbeat.lastPaperDecisionOutcome }),
+      lastError: heartbeat.lastError,
+      ...(previousStop === undefined ? {} : { previousStop })
     }),
+    runtimeHealth: () => projectPaperRuntimeHealth(
+      Object.freeze({ ...heartbeat }),
+      Date.now(),
+      { heartbeatStaleAfterMs: 6_000, marketEventStaleAfterMs: DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS },
+    ),
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
     ...(userAccessRepository == null ? {} : { userAccessRepository }),
@@ -500,21 +589,24 @@ export function startCloudRuntime(
     closePaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().closePeriod(input),
     openPaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().openPeriodFromCanonicalAccount(input),
     closePaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().closePeriodFromCanonicalAccount(input),
+    retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
     stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 
-export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
+export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit, cloudStateDbPath?: string): ShutdownController {
   const controller = createShutdownController({ stop: () => handle.stop(), exit });
   process.on("SIGTERM", () => controller.trigger("SIGTERM")); process.on("SIGINT", () => controller.trigger("SIGINT"));
 
   // Unrecoverable runtime faults must terminate the process so supervisors can restart
   // from a fail-closed state instead of serving potentially stale mutation paths.
   process.on("uncaughtException", (error) => {
+    if (cloudStateDbPath !== undefined) recordRuntimeFailure(cloudStateDbPath, "UNCAUGHT_EXCEPTION", error);
     handleRuntimeFault(controller, "uncaught exception", error, exit);
   });
   process.on("unhandledRejection", (reason) => {
+    if (cloudStateDbPath !== undefined) recordRuntimeFailure(cloudStateDbPath, "UNHANDLED_REJECTION", reason);
     handleRuntimeFault(controller, "unhandled rejection", reason, exit);
   });
 

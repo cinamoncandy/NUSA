@@ -1,4 +1,236 @@
 version: 1
+current_android_release_target_settle:
+  work_order: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/android-stable-release-settle
+  base_sha: 8427d07115925a0adfc4b6bf2f7a575326085cf7
+  authority_impact: release-control
+  first_broken_transition: successful_android_release_to_stable_target_observation
+  evidence: "Run 36722041495 published exact main successfully at 13:36:45Z; trigger run 36721240538 failed at 13:36:52Z on a stale release target. Later trigger 36722017340 and stable target 8427d071 PASS. Repeated Autopilot recovery attempts then failed on the obsolete workflow failure."
+  validation: "Focused Android trigger/idempotency/deployment tests 12/12; pnpm run preflight; pnpm run validate; YAML parse; embedded Bash syntax; git diff --check PASS. Review corrections cover all three release controllers."
+  next: exact_head_CI_then_independent_Audit_then_canonical_Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_issue_2153_market_data_integrity:
+  work_order: WO-ISSUE-2153-MARKET-DATA-INTEGRITY
+  issue: 2153
+  pull_request: 2225
+  status: LATEST_MAIN_RECONVERGED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  scope: "Public Upbit order-book execution evidence requires a fresh REST snapshot per connection generation; unsafe sequence and timestamp-gap inference remain fail-closed."
+  validation: "Latest-main merge 19c00cf5: TypeScript build; canonical market-data, reconciliation, and runtime-health tests 20/20; preflight, validate, security gate, AIPOS drift, architecture, safety invariants, and diff check passed."
+  remaining: "Fresh exact-head CI, independent Audit, canonical Release, then runtime evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_issue_2017_component_health:
+  work_order: WO-ISSUE-2017-COMPONENT-HEALTH
+  issue: 2017
+  pull_request: 2019
+  status: REVIEW_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  scope: "One read-only canonical PAPER process/workload health projection; accepted local market receipt and post-failure evidence required before HEALTHY."
+  validation: "After latest-main merge e3d8f1f6: preflight, TypeScript build, focused health tests 24/24, cloud dashboard/bootstrap regression 15 PASS + 2 Windows signal SKIP, validate, security gate, AIPOS drift, lint, architecture, safety invariants, and diff check passed."
+  remaining: "Fresh exact-head CI, independent Audit/Release, and exact-main runtime proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_issue_2118_ci_saturation_wip:
+  work_order: WO-ISSUE-2118-CI-SATURATION-WIP
+  issue: 2118
+  status: AUTOPILOT_INCREMENT_IMPLEMENTED_PENDING_WORKFLOW_VALIDATION
+  base_sha: 408432cf1f2860d9927fa891e2f2e510814b9723
+  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution; legacy ciUtilization remains the compatibility fallback."
+  validation: "Not run locally per delegated-validation shared-host guard; Autopilot publish workflow must run the recorded heavy gates on separate hardware."
+  remaining: "Workflow validation and publication, then exact-head CI before Audit/Release; current baseline and after-change p50/p95 measurement remain later increments."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_exchange_minimum_order:
+  work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-min-order
+  authority_impact: paper-accounting-and-risk-sizing
+  scope: "Cloud PAPER BUY below the Upbit KRW 5,000 minimum is raised to KRW 5,050 within a 60% equity ceiling and available cash, else fails closed (owner decision option A, 2026-09-30)."
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-observe-next-BUY-at-least-KRW-5000
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_security_fast_uri_backport:
+  work_order: WO-SECURITY-20260929-FAST-URI
+  status: READY_FOR_REVIEW
+  branch: codex/security-fast-uri-3-1-8
+  base_sha: 6de0b9e61557b58d94301ed17ecc530210c0976a
+  first_broken_transition: post_merge_security_gate_to_dependency_audit
+  finding: "Post-merge CI 36499696763 failed in the Security gate because fast-uri@3.1.6 has two unmitigated high advisories (1239943 and 1239946) through electron-builder's development dependency tree."
+  remediation: "Pin the existing fast-uri@3.1.4 override to patched v3.1.8 and keep the security gate fail-closed."
+  authority_impact: none
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  validation: "security-gate 0 unmitigated high/critical advisories; security gate tests 10/10; typecheck and validate:full PASS."
+  remaining: commit_then_exact_head_CI_then_independent_Audit_then_Release
+current_autopilot_runtime_provider_wait:
+  work_order: WO-AUTOPILOT-20260929-ORACLE-PROVIDER-WAIT
+  status: READY_FOR_REVIEW
+  branch: codex/autopilot-runtime-provider-wait
+  pull_request: 2372
+  base_sha: 4b15ff9501676cf5ff85ae958b625676ae34ad43
+  authority_impact: none
+  first_broken_transition: canonical-provider-wait-to-Oracle-runtime-health
+  validation: "Focused runtime tests 7/7, lint:scripts, AI zero-authority, safety invariants, and diff check PASS; fresh exact-head CI required."
+  remaining: exact-head-CI_then-independent-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-runtime-observation
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_capacity_efficiency:
+  work_order: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
+  status: MERGED_VERIFIED_RUNTIME_EVIDENCE_PENDING
+  branch: codex/autopilot-provider-wait-cost-efficiency
+  pull_request: 2378
+  base_sha: ea54b66274a238b37c36b66d227003f6246b7392
+  implementation_head: 7308a988bb9421389b6c428a3431644eedac067f
+  merge_commit: 963890b80ea79a17f8889c278463524b847af180
+  follow_up_runtime_proof: "PR #2355 follow-up deploy 36514749190 and exact-main runtime proof 36515211048 PASS on 45faa722b697b75387a05b4e8c441147903a2386; provider remains WAITING_RATE_LIMIT, with no Jev inference or neuron savings evidenced."
+  validation: "PR #2378 final head 7308a988 exact-head CI 36511138656 PASS; required PAPER/read-only/Restricted LIVE workflows 36511138621, 36511138631, 36511138653, 36511138692, 36511138714 PASS. Independent Audit and canonical Release 36511552908 PASS; merged as main 963890b80ea79a17f8889c278463524b847af180. Post-merge CI 36511589685, Cloudflare deploy 36511589835, and exact-main runtime proof 36511653054 PASS. Runtime remains WAITING_RATE_LIMIT / waiting-provider-capacity; no Jev inference or runtime neuron savings was measured."
+  scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
+  authority_impact: none
+  remaining: local-validation_then_exact-head-CI_then_independent-Audit_then_canonical-Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_capital_5000_account:
+  work_order: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
+  status: ROLLED_BACK
+  rollback_pull_request: 2371
+  authority_impact: paper-accounting
+  remaining: reproduce-prod-crash-from-prod-like-state_then-fix_then-re-propose-capital-switch
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_presentation_boundary:
+  work_order: WO-UI-20260928-PRESENTATION-BOUNDARY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ui-boundary
+  depends_on_pull_request: 2351
+  authority_impact: none
+  design_status: field-v1-INTERIM_full-redesign-planned-see-docs-UI_ARCHITECTURE
+current_paper_challenger_policy_default:
+  work_order: WO-PAPER-20260928-CHALLENGER-POLICY-DEFAULT-ON
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-challenger-default
+  authority_impact: paper-governance
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-observe-PAPER-cycles
+current_autopilot_scheduler_budget:
+  work_order: WO-AUTOPILOT-20260928-SCHEDULER-GITHUB-BUDGET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-scheduler-budget
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-verify-scheduled-status-dispatches
+current_autopilot_audit_malformed_retry:
+  work_order: WO-AUTOPILOT-20260928-AUDIT-MALFORMED-RETRY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-audit-retry-malformed
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next_ui_work:
+  work_order: WO-UI-20260928-FIELD-NEBULA
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-field-nebula
+  depends_on_pull_request: 2354
+  authority_impact: none
+  remaining: open-PR-after-2354-merges_then-CI-Audit-Release
+current_mobile_field_structure:
+  work_order: WO-UI-20260928-FIELD-STRUCTURE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-field-structure
+  depends_on_pull_request: 2350
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_paper_tabs_icon:
+  work_order: WO-UI-20260928-PAPER-TABS-ICON
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-tabs-icon
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_evidence_digest_convergence:
+  work_order: WO-RESEARCH-20260929-EVIDENCE-DIGEST-CONVERGENCE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-cost-hash
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
+current_runtime_restart_forensics:
+  work_order: WO-OPS-20260928-RUNTIME-RESTART-FORENSICS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-runtime-forensics
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-read-health-lastError
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_restart_loop_stale_snapshot:
+  work_order: WO-OPS-20260929-PAPER-RESTART-LOOP-STALE-SNAPSHOT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-legacy-replay
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-health-stable
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_execution_clock_skew:
+  work_order: WO-PAPER-20260929-EXECUTION-CLOCK-SKEW
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-clock-skew
+current_research_snapshot_on_demand_refresh:
+  work_order: WO-OPS-20260929-RESEARCH-SNAPSHOT-ON-DEMAND-REFRESH
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-refresh
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_owner_baseline_strategy:
+  work_order: WO-PAPER-20260929-OWNER-BASELINE-STRATEGY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-owner-baseline
+  authority_impact: paper_strategy_execution
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-paper-orders
+current_paper_capital_10000_account:
+  work_order: WO-PAPER-20260929-CAPITAL-10000-ACCOUNT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-capital-10000
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-account-10000
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_retire_legacy_account:
+  work_order: WO-PAPER-20260929-RETIRE-LEGACY-ACCOUNT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-retire-legacy-account
+  authority_impact: paper_persistence
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-retirement
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_codex_dedicated_account:
+  work_order: WO-AUTOPILOT-20260929-CODEX-DEDICATED-ACCOUNT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-codex-no-local-build
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge-of-no-local-build-prompt_then-one-autopilot-codex-coding-dispatch-must-open-an-autopilot-codex-PR-without-PAPER-502
+current_host_memory_research_limits:
+  work_order: WO-OPS-20260929-HOST-MEMORY-RESEARCH-LIMITS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-refresh-memory
+  authority_impact: none
+  remaining: runners-back-online_then-exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_audit_grounded_fail:
+  work_order: WO-20260928-AUDIT-GROUNDED-FAIL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-audit-grounded-fail
+  authority_impact: audit-validation-tightening
+  unblocks_pull_request: 2351
+  status_note: merged via PR 2352
+  remaining: reaudit-2351
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_field_theme:
+  work_order: WO-UI-20260928-FIELD-THEME
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-field-theme
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_lime_theme:
+  work_order: WO-UI-20260930-LIME-THEME
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ui-refresh
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_decision_outcome:
+  work_order: WO-OBS-20260930-DECISION-OUTCOME
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-decision-outcome
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-Oracle-exact-main-release_then-read-/health
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_screens:
   work_order: WO-UI-20260928-FIELD-SCREENS
   status: READY_FOR_REVIEW
@@ -30,6 +262,25 @@ current_jev_workers_ai_native_provider:
   review_corrections: "Canonical stable input fingerprint/prompt; timeout coalescing retained until binding settles; structured response envelopes; provider retry metadata preservation; token usage in typed receipt; no secrets."
   remaining: real-native-workers-ai-shadow-call_then_typed-receipt-and-evidence_then_calibration
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_jev_shadow_runtime_config:
+  work_order: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
+  status: WAITING_PROVIDER_CAPACITY
+  pull_request: 2355
+  branch: codex/jev-shadow-runtime-config
+  base_sha: 7c480e962b3b50fe2a724267c168a0aa8280adfc
+  implementation_head: edcd1f97cf8f5ba9260339264b2ca6ae1127adc6
+  merge_commit: 45faa722b697b75387a05b4e8c441147903a2386
+  exact_main_ci: 36514749050
+  cloudflare_deploy: 36514749190
+  runtime_proof: 36515211048
+  runtime_proof_result: "PASS: exactHeadVerified=true; deploymentRevision=45faa722b697b75387a05b4e8c441147903a2386; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY. Scheduler remains WAITING_RATE_LIMIT/waiting-provider-capacity; no native Jev call or neuron usage recorded."
+  parent_pr: 2348
+  scope: repository-controlled-native-jev-shadow-runtime-config-and-deploy-var-preservation
+  first_broken_transition: partial-wrangler-var-deploy-overrides-shadow-config_and_global-release-freeze-override
+  safety_correction: "Removed unconditional deploy CLI override NUSA_GLOBAL_RELEASE_FREEZE:false; retain Jev SHADOW true and bounded routing false."
+  current_runtime_finding: "Exact deployed runtime proof passes on main 45faa722; provider is WAITING_RATE_LIMIT / waiting-provider-capacity and has produced no Jev call receipt or usage telemetry."
+  next_permitted_action: targeted_validation_then_exact-head-CI_then_independent-Audit_then-canonical-Release_then_runtime_receipt
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_domain_observation_contract:
   work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
   status: BLOCKED
@@ -43,6 +294,20 @@ current_jev_domain_observation_contract:
   validation: "Implementation head ca56eb2a exact-head CI 36287313910 PASS including validation, all coverage shards, aggregate coverage, and test; local focused TypeScript compile, runtime trust-boundary assertions, AIPOS YAML, and git diff checks PASS. Full repository tsc on the 1 GB nusa-vcn verifier was resource-limited and boundedly stopped, not diagnostically failed. This metadata-only reconciliation requires one final fresh exact-head CI."
   blocker: "Independent Audit provider is in WORKERS_AI_DAILY_QUOTA_EXHAUSTED HARD_STOP; persisted nextRetryAt is 2026-09-28T00:00:00Z (2026-09-28 09:00 KST). Do not repeatedly poll or dispatch Audit before this boundary."
   remaining: fresh-exact-head-CI_then_independent-Audit_after-nextRetryAt_then_Release_then_merge
+current_provider_backpressure:
+  work_order: WO-20260927-PROVIDER-BACKPRESSURE
+  status: IN_PROGRESS
+  implementation_status: RECONVERGED_PENDING_EXACT_HEAD_VALIDATION
+  issue: 2185
+  parent_pr: 2336
+  branch: feat/2185-provider-backpressure
+  base_sha: 1b058a1d26e14125afb51cc2d87a49a662044130
+  implementation_head: 2e1ef3bdb07670d34133a927eeb019230b9be2d9
+  reconvergence_commit: 90982f8715a7b67f669628ac055686cda57864c0
+  first_broken_transition: provider_rate_limit_to_provider_local_backpressure_and_recovery
+  validation: "Code head 2e1ef3bd focused backpressure 13/13 PASS; unwired-control-plane 3/3 PASS; AI zero-authority/safety/diff PASS. Metadata-only evidence reconciliation follows."
+  blocker: fresh_exact_head_validation_pending_external_credential_probe
+  next: focused-local-validation_then_push-existing-PR_then_exact-head-CI-Audit-Release
 current_jev_bounded_coding_admission:
   work_order: WO-20260924-AI-CAPACITY-COST-CEILING
   status: READY_FOR_REVIEW
@@ -56,7 +321,6 @@ current_jev_bounded_coding_admission:
   correction: "Canonical gha failure reasons are eligible; Jev abstention requires exact GitHub failed job/step evidence; repair retries do not reclassify; /coding/propose and dispatcher propagate abstention as successful NO_ACTION."
   validation: "Focused admission TypeScript compile/runtime PASS; dispatcher JEV_ROUTING_ABSTAINED->NO_ACTION test PASS; git diff --check PASS; review threads RESOLVED. Fresh exact-head CI required."
   remaining: push-rebased-existing-PR_then_fresh-exact-head-CI_then_independent-Audit_then_Release
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_ai_provider_reliability:
   work_order: WO-20260927-AI-PROVIDER-RELIABILITY
   issue: 1997
@@ -69,6 +333,19 @@ current_ai_provider_reliability:
   validation: "Focused provider reliability 13/13 PASS; TypeScript compile/YAML/diff PASS; 6 review findings RESOLVED. Fresh exact-head CI required."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: exact-head-CI_then-independent-Audit-then-Release
+current_audit_recovery_bounded_retry:
+  work_order: WO-20260927-AUDIT-RECOVERY-BOUNDED-RETRY
+  status: READY_FOR_REVIEW
+  branch: fix/audit-recovery-bounded-audit-retry
+  base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+  observed_audit_run: 36287106676
+  observed_recovery_run: 36287124525
+  first_broken_transition: WAITING_PROVIDER_CAPACITY_to_REPOSITORY_AUTOPILOT_coding_lane
+  intended_recovery: provider-capacity-hold_or_one-bounded-AUDIT_REQUEST-retry
+  implementation_head: ddba61e85f39628cdae0b7df1a3be3c522ad175d
+  validation: "Focused Audit contract 13/13 PASS and git diff --check PASS; full exact-head CI/preflight/AIPOS validation required because local verifier dependency install was unavailable."
+  next: exact-head-CI_then_independent-Audit_then_Release_then_merge
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_recovery_pagination_fix:
   work_order: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
   status: READY_FOR_REVIEW
@@ -279,17 +556,22 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-26T23:27:32+09:00"
 current_execution_target:
-  work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
-  status: READY_FOR_REVIEW
-  branch: fix/audit-exact-head-binding
-  base_sha: e1a9f3ccb2cbc463344a18d322821ac80c82ded7
-  implementation_head: 0fe36b9d0ac482662f15c357c2a34dd3c63c803d
-  pull_request: 2343
-  scope: "Bind independent Audit diff evidence to immutable base..head commit identities and record the post-review SHA as canonical evidence; no execution or authority change."
+  work_order: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
+  status: WIP
+  branch: feat/jev-native-runtime-shadow
+  base_sha: bc420633ada54854d0f6fd666da937f0844cad89
+  pull_request: 2348
+  scope: "Wire the merged native Workers AI Jev provider into the existing Autopilot workflow-failure SHADOW runtime and capture bounded typed evidence."
   authority_impact: none
-  prior_target: WO-20260924-PAPER-LEDGER-PRESERVATION
+  first_broken_transition: native_provider_to_real_shadow_runtime_call
+  review_corrections: "Bounded sanitized failure evidence; JSON-schema-capable default model; provider-capacity stop guard; canonical C3_JEV AI-call telemetry; active AIPOS recovery state; latest protected main reconciled."
+  validation: "Focused runtime test updated; fresh exact-head CI required after review corrections."
+  dependency: "PR #2345 merged; #2338 external credential blocker is independent and does not block this lane."
+  next: "Fresh exact-head CI -> resolve review findings -> READY_FOR_REVIEW -> Independent Audit -> Release -> merge -> deployed real NUSA_JEV_WORKERS_AI_SHADOW_CALL evidence."
+  prior_target: WO-20260927-AUDIT-EXACT-HEAD-BINDING
   prior_target_status: READY_FOR_REVIEW
   prior_target_preserved: true
+  updated_at: "2026-09-28T01:50:00Z"
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_exact_head_binding:
   work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
@@ -426,18 +708,15 @@ latest_event_bridge_oidc_slice:
 
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
-  status: COMPLETED
-  base_commit: 07b92f86bbac6e939906c9de88575ac89d316f9f
-  implementation_branch: codex/research-factory-hypothesis-admission
-  implementation_commit: 74e349ce4a3f56da8a0f7d50ae71f23b45791960
-  pull_request: 1319
-  merge_commit: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
-  exact_head_ci: "6/6 PASS (PR head 74e349ce4a3f56da8a0f7d50ae71f23b45791960)"
-  post_merge_main: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
-  scope: "Candidate-level canonical research hypothesis admission and provenance binding in the existing Research Factory path."
-  validation: "Focused 30/30; research/League regression 39/39; full isolated 825/825; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
+  status: REVIEW_CORRECTIONS_APPLIED_PENDING_FRESH_CI
+  base_commit: 0cc2f8cd47978c10373797d34ef6d1daa8aa0313
+  implementation_branch: fix/1094-research-universe-provenance
+  pull_request: 2411
+  scope: "Point-in-time universe/survivorship provenance over the existing Research Integrity and Run Factory path."
+  review_corrections: "Canonical real-market multi-market runner now passes the complete precommitted market cohort; universe availability is bound at/before historical selection start; every evidence dataset ID/hash is constituent-bound for the full evaluated period; optional eligibility fields are normalized before hashing; market IDs use deterministic ASCII grammar; AIPOS state/work-order are synchronized."
+  validation: "Prior head 8deaac13 exact-head CI 6/6 PASS and deterministic Audit PASS; Release merge was correctly blocked by unresolved review threads. Fresh exact-head CI/Audit required after corrections."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Truthful longitudinal PAPER source remains unavailable and fail-closed; continue #861 only when verified runtime evidence exists."
+  remaining: "Fresh exact-head CI -> independent Audit -> Release -> merge -> protected-main verification."
 latest_portfolio_risk_data_quality_slice:
   status: COMPLETED
   base_commit: e400a0329f269a122483e7b4f17e244d0d28639c
@@ -522,9 +801,9 @@ claimed_state:
   validation: "PR #1313 exact-head protected checks PASS; merge 57952f14485e816a7ac88e11ba5f8f3e11dba34c; post-merge main CI 33363161756, Sandbox Guard 33363161696, and Actual PAPER Runtime 33363161755 PASS; WO-0051 remains human/environment only."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-  status: IN_PROGRESS
-  branch: agent/issue-661-live-ready-observability
-  base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  status: COMPLETED
+  branch: main
+  base_commit: 51f3b584435fbe0fdf76f856803508a3f0a0cddd
   scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
 verified_state:
   work_order: WO-AI-010
@@ -1250,7 +1529,7 @@ issue_661_live_readiness_production_source:
 issue_661_live_ready_observability:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   issue: 661
-  status: IN_PROGRESS
+  status: COMPLETED
   base_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
   branch: agent/issue-661-live-ready-observability
   scope: "GET-only canonical LIVE preparation observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
@@ -1264,7 +1543,7 @@ issue_661_live_ready_observability:
     ai_authority: ZERO_AUTHORITY
     order_cancel_withdraw_transfer: NONE
     activation: NONE
-  implementation_status: PR_770_OPEN_READY_EXACT_HEAD_VALIDATION_PASS
+  implementation_status: MERGED_PR_770
   implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
   pull_request: 770
   validation_head: 7e925445055d14d877baa1476291a9108e832bff
@@ -1273,7 +1552,7 @@ issue_661_live_ready_observability:
   actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
   safety_boundary: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
-  next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
+  next: "None. PR #770 merged as 51f3b584435fbe0fdf76f856803508a3f0a0cddd; Issue #661 is closed and this is historical read-only evidence."
 
 redesign_truthful_home_state:
   work_order: WO-REDESIGN-TRUTHFUL-HOME-001
@@ -1489,4 +1768,29 @@ current_research_replay_segmented_persistence:
   validation: "Prior exact-head CI passed on 8715a491c8942b995ed5fb68c3443baa7a83a5ea; that evidence is stale after protected-main drift. Fresh exact-head CI is required on the reconverged head."
   blocker: "None before fresh CI terminal; production recovery remains gated on independent Audit/Release and Oracle deployment."
   next: "Fresh exact-head CI -> independent Audit/Release -> merge -> Oracle exact-main deployment -> successful Research workload/restart evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_pr1991_review_hardening:
+  work_order: WO-20260927-PR1991-REVIEW-HARDENING
+  status: IN_PROGRESS
+  pull_request: 1991
+  branch: fix/1892-qualification-survival-gates
+  base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+  previous_verified_head: fd0ea0d345bc3574a37b292d082026cdfd4d42f9
+  finding: "Protected main advanced after the prior exact-head PASS; stale acceptance evidence cannot be reused."
+  remediation: "Reapply the frozen qualification-integrity delta onto latest protected main while preserving current research learning/runtime changes."
+  validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
+  next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_orderbook_snapshot_refresh:
+  work_order: WO-PAPER-ORDERBOOK-SNAPSHOT-REFRESH
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  base_sha: 2661e812d769db6f977093d9646a1196ca531a64
+  pull_request: 2409
+  duplicate_coordination: "PR 2410 covers the same defect; canonical owner remains the earlier PR 2409. Do not stack both refresh implementations."
+  finding: "Persistent public connections outlive the 30-second REST snapshot validity and cannot recover without reconnecting."
+  remediation: "Coalesced snapshot refresh on unreconciled stream frames, bounded backoff and timeout, reconnect generation fencing."
+  validation: "25 focused reconciliation, real runtime wiring, liveness, restart and health tests PASS; TypeScript compile/typecheck, preflight, targeted lint and repository validate PASS."
+  diagnostic_recovery: "Fresh valid quotes for every configured market clear only orderbook diagnostics; failure timestamp and accepted-market receipt health gate remain intact. Prior exact-head actual PAPER artifact remained INCOMPLETE with no actionable signal."
+  next: "Exact-head CI, independent Audit, canonical Release, then long-lived Oracle runtime proof."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

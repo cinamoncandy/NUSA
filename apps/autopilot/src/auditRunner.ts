@@ -93,9 +93,10 @@ const MAX_EVIDENCE_REF_CHARS = 500;
 // Workers AI structured-output occasionally returns a response that fails
 // validateAuditModelVerdict's schema checks even with response_format constraints applied --
 // observed transient (the same head_sha's audit request succeeds on a later attempt without any
-// code change). Retrying the identical prompt a bounded number of times absorbs that
-// nondeterminism without weakening any validation: a persistently malformed response still fails
-// closed exactly as before once attempts are exhausted.
+// code change). Retry remains bounded, but after a schema/semantic rejection the next attempt gets
+// only the validator error code as repair context. This preserves the exact diff and authority
+// boundary while giving the model a deterministic chance to correct its JSON shape. A persistently
+// malformed response still fails closed once attempts are exhausted.
 const MAX_AUDIT_MODEL_ATTEMPTS = 3;
 const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult", "mergeAllowed"]);
 const ALLOWED_FINDING_KEYS = new Set(["code", "severity", "message", "evidenceRef"]);
@@ -214,6 +215,10 @@ export function validateAuditModelVerdict(value: unknown): AuditModelVerdict {
   if (verdict.verdict === "PASS" && findings.length > 0) throw new Error("AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN");
   if (verdict.verdict === "PASS_WITH_NOTES" && findings.length === 0) throw new Error("AUDIT_VERDICT_NOTES_REQUIRED");
   if (verdict.verdict === "FAIL" && blockers.length === 0) throw new Error("AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED");
+  // A FAIL must be grounded in at least one BLOCKER finding (whose evidence is later bound to the
+  // current diff). A bare blocker string with no finding is a malformed model response -- e.g. the
+  // model echoing a prompt example code -- and is retried, then fails closed; it never becomes a verdict.
+  if (verdict.verdict === "FAIL" && !findings.some((finding) => finding.severity === "BLOCKER")) throw new Error("AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED");
   if (verdict.mergeAllowed && (verdict.verdict === "FAIL" || blockers.length > 0 || safetyInvariantResult !== "PASS" || findings.some((finding) => finding.severity === "BLOCKER"))) throw new Error("AUDIT_VERDICT_MERGE_ALLOWED_UNSAFE");
   return Object.freeze({
     verdict: verdict.verdict,
@@ -393,9 +398,9 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
     "Safety invariants: liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY; no AI self-grant; no automatic LIVE activation; no withdrawals/transfers; no mobile credential storage; PAPER/REAL separation; fail-closed; actual evidence must not be fabricated.",
     'Return only JSON matching response_format. safetyInvariantResult MUST be a JSON string whose exact value is "PASS" or "FAIL"; never use a boolean, object, null, or another spelling.',
     "The top-level JSON object MUST contain exactly these five keys: verdict, findings, blockers, safetyInvariantResult, mergeAllowed. findings and blockers MUST always be arrays; mergeAllowed MUST be a JSON boolean.",
-    "Each findings item code MUST be 1-80 characters and contain only uppercase A-Z, digits 0-9, underscore (_), dot (.), colon (:), or hyphen (-). Use a stable machine-readable identifier such as RELEASE_HANDOFF_MISSING; never use spaces or lowercase letters in code.",
+    "Each findings item code MUST be 1-80 characters and contain only uppercase A-Z, digits 0-9, underscore (_), dot (.), colon (:), or hyphen (-). Use a stable machine-readable identifier that names the specific defect you found in this diff; never copy an identifier from these instructions, and never use spaces or lowercase letters in code.",
     "Every BLOCKER finding MUST have at least one corresponding human-readable entry in blockers; never emit a BLOCKER finding with an empty blockers array.",
-    "Rules: PASS requires zero findings and zero blockers and mergeAllowed=true. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers; set mergeAllowed=true only when those notes are explicitly non-blocking and the exact reviewed head is safe to merge. FAIL requires at least one blocker and mergeAllowed=false. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL and mergeAllowed=false.",
+    "Rules: PASS requires zero findings and zero blockers and mergeAllowed=true. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers; set mergeAllowed=true only when those notes are explicitly non-blocking and the exact reviewed head is safe to merge. FAIL requires at least one BLOCKER finding, at least one blocker, and mergeAllowed=false; never emit blockers without a BLOCKER finding. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL and mergeAllowed=false.",
     "For every BLOCKER, evidenceRef MUST be exactly one value from the deterministic CURRENT ADDED-LINE EVIDENCE REFS list below. Never invent or transform an evidenceRef. A `-` line is removed code, never current behavior; do not report it as a blocker. If a concern depends only on removed code, it is not a current blocker.",
     "--- BEGIN CURRENT ADDED-LINE EVIDENCE REFS ---",
     ...[...currentDiffEvidenceRefs(diff)].sort(),
@@ -423,13 +428,23 @@ export async function executeIndependentAudit(
   const diff = await fetchPullDiff(request, beforeAudit.changedFiles, githubToken, fetchImpl);
   if (!env.AI) throw new Error("AUDIT_AI_NOT_CONFIGURED");
   const model = env.NUSA_AI_AUDIT_MODEL?.trim() || DEFAULT_AUDIT_MODEL;
-  const modelRequest = {
-    prompt: auditPrompt(request, diff),
-    response_format: AUDIT_RESPONSE_FORMAT,
-  };
+  const basePrompt = auditPrompt(request, diff);
   let modelResult: AuditModelVerdict | undefined;
   let lastModelError: unknown;
   for (let attempt = 1; attempt <= MAX_AUDIT_MODEL_ATTEMPTS; attempt += 1) {
+    const repair = lastModelError instanceof Error
+      ? [
+          "",
+          "--- PREVIOUS RESPONSE REJECTED ---",
+          `Validator error: ${lastModelError.message}`,
+          "Return a fresh verdict for the same exact diff. Do not copy a blocker string unless you also emit a BLOCKER finding grounded in one CURRENT ADDED-LINE EVIDENCE REF. If no grounded blocker exists, do not invent one.",
+          "--- END REPAIR CONTEXT ---",
+        ].join("\n")
+      : "";
+    const modelRequest = {
+      prompt: `${basePrompt}${repair}`,
+      response_format: AUDIT_RESPONSE_FORMAT,
+    };
     const rawModelResponse = await env.AI.run(model, modelRequest);
     logAiCall({ caller: "C2_AUDIT", model, attempt, promptChars: modelRequest.prompt.length, response: rawModelResponse });
     try {
