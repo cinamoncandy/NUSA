@@ -708,18 +708,15 @@ latest_event_bridge_oidc_slice:
 
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
-  status: COMPLETED
-  base_commit: 07b92f86bbac6e939906c9de88575ac89d316f9f
-  implementation_branch: codex/research-factory-hypothesis-admission
-  implementation_commit: 74e349ce4a3f56da8a0f7d50ae71f23b45791960
-  pull_request: 1319
-  merge_commit: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
-  exact_head_ci: "6/6 PASS (PR head 74e349ce4a3f56da8a0f7d50ae71f23b45791960)"
-  post_merge_main: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
-  scope: "Candidate-level canonical research hypothesis admission and provenance binding in the existing Research Factory path."
-  validation: "Focused 30/30; research/League regression 39/39; full isolated 825/825; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
+  status: REVIEW_CORRECTIONS_APPLIED_PENDING_FRESH_CI
+  base_commit: 0cc2f8cd47978c10373797d34ef6d1daa8aa0313
+  implementation_branch: fix/1094-research-universe-provenance
+  pull_request: 2411
+  scope: "Point-in-time universe/survivorship provenance over the existing Research Integrity and Run Factory path."
+  review_corrections: "Canonical real-market multi-market runner now passes the complete precommitted market cohort; universe availability is bound at/before historical selection start; every evidence dataset ID/hash is constituent-bound for the full evaluated period; optional eligibility fields are normalized before hashing; market IDs use deterministic ASCII grammar; AIPOS state/work-order are synchronized."
+  validation: "Prior head 8deaac13 exact-head CI 6/6 PASS and deterministic Audit PASS; Release merge was correctly blocked by unresolved review threads. Fresh exact-head CI/Audit required after corrections."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Truthful longitudinal PAPER source remains unavailable and fail-closed; continue #861 only when verified runtime evidence exists."
+  remaining: "Fresh exact-head CI -> independent Audit -> Release -> merge -> protected-main verification."
 latest_portfolio_risk_data_quality_slice:
   status: COMPLETED
   base_commit: e400a0329f269a122483e7b4f17e244d0d28639c
