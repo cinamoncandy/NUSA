@@ -54,6 +54,17 @@ test("the small PAPER host receives a sealed build instead of installing or buil
   assert.doesNotMatch(release, /pnpm install|pnpm run build/);
 });
 
+test("the privileged backup uses the configured runtime state database", () => {
+  const backupStart = wrapper.indexOf("  backup)");
+  const backupEnd = wrapper.indexOf("\n\n  preflight)", backupStart);
+  const backup = wrapper.slice(backupStart, backupEnd);
+  assert.ok(backup.length > 0);
+  assert.match(backup, /source "\$RUNTIME_ENV"/, "backup must read the canonical runtime env without printing it");
+  assert.match(backup, /NUSA_CLOUD_STATE_DB_PATH/);
+  assert.match(backup, /env NUSA_DB="\$state_db"/, "sqlite-backup must target the configured durable runtime database");
+  assert.match(backup, /Cloud state path must be absolute before backup/);
+});
+
 test("the workflow runs the release verbs in the runbook's order", () => {
   // Staging precedes preflight because the runbook runs both checks from the exact release tree.
   // Activation owns switch + unit convergence + readiness + rollback as one fail-closed boundary.
