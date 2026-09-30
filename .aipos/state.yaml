@@ -1,4 +1,12 @@
 version: 1
+current_promotion_write_authority:
+  work_order: WO-ISSUE-1865-PROMOTION-WRITE-SCOPE
+  pull_request: 1962
+  status: LOCAL_PASS_PENDING_EXACT_HEAD_CI
+  validation: "Promotion tests 4/4; authority-map tests 11/11; preflight, validate, AIPOS drift, focused lint and diff check PASS on main 8427d071."
+  scope: "Read-only promotion verification followed by a separately gated write job that rechecks current main before push."
+  remaining: "Focused workflow validation, fresh CI, independent Audit and canonical Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_issue_2153_market_data_integrity:
   work_order: WO-ISSUE-2153-MARKET-DATA-INTEGRITY
   issue: 2153

@@ -1,0 +1,23 @@
+id: WO-ISSUE-1865-PROMOTION-WRITE-SCOPE
+title: Scope Cloudflare promotion write authority
+status: LOCAL_PASS_PENDING_EXACT_HEAD_CI
+priority: P0
+issue: 1865
+pull_request: 1962
+objective: "Remove ambient workflow write permission; allow contents write only in the existing gated promotion job."
+architecture_impact:
+  acknowledged: true
+  analysis: "Narrow existing GitHub workflow permissions; retain canonical promotion, current-main verification, and release boundaries."
+acceptance:
+  - verification job holds contents read only
+  - promotion job depends on successful current-main and relevant-change verification
+  - current main is rechecked in the write job before push
+validation:
+  status: PASS
+  results: "Promotion tests 4/4; workflow authority-map regression 11/11; preflight, validate, AIPOS drift, focused lint and diff check PASS."
+  commands: "node --test tests/autopilot-cloudflare-promote.test.js; pnpm run preflight; pnpm run validate; pnpm run aipos:drift"
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Validate locally and update only existing PR #1962; obtain fresh CI and independent Audit/Release."
