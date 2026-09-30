@@ -1,0 +1,27 @@
+id: WO-AUTOPILOT-20260928-SCHEDULER-GITHUB-BUDGET
+title: "Stop the per-minute scheduler from exhausting the GitHub budget"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-scheduler-budget
+authority_impact: none
+objective: "Owner: the autopilot produces no development output. Restore scheduled coding dispatch."
+evidence:
+  observed: "GET https://nusa-autopilot.desporin12.workers.dev/scheduled/status on 2026-09-28 13:08 UTC: last 120 scheduled ticks (12:04-13:08 UTC) dispatched nothing. 57 ABSTAINED GITHUB_HTTP_403, 25 scheduled-state-unchanged, 16 concurrency-limit-reached, 11 exact-main-canonical-ci-not-found, 2 EXECUTION_NOT_DISPATCHED 'Too many subrequests by single Worker invocation'."
+  root_cause: "enrichOpenPullStaleness called GET pulls/{n} and GET compare for every open PR (about 45) on every tick of the '* * * * *' cron: about 95 GitHub calls per minute, about 5,700 per hour, above the token's 5,000/hour limit, and above the Workers per-invocation subrequest budget."
+scope:
+  - "selectStalenessProbePulls: probe only PRs that reference an issue that would otherwise be eligible, capped at 8 per tick."
+  - "Unprobed PRs keep blocking their issues exactly as before (fail closed)."
+  - "Tests: selection unit test; runtime test proving a tick with 40 open PRs and no eligible issue makes no per-PR calls (fails on the old code)."
+exclusions:
+  - "No change to admission rules, Audit, Release, branch protection, LIVE, credentials or trading."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test dist/apps/autopilot/src/scheduledRuntime.test.js dist/apps/autopilot/src/evolveGithubIssueBacklog.test.js
+  - node scripts/run-tests-isolated.js
+  - pnpm run validate

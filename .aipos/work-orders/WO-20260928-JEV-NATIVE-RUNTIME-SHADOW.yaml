@@ -4,9 +4,16 @@ status: IN_PROGRESS
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: bc420633ada54854d0f6fd666da937f0844cad89
+base_commit: 4efd946208690bce451a9a4727d4d4123322cd83
 implementation_branch: feat/jev-native-runtime-shadow
 parent_pr: 2345
+successor_pull_request: 2355
+successor_branch: codex/jev-shadow-runtime-config
+successor_head: edcd1f97cf8f5ba9260339264b2ca6ae1127adc6
+merge_commit: 45faa722b697b75387a05b4e8c441147903a2386
+post_merge_ci: 36514749050
+cloudflare_deploy: 36514749190
+runtime_proof: 36515211048
 authority_impact: none
 objective: "Close #2345 post-merge acceptance by wiring the existing Autopilot workflow-failure SHADOW caller to the native Workers AI Jev provider when the AI binding is available."
 scope:
@@ -20,12 +27,19 @@ scope:
     - "New router, scheduler, queue, provider client, or evidence store."
 acceptance:
   - "Focused tests prove native binding preference."
+  - "Exact-main deploy preserves the repository-configured global release-freeze value while explicitly keeping Jev bounded routing disabled."
   - "Exact-head CI, independent Audit, and canonical Release pass."
   - "Post-merge deployed runtime captures at least one real NUSA_JEV_WORKERS_AI_SHADOW_CALL receipt."
+current_runtime_finding: "Runtime proof 36515211048 is fresh and PASS on deployment revision 45faa722b697b75387a05b4e8c441147903a2386, with fail-closed authority intact. Scheduler remains WAITING_RATE_LIMIT / waiting-provider-capacity; no native Jev call receipt or usage telemetry is present."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Focused validation then exact-head CI/Audit/Release. SHADOW-only."
+verification_commands:
+  - "node --test tests/autopilot-cloudflare-deploy.test.js"
+  - "pnpm run aipos:yaml"
+  - "pnpm run aipos:drift"
+  - "git diff --check"
+next_permitted_action: "Wait for provider-capacity recovery without duplicate dispatch or forced inference. Then resume the same logical work and verify a real typed native Jev SHADOW receipt and usage telemetry; bounded routing remains disabled."

@@ -47,9 +47,11 @@ function exchangeTimestamp(message: UpbitPublicMessage): number | null {
 }
 
 function sequence(message: UpbitPublicMessage): string | null {
-  // sequential_id arrives through JSON as a Number and can exceed the safe-integer range.
-  // It is therefore provenance only; it is never used as a precise ordering key.
-  return message.type === "trade" && message.sequential_id != null ? String(message.sequential_id) : null;
+  // sequential_id arrives through JSON as a Number. Once it exceeds MAX_SAFE_INTEGER,
+  // the original exchange value is no longer losslessly representable, so do not fabricate provenance.
+  return message.type === "trade" && Number.isSafeInteger(message.sequential_id)
+    ? String(message.sequential_id)
+    : null;
 }
 
 export function canonicalUpbitSourceFingerprint(message: UpbitPublicMessage): string {
@@ -72,11 +74,9 @@ export function classifyMarketEventIntegrity(
   if (currentTimestamp != null && prior.exchangeTimestamp != null && currentTimestamp < prior.exchangeTimestamp) {
     return "OUT_OF_ORDER";
   }
-  // Upbit's public payload does not provide a safe, lossless sequence for all channels.
-  // Never fabricate a definitive gap. A forward timestamp jump is only a suspicion signal.
-  if (currentTimestamp != null && prior.exchangeTimestamp != null && currentTimestamp > prior.exchangeTimestamp + 60_000) {
-    return "GAP_SUSPECT";
-  }
+  // Elapsed exchange time is not transport-gap evidence: a quiet market can legitimately
+  // have no trades for an arbitrary interval. Gap state must come from an independently
+  // reliable transport/sequence signal rather than being inferred from timestamp distance.
   return "ACCEPTED";
 }
 

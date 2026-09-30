@@ -14,6 +14,9 @@ function namespace(acquired: boolean): ExecutionCoordinatorNamespace {
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/provider-capacity-wait")) {
+          return new Response(JSON.stringify({ wait: null }), { status: 200, headers: { "content-type": "application/json" } });
+        }
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) {
           return new Response(JSON.stringify(acquired
@@ -93,6 +96,75 @@ test("scheduled runtime abstains when authenticated evidence is unavailable", as
   assert.equal(outcome.liveAuthority, "NONE");
   assert.equal(outcome.productionMutationAllowed, false);
   assert.equal(outcome.aiAuthority, "ZERO_AUTHORITY");
+});
+
+test("scheduled runtime checks a persisted provider wait before spending GitHub search and workflow API calls", async () => {
+  const future = NOW + 60 * 60 * 1000;
+  const stop = {
+    schemaVersion: 1,
+    taskId: "issue-2118",
+    executionId: "evolve-coding:existing-work",
+    provider: "workers-ai",
+    headSha: SHA,
+    stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+    stoppedAt: NOW - 1_000,
+    attemptCount: 1,
+    lastFailure: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+    nextRetryAt: future,
+    resumeCondition: "provider-capacity-and-exact-head-revalidation",
+    dedupeKey: "existing-dedupe",
+    evidenceRef: "coding-evidence:existing-work",
+  };
+  const coordinator: ExecutionCoordinatorNamespace = {
+    idFromName: (name) => ({ name }),
+    get: () => ({
+      async fetch(input: RequestInfo | URL) {
+        assert.match(String(input), /\/provider-capacity-wait$/);
+        return new Response(JSON.stringify({ wait: stop }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    }),
+  };
+  const calls: string[] = [];
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push(url);
+    assert.ok(url.endsWith("/branches/main"), "provider wait must skip backlog/workflow evidence: " + url);
+    return githubFetch()(input, init);
+  }) as typeof fetch;
+
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA",
+    NUSA_EXECUTION_COORDINATOR: coordinator,
+  }, NOW, fetchImpl);
+
+  assert.equal(outcome.status, "WAITING_RATE_LIMIT");
+  assert.equal(outcome.reason, "waiting-provider-capacity");
+  assert.equal(outcome.headSha, SHA);
+  assert.equal(outcome.workflowRunId, null);
+  assert.deepEqual(calls, ["https://api.github.com/repos/cinamoncandy/NUSA/branches/main"]);
+  assert.equal(outcome.liveAuthority, "NONE");
+  assert.equal(outcome.productionMutationAllowed, false);
+  assert.equal(outcome.aiAuthority, "ZERO_AUTHORITY");
+});
+
+test("scheduled runtime fails closed when provider-wait state cannot be read", async () => {
+  let githubCalls = 0;
+  const coordinator: ExecutionCoordinatorNamespace = {
+    idFromName: (name) => ({ name }),
+    get: () => ({ async fetch() { return new Response("unavailable", { status: 503 }); } }),
+  };
+  const fetchImpl = (async () => {
+    githubCalls += 1;
+    throw new Error("GitHub must not be queried when provider state is unknown");
+  }) as typeof fetch;
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: coordinator,
+  }, NOW, fetchImpl);
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "provider-capacity-state-unavailable");
+  assert.equal(githubCalls, 0);
 });
 
 test("scheduled runtime reuses exact-main canonical CI and existing dispatch spine", async () => {
@@ -267,4 +339,29 @@ test("scheduled runtime fails closed when latest main lacks exact canonical CI e
   assert.equal(outcome.status, "ABSTAINED");
   assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
   assert.equal(outcome.headSha, SHA);
+});
+
+test("scheduled runtime does not probe every open PR on each tick (GitHub budget)", async () => {
+  const base = githubFetch();
+  const calls: string[] = [];
+  const pulls = Array.from({ length: 40 }, (_, i) => ({ number: 5000 + i, title: `fix: work ${i}`, body: "Refs #903", pull_request: {} }));
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes("/search/issues?") && url.includes("is%3Apr")) {
+      return new Response(JSON.stringify({ total_count: pulls.length, items: pulls }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/search/issues?")) {
+      return new Response(JSON.stringify({ total_count: 0, items: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return base(input, init);
+  }) as typeof fetch;
+  await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA",
+    NUSA_EXECUTION_COORDINATOR: namespace(true),
+  }, NOW, fetchImpl);
+  const probes = calls.filter((url) => /\/pulls\/\d+$|\/compare\//.test(url));
+  assert.equal(probes.length, 0, "no eligible issue means no PR staleness probe at all");
+  assert.ok(calls.length <= 8, `a tick with 40 open PRs must stay small, saw ${calls.length} GitHub calls`);
 });

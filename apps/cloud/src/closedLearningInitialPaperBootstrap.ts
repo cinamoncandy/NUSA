@@ -6,6 +6,18 @@ import { isGovernanceApprovalUnavailable, type PaperChallengerDeploymentAdapter,
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 
+const STALE_SNAPSHOT_MESSAGE = "research replay snapshot provenance drift";
+
+/**
+ * The latest Research snapshot no longer reproduces its original run under the current release
+ * (captured by an older Research/League version). It can never be deployed, so it is a wait for the
+ * next Research run, not a fault. Throwing would stop the whole PAPER runtime on every restart.
+ */
+export function isResearchSnapshotStale(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message === STALE_SNAPSHOT_MESSAGE || error.message.endsWith(`: ${STALE_SNAPSHOT_MESSAGE}`);
+}
+
 export type ClosedLearningInitialPaperBootstrapStatus =
   | "WAITING_RESEARCH_SNAPSHOT"
   | "EXISTING_PAPER_STATE"
@@ -149,7 +161,14 @@ export class ClosedLearningInitialPaperBootstrap {
     const fingerprint = eligible.fingerprint!;
     const cached = this.cachedResult(fingerprint);
     if (cached != null) return cached;
-    return this.remember(fingerprint, this.finalize(fingerprint, this.options.worker.replayInitialResearch(fingerprint)));
+    let result: ClosedLearningResearchReplayResult;
+    try {
+      result = this.options.worker.replayInitialResearch(fingerprint);
+    } catch (error) {
+      if (isResearchSnapshotStale(error)) return this.remember(fingerprint, staleSnapshot(fingerprint));
+      throw error;
+    }
+    return this.remember(fingerprint, this.finalize(fingerprint, result));
   }
 
   /** Async production path yields while the isolated Research/League child process executes when supported. */
@@ -159,9 +178,24 @@ export class ClosedLearningInitialPaperBootstrap {
     const fingerprint = eligible.fingerprint!;
     const cached = this.cachedResult(fingerprint);
     if (cached != null) return cached;
-    const result = this.options.worker.replayInitialResearchAsync == null
-      ? this.options.worker.replayInitialResearch(fingerprint)
-      : await this.options.worker.replayInitialResearchAsync(fingerprint);
+    let result: ClosedLearningResearchReplayResult;
+    try {
+      result = this.options.worker.replayInitialResearchAsync == null
+        ? this.options.worker.replayInitialResearch(fingerprint)
+        : await this.options.worker.replayInitialResearchAsync(fingerprint);
+    } catch (error) {
+      if (isResearchSnapshotStale(error)) return this.remember(fingerprint, staleSnapshot(fingerprint));
+      throw error;
+    }
     return this.remember(fingerprint, this.finalize(fingerprint, result));
   }
+}
+
+/** Remembered per fingerprint, so a stale snapshot is replayed once and the next Research run is retried. */
+function staleSnapshot(originalRunFingerprintSha256: string): ClosedLearningInitialPaperBootstrapResult {
+  return Object.freeze({
+    status: "WAITING_RESEARCH_SNAPSHOT",
+    originalRunFingerprintSha256,
+    reasons: Object.freeze(["RESEARCH_SNAPSHOT_STALE"]),
+  });
 }
