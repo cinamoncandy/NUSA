@@ -6,7 +6,6 @@ const SMA_FAMILY = "sma-crossover";
 const RSI_FAMILY = "rsi-mean-reversion";
 const DONCHIAN_FAMILY = "donchian-breakout";
 const BOLLINGER_FAMILY = "bollinger-breakout";
-
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
 
@@ -226,6 +225,5 @@ export function evaluatePaperCandidateStrategy(
   if (spec.familyId === RSI_FAMILY) return evaluateRsi(spec, prices, now);
   if (spec.familyId === DONCHIAN_FAMILY) return evaluateDonchian(spec, prices, now);
   if (spec.familyId === BOLLINGER_FAMILY) return evaluateBollinger(spec, prices, now);
-
   throw new Error(`unsupported PAPER candidate strategy family: ${spec.familyId}`);
 }
