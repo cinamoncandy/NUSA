@@ -9,8 +9,8 @@ test("fresh install is a truthful local PAPER entry, not fake account authentica
   const app = read("apps/mobile/App.tsx");
   assert.match(app, /testID="local-entry-submit"/);
   assert.match(app, /개인 모드 시작/);
-  assert.match(app, /PAPER ONLY/);
-  assert.match(app, /LIVE NONE/);
+  assert.match(app, /모의투자 전용/);
+  assert.match(app, /실거래 권한 없음/);
   assert.doesNotMatch(app, /testID="auth-email"|testID="auth-password"/);
 });
 
@@ -90,7 +90,7 @@ test("primary mobile workspaces remain intentionally bounded and supervision-fir
 
   assert.match(paper, /PaperLearningMonitorView/);
   assert.match(paperMonitor, /contentContainerStyle=\{styles\.content\}/);
-  assert.match(paperMonitor, /PAPER LEARNING · READ ONLY/);
+  assert.match(paperMonitor, /모의투자 학습 · 보기 전용/);
   assert.doesNotMatch(paper, /productionMutationAllowed: true/);
 
   assert.match(home, /useWindowDimensions/);

@@ -39,7 +39,7 @@ test("Settings revokes prior verification and keeps compatibility token routing 
   const guard = source.indexOf("if (!configuredEndpoint)");
   const clearSession = source.indexOf("credentialSession.clear();", guard);
   const clearVerification = source.indexOf("clearPaperConnectionVerification();", clearSession);
-  const inProgress = source.indexOf('reason: "Cloud PAPER connection verification is in progress."', clearVerification);
+  const inProgress = source.indexOf('reason: "모의투자 서버 연결을 확인하는 중입니다."', clearVerification);
   const connectBootstrap = source.indexOf("credentialSession.connect(tokenDraft);", inProgress);
   const firstProbe = source.indexOf("let result = await loadPersonalPaperOperations", connectBootstrap);
   const fallbackGate = source.indexOf('shouldFallbackToMobileEnrollment(tokenDraft, result.status === "READY")', firstProbe);
@@ -68,7 +68,7 @@ test("Settings makes server-verified owner device authentication primary and pai
   assert.match(source, /6자리 코드로 복구 연결/);
   assert.match(source, /label="1회용 복구 키"[\s\S]*secureTextEntry/);
   assert.match(source, /connection\.status === "READY"[\s\S]*label="연결 해제"/);
-  assert.match(source, /const cloudConnectionLabel = connecting \? "VERIFYING"/);
+  assert.match(source, /const cloudConnectionLabel = connecting \? "확인 중"/);
 });
 
 test("PAPER order inputs are numeric-first and locked during an in-flight submit", () => {

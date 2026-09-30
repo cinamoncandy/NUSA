@@ -35,18 +35,18 @@ function fixture(runtimeState) {
 test("a real ERROR runtime state is surfaced as ACTION REQUIRED with an explicit label, not a generic wait state", () => {
   const projection = buildHomeDecisionSurface(fixture("ERROR"));
   assert.equal(projection.attention, "ACTION REQUIRED");
-  assert.equal(projection.now, "PAPER RUNTIME ERROR");
-  assert.equal(projection.why, "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다.");
-  assert.equal(projection.statusLabel, "PAPER · ERROR");
+  assert.equal(projection.now, "모의투자 실행 오류");
+  assert.equal(projection.why, "모의투자 실행에 오류가 있어 확인이 필요합니다.");
+  assert.equal(projection.statusLabel, "모의투자 · 오류");
 });
 
 test("a real STOPPED/STOPPING runtime state is surfaced as WATCH with an explicit label, never silently blended into QUIET", () => {
   for (const runtimeState of ["STOPPED", "STOPPING"]) {
     const projection = buildHomeDecisionSurface(fixture(runtimeState));
     assert.equal(projection.attention, "WATCH");
-    assert.equal(projection.now, "PAPER RUNTIME STOPPED");
-    assert.equal(projection.why, "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다.");
-    assert.equal(projection.statusLabel, "PAPER · STOPPED");
+    assert.equal(projection.now, "모의투자 정지됨");
+    assert.equal(projection.why, "모의투자가 정지되어 새로운 판단이 생성되지 않습니다.");
+    assert.equal(projection.statusLabel, "모의투자 · 정지됨");
   }
 });
 
@@ -59,9 +59,9 @@ test("all 8 real runtime states remain intentionally represented in canonical HO
   assert.equal(projected.get("DEGRADED").attention, "WATCH");
   assert.equal(projected.get("STOPPING").attention, "WATCH");
   assert.equal(projected.get("STOPPED").attention, "WATCH");
-  assert.equal(projected.get("RUNNING").now, "PAPER SUPERVISION RUNNING");
-  assert.equal(projected.get("READY").now, "PAPER DECISION READY");
-  assert.equal(projected.get("READY_OFFLINE").now, "PAPER DECISION READY");
+  assert.equal(projected.get("RUNNING").now, "모의투자 실행 중");
+  assert.equal(projected.get("READY").now, "모의투자 판단 준비됨");
+  assert.equal(projected.get("READY_OFFLINE").now, "모의투자 판단 준비됨");
   assert.match(source, /HALTED/);
   assert.match(source, /ERROR/);
   assert.match(source, /DEGRADED/);

@@ -14,9 +14,9 @@ test("HOME matches the canonical autonomous-intelligence hierarchy", () => {
   assert.match(home, /testID="home-master-rail"/);
   assert.match(os, />NUSA<\/Text>/);
   assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /총 손익/);
   assert.match(home, />NOW<\/Text>/);
-  assert.match(home, /DECISION BASIS/);
+  assert.match(home, /판단 근거/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="home-risk-status"/);
   assert.match(home, /testID="home-decision-stage"/);
@@ -32,8 +32,8 @@ test("HOME autonomous-intelligence design uses verified runtime data and preserv
   assert.match(home, /buildHomeDecisionSurface/);
   assert.match(home, /buildHomeStatusRail/);
   assert.match(home, /freshestObservedAtMs\(marketRows\)/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(home, /PUBLIC READ ONLY/);
+  assert.match(home, /모의투자 전용 · 실거래 권한 없음 · AI 실행 권한 없음/);
+  assert.match(home, /보기 전용/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
   assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?:FULL|LIVE|ENABLED)["']/);
   assert.doesNotMatch(home, /Math\.random\(|synthetic|fake candle|mock candle/i);

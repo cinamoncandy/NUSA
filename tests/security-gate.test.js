@@ -139,3 +139,10 @@ test("artifact verification checks recorded hashes and signing state", () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("security backport audit parser ignores braces inside JSON strings and trailing stderr", () => {
+  const { parseJsonObject } = require("../scripts/security-gate-backports.js");
+  const value = parseJsonObject('warning before {"advisories":{"1":{"title":"brace } and escaped \\" quote"}},"metadata":{"vulnerabilities":{"high":0,"critical":0}}} trailing stderr');
+  assert.equal(value.advisories["1"].title, 'brace } and escaped " quote');
+  assert.equal(value.metadata.vulnerabilities.high, 0);
+});

@@ -6,6 +6,7 @@ on:
       - "apps/mobile/**"
       - "tests/mobile-product-v5.test.js"
       - ".github/workflows/android-product-ux-acceptance.yml"
+      - ".github/workflows/android-design-acceptance.yml"
   workflow_dispatch: {}
 
 permissions:
@@ -21,6 +22,12 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
       - run: corepack enable && corepack prepare pnpm@11.7.0 --activate
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -105,6 +112,23 @@ jobs:
           else:
               print(f"uiautomator dump unavailable after bounded retry: {last_error}", file=sys.stderr)
               sys.exit(2)
+          if needle == "__SCROLL__":
+              for n in root.iter("node"):
+                  a=n.attrib
+                  if a.get("scrollable") != "true":
+                      continue
+                  m=re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]",a.get("bounds",""))
+                  if not m:
+                      continue
+                  x1,y1,x2,y2=map(int,m.groups())
+                  inset=max(120,min(260,(y2-y1)//5))
+                  start_y=y2-inset
+                  end_y=y1+inset
+                  if start_y-end_y >= 240:
+                      print((x1+x2)//2,start_y,(x1+x2)//2,end_y)
+                      sys.exit(0)
+              print("no visible scrollable Android node", file=sys.stderr)
+              sys.exit(2)
           for n in root.iter("node"):
               a=n.attrib
               hay=" | ".join((a.get("text",""),a.get("content-desc",""),a.get("resource-id","")))
@@ -120,9 +144,10 @@ jobs:
           dump_window(){ local dest="$1"; local attempt=1; while [ "$attempt" -le 6 ]; do adb shell rm -f /sdcard/window.xml >/dev/null 2>&1 || true; if adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 && adb pull /sdcard/window.xml "$dest" >/dev/null 2>&1 && [ -s "$dest" ]; then return 0; fi; sleep 1; attempt=$((attempt+1)); done; echo "uiautomator dump unavailable after bounded retry: $dest" >&2; return 2; }
           capture(){ adb exec-out screencap -p > "qa/android-product-ux/$1.png"; dump_window "qa/android-product-ux/$1.xml"; }
           tap(){ read x y < <(python3 "$RUNNER_TEMP/tap.py" "$1"); adb shell input tap "$x" "$y"; sleep 2; }
+          scroll_once(){ read x1 y1 x2 y2 < <(python3 "$RUNNER_TEMP/tap.py" "__SCROLL__"); adb shell input swipe "$x1" "$y1" "$x2" "$y2" 450; sleep 1; }
           enter_personal(){ if coords="$(python3 "$RUNNER_TEMP/tap.py" "local-entry-submit" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; elif python3 "$RUNNER_TEMP/tap.py" "home-screen" >/dev/null 2>&1; then return 0; else python3 "$RUNNER_TEMP/tap.py" "local-entry-submit"; return 2; fi; }
-          tap_after_scroll(){ local needle="$1"; local tries=0; while [ "$tries" -lt 5 ]; do if coords="$(python3 "$RUNNER_TEMP/tap.py" "$needle" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; return 0; fi; adb shell input swipe 540 1750 540 520 450; sleep 1; tries=$((tries+1)); done; echo "required Android control not reachable: $needle" >&2; return 2; }
-          scroll_until_visible(){ local needle="$1"; local tries=0; while [ "$tries" -lt 5 ]; do if python3 "$RUNNER_TEMP/tap.py" "$needle" >/dev/null 2>&1; then return 0; fi; adb shell input swipe 540 1750 540 700 450; sleep 1; tries=$((tries+1)); done; echo "required Android evidence not reachable: $needle" >&2; python3 "$RUNNER_TEMP/tap.py" "$needle"; return 2; }
+          tap_after_scroll(){ local needle="$1"; local tries=0; while [ "$tries" -lt 8 ]; do if coords="$(python3 "$RUNNER_TEMP/tap.py" "$needle" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; return 0; fi; scroll_once; tries=$((tries+1)); done; echo "required Android control not reachable: $needle" >&2; return 2; }
+          scroll_until_visible(){ local needle="$1"; local tries=0; while [ "$tries" -lt 8 ]; do if python3 "$RUNNER_TEMP/tap.py" "$needle" >/dev/null 2>&1; then return 0; fi; scroll_once; tries=$((tries+1)); done; echo "required Android evidence not reachable: $needle" >&2; python3 "$RUNNER_TEMP/tap.py" "$needle"; return 2; }
 
           capture 00-entry
           # Cold start may truthfully project PAPER recovery before entry/home. Wait boundedly for canonical refresh to resolve.
@@ -138,7 +163,7 @@ jobs:
 
           tap "tab-More"; capture 05-more
           tap_after_scroll "more-PaperEvidence"; capture 06-paper
-          capture 07-paper-evidence-open
+          tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 07-paper-evidence-open
           tap "tab-More"; capture 08-more-return
           tap_after_scroll "more-Portfolio"; capture 09-portfolio
           tap "header-tools-menu"; tap "header-settings"; capture 10-settings
@@ -148,12 +173,39 @@ jobs:
 
           grep -q "more-view" qa/android-product-ux/05-more.xml
           grep -q "paper-learning-monitor" qa/android-product-ux/06-paper.xml
-          grep -Eq "paper-shadow-monitor-switcher|dashboard-connection-required" qa/android-product-ux/02-paper-primary.xml
-          grep -q "LIVE" qa/android-product-ux/03-live-readiness.xml
-          grep -q "PORTFOLIO" qa/android-product-ux/09-portfolio.xml
-          grep -q "paper-learning-monitor" qa/android-product-ux/07-paper-evidence-open.xml
+          ! grep -q "dashboard-connection-required" qa/android-product-ux/02-paper-primary.xml
+          grep -q "paper-learning-monitor" qa/android-product-ux/02-paper-primary.xml
+          grep -q "live-ready-monitor" qa/android-product-ux/03-live-readiness.xml
+          grep -q "자산 구성" qa/android-product-ux/09-portfolio.xml
+          grep -q "paper-learning-timeline" qa/android-product-ux/07-paper-evidence-open.xml
           grep -q "home-screen" qa/android-product-ux/13-home-return.xml
-          printf 'touch_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nsettings_close=PASS\nreturn_home=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
+
+          for required_frame in 01-home 02-paper-primary 03-live-readiness 05-more 07-paper-evidence-open 09-portfolio 10-settings 13-home-return; do
+            test -s "qa/android-product-ux/$required_frame.png"
+            test -s "qa/android-product-ux/$required_frame.xml"
+          done
+
+          (
+            cd qa/android-product-ux
+            sha256sum *.png | sort > screenshots.sha256
+          )
+          HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}" BASE_SHA="${{ github.event.pull_request.base.sha || '' }}" RUN_ID="${{ github.run_id }}" node - <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+          const root = "qa/android-product-ux";
+          const frames = fs.readdirSync(root).filter((name) => name.endsWith(".png")).sort();
+          if (frames.length < 8) throw new Error(`insufficient screenshot evidence: ${frames.length}`);
+          fs.writeFileSync(path.join(root, "screenshot-manifest.json"), JSON.stringify({
+            schemaVersion: 1,
+            headSha: process.env.HEAD_SHA,
+            baseSha: process.env.BASE_SHA || null,
+            workflowRunId: Number(process.env.RUN_ID),
+            frames,
+            requiredVisualReview: true,
+            automatedVerdict: "STRUCTURAL_ONLY",
+          }, null, 2) + "\n");
+          NODE
+          printf 'touch_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nsettings_close=PASS\nreturn_home=PASS\nvisual_verdict=REQUIRES_INDEPENDENT_DESIGN_ACCEPTANCE\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

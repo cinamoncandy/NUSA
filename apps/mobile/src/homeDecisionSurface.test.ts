@@ -23,8 +23,8 @@ describe("home decision surface attention", () => {
     const surface = buildHomeDecisionSurface(healthyInput({ accountSource: "LOCAL" }));
 
     assert.equal(surface.attention, "WATCH");
-    assert.equal(surface.statusLabel, "PAPER · LOCAL");
-    assert.equal(surface.risk, "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE");
+    assert.equal(surface.statusLabel, "모의투자 · 기기 내");
+    assert.equal(surface.risk, "확인할 데이터 부족 · 모의투자 실행 기록 없음");
     assert.equal(surface.primaryAction, "MARKETS");
   });
 
@@ -32,7 +32,7 @@ describe("home decision surface attention", () => {
     const surface = buildHomeDecisionSurface(healthyInput({ accountSource: "LOCAL", disconnected: true }));
 
     assert.equal(surface.attention, "ACTION REQUIRED");
-    assert.equal(surface.risk, "BLOCKED · PAPER LINK REQUIRED");
+    assert.equal(surface.risk, "진행 불가 · 모의투자 연결 필요");
     assert.equal(surface.primaryAction, "SETTINGS");
   });
 
@@ -40,7 +40,7 @@ describe("home decision surface attention", () => {
     const surface = buildHomeDecisionSurface(healthyInput());
 
     assert.equal(surface.attention, "QUIET");
-    assert.equal(surface.risk, "PAPER ONLY · SAFETY GATES READY · LIVE NONE");
+    assert.equal(surface.risk, "모의투자 전용 · 안전 확인 완료 · 실거래 권한 없음");
     assert.equal(surface.primaryAction, "MARKETS");
   });
 
@@ -50,10 +50,10 @@ describe("home decision surface attention", () => {
       readOnlyError: true,
     }));
 
-    assert.equal(surface.statusLabel, "PAPER · RECOVERY REQUIRED");
+    assert.equal(surface.statusLabel, "모의투자 · 복구 필요");
     assert.equal(surface.statusTone, "danger");
-    assert.equal(surface.now, "RECOVERY REQUIRED");
-    assert.equal(surface.risk, "BLOCKED · READ-ONLY RECOVERY REQUIRED");
+    assert.equal(surface.now, "복구 필요");
+    assert.equal(surface.risk, "진행 불가 · 연결 복구 필요");
   });
 
   it("does not render a retained RUNNING Cloud snapshot as current while disconnected", () => {
@@ -62,10 +62,10 @@ describe("home decision surface attention", () => {
       disconnected: true,
     }));
 
-    assert.equal(surface.statusLabel, "PAPER · RECOVERY REQUIRED");
-    assert.notEqual(surface.statusLabel, "PAPER · RUNNING");
+    assert.equal(surface.statusLabel, "모의투자 · 복구 필요");
+    assert.notEqual(surface.statusLabel, "모의투자 · 실행 중");
     assert.equal(surface.statusTone, "danger");
-    assert.equal(surface.now, "PAPER LINK REQUIRED");
-    assert.equal(surface.risk, "BLOCKED · PAPER LINK REQUIRED");
+    assert.equal(surface.now, "모의투자 연결 필요");
+    assert.equal(surface.risk, "진행 불가 · 모의투자 연결 필요");
   });
 });

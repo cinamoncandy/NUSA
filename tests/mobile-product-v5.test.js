@@ -10,11 +10,11 @@ test("product v5 keeps the four primary jobs literal and glanceable", () => {
   assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
   const app = read("App.tsx");
   assert.match(app, /<PrimaryNavigation/);
-  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   const home = read("src/homeView.tsx");
-  assert.match(home, /PAPER CAPITAL/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /모의투자 자산/);
+  assert.match(home, /총 손익/);
   assert.doesNotMatch(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
 });
 
@@ -33,12 +33,12 @@ test("Cloud PAPER setup communicates server-verified owner device session withou
   assert.match(settings, /stage=\{ownerConnectionStage\}/);
   assert.match(settings, /onAuthenticateOwner=\{\(\) => \{ void requestPaperConnection\(\); \}\}/);
   assert.match(settings, /onRecoverWithPairing=\{\(\) => \{ void requestRecoveryPairing\(\); \}\}/);
-  assert.match(experience, /PAPER 서버 확인/);
+  assert.match(experience, /모의투자 서버 확인/);
   assert.match(experience, /소유자 확인/);
   assert.match(experience, /이 휴대폰 등록/);
   assert.match(experience, /복구 연결/);
-  assert.match(experience, /PAPER ONLY/);
-  assert.match(experience, /LIVE AUTH SEPARATE/);
+  assert.match(experience, /모의투자 전용/);
+  assert.match(experience, /실거래 별도 인증/);
   assert.doesNotMatch(settings, /placeOrder|cancelOrder|withdraw/);
   const productionPaper = read("src/tradingView.tsx");
   assert.match(productionPaper, /<PaperLearningMonitorView/);
@@ -76,9 +76,13 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "more-view" qa\/android-product-ux\/05-more\.xml/);
   assert.match(workflow, /grep -q "paper-learning-monitor" qa\/android-product-ux\/06-paper\.xml/);
-  assert.match(workflow, /paper-shadow-monitor-switcher\|dashboard-connection-required/);
-  assert.match(workflow, /grep -q "LIVE" qa\/android-product-ux\/03-live-readiness\.xml/);
-  assert.match(workflow, /grep -q "PORTFOLIO" qa\/android-product-ux\/09-portfolio\.xml/);
+  assert.match(workflow, /paper-learning-monitor/);
+  assert.match(workflow, /grep -q "live-ready-monitor" qa\/android-product-ux\/03-live-readiness\.xml/);
+  assert.match(workflow, /grep -q "자산 구성" qa\/android-product-ux\/09-portfolio\.xml/);
   assert.match(workflow, /grep -q "home-screen" qa\/android-product-ux\/13-home-return\.xml/);
+  assert.match(workflow, /needle == "__SCROLL__"/);
+  assert.match(workflow, /a\.get\("scrollable"\) != "true"/);
+  assert.match(workflow, /scroll_once\(\)/);
+  assert.match(workflow, /\[ "\$tries" -lt 8 \]/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });

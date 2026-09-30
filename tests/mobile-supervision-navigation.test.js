@@ -11,7 +11,7 @@ test("visible mobile navigation exposes supervision and AI jobs while retaining 
   const nav = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/primaryNavigation.tsx"), "utf8");
   assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
   assert.match(app, /<PrimaryNavigation/);
-  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   assert.match(nav, /testID="primary-navigation"/);
   assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);

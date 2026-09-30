@@ -90,8 +90,8 @@ test("fresh-install entry is explicitly local and does not impersonate account a
   assert.match(app, /testID="local-entry-submit"/);
   assert.match(app, /개인 모드 시작/);
   assert.match(app, /계정 인증이 아닙니다/);
-  assert.match(app, /PAPER ONLY/);
-  assert.match(app, /LIVE NONE/);
+  assert.match(app, /모의투자 전용/);
+  assert.match(app, /실거래 권한 없음/);
   assert.doesNotMatch(app, /accessibilityLabel="Email"|accessibilityLabel="Password"|testID="auth-email"|testID="auth-password"/);
 });
 

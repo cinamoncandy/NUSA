@@ -26,7 +26,7 @@ test("the learning outcome is summarized in plain language, distinct from RESULT
   assert.match(view, /learningOutcomeLabel: Record<string, string> = \{ PROMOTE: "전략 승격", REJECT: "전략 거부", PAUSE: "일시 중단", UNCHANGED: "변경 없음" \}/);
   assert.match(view, /testID="paper-learning-outcome-summary"/);
   // RESULT (누적 PAPER 성과) and LEARNING (학습 \/ 평가) must remain two separate cards.
-  const resultIndex = view.indexOf("누적 PAPER 성과");
+  const resultIndex = view.indexOf("누적 모의투자 성과");
   const learningIndex = view.indexOf("학습 / 평가");
   assert.ok(resultIndex > 0 && learningIndex > 0 && resultIndex !== learningIndex);
 });

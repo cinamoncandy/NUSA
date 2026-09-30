@@ -73,9 +73,9 @@ test("home projection renders a recovering session as reconnecting, never as SET
   const app = fs.readFileSync("apps/mobile/App.tsx", "utf8");
   assert.match(app, /sessionRecovering=\{paperSessionState === "RECOVERING"\}/);
   assert.match(app, /const sessionState = getPaperSessionState\(\);[\s\S]*setPaperSessionState\(sessionState\)/);
-  assert.match(home, /const shownConnectionLabel = recovering \? "RECOVERING" : connectionLabel/);
+  assert.match(home, /const shownConnectionLabel = recovering \? "복구 중" : connectionLabel/);
   assert.match(home, /\{shownConnectionLabel\}/);
-  assert.match(home, /recovering \? "PAPER 재연결 중" : disconnected \? "PAPER 연결 필요"/);
+  assert.match(home, /recovering \? "모의투자 재연결 중" : disconnected \? "모의투자 연결 필요"/);
 });
 
 

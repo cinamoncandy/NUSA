@@ -15,11 +15,11 @@ test("HOME uses one canonical Intelligence OS authority rail instead of the lega
   assert.match(app, /\{!homeShellActive \? <View style=\{\[styles\.header/);
   assert.match(home, /testID="home-status-rail"/);
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /PAPER ONLY/);
-  assert.match(home, /LIVE NONE/);
-  assert.match(home, /AI ZERO/);
+  assert.match(home, /모의투자 전용/);
+  assert.match(home, /실거래 권한 없음/);
+  assert.match(home, /AI 실행 권한 없음/);
   assert.match(os, />NUSA<\/Text>/);
-  assert.match(os, />PAPER ONLY<\/Text>/);
+  assert.match(os, />모의투자 전용<\/Text>/);
 });
 
 test("bottom navigation is restrained and does not restore the legacy neon pill shell", () => {
@@ -30,8 +30,9 @@ test("bottom navigation is restrained and does not restore the legacy neon pill 
   assert.doesNotMatch(app, /borderColor: active \? appTheme\.colors\.neonBlue/);
   assert.doesNotMatch(app, /shadowColor: active \? appTheme\.colors\.neonBlue/);
   assert.doesNotMatch(app, /color: active \? appTheme\.colors\.neonTeal/);
-  assert.match(navigation, /backgroundColor: active \? theme\.colors\.primarySoft : "transparent"/);
+  assert.match(navigation, /backgroundColor: "transparent"/);
   assert.match(navigation, /backgroundColor: active \? theme\.colors\.aiSignalEnd : ui\.color\.border/);
+  assert.doesNotMatch(navigation, /primarySoft/);
   assert.match(navigation, /color: active \? ui\.color\.text : ui\.color\.textMuted/);
   assert.match(navigation, /navigation/);
 });

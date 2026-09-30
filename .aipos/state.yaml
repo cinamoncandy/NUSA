@@ -1760,3 +1760,18 @@ current_pr1991_review_hardening:
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+
+current_uiux_pr_2327_android_visual_convergence:
+  work_order: WO-20260927-PR2327-ANDROID-DESIGN-GATE
+  status: IN_PROGRESS
+  pull_request: 2327
+  branch: uiux/post-2262-visual-acceptance
+  base_sha: e95aab18708a047a162424ab568202c0dd275f78
+  previous_head: 75e0fdac5e7d341fba7150fa7b5cb4be82ba2681
+  finding: "PR #2327 was 42 commits behind protected main after concurrent canonical merges. Exact-head Mobile Native and PAPER/LIVE safety checks passed, while CI retained one stale HOME authority wording assertion and Android Product UX still failed in the touch-visual flow."
+  remediation: "Preserve the current UI/Settings/design-gate delta, absorb all non-UI protected-main Autopilot/Cloud/market-data changes, and re-run fresh exact-head CI plus Android Product UX before any design acceptance claim."
+  validation: "All evidence from 75e0fdac and earlier is stale after reconvergence."
+  blocker: "Android Product UX and CI must pass on the new exact head. Trusted design acceptance still requires protected-main authority. Galaxy physical-device evidence remains NOT VERIFIED."
+  next: "latest-main reconvergence -> fresh exact-head CI/Mobile/Android Product UX -> screenshot inspection -> trusted design acceptance -> Audit -> Release -> merge -> Android release -> Galaxy acceptance."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

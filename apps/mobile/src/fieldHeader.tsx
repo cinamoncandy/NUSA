@@ -1,102 +1,114 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
-import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { buildFieldGeometry, buildStrandPaths, Signal } from "./intelligenceField";
+import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { fieldMotion, fieldPalette } from "./designSystem";
 import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
 import { fieldHeaderPose, type FieldHeaderModel } from "./fieldScreensModel";
 
-/**
- * Compact Intelligence Field band for secondary tabs: a smaller nebula with the arm the tab is
- * about lit and the rest faint. Moves only when the tone or subsystem changes. A sealed LIVE tab
- * draws a dashed seal ring around the nebula.
- */
-const HEIGHT = 150;
-const SEAL_RADIUS = 70;
-const HUE: Record<FieldSubsystem, string> = { market: fieldPalette.market, axiom: fieldPalette.axiom, paper: fieldPalette.paper, governance: fieldPalette.governance, risk: fieldPalette.risk };
-const TONE: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
-const ORDER: readonly FieldSubsystem[] = ["market", "axiom", "paper", "governance", "risk"];
-
-const Dots = memo(function Dots({ dots, color, faint }: Readonly<{ dots: readonly { x: number; y: number; size: number; opacity: number }[]; color: string; faint: boolean }>) {
-  return <>{dots.map((d, i) => <View key={i} style={{ position: "absolute", left: d.x - d.size / 2, top: d.y - d.size / 2, width: d.size, height: d.size, borderRadius: d.size / 2, backgroundColor: color, opacity: faint ? d.opacity * 0.18 : d.opacity }} />)}</>;
-});
+const HUE: Record<FieldSubsystem, string> = {
+  market: fieldPalette.market,
+  axiom: fieldPalette.axiom,
+  paper: fieldPalette.paper,
+  governance: fieldPalette.governance,
+  risk: fieldPalette.risk,
+};
+const TONE: Record<FieldTone, string> = {
+  dim: fieldPalette.dim,
+  amber: fieldPalette.focus,
+  blue: fieldPalette.market,
+  green: fieldPalette.paper,
+  red: fieldPalette.halt,
+};
 
 export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderModel; testID: string }>) {
-  const [width, setWidth] = useState(0);
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
-  const geometry = useMemo(() => (width > 0 ? buildFieldGeometry(width, HEIGHT, 0.6) : null), [width]);
-  const glow = useRef(new Animated.Value(1)).current;
-  const signal = useRef(new Animated.Value(0)).current;
   const pose = fieldHeaderPose(model);
-  const spread = useRef(new Animated.Value(pose.spread)).current;
+  const shift = useRef(new Animated.Value(0.35)).current;
   const presence = useRef(new Animated.Value(pose.presence)).current;
-  const paths = useMemo(() => (width > 0 ? buildStrandPaths(width, HEIGHT) : null), [width]);
+  const previousKey = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (mounted) setReducedMotion(v); }).catch(() => { if (mounted) setReducedMotion(false); });
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
-    return () => { mounted = false; sub.remove(); };
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((value) => { if (mounted) setReducedMotion(value); })
+      .catch(() => { if (mounted) setReducedMotion(false); });
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
+    return () => { mounted = false; subscription.remove(); };
   }, []);
 
-  const previousKey = useRef<string | null>(null);
   useEffect(() => {
-    const key = `${model.tone}:${model.subsystem}`;
+    const key = `${model.tone}:${model.subsystem}:${model.statusWord}`;
     const changed = previousKey.current != null && previousKey.current !== key;
     previousKey.current = key;
-    // Mounting or revisiting a tab is not a state change: animate only on a later semantic change.
-    if (reducedMotion !== false || !changed) { glow.setValue(1); signal.setValue(0); spread.setValue(pose.spread); presence.setValue(pose.presence); return undefined; }
-    glow.setValue(0.25);
-    signal.setValue(0);
-    // Same language as HOME: one signal rides the lit strand, inward when the state is a problem.
+    shift.stopAnimation();
+    presence.stopAnimation();
+
+    if (reducedMotion !== false || !changed) {
+      shift.setValue(0.35);
+      presence.setValue(pose.presence);
+      return undefined;
+    }
+
+    shift.setValue(0);
+    presence.setValue(Math.max(0.25, pose.presence * 0.65));
     const animation = Animated.parallel([
-      Animated.timing(spread, { toValue: pose.spread, duration: fieldMotion.poseMs, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(presence, { toValue: pose.presence, duration: fieldMotion.poseMs, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(glow, { toValue: 1, duration: fieldMotion.headerGlowMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(signal, { toValue: 1, duration: fieldMotion.headerSignalMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(shift, { toValue: 1, duration: fieldMotion.headerSignalMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(presence, { toValue: pose.presence, duration: fieldMotion.headerGlowMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]);
     animation.start();
     return () => animation.stop();
-  }, [model.tone, model.subsystem, reducedMotion, glow, signal, spread, presence, pose.spread, pose.presence]);
+  }, [model.statusWord, model.subsystem, model.tone, pose.presence, presence, reducedMotion, shift]);
 
   const tone = TONE[model.tone];
+  const subsystem = HUE[model.subsystem];
   const sealed = model.eyebrow === "LIVE" && model.statusWord === "SEALED";
-  const onLayout = (event: LayoutChangeEvent) => setWidth(Math.round(event.nativeEvent.layout.width));
-  return <View style={styles.shell} testID={testID} accessibilityRole="summary" accessibilityLabel={`${model.eyebrow} ${model.statusWord}. ${model.headline.replace("\n", " ")}. ${model.detail}`}>
+  const travelA = shift.interpolate({ inputRange: [0, 1], outputRange: [-24, 14] });
+  const travelB = shift.interpolate({ inputRange: [0, 1], outputRange: [18, -10] });
+
+  return <View
+    style={styles.shell}
+    testID={testID}
+    accessibilityRole="summary"
+    accessibilityLabel={`${model.eyebrow} ${model.statusWord}. ${model.headline.replace("\n", " ")}. ${model.detail}`}
+  >
     <View style={styles.statusRow}>
       <Text style={styles.eyebrow}>{model.eyebrow}</Text>
       <View style={[styles.dot, { backgroundColor: tone }]} />
       <Text style={[styles.status, { color: tone }]} testID={`${testID}-status`}>{model.statusWord}</Text>
     </View>
-    <View style={styles.field} onLayout={onLayout}>
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: presence, transform: [{ scale: spread }] }]}>
-        {geometry == null ? null : ORDER.map((id) => {
-          const lit = id === model.subsystem;
-          const dots = <Dots dots={geometry[id]} color={lit ? (model.tone === "dim" ? HUE[id] : tone) : HUE[id]} faint={!lit} />;
-          return lit ? <Animated.View key={id} style={[StyleSheet.absoluteFill, { opacity: glow }]}>{dots}</Animated.View> : <View key={id} style={StyleSheet.absoluteFill}>{dots}</View>;
-        })}
-        {paths == null ? null : <Signal path={paths[model.subsystem]} progress={signal} color={tone} inward={model.tone === "amber" || model.tone === "red"} />}
-      </Animated.View>
-      {width > 0 && sealed ? <View pointerEvents="none" style={[styles.seal, { left: width / 2 - SEAL_RADIUS, top: HEIGHT / 2 - SEAL_RADIUS }]} /> : null}
-      {width > 0 ? <View pointerEvents="none" style={[styles.core, { left: width / 2 - 9, top: HEIGHT / 2 - 9, borderColor: tone }]} /> : null}
+
+    <View style={styles.ribbonField} pointerEvents="none">
+      <Animated.View style={[styles.band, styles.bandA, { backgroundColor: subsystem, opacity: presence, transform: [{ translateX: travelA }, { rotate: "-6deg" }] }]} />
+      <Animated.View style={[styles.band, styles.bandB, { backgroundColor: tone, opacity: presence, transform: [{ translateX: travelB }, { rotate: "3deg" }] }]} />
+      <View style={[styles.horizon, { backgroundColor: fieldPalette.dim }]} />
+      <View style={[styles.focusLine, { backgroundColor: tone }]} />
+      {sealed ? <View style={[styles.sealLine, { borderColor: fieldPalette.dim }]} /> : null}
     </View>
+
     <Text style={styles.headline} testID={`${testID}-headline`}>{model.headline}</Text>
     <Text style={styles.detail}>{model.detail}</Text>
     <View style={styles.facts}>
-      {model.facts.map((fact) => <View key={fact.label} style={styles.fact}><Text style={styles.factLabel}>{fact.label}</Text><Text style={styles.factValue} numberOfLines={1}>{fact.value}</Text></View>)}
+      {model.facts.map((fact) => <View key={fact.label} style={styles.fact}>
+        <Text style={styles.factLabel}>{fact.label}</Text>
+        <Text style={styles.factValue} numberOfLines={1}>{fact.value}</Text>
+      </View>)}
     </View>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  shell: { backgroundColor: fieldPalette.void, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim },
+  shell: { backgroundColor: fieldPalette.void, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim, overflow: "hidden" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   eyebrow: { color: fieldPalette.text, fontSize: 11, letterSpacing: 2.4, marginRight: "auto", ...fieldFonts.monoMedium },
   dot: { width: 6, height: 6, borderRadius: 3 },
   status: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
-  field: { height: HEIGHT, overflow: "hidden" },
-  seal: { position: "absolute", width: SEAL_RADIUS * 2, height: SEAL_RADIUS * 2, borderRadius: SEAL_RADIUS, borderWidth: 1, borderStyle: "dashed", borderColor: fieldPalette.dim },
-  core: { position: "absolute", width: 18, height: 18, borderWidth: 1.2, transform: [{ rotate: "45deg" }] },
+  ribbonField: { height: 96, marginTop: 8, overflow: "hidden", justifyContent: "center" },
+  band: { position: "absolute", left: "-16%", width: "132%", borderRadius: 28 },
+  bandA: { height: 24, top: 18 },
+  bandB: { height: 14, top: 50 },
+  horizon: { position: "absolute", left: "8%", right: "8%", top: 53, height: StyleSheet.hairlineWidth, opacity: 0.42 },
+  focusLine: { position: "absolute", left: "26%", right: "12%", top: 58, height: 2, borderRadius: 1, opacity: 0.9, transform: [{ rotate: "-4deg" }] },
+  sealLine: { position: "absolute", left: "12%", right: "12%", top: 72, height: 18, borderTopWidth: 1, borderBottomWidth: 1, borderStyle: "dashed", opacity: 0.7 },
   headline: { color: fieldPalette.text, fontSize: 24, lineHeight: 31, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   facts: { flexDirection: "row", marginTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim, paddingTop: 10 },

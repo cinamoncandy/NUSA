@@ -82,15 +82,15 @@ export function buildHomeStatusRail(input: HomeStatusInput): HomeStatusRail {
 
   const systemLine = halted
     ? input.killSwitchActive === true && input.paperState !== "DOWN" && input.paperMode !== "FAULTED"
-      ? "PAPER 중단(킬 스위치)"
-      : "PAPER 중단"
+      ? "모의투자 중단(안전 정지)"
+      : "모의투자 중단"
     : degraded
-      ? "PAPER 저하"
+      ? "모의투자 일부 문제"
       : unconfigured
         ? input.paperState === "NOT_CONFIGURED"
-          ? "PAPER 미연결"
-          : "PAPER 확인 불가"
-        : "PAPER 정상";
+          ? "모의투자 연결 안 됨"
+          : "모의투자 상태 확인 필요"
+        : "모의투자 정상";
   const risk: HomeRiskLevel = halted
     ? "HIGH"
     : degraded
@@ -101,7 +101,7 @@ export function buildHomeStatusRail(input: HomeStatusInput): HomeStatusRail {
           ? "CAUTION"
           : "NORMAL";
 
-  const marketLine = input.feedStale ? "시장 대기" : "시장 온라인";
+  const marketLine = input.feedStale ? "시세 업데이트 지연" : "시세 연결됨";
 
   const stamp = validInstant(input.snapshotGeneratedAtMs)
     ? input.snapshotGeneratedAtMs

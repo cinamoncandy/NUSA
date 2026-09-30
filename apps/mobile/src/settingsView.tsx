@@ -282,8 +282,8 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     try {
       if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
       const configuredEndpoint = getConfiguredPaperEndpoint();
-      if (!configuredEndpoint) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER endpoint is not configured." }); return; }
-      credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER connection verification is in progress." });
+      if (!configuredEndpoint) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER endpoint가 설정되지 않았습니다." }); return; }
+      credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "모의투자 서버 연결을 확인하는 중입니다." });
       // A one-time bootstrap token is opaque and intentionally has no mandatory prefix. Try the
       // least-authority bootstrap exchange first. If the value is instead an approved user's
       // credential, bootstrap fails closed without persisting it and we then perform self-enrollment.
@@ -325,7 +325,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const busy = saving || connecting || operatorBusy || ownerDeviceBusy;
   const connectionFailed = connectionAttempted && !connecting && connection.status !== "READY";
   const cloudConnectionTone = connecting ? "info" : connection.status === "READY" ? "success" : connectionFailed || connection.status === "UNAVAILABLE" ? "danger" : "warning";
-  const cloudConnectionLabel = connecting ? "VERIFYING" : connection.status === "READY" ? "VERIFIED" : connectionFailed || connection.status === "UNAVAILABLE" ? "RETRY" : "NOT CONNECTED";
+  const cloudConnectionLabel = connecting ? "확인 중" : connection.status === "READY" ? "확인됨" : connectionFailed || connection.status === "UNAVAILABLE" ? "다시 시도" : "연결 안 됨";
   const ownerCredentialReady = ownerDeviceStatus?.available === true && ownerDeviceStatus.credentialId != null;
   const ownerConnectionStage: OwnerConnectionStage = connection.status === "READY" ? "COMPLETE" : connecting || ownerDeviceBusy ? "SECURE_SESSION" : connectionFailed ? "BLOCKED" : ownerCredentialReady ? "VERIFY_OWNER" : "VERIFY_DEVICE";
   const cloudConnectionDetail = connecting || ownerDeviceBusy ? "서버, 소유자 기기 인증과 PAPER 운영 projection을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connectionFailed ? connection.reason : ownerCredentialReady ? "소유자 인증 한 번으로 이 기기의 PAPER 보안 세션을 시작합니다." : "이 휴대폰 등록 뒤에는 소유자 인증만으로 연결합니다.";

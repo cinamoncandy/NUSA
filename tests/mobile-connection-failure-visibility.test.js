@@ -17,8 +17,8 @@ test("a failed PAPER connection is projected as BLOCKED with the real reason", (
 test("Evidence Glass renders the blocked reason at the active connection surface", () => {
   assert.match(experience, /const blocked = stage === "BLOCKED"/);
   assert.match(experience, /borderColor:blocked\?theme\.colors\.danger:theme\.colors\.border/);
-  assert.match(experience, /\{detail\?\?/);
-  assert.match(experience, /\{blocked\?"PAPER 변경 차단":"최초 연결만 확인합니다"\}/);
+  assert.match(experience, /\{detail \? userReason\(detail\)/);
+  assert.match(experience, /\{blocked\?"모의투자 변경 차단":"최초 연결만 확인합니다"\}/);
 });
 
 test("healthy and pre-connection states retain truthful connection detail", () => {
@@ -28,7 +28,7 @@ test("healthy and pre-connection states retain truthful connection detail", () =
 });
 
 test("connection failure visibility never expands LIVE or AI authority", () => {
-  assert.match(experience, /PAPER ONLY/);
-  assert.match(experience, /LIVE AUTH SEPARATE · AI ZERO AUTHORITY/);
+  assert.match(experience, /모의투자 전용/);
+  assert.match(experience, /기기 인증 · 실거래 인증 분리 · AI 실행 권한 없음/);
   assert.doesNotMatch(experience, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });

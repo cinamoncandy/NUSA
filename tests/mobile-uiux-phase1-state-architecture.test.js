@@ -33,13 +33,18 @@ test("utility navigation has an explicit close path and local settings expose gu
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
 });
-test("not-configured dashboard state is distinct from runtime errors", () => {
+test("not-configured PAPER state stays inside the canonical monitor instead of replacing the screen", () => {
   const app = read("App.tsx");
-  assert.match(app, /testID="dashboard-connection-required"/);
-  assert.match(app, /testID="dashboard-open-settings"/);
-  assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
+  const monitor = read("src/paperLearningMonitorView.tsx");
+  assert.doesNotMatch(app, /testID="dashboard-connection-required"/);
+  assert.doesNotMatch(app, /testID="dashboard-open-settings"/);
+  assert.doesNotMatch(app, /requiresDashboardConnection = notConfigured !== null/);
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
+  assert.match(app, /onOpenSettings=\{goSettings\}/);
+  assert.match(app, /paperLearningOpen \? <PaperShadowMonitorView paper=\{paperLearningState\}/s);
+  assert.match(monitor, /testID="paper-learning-empty-source"/);
+  assert.match(monitor, /testID="paper-open-settings"/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
-  assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/);
   assert.match(app, /<HomeView[^>]*readOnlyError/s);
   assert.doesNotMatch(app, /<TradingView error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
@@ -60,12 +65,12 @@ test("Home hierarchy follows the Intelligence OS state-to-learning flow while pr
   ];
   for (const marker of markers) assert.match(home, new RegExp(marker));
   assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /DECISION BASIS/);
+  assert.match(home, /판단 근거/);
   assert.match(home, /QUICK ACCESS/);
   assert.match(home, />PORTFOLIO<\/Text>/);
-  assert.match(home, />RISK<\/Text>/);
+  assert.match(home, />위험<\/Text>/);
   assert.match(home, /buildHomeStatusRail/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /모의투자 전용 · 실거래 권한 없음 · AI 실행 권한 없음/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });
@@ -99,11 +104,11 @@ test("recoverable states stay actionable while production PAPER observation rema
   assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(monitor, /testID="paper-learning-monitor"/);
   assert.match(monitor, /testID="paper-learning-data-source"/);
-  assert.match(monitor, /PAPER 서버가 연결되지 않았습니다/);
-  assert.match(monitor, /PAPER 운영 데이터를 가져오지 못했습니다/);
-  assert.match(monitor, /서버 응답에 PAPER 학습 projection이 없습니다/);
-  assert.match(monitor, /Settings에서 PAPER 서버 연결을 완료해 주세요/);
-  assert.match(monitor, /네트워크와 서버 상태를 확인한 뒤 새로고침해 주세요/);
+  assert.match(monitor, /모의투자 서버가 연결되지 않았습니다/);
+  assert.match(monitor, /모의투자 데이터를 가져오지 못했습니다/);
+  assert.match(monitor, /모의투자 상태 정보가 없습니다/);
+  assert.match(monitor, /설정에서 연결을 확인해 주세요/);
+  assert.match(monitor, /네트워크와 서버 상태를 확인한 뒤 다시 불러와 주세요/);
   assert.match(tradingWorkspace, /관찰 가능한 시장이 없습니다[\s\S]*NusaButton label="다시 불러오기"/);
   assert.doesNotMatch(tradingShell, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
   assert.doesNotMatch(monitor, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);

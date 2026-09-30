@@ -11,13 +11,13 @@ test("HOME presents truthful PAPER equity and cumulative PnL basis in the canoni
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /krw\(account\?\.equity\)/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /총 손익/);
   assert.match(home, /signedMoney\(totalPnl\)/);
   assert.match(home, /CASH/);
   assert.match(home, /EXPOSURE/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /hasDailyPnlBasis: false/);
-  assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
+  assert.match(decisionSurface, /모의투자 손익 .*평가 자산/);
   assert.doesNotMatch(home, />오늘<\/Text>/);
   assert.doesNotMatch(home, /const equity\s*=\s*10000000|totalPnl\s*=\s*[+-]?\d+(?:\.\d+)?;/);
 });
@@ -29,7 +29,7 @@ test("capital allocation constraints remain actionable in PAPER portfolio/tradin
   assert.match(home, /createCashInvestmentEnvelope\(account\.cash, investmentPercent\)/);
   assert.match(home, /testID="home-investable-cash"/);
   assert.match(home, /label="RESERVED CASH"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /모의투자 전용 · 실거래 권한 없음 · AI 실행 권한 없음/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
   assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?!NONE)/);
 });

@@ -19,7 +19,7 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /모의투자 전용 · 실거래 권한 없음 · AI 실행 권한 없음/);
 
   assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
   assert.doesNotMatch(home, /testID="home-next-action"/);
@@ -38,11 +38,11 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
 
   // Keep the canonical fail-closed decision model available for runtime truth and downstream users,
   // but the approved HOME presentation must not reconstruct the retired supervisor deck.
-  assert.match(decisionSurface, /"CONNECT PAPER"/);
-  assert.match(decisionSurface, /"RECOVER"/);
-  assert.match(decisionSurface, /"SUPERVISE PAPER"/);
-  assert.match(decisionSurface, /"OPEN SIGNAL"/);
-  assert.match(decisionSurface, /"OPEN MARKET"/);
+  assert.match(decisionSurface, /"모의투자 연결"/);
+  assert.match(decisionSurface, /"복구"/);
+  assert.match(decisionSurface, /"모의투자 상태 확인"/);
+  assert.match(decisionSurface, /"판단 근거 보기"/);
+  assert.match(decisionSurface, /"시세 보기"/);
   assert.match(decisionSurface, /const primaryAction: HomeDecisionPrimaryAction/);
 });
 
@@ -71,7 +71,8 @@ test("AI separates uncalibrated raw probability from trusted calibrated confiden
 test("Residual polish preserves read-only and zero-authority product boundaries", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/s);
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
+  assert.match(app, /paperLearningOpen \? <PaperShadowMonitorView paper=\{paperLearningState\}/s);
   assert.match(app, /<HomeView snapshot=\{snapshot\}/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(ai, /ZERO AUTHORITY/);

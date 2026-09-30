@@ -13,7 +13,7 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
   assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
   assert.ok(home.includes('aiInsightAvailable ? <Pressable onPress={() => onNavigate("Paper")}>'));
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /DECISION BASIS/);
+  assert.match(home, /판단 근거/);
   assert.match(home, /\{why\}/);
 });
 
@@ -27,5 +27,5 @@ test("HOME keeps glanceable workspaces ahead of progressive AI judgment and risk
   assert.ok(ai >= 0 && risk >= 0 && terrain >= 0 && paperPerformance >= 0 && learning >= 0, "canonical Intelligence OS decision flow must exist");
   assert.ok(terrain < paperPerformance && paperPerformance < learning && learning < ai && ai < risk, "HOME scan order must remain observe → supervise → learn → decision basis → risk detail");
   assert.doesNotMatch(home, /<TruthCell label="WHY"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /모의투자 전용 · 실거래 권한 없음 · AI 실행 권한 없음/);
 });

@@ -20,6 +20,8 @@ on:
       - "scripts/security-backports.js"
       - "scripts/apply-security-backports.js"
       - ".github/workflows/mobile-native.yml"
+      - ".github/workflows/android-product-ux-acceptance.yml"
+      - ".github/workflows/android-design-acceptance.yml"
       - "pnpm-lock.yaml"
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
@@ -34,6 +36,8 @@ on:
       - "scripts/security-backports.js"
       - "scripts/apply-security-backports.js"
       - ".github/workflows/mobile-native.yml"
+      - ".github/workflows/android-product-ux-acceptance.yml"
+      - ".github/workflows/android-design-acceptance.yml"
       - "pnpm-lock.yaml"
 
 permissions:

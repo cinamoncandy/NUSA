@@ -10,7 +10,7 @@ test("bottom navigation exposes four semantic primary jobs and preserves deeper 
   const nav = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "primaryNavigation.tsx"), "utf8");
   assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
   assert.match(app, /<PrimaryNavigation/);
-  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   assert.match(app, /activeTab === "More" \? <MoreMenuView/);
   assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
@@ -39,8 +39,8 @@ test("header keeps utilities behind one compact tools entry", () => {
 });
 
 test("nav and chrome preserve PAPER-only authority and utility routing", () => {
-  assert.match(app, /StatusChip label="PAPER ONLY"/);
-  assert.match(app, /StatusChip label="LIVE NONE"/);
+  assert.match(app, /StatusChip label="모의투자 전용"/);
+  assert.match(app, /StatusChip label="실거래 권한 없음"/);
   assert.doesNotMatch(app, /실행 권한 없음/);
   assert.match(app, /detailSurface === "Order" \? <OrderHistoryView/);
   assert.doesNotMatch(app, /activeTab === "Order" \? <OrderHistoryView/);

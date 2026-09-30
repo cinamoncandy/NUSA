@@ -73,14 +73,14 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
       : "QUIET";
 
   const statusLabel = connectionRecoveryRequired
-    ? "PAPER · RECOVERY REQUIRED"
+    ? "모의투자 · 복구 필요"
     : input.accountSource === "CLOUD"
-    ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : runtimeState === "ERROR" ? "ERROR" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "STOPPED" : signalReady ? "READY" : "CHECK"}`
+    ? `모의투자 · ${runtimeState === "RUNNING" ? "실행 중" : runtimeState === "DEGRADED" ? "일부 문제" : runtimeState === "HALTED" ? "안전 정지" : runtimeState === "ERROR" ? "오류" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "정지됨" : signalReady ? "준비됨" : "확인 필요"}`
     : input.accountSource === "LOCAL"
-      ? "PAPER · LOCAL"
+      ? "모의투자 · 기기 내"
       : input.disconnected
-        ? "PAPER · OFFLINE"
-        : "PAPER · STANDBY";
+        ? "모의투자 · 연결 안 됨"
+        : "모의투자 · 대기 중";
 
   const statusTone: HomeDecisionTone = connectionRecoveryRequired
     ? "danger"
@@ -95,35 +95,35 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
       : "warning";
 
   const now = input.disconnected
-    ? "PAPER LINK REQUIRED"
+    ? "모의투자 연결 필요"
     : input.readOnlyError
-      ? "RECOVERY REQUIRED"
+      ? "복구 필요"
       : runtimeState === "HALTED"
-        ? "PAPER RUNTIME HALTED"
+        ? "모의투자 안전 정지"
         : runtimeState === "ERROR"
-          ? "PAPER RUNTIME ERROR"
+          ? "모의투자 실행 오류"
           : runtimeState === "STOPPED" || runtimeState === "STOPPING"
-            ? "PAPER RUNTIME STOPPED"
+            ? "모의투자 정지됨"
             : runtimeState === "DEGRADED"
-              ? "PAPER RUNTIME DEGRADED"
+              ? "모의투자 일부 문제"
               : runtimeState === "RUNNING"
-                ? "PAPER SUPERVISION RUNNING"
+                ? "모의투자 실행 중"
                 : signalReady
-                  ? "PAPER DECISION READY"
-                  : "DECISION HOLD";
+                  ? "모의투자 판단 준비됨"
+                  : "판단 보류";
 
   const why = input.disconnected
     ? "PAPER 데이터 연결 전에는 판단을 생성하지 않습니다."
     : input.readOnlyError
       ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
       : runtimeState === "HALTED"
-        ? "PAPER runtime이 중단되어 새로운 판단을 진행하지 않습니다."
+        ? "모의투자가 안전 정지되어 새로운 판단을 진행하지 않습니다."
         : runtimeState === "ERROR"
-          ? "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다."
+          ? "모의투자 실행에 오류가 있어 확인이 필요합니다."
           : runtimeState === "STOPPED" || runtimeState === "STOPPING"
-            ? "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다."
+            ? "모의투자가 정지되어 새로운 판단이 생성되지 않습니다."
             : runtimeState === "DEGRADED"
-              ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
+              ? "모의투자 실행 상태에 문제가 있어 확인이 필요합니다."
               : aiInsightAvailable
                 ? aiThesis
                 : signalReady
@@ -132,42 +132,42 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
 
   const result = input.paperEquity == null
     ? "검증된 PAPER 성과 데이터 없음"
-    : `PAPER P&L ${input.paperTotalPnl == null ? "—" : `${input.paperTotalPnl >= 0 ? "+" : ""}${krw(input.paperTotalPnl)}`} · EQUITY ${krw(input.paperEquity)}`;
+    : `모의투자 손익 ${input.paperTotalPnl == null ? "—" : `${input.paperTotalPnl >= 0 ? "+" : ""}${krw(input.paperTotalPnl)}`} · 평가 자산 ${krw(input.paperEquity)}`;
 
   const risk = input.disconnected
-    ? "BLOCKED · PAPER LINK REQUIRED"
+    ? "진행 불가 · 모의투자 연결 필요"
     : input.readOnlyError
-      ? "BLOCKED · READ-ONLY RECOVERY REQUIRED"
+      ? "진행 불가 · 연결 복구 필요"
       : runtimeActionRequired
-        ? "BLOCKED · PAPER RUNTIME REQUIRES ACTION"
+        ? "진행 불가 · 모의투자 상태 확인 필요"
         : runtimeWatch
-          ? "WATCH · PAPER RUNTIME REQUIRES SUPERVISION"
+          ? "주의 · 모의투자 상태 확인 필요"
           : input.accountSource !== "CLOUD"
-            ? "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE"
+            ? "확인할 데이터 부족 · 모의투자 실행 기록 없음"
             : signalReady
-              ? "PAPER ONLY · SAFETY GATES READY · LIVE NONE"
-              : "WATCH · PAPER SAFETY GATES NOT READY";
+              ? "모의투자 전용 · 안전 확인 완료 · 실거래 권한 없음"
+              : "주의 · 모의투자 안전 확인 필요";
 
   const learning = aiInsightAvailable
-    ? `근거 ${input.aiEvidenceCount}개 · ${calibratedConfidence ?? "UNCALIBRATED"} · 검증된 근거만 학습 화면으로 연결`
+    ? `근거 ${input.aiEvidenceCount}개 · ${calibratedConfidence ?? "확신도 검증 안 됨"} · 검증된 근거만 학습 화면으로 연결`
     : "검증 근거가 없으므로 새로운 학습 결론을 표시하지 않습니다.";
 
   const primaryLabel = input.disconnected
-    ? "CONNECT PAPER"
+    ? "모의투자 연결"
     : input.readOnlyError
-      ? "RECOVER"
+      ? "복구"
       : runtimeNeedsSupervision
-        ? "SUPERVISE PAPER"
+        ? "모의투자 상태 확인"
         : aiInsightAvailable
-          ? "OPEN SIGNAL"
-          : "OPEN MARKET";
+          ? "판단 근거 보기"
+          : "시세 보기";
 
   const primaryDetail = input.disconnected
     ? "PAPER 연결 후 실제 시장 입력과 모의계좌 상태를 표시합니다."
     : input.readOnlyError
       ? "현재 연결 상태를 복구한 뒤 판단을 다시 확인합니다."
       : runtimeNeedsSupervision
-        ? "현재 PAPER runtime 상태와 계좌 결과를 먼저 감독합니다."
+        ? "현재 모의투자 실행 상태와 계좌 결과를 먼저 확인합니다."
         : aiInsightAvailable
           ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
           : "시장 데이터는 읽기 전용으로 분석 중입니다.";

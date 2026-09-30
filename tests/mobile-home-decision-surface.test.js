@@ -36,10 +36,10 @@ function fixture(overrides = {}) {
 test("healthy PAPER resolves one ordered evidence-first projection", () => {
   const projection = buildHomeDecisionSurface(fixture());
   assert.equal(projection.attention, "QUIET");
-  assert.equal(projection.now, "PAPER SUPERVISION RUNNING");
+  assert.equal(projection.now, "모의투자 실행 중");
   assert.equal(projection.why, "Verified PAPER thesis");
-  assert.match(projection.result, /^PAPER P&L \+₩50,000 · EQUITY ₩1,050,000$/);
-  assert.equal(projection.risk, "PAPER ONLY · SAFETY GATES READY · LIVE NONE");
+  assert.match(projection.result, /^모의투자 손익 \+₩50,000 · 평가 자산 ₩1,050,000$/);
+  assert.equal(projection.risk, "모의투자 전용 · 안전 확인 완료 · 실거래 권한 없음");
   assert.match(projection.learning, /근거 3개 · 62%/);
   assert.equal(projection.primaryAction, "AI_SIGNAL");
 });
@@ -51,18 +51,19 @@ test("current offline evidence outranks a prior positive decision", () => {
     aiThesis: "Prior positive thesis",
   }));
   assert.equal(projection.attention, "ACTION REQUIRED");
-  assert.equal(projection.now, "PAPER LINK REQUIRED");
+  assert.equal(projection.now, "모의투자 연결 필요");
   assert.doesNotMatch(projection.why, /Prior positive thesis/);
-  assert.equal(projection.risk, "BLOCKED · PAPER LINK REQUIRED");
+  assert.equal(projection.risk, "진행 불가 · 모의투자 연결 필요");
   assert.equal(projection.primaryAction, "SETTINGS");
 });
 
 test("ERROR and HALTED remain fail-closed even with verified AI evidence", () => {
+  const expectedNow = { ERROR: "모의투자 실행 오류", HALTED: "모의투자 안전 정지" };
   for (const runtimeState of ["ERROR", "HALTED"]) {
     const projection = buildHomeDecisionSurface(fixture({ runtimeState }));
     assert.equal(projection.attention, "ACTION REQUIRED");
-    assert.match(projection.now, new RegExp(runtimeState));
-    assert.equal(projection.risk, "BLOCKED · PAPER RUNTIME REQUIRES ACTION");
+    assert.equal(projection.now, expectedNow[runtimeState]);
+    assert.equal(projection.risk, "진행 불가 · 모의투자 상태 확인 필요");
     assert.equal(projection.primaryAction, "PORTFOLIO");
   }
 });
@@ -83,10 +84,10 @@ test("insufficient evidence stays explicit and never invents confidence", () => 
 test("READ_ONLY recovery failure outranks prior healthy runtime and PAPER result", () => {
   const projection = buildHomeDecisionSurface(fixture({ readOnlyError: true }));
   assert.equal(projection.attention, "ACTION REQUIRED");
-  assert.equal(projection.statusLabel, "PAPER · RECOVERY REQUIRED");
+  assert.equal(projection.statusLabel, "모의투자 · 복구 필요");
   assert.equal(projection.statusTone, "danger");
-  assert.equal(projection.now, "RECOVERY REQUIRED");
-  assert.equal(projection.risk, "BLOCKED · READ-ONLY RECOVERY REQUIRED");
+  assert.equal(projection.now, "복구 필요");
+  assert.equal(projection.risk, "진행 불가 · 연결 복구 필요");
   assert.equal(projection.primaryAction, "SETTINGS");
 });
 
@@ -97,12 +98,12 @@ test("LOCAL PAPER provenance does not claim cloud runtime evidence", () => {
     health: undefined,
     readyForPaperOperations: false,
   }));
-  assert.equal(projection.statusLabel, "PAPER · LOCAL");
+  assert.equal(projection.statusLabel, "모의투자 · 기기 내");
   assert.equal(projection.statusTone, "info");
-  assert.equal(projection.risk, "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE");
+  assert.equal(projection.risk, "확인할 데이터 부족 · 모의투자 실행 기록 없음");
 });
 
 test("projection preserves authority invariants and contains no execution semantics", () => {
-  assert.match(source, /LIVE NONE/);
+  assert.match(source, /실거래 권한 없음/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|transfer|productionMutationAllowed\s*=\s*true/);
 });
