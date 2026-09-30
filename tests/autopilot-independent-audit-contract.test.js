@@ -96,6 +96,7 @@ test("Audit always executes independently and exposes trusted same-workflow Rele
   assert.doesNotMatch(auditJob, /nusa-audit-verdict:\$\{PR_NUMBER\}:\$\{WORKFLOW_RUN_ID\}:\$\{REQUESTED_HEAD\}/);
   assert.doesNotMatch(auditJob, /Detect existing exact-head Audit verdict/);
   assert.doesNotMatch(auditJob, /steps\.existing-audit|skip=true/);
+  assert.match(auditJob, /audit_retry_attempt must be 0 or 1 when present/);
   assert.match(auditJob, /Mint bounded read-only Audit GitHub App token/);
   assert.match(auditJob, /actions\/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1/);
   assert.match(auditJob, /permission-actions: read/);
@@ -120,7 +121,9 @@ test("Audit recovery is bounded to classified transient executor failures and st
   assert.match(auditJob, /Classify Audit failure boundary/);
   assert.match(auditJob, /4006\|daily free allocation\|neurons\|quota/);
   assert.match(auditJob, /WAITING_PROVIDER_CAPACITY/);
-  assert.match(auditJob, /failureClass = 'executor_unavailable'/);
+  assert.match(auditJob, /failureClass = 'provider_capacity'/);
+  assert.match(auditJob, /recovery = 'hold'/);
+  assert.match(auditJob, /failureClass = 'transient'/);
   assert.match(auditJob, /recovery = 'retry'/);
   const classifyFrom = auditJob.indexOf("Classify Audit failure boundary");
   const classifySlice = auditJob.slice(classifyFrom);
@@ -136,9 +139,17 @@ test("Audit recovery is bounded to classified transient executor failures and st
     "capacity wait must be decided by exact structured code, not bare substring",
   );
   assert.match(workflow, /needs\.audit-request\.outputs\.recovery == 'retry'/);
+  assert.match(workflow, /github\.event\.client_payload\.audit_retry_attempt != 1/);
   assert.match(recovery, /state.*!=.*open/);
   assert.match(recovery, /current_head.*!=.*REQUESTED_HEAD/);
-  assert.match(recovery, /Audit recovery suppressed: PR is closed or head moved/);
+  assert.match(recovery, /current_base.*!=.*current_main/);
+  assert.match(recovery, /Audit recovery suppressed: PR is closed, head moved, or base is stale/);
+  assert.doesNotMatch(recovery, /"kind": "REPOSITORY_AUTOPILOT"/);
+  assert.match(recovery, /"kind": "AUDIT_REQUEST"/);
+  assert.match(recovery, /"pr_number": \$PR_NUMBER/);
+  assert.match(recovery, /"head_sha": "\$REQUESTED_HEAD"/);
+  assert.match(recovery, /"workflow_run_id": \$WORKFLOW_RUN_ID/);
+  assert.match(recovery, /"audit_retry_attempt": 1/);
 });
 
 test("only explicit safe PASS or PASS_WITH_NOTES authorizes Release", () => {
@@ -170,16 +181,18 @@ test("Audit prompt pins finding-code and blocker-list shape to strict validation
   assert.ok(auditRunner.includes('throw new Error("AUDIT_VERDICT_BLOCKER_LIST_REQUIRED")'));
 });
 
-test("Audit recovery paginates and binds exact-main evidence to canonical CI", () => {
+test("Audit recovery retries only the same exact Audit evidence and never enters coding lane", () => {
   const recovery = auditRecoveryJobSlice();
-  assert.match(recovery, /gh api --paginate/);
-  assert.doesNotMatch(recovery, /gh api --paginate --slurp/);
-  assert.match(recovery, /sort -n \| tail -n 1/);
-  assert.match(recovery, /\.path == "\.github\/workflows\/ci\.yml"/);
-  assert.match(recovery, /\.name == "CI"/);
-  assert.match(recovery, /\.conclusion == "success"/);
-  assert.match(recovery, /\.head_sha == /);
-  assert.match(recovery, /\$current_main/);
+  assert.doesNotMatch(recovery, /gh api --paginate/);
+  assert.doesNotMatch(recovery, /main_workflow_run_id/);
+  assert.doesNotMatch(recovery, /"kind": "REPOSITORY_AUTOPILOT"/);
+  assert.doesNotMatch(recovery, /reason": "audit-recovery/);
+  assert.match(recovery, /"kind": "AUDIT_REQUEST"/);
+  assert.match(recovery, /"head_sha": "\$REQUESTED_HEAD"/);
+  assert.match(recovery, /"pr_number": \$PR_NUMBER/);
+  assert.match(recovery, /"workflow_run_id": \$WORKFLOW_RUN_ID/);
+  assert.match(recovery, /"audit_retry_attempt": 1/);
+  assert.match(recovery, /audit-retry:\$\{PR_NUMBER\}:\$\{WORKFLOW_RUN_ID\}:1/);
 });
 
 test("safe same-workflow Audit PASS dispatches the deterministic Release successor without expanding Audit authority", () => {
@@ -247,6 +260,6 @@ test("Audit failure classifier retries a malformed verdict once and keeps real s
   };
   assert.deepEqual(classify({ error: "AUDIT_VERDICT_JSON_INVALID", status: "AUDIT_FAILED_CLOSED" }), { failure_class: "validation_failure", recovery: "retry" });
   assert.deepEqual(classify({ error: "AUDIT_PR_HEAD_MISMATCH", status: "AUDIT_FAILED_CLOSED" }), { failure_class: "deterministic", recovery: "none" });
-  assert.deepEqual(classify({ error: "WAITING_PROVIDER_CAPACITY", status: "AUDIT_FAILED_CLOSED" }), { failure_class: "transient", recovery: "retry" });
+  assert.deepEqual(classify({ error: "WAITING_PROVIDER_CAPACITY", status: "AUDIT_FAILED_CLOSED" }), { failure_class: "provider_capacity", recovery: "hold" });
   assert.deepEqual(classify({ status: "AUDIT_COMPLETED" }), { failure_class: "none", recovery: "none" });
 });
