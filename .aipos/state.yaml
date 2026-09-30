@@ -8,6 +8,14 @@ current_issue_2118_ci_saturation_wip:
   validation: "Autopilot publish workflow and initial PR #2399 exact-head CI passed. Review repair local preflight, TypeScript build, 14/14 focused tests, validate, security gate, AIPOS drift, and diff check passed; fresh exact-head CI pending."
   remaining: "Update PR #2399 and obtain fresh exact-head CI before Audit/Release; current baseline and after-change p50/p95 measurement remain later increments."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_exchange_minimum_order:
+  work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-min-order
+  authority_impact: paper-accounting-and-risk-sizing
+  scope: "Cloud PAPER BUY below the Upbit KRW 5,000 minimum is raised to KRW 5,050 within a 60% equity ceiling and available cash, else fails closed (owner decision option A, 2026-09-30)."
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-observe-next-BUY-at-least-KRW-5000
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_security_fast_uri_backport:
   work_order: WO-SECURITY-20260929-FAST-URI
   status: READY_FOR_REVIEW
