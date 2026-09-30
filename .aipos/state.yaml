@@ -1,4 +1,15 @@
 version: 1
+current_android_release_target_settle:
+  work_order: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/android-stable-release-settle
+  base_sha: 8427d07115925a0adfc4b6bf2f7a575326085cf7
+  authority_impact: release-control
+  first_broken_transition: successful_android_release_to_stable_target_observation
+  evidence: "Run 36722041495 published exact main successfully at 13:36:45Z; trigger run 36721240538 failed at 13:36:52Z on a stale release target. Later trigger 36722017340 and stable target 8427d071 PASS. Repeated Autopilot recovery attempts then failed on the obsolete workflow failure."
+  validation: "Focused Android trigger/idempotency/deployment tests 12/12; pnpm run preflight; pnpm run validate; YAML parse; embedded Bash syntax; git diff --check PASS. Review corrections cover all three release controllers."
+  next: exact_head_CI_then_independent_Audit_then_canonical_Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_issue_2153_market_data_integrity:
   work_order: WO-ISSUE-2153-MARKET-DATA-INTEGRITY
   issue: 2153
