@@ -106,6 +106,7 @@ describe("PAPER candidate strategy semantics", () => {
     }
   });
 
+
   it("replays exact Bollinger warm-up and baseline semantics", () => {
     const bollingerSpec: PaperCandidateStrategySpec = Object.freeze({
       ...spec, familyId: "bollinger-breakout", parameters: Object.freeze({ period: 3, multiplier: 1 }),
@@ -133,7 +134,6 @@ describe("PAPER candidate strategy semantics", () => {
       assert.throws(
         () => evaluatePaperCandidateStrategy({ ...spec, familyId: "bollinger-breakout", parameters }, observations([100, 101, 103]), 10, "KRW-BTC"),
         /PAPER Bollinger candidate parameters are invalid/,
-
       );
     }
   });
