@@ -34,6 +34,18 @@ const OUTCOMES = new Set<EvolutionOutcome>([
   "UNKNOWN",
 ]);
 
+export function evolutionHypothesisFromProblem(problem: string): string {
+  const normalized = problem.trim().replace(/\s+/g, " ");
+  if (!normalized) throw new Error("EVOLVE_HYPOTHESIS_PROBLEM_REQUIRED");
+  return `Address ${normalized.slice(0, 400)} with a bounded, reversible change.`;
+}
+
+export function evolutionHypothesisKey(hypothesis: string): string {
+  const normalized = hypothesis.trim().replace(/\s+/g, " ").toLowerCase();
+  if (!normalized) throw new Error("EVOLVE_HYPOTHESIS_REQUIRED");
+  return sha256(normalized);
+}
+
 export function createEvolutionLearningRecord(input: EvolutionLearningRecord): EvolutionLearningRecord {
   if (!OUTCOMES.has(input.outcome)) throw new Error("EVOLVE_MEMORY_OUTCOME_INVALID");
   if (typeof input.reusable !== "boolean") throw new Error("EVOLVE_MEMORY_REUSABLE_INVALID");
