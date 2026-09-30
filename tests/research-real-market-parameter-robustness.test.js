@@ -102,6 +102,7 @@ test("canonical Donchian robustness request is the precommitted five-period line
   assert.ok(request.candidateGrid.every(Object.isFrozen));
 });
 
+
 test("canonical Bollinger robustness request uses deterministic symmetric 4-connected adjacency", () => {
   const request = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: "bollinger-breakout" });
   assert.equal(request.strategyFamily, "bollinger-breakout");
@@ -119,5 +120,4 @@ test("canonical Bollinger robustness request uses deterministic symmetric 4-conn
       assert.ok(request.candidateGrid.find((candidate) => candidate.key === neighbor).neighbors.includes(entry.key));
     }
   }
-
 });
