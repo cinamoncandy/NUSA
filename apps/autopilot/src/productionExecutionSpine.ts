@@ -1,5 +1,6 @@
 import type { AutopilotDispatchPlan } from "./dispatchPlanner";
 import type { AutopilotExecutionRequest } from "./executionPlanner";
+import type { CodingExecutionEvidence } from "./codingExecutionEvidence";
 import {
   acquireExecutionLease,
   createExecutionState,
@@ -17,6 +18,35 @@ export interface PreparedProductionExecution {
   readonly state: AutonomousExecutionState;
   readonly envelope: CodingExecutionEnvelope;
   readonly request: AutopilotExecutionRequest;
+}
+
+export type CanonicalExecutionTransition =
+  | "PR_OPEN"
+  | "IMPLEMENTATION_BLOCKED"
+  | "CODING_DISPATCHED";
+
+/**
+ * Reconciles one persisted coding receipt with the exact execution identity.
+ * This is observability/state projection only; it never submits, approves, or
+ * mutates a repository or trading state.
+ */
+export function reconcileCodingExecutionEvidence(
+  state: Pick<AutonomousExecutionState, "executionId" | "dedupeKey" | "status">,
+  evidence: CodingExecutionEvidence,
+): CanonicalExecutionTransition {
+  if (evidence.request.executionId !== state.executionId
+    || evidence.request.dedupeKey !== state.dedupeKey
+    || evidence.request.headSha !== evidence.request.headSha.toLowerCase()) {
+    throw new Error("CODING_EVIDENCE_EXECUTION_IDENTITY_MISMATCH");
+  }
+  if (state.status !== "CODING_DISPATCHED") throw new Error("CODING_EVIDENCE_STATE_INVALID");
+  if (evidence.outcome.status === "EXECUTION_ACCEPTED"
+    && evidence.outcome.pullRequestNumber !== null
+    && evidence.outcome.commitSha !== null) return "PR_OPEN";
+  if (evidence.outcome.status === "EXECUTION_FAILED"
+    || evidence.outcome.status === "BLOCKED_RATE_LIMIT"
+    || evidence.outcome.status === "WAITING_RATE_LIMIT") return "IMPLEMENTATION_BLOCKED";
+  return "CODING_DISPATCHED";
 }
 
 export interface ProductionExecutionOptions {
