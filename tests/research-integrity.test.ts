@@ -4,7 +4,7 @@ import {
   assertDeterministicReplay, assertFeatureBinding, assertSegmentIsolation, evidenceFingerprint,
   featureFingerprint, oosReuseFingerprint, validateEvidenceProvenance, validatePointInTimeBoundary,
   assertResearchUniverseDatasetBinding, assertResearchUniverseDatasetSetBinding, assertResearchUniverseReplay, researchUniverseFingerprint,
-  validateResearchUniverseProvenance
+  validateResearchUniverseProvenance, requireCurrentResearchDatasetIdentity
 } from "../apps/desktop/src/cloud/researchIntegrity.ts";
 
 const D = "a".repeat(64), G = "b".repeat(40);
@@ -166,4 +166,27 @@ test("universe dataset set must be available before evaluation and cover every e
     },manifests,{decisionAt:400}),
     /SURVIVORSHIP_BIAS:constituent_not_eligible_for_full_period/,
   );
+});
+
+
+test("current dataset identity accepts exact interval-aligned freshness evidence", () => {
+  const identity = requireCurrentResearchDatasetIdentity({
+    datasetId:"upbit_KRW-BTC_60m_current", datasetFingerprint:D, source:"upbit", market:"KRW-BTC", interval:"60m",
+    endCloseTime:7_200_000, observedAt:7_500_000, expectedLatestCloseTime:7_200_000,
+    actualLatestCloseTime:7_200_000, lagIntervals:0, fresh:true
+  });
+  assert.equal(identity.status, "CURRENT");
+  assert.equal(identity.datasetFingerprint, D);
+});
+
+test("current dataset identity fails closed for stale or mismatched observations", () => {
+  const base = {
+    datasetId:"upbit_KRW-BTC_60m_current", datasetFingerprint:D, source:"upbit", market:"KRW-BTC", interval:"60m",
+    endCloseTime:7_200_000, observedAt:7_500_000, expectedLatestCloseTime:7_200_000,
+    actualLatestCloseTime:7_200_000, lagIntervals:0, fresh:true
+  };
+  assert.throws(() => requireCurrentResearchDatasetIdentity({...base, actualLatestCloseTime:3_600_000, lagIntervals:1, fresh:false}), /CURRENT_DATASET_OBSERVATION_MISMATCH/);
+  assert.throws(() => requireCurrentResearchDatasetIdentity({...base, expectedLatestCloseTime:10_800_000}), /CURRENT_DATASET_FUTURE_OBSERVATION/);
+  assert.throws(() => requireCurrentResearchDatasetIdentity({...base, lagIntervals:1, fresh:false}), /STALE_CURRENT_DATASET/);
+  assert.throws(() => requireCurrentResearchDatasetIdentity({...base, datasetFingerprint:""}), /INVALID_CURRENT_DATASET_IDENTITY/);
 });

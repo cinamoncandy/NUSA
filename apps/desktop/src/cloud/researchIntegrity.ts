@@ -266,3 +266,36 @@ export function evidenceFingerprint(provenance: ResearchEvidenceProvenance, evid
 export function assertDeterministicReplay(expectedFingerprint: string, provenance: ResearchEvidenceProvenance, replayedEvidence: unknown): void {
   if (evidenceFingerprint(provenance, replayedEvidence) !== expectedFingerprint) throw new Error("REPLAY_NON_DETERMINISTIC");
 }
+
+export interface CurrentResearchDatasetIdentityInput {
+  readonly datasetId: string;
+  readonly datasetFingerprint: string;
+  readonly source: string;
+  readonly market: string;
+  readonly interval: string;
+  readonly endCloseTime: number;
+  readonly observedAt: number;
+  readonly expectedLatestCloseTime: number;
+  readonly actualLatestCloseTime: number;
+  readonly lagIntervals: number;
+  readonly fresh: boolean;
+}
+
+export interface CurrentResearchDatasetIdentity extends CurrentResearchDatasetIdentityInput {
+  readonly status: "CURRENT";
+}
+
+export function requireCurrentResearchDatasetIdentity(input: CurrentResearchDatasetIdentityInput): CurrentResearchDatasetIdentity {
+  for (const key of ["datasetId", "source", "market", "interval"] as const) {
+    if (!input[key].trim()) throw new Error(`INVALID_CURRENT_DATASET_IDENTITY:${key}`);
+  }
+  if (!/^[0-9a-f]{64}$/.test(input.datasetFingerprint)) throw new Error("INVALID_CURRENT_DATASET_IDENTITY:datasetFingerprint");
+  for (const key of ["endCloseTime", "observedAt", "expectedLatestCloseTime", "actualLatestCloseTime", "lagIntervals"] as const) {
+    if (!Number.isSafeInteger(input[key]) || input[key] < 0) throw new Error(`INVALID_CURRENT_DATASET_IDENTITY:${key}`);
+  }
+  if (input.actualLatestCloseTime !== input.endCloseTime) throw new Error("CURRENT_DATASET_OBSERVATION_MISMATCH");
+  if (input.expectedLatestCloseTime > input.observedAt || input.actualLatestCloseTime > input.observedAt) throw new Error("CURRENT_DATASET_FUTURE_OBSERVATION");
+  if (!input.fresh || input.lagIntervals !== 0 || input.actualLatestCloseTime !== input.expectedLatestCloseTime) throw new Error("STALE_CURRENT_DATASET");
+  return Object.freeze({ ...input, status: "CURRENT" });
+}
+
