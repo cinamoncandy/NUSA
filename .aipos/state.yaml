@@ -1716,10 +1716,10 @@ current_uiux_pr_2327_android_visual_convergence:
   pull_request: 2327
   branch: uiux/post-2262-visual-acceptance
   base_sha: 61aaa2c47dcd6d92d15a39eba627a11542f2bfef
-  previous_head: c25d5b6267dae7244408c0c4d6e29b142176697f
-  finding: "Exact-head CI failed on malformed AIPOS YAML; Mobile Native exposed one stale local-entry wording assertion; Android Product UX showed HOME rendering correctly but PAPER short-circuiting to a legacy connection card and LIVE entering the recovery boundary."
-  remediation: "Repair the work-order YAML, keep PAPER primary on the canonical read-only learning surface even when disconnected, use Korean safety badges, restore the protected-main LIVE presenter contract, preserve the ribbon Intelligence Field, and absorb latest protected-main non-UI changes."
-  validation: "Fresh exact-head CI, Mobile Native, Android Product UX, PAPER/read-only/Restricted LIVE checks are required; prior c25d5b62 evidence is stale."
-  blocker: "Trusted Android Design Acceptance authority must be verified on protected main before HOLD/design acceptance can advance. Galaxy physical-device evidence remains HUMAN_ENVIRONMENT_ONLY / NOT VERIFIED."
+  previous_head: 01ce73410dcc538a4b2ea2f154022d2eebe3af32
+  finding: "Exact-head CI exposed one stale Settings wording assertion and a dependency-audit JSON parser that counted braces inside JSON strings as structural delimiters; prior Android evidence also required PAPER/LIVE runtime presenter corrections."
+  remediation: "Align only the stale wording assertion, make the existing bounded audit parser string/escape-aware without relaxing fail-closed behavior, preserve PAPER primary truthful rendering and current LIVE presenter contract."
+  validation: "Fresh exact-head CI, Mobile Native, Android Product UX, PAPER/read-only/Restricted LIVE checks are required; all evidence from 01ce7341 and earlier is stale."
+  blocker: "Trusted Android Design Acceptance authority is not present on protected main. Galaxy physical-device evidence remains HUMAN_ENVIRONMENT_ONLY / NOT VERIFIED."
   next: "Fresh exact-head validation -> Android screenshot inspection -> trusted design acceptance -> Audit -> Release -> merge -> Android release -> Galaxy acceptance."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
