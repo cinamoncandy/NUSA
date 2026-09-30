@@ -62,14 +62,12 @@ function strategyFactoryFor(modules, familyId, parameters) {
   }
   if (familyId === "bollinger-breakout") {
     return () => new modules.strategyEngine.BollingerBreakoutStrategy(parameters.period, parameters.multiplier);
-
   }
   throw new Error(`unsupported parameter robustness strategy family: ${familyId}`);
 }
 function validateGenericCandidateGrid(request, modules) {
   const errors = [];
   if (!["sma-crossover", "rsi-mean-reversion", "donchian-breakout", "bollinger-breakout"].includes(request.strategyFamily)) errors.push(`unsupported strategyFamily: ${request.strategyFamily}`);
-
   if (!Array.isArray(request.candidateGrid) || request.candidateGrid.length === 0) {
     errors.push("request.candidateGrid must be a non-empty precommitted array");
     return errors;
@@ -188,10 +186,6 @@ function buildCandidateGrid(referenceParameters, neighborhood, trainingCandleBou
         const shortWindow = ref.shortWindow + shortOffset;
         const longWindow = ref.longWindow + longOffset;
         const key = `${shortWindow}/${longWindow}`;
-        // Keep the research neighborhood aligned with the production
-        // SmaCrossoverStrategy constructor, which requires shortPeriod >= 2.
-        // A positive shortWindow of 1 would otherwise be admitted here and
-        // fail only after the candidate reaches strategy construction.
         const valid = Number.isInteger(shortWindow) && shortWindow >= 2 && isPositiveInteger(longWindow) && longWindow > shortWindow && (trainingCandleBound == null || longWindow < trainingCandleBound);
         const distances = referenceParameters.map((r) => ({
           source: r.source,
@@ -206,11 +200,6 @@ function buildCandidateGrid(referenceParameters, neighborhood, trainingCandleBou
   return [...seen.values()].sort((a, b) => a.shortWindow - b.shortWindow || a.longWindow - b.longWindow);
 }
 
-/** Immediate neighbors of `reference`: candidates one offset-index step away in the
- * declared shortOffsets/longOffsets grids (Chebyshev-adjacent), excluding the
- * reference cell itself. Distance is measured in grid-index space, not raw value, so
- * an irregular offset grid (e.g. [-5,-2,0,2,5]) is still treated as "adjacent" between
- * consecutive declared offsets. */
 function findImmediateNeighbors(grid, reference, neighborhood) {
   const sortedShort = [...new Set(neighborhood.shortOffsets)].sort((a, b) => a - b);
   const sortedLong = [...new Set(neighborhood.longOffsets)].sort((a, b) => a - b);
@@ -230,12 +219,21 @@ function runFullSample(modules, points, param, execConfig) {
   return modules.backtestEngine.runBacktest(points, factory, execConfig);
 }
 
+function runScoredOosBacktest(modules, points, boundary, factory, execConfig) {
+  return modules.backtestEngine.runBacktest(
+    points.slice(boundary.testStartIndex, boundary.testEndIndex + 1),
+    factory,
+    { ...execConfig, warmupPoints: points.slice(0, boundary.testStartIndex) }
+  );
+}
+
 function runOosFixed(modules, points, param, execConfig, oosWindows) {
   const plan = buildWindowPlan(points.map((p) => ({ market: execConfig.market, interval: "1m", openTime: p.timestamp - 1, closeTime: p.timestamp, open: p.close, high: p.close, low: p.close, close: p.close, volume: 1 })), { trainingCandles: oosWindows.trainingCandles, validationCandles: 0, testCandles: oosWindows.testCandles, stepCandles: oosWindows.stepCandles });
   if (plan.length === 0) return null;
   const factory = () => new modules.strategyEngine.SmaCrossoverStrategy(param.shortWindow, param.longWindow);
-  const testResults = plan.map((boundary) => modules.backtestEngine.runBacktest(points.slice(boundary.testStartIndex, boundary.testEndIndex + 1), factory, execConfig));
+  const testResults = plan.map((boundary) => runScoredOosBacktest(modules, points, boundary, factory, execConfig));
   const compoundedReturn = compoundedSequence(testResults.map((r) => r.metrics.totalReturn));
+  const compoundedBenchmarkReturn = compoundedSequence(testResults.map((r) => r.benchmark.buyAndHoldReturn));
   let base = execConfig.initialCash;
   const curve = [];
   for (const result of testResults) {
@@ -244,7 +242,7 @@ function runOosFixed(modules, points, param, execConfig, oosWindows) {
     base *= (1 + result.metrics.totalReturn);
   }
   const profitableWindows = testResults.filter((r) => r.metrics.totalReturn > 0).length;
-  return { windowCount: plan.length, compoundedReturn, maxDrawdown: curve.length ? computeMaxDrawdownFromCurve(curve) : 0, profitableWindowRatio: plan.length ? profitableWindows / plan.length : 0, totalTrades: testResults.reduce((sum, r) => sum + r.performance.trades, 0) };
+  return { windowCount: plan.length, compoundedReturn, compoundedBenchmarkReturn, benchmarkExcessReturn: compoundedReturn - compoundedBenchmarkReturn, maxDrawdown: curve.length ? computeMaxDrawdownFromCurve(curve) : 0, profitableWindowRatio: plan.length ? profitableWindows / plan.length : 0, totalTrades: testResults.reduce((sum, r) => sum + r.performance.trades, 0) };
 }
 
 function summarizeFullSample(result) {
@@ -268,8 +266,9 @@ function runGenericParameterRobustnessRequest(request, modules, candles, points)
     if (request.evaluation.mode === "WALK_FORWARD_OOS_WINDOWS" || request.evaluation.mode === "BOTH") {
       const plan = buildWindowPlan(points.map((p) => ({ market: execConfig.market, interval: "1m", openTime: p.timestamp - 1, closeTime: p.timestamp, open: p.close, high: p.close, low: p.close, close: p.close, volume: 1 })), { trainingCandles: oosWindows.trainingCandles, validationCandles: 0, testCandles: oosWindows.testCandles, stepCandles: oosWindows.stepCandles });
       if (plan.length > 0) {
-        const testResults = plan.map((boundary) => modules.backtestEngine.runBacktest(points.slice(boundary.testStartIndex, boundary.testEndIndex + 1), factory, execConfig));
+        const testResults = plan.map((boundary) => runScoredOosBacktest(modules, points, boundary, factory, execConfig));
         const compoundedReturn = compoundedSequence(testResults.map((result) => result.metrics.totalReturn));
+        const compoundedBenchmarkReturn = compoundedSequence(testResults.map((result) => result.benchmark.buyAndHoldReturn));
         let base = execConfig.initialCash;
         const curve = [];
         for (const result of testResults) {
@@ -282,16 +281,26 @@ function runGenericParameterRobustnessRequest(request, modules, candles, points)
     }
     return { fullSample: fullSampleResult ? summarizeFullSample(fullSampleResult) : null, oos: oosResult };
   };
+  const prefersOos = request.evaluation.mode !== "FULL_SAMPLE";
+  const selectedReturn = (candidate, condition = "BASE") => {
+    const result = candidate.costResults[condition];
+    return prefersOos ? (result.oos?.compoundedReturn ?? 0) : (result.fullSample?.totalReturn ?? 0);
+  };
+  const selectedBenchmarkExcess = (candidate) => prefersOos
+    ? (candidate.costResults.BASE.oos?.benchmarkExcessReturn ?? 0)
+    : (candidate.costResults.BASE.fullSample?.benchmarkExcessReturn ?? 0);
   const candidateResults = grid.map((candidate) => {
     const costResults = {};
     for (const cost of request.costConditions) costResults[cost.name] = runCandidate(candidate, execConfigFor(cost), request.evaluation.oosWindows);
-    const base = costResults.BASE.fullSample;
-    const eligible = base ? base.tradeCount >= request.minimumTrades : (costResults.BASE.oos ? costResults.BASE.oos.totalTrades >= request.minimumTrades : false);
+    const base = costResults.BASE;
+    const eligible = prefersOos
+      ? (base.oos?.totalTrades ?? 0) >= request.minimumTrades
+      : (base.fullSample?.tradeCount ?? 0) >= request.minimumTrades;
     return { ...candidate, status: "EVALUATED", eligible, costResults };
   });
   const byKey = new Map(candidateResults.map((candidate) => [candidate.candidateKey, candidate]));
-  const baseReturn = (candidate) => candidate.costResults.BASE.fullSample?.totalReturn ?? candidate.costResults.BASE.oos?.compoundedReturn ?? 0;
-  const benchmarkExcess = (candidate) => candidate.costResults.BASE.fullSample?.benchmarkExcessReturn ?? 0;
+  const baseReturn = (candidate) => selectedReturn(candidate);
+  const benchmarkExcess = (candidate) => selectedBenchmarkExcess(candidate);
   const uniqueEdges = [];
   for (const candidate of grid) for (const neighbor of candidate.neighbors) if (candidate.candidateKey < neighbor) uniqueEdges.push([candidate.candidateKey, neighbor]);
   let signReversals = 0;
@@ -322,14 +331,14 @@ function runGenericParameterRobustnessRequest(request, modules, candles, points)
   const median = validReturns.length ? (validReturns.length % 2 === 1 ? validReturns[(validReturns.length - 1) / 2] : (validReturns[validReturns.length / 2 - 1] + validReturns[validReturns.length / 2]) / 2) : 0;
   const q1 = validReturns.length ? validReturns[Math.floor((validReturns.length - 1) * 0.25)] : 0;
   const q3 = validReturns.length ? validReturns[Math.floor((validReturns.length - 1) * 0.75)] : 0;
-  const survivorsByCondition = Object.fromEntries(REQUIRED_COST_CONDITIONS.map((name) => [name, candidateResults.filter((candidate) => (candidate.costResults[name].fullSample?.totalReturn ?? candidate.costResults[name].oos?.compoundedReturn ?? 0) > 0).length]));
+  const survivorsByCondition = Object.fromEntries(REQUIRED_COST_CONDITIONS.map((name) => [name, candidateResults.filter((candidate) => selectedReturn(candidate, name) > 0).length]));
   const aggregate = { candidateCount: grid.length, validCandidateCount: grid.length, invalidCandidateCount: 0, positiveRatio: positiveRatioAll, medianReturn: median, returnIqr: q3 - q1, worstReturn: validReturns[0] ?? 0, bestReturn: validReturns.at(-1) ?? 0, costSurvivorCounts: survivorsByCondition };
   const warnings = [];
   if (references.some((reference) => reference.assessment === "ISOLATED_PEAK")) warnings.push("REFERENCE_ISOLATED_PEAK");
   if (references.some((reference) => reference.assessment === "UNSTABLE")) warnings.push("UNSTABLE_LOCAL_SURFACE");
   if (survivorsByCondition.SEVERE < survivorsByCondition.BASE * 0.5) warnings.push("SEVERE_COST_COLLAPSE_MAJORITY");
   const result = { schemaVersion: 1, requestId: request.id, status: failures.length === 0 ? "PASS" : "FAIL", strategyFamily: request.strategyFamily, dataset: { market: request.market, candleCount: candles.length, datasetContentSha256: modules.researchDataset.calculateCandleSha256(candles) }, referenceParameters: request.referenceParameters, candidateGrid: request.candidateGrid, costConditions: request.costConditions, references, candidates: candidateResults, aggregate, warnings, failures };
-  result.hashes = { requestSha256: canonicalHash(request), datasetContentSha256: result.dataset.datasetContentSha256, referenceParametersSha256: canonicalHash(request.referenceParameters), neighborhoodGridSha256: canonicalHash(request.candidateGrid), candidateResultsSha256: canonicalHash(candidateResults), aggregateResultSha256: canonicalHash(aggregate) };
+  result.hashes = { requestSha256: canonicalHash(request), datasetContentSha256: result.dataset.datasetContentSha256, referenceParametersSha256: canonicalHash(request.referenceParameters), neighborhoodGridSha256: canonicalHash(request.candidateGrid), candidateResultsSha256: canonicalHash(candidateResults), aggregateResultSha256: canonicalHash(aggregate), referencesSha256: canonicalHash(references) };
   return result;
 }
 
@@ -355,6 +364,14 @@ function runParameterRobustnessRequest(request, options = {}) {
   const execConfigFor = (cost) => ({ market: request.market, initialCash: request.execution.initialCash, feeRate: cost.feeRate, orderQuantity: request.execution.orderQuantity, riskPolicy: request.execution.riskPolicy, executionCosts: { spreadBps: request.execution.executionCosts?.spreadBps ?? 0, slippageBps: cost.slippageBps } });
 
   const failures = [];
+  const prefersOos = request.evaluation.mode !== "FULL_SAMPLE";
+  const selectedReturn = (candidate, condition = "BASE") => {
+    const result = candidate.costResults[condition];
+    return prefersOos ? (result.oos?.compoundedReturn ?? 0) : (result.fullSample?.totalReturn ?? 0);
+  };
+  const selectedBenchmarkExcess = (candidate) => prefersOos
+    ? (candidate.costResults.BASE.oos?.benchmarkExcessReturn ?? 0)
+    : (candidate.costResults.BASE.fullSample?.benchmarkExcessReturn ?? 0);
   const candidateResults = grid.map((candidate) => {
     if (!candidate.valid) return { ...candidate, status: "INVALID_CANDIDATE" };
 
@@ -369,8 +386,9 @@ function runParameterRobustnessRequest(request, options = {}) {
       };
     }
 
-    const baseFullSample = costResults.BASE.fullSample;
-    const eligible = baseFullSample ? baseFullSample.tradeCount >= request.minimumTrades : (costResults.BASE.oos ? costResults.BASE.oos.totalTrades >= request.minimumTrades : false);
+    const eligible = prefersOos
+      ? (costResults.BASE.oos?.totalTrades ?? 0) >= request.minimumTrades
+      : (costResults.BASE.fullSample?.tradeCount ?? 0) >= request.minimumTrades;
 
     return { ...candidate, status: "EVALUATED", eligible, costResults };
   });
@@ -382,33 +400,31 @@ function runParameterRobustnessRequest(request, options = {}) {
       return { source: ref.source, shortWindow: ref.shortWindow, longWindow: ref.longWindow, assessment: "INVALID" };
     }
     const immediateNeighbors = findImmediateNeighbors(validCandidates, ref, request.neighborhood).filter((n) => candidateResults.find((c) => c.shortWindow === n.shortWindow && c.longWindow === n.longWindow)?.status === "EVALUATED");
-    const referenceReturn = referenceCandidate.costResults.BASE.fullSample?.totalReturn ?? referenceCandidate.costResults.BASE.oos?.compoundedReturn ?? 0;
+    const referenceReturn = selectedReturn(referenceCandidate);
 
     const neighborReturns = immediateNeighbors.map((n) => {
       const nc = candidateResults.find((c) => c.shortWindow === n.shortWindow && c.longWindow === n.longWindow);
-      return nc.costResults.BASE.fullSample?.totalReturn ?? nc.costResults.BASE.oos?.compoundedReturn ?? 0;
+      return selectedReturn(nc);
     });
     const neighborBenchmarkExcess = immediateNeighbors.map((n) => {
       const nc = candidateResults.find((c) => c.shortWindow === n.shortWindow && c.longWindow === n.longWindow);
-      return nc.costResults.BASE.fullSample?.benchmarkExcessReturn ?? 0;
+      return selectedBenchmarkExcess(nc);
     });
     const matchingDirectionRatio = neighborReturns.length ? neighborReturns.filter((r) => (r > 0) === (referenceReturn > 0)).length / neighborReturns.length : 0;
     const benchmarkOutperformRatio = neighborBenchmarkExcess.length ? neighborBenchmarkExcess.filter((r) => r > 0).length / neighborBenchmarkExcess.length : 0;
     const allValidReturns = validCandidates.map((c) => {
       const cc = candidateResults.find((x) => x.shortWindow === c.shortWindow && x.longWindow === c.longWindow);
-      return cc.costResults.BASE.fullSample?.totalReturn ?? cc.costResults.BASE.oos?.compoundedReturn ?? 0;
+      return selectedReturn(cc);
     });
     const positiveRatioAll = allValidReturns.filter((r) => r > 0).length / allValidReturns.length;
 
-    // Local smoothness / abrupt edges across the whole grid (4-connected: adjacent in
-    // exactly one dimension), reused for the UNSTABLE classification below.
     const sortedShort = [...new Set(request.neighborhood.shortOffsets)].sort((a, b) => a - b);
     const sortedLong = [...new Set(request.neighborhood.longOffsets)].sort((a, b) => a - b);
     let signReversals = 0;
     let adjacentPairs = 0;
     for (const candidate of validCandidates) {
       const cc = candidateResults.find((c) => c.shortWindow === candidate.shortWindow && c.longWindow === candidate.longWindow);
-      const cReturn = cc.costResults.BASE.fullSample?.totalReturn ?? cc.costResults.BASE.oos?.compoundedReturn ?? 0;
+      const cReturn = selectedReturn(cc);
       const shortIdx = sortedShort.indexOf(candidate.shortWindow - ref.shortWindow);
       const longIdx = sortedLong.indexOf(candidate.longWindow - ref.longWindow);
       for (const [ds, dl] of [[1, 0], [0, 1]]) {
@@ -418,7 +434,7 @@ function runParameterRobustnessRequest(request, options = {}) {
         const neighborCandidate = validCandidates.find((c) => c.shortWindow === ref.shortWindow + neighborShortOffsetValue && c.longWindow === ref.longWindow + neighborLongOffsetValue);
         if (!neighborCandidate) continue;
         const nc = candidateResults.find((c) => c.shortWindow === neighborCandidate.shortWindow && c.longWindow === neighborCandidate.longWindow);
-        const nReturn = nc.costResults.BASE.fullSample?.totalReturn ?? nc.costResults.BASE.oos?.compoundedReturn ?? 0;
+        const nReturn = selectedReturn(nc);
         adjacentPairs += 1;
         if ((cReturn > 0) !== (nReturn > 0)) signReversals += 1;
       }
@@ -444,7 +460,7 @@ function runParameterRobustnessRequest(request, options = {}) {
 
   const validReturns = validCandidates.map((c) => {
     const cc = candidateResults.find((x) => x.shortWindow === c.shortWindow && x.longWindow === c.longWindow);
-    return cc.costResults.BASE.fullSample?.totalReturn ?? cc.costResults.BASE.oos?.compoundedReturn ?? 0;
+    return selectedReturn(cc);
   }).sort((a, b) => a - b);
   const median = validReturns.length ? (validReturns.length % 2 === 1 ? validReturns[(validReturns.length - 1) / 2] : (validReturns[validReturns.length / 2 - 1] + validReturns[validReturns.length / 2]) / 2) : 0;
   const q1 = validReturns.length ? validReturns[Math.floor((validReturns.length - 1) * 0.25)] : 0;
@@ -452,7 +468,7 @@ function runParameterRobustnessRequest(request, options = {}) {
 
   const survivorsByCondition = Object.fromEntries(REQUIRED_COST_CONDITIONS.map((name) => [name, validCandidates.filter((c) => {
     const cc = candidateResults.find((x) => x.shortWindow === c.shortWindow && x.longWindow === c.longWindow);
-    const value = cc.costResults[name].fullSample?.totalReturn ?? cc.costResults[name].oos?.compoundedReturn ?? 0;
+    const value = selectedReturn(cc, name);
     return value > 0;
   }).length]));
 
@@ -493,7 +509,8 @@ function runParameterRobustnessRequest(request, options = {}) {
     referenceParametersSha256: canonicalHash(request.referenceParameters),
     neighborhoodGridSha256: canonicalHash(grid.map((c) => ({ shortWindow: c.shortWindow, longWindow: c.longWindow, valid: c.valid }))),
     candidateResultsSha256: canonicalHash(candidateResults),
-    aggregateResultSha256: canonicalHash(aggregate)
+    aggregateResultSha256: canonicalHash(aggregate),
+    referencesSha256: canonicalHash(references)
   };
   return result;
 }
