@@ -27,10 +27,10 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  // Owner-chosen N monogram (2026-09-28): amber N on deep navy.
+  // Owner-chosen N monogram (2026-09-28), recolored lime to match the theme (2026-09-30): lime N on deep navy.
   for (const drawable of [fallback, fallbackRound, logo, splash]) {
     assert.match(drawable, /NUSA N monogram mark/);
-    assert.match(drawable, /#FFB547/);
+    assert.match(drawable, /#B6F04B/);
   }
   for (const drawable of [fallback, fallbackRound]) assert.match(drawable, /#121B30/);
   assert.match(adaptive, /<monochrome android:drawable="@drawable\/ic_nusa_logo_monochrome"\s*\/>/);
