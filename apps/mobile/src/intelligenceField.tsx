@@ -15,7 +15,7 @@ const SUBSYSTEMS: readonly { readonly id: FieldSubsystem; readonly label: string
   { id: "governance", label: "GOVERNANCE", color: fieldPalette.governance, angle: 1.45 },
   { id: "risk", label: "RISK", color: fieldPalette.risk, angle: 2.6 },
 ];
-const FOCUS_COLOR = fieldPalette.focus;
+const FOCUS_COLOR = fieldPalette.accent;
 const TONE_COLOR: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
 const FIELD_HEIGHT = 340;
 const DOTS_PER_ARM = 84;
