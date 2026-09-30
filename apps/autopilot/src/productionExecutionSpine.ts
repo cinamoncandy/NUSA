@@ -133,6 +133,7 @@ export function prepareProductionExecution(
     reason: runner.reason,
     executionId: envelope.executionId,
     dedupeKey: envelope.dedupeKey,
+    contractFingerprintSha256: runner.contractFingerprintSha256 ?? null,
     mutationAllowed: false,
   });
   return Object.freeze({ state, envelope, request });
