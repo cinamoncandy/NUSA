@@ -5,5 +5,5 @@
     android:viewportHeight="108">
     <!-- NUSA N monogram mark: amber N on deep navy. -->
     <path android:fillColor="#121B30" android:pathData="M18,10h72a8,8 0,0 1,8 8v72a8,8 0,0 1,-8 8h-72a8,8 0,0 1,-8 -8v-72a8,8 0,0 1,8 -8z" />
-    <path android:fillColor="#FFB547" android:pathData="M30.6,82.6 L30.6,25.4 L42.3,25.4 L65.7,59.2 L65.7,25.4 L77.4,25.4 L77.4,82.6 L65.7,82.6 L42.3,48.8 L42.3,82.6Z" />
+    <path android:fillColor="#B6F04B" android:pathData="M30.6,82.6 L30.6,25.4 L42.3,25.4 L65.7,59.2 L65.7,25.4 L77.4,25.4 L77.4,82.6 L65.7,82.6 L42.3,48.8 L42.3,82.6Z" />
 </vector>
