@@ -26,6 +26,8 @@ export interface CodingRunnerRequest {
   readonly proposalContext?: CodingProposalContext;
   readonly executionId: string;
   readonly dedupeKey: string;
+  /** Immutable parent CodingExecutionEnvelope fingerprint when present. */
+  readonly contractFingerprintSha256?: string;
   readonly mutationAllowed: false;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -275,6 +277,7 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
   if (typeof request.headSha !== "string" || !SHA40.test(request.headSha)) throw new Error("CODING_RUNNER_HEAD_SHA_INVALID");
   if (typeof request.executionId !== "string" || !EXECUTION_ID.test(request.executionId)) throw new Error("CODING_RUNNER_EXECUTION_ID_INVALID");
   if (typeof request.dedupeKey !== "string" || !DEDUPE_KEY.test(request.dedupeKey)) throw new Error("CODING_RUNNER_DEDUPE_KEY_INVALID");
+  if (request.contractFingerprintSha256 !== undefined && (typeof request.contractFingerprintSha256 !== "string" || !/^[a-f0-9]{64}$/i.test(request.contractFingerprintSha256))) throw new Error("CODING_RUNNER_CONTRACT_FINGERPRINT_INVALID");
   if (request.liveAuthority !== "NONE") throw new Error("CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN");
   if (request.productionMutationAllowed !== false || request.mutationAllowed !== false) throw new Error("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
   if (request.aiAuthority !== "ZERO_AUTHORITY") throw new Error("CODING_RUNNER_AI_AUTHORITY_INVALID");
