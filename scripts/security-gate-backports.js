@@ -25,9 +25,19 @@ function parseJsonObject(output) {
   const start = output.indexOf("{");
   if (start < 0) throw new Error("AUDIT_JSON_MISSING");
   let depth = 0;
+  let inString = false;
+  let escaped = false;
   for (let index = start; index < output.length; index += 1) {
-    if (output[index] === "{") depth += 1;
-    else if (output[index] === "}" && --depth === 0) return JSON.parse(output.slice(start, index + 1));
+    const char = output[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') { inString = true; continue; }
+    if (char === "{") depth += 1;
+    else if (char === "}" && --depth === 0) return JSON.parse(output.slice(start, index + 1));
   }
   throw new Error("AUDIT_JSON_INCOMPLETE");
 }
