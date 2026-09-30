@@ -73,3 +73,35 @@ test("normalizes validated identity and evidence immutably", () => {
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.evidence), true);
 });
+
+test("same focused evidence cannot satisfy held-out acceptance", () => {
+  assert.throws(
+    () => validateEvolutionValidationResult({
+      ...valid(),
+      heldOutEvidence: [{ check: "held-out/generalization", reference: "workflow:123", passed: true }],
+    }),
+    /EVOLVE_VALIDATION_HELD_OUT_REFERENCE_INVALID/,
+  );
+});
+
+test("benefit-cost acceptance is deterministic and replayable", () => {
+  const result = createEvolutionValidationResult(valid());
+  assert.equal(result.benefitCostEvidence[0]?.netBenefitDelta, 1);
+  assert.equal(isPromotionEligible(result), true);
+  assert.throws(
+    () => validateEvolutionValidationResult({
+      ...valid(),
+      benefitCostEvidence: [{ ...valid().benefitCostEvidence[0], netBenefitDelta: 2 }],
+    }),
+    /EVOLVE_VALIDATION_COST_EVIDENCE_NONDETERMINISTIC/,
+  );
+});
+
+test("held-out evidence is an independent acceptance surface", () => {
+  const result = createEvolutionValidationResult({
+    ...valid(),
+    heldOutEvidence: [{ check: "generalization-replay", reference: "heldout:2", passed: true }],
+  });
+  assert.equal(result.heldOutEvidence[0]?.reference, "heldout:2");
+  assert.equal(isPromotionEligible(result), true);
+});
