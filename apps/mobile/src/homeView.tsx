@@ -266,7 +266,7 @@ export function HomeView({
       </View> : <View style={styles.hiddenAcceptanceHooks}><View testID="ai-card" /><View testID="home-risk-status" /></View>}
 
       <Text style={[styles.disclaimer, { color: theme.colors.textMuted }]}>PUBLIC READ ONLY 데이터는 전략 신호가 아니며, PAPER 결과와 REAL_READ_ONLY 자산은 합산하지 않습니다.</Text>
-      <View style={[styles.safetyFooter, { borderTopColor: theme.colors.border }]}><Text style={[styles.safetyText, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text></View>
+      <View style={[styles.safetyFooter, { borderTopColor: theme.colors.border }]}><Text style={[styles.safetyText, { color: theme.colors.textMuted }]}>모의투자 전용 · 실거래 권한 없음 · AI 실행 권한 없음</Text></View>
     </ScrollView>
   </View>;
 }
