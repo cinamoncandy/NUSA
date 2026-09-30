@@ -54,7 +54,7 @@ test("Settings revokes prior verification and keeps compatibility token routing 
 
 test("Settings makes server-verified owner device authentication primary and pairing recovery-only", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /서버 연결 기능은 선택 사항입니다/);
+  assert.match(source, /Cloud 기능은 선택 사항입니다/);
   assert.match(source, /ownerCredentialReady/);
   assert.match(source, /connectPaperSessionSilently\(/);
   assert.match(source, /<OwnerConnectionExperience/);
