@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
-const EXPECTED_RISK_BLOB = "62c7f32b2eea1d91e929891b0086a32c46cecce0";
+const EXPECTED_RISK_BLOB = "070a215e2db31415f9ee437d9061ae012a8d8c8b";
 
 function committedGitBlobSha(path: string): string {
   return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
@@ -20,12 +20,14 @@ describe("RISK exact-source re-qualification evidence", () => {
     assert.equal(committedGitBlobSha(sourcePath), EXPECTED_RISK_BLOB);
   });
 
-  it("verifies exactly four CANCELLED-order exclusions", () => {
+  it("qualifies fill-derived accounting without cancellation erasing executed risk", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
-    assert.equal((source.match(/if \(order\.status === "CANCELLED"\) continue;/g) ?? []).length, 4);
-    assert.match(source, /function rateState[\s\S]*?if \(order\.status === "CANCELLED"\) continue;/);
-    assert.match(source, /function dailyNotional[\s\S]*?if \(order\.status === "CANCELLED"\) continue;/);
-    assert.match(source, /function realizedLossState[\s\S]*?if \(order\.status === "CANCELLED"\) continue;/);
+    assert.doesNotMatch(source, /order\.status === "CANCELLED"/);
+    assert.match(source, /function rateState[\s\S]*?state\.fills/);
+    assert.match(source, /function dailyNotional[\s\S]*?state\.fills/);
+    assert.match(source, /function realizedLossState[\s\S]*?state\.fills/);
+    assert.match(source, /second\.add\(fill\.orderId\)/);
+    assert.match(source, /sellOrders\.set\(order\.orderId/);
   });
 
   it("re-qualifies intent-bound idempotency without placeholder payload identity", () => {

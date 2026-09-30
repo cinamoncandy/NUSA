@@ -1,4 +1,14 @@
 version: 1
+current_paper_cancelled_fill_risk:
+  work_order: WO-PAPER-20261001-CANCELLED-FILL-RISK
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/paper-cancelled-fill-risk
+  base_sha: 51ece7a3c74e715f9407a6d8b8f51ff8a2140376
+  first_broken_transition: cancelled_partial_fill_to_realized_loss_risk_reconstruction
+  scope: "Preserve actual executions after remainder cancellation in canonical PAPER Risk accounting; no policy relaxation or forced orders."
+  validation: "30 focused/adversarial/production-path tests PASS; TypeScript compile, preflight, validate, security gate PASS (0 secrets, 0 high/critical). Fresh CI/Audit/Release and deployed automatic fill proof remain unverified."
+  remaining: exact_head_CI_Audit_Release_and_runtime_proof
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_release_target_settle:
   work_order: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
