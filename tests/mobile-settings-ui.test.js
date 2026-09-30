@@ -69,3 +69,13 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
 });
+
+test("settings never presents the device-local default cash as the PAPER capital before Cloud reports cash", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "settingsView.tsx"), "utf8");
+  assert.match(source, /const cloudCashKnown = exchangeCash > 0;/);
+  assert.match(source, /Cloud 연결 후 표시/);
+  assert.match(source, /\{cashLabel\(allocation\.investableCash\)\}/);
+  assert.match(source, /\{cashLabel\(allocation\.reservedCash\)\}/);
+  assert.doesNotMatch(source, /\{money\(allocation\.(?:investableCash|reservedCash)\)\}/);
+  assert.doesNotMatch(source, /\$\{money\(LOCAL_PAPER_INITIAL_CASH\)\}/);
+});

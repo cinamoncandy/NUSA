@@ -155,7 +155,11 @@ test("verified CI saturation constrains worker-pool WIP independently of legacy 
   const saturated = adviseConcurrency({ ...evidence, ciSaturation: 0.9 });
   assert.equal(saturated.action, "DECREASE_BY_ONE");
   assert.equal(saturated.recommendedWip, 1);
-  assert.equal(saturated.reason, "verified-contention-or-capacity-pressure");
+  assert.equal(saturated.reason, "verified-ci-saturation-pressure");
+
+  const legacySaturated = adviseConcurrency({ ...evidence, ciUtilization: 0.9 });
+  assert.equal(legacySaturated.action, "DECREASE_BY_ONE");
+  assert.equal(legacySaturated.reason, "verified-ci-saturation-pressure");
 
   const malformed = adviseConcurrency({ ...evidence, ciSaturation: Number.NaN });
   assert.equal(malformed.action, "HOLD");
