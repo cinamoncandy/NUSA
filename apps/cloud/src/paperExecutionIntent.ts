@@ -7,6 +7,35 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const round8 = (value: number): number => Number(value.toFixed(8));
 const canonicalHash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 
+/** Upbit KRW spot minimum order value. Owner decision 2026-09-30: PAPER must only place orders the exchange would accept. */
+export const UPBIT_KRW_MINIMUM_ORDER_KRW = 5_000;
+/** Headroom so a fill slightly below the reference price cannot dip the executed notional under the minimum. */
+export const MINIMUM_ORDER_HEADROOM_RATIO = 1.01;
+/** Hard ceiling on the share of account equity a minimum-order raise may commit to one order. */
+export const MINIMUM_ORDER_MAX_EQUITY_RATIO = 0.6;
+/** Cash must cover the raised order plus the exchange fee (0.05%) with margin. */
+export const MINIMUM_ORDER_FEE_RESERVE_RATIO = 1.005;
+
+/**
+ * A portfolio-planned BUY below the exchange minimum is raised to the minimum (plus headroom) only when that
+ * stays within the equity ceiling and the account can pay for it; otherwise it fails closed. A planned BUY that
+ * already meets the minimum, and every non-KRW market, is returned unchanged. The raise never applies to a
+ * zero or negative plan, so a zero investment percentage still means no order.
+ */
+export function applyExchangeMinimumOrder(input: { readonly market: string; readonly plannedCapital: number; readonly equity: number; readonly cash: number }): Readonly<{ allocationCapital: number; raised: boolean }> {
+  const unchanged = Object.freeze({ allocationCapital: input.plannedCapital, raised: false });
+  if (!input.market.trim().toUpperCase().startsWith("KRW-")) return unchanged;
+  const target = round8(UPBIT_KRW_MINIMUM_ORDER_KRW * MINIMUM_ORDER_HEADROOM_RATIO);
+  if (input.plannedCapital >= target) return unchanged;
+  if (!Number.isFinite(input.equity) || input.equity <= 0 || target > input.equity * MINIMUM_ORDER_MAX_EQUITY_RATIO) {
+    throw new Error("PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING");
+  }
+  if (!Number.isFinite(input.cash) || target * MINIMUM_ORDER_FEE_RESERVE_RATIO > input.cash) {
+    throw new Error("PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_CASH");
+  }
+  return Object.freeze({ allocationCapital: target, raised: true });
+}
+
 export interface PaperExecutionIntent {
   readonly schemaVersion: 1;
   readonly source: "PORTFOLIO_PLAN";
@@ -92,8 +121,16 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
     requireUnit(allocation.share, "allocationShare");
     requireFinitePositive(allocation.capital, "allocationCapital");
     if (allocation.share > input.decision.allocation + 1e-8) throw new Error("PAPER_EXECUTION_INTENT_ALLOCATION_EXCEEDS_DECISION");
-    allocationCapital = Number((allocation.capital * (input.investmentPercent / 100)).toFixed(8));
-    allocationShare = Number((allocation.share * (input.investmentPercent / 100)).toFixed(8));
+    const plannedCapital = Number((allocation.capital * (input.investmentPercent / 100)).toFixed(8));
+    const plannedShare = Number((allocation.share * (input.investmentPercent / 100)).toFixed(8));
+    if (plannedCapital <= 0 || plannedShare <= 0 || round8(plannedCapital / input.referencePrice) <= 0) throw new Error("PAPER_EXECUTION_INTENT_ALLOCATION_ZERO");
+    // Cash already promised to open BUY working orders cannot pay for a second raised order.
+    const committedCash = (input.state.workingOrders ?? [])
+      .filter((order) => order.side === "BUY")
+      .reduce((sum, order) => sum + (order.remainingAllocationCapital ?? order.lifecycle.remainingQuantity * (order.limitPrice ?? input.referencePrice)), 0);
+    const minimumOrder = applyExchangeMinimumOrder({ market, plannedCapital, equity: input.state.equity, cash: input.state.cash - committedCash });
+    allocationCapital = minimumOrder.allocationCapital;
+    allocationShare = minimumOrder.raised ? Number((allocationCapital / input.state.equity).toFixed(8)) : plannedShare;
     quantity = round8(allocationCapital / input.referencePrice);
     if (allocationCapital <= 0 || allocationShare <= 0 || quantity <= 0) throw new Error("PAPER_EXECUTION_INTENT_ALLOCATION_ZERO");
   } else {

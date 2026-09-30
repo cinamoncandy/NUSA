@@ -1,11 +1,19 @@
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
+import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
+import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
+import { buildCanonicalPaperCandidatePerformance } from "./canonicalPaperCandidatePerformance";
+import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
+import { recordRuntimeFailure } from "./runtimeFailureRecord";
+import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
+import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
+import { OwnerBaselinePaperBindingProvider, ownerBaselineStrategyEnabled } from "./ownerBaselinePaperStrategy";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
-import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountState } from "./paperTradingExecutionLoop";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { registerGracefulShutdown, startCloudRuntime, type CloudRuntimeHandle } from "./runtime";
 import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
@@ -60,16 +68,29 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const config = readCloudRuntimeConfig(env);
   const closedLearningConfig = readClosedLearningProductionConfig(env, config.cloudStateDbPath);
   const database = new SqliteDatabase(config.cloudStateDbPath);
+  if (config.paperInitialCapitalKrw !== undefined) {
+    const retired = retiredPaperAccountIds(env);
+    if (retired.length > 0) {
+      const receipts = retirePaperAccounts(database, retired, paperAccountIdForCapital(config.paperInitialCapitalKrw), { stateDbPath: config.cloudStateDbPath });
+      for (const receipt of receipts) console.log(`[paper-account] retired ${receipt.accountId}: ${JSON.stringify(receipt.deletedRows)}`);
+    }
+  }
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
   const learningLedger = new SqliteEvolutionLearningLedger(database);
   const challengerBindings = new PaperChallengerBindingLedger(learningLedger);
-  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider: challengerBindings });
+  // A qualified challenger always wins; until one exists the owner-approved PAPER baseline trades.
+  const paperCandidateBindingProvider = new OwnerBaselinePaperBindingProvider({
+    challenger: challengerBindings,
+    sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "",
+    enabled: ownerBaselineStrategyEnabled(env),
+  });
+  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider });
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
   const paperRepository = config.paperInitialCapitalKrw === undefined
     ? undefined
-    : new SqliteCloudPaperAccountRepository(database);
+    : new SqliteCloudPaperAccountRepository(database, { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) });
   const paperLoop = config.paperInitialCapitalKrw === undefined || paperRepository == null
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
@@ -103,6 +124,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
     closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
+    retireOpenPeriodForAccountChange: (periodId: string) => baseHandle.retirePaperRealizedPeriodForAccountChange(periodId),
   });
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
@@ -153,6 +175,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     readCanonicalPaperAccount,
     closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
+    retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
@@ -174,6 +197,33 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     });
   };
 
+  const evaluatePaperGovernanceFeedback = (input: Readonly<{
+    periodId: string;
+    now: number;
+    identity: StrategyIdentity;
+    validation?: StrategyValidationSummary;
+    votes: readonly CommitteeVote[];
+  }>): PaperPerformanceGovernanceFeedbackReceipt => {
+    const ledgerPerformance = readPaperPerformanceEvidence(input.periodId);
+    const adapted = adaptPersistedPaperForwardEvidence(baseHandle.listPaperRealizedPeriods());
+    const candidate = adapted.candidates.find((item) => item.candidateId === ledgerPerformance.evidence.candidateId);
+    const candidatePeriods = candidate?.periods.filter((period) => period.periodEndAt <= ledgerPerformance.evidence.periodEndAt) ?? [];
+    const paper = candidatePeriods.length === 0 ? undefined : buildCanonicalPaperCandidatePerformance({
+      candidateId: ledgerPerformance.evidence.candidateId,
+      periods: candidatePeriods,
+      account: requireCanonicalPaperAccount(),
+      executionQualityPolicy: closedLearningConfig.executionQualityPolicy,
+    });
+    return evaluatePaperPerformanceGovernanceFeedback({
+      now: input.now,
+      identity: input.identity,
+      validation: input.validation,
+      paper,
+      votes: input.votes,
+      ledgerPerformance,
+    });
+  };
+
   // Closed learning is serialized and asynchronous. Research/League can be CPU-heavy on the
   // Oracle host, but it must never block the Node HTTP loop that serves /health, /ready, or the
   // monitoring UI. The async child-process boundary preserves all existing mutation ordering.
@@ -183,11 +233,20 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   let rolloverTimer: ReturnType<typeof setInterval> | undefined;
   let stopPromise: Promise<void> | undefined;
 
+  const researchRefresh = new ResearchSnapshotRefresher({
+    cloudStateDbPath: config.cloudStateDbPath,
+    env,
+    log: (line) => console.log(line),
+  });
+
   const runClosedLearningTick = (): Promise<void> => {
     if (stopping) return Promise.resolve();
     if (closedLearningTick != null) return closedLearningTick;
     const task = (async () => {
-      await runClosedLearningBootstrapAsync();
+      const bootstrap = await runClosedLearningBootstrapAsync();
+      // No replayable snapshot means no challenger and so no PAPER trading until the daily Research
+      // timer. Refresh it now through the same canonical Research entrypoint (rate limited).
+      if (bootstrap.status === "WAITING_RESEARCH_SNAPSHOT") researchRefresh.requestIfDue();
       await runClosedLearningRolloverAsync();
     })();
     closedLearningTick = task;
@@ -203,6 +262,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     stop: () => {
       if (stopPromise != null) return stopPromise;
       stopping = true;
+      researchRefresh.stop();
       if (initialTimer != null) clearTimeout(initialTimer);
       if (rolloverTimer != null) clearInterval(rolloverTimer);
       const pending = closedLearningTick;
@@ -219,6 +279,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const failClosedScheduler = (error: unknown): void => {
     const detail = error instanceof Error && error.message.trim() ? error.message.trim().slice(0, 500) : "CLOSED_LEARNING_SCHEDULER_FAILED";
     console.error(`[closed-learning] scheduler failed closed: ${detail}`);
+    recordRuntimeFailure(config.cloudStateDbPath, "CLOSED_LEARNING_SCHEDULER", error);
     process.exitCode = 1;
     void handle.stop();
   };
@@ -242,12 +303,21 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     runClosedLearningRollover,
     runClosedLearningRolloverAsync,
     readPaperPerformanceEvidence,
+    evaluatePaperGovernanceFeedback,
   });
 }
 
 function main(): void {
-  const composition = startClosedLearningProductionRuntime(process.env);
-  registerGracefulShutdown(composition.handle);
+  const stateDbPath = process.env.NUSA_CLOUD_STATE_DB_PATH;
+  let composition: ReturnType<typeof startClosedLearningProductionRuntime>;
+  try {
+    composition = startClosedLearningProductionRuntime(process.env);
+  } catch (error) {
+    // Start-up faults happen before the fatal handlers exist; record them so the loop is visible.
+    if (stateDbPath !== undefined) recordRuntimeFailure(stateDbPath, "STARTUP", error);
+    throw error;
+  }
+  registerGracefulShutdown(composition.handle, process.exit, stateDbPath);
 }
 
 if (require.main === module) main();

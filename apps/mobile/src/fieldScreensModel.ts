@@ -3,7 +3,7 @@
  * Intelligence Field. Pure projections of canonical read-only state: no authority, no
  * synthetic values, and uncertainty always renders as a non-green tone.
  */
-import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
+import type { FieldPose, FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
 import type { PaperLearningScreenState } from "./paperLearningScreen";
 import type { LiveReadinessObservabilitySnapshot } from "../../../packages/contracts/src/liveReadinessObservability";
 
@@ -68,4 +68,11 @@ export function buildLiveFieldHeader(snapshot: LiveReadinessObservabilitySnapsho
     return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "amber", headline: "승인 대기", detail: "모든 준비 조건이 통과했습니다. LIVE 활성화는 소유자 승인으로만 가능합니다.", subsystem: "governance", facts });
   }
   return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "dim", headline: "LIVE는 봉인되어 있습니다", detail: snapshot.blockers.length > 0 ? `남은 차단 조건 ${count(snapshot.blockers.length)}개` : "준비도 증거를 수집하고 있습니다.", subsystem: "governance", facts });
+}
+
+/** Same pose grammar as HOME: a red stop collapses the field, unverified states scatter and fade. */
+export function fieldHeaderPose(model: FieldHeaderModel): FieldPose {
+  if (model.tone === "red") return Object.freeze({ spread: 0.3, presence: 1 });
+  if (model.statusWord === "OFFLINE" || model.statusWord === "UNVERIFIED" || model.statusWord === "ERROR") return Object.freeze({ spread: 1.12, presence: 0.45 });
+  return Object.freeze({ spread: 1, presence: 1 });
 }

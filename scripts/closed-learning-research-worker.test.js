@@ -120,6 +120,27 @@ test("requires the allocated candidate itself to remain qualified after PAPER re
   assert.deepEqual(projected.reasons, ["ALLOCATED_CANDIDATE_NOT_QUALIFIED"]);
 });
 
+test("PAPER deployment cannot activate when the canonical PBO gate is insufficient", () => {
+  const fixture = deployableFixture();
+  const pboInsufficient = Object.freeze({
+    ...fixture.replay,
+    qualification: Object.freeze({
+      ...fixture.replayQualification,
+      candidates: Object.freeze([{
+        candidateId: "qualified",
+        outcome: "INSUFFICIENT",
+        reasons: Object.freeze(["PBO_SURVIVAL_EVIDENCE_REQUIRED"]),
+        summary: "insufficient",
+      }]),
+      coverage: Object.freeze({ candidateCount: 1, qualifiedCount: 0, insufficientCount: 1, rejectedCount: 0 }),
+    }),
+  });
+  const projected = projectPaperDeployment(fixture.snapshot, pboInsufficient, HASH);
+  assert.equal(projected.status, "NOT_DEPLOYABLE");
+  assert.deepEqual(projected.reasons, ["ALLOCATED_CANDIDATE_NOT_QUALIFIED"]);
+  assert.equal(Object.hasOwn(projected, "artifact"), false);
+});
+
 test("keeps non-KRW research valid but non-deployable to the current PAPER runtime", () => {
   const fixture = deployableFixture("qualified", "USDT-BTC");
   const projected = projectPaperDeployment(fixture.snapshot, fixture.replay, HASH);

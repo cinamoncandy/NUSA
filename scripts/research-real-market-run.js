@@ -18,13 +18,16 @@ const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/
 const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
 const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 const { projectExecutionCostStress } = require("./lib/research-cost-stress-projection.js");
+const { bindLegacySmaReferences } = require("./lib/research-reference-binding.js");
 const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-runner.js");
 const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
-const { buildResearchRunRobustnessEvidence } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
+const { buildResearchRunRobustnessEvidence, canonicalParameterRobustnessReferencesSha256 } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
 const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/researchHypothesis.js");
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { featureFingerprint, validateEvidenceProvenance } = require("../dist/apps/desktop/src/cloud/researchIntegrity.js");
+const { validateResearchCandidateSpecification } = require("../dist/apps/desktop/src/cloud/researchCandidateSpecification.js");
 const { buildInvestmentLearningEvidence, buildInvestmentResearchAttentionPlan, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
 const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
 
@@ -625,8 +628,10 @@ async function main() {
     canonicalHypothesis: candidate.canonicalHypothesis
   }));
 
+  const backtestPoints = candlesToBacktestPoints(candles);
+
   const costStress = runExecutionCostStress(
-    candlesToBacktestPoints(candles),
+    backtestPoints,
     candidates,
     WALK_FORWARD_CONFIG,
     {
@@ -658,7 +663,16 @@ async function main() {
   }
   const parameterRobustnessEvidence = {
     ...parameterRobustness,
-    verification: { status: parameterRobustnessVerification.status },
+    verification: {
+      status: parameterRobustnessVerification.status,
+      hashes: {
+        referenceParametersSha256: parameterRobustness.hashes.referenceParametersSha256,
+        neighborhoodGridSha256: parameterRobustness.hashes.neighborhoodGridSha256,
+        candidateResultsSha256: parameterRobustness.hashes.candidateResultsSha256,
+        aggregateResultSha256: parameterRobustness.hashes.aggregateResultSha256,
+        referencesSha256: parameterRobustness.hashes.referencesSha256,
+      },
+    },
     provenance: {
       sourceCommitSha,
       costModelVersion,
@@ -666,12 +680,66 @@ async function main() {
       datasetContentSha256: manifest.contentSha256
     }
   };
+  // Legacy SMA references predate family-generic candidateKey transport. Bind them deterministically
+  // to the exact precommitted candidate identity before the finalizer consumes them.
+  const candidateBoundReferences = bindLegacySmaReferences({
+    references: parameterRobustnessEvidence.references,
+    // verifyParameterRobustnessResult recomputed and confirmed this digest (status PASS above).
+    verifiedReferencesSha256: parameterRobustness.hashes.referencesSha256,
+    familyId: definition.familyId,
+    smaFamilyId: SMA_FAMILY_ID,
+    candidateIdFor
+  });
+  // bindLegacySmaReferences authenticated the bound references against the independently verified
+  // raw digest. The finalizer stores and hashes the bound, normalised form, so re-seal that digest.
+  const boundReferencesSha256 = canonicalParameterRobustnessReferencesSha256(candidateBoundReferences);
+  const candidateBoundParameterRobustnessEvidence = {
+    ...parameterRobustnessEvidence,
+    hashes: { ...parameterRobustnessEvidence.hashes, referencesSha256: boundReferencesSha256 },
+    verification: {
+      ...parameterRobustnessEvidence.verification,
+      hashes: { ...parameterRobustnessEvidence.verification.hashes, referencesSha256: boundReferencesSha256 }
+    },
+    references: candidateBoundReferences
+  };
+  const candidateCostStressEvidence = candidates.map((candidate) => {
+    const specification = candidateSpecifications.get(candidate.id);
+    if (specification == null) throw new Error(`missing candidate specification for ${candidate.id}`);
+    const specificationDecision = validateResearchCandidateSpecification(
+      specification,
+      Date.parse(timeline.generatedAt)
+    );
+    if (specificationDecision.status !== "VERIFIED") {
+      throw new Error(`invalid candidate specification for cost stress: ${candidate.id}`);
+    }
+    const candidateStress = runExecutionCostStress(
+      backtestPoints,
+      [candidate],
+      WALK_FORWARD_CONFIG,
+      {
+        scenarios: COST_STRESS_SCENARIOS,
+        baselineScenarioId: "BASE",
+        candidateSelectionMode: "FIX_BASELINE_SELECTION"
+      },
+      {
+        sourceExperimentSha: `real-run:${manifest.datasetId}:${definition.familyId}:${candidate.id}`,
+        datasetSha256: manifest.contentSha256
+      }
+    );
+    return {
+      candidateId: candidate.id,
+      familyId: definition.familyId,
+      specificationHash: specificationDecision.specificationHash,
+      costStress: projectExecutionCostStress(candidateStress)
+    };
+  });
   const costStressEvidence = projectExecutionCostStress(costStress);
   const robustnessEvidence = buildResearchRunRobustnessEvidence({
     datasetId: manifest.datasetId,
     datasetContentSha256: manifest.contentSha256,
-    parameterRobustness: parameterRobustnessEvidence,
-    costStress: costStressEvidence
+    parameterRobustness: candidateBoundParameterRobustnessEvidence,
+    costStress: costStressEvidence,
+    candidateCostStress: candidateCostStressEvidence
   });
 
   const generatedAt = timeline.generatedAt;
@@ -717,6 +785,32 @@ async function main() {
       hypothesis
     }
   );
+  // Bind qualification inputs to immutable dataset/candidate/source identities before the
+  // existing factory gate consumes them. Only REAL evidence crosses this promotion-safe boundary.
+  const integrityProvenance = provenancePlan.candidates.map((candidate) => {
+    const specification = candidate.specification;
+    const featureIdentity = {
+      featureId: `strategy-input:${candidate.candidateId}`,
+      featureVersion: candidate.lineageId ?? definition.lineageId,
+      datasetFingerprint: manifest.contentSha256,
+      inputCutoff: manifest.endCloseTime,
+      parameters: candidate.parameters
+    };
+    const provenance = {
+      evidenceKind: "REAL",
+      datasetFingerprint: manifest.contentSha256,
+      featureFingerprint: featureFingerprint(featureIdentity),
+      strategyId: candidate.candidateId,
+      strategyVersion: candidate.lineageId ?? definition.lineageId,
+      familyId: definition.familyId,
+      engineVersion: costModelVersion,
+      gitCommitSha: sourceCommitSha,
+      researchRunId: hypothesis.hypothesisId,
+      createdAt: specification.evaluationEndedAt
+    };
+    validateEvidenceProvenance(provenance, { promotionEligible: true });
+    return Object.freeze({ candidateId: candidate.candidateId, featureIdentity: Object.freeze(featureIdentity), provenance: Object.freeze(provenance) });
+  });
   const factoryQualification = qualifyResearchFactoryRun(league);
   const learningStore = new FileResearchInvestmentLearningLedgerStore(researchLearningLedgerPath());
   const cumulativeLearningLedger = learningStore.appendRun(league, factoryQualification);
@@ -734,6 +828,7 @@ async function main() {
   console.log(JSON.stringify({
     NOTICE: "REAL_MARKET_DATA_RESEARCH_TIER_ONLY -- not operational Paper evidence, does not authorize release",
     strategyFamily: definition.familyId,
+    integrityProvenance,
     researchMarketSet: {
       version: RESEARCH_MARKET_SET_VERSION,
       timeframe: TIMEFRAME,
@@ -774,7 +869,7 @@ async function main() {
       candidates: result.walkForwardResult.stabilityDiagnostics.candidates
     },
     costStress: costStressEvidence,
-    parameterRobustness: parameterRobustnessEvidence,
+    parameterRobustness: robustnessEvidence.parameterRobustness,
     outOfSample: {
       totalOosPoints: oos.totalOosPoints,
       totalOosClosedTrades: oos.totalOosClosedTrades,
