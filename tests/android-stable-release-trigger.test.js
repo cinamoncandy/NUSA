@@ -26,7 +26,7 @@ test("Android stable trigger preserves exact-main CI, bounded dedupe, and stale-
 });
 
 test("successful Android release gets bounded target propagation time without redispatch", () => {
-  const settle = workflow.indexOf('if [ "$MANUAL_CONCLUSION" = "success" ] && [ "$release_settle_checks" -lt 6 ]');
+  const settle = workflow.indexOf('if [ "$LATEST_CONCLUSION" = "success" ] && [ "$release_settle_checks" -lt 6 ]');
   const fail = workflow.indexOf('refusing an unbounded redispatch loop', settle);
   const dispatch = workflow.indexOf('gh api --method POST', settle);
   assert.ok(settle > 0 && fail > settle && dispatch > fail);
@@ -34,12 +34,25 @@ test("successful Android release gets bounded target propagation time without re
   assert.doesNotMatch(workflow.slice(settle - 180, settle), /dispatched.*true/);
 });
 
+test("trigger treats any-controller success by publish evidence, not by event", () => {
+  assert.match(workflow, /select\(\.head_sha == \$sha and \.status == "completed"\)\] \| sort_by\(\.updated_at\)/);
+  assert.doesNotMatch(workflow, /MANUAL_COMPLETED/);
+  assert.doesNotMatch(workflow, /\.event == "workflow_dispatch" and \.status == "completed"/);
+  assert.match(workflow, /select\(\.name \| test\("publish"; "i"\)\)/);
+  assert.match(workflow, /published but stable target remains/);
+  assert.match(workflow, /concluded without publishing \(no-op\); proceeding to a single deterministic dispatch/);
+});
+
 test("both watchdogs recognize a successful exact-main publisher before redispatch", () => {
-  assert.ok(watchdog.indexOf('SUCCESSFUL_MANUAL_ID=') < watchdog.indexOf('FAILED_ID='));
-  assert.match(watchdog, /SUCCESSFUL_MANUAL_ID.*workflow_dispatch.*success/);
-  const guard = deploymentWatchdog.indexOf('A successful exact-main Android publisher exists');
+  assert.ok(watchdog.indexOf('LATEST_SUCCESS=') < watchdog.indexOf('FAILED_ID='));
+  assert.doesNotMatch(watchdog, /SUCCESSFUL_MANUAL_ID/);
+  assert.match(watchdog, /select\(\.name \| test\("publish"; "i"\)\)/);
+  assert.match(watchdog, /refusing a duplicate publisher dispatch/);
+  assert.match(watchdog, /concluded without publishing \(no-op\); continuing to fresh dispatch evaluation/);
+  const guard = deploymentWatchdog.indexOf('PUBLISHED_RUN=');
   const dispatch = deploymentWatchdog.indexOf('android-stable-release-trigger.yml/dispatches', guard);
   assert.ok(guard > 0 && dispatch > guard);
+  assert.doesNotMatch(deploymentWatchdog, /\.event == "workflow_dispatch" and \.status == "completed" and \.conclusion == "success"/);
 });
 
 test("Android stable watchdog always converges a stale stable target to exact main", () => {

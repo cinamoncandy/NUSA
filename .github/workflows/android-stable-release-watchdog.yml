@@ -102,10 +102,18 @@ jobs:
             exit 0
           fi
 
-          SUCCESSFUL_MANUAL_ID="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .event == "workflow_dispatch" and .status == "completed" and .conclusion == "success")][0].id // empty')"
-          if [ -n "$SUCCESSFUL_MANUAL_ID" ]; then
-            echo "Android Stable Release run $SUCCESSFUL_MANUAL_ID succeeded on exact main, but its target is not visible yet; refusing a duplicate publisher dispatch."
-            exit 0
+          LATEST_SUCCESS="$(printf '%s' "$RUNS_JSON" | jq -c --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "success")] | sort_by(.updated_at) | reverse | .[0] // empty')"
+          if [ -n "$LATEST_SUCCESS" ]; then
+            SUCCESS_ID="$(jq -r '.id' <<<"$LATEST_SUCCESS")"
+            SUCCESS_EVENT="$(jq -r '.event // empty' <<<"$LATEST_SUCCESS")"
+            # A success without a visible target is either a legitimate no-op
+            # (workflow_run resolve path) or a publish defect. Only a run that
+            # actually executed the publish job blocks a fresh dispatch.
+            if [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SUCCESS_ID/jobs?per_page=30" --jq '[.jobs[] | select(.name | test("publish"; "i")) | .conclusion] | map(select(. == "success")) | length')" -gt 0 ]; then
+              echo "Android Stable Release $SUCCESS_EVENT run $SUCCESS_ID published on exact main, but its target is not visible yet; refusing a duplicate publisher dispatch."
+              exit 0
+            fi
+            echo "Successful $SUCCESS_EVENT run $SUCCESS_ID concluded without publishing (no-op); continuing to fresh dispatch evaluation."
           fi
 
           FAILED_ID="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "failure")][0].id // empty')"
