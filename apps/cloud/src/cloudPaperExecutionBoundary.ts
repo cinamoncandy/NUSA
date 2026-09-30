@@ -8,7 +8,7 @@ import {
 } from "./paperTradingExecutionLoop";
 import type { CloudPaperRiskGate, CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
-import { buildPaperExecutionIntent, paperExecutionIntentCommandId, validatePaperExecutionIntent } from "./paperExecutionIntent";
+import { buildPaperExecutionIntent, UPBIT_KRW_MINIMUM_ORDER_KRW, paperExecutionIntentCommandId, validatePaperExecutionIntent } from "./paperExecutionIntent";
 
 export interface CloudPaperExecutionBoundaryOptions {
   readonly loop: PaperTradingExecutionLoop;
@@ -54,6 +54,7 @@ export class CloudPaperExecutionBoundary {
     if (command.side === "BUY") {
       const investmentPercent = context.investmentPercent ?? 100;
       if (!Number.isFinite(investmentPercent) || investmentPercent < 0 || investmentPercent > 100) return this.blocked("INVALID_INVESTMENT_ALLOCATION");
+      if (command.market.trim().toUpperCase().startsWith("KRW-") && command.quantity * context.marketPrice < UPBIT_KRW_MINIMUM_ORDER_KRW) return this.rejected("PAPER_ORDER_BELOW_EXCHANGE_MINIMUM");
       // Conservative 0.1% fee buffer keeps the protected cash envelope intact even though the
       // simulator's production fee is currently lower. SELL/exit paths are intentionally unaffected.
       const requiredCash = command.quantity * context.marketPrice * 1.001;
@@ -158,6 +159,11 @@ export class CloudPaperExecutionBoundary {
       if (currentBindings.length > 0 && !currentBindings.includes(binding.bindingFingerprintSha256)) {
         return this.options.loop.cancelWorkingOrder(working.id, tick.now);
       }
+      // A BUY restored from before the exchange-minimum rule cannot be sent to the exchange: cancel it
+      // (risk-reducing, no new exposure) rather than filling a sub-minimum order.
+      if (intent.side === "BUY" && intent.market.startsWith("KRW-") && intent.allocationCapital < UPBIT_KRW_MINIMUM_ORDER_KRW) {
+        return this.options.loop.cancelWorkingOrder(working.id, tick.now);
+      }
       const openP0 = this.readOpenP0();
       if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
       const lastOrderBookObservedAt = working.lastOrderBookObservedAt ?? 0;
@@ -252,6 +258,11 @@ export class CloudPaperExecutionBoundary {
       if (reason === "PAPER_EXECUTION_INTENT_ALLOCATION_ZERO") return this.rejected("decision allocation is zero");
       if (reason === "PAPER_EXECUTION_INTENT_POSITION_REQUIRED") return this.rejected("insufficient paper position");
       return this.blocked(reason.startsWith("PAPER_EXECUTION_INTENT_") ? reason : "PAPER_EXECUTION_INTENT_INVALID");
+    }
+
+    if (executionIntent.side === "BUY" && executionIntent.market.startsWith("KRW-") && tick.observedQuote != null &&
+        executionIntent.quantity * tick.observedQuote.askPrice < UPBIT_KRW_MINIMUM_ORDER_KRW) {
+      return this.blocked("PAPER_EXECUTION_INTENT_EXECUTABLE_QUOTE_BELOW_MINIMUM");
     }
 
     if (executionIntent.side === "BUY") {

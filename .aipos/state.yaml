@@ -8,6 +8,14 @@ current_issue_2118_ci_saturation_wip:
   validation: "Autopilot publish workflow and initial PR #2399 exact-head CI passed. Review repair local preflight, TypeScript build, 14/14 focused tests, validate, security gate, AIPOS drift, and diff check passed; fresh exact-head CI pending."
   remaining: "Update PR #2399 and obtain fresh exact-head CI before Audit/Release; current baseline and after-change p50/p95 measurement remain later increments."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_exchange_minimum_order:
+  work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-min-order
+  authority_impact: paper-accounting-and-risk-sizing
+  scope: "Cloud PAPER BUY below the Upbit KRW 5,000 minimum is raised to KRW 5,050 within a 60% equity ceiling and available cash, else fails closed (owner decision option A, 2026-09-30)."
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-observe-next-BUY-at-least-KRW-5000
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_security_fast_uri_backport:
   work_order: WO-SECURITY-20260929-FAST-URI
   status: READY_FOR_REVIEW
@@ -243,6 +251,20 @@ current_jev_domain_observation_contract:
   validation: "Implementation head ca56eb2a exact-head CI 36287313910 PASS including validation, all coverage shards, aggregate coverage, and test; local focused TypeScript compile, runtime trust-boundary assertions, AIPOS YAML, and git diff checks PASS. Full repository tsc on the 1 GB nusa-vcn verifier was resource-limited and boundedly stopped, not diagnostically failed. This metadata-only reconciliation requires one final fresh exact-head CI."
   blocker: "Independent Audit provider is in WORKERS_AI_DAILY_QUOTA_EXHAUSTED HARD_STOP; persisted nextRetryAt is 2026-09-28T00:00:00Z (2026-09-28 09:00 KST). Do not repeatedly poll or dispatch Audit before this boundary."
   remaining: fresh-exact-head-CI_then_independent-Audit_after-nextRetryAt_then_Release_then_merge
+current_provider_backpressure:
+  work_order: WO-20260927-PROVIDER-BACKPRESSURE
+  status: IN_PROGRESS
+  implementation_status: RECONVERGED_PENDING_EXACT_HEAD_VALIDATION
+  issue: 2185
+  parent_pr: 2336
+  branch: feat/2185-provider-backpressure
+  base_sha: 1b058a1d26e14125afb51cc2d87a49a662044130
+  implementation_head: 2e1ef3bdb07670d34133a927eeb019230b9be2d9
+  reconvergence_commit: 90982f8715a7b67f669628ac055686cda57864c0
+  first_broken_transition: provider_rate_limit_to_provider_local_backpressure_and_recovery
+  validation: "Code head 2e1ef3bd focused backpressure 13/13 PASS; unwired-control-plane 3/3 PASS; AI zero-authority/safety/diff PASS. Metadata-only evidence reconciliation follows."
+  blocker: fresh_exact_head_validation_pending_external_credential_probe
+  next: focused-local-validation_then_push-existing-PR_then_exact-head-CI-Audit-Release
 current_jev_bounded_coding_admission:
   work_order: WO-20260924-AI-CAPACITY-COST-CEILING
   status: READY_FOR_REVIEW
@@ -256,7 +278,6 @@ current_jev_bounded_coding_admission:
   correction: "Canonical gha failure reasons are eligible; Jev abstention requires exact GitHub failed job/step evidence; repair retries do not reclassify; /coding/propose and dispatcher propagate abstention as successful NO_ACTION."
   validation: "Focused admission TypeScript compile/runtime PASS; dispatcher JEV_ROUTING_ABSTAINED->NO_ACTION test PASS; git diff --check PASS; review threads RESOLVED. Fresh exact-head CI required."
   remaining: push-rebased-existing-PR_then_fresh-exact-head-CI_then_independent-Audit_then_Release
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_ai_provider_reliability:
   work_order: WO-20260927-AI-PROVIDER-RELIABILITY
   issue: 1997
@@ -727,9 +748,9 @@ claimed_state:
   validation: "PR #1313 exact-head protected checks PASS; merge 57952f14485e816a7ac88e11ba5f8f3e11dba34c; post-merge main CI 33363161756, Sandbox Guard 33363161696, and Actual PAPER Runtime 33363161755 PASS; WO-0051 remains human/environment only."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-  status: IN_PROGRESS
-  branch: agent/issue-661-live-ready-observability
-  base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  status: COMPLETED
+  branch: main
+  base_commit: 51f3b584435fbe0fdf76f856803508a3f0a0cddd
   scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
 verified_state:
   work_order: WO-AI-010
@@ -1455,7 +1476,7 @@ issue_661_live_readiness_production_source:
 issue_661_live_ready_observability:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   issue: 661
-  status: IN_PROGRESS
+  status: COMPLETED
   base_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
   branch: agent/issue-661-live-ready-observability
   scope: "GET-only canonical LIVE preparation observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
@@ -1469,7 +1490,7 @@ issue_661_live_ready_observability:
     ai_authority: ZERO_AUTHORITY
     order_cancel_withdraw_transfer: NONE
     activation: NONE
-  implementation_status: PR_770_OPEN_READY_EXACT_HEAD_VALIDATION_PASS
+  implementation_status: MERGED_PR_770
   implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
   pull_request: 770
   validation_head: 7e925445055d14d877baa1476291a9108e832bff
@@ -1478,7 +1499,7 @@ issue_661_live_ready_observability:
   actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
   safety_boundary: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
-  next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
+  next: "None. PR #770 merged as 51f3b584435fbe0fdf76f856803508a3f0a0cddd; Issue #661 is closed and this is historical read-only evidence."
 
 redesign_truthful_home_state:
   work_order: WO-REDESIGN-TRUTHFUL-HOME-001
