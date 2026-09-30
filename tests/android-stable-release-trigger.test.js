@@ -24,6 +24,14 @@ test("Android stable trigger preserves exact-main CI, bounded dedupe, and stale-
   assert.match(workflow, /inputs\[source_sha\]=\$MAIN_SHA/);
 });
 
+test("successful Android release gets bounded target propagation time without redispatch", () => {
+  const settle = workflow.indexOf('if [ "$MANUAL_CONCLUSION" = "success" ] && [ "$release_settle_checks" -lt 6 ]');
+  const fail = workflow.indexOf('refusing an unbounded redispatch loop', settle);
+  const dispatch = workflow.indexOf('gh api --method POST', settle);
+  assert.ok(settle > 0 && fail > settle && dispatch > fail);
+  assert.match(workflow.slice(settle, fail), /sleep 10\s+continue/);
+});
+
 test("Android stable watchdog always converges a stale stable target to exact main", () => {
   assert.match(watchdog, /RELEASE_TARGET=.*nusa-android/);
   assert.match(watchdog, /if \[ "\$RELEASE_TARGET" = "\$MAIN_SHA" \]/);

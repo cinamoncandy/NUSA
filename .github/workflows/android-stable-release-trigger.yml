@@ -84,6 +84,7 @@ jobs:
           # Wait through any active run, then re-check the release target instead of treating
           # "active once" as convergence.
           dispatched=false
+          release_settle_checks=0
           for attempt in $(seq 1 90); do
             CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
             if [ "$CURRENT_MAIN" != "$MAIN_SHA" ]; then
@@ -109,6 +110,14 @@ jobs:
             if [ -n "$MANUAL_COMPLETED" ] && [ "$dispatched" = "true" ]; then
               MANUAL_ID="$(jq -r '.id' <<<"$MANUAL_COMPLETED")"
               MANUAL_CONCLUSION="$(jq -r '.conclusion // empty' <<<"$MANUAL_COMPLETED")"
+              # Actions may report the publisher complete before the Release API reflects its
+              # updated target. Re-read it for at most one minute without dispatching again.
+              if [ "$MANUAL_CONCLUSION" = "success" ] && [ "$release_settle_checks" -lt 6 ]; then
+                release_settle_checks=$((release_settle_checks + 1))
+                echo "Waiting for stable Release target after successful run $MANUAL_ID ($release_settle_checks/6)."
+                sleep 10
+                continue
+              fi
               echo "::error::Android manual exact-main release run $MANUAL_ID concluded $MANUAL_CONCLUSION but stable target remains ${RELEASE_TARGET:-missing}; refusing an unbounded redispatch loop."
               exit 1
             fi
