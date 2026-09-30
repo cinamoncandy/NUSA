@@ -37,4 +37,5 @@ evidence:
   runtime: "2026-10-01 KST read-only Oracle SQLite inspection: seven durable fills; two partially executed BUY records are CANCELLED. Subsequent SELL history causes PAPER_RISK_HALT:INVALID_REQUEST; recent automatic orders/fills remain zero. Raw account identities and credentials omitted."
   local: "34 focused/adversarial/production-path and exact-source qualification tests PASS; typecheck, build, preflight, validate:full, lint (0 errors, 14 unrelated warnings), security gate PASS (0 secrets, 0 high/critical)."
   adversarial: "Malformed fill timestamp reproduced a RangeError locally; invalid account history now HALTs with RECONCILIATION_FAILED before any date conversion, approval write, or execution."
+  ci_repair: "CI 36787916463 coverage-core-3 failed on stale moduleQualificationV1 RISK source blob. Rebind RISK source only; all independent operational qualification criteria remain UNVERIFIED and TARGET_ONLY."
 remaining: "Exact-head CI -> Audit -> Release -> exact-main deployment -> genuine automatic PAPER fill proof."
