@@ -1785,3 +1785,15 @@ current_pr1991_review_hardening:
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_orderbook_snapshot_refresh:
+  work_order: WO-PAPER-ORDERBOOK-SNAPSHOT-REFRESH
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  base_sha: 2661e812d769db6f977093d9646a1196ca531a64
+  pull_request: 2409
+  duplicate_coordination: "PR 2410 covers the same defect; canonical owner remains the earlier PR 2409. Do not stack both refresh implementations."
+  finding: "Persistent public connections outlive the 30-second REST snapshot validity and cannot recover without reconnecting."
+  remediation: "Coalesced snapshot refresh on unreconciled stream frames, bounded backoff and timeout, reconnect generation fencing."
+  validation: "25 focused reconciliation, real runtime wiring, liveness, restart and health tests PASS; TypeScript compile/typecheck, preflight, targeted lint and repository validate PASS."
+  diagnostic_recovery: "Fresh valid quotes for every configured market clear only orderbook diagnostics; failure timestamp and accepted-market receipt health gate remain intact. Prior exact-head actual PAPER artifact remained INCOMPLETE with no actionable signal."
+  next: "Exact-head CI, independent Audit, canonical Release, then long-lived Oracle runtime proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
