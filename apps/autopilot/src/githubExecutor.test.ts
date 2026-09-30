@@ -11,6 +11,7 @@ const request: AutopilotExecutionRequest = {
   reason: "continue-from:ci_succeeded",
   executionId: "github:delivery-123",
   dedupeKey: `ci:123456789:${"a".repeat(40)}`,
+  contractFingerprintSha256: "f".repeat(64),
   mutationAllowed: false,
 };
 
@@ -170,7 +171,8 @@ describe("executeGithubDispatch", () => {
     assert.equal(payload.client_payload.workflow_run_id, 123456789);
     assert.equal(payload.client_payload.execution_id, request.executionId);
     assert.equal(payload.client_payload.dedupe_key, request.dedupeKey);
-    assert.ok(Object.keys(payload.client_payload).length <= 10);
+    assert.equal(payload.client_payload.contract_fingerprint_sha256, request.contractFingerprintSha256);
+    assert.ok(Object.keys(payload.client_payload).length <= 11);
     assert.equal("pr_number" in payload.client_payload, false);
     assert.equal(payload.client_payload.production_mutation_allowed, false);
     assert.equal(payload.client_payload.live_authority, "NONE");
@@ -232,6 +234,32 @@ describe("executeGithubDispatch", () => {
     assert.equal(value.status, "REJECTED");
     assert.equal(value.reason, "github-executor-duplicate-audit-run-suppressed");
     assert.equal(calls.length, 2);
+  });
+
+  it("suppresses another run-attempt while the same logical PR/CI/head Audit is active", async () => {
+    const retry = { ...auditRequest, executionId: "audit:42:987654321:2", dedupeKey: `audit:42:987654321:2:${"c".repeat(40)}` };
+    const value = await executeGithubDispatch(retry, { token: "secret", allowedRepository: "cinamoncandy/NUSA", apiBaseUrl: "https://api.example.test/" }, (async (url: string | URL | Request) => {
+      const target = String(url);
+      if (target.endsWith("/pulls/42")) return prResponse();
+      if (target.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [{ display_title: auditRequest.dedupeKey, status: "in_progress", conclusion: null }] }), { status: 200, headers: { "content-type": "application/json" } });
+      throw new Error("repository dispatch must not be reached");
+    }) as typeof fetch);
+    assert.equal(value.status, "REJECTED");
+    assert.equal(value.reason, "github-executor-duplicate-audit-run-suppressed");
+  });
+
+  it("allows a new run-attempt after the prior logical Audit completed unsuccessfully", async () => {
+    const retry = { ...auditRequest, executionId: "audit:42:987654321:2", dedupeKey: `audit:42:987654321:2:${"c".repeat(40)}` };
+    let dispatched = false;
+    const value = await executeGithubDispatch(retry, { token: "secret", allowedRepository: "cinamoncandy/NUSA", apiBaseUrl: "https://api.example.test/" }, (async (url: string | URL | Request) => {
+      const target = String(url);
+      if (target.endsWith("/pulls/42")) return prResponse();
+      if (target.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [{ display_title: auditRequest.dedupeKey, status: "completed", conclusion: "failure" }] }), { status: 200, headers: { "content-type": "application/json" } });
+      if (target.endsWith("/dispatches")) { dispatched = true; return new Response(null, { status: 204 }); }
+      throw new Error(`unexpected fetch ${target}`);
+    }) as typeof fetch);
+    assert.equal(value.status, "DISPATCHED");
+    assert.equal(dispatched, true);
   });
 
   it("fails closed when cross-ingress Audit dedupe evidence cannot be read", async () => {

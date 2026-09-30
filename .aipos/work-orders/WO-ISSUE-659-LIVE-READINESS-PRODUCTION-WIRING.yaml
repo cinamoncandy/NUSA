@@ -87,4 +87,4 @@ implementation_status: MERGED_PR_849
 implementation_head: 9ee56c1d3a8e4a37d34c785e0ce895af1819ab3c
 merge_sha: 93d9165537bb33440b6cb5488aa8d34e76f1e70b
 post_merge_main: 93d9165537bb33440b6cb5488aa8d34e76f1e70b
-next: "Complete remaining reader mapping only when an objective canonical source exists; do not turn unavailable external or exact-head evidence into PASS."
+next: "Continue Issue #659 LIVE_READINESS_ONLY by wiring only objective canonical READ_ONLY/exact-head/owner evidence into the existing provider; unavailable evidence remains UNKNOWN and no LIVE authority is granted."

@@ -14,6 +14,12 @@ import {
 } from "./researchHypothesisAdmission";
 import type { ResearchHypothesis as CanonicalResearchHypothesis } from "../../../../packages/contracts/src/researchHypothesisContract";
 import type { ResearchRunTimeline } from "./researchRunTimeline";
+import {
+  assertResearchUniverseDatasetBinding,
+  assertResearchUniverseDatasetSetBinding,
+  researchUniverseFingerprint,
+  type ResearchUniverseProvenance,
+} from "./researchIntegrity";
 
 export type ResearchCandidateParameter = string | number | boolean;
 
@@ -27,6 +33,14 @@ export interface ResearchCandidateSeed {
   /** Rich immutable hypothesis required before a candidate enters the canonical run factory. */
   readonly canonicalHypothesis: CanonicalResearchHypothesis;
 }
+
+export type ResearchUniverseContext =
+  | Readonly<{ readonly selectionMode: "FIXED_SINGLE_MARKET" }>
+  | Readonly<{
+      readonly selectionMode: "POINT_IN_TIME_UNIVERSE";
+      readonly provenance: ResearchUniverseProvenance;
+      readonly manifests: readonly HistoricalDatasetManifest[];
+    }>;
 
 export interface ResearchRunCandidatePlan {
   readonly candidateId: string;
@@ -46,6 +60,9 @@ export interface ResearchRunProvenancePlan {
     market: string;
     interval: HistoricalDatasetManifest["interval"];
   }>;
+  readonly universe:
+    | Readonly<{ readonly applicability: "NOT_APPLICABLE_FIXED_SINGLE_MARKET" }>
+    | Readonly<{ readonly applicability: "BOUND"; readonly universeId: string; readonly universeVersion: string; readonly universeFingerprint: string }>;
   readonly candidates: readonly ResearchRunCandidatePlan[];
 }
 
@@ -172,6 +189,7 @@ export function buildResearchRunProvenancePlan(input: {
   readonly timeline: ResearchRunTimeline;
   readonly sourceCommitSha: string;
   readonly candidates: readonly ResearchCandidateSeed[];
+  readonly universeContext?: ResearchUniverseContext;
 }): ResearchRunProvenancePlan {
   validateManifest(input.manifest);
   validateTimeline(input.timeline);
@@ -200,6 +218,40 @@ export function buildResearchRunProvenancePlan(input: {
       `research hypothesis does not bind to the dataset: ${hypothesisDecision.reasons.join(",")}`,
     );
   }
+
+  const universeContext = input.universeContext ?? freeze({ selectionMode: "FIXED_SINGLE_MARKET" as const });
+  const universe = (() => {
+    if (universeContext.selectionMode === "FIXED_SINGLE_MARKET") {
+      return freeze({ applicability: "NOT_APPLICABLE_FIXED_SINGLE_MARKET" as const });
+    }
+    if (universeContext.selectionMode !== "POINT_IN_TIME_UNIVERSE" || universeContext.provenance == null) {
+      throw new ResearchRunFactoryError("MISSING_UNIVERSE_PROVENANCE", "universe-selected research requires immutable point-in-time universe provenance");
+    }
+    try {
+      assertResearchUniverseDatasetSetBinding(
+        universeContext.provenance,
+        universeContext.manifests,
+        { decisionAt: input.timeline.snapshotAt },
+      );
+      assertResearchUniverseDatasetBinding(universeContext.provenance, {
+        market: input.manifest.market,
+        datasetId: input.manifest.datasetId,
+        datasetContentSha256: input.manifest.contentSha256.toLowerCase(),
+        decisionAt: input.timeline.snapshotAt,
+      });
+      return freeze({
+        applicability: "BOUND" as const,
+        universeId: universeContext.provenance.universeId.trim(),
+        universeVersion: universeContext.provenance.version.trim(),
+        universeFingerprint: researchUniverseFingerprint(universeContext.provenance),
+      });
+    } catch (error) {
+      throw new ResearchRunFactoryError(
+        "INVALID_UNIVERSE_PROVENANCE",
+        error instanceof Error ? error.message : "research universe provenance is invalid",
+      );
+    }
+  })();
 
   const ids = new Set<string>();
   const candidates = input.candidates.map((seed) => {
@@ -297,6 +349,7 @@ export function buildResearchRunProvenancePlan(input: {
       market: input.manifest.market,
       interval: input.manifest.interval,
     }),
+    universe,
     candidates: freeze(candidates),
   }) as ResearchRunProvenancePlan;
 }

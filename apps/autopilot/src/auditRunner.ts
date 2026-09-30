@@ -93,9 +93,10 @@ const MAX_EVIDENCE_REF_CHARS = 500;
 // Workers AI structured-output occasionally returns a response that fails
 // validateAuditModelVerdict's schema checks even with response_format constraints applied --
 // observed transient (the same head_sha's audit request succeeds on a later attempt without any
-// code change). Retrying the identical prompt a bounded number of times absorbs that
-// nondeterminism without weakening any validation: a persistently malformed response still fails
-// closed exactly as before once attempts are exhausted.
+// code change). Retry remains bounded, but after a schema/semantic rejection the next attempt gets
+// only the validator error code as repair context. This preserves the exact diff and authority
+// boundary while giving the model a deterministic chance to correct its JSON shape. A persistently
+// malformed response still fails closed once attempts are exhausted.
 const MAX_AUDIT_MODEL_ATTEMPTS = 3;
 const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult", "mergeAllowed"]);
 const ALLOWED_FINDING_KEYS = new Set(["code", "severity", "message", "evidenceRef"]);
@@ -427,13 +428,23 @@ export async function executeIndependentAudit(
   const diff = await fetchPullDiff(request, beforeAudit.changedFiles, githubToken, fetchImpl);
   if (!env.AI) throw new Error("AUDIT_AI_NOT_CONFIGURED");
   const model = env.NUSA_AI_AUDIT_MODEL?.trim() || DEFAULT_AUDIT_MODEL;
-  const modelRequest = {
-    prompt: auditPrompt(request, diff),
-    response_format: AUDIT_RESPONSE_FORMAT,
-  };
+  const basePrompt = auditPrompt(request, diff);
   let modelResult: AuditModelVerdict | undefined;
   let lastModelError: unknown;
   for (let attempt = 1; attempt <= MAX_AUDIT_MODEL_ATTEMPTS; attempt += 1) {
+    const repair = lastModelError instanceof Error
+      ? [
+          "",
+          "--- PREVIOUS RESPONSE REJECTED ---",
+          `Validator error: ${lastModelError.message}`,
+          "Return a fresh verdict for the same exact diff. Do not copy a blocker string unless you also emit a BLOCKER finding grounded in one CURRENT ADDED-LINE EVIDENCE REF. If no grounded blocker exists, do not invent one.",
+          "--- END REPAIR CONTEXT ---",
+        ].join("\n")
+      : "";
+    const modelRequest = {
+      prompt: `${basePrompt}${repair}`,
+      response_format: AUDIT_RESPONSE_FORMAT,
+    };
     const rawModelResponse = await env.AI.run(model, modelRequest);
     logAiCall({ caller: "C2_AUDIT", model, attempt, promptChars: modelRequest.prompt.length, response: rawModelResponse });
     try {

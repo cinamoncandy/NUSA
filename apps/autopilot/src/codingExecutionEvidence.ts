@@ -11,6 +11,7 @@ export type CodingExecutionEvidence = Readonly<{
     workflowRunId: number;
     executionId: string;
     dedupeKey: string;
+    readonly contractFingerprintSha256?: string | null;
   }>;
   outcome: Readonly<{
     status: string;
@@ -25,6 +26,7 @@ export type CodingExecutionEvidence = Readonly<{
     commitSha: string | null;
     pullRequestNumber: number | null;
     pullRequestUrl: string | null;
+    readonly firstBrokenTransition?: Readonly<{ readonly from: string; readonly to: string; readonly reason: string }> | null;
   }>;
   liveAuthority: "NONE";
   productionMutationAllowed: false;
@@ -36,6 +38,7 @@ export type CodingExecutionEvidenceDecision =
   | Readonly<{ status: "REJECTED"; reason: string }>;
 
 const SHA40 = /^[0-9a-f]{40}$/i;
+const SHA256 = /^[0-9a-f]{64}$/i;
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,256}$/;
 const SAFE_TEXT = /^[A-Za-z0-9_.:/-]{1,256}$/;
 const SAFE_PATH = /^apps\/autopilot\/[A-Za-z0-9._/-]+$/;
@@ -50,6 +53,14 @@ function boundedText(value: unknown, pattern: RegExp, max: number): string | nul
 
 function safeReason(value: unknown): string | null {
   return boundedText(value, SAFE_REASON, 160);
+}
+
+function firstBrokenTransition(result: CodingRunnerResult, status: string): Readonly<{ from: string; to: string; reason: string }> | null {
+  const reason = safeReason(result.reason) ?? safeReason(result.stopReason) ?? status;
+  if (result.failureStage === "proposal-parse") return Object.freeze({ from: "CODING_DISPATCHED", to: "PROPOSAL_VALIDATION", reason });
+  if (result.failureStage === "sandbox-validation") return Object.freeze({ from: "PROPOSAL_VALIDATION", to: "SANDBOX_VALIDATION", reason });
+  if (/(FAILED|BLOCKED|REJECTED|UNAVAILABLE|STOPPED|ERROR)/i.test(status)) return Object.freeze({ from: "CODING_DISPATCHED", to: "RUNNER_RESULT", reason });
+  return null;
 }
 
 function safeUrl(value: unknown): string | null {
@@ -87,6 +98,7 @@ export function createCodingExecutionEvidence(
   if (request.repository !== "cinamoncandy/NUSA" || !SHA40.test(request.headSha)) return { status: "REJECTED", reason: "REQUEST_IDENTITY_INVALID" };
   if (!Number.isSafeInteger(request.workflowRunId) || request.workflowRunId <= 0) return { status: "REJECTED", reason: "WORKFLOW_RUN_ID_INVALID" };
   if (!SAFE_ID.test(request.executionId) || !SAFE_ID.test(request.dedupeKey)) return { status: "REJECTED", reason: "LIFECYCLE_IDENTITY_INVALID" };
+  if (request.contractFingerprintSha256 != null && !SHA256.test(request.contractFingerprintSha256)) return { status: "REJECTED", reason: "CONTRACT_FINGERPRINT_INVALID" };
   if (request.liveAuthority !== "NONE" || request.productionMutationAllowed !== false || request.aiAuthority !== "ZERO_AUTHORITY") {
     return { status: "REJECTED", reason: "AUTHORITY_INVALID" };
   }
@@ -99,6 +111,7 @@ export function createCodingExecutionEvidence(
   const commitSha = typeof result.commitSha === "string" && SHA40.test(result.commitSha) ? result.commitSha.toLowerCase() : null;
   const pullRequestNumber = Number.isSafeInteger(result.pullRequestNumber) && Number(result.pullRequestNumber) > 0 ? Number(result.pullRequestNumber) : null;
   const pullRequestUrl = safeUrl(result.pullRequestUrl);
+  const broken = firstBrokenTransition(result, status);
   const outcome = Object.freeze({
     status,
     reason: safeReason(result.reason),
@@ -112,6 +125,7 @@ export function createCodingExecutionEvidence(
     commitSha,
     pullRequestNumber,
     pullRequestUrl,
+    ...(broken == null ? {} : { firstBrokenTransition: broken }),
   });
   const base = Object.freeze({
     schemaVersion: 1 as const,
@@ -122,6 +136,7 @@ export function createCodingExecutionEvidence(
       workflowRunId: request.workflowRunId,
       executionId: request.executionId,
       dedupeKey: request.dedupeKey,
+      ...(request.contractFingerprintSha256 == null ? {} : { contractFingerprintSha256: request.contractFingerprintSha256.toLowerCase() }),
     }),
     outcome,
     ...AUTHORITY,
@@ -137,11 +152,15 @@ export function validatePersistedCodingExecutionEvidence(value: unknown): assert
   if (!Number.isSafeInteger(evidence.recordedAtMs) || Number(evidence.recordedAtMs) < 0) throw new Error("CODING_EVIDENCE_TIMESTAMP_INVALID");
   if (evidence.liveAuthority !== "NONE" || evidence.productionMutationAllowed !== false || evidence.aiAuthority !== "ZERO_AUTHORITY") throw new Error("CODING_EVIDENCE_AUTHORITY_INVALID");
   const request = evidence.request;
-  if (!request || request.repository !== "cinamoncandy/NUSA" || typeof request.headSha !== "string" || !SHA40.test(request.headSha) || !Number.isSafeInteger(request.workflowRunId) || request.workflowRunId <= 0 || typeof request.executionId !== "string" || !SAFE_ID.test(request.executionId) || typeof request.dedupeKey !== "string" || !SAFE_ID.test(request.dedupeKey)) throw new Error("CODING_EVIDENCE_REQUEST_INVALID");
+  if (!request || request.repository !== "cinamoncandy/NUSA" || typeof request.headSha !== "string" || !SHA40.test(request.headSha) || !Number.isSafeInteger(request.workflowRunId) || request.workflowRunId <= 0 || typeof request.executionId !== "string" || !SAFE_ID.test(request.executionId) || typeof request.dedupeKey !== "string" || !SAFE_ID.test(request.dedupeKey) || (request.contractFingerprintSha256 != null && (typeof request.contractFingerprintSha256 !== "string" || !SHA256.test(request.contractFingerprintSha256)))) throw new Error("CODING_EVIDENCE_REQUEST_INVALID");
   const outcome = evidence.outcome;
   if (!outcome || typeof outcome.status !== "string" || !SAFE_TEXT.test(outcome.status) || (outcome.reason !== null && (typeof outcome.reason !== "string" || !SAFE_REASON.test(outcome.reason))) || (outcome.backend !== null && (typeof outcome.backend !== "string" || !SAFE_TEXT.test(outcome.backend))) || (outcome.checkpointId !== null && (typeof outcome.checkpointId !== "string" || !SAFE_ID.test(outcome.checkpointId))) || (outcome.publisher !== null && (typeof outcome.publisher !== "string" || !SAFE_TEXT.test(outcome.publisher))) || (outcome.branch !== null && (typeof outcome.branch !== "string" || !SAFE_TEXT.test(outcome.branch))) || (outcome.commitSha !== null && (typeof outcome.commitSha !== "string" || !SHA40.test(outcome.commitSha))) || (outcome.pullRequestNumber !== null && (!Number.isSafeInteger(outcome.pullRequestNumber) || outcome.pullRequestNumber <= 0)) || (outcome.pullRequestUrl !== null && safeUrl(outcome.pullRequestUrl) === null) || !Array.isArray(outcome.changedFiles) || outcome.changedFiles.length > 12 || !outcome.changedFiles.every((path) => typeof path === "string" && SAFE_PATH.test(path) && !path.includes("..")) || !outcome.changedFiles.every((_, index, paths) => index === 0 || paths[index - 1]! < paths[index]!)) throw new Error("CODING_EVIDENCE_OUTCOME_INVALID");
   if (outcome.workspaceVerified !== null && typeof outcome.workspaceVerified !== "boolean") throw new Error("CODING_EVIDENCE_OUTCOME_INVALID");
   if (outcome.proposalValidated !== null && typeof outcome.proposalValidated !== "boolean") throw new Error("CODING_EVIDENCE_OUTCOME_INVALID");
+  if (outcome.firstBrokenTransition != null) {
+    const broken = outcome.firstBrokenTransition;
+    if (typeof broken !== "object" || !SAFE_TEXT.test(broken.from) || !SAFE_TEXT.test(broken.to) || !SAFE_REASON.test(broken.reason)) throw new Error("CODING_EVIDENCE_OUTCOME_INVALID");
+  }
   if (evidence.request.headSha !== evidence.request.headSha.toLowerCase()) throw new Error("CODING_EVIDENCE_REQUEST_INVALID");
   if (outcome.commitSha !== null && outcome.commitSha !== outcome.commitSha.toLowerCase()) throw new Error("CODING_EVIDENCE_OUTCOME_INVALID");
   const safeOutcome = outcome as CodingExecutionEvidence["outcome"];

@@ -274,6 +274,30 @@ test("an ungrounded FAIL is retried and a later grounded verdict is used", async
   assert.equal(result.verdict, "PASS");
 });
 
+test("bounded retry supplies validator repair context without changing the reviewed evidence", async () => {
+  const prompts: string[] = [];
+  let calls = 0;
+  const model = {
+    async run(_model: string, input: unknown) {
+      const prompt = (input as { prompt?: unknown }).prompt;
+      prompts.push(typeof prompt === "string" ? prompt : "");
+      calls += 1;
+      if (calls === 1) {
+        return { response: JSON.stringify({ verdict: "FAIL", findings: [], blockers: ["RELEASE_HANDOFF_MISSING"], safetyInvariantResult: "FAIL", mergeAllowed: false }) };
+      }
+      return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) };
+    },
+  };
+  const result = await executeIndependentAudit(request, auditEnv(model as never), fetchSequence() as never);
+  assert.equal(result.verdict, "PASS");
+  assert.equal(prompts.length, 2);
+  assert.doesNotMatch(prompts[0], /PREVIOUS RESPONSE REJECTED/);
+  assert.match(prompts[1], /Validator error: AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED/);
+  assert.match(prompts[1], /same exact diff/);
+  assert.match(prompts[1], new RegExp(`Exact head: ${HEAD}`));
+  assert.match(prompts[1], /CURRENT ADDED-LINE EVIDENCE REF/);
+});
+
 test("a persistently ungrounded FAIL fails closed instead of becoming a verdict", async () => {
   const ungrounded = { response: JSON.stringify({ verdict: "FAIL", findings: [], blockers: ["RELEASE_HANDOFF_MISSING"], safetyInvariantResult: "FAIL", mergeAllowed: false }) };
   await assert.rejects(

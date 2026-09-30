@@ -1,0 +1,29 @@
+id: WO-UI-20260930-LIME-THEME
+title: "Recolor the field theme to a clean lime/cyan accent with rounder radii"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-ui-refresh
+authority_impact: none
+supersedes_in_part: WO-UI-20260928-FIELD-THEME
+objective: "Owner asked for a cleaner, less busy UI applied to the whole app, without red, based on dark command-center reference videos."
+scope:
+  - "designSystem.ts field preset: primary amber #FFB547 -> lime #B6F04B, primarySoft #0C1606, neonGlow lime; theme focus ring and focus/glow shadows -> cyan #4FC3F7."
+  - "Radii sm/md/lg/xl 2/4/6/8 -> 4/8/12/16. These reach every component that reads theme radii (buttons, inputs, cards via buttonTokens/fieldTokens/cardTokens)."
+  - "New fieldPalette.accent (lime) used for the focused-subsystem highlight in intelligenceField and the selected monitor-tab underline; fieldPalette.focus stays amber and is used for warning tones only."
+  - "Amber remains the warning-only tone and red remains the halt/danger-only tone; red is not an accent."
+exclusions:
+  - "theme.layout.sectionGap and heroRadius are unchanged: no production consumer reads them (screens use their own layout constants), so changing them would have no visual effect."
+  - "Screens with hard-coded geometry keep it; only token-driven components pick up the new radii."
+  - "Android launcher/splash/logo recolor ships separately in its own change."
+  - "No server, strategy, risk, execution, credential or LIVE changes; presentation only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/mobile-design-system.test.js tests/uiux-002-phase2-visual-foundation.test.js tests/mobile-porcelain-cobalt.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

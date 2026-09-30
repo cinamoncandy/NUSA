@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   assertDeterministicReplay, assertFeatureBinding, assertSegmentIsolation, evidenceFingerprint,
-  featureFingerprint, oosReuseFingerprint, validateEvidenceProvenance, validatePointInTimeBoundary
+  featureFingerprint, oosReuseFingerprint, validateEvidenceProvenance, validatePointInTimeBoundary,
+  assertResearchUniverseDatasetBinding, assertResearchUniverseDatasetSetBinding, assertResearchUniverseReplay, researchUniverseFingerprint,
+  validateResearchUniverseProvenance
 } from "../apps/desktop/src/cloud/researchIntegrity.ts";
 
 const D = "a".repeat(64), G = "b".repeat(40);
@@ -51,4 +53,117 @@ test("evidence fingerprint detects mutation and replay divergence", () => {
 test("contract exposes no execution or LIVE authority", async () => {
   const source=await import("node:fs").then(fs=>fs.readFileSync(new URL("../apps/desktop/src/cloud/researchIntegrity.ts",import.meta.url),"utf8"));
   assert.doesNotMatch(source,/placeOrder|withdraw|transfer|liveAuthority\s*=\s*(?!NONE)/i);
+});
+
+test("real-market runner binds canonical integrity before factory qualification", async () => {
+  const source=await import("node:fs").then(fs=>fs.readFileSync(new URL("../scripts/research-real-market-run.js",import.meta.url),"utf8"));
+  assert.match(source,/researchIntegrity\.js/);
+  assert.match(source,/datasetFingerprint:\s*manifest\.contentSha256/);
+  assert.match(source,/featureFingerprint\(featureIdentity\)/);
+  assert.match(source,/validateEvidenceProvenance\(provenance,\s*\{\s*promotionEligible:\s*true\s*\}\)/);
+  assert.match(source,/validateEvidenceProvenance[\s\S]*qualifyResearchFactoryRun\(league\)/);
+  assert.match(source,/evidenceKind:\s*"REAL"/);
+});
+
+
+const universe = {
+  schemaVersion: 1 as const,
+  universeId: "upbit-krw-active",
+  version: "2026-08-29",
+  asOf: 200,
+  availableAt: 210,
+  selectionPolicyId: "listed-krw-v1",
+  source: "upbit-market-snapshot",
+  constituents: [
+    { market:"KRW-BTC", datasetId:"d-btc", datasetContentSha256:D, eligibleFrom:100, evidenceRef:"snapshot:btc" },
+    { market:"KRW-ETH", datasetId:"d-eth", datasetContentSha256:"c".repeat(64), eligibleFrom:120, evidenceRef:"snapshot:eth" },
+  ],
+};
+
+test("point-in-time research universe fingerprint is deterministic and order-independent", () => {
+  const reversed = { ...universe, constituents:[...universe.constituents].reverse() };
+  assert.equal(researchUniverseFingerprint(universe), researchUniverseFingerprint(reversed));
+  assert.doesNotThrow(() => validateResearchUniverseProvenance(universe,{decisionAt:220}));
+});
+
+test("universe provenance rejects future membership and unavailable snapshots", () => {
+  assert.throws(
+    () => validateResearchUniverseProvenance({ ...universe, availableAt:221 },{decisionAt:220}),
+    /FUTURE_LEAKAGE:universe_unavailable_at_decision/,
+  );
+  assert.throws(
+    () => validateResearchUniverseProvenance({ ...universe, constituents:[{...universe.constituents[0],eligibleFrom:201}] }),
+    /SURVIVORSHIP_BIAS:constituent_not_yet_eligible/,
+  );
+  assert.throws(
+    () => validateResearchUniverseProvenance({ ...universe, constituents:[{...universe.constituents[0],eligibleUntil:200}] }),
+    /SURVIVORSHIP_BIAS:constituent_not_eligible_as_of/,
+  );
+});
+
+test("universe binds the exact historical dataset constituent and rejects survivor substitution", () => {
+  assert.doesNotThrow(() => assertResearchUniverseDatasetBinding(universe,{
+    market:"KRW-BTC",datasetId:"d-btc",datasetContentSha256:D,decisionAt:220
+  }));
+  assert.throws(() => assertResearchUniverseDatasetBinding(universe,{
+    market:"KRW-XRP",datasetId:"d-xrp",datasetContentSha256:"d".repeat(64),decisionAt:220
+  }),/UNIVERSE_DATASET_NOT_CONSTITUENT/);
+  assert.throws(() => assertResearchUniverseDatasetBinding(universe,{
+    market:"KRW-BTC",datasetId:"forged",datasetContentSha256:D,decisionAt:220
+  }),/UNIVERSE_DATASET_BINDING_MISMATCH/);
+});
+
+test("universe replay rejects reconstructed membership drift", () => {
+  const fp=researchUniverseFingerprint(universe);
+  assert.doesNotThrow(() => assertResearchUniverseReplay(fp,universe));
+  assert.throws(() => assertResearchUniverseReplay(fp,{
+    ...universe,constituents:[universe.constituents[0]]
+  }),/UNIVERSE_REPLAY_NON_DETERMINISTIC/);
+});
+
+
+test("universe fingerprint normalizes omitted versus undefined optional eligibility", () => {
+  const withUndefined = {
+    ...universe,
+    constituents: universe.constituents.map((item) => ({ ...item, eligibleUntil: undefined })),
+  };
+  assert.equal(researchUniverseFingerprint(universe), researchUniverseFingerprint(withUndefined));
+});
+
+test("universe rejects non-canonical market identifiers before hashing", () => {
+  assert.throws(
+    () => researchUniverseFingerprint({ ...universe, constituents:[{...universe.constituents[0],market:"KRW-é"}] }),
+    /INVALID_UNIVERSE_MARKET_ID/,
+  );
+});
+
+test("universe dataset set must be available before evaluation and cover every evidence dataset", () => {
+  const manifests = [
+    { market:"KRW-BTC",datasetId:"d-btc",contentSha256:D,startOpenTime:200,endCloseTime:300 },
+    { market:"KRW-ETH",datasetId:"d-eth",contentSha256:"c".repeat(64),startOpenTime:200,endCloseTime:300 },
+  ];
+  const historicalUniverse = { ...universe, asOf:200, availableAt:200 };
+  assert.doesNotThrow(() => assertResearchUniverseDatasetSetBinding(historicalUniverse,manifests,{decisionAt:400}));
+  assert.throws(
+    () => assertResearchUniverseDatasetSetBinding({ ...historicalUniverse, asOf:201, availableAt:201 },manifests,{decisionAt:400}),
+    /SURVIVORSHIP_BIAS:universe_snapshot_after_selection/,
+  );
+  assert.throws(
+    () => assertResearchUniverseDatasetSetBinding(historicalUniverse,[manifests[0]],{decisionAt:400}),
+    /UNIVERSE_DATASET_SET_MISMATCH/,
+  );
+  assert.throws(
+    () => assertResearchUniverseDatasetSetBinding({
+      ...historicalUniverse,
+      constituents: historicalUniverse.constituents.map((item) => item.market === "KRW-ETH" ? {...item,datasetId:"forged"} : item),
+    },manifests,{decisionAt:400}),
+    /UNIVERSE_DATASET_BINDING_MISMATCH/,
+  );
+  assert.throws(
+    () => assertResearchUniverseDatasetSetBinding({
+      ...historicalUniverse,
+      constituents: historicalUniverse.constituents.map((item) => item.market === "KRW-ETH" ? {...item,eligibleUntil:250} : item),
+    },manifests,{decisionAt:400}),
+    /SURVIVORSHIP_BIAS:constituent_not_eligible_for_full_period/,
+  );
 });
