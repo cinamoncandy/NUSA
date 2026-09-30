@@ -245,6 +245,13 @@ function deriveHealth(input: PersonalPaperOperationsInput): PersonalPaperOperati
   return "HEALTHY";
 }
 
+const cloneJsonProjection = <T>(value: T): T => {
+  // Personal PAPER projections are JSON transport values. React Native Hermes versions used by
+  // the Android app do not universally expose structuredClone, so keep this contract validator
+  // portable instead of depending on a host global that exists in Node but may not exist on-device.
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
 const deepFreeze = <T>(value: T): T => {
   if (value != null && typeof value === "object" && !Object.isFrozen(value)) {
     for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
@@ -282,7 +289,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
     productionMutationAllowed: false as const
   };
   validateReadOnlyProjections(snapshot);
-  return deepFreeze(structuredClone(snapshot));
+  return deepFreeze(cloneJsonProjection(snapshot));
 }
 
 export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperOperationsSnapshot, now = Date.now(), maximumAgeMs = 15_000): PersonalPaperOperationsSnapshot {
@@ -291,7 +298,7 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   finite(snapshot.generatedAt, "generatedAt");
   finite(now, "now");
   if (!Number.isFinite(maximumAgeMs) || maximumAgeMs < 0) throw new Error("maximumAgeMs must be non-negative");
-  if (snapshot.generatedAt > now) throw new Error("personal PAPER operations snapshot is from the future");
+  if (snapshot.generatedAt - now > maximumAgeMs) throw new Error("personal PAPER operations snapshot is from the future");
   if (now - snapshot.generatedAt > maximumAgeMs) throw new Error("personal PAPER operations snapshot is stale");
   validateDashboard(snapshot.dashboard);
   validateResearch(snapshot.research);
@@ -304,7 +311,7 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   const expectedHealth = deriveHealth(snapshot);
   if (snapshot.health !== expectedHealth) throw new Error("personal PAPER operations health mismatch");
   if (snapshot.mode !== snapshot.dashboard.mode) throw new Error("personal PAPER operations mode mismatch");
-  return deepFreeze(structuredClone(snapshot));
+  return deepFreeze(cloneJsonProjection(snapshot));
 }
 
 export function dashboardHealthToOperationsHealth(health: DashboardHealth): PersonalPaperOperationsHealth {

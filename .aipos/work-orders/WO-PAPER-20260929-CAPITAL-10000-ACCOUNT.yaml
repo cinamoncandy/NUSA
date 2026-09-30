@@ -1,0 +1,26 @@
+id: WO-PAPER-20260929-CAPITAL-10000-ACCOUNT
+title: "Start a new KRW 10,000 PAPER account (owner decision)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-paper-capital-10000
+authority_impact: none
+objective: "Owner decision 2026-09-29: run PAPER with KRW 10,000 as a new account (KRW 5,000 cannot place Upbit's KRW 5,000 minimum order once fees are added). Re-applies the per-capital account switch rolled back in #2371 (WO-PAPER-20260928-CAPITAL-5000-ACCOUNT)."
+root_cause_of_prior_rollback: "The 2026-09-28 restart loop was not caused by the capital switch: #2374 forensics and a production reproduction proved it was an unreplayable pre-#1991 Research snapshot (fixed by #2377). The rollback's retire-and-reopen period handling stayed on main."
+scope:
+  - "paperAccountIdForCapital: KRW 10,000,000 keeps paper-default; any other capital opens its own account (KRW 10,000 -> paper-krw-10000). Existing ledgers are never reset or deleted."
+  - "deploy/oracle/paper-account.json = 10000 (owner-managed, read by the launcher); launcher default and env example 10000; PAPER_ADAPTER pin re-bound to the account-scoped loop."
+exclusions:
+  - "No LIVE, credential, risk-limit or strategy change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js

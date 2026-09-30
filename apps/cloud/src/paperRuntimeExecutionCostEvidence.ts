@@ -42,7 +42,11 @@ export interface PaperObservedExecutionQuote {
   readonly askPrice: number;
   readonly evidenceId: string;
   readonly evidenceFingerprintSha256: string;
-  /** Full canonical receipt retained with the PAPER fill before account persistence. */
+  /** Volatile full public depth used for realistic PAPER execution. It is not copied wholesale into account state. */
+  readonly depth?: readonly PaperOrderBookUnit[];
+  /** Fingerprint of the complete normalized public depth carried in-memory with this quote. */
+  readonly depthFingerprintSha256?: string;
+  /** Full canonical best-quote receipt retained with the PAPER fill before account persistence. */
   readonly receipt: PaperOrderBookQuoteReceipt;
 }
 
@@ -280,6 +284,14 @@ export function buildPaperObservedExecutionQuote(input: PaperOrderBookObservatio
       bid_size: unit.bidSize,
     })),
   } satisfies UpbitOrderBook, observedAt);
+  const depth = Object.freeze(units.map((unit) => Object.freeze({ ...unit })));
+  const depthFingerprintSha256 = stableDigest(Object.freeze({
+    schemaVersion: 1,
+    source: "UPBIT_PUBLIC_ORDERBOOK_DEPTH",
+    market,
+    observedAt,
+    units: depth,
+  }));
   return Object.freeze({
     schemaVersion: 1,
     source: "UPBIT_PUBLIC_ORDERBOOK",
@@ -289,6 +301,8 @@ export function buildPaperObservedExecutionQuote(input: PaperOrderBookObservatio
     askPrice: receipt.bestAskPrice,
     evidenceId: "paper-orderbook:" + market + ":" + observedAt + ":" + receipt.fingerprintSha256.slice(0, 24),
     evidenceFingerprintSha256: receipt.fingerprintSha256,
+    depth,
+    depthFingerprintSha256,
     receipt,
   });
 }
@@ -328,6 +342,40 @@ export function validatePaperObservedExecutionQuote(
     throw new PaperRuntimeExecutionCostEvidenceError("ORDERBOOK_QUOTE_PROVENANCE_MISMATCH", "public orderbook quote summary does not match its canonical receipt");
   }
   return Object.freeze({ ...quote, receipt });
+}
+
+/** Revalidates the complete volatile depth and binds it to the best-quote receipt before execution. */
+export function validatePaperObservedExecutionDepth(
+  quote: PaperObservedExecutionQuote,
+  expectedMarket: string,
+  filledAt: number,
+): readonly PaperOrderBookUnit[] {
+  const canonicalQuote = validatePaperObservedExecutionQuote(quote, expectedMarket, filledAt);
+  if (!Array.isArray(canonicalQuote.depth) || canonicalQuote.depth.length === 0 || canonicalQuote.depth.length > MAX_ORDERBOOK_UNITS ||
+      typeof canonicalQuote.depthFingerprintSha256 !== "string" || !SHA256.test(canonicalQuote.depthFingerprintSha256)) {
+    throw new PaperRuntimeExecutionCostEvidenceError("ORDERBOOK_DEPTH_PROVENANCE_REQUIRED", "complete public orderbook depth is required for depth execution");
+  }
+  const depth = Object.freeze(canonicalQuote.depth.map(orderBookUnit));
+  const expectedFingerprint = stableDigest(Object.freeze({
+    schemaVersion: 1,
+    source: "UPBIT_PUBLIC_ORDERBOOK_DEPTH",
+    market: canonicalQuote.market,
+    observedAt: canonicalQuote.observedAt,
+    units: depth,
+  }));
+  if (canonicalQuote.depthFingerprintSha256 !== expectedFingerprint) {
+    throw new PaperRuntimeExecutionCostEvidenceError("ORDERBOOK_DEPTH_FINGERPRINT_MISMATCH", "public orderbook depth fingerprint does not match normalized depth");
+  }
+  const bids = depth.filter((level) => level.bidSize > 0);
+  const asks = depth.filter((level) => level.askSize > 0);
+  if (bids.length === 0 || asks.length === 0) throw new PaperRuntimeExecutionCostEvidenceError("MISSING_BOOK_SIDE", "public orderbook depth must contain both sides");
+  const bestBid = bids.reduce((best, level) => level.bidPrice > best.bidPrice ? level : best);
+  const bestAsk = asks.reduce((best, level) => level.askPrice < best.askPrice ? level : best);
+  if (bestBid.bidPrice !== canonicalQuote.receipt.bestBidPrice || bestBid.bidSize !== canonicalQuote.receipt.bestBidSize ||
+      bestAsk.askPrice !== canonicalQuote.receipt.bestAskPrice || bestAsk.askSize !== canonicalQuote.receipt.bestAskSize) {
+    throw new PaperRuntimeExecutionCostEvidenceError("ORDERBOOK_DEPTH_QUOTE_MISMATCH", "public orderbook depth does not reconcile with best-quote receipt");
+  }
+  return depth;
 }
 
 function compareObservedAttribution(left: PaperExecutionCostAttribution, right: PaperExecutionCostAttribution): boolean {

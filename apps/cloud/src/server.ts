@@ -59,6 +59,35 @@ import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependen
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
 import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
 import type { UxTelemetryStorage } from "./uxTelemetryJournal";
+import { COMPONENT_HEALTH_STATES, type ComponentHealthResult } from "./componentHealth";
+
+/**
+ * Evidence that the continuous PAPER runtime is alive, not merely that the process answers HTTP.
+ *
+ * The PAPER execution loop is driven by a persistent Upbit public ticker subscription, so it either
+ * runs continuously or it does not run at all. Nothing exposed that distinction: `/health` said
+ * `{ok:true}` whenever the HTTP listener was up, and `/ready` reports database and migration
+ * readiness. A stalled market feed, a loop that had stopped deciding, or a runtime that had been
+ * serving for hours without a single tick all looked identical from outside.
+ *
+ * Only timestamps, counters and a coded error are carried. No price, balance, position, order
+ * detail or credential appears here, because `/health` is unauthenticated by design.
+ */
+export interface CloudRuntimeLivenessSnapshot {
+  readonly startedAt: number;
+  readonly lastHeartbeatAt: number;
+  readonly lastMarketEventAt: number | null;
+  readonly lastPaperDecisionAt: number | null;
+  readonly lastPaperOrderAt: number | null;
+  readonly lastPaperFillAt: number | null;
+  readonly eventCount: number;
+  readonly decisionCount: number;
+  readonly paperOrderCount: number;
+  readonly paperFillCount: number;
+  readonly lastError: string | null;
+  /** Why the previous runtime process stopped, when a failure record exists. */
+  readonly previousStop?: string;
+}
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -89,6 +118,10 @@ export interface CloudDashboardServerOptions {
   readonly mobileSessionService?: MobileSessionService;
   readonly ownerDeviceCredentialService?: OwnerDeviceCredentialService;
   readonly readiness?: () => CloudReadinessSnapshot;
+  /** Continuous PAPER runtime liveness, surfaced on /health so 24-hour operation is observable. */
+  readonly runtimeLiveness?: () => CloudRuntimeLivenessSnapshot;
+  /** Deterministic process/workload health; HTTP 200 alone never implies workload health. */
+  readonly runtimeHealth?: () => Readonly<{ process: ComponentHealthResult; workload: ComponentHealthResult }>;
   /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
   /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
@@ -198,6 +231,60 @@ const auditHttpResponse = (
     ...(route === "paper_order" ? { authority: "PAPER_ONLY" } : {})
   });
 };
+
+const PUBLIC_LIVENESS_TIMESTAMPS = ["startedAt", "lastHeartbeatAt", "lastMarketEventAt", "lastPaperDecisionAt", "lastPaperOrderAt", "lastPaperFillAt"] as const;
+const PUBLIC_LIVENESS_COUNTERS = ["eventCount", "decisionCount", "paperOrderCount", "paperFillCount"] as const;
+const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
+
+/**
+ * `/health` is unauthenticated, so the runtime object is rebuilt here from a fixed allowlist instead
+ * of being passed through. A liveness source that grows an extra field -- a token, an account
+ * identifier, a price -- cannot make it public, and an error that is not a bare code is replaced by
+ * a fixed code rather than published as free text.
+ */
+function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntimeLivenessSnapshot {
+  const source = value as unknown as Record<string, unknown>;
+  const timestamp = (key: string): number | null => {
+    const raw = source[key];
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : null;
+  };
+  const counter = (key: string): number => {
+    const raw = source[key];
+    return Number.isSafeInteger(raw) && Number(raw) >= 0 ? Number(raw) : 0;
+  };
+  const rawError = source.lastError;
+  const lastError = rawError === null || rawError === undefined
+    ? null
+    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError : "LIVENESS_ERROR_UNCLASSIFIED";
+  const timestamps = Object.fromEntries(PUBLIC_LIVENESS_TIMESTAMPS.map((key) => [key, timestamp(key)]));
+  const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
+  const rawPreviousStop = source.previousStop;
+  const previousStop = typeof rawPreviousStop === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawPreviousStop) ? rawPreviousStop : undefined;
+  return Object.freeze({ ...timestamps, ...counters, lastError, ...(previousStop === undefined ? {} : { previousStop }) }) as unknown as CloudRuntimeLivenessSnapshot;
+}
+
+const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);
+function publicComponentHealth(value: ComponentHealthResult, componentId: "PAPER_PROCESS" | "PAPER_WORKLOAD"): ComponentHealthResult | null {
+  if (value == null || typeof value !== "object") return null;
+  const provenance = componentId === "PAPER_PROCESS" ? "cloud-runtime-heartbeat" : "cloud-paper-market-events";
+  const evidencePrefix = componentId === "PAPER_PROCESS" ? "heartbeat" : "market-event";
+  if (value.componentId !== componentId || !COMPONENT_HEALTH_STATES.includes(value.state)
+    || !PUBLIC_HEALTH_REASONS.has(value.reasonCode) || !Number.isSafeInteger(value.evaluatedAt)
+    || value.evaluatedAt < 0 || typeof value.fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(value.fingerprint)) return null;
+  if (value.observedAt !== undefined && (!Number.isSafeInteger(value.observedAt) || value.observedAt < 0 || value.observedAt > value.evaluatedAt)) return null;
+  if (value.provenance !== undefined && value.provenance !== provenance) return null;
+  if (value.evidenceId !== undefined && (typeof value.evidenceId !== "string" || !new RegExp(`^${evidencePrefix}:\\d+:\\d+(?::\\d+)?$`).test(value.evidenceId))) return null;
+  return Object.freeze({ componentId, state: value.state, reasonCode: value.reasonCode,
+    evaluatedAt: value.evaluatedAt, ...(value.observedAt === undefined ? {} : { observedAt: value.observedAt }),
+    ...(value.provenance === undefined ? {} : { provenance }),
+    ...(value.evidenceId === undefined ? {} : { evidenceId: value.evidenceId }), fingerprint: value.fingerprint });
+}
+function publicRuntimeHealth(value: ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined): ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined {
+  if (value == null || typeof value !== "object") return undefined;
+  const process = publicComponentHealth(value.process, "PAPER_PROCESS");
+  const workload = publicComponentHealth(value.workload, "PAPER_WORKLOAD");
+  return process === null || workload === null ? undefined : Object.freeze({ process, workload });
+}
 
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error("invalid cloud dashboard server port");
@@ -350,7 +437,20 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     try {
       if (req.url === "/health") {
         if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
-        respond("health", dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString(), capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true } }));
+        // `ok` keeps its existing meaning -- the HTTP listener answers -- so existing probes are
+        // unaffected. `capabilities` and `runtime` are both additive: neither replaces a field the
+        // other side introduced, so the merge keeps both rather than choosing between them.
+        // `runtime` appears only when a liveness source is wired, and carries the counters that
+        // show whether the continuous PAPER loop is actually ticking.
+        const liveness = options.runtimeLiveness?.();
+        const runtimeHealth = publicRuntimeHealth(options.runtimeHealth?.());
+        respond("health", dashboardJsonResponse(200, {
+          ok: true,
+          observedAt: new Date().toISOString(),
+          capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
+          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) }),
+          ...(runtimeHealth === undefined ? {} : { runtimeHealth })
+        }));
         return;
       }
 

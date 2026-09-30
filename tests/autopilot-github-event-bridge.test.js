@@ -98,7 +98,7 @@ test("fails closed when an Audit request is accepted without a dispatch or appro
 // #1876's sticky HOLD gave the executor legitimate reasons to decline an Audit request. Those are
 // the control plane working, not a delivery failure, and the bridge must not report them as one -
 // otherwise every held pull request paints main red and real delivery failures hide in the noise.
-for (const reason of ["github-executor-pr-not-open", "github-executor-pr-draft-hold-active", "github-executor-pr-hold-label-active"]) {
+for (const reason of ["github-executor-pr-not-open", "github-executor-pr-draft-hold-active", "github-executor-pr-hold-label-active", "github-executor-duplicate-audit-run-suppressed"]) {
   test(`a state-based executor decline is a delivered event, not a bridge failure (${reason})`, async () => {
     const result = await dispatchGithubEvent({
       secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "19", runAttempt: "1",

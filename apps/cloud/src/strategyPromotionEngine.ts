@@ -9,10 +9,10 @@ export function evaluateStrategyPromotion(input: StrategyPromotionInput): Strate
   if(!input.validation)return decision(input,"REJECT","REJECTED",["VALIDATION_MISSING"]);
   const v=input.validation; const p=input.paper;
   for(const [f,x] of Object.entries(v))if(typeof x==="number")finite(x,f);
-  if(v.dataFingerprint!==input.identity.featureFingerprint)return decision(input,"REJECT","REJECTED",["FEATURE_FINGERPRINT_MISMATCH"]);
-  const gate=evaluateResearchPromotion({strategyId:input.identity.strategyId,dataFingerprint:v.dataFingerprint,currentDataFingerprint:input.identity.featureFingerprint,deflatedSharpeRatio:v.deflatedSharpeRatio,oosIsRatio:v.outOfSampleToInSampleRatio,oosTrades:v.outOfSampleTradeCount,oosProfitFactor:v.profitFactor,positiveWalkForwardShare:v.walkForwardPositiveWindowRatio,monteCarloRuinProbability:v.monteCarloRuinProbability,worstCostStressReturn:v.worstCostStressReturn,paperTradingDays:0});
+  const stale:string[]=[]; if(v.featureFingerprint!==input.identity.featureFingerprint)stale.push("FEATURE_FINGERPRINT_MISMATCH"); if(v.strategyVersion!==input.identity.version)stale.push("STRATEGY_VERSION_MISMATCH"); if(v.gitCommitSha!==input.identity.gitCommitSha)stale.push("GIT_COMMIT_MISMATCH"); if(v.engineVersion!==input.identity.engineVersion)stale.push("ENGINE_VERSION_MISMATCH"); if(stale.length)return decision(input,"REJECT","REJECTED",stale);
+  const gate=evaluateResearchPromotion({strategyId:input.identity.strategyId,dataFingerprint:v.dataFingerprint,currentDataFingerprint:v.dataFingerprint,deflatedSharpeRatio:v.deflatedSharpeRatio,oosIsRatio:v.outOfSampleToInSampleRatio,oosTrades:v.outOfSampleTradeCount,oosProfitFactor:v.profitFactor,positiveWalkForwardShare:v.walkForwardPositiveWindowRatio,monteCarloRuinProbability:v.monteCarloRuinProbability,worstCostStressReturn:v.worstCostStressReturn,paperTradingDays:0});
   if(gate.verdict==="REJECT_STALE_DATA")return decision(input,"REJECT","REJECTED",["FEATURE_FINGERPRINT_MISMATCH"]);
-  const veto=input.votes.filter(x=>["RISK","EXECUTION","CIO"].includes(x.member)&&x.decision==="REJECT");
+  const veto=input.votes.filter(x=>["RISK","EXECUTION","SECURITY","DATA_INTEGRITY","CIO"].includes(x.member)&&x.decision==="REJECT");
   for(const vote of input.votes){if(!Number.isSafeInteger(vote.decidedAt)||vote.decidedAt>input.now||vote.score<0||vote.score>100)throw new Error("committee vote is invalid");unit(vote.confidence,"confidence");}
   if(veto.length)return decision(input,"REJECT","REJECTED",veto.map(x=>`${x.member}_VETO`));
   if(!p)return decision(input,"NEED_MORE_PAPER","PAPER_CANDIDATE",["PAPER_DATA_MISSING"]);

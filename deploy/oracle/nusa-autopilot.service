@@ -1,0 +1,24 @@
+[Unit]
+Description=NUSA Persistent Autopilot Runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nusa
+Group=nusa
+WorkingDirectory=/opt/nusa/current
+EnvironmentFile=/etc/nusa/cloud-runtime.env
+Environment=HOME=/var/lib/nusa
+ExecStart=/usr/bin/node /opt/nusa/current/scripts/autopilot-runtime.js
+Restart=always
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nusa
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

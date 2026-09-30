@@ -12,7 +12,7 @@ const slice = (from, to) => settings.slice(settings.indexOf(from), settings.inde
 test("primary OWNER authentication never silently starts pairing", () => {
   const primary = slice("const requestPaperConnection = async", "const requestRecoveryPairing = async");
   const recovery = slice("const requestRecoveryPairing = async", "const enrollThisPhone = async");
-  assert.match(primary, /authenticateOwnerDeviceCredential/);
+  assert.match(primary, /connectPaperSessionSilently\(/);
   assert.doesNotMatch(primary, /startPairing/);
   assert.match(primary, /소유자 확인 후 이 휴대폰을 먼저 등록하세요/);
   assert.match(recovery, /startPairing\(configuredEndpoint, installationId\)/);
@@ -41,9 +41,11 @@ test("recovery credentials stay behind explicit progressive disclosure", () => {
   assert.match(recoverySurface, /1회용 복구 키/);
 });
 
-test("biometric failure remains fail-closed while public observation and authority invariants remain fixed", () => {
+test("definitive DeviceKey rejection remains fail-closed while transient recovery preserves trust", () => {
   const primary = slice("const requestPaperConnection = async", "const requestRecoveryPairing = async");
-  assert.match(primary, /catch \(connectionError\)[\s\S]*credentialSession\.clear\(\); clearPaperConnectionVerification\(\)/);
+  assert.match(primary, /isDefinitiveDeviceTrustFailure\(connectionError\)[\s\S]*credentialSession\.clear\(\);[\s\S]*clearPaperConnectionVerification\(\)/);
+  assert.match(primary, /429\/network\/5xx is a transport\/session recovery state, not loss of device registration/);
+  assert.match(primary, /else \{[\s\S]*setOwnerAuthenticationFallback\(false\);/);
   assert.match(settings, /connectionFailed[\s\S]*\? "BLOCKED"/);
   assert.match(experience, /공개 관측/);
   assert.match(accessModel, /publicObservationAllowed: true/);

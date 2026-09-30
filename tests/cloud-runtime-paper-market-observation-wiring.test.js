@@ -103,6 +103,12 @@ test("a stale ticker in one market cannot erase fresh accepted evidence from ano
       acc_trade_price_24h: 1_000_000_000
     });
     const afterStale = await loadPaperOperations(port, token);
+    const persisted = new SqliteDatabase(database);
+    try {
+      const repository = new SqlitePaperMarketObservationRepository(persisted);
+      assert.equal(repository.count(), 1, "rejected stale ticker must not become durable PAPER evidence");
+      assert.equal(repository.list()[0].market, "KRW-BTC");
+    } finally { persisted.close(); }
     assert.equal(afterStale.operations.heartbeat.lastError, "PUBLIC_MARKET_EVENT_REJECTED:FEED_STALE");
     assert.equal(afterStale.dashboard.killSwitchActive, false, "fresh BTC evidence must remain executable");
     assert.ok(afterStale.dashboard.decisions.some((decision) => decision.symbol === "KRW-BTC"));

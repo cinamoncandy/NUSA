@@ -59,7 +59,7 @@ test("chart remains fail-closed for loading, stale, missing-price, and incomplet
   assert.equal(buildChartViewModel({ ...base, rawCandles: candles(3), interval: "5m" }).state, "EMPTY");
 });
 
-test("chart UI stays read-only while Markets uses public data separate from PAPER operations", () => {
+test("chart UI stays read-only while public market evidence remains separate from PAPER operations", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "chartView.tsx"), "utf8");
   const workspace = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "marketsView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
@@ -83,7 +83,8 @@ test("chart UI stays read-only while Markets uses public data separate from PAPE
   assert.match(app, /loadPersonalPaperOperations/);
   assert.match(app, /loadUpbitPublicCandles/);
   assert.match(app, /publicMarkets\.candles/);
-  assert.match(app, /<MarketsView/);
+  assert.doesNotMatch(app, /activeTab === "Market"/);
+  assert.doesNotMatch(app, /<MarketsView/);
   assert.match(workspace, /<ChartView/);
   assert.doesNotMatch(app, /\/api\/(?:candles|markets|account|status)/);
   assert.match(client, /\/api\/paper-operations/);

@@ -45,7 +45,7 @@ export class SandboxCodingRuntime implements CodingRuntime {
     const envelope = toSandboxEnvelope(request);
 
     if (proposal) {
-      const validated = await validatePatchInSandbox(this.backend, { envelope, patch: proposal.patch });
+      const validated = await validatePatchInSandbox(this.backend, { envelope, patch: proposal?.patch ?? "" });
       return Object.freeze({
         backend: validated.backend,
         checkpointId: validated.checkpoint.checkpointId,

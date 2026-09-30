@@ -1,7 +1,7 @@
 import React, { useState } from "react";
+import { fieldFonts } from "./fieldFonts";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useTheme } from "./ThemeProvider";
-import { intelligenceFieldColors } from "./designSystem";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { buildHomeStatusRail } from "./homeStatusRail";
@@ -13,17 +13,22 @@ import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 import { CandlePlot } from "./chartView";
 import { FactRow, StateNotice } from "./intelligenceOs";
-import { IntelligenceMotionField, MotionReveal } from "./components";
+import { MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
+import { visualSystem } from "./visualSystem";
+import { IntelligenceField } from "./intelligenceField";
+import { buildHomeFieldInput } from "./homeFieldInput";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
-export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
+export type HomeDestination = "Paper" | "Live" | "More";
 
 interface HomeViewProps {
   readonly snapshot: Snapshot | null;
   readonly investmentPercent: number;
   readonly readOnlyError: string | null;
   readonly notConfigured: string | null;
+  /** Trusted device, session restore in flight or retry armed: not a setup problem. */
+  readonly sessionRecovering?: boolean;
   readonly refreshing: boolean;
   readonly publicMarket: string;
   readonly publicMarkets: readonly WatchlistMarket[] | null;
@@ -66,6 +71,7 @@ export function HomeView({
   investmentPercent,
   readOnlyError,
   notConfigured,
+  sessionRecovering = false,
   refreshing,
   publicMarket,
   publicMarkets,
@@ -79,6 +85,7 @@ export function HomeView({
   onOpenPaperLearning,
 }: HomeViewProps) {
   const { theme } = useTheme();
+  const ui = visualSystem(theme);
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -125,11 +132,7 @@ export function HomeView({
     hasDailyPnlBasis: false,
   });
   const aiInsightAvailable = decisionSurface.aiInsightAvailable && !disconnected && readOnlyError == null;
-  const posture = disconnected
-    ? "PAPER 서버 연결이 필요합니다."
-    : readOnlyError
-      ? "PAPER 상태를 확인하고 있습니다."
-      : decisionSurface.now || "현재 검증된 운용 상태를 확인 중입니다.";
+  const recovering = disconnected && sessionRecovering;
   const why = aiInsightAvailable ? decisionSurface.why : disconnected ? "Cloud PAPER 상태가 연결되기 전에는 판단 근거를 확정하지 않습니다." : decisionSurface.why;
   const riskHigh = rail.risk === "HIGH" || rail.risk === "CRITICAL";
   const riskWarn = rail.risk === "CAUTION" || rail.risk === "ELEVATED";
@@ -140,11 +143,9 @@ export function HomeView({
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
-  const postureDisplay = disconnected ? "PAPER 연결 필요" : posture;
-  const intelligenceSurface = intelligenceFieldColors.surface;
-  const intelligenceBorder = intelligenceFieldColors.heroBorder;
-  const intelligenceText = intelligenceFieldColors.text;
-  const intelligenceMuted = intelligenceFieldColors.heroMuted;
+  // A trusted device whose session is being recovered is not a setup problem: project it as
+  // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
+  const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
@@ -157,10 +158,12 @@ export function HomeView({
           <View style={[styles.liveDot, { backgroundColor: systemColor }]} />
           <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         </View>
-        <Pressable accessibilityRole="button" onPress={onGoSettings} style={({ pressed }) => [styles.statusCapsule, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}>
-          <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{connectionLabel}</Text>
+        <Pressable accessibilityRole="button" onPress={onGoSettings} style={({ pressed }) => [styles.statusCapsule, { borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}>
+          <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{shownConnectionLabel}</Text>
         </Pressable>
       </View>
+
+      <View testID="home-now"><IntelligenceField input={buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale })} /></View>
 
       <View style={styles.glanceRail} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
@@ -168,26 +171,8 @@ export function HomeView({
         <View style={styles.hiddenAcceptanceHooks}><Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text></View>
       </View>
 
-      <MotionReveal testID="home-intelligence-reveal">
-        <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder }]} testID="home-now">
-          <View style={styles.intelligenceCopy}>
-            <View style={styles.heroTop}>
-              <View style={styles.liveIntelligenceLabel}><View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} /><Text style={[styles.eyebrow, { color: theme.colors.aiSignalEnd }]}>LIVE INTELLIGENCE</Text></View>
-            </View>
-            <Text style={[styles.heroTitle, { color: intelligenceText }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>{postureDisplay}</Text>
-            <Text style={[styles.heroDetail, { color: intelligenceMuted }]} numberOfLines={3}>{why}</Text>
-            <View style={styles.intelligenceMeta}>
-              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>EVIDENCE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>{ai?.status === "AVAILABLE" ? String(ai.evidenceReferences.length) : "—"}</Text></View>
-              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>RISK</Text><Text style={[styles.metaValue, { color: riskColor }]}>{rail.riskLabel}</Text></View>
-              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>MODE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>PAPER</Text></View>
-            </View>
-          </View>
-          <IntelligenceMotionField active={!disconnected && readOnlyError == null} evidenceCount={ai?.status === "AVAILABLE" ? ai.evidenceReferences.length : 0} label="NUSA intelligence evidence motion" />
-        </View>
-      </MotionReveal>
-
       <MotionReveal testID="home-capital-reveal">
-        <View style={[styles.capitalRail, { borderColor: theme.colors.border }]} testID="account-hero-card">
+        <View style={[styles.capitalRail, { borderColor: ui.color.border }]} testID="account-hero-card">
           <View style={styles.capitalPrimary}>
             <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>{capitalLabel}</Text>
             <Text style={[styles.capitalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
@@ -201,10 +186,10 @@ export function HomeView({
         </View>
       </MotionReveal>
 
-      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
+      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${recovering ? "기기 신뢰는 유지되고 있으며 세션을 자동 복구하는 중입니다." : disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
       <MotionReveal testID="home-market-canvas-reveal">
-        <View style={[styles.marketCanvas, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID="home-public-market-chart">
+        <View style={[styles.marketCanvas, { borderColor: ui.color.border }]} testID="home-public-market-chart">
           <View style={styles.canvasHeader}>
             <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>MARKET CANVAS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
             <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · PUBLIC READ ONLY</Text></View>
@@ -212,7 +197,7 @@ export function HomeView({
           <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}>
             {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
           </View>
-          <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>시장 환경 확장하기 ↗</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>PAPER 운영 보기 ↗</Text></Pressable>
         </View>
       </MotionReveal>
 
@@ -221,7 +206,7 @@ export function HomeView({
         <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>자동 실행이 아니라 검증 가능한 판단 흐름</Text>
       </View>
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
-        <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
+        <Pressable onPress={() => onNavigate("Paper")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>01 · OBSERVE</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>시장 관측</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}</Text>
@@ -239,14 +224,14 @@ export function HomeView({
           <Text>CASH EXPOSURE</Text>
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
-        <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
+        <Pressable onPress={() => onNavigate("More")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>02 · TEST</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER 실험</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} position active` : account ? "현재 노출 없음" : "계정 대기 중"}</Text>
           <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>INVESTABLE</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>RESERVED</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>
 
-        <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.aiSignalSoft, borderColor: theme.colors.aiSignalMid, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
+        <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.aiSignalStart }]}>03 · LEARN</Text><Text style={[styles.commandArrow, { color: theme.colors.aiSignalEnd }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 업데이트</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]} numberOfLines={2}>{decisionSurface.learning}</Text>
@@ -270,7 +255,7 @@ export function HomeView({
       {detailsOpen ? <View style={styles.details}>
         <View style={styles.detailNarrative} testID="ai-card">
           <Text style={[styles.detailCopy, { color: theme.colors.textMuted }]}>{why}</Text>
-          {aiInsightAvailable ? <Pressable onPress={() => onNavigate("AiSignal")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>AI 근거 상세 보기 →</Text></Pressable> : null}
+          {aiInsightAvailable ? <Pressable onPress={() => onNavigate("Paper")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>PAPER 근거 상세 보기 →</Text></Pressable> : null}
         </View>
         <View style={[styles.detailFacts, { borderColor: theme.colors.border }]} testID="home-risk-status">
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>
@@ -292,82 +277,65 @@ const styles = StyleSheet.create({
   appBar: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   brandLockup: { flexDirection: "row", alignItems: "center", gap: 9 },
   liveDot: { width: 8, height: 8, borderRadius: 999 },
-  brand: { fontSize: 19, lineHeight: 22, fontWeight: "900", letterSpacing: 2.3 },
-  statusCapsule: { minHeight: 30, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
-  statusCapsuleText: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
+  brand: { fontSize: 15, lineHeight: 20, letterSpacing: 4, ...fieldFonts.display },
+  statusCapsule: { minHeight: 30, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
+  statusCapsuleText: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 0.8 },
   glanceRail: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: -8 },
   glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
-  glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45 },
-  glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  intelligenceHero: { overflow: "hidden", borderWidth: 1, borderRadius: 28, padding: 16, gap: 16, minHeight: 280 },
-  intelligenceHeroTablet: { flexDirection: "row", alignItems: "stretch" },
-  intelligenceCopy: { flex: 1.05, minWidth: 0, gap: 10, justifyContent: "center" },
-  liveIntelligenceLabel: { flexDirection: "row", alignItems: "center", gap: 7 },
-  intelligenceMeta: { flexDirection: "row", gap: 24, flexWrap: "wrap", paddingTop: 4 },
-  metaLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1 },
-  metaValue: { marginTop: 2, fontSize: 13, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "600", letterSpacing: 0.45 },
+  glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "500", fontVariant: ["tabular-nums"] },
+
   capitalRail: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
   capitalPrimary: { flex: 1, minWidth: 210, gap: 3 },
-  capitalValue: { fontSize: 30, lineHeight: 36, fontWeight: "700", letterSpacing: -1.05, fontVariant: ["tabular-nums"] },
+  capitalValue: { fontSize: 30, lineHeight: 36, letterSpacing: -0.6, fontVariant: ["tabular-nums"], ...fieldFonts.displayLight },
   capitalFacts: { flexDirection: "row", alignItems: "flex-end", gap: 18, flexWrap: "wrap" },
   capitalFact: { minWidth: 64, gap: 2 },
-  marketCanvas: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 26, padding: 16, gap: 12 },
+  // Field language: no card chrome, a single hairline and whitespace.
+  marketCanvas: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, gap: 12 },
   canvasHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
   canvasQuote: { alignItems: "flex-end", gap: 2, flexShrink: 1 },
   canvasChart: { minHeight: 150, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 8 },
   canvasAction: { minHeight: 44, alignItems: "flex-end", justifyContent: "center" },
   loopHeader: { paddingTop: 4, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" },
-  hero: { gap: 9, padding: 16, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18 },
-  heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  heroStatusDot: { width: 8, height: 8, borderRadius: 999 },
-  eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.45 },
-  heroTitle: { maxWidth: 720, fontSize: 26, lineHeight: 32, fontWeight: "800", letterSpacing: -0.8 },
-  heroDetail: { maxWidth: 760, fontSize: 12, lineHeight: 19, fontWeight: "600" },
-  heroChips: { flexDirection: "row", gap: 7, flexWrap: "wrap", paddingTop: 3 },
-  chip: { minHeight: 26, borderRadius: 999, paddingHorizontal: 9, alignItems: "center", justifyContent: "center" },
-  chipLabel: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
-  marketHero: { borderRadius: 18, padding: 16, borderWidth: StyleSheet.hairlineWidth, gap: 12 },
+
+  eyebrow: { fontSize: 9, lineHeight: 13, letterSpacing: 2, ...fieldFonts.monoMedium },
+
   marketPrice: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
   marketEmpty: { minHeight: 100, paddingVertical: 32, fontSize: 13, lineHeight: 20 },
-  marketLink: { minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  balanceStage: { gap: 18, padding: 20, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth },
-  balanceStageTablet: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
-  balancePrimary: { flex: 1, minWidth: 0, gap: 5 },
-  balanceValue: { fontSize: 40, lineHeight: 48, fontWeight: "700", letterSpacing: -1.6, fontVariant: ["tabular-nums"] },
-  pnlValue: { fontSize: 13, lineHeight: 18, fontWeight: "900", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
-  balanceFacts: { minWidth: 240, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, flexDirection: "row", gap: 20, flexWrap: "wrap" },
-  balanceFact: { minWidth: 66, gap: 3 },
-  factLabel: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7 },
-  factValue: { fontSize: 13, lineHeight: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  sectionHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 },
-  sectionTitle: { marginTop: 3, fontSize: 22, lineHeight: 27, fontWeight: "900", letterSpacing: -0.45 },
+
+  pnlValue: { fontSize: 13, lineHeight: 18, fontWeight: "600", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
+
+  factLabel: { fontSize: 8, lineHeight: 12, fontWeight: "500", letterSpacing: 0.7 },
+  factValue: { fontSize: 13, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] },
+
+  sectionTitle: { marginTop: 3, fontSize: 22, lineHeight: 28, letterSpacing: -0.3, ...fieldFonts.displayLight },
   sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: 9, lineHeight: 14, fontWeight: "700" },
   commandStack: { gap: 10 },
   commandStackTablet: { flexDirection: "row", alignItems: "stretch" },
   command: { flex: 1, minHeight: 132, borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingHorizontal: 2, paddingVertical: 16, gap: 7 },
   commandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  commandCode: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.1 },
+  commandCode: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 1.1 },
   commandArrow: { fontSize: 16, lineHeight: 18, fontWeight: "700" },
-  commandTitle: { fontSize: 21, lineHeight: 26, fontWeight: "900", letterSpacing: -0.45 },
+  commandTitle: { fontSize: 20, lineHeight: 26, letterSpacing: -0.3, ...fieldFonts.displayLight },
   commandSummary: { fontSize: 11, lineHeight: 17, fontWeight: "600" },
   commandPreview: { marginTop: "auto", gap: 3, paddingTop: 5 },
   previewRow: { minHeight: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  previewLabel: { fontSize: 9, lineHeight: 14, fontWeight: "800" },
-  previewValue: { fontSize: 10, lineHeight: 15, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  learningResult: { marginTop: "auto", fontSize: 10, lineHeight: 15, fontWeight: "900" },
+  previewLabel: { fontSize: 9, lineHeight: 14, fontWeight: "500" },
+  previewValue: { fontSize: 10, lineHeight: 15, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  learningResult: { marginTop: "auto", fontSize: 10, lineHeight: 15, fontWeight: "600" },
   disclosure: { minHeight: 68, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14, paddingVertical: 12 },
-  disclosureTitle: { marginTop: 3, fontSize: 19, lineHeight: 24, fontWeight: "900", letterSpacing: -0.35 },
+  disclosureTitle: { marginTop: 3, fontSize: 19, lineHeight: 24, fontWeight: "600", letterSpacing: -0.35 },
   disclosureIcon: { fontSize: 27, lineHeight: 30, fontWeight: "300" },
   details: { gap: 16 },
   detailNarrative: { gap: 8 },
   detailCopy: { maxWidth: 780, fontSize: 13, lineHeight: 21, fontWeight: "600" },
-  inlineLink: { fontSize: 11, lineHeight: 16, fontWeight: "900" },
+  inlineLink: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
   detailFacts: { borderTopWidth: StyleSheet.hairlineWidth },
   detailRow: { minHeight: 45, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
-  detailLabel: { flexShrink: 0, fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 0.7 },
-  detailValue: { flex: 1, textAlign: "right", fontSize: 11, lineHeight: 17, fontWeight: "800" },
+  detailLabel: { flexShrink: 0, fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 0.7 },
+  detailValue: { flex: 1, textAlign: "right", fontSize: 11, lineHeight: 17, fontWeight: "500" },
   hiddenAcceptanceHooks: { position: "absolute", width: 1, height: 1, opacity: 0 },
   disclaimer: { fontSize: 9, lineHeight: 15, fontWeight: "600" },
   safetyFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, alignItems: "center" },
-  safetyText: { fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.1 },
+  safetyText: { fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 1.1 },
 });

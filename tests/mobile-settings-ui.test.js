@@ -15,7 +15,7 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.match(source, /OwnerConnectionExperience/);
   assert.match(source, /소유자 인증/);
   assert.match(source, /ownerCredentialReady/);
-  assert.match(source, /authenticateOwnerDeviceCredential/);
+  assert.match(source, /connectPaperSessionSilently\(/);
   assert.match(source, /testID="settings-owner-device-enroll"/);
   assert.match(source, /소유자 확인 및 이 휴대폰 등록/);
   assert.match(source, /testID="settings-paper-legacy-pairing"/);
@@ -42,10 +42,8 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.match(source, /onCloudInvestmentPercentSave/);
   assert.match(source, /onInvestmentPercentChanged/);
 
-  assert.match(source, /화면 테마/);
-  assert.match(source, /testID="settings-theme-segmented-control"/);
-  assert.match(source, /selectedKey=\{settings\.theme\}/);
-  assert.match(source, /updateTheme\(key as ThemeSetting\)/);
+  // One design language: no theme picker is offered that could claim a light UI the app never renders.
+  assert.doesNotMatch(source, /settings-theme-segmented-control|화면 테마/);
 
   assert.match(source, /testID="settings-safety"/);
   assert.match(source, /StatusChip label="PAPER ONLY"/);
@@ -58,7 +56,7 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.match(source, /로컬과 개인 모드 관리/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
 
-  const order = ["settings-local-paper", "settings-paper-connection", "settings-capital-allocation", "settings-theme", "settings-safety", "settings-mode", "settings-operator-users"].map((testID) => source.indexOf(`testID="${testID}"`));
+  const order = ["settings-local-paper", "settings-paper-connection", "settings-capital-allocation", "settings-safety", "settings-mode", "settings-operator-users"].map((testID) => source.indexOf(`testID="${testID}"`));
   assert.ok(order.every((index) => index > -1), "every settings section testID must be present");
   assert.deepEqual(order, [...order].sort((left, right) => left - right), "settings sections must render in local-first order");
 
@@ -70,4 +68,14 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.match(app, /investmentPercent=\{investmentPercent\}/);
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
+});
+
+test("settings never presents the device-local default cash as the PAPER capital before Cloud reports cash", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "settingsView.tsx"), "utf8");
+  assert.match(source, /const cloudCashKnown = exchangeCash > 0;/);
+  assert.match(source, /Cloud 연결 후 표시/);
+  assert.match(source, /\{cashLabel\(allocation\.investableCash\)\}/);
+  assert.match(source, /\{cashLabel\(allocation\.reservedCash\)\}/);
+  assert.doesNotMatch(source, /\{money\(allocation\.(?:investableCash|reservedCash)\)\}/);
+  assert.doesNotMatch(source, /\$\{money\(LOCAL_PAPER_INITIAL_CASH\)\}/);
 });

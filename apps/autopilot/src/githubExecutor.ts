@@ -58,6 +58,32 @@ function githubClientPayload(request: AutopilotExecutionRequest): Record<string,
   };
 }
 
+async function findExistingAuditDispatch(
+  base: string,
+  repository: string,
+  dedupeKey: string,
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<GithubExecutorResult | boolean> {
+  for (let page = 1; page <= 3; page += 1) {
+    const response = await fetchImpl(`${base}/repos/${repository}/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100&page=${page}`, { headers: githubHeaders(token) });
+    if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-audit-dedupe-auth-rejected", response.status);
+    if (response.status === 404) return result("FAILED", "github-executor-audit-dedupe-evidence-unavailable", 404);
+    if (!response.ok) return result("FAILED", `github-executor-audit-dedupe-http-${response.status}`, response.status);
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return result("FAILED", "github-executor-audit-dedupe-evidence-invalid", response.status);
+    }
+    const runs = object(payload)?.workflow_runs;
+    if (!Array.isArray(runs)) return result("FAILED", "github-executor-audit-dedupe-evidence-invalid", response.status);
+    if (runs.some((run) => object(run)?.display_title === dedupeKey)) return true;
+    if (runs.length < 100) return false;
+  }
+  return false;
+}
+
 async function resolveCurrentMainSha(
   base: string,
   repository: string,
@@ -150,6 +176,12 @@ export async function executeGithubDispatch(
       requestedHead,
       currentHead,
     );
+  }
+
+  if (request.kind === "AUDIT_REQUEST") {
+    const existing = await findExistingAuditDispatch(base, config.allowedRepository, request.dedupeKey!, token, fetchImpl);
+    if (typeof existing !== "boolean") return existing;
+    if (existing) return result("REJECTED", "github-executor-duplicate-audit-run-suppressed", null, requestedHead, currentHead);
   }
 
   const response = await fetchImpl(`${base}/repos/${config.allowedRepository}/dispatches`, {

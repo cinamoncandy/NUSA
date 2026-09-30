@@ -18,10 +18,9 @@ test('Cloudflare credential preflight never executes untrusted PR head code', ()
   assert.doesNotMatch(workflow, /github\.head_ref/);
 });
 
-test('preflight reuses existing runtime cadence instead of adding a scheduler', () => {
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /Autopilot Cloudflare Deploy/);
-  assert.match(workflow, /Autopilot Cloudflare Runtime Proof/);
+test('preflight has one canonical post-runtime ingress and no stale workflow_run listener', () => {
+  assert.doesNotMatch(workflow, /^\s*workflow_run:/m);
+  assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /^\s*schedule:/m);
   assert.doesNotMatch(workflow, /cron:/);
 });
@@ -66,6 +65,11 @@ test('preflight waits boundedly for executed exact-main deploy evidence and live
   assert.match(workflow, /waiting for Worker deployment revision/);
   assert.match(workflow, /if \[\[ "\$attempt" -lt 18 \]\]; then sleep 10; fi/);
   assert.match(workflow, /deploymentRevision mismatch/);
+  assert.match(workflow, /PENDING exact-main CI\/deploy convergence is still active/);
+  assert.match(workflow, /active\.has\(String\(run\?\.status/);
+  assert.match(workflow, /run\?\.name === 'CI' \|\| run\?\.name === 'Autopilot Cloudflare Deploy'/);
+  assert.match(workflow, /status=pending/);
+  assert.match(workflow, /status=ready/);
   assert.match(workflow, /health\.liveAuthority !== 'NONE'/);
   assert.match(workflow, /health\.productionMutationAllowed !== false/);
   assert.match(workflow, /health\.aiAuthority !== 'ZERO_AUTHORITY'/);
@@ -74,7 +78,7 @@ test('preflight waits boundedly for executed exact-main deploy evidence and live
 test('failed preflight freezes existing Release through canonical P0 serialization', () => {
   assert.match(workflow, /issues: write/);
   assert.match(workflow, /actions: read/);
-  assert.match(workflow, /if: \$\{\{ failure\(\) \}\}/);
+  assert.match(workflow, /if: \$\{\{ needs\.preflight\.result != 'success' \}\}/);
   assert.match(workflow, /P0: Cloudflare deployment credential\/runtime baseline unhealthy/);
   assert.match(workflow, /Refs #903/);
   assert.match(workflow, /nusa-cloudflare-credential-preflight-p0/);
@@ -83,7 +87,7 @@ test('failed preflight freezes existing Release through canonical P0 serializati
 });
 
 test('pull_request_target can never clear the canonical P0 freeze', () => {
-  assert.match(workflow, /if: \$\{\{ success\(\) && github\.event_name != 'pull_request_target' \}\}/);
+  assert.match(workflow, /if: \$\{\{ needs\.preflight\.result == 'success' && github\.event_name != 'pull_request_target' && needs\.preflight\.outputs\.deployment_status == 'ready' \}\}/);
   assert.match(workflow, /state='closed'/);
 });
 
@@ -92,4 +96,47 @@ test('preflight preserves fail-closed authority invariants', () => {
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
+});
+
+
+test('active exact-main convergence abstains without weakening terminal failure handling', () => {
+  assert.match(workflow, /id: deploy/);
+  assert.match(workflow, /if: steps\.deploy\.outputs\.status == 'ready'/);
+  assert.match(workflow, /No successful exact-main Cloudflare deploy and no bounded active CI\/deploy convergence/);
+  assert.match(workflow, /if: \$\{\{ needs\.preflight\.result != 'success' \}\}/);
+  assert.match(workflow, /deploymentStatus=\$\{\{ steps\.deploy\.outputs\.status \|\| 'unknown' \}\}/);
+});
+
+// #1871: a PR-triggered job must never combine Cloudflare secrets with repository write authority.
+test('the secret-bearing job and issue-mutating job never share authority', () => {
+  const body = workflow.replace(/\r\n/g, "\n").split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
+  const preflight = jobs.find((job) => job.startsWith('preflight:'));
+  const blocker = jobs.find((job) => job.startsWith('blocker:'));
+  assert.ok(preflight); assert.ok(blocker);
+  assert.match(preflight, /secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.doesNotMatch(preflight, /issues: write/);
+  assert.doesNotMatch(preflight, /\/issues\b/);
+  assert.match(blocker, /issues: write/);
+  assert.doesNotMatch(blocker, /\$\{\{\s*secrets\./);
+  assert.match(workflow, /^permissions: \{\}$/m);
+});
+
+test('blocker consumes only trusted preflight outputs and preserves pending convergence', () => {
+  assert.match(workflow, /needs: preflight/);
+  assert.match(workflow, /if: \$\{\{ !cancelled\(\) \}\}/);
+  assert.match(workflow, /CURRENT_MAIN: \$\{\{ needs\.preflight\.outputs\.current_main \}\}/);
+  assert.match(workflow, /deployment_status: \$\{\{ steps\.deploy\.outputs\.status \}\}/);
+  assert.match(workflow, /needs\.preflight\.outputs\.deployment_status == 'ready'/);
+});
+
+
+test('secret-bearing preflight validates runtime GitHub credential read-only before Worker sync', () => {
+  assert.match(workflow, /NUSA_GITHUB_TOKEN: \$\{\{ secrets\.NUSA_AUTOPILOT_GITHUB_TOKEN \}\}/);
+  assert.match(workflow, /Validate runtime GitHub credential before Cloudflare sync/);
+  assert.match(workflow, /Authorization: Bearer \$NUSA_GITHUB_TOKEN/);
+  assert.match(workflow, /https:\/\/api\.github\.com\/repos\/\$GITHUB_REPOSITORY/);
+  assert.match(workflow, /Runtime GitHub credential rejected by GitHub API/);
+  assert.match(workflow, /BLOCKED_HUMAN/);
+  assert.doesNotMatch(workflow.slice(workflow.indexOf('Validate runtime GitHub credential before Cloudflare sync'), workflow.indexOf('Check Cloudflare API token self-verification')), /echo.*NUSA_GITHUB_TOKEN/);
 });

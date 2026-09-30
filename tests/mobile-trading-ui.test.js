@@ -94,7 +94,8 @@ test("Market order model remains safe while production PAPER exposes learning on
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
   assert.match(app, /activeTab === "Paper"/);
-  assert.match(app, /<TradingView/);
+  assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/);
+  assert.doesNotMatch(app, /<TradingView/);
 });
 
 test("SELL has a holdings-based allocation panel and BUY shows a genuine post-order remaining figure", () => {

@@ -21,14 +21,16 @@ on:
 permissions:
   contents: read
 
+# Distinct task IDs may execute concurrently when runner capacity exists. Login/status remain
+# serialized per mode, and redispatching the same task keeps the same group.
 concurrency:
-  group: oracle-codex-dev-runner
+  group: oracle-codex-dev-${{ inputs.mode }}-${{ inputs.task || 'none' }}
   cancel-in-progress: false
 
 jobs:
   oracle-codex:
     if: github.actor == 'cinamoncandy'
-    runs-on: [self-hosted, Linux, ARM64, nusa-codex-dev]
+    runs-on: [self-hosted, Linux, nusa-codex-dev]
     timeout-minutes: 120
     steps:
       - name: Checkout exact dispatch ref
@@ -71,7 +73,29 @@ jobs:
           test -n "$NUSA_PROMPT"
           codex login status
 
-      - name: Run Codex in isolated Actions workspace
+      - name: Create isolated task worktree
+        if: inputs.mode == 'task'
+        id: workspace
+        shell: bash
+        env:
+          NUSA_TASK: ${{ inputs.task }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          safe_task="$(printf '%s' "$NUSA_TASK" | tr -c 'A-Za-z0-9._-' '-' | sed -E 's/^-+|-+$//g' | cut -c1-64)"
+          test -n "$safe_task"
+          worker_branch="autopilot/codex/${safe_task}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          worker_root="${RUNNER_TEMP}/nusa-codex-worktrees"
+          worker_path="${worker_root}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${safe_task}"
+          mkdir -p "$worker_root"
+          test ! -e "$worker_path"
+          git worktree add -b "$worker_branch" "$worker_path" "$GITHUB_SHA"
+          {
+            echo "path=$worker_path"
+            echo "branch=$worker_branch"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Codex in isolated git worktree
         if: inputs.mode == 'task'
         id: codex
         shell: bash
@@ -87,9 +111,15 @@ jobs:
           - Do not commit, push, open/reopen a PR, merge, deploy, or trigger remote CI.
           - Leave all proposed changes uncommitted in this isolated workflow workspace.
           - Run only repository-required and task-relevant local validation; report truthfully what actually ran.'
-          printf '%s\n\nOWNER TASK [%s]:\n%s\n' "$contract" "$NUSA_TASK" "$NUSA_PROMPT" > /tmp/nusa-codex-prompt.txt
+          run_tmp="${RUNNER_TEMP}/nusa-codex-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$run_tmp"
+          prompt_file="$run_tmp/prompt.txt"
+          log_file="$run_tmp/codex.log"
+          printf '%s\n\nOWNER TASK [%s]:\n%s\n' "$contract" "$NUSA_TASK" "$NUSA_PROMPT" > "$prompt_file"
           set +e
-          codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < /tmp/nusa-codex-prompt.txt 2>&1 | tee /tmp/nusa-codex.log
+          worktree='${{ steps.workspace.outputs.path }}'
+          test -n "$worktree"
+          codex exec -s workspace-write -C "$worktree" - < "$prompt_file" 2>&1 | tee "$log_file"
           rc=${PIPESTATUS[0]}
           set -e
           echo "codex_exit=$rc" >> "$GITHUB_OUTPUT"
@@ -98,23 +128,45 @@ jobs:
       - name: Collect task evidence
         if: always() && inputs.mode == 'task'
         shell: bash
+        env:
+          NUSA_WORKTREE: ${{ steps.workspace.outputs.path }}
+          NUSA_WORKER_BRANCH: ${{ steps.workspace.outputs.branch }}
         run: |
           set -euo pipefail
-          out=/tmp/nusa-codex-result
+          out="${RUNNER_TEMP}/nusa-codex-result-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           mkdir -p "$out"
-          git status --short > "$out/status.txt"
-          git diff --stat > "$out/diff-stat.txt"
-          git diff --binary --no-ext-diff > "$out/changes.patch"
-          git ls-files --others --exclude-standard -z > "$out/untracked.zlist"
-          cp /tmp/nusa-codex.log "$out/codex.log" 2>/dev/null || true
-          printf 'head=%s\n' "$(git rev-parse HEAD)" > "$out/revision.txt"
+          test -n "$NUSA_WORKTREE"
+          git -C "$NUSA_WORKTREE" status --short > "$out/status.txt"
+          git -C "$NUSA_WORKTREE" diff --stat > "$out/diff-stat.txt"
+          git -C "$NUSA_WORKTREE" diff --binary --no-ext-diff > "$out/changes.patch"
+          git -C "$NUSA_WORKTREE" ls-files --others --exclude-standard -z > "$out/untracked.zlist"
+          cp "${RUNNER_TEMP}/nusa-codex-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/codex.log" "$out/codex.log" 2>/dev/null || true
+          printf 'head=%s\n' "$(git -C "$NUSA_WORKTREE" rev-parse HEAD)" > "$out/revision.txt"
           printf 'ref=%s\n' "$GITHUB_REF" >> "$out/revision.txt"
+          printf 'workerBranch=%s\n' "$NUSA_WORKER_BRANCH" >> "$out/revision.txt"
+          printf 'worktree=%s\n' "$NUSA_WORKTREE" >> "$out/revision.txt"
+
+      - name: Cleanup isolated task worktree
+        if: always() && inputs.mode == 'task'
+        shell: bash
+        env:
+          NUSA_WORKTREE: ${{ steps.workspace.outputs.path }}
+          NUSA_WORKER_BRANCH: ${{ steps.workspace.outputs.branch }}
+        run: |
+          set -euo pipefail
+          if [ -n "${NUSA_WORKTREE:-}" ]; then
+            git worktree remove --force "$NUSA_WORKTREE" || true
+          fi
+          if [ -n "${NUSA_WORKER_BRANCH:-}" ]; then
+            git branch -D "$NUSA_WORKER_BRANCH" || true
+          fi
+          git worktree prune
 
       - name: Upload task evidence
         if: always() && inputs.mode == 'task'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: oracle-codex-${{ inputs.task }}-${{ github.run_id }}
-          path: /tmp/nusa-codex-result
+          path: ${{ runner.temp }}/nusa-codex-result-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: error
           retention-days: 7
