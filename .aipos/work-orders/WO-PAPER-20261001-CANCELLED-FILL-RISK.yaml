@@ -35,5 +35,5 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 evidence:
   runtime: "2026-10-01 KST read-only Oracle SQLite inspection: seven durable fills; two partially executed BUY records are CANCELLED. Subsequent SELL history causes PAPER_RISK_HALT:INVALID_REQUEST; recent automatic orders/fills remain zero. Raw account identities and credentials omitted."
-  local: "30 focused/adversarial/production-path tests; TypeScript compile, preflight, validate, security gate PASS (0 secrets, 0 high/critical)."
+  local: "34 focused/adversarial/production-path and exact-source qualification tests PASS; typecheck, build, preflight, validate:full, lint (0 errors, 14 unrelated warnings), security gate PASS (0 secrets, 0 high/critical)."
 remaining: "Exact-head CI -> Audit -> Release -> exact-main deployment -> genuine automatic PAPER fill proof."
