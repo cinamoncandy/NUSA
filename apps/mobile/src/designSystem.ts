@@ -90,12 +90,12 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
-/** Near-black void, hairline structure, amber emphasis. Identical in light and dark. */
+/** Near-black void, hairline structure, one lime accent with a cyan focus ring. Identical in light and dark. Amber stays a warning-only tone; red stays a halt/danger-only tone. */
 const fieldSurface = Object.freeze({
   background: "#010204", surface: "#06090D", surfaceRaised: "#0B1016", surfaceSunken: "#030507",
-  text: "#EEF3F6", textMuted: "#8A96A0", primary: "#FFB547", primarySoft: "#1F1708", onPrimary: "#010204",
-  navSurface: "#010204", border: "#1A2129", borderStrong: "#39434D", info: "#4FC3F7", focus: "#FFB547",
-  neonGlow: "rgba(255, 181, 71, 0.12)",
+  text: "#EEF3F6", textMuted: "#8A96A0", primary: "#B6F04B", primarySoft: "#0C1606", onPrimary: "#010204",
+  navSurface: "#010204", border: "#1A2129", borderStrong: "#39434D", info: "#4FC3F7", focus: "#4FC3F7",
+  neonGlow: "rgba(182, 240, 75, 0.10)",
 });
 
 export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({
@@ -104,8 +104,8 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
     dark: fieldSurface,
     light: fieldSurface,
     typography: Object.freeze({ micro: 10, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 44 }),
-    layout: Object.freeze({ screenPadding: 20, sectionGap: 18, cardPadding: 16, heroRadius: 6 }),
-    radii: Object.freeze({ sm: 2, md: 4, lg: 6, xl: 8, full: 9999 as const }),
+    layout: Object.freeze({ screenPadding: 20, sectionGap: 20, cardPadding: 16, heroRadius: 12 }),
+    radii: Object.freeze({ sm: 4, md: 8, lg: 12, xl: 16, full: 9999 as const }),
   }),
 });
 

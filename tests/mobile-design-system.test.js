@@ -12,8 +12,8 @@ test("the field theme is the only preset, frozen and semantic", () => {
     assert.equal(theme.preset, "field");
     assert.equal(theme.mode, "dark");
     assert.equal(theme.colors.background, "#010204");
-    assert.equal(theme.colors.primary, "#FFB547");
-    assert.equal(theme.radii.md, 4);
+    assert.equal(theme.colors.primary, "#B6F04B");
+    assert.equal(theme.radii.md, 8);
     assert.equal(theme.shadows.sm.opacity, 0);
     assert.equal(theme.icons.lg, 24);
   }
