@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: app-android-uiux
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 9f433315ba573fdefe3b6e36490577bfe1e9ee90
+base_commit: 61aaa2c47dcd6d92d15a39eba627a11542f2bfef
 implementation_branch: uiux/post-2262-visual-acceptance
 pull_request: 2327
 objective: "Converge the existing Android UI PR without false-green states and harden its design evidence so visual acceptance is exact-source, trusted-main reviewed, and fail-closed."
@@ -16,7 +16,8 @@ safety:
   ai_authority: ZERO_AUTHORITY
   authority_expansion: prohibited
 scope:
-  - "Korean user-facing runtime/auth/recovery/safety language and stale UI test contracts"\n  - "Actual Android renderer hierarchy: compact PAPER modes, quiet primary navigation, ribbon-based Intelligence Field, typographic MORE index"
+  - "Korean user-facing runtime/auth/recovery/safety language and stale UI test contracts"
+  - "Actual Android renderer hierarchy: compact PAPER modes, quiet primary navigation, ribbon-based Intelligence Field, typographic MORE index"
   - "Android Product UX exact-head checkout and screenshot/base provenance"
   - "Design-required coverage for mobile visual resources"
   - "Trusted-main Android Design Acceptance workflow semantics"
