@@ -735,9 +735,9 @@ claimed_state:
   validation: "PR #1313 exact-head protected checks PASS; merge 57952f14485e816a7ac88e11ba5f8f3e11dba34c; post-merge main CI 33363161756, Sandbox Guard 33363161696, and Actual PAPER Runtime 33363161755 PASS; WO-0051 remains human/environment only."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-  status: IN_PROGRESS
-  branch: agent/issue-661-live-ready-observability
-  base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  status: COMPLETED
+  branch: main
+  base_commit: 51f3b584435fbe0fdf76f856803508a3f0a0cddd
   scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
 verified_state:
   work_order: WO-AI-010
@@ -1463,7 +1463,7 @@ issue_661_live_readiness_production_source:
 issue_661_live_ready_observability:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   issue: 661
-  status: IN_PROGRESS
+  status: COMPLETED
   base_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
   branch: agent/issue-661-live-ready-observability
   scope: "GET-only canonical LIVE preparation observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
@@ -1477,7 +1477,7 @@ issue_661_live_ready_observability:
     ai_authority: ZERO_AUTHORITY
     order_cancel_withdraw_transfer: NONE
     activation: NONE
-  implementation_status: PR_770_OPEN_READY_EXACT_HEAD_VALIDATION_PASS
+  implementation_status: MERGED_PR_770
   implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
   pull_request: 770
   validation_head: 7e925445055d14d877baa1476291a9108e832bff
@@ -1486,7 +1486,7 @@ issue_661_live_ready_observability:
   actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
   safety_boundary: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
-  next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
+  next: "None. PR #770 merged as 51f3b584435fbe0fdf76f856803508a3f0a0cddd; Issue #661 is closed and this is historical read-only evidence."
 
 redesign_truthful_home_state:
   work_order: WO-REDESIGN-TRUTHFUL-HOME-001
