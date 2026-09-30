@@ -27,7 +27,7 @@ acceptance:
   - missing or malformed evidence fails closed
 validation:
   status: LOCAL_PASS_PENDING_EXACT_HEAD_CI
-  commands: "Preflight, TypeScript build, focused component/health-route tests 24/24, cloud dashboard/bootstrap regression 15 PASS + 2 Windows signal SKIP, validate, security gate, AIPOS drift, lint, architecture, safety invariants, and diff check passed after latest-main merge."
+  commands: "After latest-main merge e3d8f1f6: preflight, TypeScript build, focused component/health-route tests 24/24, cloud dashboard/bootstrap regression 15 PASS + 2 Windows signal SKIP, validate, security gate, AIPOS drift, lint, architecture, safety invariants, and diff check passed."
 safety:
   paper_only: true
   liveAuthority: NONE
