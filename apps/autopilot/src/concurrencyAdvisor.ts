@@ -54,14 +54,17 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
   }
 
   const ciSaturation = evidence.ciSaturation ?? evidence.ciUtilization;
+  const ciSaturationHigh = ciSaturation > 0.85;
   const pressureHigh =
-    evidence.conflictRate > 0.15 || evidence.reworkRate > 0.15 || ciSaturation > 0.85;
+    evidence.conflictRate > 0.15 || evidence.reworkRate > 0.15 || ciSaturationHigh;
 
   if (pressureHigh && evidence.currentWip > 1) {
     return Object.freeze({
       action: "DECREASE_BY_ONE",
       recommendedWip: evidence.currentWip - 1,
-      reason: "verified-contention-or-capacity-pressure",
+      reason: ciSaturationHigh
+        ? "verified-ci-saturation-pressure"
+        : "verified-contention-or-capacity-pressure",
       mutationAllowed: false,
     });
   }
