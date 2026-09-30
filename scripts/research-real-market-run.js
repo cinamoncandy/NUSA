@@ -220,6 +220,13 @@ function writeNextResearchFamily(file, nextFamily, ledgerLength, generatedAt) {
   fs.renameSync(temporary, file);
 }
 
+function assertConfirmatoryFamilyScope(familyId, { timeframe = TIMEFRAME, market = MARKET } = {}) {
+  if (familyId !== BOLLINGER_FAMILY_ID) return;
+  if (timeframe !== "1d" || market !== "KRW-BTC") {
+    throw new Error("bollinger-breakout confirmatory scope is frozen to KRW-BTC + 1d");
+  }
+}
+
 /** Explicit NUSA_RESEARCH_STRATEGY_FAMILY wins; otherwise the learning-ordered next family; otherwise SMA. */
 function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY, learnedNext = null) {
   const explicit = String(value ?? "").trim();
@@ -659,6 +666,7 @@ async function main() {
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
   const selectedFamily = researchStrategyFamily(process.env.NUSA_RESEARCH_STRATEGY_FAMILY, readNextResearchFamily(nextResearchFamilyPath()));
+  assertConfirmatoryFamilyScope(selectedFamily, { timeframe: TIMEFRAME, market: MARKET });
   const definition = familyDefinition(selectedFamily);
   const hypothesis = buildResearchHypothesis({
     hypothesisId: `real-run:${manifest.datasetId}:${definition.familyId}`,
@@ -1051,6 +1059,7 @@ module.exports = {
   BOLLINGER_PARAMETER_NEIGHBORHOOD,
   SUPPORTED_RESEARCH_FAMILIES,
   precommitReferenceFor,
+  assertConfirmatoryFamilyScope,
   researchStrategyFamily,
   readNextResearchFamily,
   writeNextResearchFamily,
