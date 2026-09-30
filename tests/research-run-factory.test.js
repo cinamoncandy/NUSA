@@ -236,3 +236,41 @@ test("universe-selected research binds exact historical constituent dataset", ()
       && /UNIVERSE_DATASET_BINDING_MISMATCH/.test(error.message),
   );
 });
+
+test("binds point-in-time universe identity and dataset membership", () => {
+  const universe = {
+    universeId: "upbit-research", universeVersion: "2026-08-29",
+    asOf: SNAPSHOT, availableAt: SNAPSHOT,
+    eligibilityPolicyId: "eligible-v1", selectionPolicyId: "selection-v1",
+    constituents: [{ market: "KRW-BTC", datasetFingerprint: DATASET_HASH, listedAt: SNAPSHOT - 1 }],
+  };
+  const plan = buildResearchRunProvenancePlan(inputs({ universe }));
+  assert.equal(plan.universe.universeId, universe.universeId);
+  assert.equal(plan.universe.universeVersion, universe.universeVersion);
+  assert.match(plan.universe.universeFingerprint, /^[a-f0-9]{64}$/);
+});
+
+test("fails closed when dataset is outside or mismatched with the PIT universe", () => {
+  const baseUniverse = {
+    universeId: "upbit-research", universeVersion: "2026-08-29",
+    asOf: SNAPSHOT, availableAt: SNAPSHOT,
+    eligibilityPolicyId: "eligible-v1", selectionPolicyId: "selection-v1",
+  };
+  assert.throws(
+    () => buildResearchRunProvenancePlan(inputs({ universe: { ...baseUniverse, constituents: [{ market:"KRW-ETH", datasetFingerprint:DATASET_HASH, listedAt:SNAPSHOT - 1 }] } })),
+    (error) => error instanceof ResearchRunFactoryError && error.code === "DATASET_UNIVERSE_MISMATCH",
+  );
+  assert.throws(
+    () => buildResearchRunProvenancePlan(inputs({ universe: { ...baseUniverse, constituents: [{ market:"KRW-BTC", datasetFingerprint:"c".repeat(64), listedAt:SNAPSHOT - 1 }] } })),
+    (error) => error instanceof ResearchRunFactoryError && error.code === "DATASET_UNIVERSE_MISMATCH",
+  );
+});
+
+test("fails closed when the universe was unavailable at evaluation time", () => {
+  const universe = {
+    universeId:"upbit-research", universeVersion:"future", asOf:SNAPSHOT + 10, availableAt:SNAPSHOT + 10,
+    eligibilityPolicyId:"eligible-v1", selectionPolicyId:"selection-v1",
+    constituents:[{market:"KRW-BTC",datasetFingerprint:DATASET_HASH,listedAt:SNAPSHOT - 1}],
+  };
+  assert.throws(() => buildResearchRunProvenancePlan(inputs({ universe })), /FUTURE_LEAKAGE/);
+});

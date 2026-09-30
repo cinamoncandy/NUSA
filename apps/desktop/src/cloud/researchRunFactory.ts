@@ -14,6 +14,7 @@ import {
 } from "./researchHypothesisAdmission";
 import type { ResearchHypothesis as CanonicalResearchHypothesis } from "../../../../packages/contracts/src/researchHypothesisContract";
 import type { ResearchRunTimeline } from "./researchRunTimeline";
+import { universeFingerprint, type PointInTimeResearchUniverse } from "./researchIntegrity";
 import {
   assertResearchUniverseDatasetBinding,
   assertResearchUniverseDatasetSetBinding,
@@ -63,6 +64,11 @@ export interface ResearchRunProvenancePlan {
   readonly universe:
     | Readonly<{ readonly applicability: "NOT_APPLICABLE_FIXED_SINGLE_MARKET" }>
     | Readonly<{ readonly applicability: "BOUND"; readonly universeId: string; readonly universeVersion: string; readonly universeFingerprint: string }>;
+  readonly universe?: Readonly<{
+    universeId: string;
+    universeVersion: string;
+    universeFingerprint: string;
+  }>;
   readonly candidates: readonly ResearchRunCandidatePlan[];
 }
 
@@ -350,6 +356,7 @@ export function buildResearchRunProvenancePlan(input: {
       interval: input.manifest.interval,
     }),
     universe,
+    ...(universe == null ? {} : { universe }),
     candidates: freeze(candidates),
   }) as ResearchRunProvenancePlan;
 }

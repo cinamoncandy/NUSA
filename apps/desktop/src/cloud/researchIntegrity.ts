@@ -24,6 +24,23 @@ export interface FeatureIdentity {
   readonly parameters: Readonly<Record<string, string | number | boolean>>;
 }
 
+export interface PointInTimeUniverseConstituent {
+  readonly market: string;
+  readonly datasetFingerprint: string;
+  readonly listedAt: number;
+  readonly delistedAt?: number;
+}
+
+export interface PointInTimeResearchUniverse {
+  readonly universeId: string;
+  readonly universeVersion: string;
+  readonly asOf: number;
+  readonly availableAt: number;
+  readonly eligibilityPolicyId: string;
+  readonly selectionPolicyId: string;
+  readonly constituents: readonly PointInTimeUniverseConstituent[];
+}
+
 export interface ResearchEvidenceProvenance {
   readonly evidenceKind: ResearchEvidenceKind;
   readonly datasetFingerprint: string;
@@ -72,6 +89,39 @@ export function validatePointInTimeBoundary(boundary: PointInTimeBoundary): void
   if (boundary.availableAt > boundary.decisionAt) throw new Error("FUTURE_LEAKAGE:unavailable_at_decision");
   if (boundary.featureCutoff > boundary.decisionAt) throw new Error("FUTURE_LEAKAGE:feature_cutoff_after_decision");
   if (boundary.featureCutoff < boundary.observedAt) throw new Error("INVALID_POINT_IN_TIME:feature_cutoff_before_observation");
+}
+
+export function universeFingerprint(universe: PointInTimeResearchUniverse, decisionAt: number): string {
+  for (const key of ["universeId","universeVersion","eligibilityPolicyId","selectionPolicyId"] as const) {
+    if (!universe[key].trim()) throw new Error(`INVALID_UNIVERSE_IDENTITY:${key}`);
+  }
+  for (const [name, value] of [["asOf", universe.asOf], ["availableAt", universe.availableAt], ["decisionAt", decisionAt]] as const) {
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error(`INVALID_UNIVERSE_TIME:${name}`);
+  }
+  if (universe.asOf > universe.availableAt || universe.availableAt > decisionAt) {
+    throw new Error("FUTURE_LEAKAGE:universe_unavailable_at_decision");
+  }
+  if (!Array.isArray(universe.constituents) || universe.constituents.length === 0) throw new Error("EMPTY_RESEARCH_UNIVERSE");
+  const markets = new Set<string>();
+  const constituents = universe.constituents.map((constituent) => {
+    const market = constituent.market.trim();
+    if (!market || markets.has(market)) throw new Error("INVALID_UNIVERSE_CONSTITUENT");
+    markets.add(market);
+    if (!/^[0-9a-f]{64}$/.test(constituent.datasetFingerprint)) throw new Error("INVALID_DATASET_FINGERPRINT");
+    if (!Number.isSafeInteger(constituent.listedAt) || constituent.listedAt < 0 || constituent.listedAt > universe.asOf) {
+      throw new Error("SURVIVORSHIP_BIAS:constituent_not_listed_as_of");
+    }
+    if (constituent.delistedAt != null) {
+      if (!Number.isSafeInteger(constituent.delistedAt) || constituent.delistedAt < constituent.listedAt) throw new Error("INVALID_DELISTING_TIME");
+      if (constituent.delistedAt <= universe.asOf) throw new Error("SURVIVORSHIP_BIAS:delisted_constituent_in_universe");
+    }
+    return { ...constituent, market };
+  }).sort((left, right) => left.market.localeCompare(right.market));
+  return sha256(canonical({ ...universe, constituents }));
+}
+
+export function assertUniverseBinding(universe: PointInTimeResearchUniverse, decisionAt: number, expectedFingerprint: string): void {
+  if (universeFingerprint(universe, decisionAt) !== expectedFingerprint) throw new Error("UNIVERSE_FINGERPRINT_MISMATCH");
 }
 
 export function featureFingerprint(identity: FeatureIdentity): string {

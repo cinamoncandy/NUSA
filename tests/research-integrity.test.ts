@@ -167,3 +167,45 @@ test("universe dataset set must be available before evaluation and cover every e
     /SURVIVORSHIP_BIAS:constituent_not_eligible_for_full_period/,
   );
 });
+
+test("PIT universe fingerprint is deterministic across constituent order", () => {
+  const base = {
+    universeId:"upbit-eligible", universeVersion:"1", asOf:100, availableAt:110,
+    eligibilityPolicyId:"eligible-v1", selectionPolicyId:"selection-v1",
+    constituents:[
+      {market:"KRW-BTC",datasetFingerprint:"c".repeat(64),listedAt:1},
+      {market:"KRW-ETH",datasetFingerprint:"d".repeat(64),listedAt:2},
+    ],
+  };
+  assert.equal(universeFingerprint(base,120), universeFingerprint({...base,constituents:[...base.constituents].reverse()},120));
+});
+
+test("current universe cannot be reused for a historical decision", () => {
+  const universe = {
+    universeId:"upbit-eligible", universeVersion:"1", asOf:200, availableAt:210,
+    eligibilityPolicyId:"eligible-v1", selectionPolicyId:"selection-v1",
+    constituents:[{market:"KRW-BTC",datasetFingerprint:"c".repeat(64),listedAt:1}],
+  };
+  assert.throws(() => universeFingerprint(universe,150), /FUTURE_LEAKAGE/);
+});
+
+test("survivorship-invalid constituents fail closed", () => {
+  const base = {
+    universeId:"upbit-eligible", universeVersion:"1", asOf:100, availableAt:110,
+    eligibilityPolicyId:"eligible-v1", selectionPolicyId:"selection-v1",
+  };
+  assert.throws(() => universeFingerprint({...base,constituents:[{market:"KRW-NEW",datasetFingerprint:"c".repeat(64),listedAt:101}]},120), /SURVIVORSHIP_BIAS/);
+  assert.throws(() => universeFingerprint({...base,constituents:[{market:"KRW-OLD",datasetFingerprint:"c".repeat(64),listedAt:1,delistedAt:90}]},120), /SURVIVORSHIP_BIAS/);
+});
+
+test("universe binding rejects constituent or policy mutation", () => {
+  const universe = {
+    universeId:"upbit-eligible", universeVersion:"1", asOf:100, availableAt:110,
+    eligibilityPolicyId:"eligible-v1", selectionPolicyId:"selection-v1",
+    constituents:[{market:"KRW-BTC",datasetFingerprint:"c".repeat(64),listedAt:1}],
+  };
+  const fp=universeFingerprint(universe,120);
+  assert.doesNotThrow(() => assertUniverseBinding(universe,120,fp));
+  assert.throws(() => assertUniverseBinding({...universe,selectionPolicyId:"selection-v2"},120,fp), /UNIVERSE_FINGERPRINT_MISMATCH/);
+  assert.throws(() => assertUniverseBinding({...universe,constituents:[{...universe.constituents[0]!,datasetFingerprint:"d".repeat(64)}]},120,fp), /UNIVERSE_FINGERPRINT_MISMATCH/);
+});
