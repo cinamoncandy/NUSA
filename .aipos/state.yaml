@@ -1784,6 +1784,7 @@ current_paper_orderbook_snapshot_refresh:
   base_sha: 0fbdc96c522b367291f894cffe50ee0bfd66dc35
   finding: "Persistent public connections outlive the 30-second REST snapshot validity and cannot recover without reconnecting."
   remediation: "Coalesced snapshot refresh on unreconciled stream frames, bounded backoff and timeout, reconnect generation fencing."
-  validation: "18 focused reconciliation, liveness and restart tests PASS; TypeScript compile and repository validate PASS."
+  validation: "25 focused reconciliation, real runtime wiring, liveness, restart and health tests PASS; TypeScript compile/typecheck, preflight, targeted lint and repository validate PASS."
+  diagnostic_recovery: "Fresh valid quotes for every configured market clear only orderbook diagnostics; failure timestamp and accepted-market receipt health gate remain intact. Prior exact-head actual PAPER artifact remained INCOMPLETE with no actionable signal."
   next: "Exact-head CI, independent Audit, canonical Release, then long-lived Oracle runtime proof."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

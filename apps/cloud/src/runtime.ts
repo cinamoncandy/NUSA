@@ -451,6 +451,13 @@ export function startCloudRuntime(
       }
       const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
+      // Only observed, validated quotes recover this diagnostic; never clear other failures
+      // or the failure timestamp used by the post-failure market receipt health gate.
+      if ((heartbeat.lastError === "PAPER_ORDERBOOK_UNRECONCILED" || heartbeat.lastError === "PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE")
+        && config.upbitMarkets.every((market) => {
+          const latest = latestExecutionQuotes.get(market);
+          return latest != null && latest.observedAt <= receivedAt && receivedAt - latest.observedAt <= 30_000;
+        })) heartbeat.lastError = null;
       if (jevMarketMicrostructureObserver != null) {
         const previousObservedAt = jevMarketMicrostructureLastObservedAt.get(quote.market) ?? 0;
         if (quote.observedAt - previousObservedAt >= JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS) {

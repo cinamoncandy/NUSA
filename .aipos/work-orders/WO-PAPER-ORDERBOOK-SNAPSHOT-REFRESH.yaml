@@ -17,9 +17,10 @@ acceptance:
   - concurrent stream events do not duplicate REST requests
   - reset rejects old in-flight snapshot installation
   - failed refreshes use bounded backoff
+  - diagnostic recovery requires valid quotes for every configured market without erasing post-failure health evidence
 validation:
   status: LOCAL_PASS
-  commands: "TypeScript compile; 18 focused reconciliation/liveness/restart tests; preflight; validate; diff check."
+  commands: "TypeScript compile/typecheck; 25 focused reconciliation/runtime integration/liveness/restart/health tests; preflight; validate; targeted lint; diff check."
 safety:
   paper_only: true
   liveAuthority: NONE

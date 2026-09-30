@@ -83,3 +83,39 @@ test("snapshot age and market identity remain fail-closed during stream reconcil
   assert.equal(reconciler.reconcile(book("KRW-ETH"), now + 1), null);
   assert.equal(reconciler.reconcile(book(), now + 30_001), null);
 });
+
+test("runtime recovers orderbook diagnostics only after valid quotes for every market", async (t) => {
+  const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
+  const { InMemoryCloudDashboardStateProvider } = require("../dist/apps/cloud/src/cloudDashboardStateProvider.js");
+  let now = Date.now();
+  t.mock.method(Date, "now", () => now);
+  const originalFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    if (!String(url).startsWith("https://api.upbit.com/v1/orderbook?")) return originalFetch(url, options);
+    return { ok: true, json: async () => [{ market: new URL(url).searchParams.get("markets"), timestamp: now }] };
+  });
+  let connection, orderbook;
+  const handle = startCloudRuntime({
+    NUSA_CLOUD_DASHBOARD_PORT: "42984",
+    NUSA_CLOUD_DASHBOARD_TOKEN: "orderbook-runtime-test-token-012345678901",
+    NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true",
+    NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC,KRW-ETH",
+  }, new InMemoryCloudDashboardStateProvider(), undefined, (_markets, _ticker, state, stream) => {
+    connection = state; orderbook = stream;
+    return { subscribe() {}, start() {}, stop() {} };
+  });
+  const health = async () => (await originalFetch("http://127.0.0.1:42984/health")).json();
+  try {
+    connection("CONNECTED");
+    await new Promise(resolve => setImmediate(resolve));
+    now += 30_001;
+    orderbook(book()); orderbook(book("KRW-ETH"));
+    assert.equal((await health()).runtime.lastError, "PAPER_ORDERBOOK_UNRECONCILED");
+    await new Promise(resolve => setImmediate(resolve));
+    orderbook(book());
+    assert.equal((await health()).runtime.lastError, "PAPER_ORDERBOOK_UNRECONCILED");
+    orderbook(book("KRW-ETH"));
+    assert.equal((await health()).runtime.lastError, null);
+    assert.notEqual((await health()).runtimeHealth.workload.state, "HEALTHY", "no accepted ticker receipt means recovery is not yet workload proof");
+  } finally { await handle.stop(); }
+});
