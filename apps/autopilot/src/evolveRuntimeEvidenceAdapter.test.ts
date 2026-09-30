@@ -21,7 +21,7 @@ function lifecycle() {
     heldOutEvidence: [{ check: "held-out/generalization", reference: "heldout:1", passed: true }],
     benefitCostEvidence: [{
       telemetryReference: "telemetry:1",
-      budgetState: "NORMAL",
+      budgetState: "NORMAL" as const,
       baselineBenefit: 1,
       observedBenefit: 2,
       baselineCost: 1,
