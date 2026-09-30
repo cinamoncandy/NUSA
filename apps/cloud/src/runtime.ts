@@ -64,7 +64,7 @@ import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } fr
 import { codePaperDecisionOutcome } from "./paperDecisionOutcome";
 import { PaperMarketObservationStoreError, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
-import { fetchUpbitOrderBookSnapshot, UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
+import { fetchUpbitOrderBookSnapshot, ORDERBOOK_SNAPSHOT_REFRESH_INTERVAL_MS, UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
 import {
@@ -332,6 +332,21 @@ export function startCloudRuntime(
   const orderBookReconciler = new UpbitOrderBookReconciler();
   let marketConnectionGeneration = 0;
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
+  // The reconciler only trusts a REST snapshot for MAX_SNAPSHOT_AGE_MS. A snapshot taken once per
+  // connection therefore expired 30s later and every later stream orderbook was dropped as
+  // PAPER_ORDERBOOK_UNRECONCILED until the next reconnect. Re-acquire the snapshot on a fixed
+  // cadence (well inside the trust window) for the current connection generation only; a failed
+  // refresh stays fail-closed and is retried on the next tick.
+  const refreshOrderBookSnapshots = (generation: number): void => {
+    void Promise.all(config.upbitMarkets.map(async (market) => {
+      try {
+        const snapshot = await fetchUpbitOrderBookSnapshot(market);
+        if (marketConnectionState === "CONNECTED" && generation === marketConnectionGeneration) orderBookReconciler.installSnapshot(snapshot);
+      } catch {
+        if (generation === marketConnectionGeneration) recordFailure("PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE");
+      }
+    }));
+  };
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
@@ -425,14 +440,7 @@ export function startCloudRuntime(
     // A transport connection is not execution-grade market data. Every connection/reconnect
     // generation must acquire a fresh public REST snapshot before any WebSocket orderbook quote
     // can enter PAPER execution. Snapshot failure stays fail-closed; a later reconnect retries.
-    void Promise.all(config.upbitMarkets.map(async (market) => {
-      try {
-        const snapshot = await fetchUpbitOrderBookSnapshot(market);
-        if (marketConnectionState === "CONNECTED" && generation === marketConnectionGeneration) orderBookReconciler.installSnapshot(snapshot);
-      } catch {
-        if (generation === marketConnectionGeneration) recordFailure("PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE");
-      }
-    }));
+    refreshOrderBookSnapshots(generation);
     if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); }
   }, (orderBook) => {
     heartbeat.lastHeartbeatAt = Date.now();
@@ -444,6 +452,7 @@ export function startCloudRuntime(
         recordFailure("PAPER_ORDERBOOK_UNRECONCILED");
         return;
       }
+      if (heartbeat.lastError === "PAPER_ORDERBOOK_UNRECONCILED") heartbeat.lastError = null;
       const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
       if (jevMarketMicrostructureObserver != null) {
@@ -472,6 +481,8 @@ export function startCloudRuntime(
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
   heartbeatTimer.unref?.();
+  const orderBookSnapshotTimer = setInterval(() => { if (marketDataClient != null && marketConnectionState === "CONNECTED") refreshOrderBookSnapshots(marketConnectionGeneration); }, ORDERBOOK_SNAPSHOT_REFRESH_INTERVAL_MS);
+  orderBookSnapshotTimer.unref?.();
 
   const loadPaperOperations = (principal: DashboardPrincipal): PersonalPaperOperationsSnapshot => {
     const input = effectiveProvider.read(principal);
@@ -579,7 +590,7 @@ export function startCloudRuntime(
     closePaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().closePeriodFromCanonicalAccount(input),
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(heartbeatTimer); clearInterval(orderBookSnapshotTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 

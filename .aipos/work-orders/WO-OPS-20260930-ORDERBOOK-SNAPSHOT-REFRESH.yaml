@@ -1,0 +1,25 @@
+id: WO-OPS-20260930-ORDERBOOK-SNAPSHOT-REFRESH
+title: "Refresh the Upbit orderbook REST snapshot on a timer so the stream keeps reconciling"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-orderbook-refresh
+authority_impact: none
+objective: "The REST orderbook snapshot was acquired once per WebSocket connection generation but the reconciler trusts it for only 30s. After that every stream orderbook was dropped as PAPER_ORDERBOOK_UNRECONCILED until the next reconnect, so /health showed a sticky lastError and a DEGRADED process while orderbook depth/VWAP evidence was silently lost."
+scope:
+  - "upbitOrderBookReconciliation.ts: export ORDERBOOK_SNAPSHOT_REFRESH_INTERVAL_MS (10s) and the max-age constant."
+  - "runtime.ts: one shared refreshOrderBookSnapshots(generation) used at connect and by a 10s unref'd timer; it installs a snapshot only while CONNECTED and only for the current connection generation; the timer is cleared in stop()."
+  - "runtime.ts: a successful reconcile clears a lingering PAPER_ORDERBOOK_UNRECONCILED lastError."
+exclusions:
+  - "Trust window, reconciler logic, quote building, risk, execution, accounting, credential and LIVE code are unchanged. A failed refresh stays fail-closed (snapshot not replaced, PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE recorded, retried next tick)."
+  - "Only the public REST orderbook endpoint is called, at most one request per configured market every 10s."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/orderbook-snapshot-refresh.test.js tests/cloud-runtime-*.test.js
+  - pnpm run validate
+residual: "Runtime timer behavior is asserted by source-level checks and reconciler unit tests; a live Oracle run after an owner-approved exact-main release is the real proof (lastError clears, process no longer DEGRADED from this cause)."

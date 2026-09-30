@@ -4,6 +4,9 @@ import type { UpbitOrderBook } from "../../../packages/core/src/upbitWebSocket";
 const UPBIT_ORDERBOOK_URL = "https://api.upbit.com/v1/orderbook";
 const MARKET = /^KRW-[A-Z0-9-]+$/;
 const MAX_SNAPSHOT_AGE_MS = 30_000;
+/** How often a live connection re-acquires the REST snapshot; must stay well inside MAX_SNAPSHOT_AGE_MS. */
+export const ORDERBOOK_SNAPSHOT_REFRESH_INTERVAL_MS = 10_000;
+export const ORDERBOOK_SNAPSHOT_MAX_AGE_MS = MAX_SNAPSHOT_AGE_MS;
 
 export type OrderBookReconciliationState = "UNRECONCILED" | "SNAPSHOT_READY" | "RECONCILED";
 

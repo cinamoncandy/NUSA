@@ -224,6 +224,13 @@ current_paper_decision_outcome:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-Oracle-exact-main-release_then-read-/health
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_orderbook_snapshot_refresh:
+  work_order: WO-OPS-20260930-ORDERBOOK-SNAPSHOT-REFRESH
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-orderbook-refresh
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-Oracle-exact-main-release_then-read-/health-lastError
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_screens:
   work_order: WO-UI-20260928-FIELD-SCREENS
   status: READY_FOR_REVIEW
