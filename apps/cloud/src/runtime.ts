@@ -61,6 +61,7 @@ import { readCloudRuntimeSafety, readPaperAutoLearningReadiness } from "./liveRe
 import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRealizedPeriodRepository, type PaperRealizedPeriodCanonicalCloseInput, type PaperRealizedPeriodCloseInput, type PaperRealizedPeriodOpenInput, type PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
+import { codePaperDecisionOutcome } from "./paperDecisionOutcome";
 import { PaperMarketObservationStoreError, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
 import { fetchUpbitOrderBookSnapshot, UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
@@ -177,6 +178,7 @@ export function startCloudRuntime(
     decisionCount: number;
     paperOrderCount: number;
     paperFillCount: number;
+    lastPaperDecisionOutcome: string | null;
     lastError: string | null;
   } = {
     startedAt: runtimeStartedAt,
@@ -191,6 +193,7 @@ export function startCloudRuntime(
     decisionCount: 0,
     paperOrderCount: 0,
     paperFillCount: 0,
+    lastPaperDecisionOutcome: null,
     lastError: null
   };
   const recordFailure = (code: string): void => { heartbeat.lastError = code; heartbeat.lastFailureAt = Date.now(); };
@@ -391,6 +394,7 @@ export function startCloudRuntime(
         paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
         paperLearningRecorder.record({ cycleId, stage: "PERMISSION", occurredAt: now, market: ticker.code, status: "SKIP", reason: "NO_CANONICAL_TRADE_PERMISSION_EVIDENCE" });
         if (result != null) {
+          heartbeat.lastPaperDecisionOutcome = codePaperDecisionOutcome(result);
           if (result.orders.length > 0) heartbeat.lastPaperOrderAt = now;
           if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
           heartbeat.paperOrderCount += result.orders.length;
@@ -532,6 +536,7 @@ export function startCloudRuntime(
       decisionCount: heartbeat.decisionCount,
       paperOrderCount: heartbeat.paperOrderCount,
       paperFillCount: heartbeat.paperFillCount,
+      ...(heartbeat.lastPaperDecisionOutcome === null ? {} : { lastPaperDecisionOutcome: heartbeat.lastPaperDecisionOutcome }),
       lastError: heartbeat.lastError,
       ...(previousStop === undefined ? {} : { previousStop })
     }),

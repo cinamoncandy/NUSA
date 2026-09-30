@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CodingRunnerRequest } from "./codingRunner";
 
 export type ExecutionOrigin = "AUTO_BACKGROUND" | "USER_TRIGGERED";
@@ -57,6 +58,11 @@ export function validateCodingExecutionEnvelope(
   return Object.freeze(envelope as unknown as CodingExecutionEnvelope);
 }
 
+export function codingExecutionEnvelopeFingerprint(envelope: CodingExecutionEnvelope, allowedRepository = envelope.repository): string {
+  const validated = validateCodingExecutionEnvelope(envelope, allowedRepository);
+  return createHash("sha256").update(JSON.stringify(validated), "utf8").digest("hex");
+}
+
 export function toCodingRunnerRequest(envelope: CodingExecutionEnvelope): CodingRunnerRequest {
   return Object.freeze({
     kind: "REPOSITORY_AUTOPILOT",
@@ -66,6 +72,7 @@ export function toCodingRunnerRequest(envelope: CodingExecutionEnvelope): Coding
     reason: `work:${envelope.workItemId};execution:${envelope.executionId};origin:${envelope.origin};dedupe:${envelope.dedupeKey}`,
     executionId: envelope.executionId,
     dedupeKey: envelope.dedupeKey,
+    contractFingerprintSha256: codingExecutionEnvelopeFingerprint(envelope),
     mutationAllowed: false,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
