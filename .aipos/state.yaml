@@ -1,4 +1,13 @@
 version: 1
+current_issue_2153_market_data_integrity:
+  work_order: WO-ISSUE-2153-MARKET-DATA-INTEGRITY
+  issue: 2153
+  pull_request: 2225
+  status: LATEST_MAIN_RECONVERGED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  scope: "Public Upbit order-book execution evidence requires a fresh REST snapshot per connection generation; unsafe sequence and timestamp-gap inference remain fail-closed."
+  validation: "Latest-main merge 19c00cf5: TypeScript build; canonical market-data, reconciliation, and runtime-health tests 20/20; preflight, validate, security gate, AIPOS drift, architecture, safety invariants, and diff check passed."
+  remaining: "Fresh exact-head CI, independent Audit, canonical Release, then runtime evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_issue_2017_component_health:
   work_order: WO-ISSUE-2017-COMPONENT-HEALTH
   issue: 2017
