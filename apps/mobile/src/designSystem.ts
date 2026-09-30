@@ -79,6 +79,8 @@ export const fieldPalette = Object.freeze({
   halt: "#FF5C5C",
   risk: "#FFA94D",
   focus: "#FFB547",
+  /** Selection/focus highlight for field visuals (focused subsystem, selected tab). Amber `focus` is kept for warning tones only. */
+  accent: "#B6F04B",
 });
 
 const interaction = Object.freeze({
@@ -104,7 +106,7 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
     dark: fieldSurface,
     light: fieldSurface,
     typography: Object.freeze({ micro: 10, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 44 }),
-    layout: Object.freeze({ screenPadding: 20, sectionGap: 20, cardPadding: 16, heroRadius: 12 }),
+    layout: Object.freeze({ screenPadding: 20, sectionGap: 18, cardPadding: 16, heroRadius: 6 }),
     radii: Object.freeze({ sm: 4, md: 8, lg: 12, xl: 16, full: 9999 as const }),
   }),
 });

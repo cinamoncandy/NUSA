@@ -86,3 +86,13 @@ test("success stays visually distinct from the AI signal tone", () => {
   assert.equal(theme.colors.success, "#3DDC97");
   assert.notEqual(theme.colors.success.toLowerCase(), theme.colors.aiSignalEnd.toLowerCase());
 });
+
+test("field selection highlights use the lime accent while amber stays a warning-only tone", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (name) => fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", name), "utf8");
+  assert.match(read("designSystem.ts"), /accent: "#B6F04B"/);
+  assert.match(read("intelligenceField.tsx"), /const FOCUS_COLOR = fieldPalette\.accent;/);
+  assert.match(read("paperShadowMonitorView.tsx"), /mode === item \? fieldPalette\.accent : "transparent"/);
+  assert.equal(createTheme("dark").colors.warning, "#FFB547");
+});
