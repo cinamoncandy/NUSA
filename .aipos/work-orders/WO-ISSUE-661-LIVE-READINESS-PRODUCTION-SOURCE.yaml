@@ -1,6 +1,6 @@
 id: WO-ISSUE-661-LIVE-READINESS-PRODUCTION-SOURCE
 title: "Issue #661 canonical LIVE readiness production source"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 661
@@ -49,4 +49,7 @@ validation:
   package_validation: PASS_AFTER_MAP_FREE_PACKAGED_FILE_SET_PREEXISTING_NORMAL_BUILD_MAP_MISMATCH
   exact_head_remote_validation: PENDING
   pull_request: PENDING
-next: "Publish only after final exact-head validation; resume Issue #661 LIVE_READY transport/UI only after this provider is merged."
+next: "None. Historical Issue #661 implementation is merged/closed; any successor work belongs to the current canonical owner and must not remain as separate WIP."
+
+implementation_status: MERGED_PR_769
+merge_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
