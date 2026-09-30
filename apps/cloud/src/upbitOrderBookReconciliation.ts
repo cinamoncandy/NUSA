@@ -47,7 +47,7 @@ export async function fetchUpbitOrderBookSnapshot(
   const normalized = normalizeMarket(market);
   const url = new URL(UPBIT_ORDERBOOK_URL);
   url.searchParams.set("markets", normalized);
-  const response = await fetchImpl(url.toString(), { method: "GET", redirect: "error" });
+  const response = await fetchImpl(url.toString(), { method: "GET", redirect: "error", signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error("orderbook snapshot upstream status " + response.status);
   const payload = await response.json() as unknown;
   if (!Array.isArray(payload) || payload.length !== 1 || payload[0] == null || typeof payload[0] !== "object") throw new Error("orderbook snapshot payload is invalid");
@@ -61,8 +61,26 @@ export async function fetchUpbitOrderBookSnapshot(
 
 export class UpbitOrderBookReconciler {
   private readonly snapshots = new Map<string, UpbitOrderBookSnapshotEvidence>();
+  private readonly refreshes = new Map<string, Promise<void>>();
+  private readonly nextRefreshAt = new Map<string, number>();
+  private generation = 0;
 
-  reset(): void { this.snapshots.clear(); }
+  reset(): void { this.generation += 1; this.snapshots.clear(); this.refreshes.clear(); this.nextRefreshAt.clear(); }
+  refreshSnapshot(market: string, fetchImpl: typeof fetch = fetch, now: () => number = Date.now): Promise<void> {
+    const normalized = normalizeMarket(market);
+    const pending = this.refreshes.get(normalized);
+    if (pending != null) return pending;
+    if (now() < (this.nextRefreshAt.get(normalized) ?? 0)) return Promise.resolve();
+    const generation = this.generation;
+    this.nextRefreshAt.set(normalized, now() + 5_000);
+    const refresh = fetchUpbitOrderBookSnapshot(normalized, fetchImpl, now).then((snapshot) => {
+      if (generation === this.generation) this.installSnapshot(snapshot);
+    }).finally(() => {
+      if (generation === this.generation) this.refreshes.delete(normalized);
+    });
+    this.refreshes.set(normalized, refresh);
+    return refresh;
+  }
   installSnapshot(snapshot: UpbitOrderBookSnapshotEvidence): void { this.snapshots.set(snapshot.market, snapshot); }
   state(market: string): OrderBookReconciliationState { return this.snapshots.has(normalizeMarket(market)) ? "SNAPSHOT_READY" : "UNRECONCILED"; }
 

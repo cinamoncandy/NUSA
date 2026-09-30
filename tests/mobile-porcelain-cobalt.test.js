@@ -8,10 +8,10 @@ const input = { market: "KRW-BTC", interval: "1m", rawCandles: [{ market: "KRW-B
 
 test("the field theme (which replaced porcelain/cobalt) preserves semantic authority and accessible targets", () => {
   assert.equal(createTheme("light").colors.background, "#010204");
-  assert.equal(createTheme("light").colors.primary, "#FFB547");
+  assert.equal(createTheme("light").colors.primary, "#B6F04B");
   for (const mode of ["light", "dark"]) {
     const t = createTheme(mode);
-    assert.equal(t.radii.lg, 6);
+    assert.equal(t.radii.lg, 12);
     assert.ok(t.interaction.touchTarget >= 48);
     assert.notEqual(t.colors.danger, t.colors.primary);
     assert.notEqual(t.colors.success, t.colors.primary);
