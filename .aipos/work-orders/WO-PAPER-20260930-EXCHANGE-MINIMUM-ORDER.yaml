@@ -22,6 +22,8 @@ known_limitations:
   - "SELL is not raised: a residual position below KRW 5,000 (for example the KRW ~600 position opened before this change) can still be closed in PAPER although Upbit would refuse an under-minimum sell."
   - "The fallback sizing branch in paperTradingExecutionLoop that runs without a canonical execution intent is not changed; production composes the canonical boundary."
   - "The 10% per-market DEFAULT_MAX_PAPER_ALLOCATION still shapes the plan; only the executable order is raised for accounts too small to meet the exchange minimum."
+security_prerequisite:
+  - "New high advisories 1240104/1240108 (brace-expansion <1.1.20), 1240105/1240109 (>=2.0.0 <2.1.6) and 1240107/1240111 (>=4.0.0 <5.0.11), plus moderate 1240100/1240101/1240103, fail security:gate for every PR (dev-tool transitive dependencies via electron-builder and c8/test-exclude). Ported into this branch so its exact-head CI can pass: pnpm overrides brace-expansion 1.1.17/1.1.18 to 1.1.21, 2.1.4 to 2.1.7 and 5.0.9 to 5.0.12; the lockfile was regenerated with pnpm and tests/security-gate.test.js asserts each pin and the absence of the vulnerable versions. pnpm audit reports 0 advisories after the change."
 exclusions:
   - "No LIVE, credential, exchange-adapter or AI-authority change. Paper and live adapters still share no mutable state."
 safety:
