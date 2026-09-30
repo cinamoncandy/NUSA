@@ -23,7 +23,7 @@ test("Evidence Glass renders the blocked reason at the active connection surface
 
 test("healthy and pre-connection states retain truthful connection detail", () => {
   assert.match(settings, /connection\.status === "READY" \? `\$\{connection\.snapshot\.operations\.runtimeState\} · \$\{connection\.snapshot\.operations\.transport\}`/);
-  assert.match(settings, /소유자 인증 한 번으로 이 기기의 모의투자 자동 연결을 시작합니다/);
+  assert.match(settings, /소유자 인증 한 번으로 이 기기의 PAPER 보안 세션을 시작합니다/);
   assert.match(experience, /testID="owner-connection-experience"/);
 });
 
