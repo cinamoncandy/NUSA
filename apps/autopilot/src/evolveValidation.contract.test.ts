@@ -14,6 +14,19 @@ function valid() {
     status: "PASS" as const,
     exactHeadSha: HEAD,
     evidence: [{ check: "CI", reference: "workflow:123", passed: true }],
+    heldOutEvidence: [{ check: "held-out/generalization", reference: "heldout:1", passed: true }],
+    benefitCostEvidence: [{
+      telemetryReference: "telemetry:1",
+      budgetState: "NORMAL",
+      baselineBenefit: 1,
+      observedBenefit: 2,
+      baselineCost: 1,
+      observedCost: 1,
+      benefitDelta: 1,
+      costDelta: 0,
+      netBenefitDelta: 1,
+      passed: true,
+    }],
     reason: "exact-head validation passed",
   };
 }
