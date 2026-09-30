@@ -8,6 +8,14 @@ current_issue_2118_ci_saturation_wip:
   validation: "Autopilot publish workflow and initial PR #2399 exact-head CI passed. Review repair local preflight, TypeScript build, 14/14 focused tests, validate, security gate, AIPOS drift, and diff check passed; fresh exact-head CI pending."
   remaining: "Update PR #2399 and obtain fresh exact-head CI before Audit/Release; current baseline and after-change p50/p95 measurement remain later increments."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_exchange_minimum_order:
+  work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-min-order
+  authority_impact: paper-accounting-and-risk-sizing
+  scope: "Cloud PAPER BUY below the Upbit KRW 5,000 minimum is raised to KRW 5,050 within a 60% equity ceiling and available cash, else fails closed (owner decision option A, 2026-09-30)."
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-observe-next-BUY-at-least-KRW-5000
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_security_fast_uri_backport:
   work_order: WO-SECURITY-20260929-FAST-URI
   status: READY_FOR_REVIEW
@@ -1715,11 +1723,11 @@ current_uiux_pr_2327_android_visual_convergence:
   status: IN_PROGRESS
   pull_request: 2327
   branch: uiux/post-2262-visual-acceptance
-  base_sha: 61aaa2c47dcd6d92d15a39eba627a11542f2bfef
-  previous_head: 01ce73410dcc538a4b2ea2f154022d2eebe3af32
-  finding: "Exact-head CI exposed one stale Settings wording assertion and a dependency-audit JSON parser that counted braces inside JSON strings as structural delimiters; prior Android evidence also required PAPER/LIVE runtime presenter corrections."
-  remediation: "Align only the stale wording assertion, make the existing bounded audit parser string/escape-aware without relaxing fail-closed behavior, preserve PAPER primary truthful rendering and current LIVE presenter contract."
-  validation: "Fresh exact-head CI, Mobile Native, Android Product UX, PAPER/read-only/Restricted LIVE checks are required; all evidence from 01ce7341 and earlier is stale."
+  base_sha: e2f7e5da2bef222d9dc6480a02deb77a92709104
+  previous_head: f69ed331e632874d8f20517e2608c3e0e25ca9a0
+  finding: "Android Product UX reached HOME but crashed on PAPER because FieldHeader still imported removed orbit helpers from intelligenceField after HOME was converted to the ribbon renderer. CI also exposed Settings wording drift while protected main advanced with Cloud PAPER truthfulness and minimum-order fixes."
+  remediation: "Convert FieldHeader itself to the ribbon visual grammar instead of restoring orbit helpers; absorb protected-main Settings/security/workspace/cloud changes; preserve the string-aware dependency-audit parser regression."
+  validation: "Fresh exact-head CI, Mobile Native, Android Product UX, PAPER/read-only/Restricted LIVE checks are required; all evidence from f69ed331 and earlier is stale."
   blocker: "Trusted Android Design Acceptance authority is not present on protected main. Galaxy physical-device evidence remains HUMAN_ENVIRONMENT_ONLY / NOT VERIFIED."
   next: "Fresh exact-head validation -> Android screenshot inspection -> trusted design acceptance -> Audit -> Release -> merge -> Android release -> Galaxy acceptance."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
