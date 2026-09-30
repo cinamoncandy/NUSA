@@ -107,7 +107,7 @@ jobs:
             fi
 
             MANUAL_COMPLETED="$(printf '%s' "$RUNS_JSON" | jq -c --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .event == "workflow_dispatch" and .status == "completed")] | sort_by(.updated_at) | reverse | .[0] // empty')"
-            if [ -n "$MANUAL_COMPLETED" ] && [ "$dispatched" = "true" ]; then
+            if [ -n "$MANUAL_COMPLETED" ]; then
               MANUAL_ID="$(jq -r '.id' <<<"$MANUAL_COMPLETED")"
               MANUAL_CONCLUSION="$(jq -r '.conclusion // empty' <<<"$MANUAL_COMPLETED")"
               # Actions may report the publisher complete before the Release API reflects its
@@ -118,8 +118,10 @@ jobs:
                 sleep 10
                 continue
               fi
-              echo "::error::Android manual exact-main release run $MANUAL_ID concluded $MANUAL_CONCLUSION but stable target remains ${RELEASE_TARGET:-missing}; refusing an unbounded redispatch loop."
-              exit 1
+              if [ "$MANUAL_CONCLUSION" = "success" ] || [ "$dispatched" = "true" ]; then
+                echo "::error::Android manual exact-main release run $MANUAL_ID concluded $MANUAL_CONCLUSION but stable target remains ${RELEASE_TARGET:-missing}; refusing an unbounded redispatch loop."
+                exit 1
+              fi
             fi
 
             CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"

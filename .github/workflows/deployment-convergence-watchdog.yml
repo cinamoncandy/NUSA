@@ -179,8 +179,11 @@ jobs:
           ANDROID_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
           if [ "$ANDROID_TARGET" != "$MAIN_SHA" ]; then
             RUNS_JSON="$(runs_for_main)"
+            ANDROID_RUNS_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/342016298/runs?branch=main&per_page=100")"
             if workflow_active "Android Stable Release" || workflow_active "Android Stable Release Trigger"; then
               echo "Android exact-main convergence already active."
+            elif printf '%s' "$ANDROID_RUNS_JSON" | jq -e --arg sha "$MAIN_SHA" 'any(.workflow_runs[]; .head_sha == $sha and .event == "workflow_dispatch" and .status == "completed" and .conclusion == "success")' >/dev/null; then
+              echo "A successful exact-main Android publisher exists, but the stable target is not visible yet; refusing a duplicate convergence trigger."
             else
               ANDROID_FAILURES="$(workflow_failures "Android Stable Release")"
               if [ "$ANDROID_FAILURES" -ge 3 ]; then

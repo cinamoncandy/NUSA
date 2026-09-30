@@ -102,6 +102,12 @@ jobs:
             exit 0
           fi
 
+          SUCCESSFUL_MANUAL_ID="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .event == "workflow_dispatch" and .status == "completed" and .conclusion == "success")][0].id // empty')"
+          if [ -n "$SUCCESSFUL_MANUAL_ID" ]; then
+            echo "Android Stable Release run $SUCCESSFUL_MANUAL_ID succeeded on exact main, but its target is not visible yet; refusing a duplicate publisher dispatch."
+            exit 0
+          fi
+
           FAILED_ID="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "failure")][0].id // empty')"
           FAILED_ATTEMPT="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "failure")][0].run_attempt // 0')"
 

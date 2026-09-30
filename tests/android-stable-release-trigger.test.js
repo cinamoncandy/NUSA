@@ -4,6 +4,7 @@ import test from "node:test";
 
 const workflow = fs.readFileSync(".github/workflows/android-stable-release-trigger.yml", "utf8");
 const watchdog = fs.readFileSync(".github/workflows/android-stable-release-watchdog.yml", "utf8");
+const deploymentWatchdog = fs.readFileSync(".github/workflows/deployment-convergence-watchdog.yml", "utf8");
 
 test("Android stable trigger only no-ops after exact-main stable convergence", () => {
   assert.match(workflow, /RELEASE_TARGET=.*nusa-android/);
@@ -30,6 +31,15 @@ test("successful Android release gets bounded target propagation time without re
   const dispatch = workflow.indexOf('gh api --method POST', settle);
   assert.ok(settle > 0 && fail > settle && dispatch > fail);
   assert.match(workflow.slice(settle, fail), /sleep 10\s+continue/);
+  assert.doesNotMatch(workflow.slice(settle - 180, settle), /dispatched.*true/);
+});
+
+test("both watchdogs recognize a successful exact-main publisher before redispatch", () => {
+  assert.ok(watchdog.indexOf('SUCCESSFUL_MANUAL_ID=') < watchdog.indexOf('FAILED_ID='));
+  assert.match(watchdog, /SUCCESSFUL_MANUAL_ID.*workflow_dispatch.*success/);
+  const guard = deploymentWatchdog.indexOf('A successful exact-main Android publisher exists');
+  const dispatch = deploymentWatchdog.indexOf('android-stable-release-trigger.yml/dispatches', guard);
+  assert.ok(guard > 0 && dispatch > guard);
 });
 
 test("Android stable watchdog always converges a stale stable target to exact main", () => {
