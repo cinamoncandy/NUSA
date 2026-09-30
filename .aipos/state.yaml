@@ -547,6 +547,16 @@ current_bounded_investment_learning:
   base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
   scope: "Bounded sealed-history investment learning with distinct canonical-search guard and explicit next-cycle Strategy Research queue; no qualification, score, runtime-strategy, capital, or execution mutation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_bollinger_research_family:
+  work_order: WO-ISSUE-1798-BOLLINGER-RESEARCH-FAMILY
+  status: RECONVERGED_PENDING_FRESH_EXACT_HEAD_CI
+  branch: research/bollinger-family-1798
+  base_sha: 5dacd19d95e096ef405f6f13ee3ab29537eb0794
+  scope: "Frozen issue #1798 Bollinger breakout 3x3 Research family and exact PAPER semantics; implementation and tests only."
+  validation: "Historical exact-head CI on old base is stale. Functional delta is re-applied unchanged on latest protected main; fresh exact-head CI/Audit required."
+  evaluation: "NOT_RUN_PROHIBITED: no real-market/OOS evaluation and no market-data fetch."
+  next_permitted_action: "Fresh exact-head CI -> READY_FOR_REVIEW -> independent Audit -> Release -> merge; real-market/OOS evaluation remains post-merge."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
   status: IMPLEMENTED_LOCAL

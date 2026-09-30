@@ -101,3 +101,23 @@ test("canonical Donchian robustness request is the precommitted five-period line
   assert.deepEqual(request.candidateGrid.find((entry) => entry.key === "donchian-55").neighbors, ["donchian-40"]);
   assert.ok(request.candidateGrid.every(Object.isFrozen));
 });
+
+test("canonical Bollinger robustness request uses deterministic symmetric 4-connected adjacency", () => {
+  const request = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: "bollinger-breakout" });
+  assert.equal(request.strategyFamily, "bollinger-breakout");
+  assert.equal(request.candidateGrid.length, 9);
+  assert.deepEqual(request.referenceParameters, [
+    { source: "PRODUCTION_DEFAULT", candidateKey: "bollinger-20-2.0", parameters: { period: 20, multiplier: 2 } },
+    { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "bollinger-10-1.5", parameters: { period: 10, multiplier: 1.5 } }
+  ]);
+  const center = request.candidateGrid.find((entry) => entry.key === "bollinger-20-2.0");
+  assert.deepEqual(center.neighbors, ["bollinger-10-2.0", "bollinger-20-1.5", "bollinger-20-2.5", "bollinger-30-2.0"]);
+  for (const entry of request.candidateGrid) {
+    assert.ok(Object.isFrozen(entry));
+    assert.ok(Object.isFrozen(entry.neighbors));
+    for (const neighbor of entry.neighbors) {
+      assert.ok(request.candidateGrid.find((candidate) => candidate.key === neighbor).neighbors.includes(entry.key));
+    }
+  }
+
+});
