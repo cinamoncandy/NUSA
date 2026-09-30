@@ -33,7 +33,7 @@ test('daily limits use fill time rather than the later cancellation time', () =>
 test('unfilled cancellation contributes no execution, but an unmatched sell remains fail-closed', () => {
   assert.equal(evaluate({ fills: [], orders: [{ ...buy, quantity: 0, id: buy.orderId, status: 'CANCELLED' }], limits: { maxDailyBuyNotional: 100 } }).status, 'ALLOW');
   assert.equal(evaluate({ fills: [sell] }).status, 'HALT');
-  assert.deepEqual(evaluate({ fills: [sell] }).reasonCodes, ['INVALID_REQUEST']);
+  assert.deepEqual(evaluate({ fills: [sell] }).reasonCodes, ['RECONCILIATION_FAILED']);
 });
 test('multiple partial fills count one order for burst limits, including cancelled orders', () => {
   const partials = [
@@ -51,4 +51,5 @@ test('same-time fills preserve execution order, not lexical fill identity', () =
 test('duplicate or malformed executed evidence remains fail-closed', () => {
   assert.equal(evaluate({ fills: [sell, buy, buy] }).status, 'HALT');
   assert.equal(evaluate({ fills: [sell, { ...buy, quantity: NaN }] }).status, 'HALT');
+  assert.equal(evaluate({ fills: [sell, { ...buy, filledAt: NaN }] }).status, 'HALT');
 });

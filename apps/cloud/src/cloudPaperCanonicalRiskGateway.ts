@@ -208,6 +208,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   public evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
     const persistent = databaseHealthy(this.options.database);
     const reconciled = stateHealthy(input.state);
+    if (!reconciled) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["RECONCILIATION_FAILED"]) });
     const payloadFingerprint = input.payloadFingerprintSha256 ?? hash({
       path: input.path,
       commandId: input.commandId,
