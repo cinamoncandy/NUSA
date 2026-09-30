@@ -1781,7 +1781,9 @@ current_pr1991_review_hardening:
 current_paper_orderbook_snapshot_refresh:
   work_order: WO-PAPER-ORDERBOOK-SNAPSHOT-REFRESH
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-  base_sha: 0fbdc96c522b367291f894cffe50ee0bfd66dc35
+  base_sha: 2661e812d769db6f977093d9646a1196ca531a64
+  pull_request: 2409
+  duplicate_coordination: "PR 2410 covers the same defect; canonical owner remains the earlier PR 2409. Do not stack both refresh implementations."
   finding: "Persistent public connections outlive the 30-second REST snapshot validity and cannot recover without reconnecting."
   remediation: "Coalesced snapshot refresh on unreconciled stream frames, bounded backoff and timeout, reconnect generation fencing."
   validation: "25 focused reconciliation, real runtime wiring, liveness, restart and health tests PASS; TypeScript compile/typecheck, preflight, targeted lint and repository validate PASS."
