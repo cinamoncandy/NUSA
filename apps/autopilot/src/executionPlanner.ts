@@ -12,6 +12,7 @@ export interface AutopilotExecutionRequest {
   readonly reason: string;
   readonly executionId?: string | null;
   readonly dedupeKey?: string | null;
+  readonly contractFingerprintSha256?: string | null;
   readonly mutationAllowed: false;
 }
 
