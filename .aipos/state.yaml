@@ -33,7 +33,7 @@ current_issue_2118_ci_saturation_wip:
   issue: 2118
   status: AUTOPILOT_INCREMENT_IMPLEMENTED_PENDING_WORKFLOW_VALIDATION
   base_sha: 408432cf1f2860d9927fa891e2f2e510814b9723
-  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution; legacy ciUtilization remains the compatibility fallback."
+  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP; legacy ciUtilization remains the compatibility fallback."
   validation: "Not run locally per delegated-validation shared-host guard; Autopilot publish workflow must run the recorded heavy gates on separate hardware."
   remaining: "Workflow validation and publication, then exact-head CI before Audit/Release; current baseline and after-change p50/p95 measurement remain later increments."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

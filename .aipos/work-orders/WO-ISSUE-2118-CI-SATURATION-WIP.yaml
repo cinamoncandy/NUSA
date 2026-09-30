@@ -14,6 +14,7 @@ architecture_impact:
 scope:
   - explicit_bounded_ci_saturation_input
   - decrease_wip_under_verified_ci_saturation
+  - retain_ci_pressure_attribution_at_minimum_wip
   - require_ci_headroom_before_wip_expansion
   - legacy_ci_utilization_compatibility
 prohibited:
@@ -30,6 +31,7 @@ safety:
 acceptance:
   - verified high CI saturation recommends one-step WIP reduction
   - CI-saturation-driven reductions retain explicit deterministic attribution
+  - verified pressure at minimum WIP holds with explicit deterministic attribution
   - verified low CI saturation is required before WIP expansion
   - malformed CI saturation fails closed to HOLD
   - the advisor remains non-mutating
@@ -38,4 +40,4 @@ validation:
   status: DELEGATED_TO_AUTOPILOT_PUBLISH_WORKFLOW
   commands: "Not run locally per shared 1 GB PAPER-host guard. The publish workflow must run build, typecheck, validate, work-order index validation, tests/*.test.js, and colocated tests on separate hardware."
   local_heavy_commands: NOT_RUN_PER_SHARED_HOST_GUARD
-next: "Autopilot publish workflow validates and publishes this uncommitted increment; then collect exact-head CI/Audit/Release evidence. Baseline/after p50/p95 optimization remains a later issue increment."
+next: "Autopilot publish workflow validates and publishes the uncommitted minimum-WIP attribution increment; then collect exact-head CI/Audit/Release evidence. Baseline/after p50/p95 optimization remains a later issue increment."
