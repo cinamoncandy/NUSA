@@ -301,6 +301,7 @@ describe("NUSA autopilot GitHub webhook", () => {
     const originalFetch = globalThis.fetch;
     const dispatched: unknown[] = [];
     let draft = true;
+    let auditPublished = false;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({
@@ -328,10 +329,11 @@ describe("NUSA autopilot GitHub webhook", () => {
         head: { sha: headSha },
       }), { status: 200 });
       if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
-        return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+        return new Response(JSON.stringify({ workflow_runs: auditPublished ? [{ display_title: `audit:1955:${workflowRunId}:${headSha}`, status: "in_progress", conclusion: null }] : [] }), { status: 200, headers: { "content-type": "application/json" } });
       }
       if (url.endsWith("/dispatches")) {
         dispatched.push(JSON.parse(String(init?.body)));
+        auditPublished = true;
         return new Response(null, { status: 204 });
       }
       return new Response(null, { status: 404 });
@@ -441,6 +443,75 @@ describe("NUSA autopilot GitHub webhook", () => {
       const recoveredPayload = await recovered.json() as { executor: { status: string } };
       assert.equal(recoveredPayload.executor.status, "DISPATCHED");
       assert.equal(dispatched.length, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("recovers one accepted Audit dispatch when GitHub never materializes its exact workflow run", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const headSha = "e".repeat(40);
+    const workflowRunId = 35195500003;
+    const workflowBody = JSON.stringify({
+      action: "completed",
+      workflow_run: {
+        id: workflowRunId,
+        name: "CI",
+        head_sha: headSha,
+        head_branch: "feature/audit-recovery",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 1957 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    const signature = await computeGithubWebhookSignature("secret", workflowBody);
+    const request = (delivery: string) => new Request("https://example.test/github/webhook", {
+      method: "POST",
+      headers: { "x-github-delivery": delivery, "x-github-event": "workflow_run", "x-hub-signature-256": signature },
+      body: workflowBody,
+    });
+    const originalFetch = globalThis.fetch;
+    const dispatched: unknown[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/pulls/1957")) return new Response(JSON.stringify({
+        state: "open",
+        draft: false,
+        labels: [],
+        head: { sha: headSha },
+      }), { status: 200 });
+      if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+        // The first dispatch was accepted but never became a visible Audit run.
+        return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.endsWith("/dispatches")) {
+        dispatched.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 204 });
+      }
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+      const initial = await worker.fetch(request("audit-recovery-initial"), env);
+      const recovered = await worker.fetch(request("audit-recovery-replay"), env);
+      const exhausted = await worker.fetch(request("audit-recovery-exhausted"), env);
+      const initialPayload = await initial.json() as { executor: { status: string } };
+      const recoveredPayload = await recovered.json() as { status: string; executor: { status: string } };
+      const exhaustedPayload = await exhausted.json() as { status: string; executor: { status: string; reason: string } };
+
+      assert.equal(initialPayload.executor.status, "DISPATCHED");
+      assert.equal(recoveredPayload.status, "AUDIT_DISPATCH_RECOVERED");
+      assert.equal(recoveredPayload.executor.status, "DISPATCHED");
+      assert.equal(exhaustedPayload.status, "DUPLICATE_EXECUTION_SUPPRESSED");
+      assert.equal(exhaustedPayload.executor.reason, "github-executor-duplicate-execution-suppressed");
+      assert.equal(dispatched.length, 2);
     } finally {
       globalThis.fetch = originalFetch;
     }
