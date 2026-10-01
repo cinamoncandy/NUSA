@@ -10,7 +10,13 @@ const RADIUS = SIZE / 2 - 10;
 // Home hero: every reported PAPER decision as a dot on a spiral. Motion is ambient and
 // slow (one rotation per few minutes, one radar sweep, one ripple at the newest dot) and
 // stops entirely when the OS reduce-motion setting is on.
-export function DecisionRings(props: DecisionRingsInput) {
+export interface DecisionRingsStatus {
+  readonly title: string;
+  readonly detail: string;
+  readonly tone: "warning" | "halt";
+}
+
+export function DecisionRings({ status = null, ...props }: DecisionRingsInput & { readonly status?: DecisionRingsStatus | null }) {
   const { theme } = useTheme();
   const model = buildDecisionRings(props);
   const [reducedMotion, setReducedMotion] = useState(true);
@@ -48,6 +54,10 @@ export function DecisionRings(props: DecisionRingsInput) {
   const armRotate = sweep.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
 
   return <View style={styles.wrap} testID="home-decision-rings" accessibilityLabel={`${model.headline}. ${model.detail}`}>
+    {status ? <View style={[styles.status, { borderColor: status.tone === "halt" ? theme.colors.danger : theme.colors.warning }]} testID="home-decision-rings-status" accessibilityRole="alert">
+      <Text style={[styles.statusTitle, { color: status.tone === "halt" ? theme.colors.danger : theme.colors.warning }]}>{status.title}</Text>
+      <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{status.detail}</Text>
+    </View> : null}
     <Text style={[fieldFonts.monoMedium, styles.count, { color: theme.colors.text }]} testID="home-decision-rings-count">{model.headline}</Text>
     <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{model.detail}</Text>
     <View style={styles.stage}>
@@ -75,6 +85,8 @@ export function DecisionRings(props: DecisionRingsInput) {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: "center", paddingVertical: 8, gap: 6 },
+  status: { alignSelf: "stretch", borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, gap: 4, marginBottom: 6 },
+  statusTitle: { fontSize: 15, fontWeight: "600" },
   count: { fontSize: 34, fontWeight: "600", letterSpacing: -0.8 },
   detail: { fontSize: 13, textAlign: "center", maxWidth: 300, lineHeight: 19 },
   stage: { width: SIZE, height: SIZE, alignItems: "center", justifyContent: "center", marginTop: 6 },

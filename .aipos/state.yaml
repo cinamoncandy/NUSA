@@ -1834,7 +1834,7 @@ current_paper_orderbook_snapshot_refresh:
 current_mobile_decision_rings:
   work_order: WO-UI-20261001-DECISION-RINGS
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-decision-rings
+  branch: claude/nusa-repository-j93sd8-home-field-cleanup
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

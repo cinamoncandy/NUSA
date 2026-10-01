@@ -33,7 +33,7 @@ test("HOME connection failure copy wins over stale AI output while fail-closed s
   // The HOME headline is the decision rings, fed from the tested field input screen model
   // (tests/mobile-home-field-input.test.js); connection/read failures blank its counts.
   assert.match(home, /const fieldInput = buildHomeFieldInput\(\{ snapshot, readOnlyError, notConfigured,/);
-  assert.match(home, /<DecisionRings decisionCount=\{fieldInput\.disconnected \|\| readOnlyError != null \? null :/);
+  assert.match(home, /<DecisionRings status=\{ringsStatus\} decisionCount=\{fieldInput\.disconnected \|\| readOnlyError != null \? null :/);
   assert.match(home, /const why = aiInsightAvailable \? decisionSurface\.why : disconnected \? "Cloud PAPER 상태가 연결되기 전에는 판단 근거를 확정하지 않습니다\." : decisionSurface\.why/);
 
   const whyStart = decisionSurface.indexOf("const why = input.disconnected");
