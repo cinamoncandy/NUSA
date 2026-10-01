@@ -175,6 +175,11 @@ export function HomeView({
 
       <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.paperOrderCount} /></View>
 
+      {orderReason == null ? null : <View style={[styles.reasonCard, { borderColor: orderReason.category === "FILLED" || orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.border : theme.colors.warning }]} testID="home-order-reason-card">
+        <Text style={[styles.eyebrow, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]}>{orderReason.category === "FILLED" ? "최근 주문" : "주문하지 않은 이유"}</Text>
+        <Text style={[styles.reasonText, { color: theme.colors.text }]} numberOfLines={3} testID="home-no-order-reason">{orderReason.text}</Text>
+      </View>}
+
       <View style={styles.glanceRail} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
         <Text style={[styles.glanceRisk, { color: riskColor }]}>RISK {rail.riskLabel}</Text>
@@ -201,23 +206,23 @@ export function HomeView({
       <MotionReveal testID="home-market-canvas-reveal">
         <View style={[styles.marketCanvas, { borderColor: ui.color.border }]} testID="home-public-market-chart">
           <View style={styles.canvasHeader}>
-            <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>MARKET CANVAS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
-            <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · PUBLIC READ ONLY</Text></View>
+            <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>시세</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
+            <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>업비트 공개 시세 · 읽기 전용</Text></View>
           </View>
           <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}>
             {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
           </View>
-          <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>PAPER 운영 보기 ↗</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>PAPER 운영 보기 →</Text></Pressable>
         </View>
       </MotionReveal>
 
       <View style={styles.loopHeader}>
-        <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalStart }]}>NUSA LOOP</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>관측하고, 검증하고, 학습합니다</Text></View>
-        <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>자동 실행이 아니라 검증 가능한 판단 흐름</Text>
+        <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalStart }]}>NUSA 흐름</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>보고, 시험하고, 배웁니다</Text></View>
+        <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>실제 돈은 쓰지 않는 PAPER 판단 흐름</Text>
       </View>
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
         <Pressable onPress={() => onNavigate("Paper")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>01 · OBSERVE</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>관측</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>시장 관측</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}</Text>
           <View style={styles.commandPreview}>{marketRows.slice(0, 2).map((market) => <View key={market.market} style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>{market.market}</Text><Text style={[styles.previewValue, { color: (market.changeRate ?? 0) > 0 ? theme.colors.success : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text></View>)}</View>
@@ -235,16 +240,15 @@ export function HomeView({
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
         <Pressable onPress={() => onNavigate("More")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>02 · TEST</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
-          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER 실험</Text>
-          <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} position active` : account ? "현재 노출 없음" : "계정 대기 중"}</Text>
-          {orderReason == null ? null : <Text style={[styles.commandSummary, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]} numberOfLines={3} testID="home-no-order-reason">{orderReason.text}</Text>}
-          <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>INVESTABLE</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>RESERVED</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>PAPER</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER 운영</Text>
+          <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} 보유 중` : account ? "보유 없음" : "계정 대기 중"}</Text>
+          <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>투자 가능</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>예비금</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>
 
         <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.aiSignalStart }]}>03 · LEARN</Text><Text style={[styles.commandArrow, { color: theme.colors.aiSignalEnd }]}>↗</Text></View>
-          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 업데이트</Text>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.aiSignalStart }]}>학습</Text><Text style={[styles.commandArrow, { color: theme.colors.aiSignalEnd }]}>↗</Text></View>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 기록</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]} numberOfLines={2}>{decisionSurface.learning}</Text>
           <Text style={[styles.learningResult, { color: theme.colors.aiSignalEnd }]} numberOfLines={1} testID="home-supervisor-learning">{decisionSurface.result}</Text>
         </Pressable>
@@ -258,7 +262,7 @@ export function HomeView({
       >
         <View>
           <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>DECISION BASIS</Text>
-          <Text style={[styles.disclosureTitle, { color: theme.colors.text }]}>왜 지금 이 상태인가</Text>
+          <Text style={[styles.disclosureTitle, { color: theme.colors.text }]}>이 판단의 근거</Text>
         </View>
         <Text style={[styles.disclosureIcon, { color: theme.colors.textMuted }]}>{detailsOpen ? "−" : "+"}</Text>
       </Pressable>
@@ -283,6 +287,8 @@ export function HomeView({
 }
 
 const styles = StyleSheet.create({
+  reasonCard: { borderWidth: 1, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, gap: 6 },
+  reasonText: { fontSize: 15, lineHeight: 22, fontWeight: "500" },
   shell: { flex: 1 },
   content: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 32, gap: 16 },
   appBar: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
