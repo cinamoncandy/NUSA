@@ -1,0 +1,48 @@
+id: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
+title: "PAPER orders must meet the Upbit KRW 5,000 minimum order (owner decision, option A)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-paper-min-order
+authority_impact: paper-accounting-and-risk-sizing
+objective: "Owner decision 2026-09-30 (option A). The cloud PAPER execution path had no exchange minimum-order check: on the KRW 10,000 account the plan sizes a BUY to about 6% (capped at 10% per market by DEFAULT_MAX_PAPER_ALLOCATION), and a KRW ~600 BUY was accepted and filled, an order Upbit would reject. PAPER evidence from such orders cannot support LIVE promotion."
+finding:
+  - "packages/core paperBroker minOrderNotional exists and the desktop composition sets it to 5,000, but the cloud loop (paperTradingExecutionLoop) only checks cash sufficiency."
+  - "apps/execution exchange-constraints.validateExchangeConstraints (minNotionalRaw) has no callers."
+  - "The three constraints KRW 10,000 capital, 10% per-market cap and Upbit KRW 5,000 minimum cannot all hold; the minimum is 50% of capital."
+scope:
+  - "apps/cloud/src/paperExecutionIntent.ts applyExchangeMinimumOrder, used by buildPaperExecutionIntent for BUY: a planned BUY below the minimum plus 1% headroom (KRW 5,050) on a KRW market is raised to that value only if it stays within 60% of account equity and cash covers it plus a 0.5% fee reserve; otherwise it fails closed with PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING or PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_CASH (the boundary reports BLOCKED with that reason)."
+  - "A plan that already meets the minimum, non-KRW markets and SELL are unchanged; a zero or negative plan (for example a 0% investment percentage) is never raised."
+  - "The raised value is the intent's own allocationCapital, so its fingerprint, working-order budget and outer owner investment-percent envelope (cloudPaperExecutionBoundary) all apply to it unchanged."
+unchanged_controls:
+  - "Independent risk gateway limits (per-order and per-position notional, order rate, same-side streak, daily loss, session drawdown 20%) apply to the raised order like any other."
+  - "cloudPaperExecutionBoundary outer envelope: required cash must not exceed cash x investmentPercent, so an owner investment percentage below about 54% blocks the raised order."
+known_limitations:
+  - "SELL is not raised: a residual position below KRW 5,000 (for example the KRW ~600 position opened before this change) can still be closed in PAPER although Upbit would refuse an under-minimum sell."
+  - "The fallback sizing branch in paperTradingExecutionLoop that runs without a canonical execution intent is not changed; production composes the canonical boundary."
+  - "The 10% per-market DEFAULT_MAX_PAPER_ALLOCATION still shapes the plan; only the executable order is raised for accounts too small to meet the exchange minimum."
+security_prerequisite:
+  - "New high advisories 1240104/1240108 (brace-expansion <1.1.20), 1240105/1240109 (>=2.0.0 <2.1.6) and 1240107/1240111 (>=4.0.0 <5.0.11), plus moderate 1240100/1240101/1240103, fail security:gate for every PR (dev-tool transitive dependencies via electron-builder and c8/test-exclude). Ported into this branch so its exact-head CI can pass: pnpm overrides brace-expansion 1.1.17/1.1.18 to 1.1.21, 2.1.4 to 2.1.7 and 5.0.9 to 5.0.12; the lockfile was regenerated with pnpm and tests/security-gate.test.js asserts each pin and the absence of the vulnerable versions. pnpm audit reports 0 advisories after the change."
+exclusions:
+  - "No LIVE, credential, exchange-adapter or AI-authority change. Paper and live adapters still share no mutable state."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "tests/paper-exchange-minimum-order.test.js (7): owner-approved constants; KRW 600 plan on a KRW 10,000 account raised to KRW 5,050 with share 0.505 and a valid fingerprint; unchanged when the plan already meets the minimum; fails closed above the 60% equity ceiling; fails closed when cash cannot cover the order plus fee (and passes with just enough cash); 0% investment percentage still yields no order; only KRW markets are raised. tests/paper-execution-intent.test.js (existing) still passes."
+remaining: exact-head-CI_then-independent-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-observe-that-the-next-BUY-is-at-least-KRW-5000
+
+review_hardening_20260930:
+  - Cash committed to open BUY working orders is subtracted before a minimum-order raise is funded.
+  - Restored strategy working BUYs whose allocation is below the KRW 5,000 minimum are cancelled (risk-reducing) instead of continued.
+  - Automatic BUYs are blocked (PAPER_EXECUTION_INTENT_EXECUTABLE_QUOTE_BELOW_MINIMUM) when quantity x observed ask is below the minimum.
+  - Manual KRW BUYs below the minimum are rejected (PAPER_ORDER_BELOW_EXCHANGE_MINIMUM); SELL remains unaffected.

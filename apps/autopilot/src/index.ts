@@ -6,7 +6,7 @@ import { executeGithubDispatch } from "./githubExecutor";
 import { resolveGithubReleaseCompletion } from "./githubReleaseCompletionResolver";
 import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
 import { CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
-import { prepareProductionExecution } from "./productionExecutionSpine";
+import { prepareProductionExecution, reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
   handoffOrAcquirePersistentExecution,
@@ -358,11 +358,16 @@ export async function handleCodingExecute(
       aiAuthority: "ZERO_AUTHORITY",
     });
     const evidenceDecision = createCodingExecutionEvidence(runnerRequest, normalizedResult, completedAt);
+    let nextCanonicalTransition: ReturnType<typeof reconcileCodingExecutionEvidence> | null = null;
     let evidencePersisted = false;
     if (evidenceDecision.status === "RECORDED" && env.NUSA_EXECUTION_COORDINATOR) {
       try {
-        await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
+        const persistedEvidence = await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
         evidencePersisted = true;
+        nextCanonicalTransition = reconcileCodingExecutionEvidence(
+          { executionId: runnerRequest.executionId, dedupeKey: runnerRequest.dedupeKey, status: "CODING_DISPATCHED" },
+          persistedEvidence,
+        );
         if (normalizedResult.status === "EXECUTION_ACCEPTED") {
           await completePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
             dedupeKey: runnerRequest.dedupeKey,
@@ -383,7 +388,7 @@ export async function handleCodingExecute(
         console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
       }
     }
-    return json({ accepted: true, ...normalizedResult, executionEvidence: evidenceDecision.status === "RECORDED" ? evidenceDecision.evidence : null, executionEvidencePersisted: evidencePersisted, jevShadowReceipt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, normalizedResult.status === "EXECUTION_FAILED" ? 502 : 202);
+    return json({ accepted: true, ...normalizedResult, executionEvidence: evidenceDecision.status === "RECORDED" ? evidenceDecision.evidence : null, executionEvidencePersisted: evidencePersisted, nextCanonicalTransition, jevShadowReceipt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, normalizedResult.status === "EXECUTION_FAILED" ? 502 : 202);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "CODING_RUNNER_REQUEST_INVALID" }, 400);
   }

@@ -3,7 +3,8 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, admitActiveWip, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, admitActiveWip, createEvolutionLearningMemoryStorage, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { DurableEvolutionLearningMemory } from "./evolveDurableLearningMemory";
 
 const CODING_PROVIDER = "workers-ai";
 
@@ -250,6 +251,13 @@ export async function runScheduledEvolutionCoding(
   const elapsedSecondsSinceLastRun = currentExecution
     ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
     : Number.MAX_SAFE_INTEGER;
+  let learningMemory: DurableEvolutionLearningMemory;
+  try {
+    learningMemory = await DurableEvolutionLearningMemory.hydrate(createEvolutionLearningMemoryStorage(coordinator));
+  } catch {
+    return result("ABSTAINED", "learning-memory-state-unavailable", signals.map((signal) => signal.id));
+  }
+
   const bridge = prepareDiscoveredCodingRequest({
     signals,
     now: new Date(input.now),
@@ -264,6 +272,7 @@ export async function runScheduledEvolutionCoding(
     schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
     activeExecutions,
     elapsedSecondsSinceLastRun,
+    learningRecords: learningMemory.list(),
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
 

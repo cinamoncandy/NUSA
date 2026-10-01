@@ -155,7 +155,21 @@ test("verified CI saturation constrains worker-pool WIP independently of legacy 
   const saturated = adviseConcurrency({ ...evidence, ciSaturation: 0.9 });
   assert.equal(saturated.action, "DECREASE_BY_ONE");
   assert.equal(saturated.recommendedWip, 1);
-  assert.equal(saturated.reason, "verified-contention-or-capacity-pressure");
+  assert.equal(saturated.reason, "verified-ci-saturation-pressure");
+
+  const saturatedAtFloor = adviseConcurrency({ ...evidence, currentWip: 1, ciSaturation: 0.9 });
+  assert.equal(saturatedAtFloor.action, "HOLD");
+  assert.equal(saturatedAtFloor.recommendedWip, 1);
+  assert.equal(saturatedAtFloor.reason, "verified-ci-saturation-pressure-at-minimum-wip");
+
+  const contentionAtFloor = adviseConcurrency({ ...evidence, currentWip: 1, ciSaturation: 0.4, conflictRate: 0.2 });
+  assert.equal(contentionAtFloor.action, "HOLD");
+  assert.equal(contentionAtFloor.recommendedWip, 1);
+  assert.equal(contentionAtFloor.reason, "verified-contention-or-capacity-pressure-at-minimum-wip");
+
+  const legacySaturated = adviseConcurrency({ ...evidence, ciUtilization: 0.9 });
+  assert.equal(legacySaturated.action, "DECREASE_BY_ONE");
+  assert.equal(legacySaturated.reason, "verified-ci-saturation-pressure");
 
   const malformed = adviseConcurrency({ ...evidence, ciSaturation: Number.NaN });
   assert.equal(malformed.action, "HOLD");

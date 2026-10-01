@@ -15,6 +15,7 @@ export interface GithubExecutorResult {
 }
 
 const SHA40 = /^[0-9a-f]{40}$/i;
+const SHA256 = /^[0-9a-f]{64}$/i;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
@@ -52,6 +53,7 @@ function githubClientPayload(request: AutopilotExecutionRequest): Record<string,
     ...(request.kind === "AUDIT_REQUEST" ? {} : { reason: request.reason }),
     execution_id: request.executionId ?? null,
     dedupe_key: request.dedupeKey ?? null,
+    ...(request.contractFingerprintSha256 ? { contract_fingerprint_sha256: request.contractFingerprintSha256.toLowerCase() } : {}),
     live_authority: "NONE",
     production_mutation_allowed: false,
     ai_authority: "ZERO_AUTHORITY",
@@ -61,24 +63,29 @@ function githubClientPayload(request: AutopilotExecutionRequest): Record<string,
 async function findExistingAuditDispatch(
   base: string,
   repository: string,
-  dedupeKey: string,
+  request: AutopilotExecutionRequest,
   token: string,
   fetchImpl: typeof fetch,
 ): Promise<GithubExecutorResult | boolean> {
+  const dedupeKey = request.dedupeKey!;
+  const logicalPattern = new RegExp(`^audit:${request.prNumber}:${request.workflowRunId}(?::[0-9]+)?:${request.headSha!.toLowerCase()}$`);
   for (let page = 1; page <= 3; page += 1) {
     const response = await fetchImpl(`${base}/repos/${repository}/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100&page=${page}`, { headers: githubHeaders(token) });
     if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-audit-dedupe-auth-rejected", response.status);
     if (response.status === 404) return result("FAILED", "github-executor-audit-dedupe-evidence-unavailable", 404);
     if (!response.ok) return result("FAILED", `github-executor-audit-dedupe-http-${response.status}`, response.status);
     let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      return result("FAILED", "github-executor-audit-dedupe-evidence-invalid", response.status);
-    }
+    try { payload = await response.json(); } catch { return result("FAILED", "github-executor-audit-dedupe-evidence-invalid", response.status); }
     const runs = object(payload)?.workflow_runs;
     if (!Array.isArray(runs)) return result("FAILED", "github-executor-audit-dedupe-evidence-invalid", response.status);
-    if (runs.some((run) => object(run)?.display_title === dedupeKey)) return true;
+    const duplicate = runs.some((entry) => {
+      const run = object(entry);
+      const title = typeof run?.display_title === "string" ? run.display_title : "";
+      if (title === dedupeKey) return true;
+      if (!logicalPattern.test(title)) return false;
+      return run?.status !== "completed" || run?.conclusion === "success";
+    });
+    if (duplicate) return true;
     if (runs.length < 100) return false;
   }
   return false;
@@ -158,6 +165,9 @@ export async function executeGithubDispatch(
     if (!request.executionId || !EXECUTION_ID.test(request.executionId)) return result("REJECTED", "github-executor-execution-id-required");
     if (!request.dedupeKey || !DEDUPE_KEY.test(request.dedupeKey)) return result("REJECTED", "github-executor-dedupe-key-required");
   }
+  if (request.contractFingerprintSha256 != null && !SHA256.test(request.contractFingerprintSha256)) {
+    return result("REJECTED", "github-executor-contract-fingerprint-invalid");
+  }
   if (request.kind === "AUDIT_REQUEST" && (!Number.isSafeInteger(request.prNumber) || (request.prNumber ?? 0) <= 0)) {
     return result("REJECTED", "github-executor-pr-number-required");
   }
@@ -179,7 +189,7 @@ export async function executeGithubDispatch(
   }
 
   if (request.kind === "AUDIT_REQUEST") {
-    const existing = await findExistingAuditDispatch(base, config.allowedRepository, request.dedupeKey!, token, fetchImpl);
+    const existing = await findExistingAuditDispatch(base, config.allowedRepository, request, token, fetchImpl);
     if (typeof existing !== "boolean") return existing;
     if (existing) return result("REJECTED", "github-executor-duplicate-audit-run-suppressed", null, requestedHead, currentHead);
   }
