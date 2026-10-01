@@ -23,18 +23,30 @@ test("runtime proof runs hourly away from the scheduler burst and uploads bounde
 });
 
 test("only exact-current runtime proof directly dispatches Credential Preflight", () => {
-  assert.match(workflow, /permissions:\s*\n\s*contents: read\s*\n\s*actions: write/);
+  assert.match(workflow, /^permissions: \{\}$/m);
   assert.equal(workflow.includes("Dispatch Credential Preflight directly for fresh safety-gate re-verification"), true);
-  assert.equal(workflow.includes("single canonical post-runtime ingress"), true);
   assert.equal(workflow.includes("actions/workflows/autopilot-cloudflare-credential-preflight.yml/dispatches"), true);
-  const dispatchIndex = workflow.indexOf("Dispatch Credential Preflight directly");
-  assert.ok(dispatchIndex > 0);
   assert.equal(workflow.includes("proof.exactHeadVerified === true"), true);
   assert.equal(workflow.includes("revision === sourceSha"), true);
   assert.equal(workflow.includes("preflight_eligible="), true);
-  assert.match(workflow.slice(dispatchIndex, dispatchIndex + 500), /steps\.proof\.outputs\.preflight_eligible == 'true'/);
+  assert.match(workflow, /needs\.runtime-proof\.outputs\.current == 'true'/);
+  assert.match(workflow, /needs\.runtime-proof\.outputs\.preflight_eligible == 'true'/);
+  assert.match(workflow, /github\.event_name != 'pull_request'/);
 });
 
+test("PR-executed runtime proof never holds actions write authority", () => {
+  const body = workflow.replace(/\r\n/g, "\n").split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
+  const proof = jobs.find((job) => job.startsWith("runtime-proof:"));
+  const dispatchJob = jobs.find((job) => job.startsWith("refresh-safety-gate:"));
+  assert.ok(proof && dispatchJob);
+  assert.match(proof, /uses:\s*actions\/checkout@/);
+  assert.match(proof, /permissions:\s*\n\s*contents: read/);
+  assert.doesNotMatch(proof, /actions: write/);
+  assert.doesNotMatch(proof, /\/dispatches/);
+  assert.doesNotMatch(dispatchJob, /uses:\s*actions\/checkout@/);
+  assert.match(dispatchJob, /actions: write/);
+});
 test("runtime proof distinguishes scheduler, receipt, and worker failures without exposing credentials", () => {
   for (const classification of ["proof_not_scheduled", "proof_scheduled_late", "worker_receipt_stale", "worker_unreachable", "proof_invalid"]) {
     assert.equal(script.includes('"' + classification + '"'), true, classification);

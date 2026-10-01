@@ -20,9 +20,7 @@ on:
     # Keep the hourly proof away from the scheduler's common minute boundary.
     - cron: '37 * * * *'
 
-permissions:
-  contents: read
-  actions: write
+permissions: {}
 
 concurrency:
   group: nusa-autopilot-cloudflare-runtime-proof
@@ -33,6 +31,11 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      current: ${{ steps.freshness.outputs.current }}
+      preflight_eligible: ${{ steps.proof.outputs.preflight_eligible }}
     env:
       NUSA_AUTOPILOT_URL: https://nusa-autopilot.desporin12.workers.dev
       NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
@@ -88,19 +91,6 @@ jobs:
             console.log(`Credential Preflight suppressed until runtime converges: source=${sourceSha} deployment=${revision || 'UNVERIFIED'} exactHeadVerified=${proof.exactHeadVerified === true}`);
           }
           NODE
-      - name: Dispatch Credential Preflight directly for fresh safety-gate re-verification
-        if: steps.freshness.outputs.current == 'true' && steps.proof.outputs.preflight_eligible == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          # This is the single canonical post-runtime ingress to Credential Preflight.
-          # Preflight deliberately has no workflow_run listener: a completion from an
-          # older main can arrive after main advances and would otherwise rebind itself
-          # to the new main before that new revision has deployed. Dispatch only after
-          # this proof has observed the exact current runtime revision.
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-credential-preflight.yml/dispatches" -f ref=main
-          echo "Dispatched Autopilot Cloudflare Credential Preflight for fresh safety-gate re-verification."
       - name: Upload runtime proof evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -109,3 +99,19 @@ jobs:
           path: artifacts/autopilot/runtime-proof.json
           if-no-files-found: warn
           retention-days: 7
+
+  refresh-safety-gate:
+    needs: runtime-proof
+    if: ${{ needs.runtime-proof.result == 'success' && needs.runtime-proof.outputs.current == 'true' && needs.runtime-proof.outputs.preflight_eligible == 'true' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch Credential Preflight directly for fresh safety-gate re-verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-credential-preflight.yml/dispatches" -f ref=main
+          echo "Dispatched Autopilot Cloudflare Credential Preflight for fresh safety-gate re-verification."
