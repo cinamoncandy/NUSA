@@ -8,6 +8,7 @@ import { describePaperOrderReason } from "./paperOrderReason";
 import { buildHomeStatusRail } from "./homeStatusRail";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
+import { isLocalPaperLedgerDisplayable } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { selectHomeMarketData } from "./homeMarketData";
 import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
@@ -92,7 +93,9 @@ export function HomeView({
   const tablet = width >= 768;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const marketChart = buildChartViewModel({ market: publicMarket, interval: "1m", rawCandles: publicCandles === null ? null : [...publicCandles], currentPrice: publicCurrentPrice, connectionState: publicMarketConnectionState, stale: publicMarketStale });
-  const localPaperActive = snapshot == null && isLocalPaperActive();
+  // The on-device ledger is only a fallback for a device with no PAPER server configured. While a
+  // configured server session is still recovering, its placeholder ₩10,000,000 must not show.
+  const localPaperActive = snapshot == null && isLocalPaperActive() && isLocalPaperLedgerDisplayable();
   const localTradingSnapshot = useLocalPaperSnapshot();
   const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
   const localPortfolio = localPaperActive ? buildLocalPortfolio(localTradingSnapshot, localMarkPrice) : null;
@@ -100,7 +103,7 @@ export function HomeView({
   const localAccount = localPortfolio?.account ?? null;
   const account = cloudAccount ?? localAccount;
   const accountSource = snapshot != null ? "CLOUD" : localPortfolio != null ? "LOCAL" : null;
-  const capitalLabel = accountSource === "LOCAL" ? "LOCAL PAPER CAPITAL" : accountSource === "CLOUD" ? "CLOUD PAPER CAPITAL" : "PAPER CAPITAL";
+  const capitalLabel = accountSource === "LOCAL" ? "LOCAL PAPER CAPITAL" : accountSource === "CLOUD" ? "CLOUD PAPER CAPITAL" + (sessionRecovering ? " · 재확인 중" : "") : "PAPER CAPITAL";
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const exposure = cloudAccount != null ? cloudExposure(cloudAccount) : localAccount?.assetValue ?? null;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
@@ -180,7 +183,8 @@ export function HomeView({
         <Text style={[styles.reasonText, { color: theme.colors.text }]} numberOfLines={3} testID="home-no-order-reason">{orderReason.text}</Text>
       </View>}
 
-      <View style={styles.glanceRail} testID="home-status-rail">
+      {/* While a recovery/degraded banner is shown the rail would only repeat it; on a halt it stays, because it names the cause (e.g. the kill switch). */}
+      <View style={[styles.glanceRail, ringsStatus && ringsStatus.tone !== "halt" ? styles.hiddenAcceptanceHooks : null]} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
         <Text style={[styles.glanceRisk, { color: riskColor }]}>RISK {rail.riskLabel}</Text>
         <View style={styles.hiddenAcceptanceHooks}><Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text></View>

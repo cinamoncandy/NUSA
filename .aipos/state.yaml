@@ -1868,6 +1868,39 @@ current_mobile_paper_tabs:
   branch: claude/nusa-repository-j93sd8-paper-tabs
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; renewal slices done for HOME, LIVE, More and PAPER tab chrome
+current_mobile_live_gates:
+  work_order: WO-UI-20261001-LIVE-GATES
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-live-redesign
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are HOME below the rings, PAPER and More
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_fast_startup:
+  work_order: WO-UI-20261001-FAST-STARTUP
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-fast-startup
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_daily_loss_streak:
+  work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-daily-loss-streak
+  authority_impact: paper_risk_policy
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-deploy_then-health-recheck
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_recovering_quiet:
+  work_order: WO-UI-20261001-RECOVERING-QUIET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-recovering-home
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_contour_core:
+  work_order: WO-UI-20261001-CONTOUR-CORE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-contour-core
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
 current_mobile_home_plain:
   work_order: WO-UI-20261001-HOME-PLAIN
   status: READY_FOR_REVIEW
