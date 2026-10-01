@@ -305,3 +305,10 @@ test("retry exhaustion remains bounded and stale receipts never pass", async () 
   }), (error) => error?.classification === "worker_receipt_stale");
 });
 
+
+test("runtime proof self-heal controller classifies only bounded recoverable failures", () => {
+  const healer = fs.readFileSync(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs"), "utf8");
+  for (const marker of ["worker_unreachable", "worker_receipt_stale", "proof_not_scheduled", "proof_scheduled_late", "head_mismatch_failed_closed", "SCHEDULED_RECEIPT_HEAD_INVALID"]) assert.equal(healer.includes(marker), true, marker);
+  assert.equal(healer.includes("auth_failed_closed"), false);
+  assert.equal(healer.includes("maxAttempts>20"), true);
+});
