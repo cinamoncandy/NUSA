@@ -24,13 +24,15 @@ export function DecisionRings({ status = null, ...props }: DecisionRingsInput & 
     return () => { mounted = false; sub.remove(); };
   }, []);
 
-  return <View style={styles.wrap} testID="home-decision-rings" accessibilityLabel={`${model.headline}. ${model.detail}`}>
+  return <View style={styles.wrap} testID="home-decision-rings" accessibilityLabel={status && model.state === "UNKNOWN" ? `${status.title}. ${status.detail}` : `${model.headline}. ${model.detail}`}>
     {status ? <View style={[styles.status, { borderColor: status.tone === "halt" ? theme.colors.danger : theme.colors.warning }]} testID="home-decision-rings-status" accessibilityRole="alert">
       <Text style={[styles.statusTitle, { color: status.tone === "halt" ? theme.colors.danger : theme.colors.warning }]}>{status.title}</Text>
       <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{status.detail}</Text>
     </View> : null}
-    <Text style={[fieldFonts.monoMedium, styles.count, { color: theme.colors.text }]} testID="home-decision-rings-count">{model.headline}</Text>
-    <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{model.detail}</Text>
+    {model.state === "UNKNOWN" ? (status ? null : <Text style={[styles.pending, { color: theme.colors.textMuted }]} testID="home-decision-rings-count">{model.headline}</Text>) : <>
+      <Text style={[fieldFonts.monoMedium, styles.count, { color: theme.colors.text }]} testID="home-decision-rings-count">{model.headline}</Text>
+      <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{model.detail}</Text>
+    </>}
     <ContourCore decisionCount={model.decisionCount} reducedMotion={reducedMotion} innerColor={theme.colors.primary} outerColor={theme.colors.info} pulseColor={theme.colors.warning} coreColor={theme.colors.text} />
     <View style={styles.legend}>
       <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단할 때마다 고리가 한 번 정렬됩니다</Text>
@@ -43,6 +45,7 @@ const styles = StyleSheet.create({
   wrap: { alignItems: "center", paddingVertical: 8, gap: 6 },
   status: { alignSelf: "stretch", borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, gap: 4, marginBottom: 6 },
   statusTitle: { fontSize: 15, fontWeight: "600" },
+  pending: { fontSize: 14, textAlign: "center" },
   count: { fontSize: 34, fontWeight: "600", letterSpacing: -0.8 },
   detail: { fontSize: 13, textAlign: "center", maxWidth: 300, lineHeight: 19 },
   legend: { alignItems: "center", gap: 4 },
