@@ -7,10 +7,10 @@ canonical_pr: 2436
 prior_canonical_pr: 2434
 canonical_successor_branch: codex/autopilot-cron-propagation-proof
 supersedes_pr: 2335
-base_main: d2df53126bd2b75c3ac5e31a87273d53da1774fe
+base_main: a8a24ec1cccd6063927fce6e4ab0a4212c70f401
 implementation_head: PENDING_EXACT_HEAD_CI
 first_broken_transition: "deployed cron trigger propagation -> fresh scheduled receipt"
-root_cause: "PR #2434 deployed the deterministic receipt recovery, but its 14 x 25-second proof window expired before Cloudflare's documented cron-trigger propagation window (up to fifteen minutes). The receipt recovery is present; the terminal failure is a bounded-window mismatch, not authentication, authority, or receipt corruption."
+root_cause: "Two defects: proof window omitted the next five-minute cron interval after propagation; zero-credit provider wait emitted headSha=null, which receipt recovery removes. Preserve WAITING_RATE_LIMIT while reading only fresh main identity, never reuse the historical wait head or claim provider recovery."
 dependency: "exact-head CI, independent Audit, Release, protected-main deploy, Runtime Proof"
 acceptance:
   - "Legacy null-head scheduled receipts are removed deterministically before replay."
@@ -34,3 +34,7 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
 next_permitted_action: "Focused validation -> create canonical successor PR -> fresh exact-head CI -> independent Audit -> Release -> merge -> deploy -> Runtime Proof recovery evidence."
+review_repair:
+  validation: "Runtime-proof tests 20/20 and compiled scheduled runtime regression PASS; build PASS. Final metadata validation and fresh exact-head gates required."
+  window: "20 attempts, 19 waits of 70 seconds; 26-minute workflow timeout."
+  review_status: "Implementation addresses propagation-margin and durable-validation findings; independent review resolution remains required, no forced resolution."

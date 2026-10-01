@@ -335,12 +335,14 @@ test("runtime proof self-heal retries a recoverable deployed receipt exactly onc
 });
 
 
-test("runtime proof self-heal leaves margin beyond one five-minute scheduler interval", async () => {
-  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href + "?margin=" + Date.now());
+test("runtime proof self-heal covers propagation, next cron interval and execution margin", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs"), "utf8");
   assert.equal(source.includes("?? 20"), true);
-  assert.equal(source.includes("?? 50000"), true);
-  assert.equal(workflow.includes("timeout-minutes: 18"), true);
+  const attempts = Number(source.match(/MAX_ATTEMPTS \?\? (\d+)/)[1]);
+  const delay = Number(source.match(/DELAY_MS \?\? (\d+)/)[1]);
+  const timeout = Number(workflow.match(/timeout-minutes: (\d+)/)[1]) * 60_000;
+  assert.ok((attempts - 1) * delay >= 20 * 60_000 + 120_000);
+  assert.ok(timeout >= (attempts - 1) * delay + 120_000);
 });
 
 test("runtime proof self-heal suppresses stale main after head mismatch", async () => {

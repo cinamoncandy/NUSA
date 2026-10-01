@@ -36,7 +36,7 @@ jobs:
     # prove (or repair) that revision, so runtime acceptance starts after deploy.
     if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 26
     env:
       NUSA_AUTOPILOT_URL: https://nusa-autopilot.desporin12.workers.dev
       NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
