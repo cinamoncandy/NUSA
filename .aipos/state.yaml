@@ -1,13 +1,14 @@
 version: 1
-current_autopilot_runtime_proof_self_heal:
+current_autopilot_runtime_proof_cron_propagation:
   work_order: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY
-  pull_request: 2434
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-  base_sha: e6e3293f5cb54962c7d2a52e85a085470a45f61c
-  first_broken_transition: un-deployed_PR_runtime_proof_to_deployed_Worker_observation
-  scope: "Use the existing scheduled receipt recovery in the deployed Worker; prevent a pull-request revision from retrying or judging a Worker revision it cannot deploy."
-  validation: "preflight, TypeScript build, scheduled receipt recovery tests 11/11, runtime-proof controller tests 17/17, AIPOS YAML, and diff check PASS. No Cloudflare acceptance is claimed before an exact-main deployment."
-  remaining: latest_main_reconvergence_exact_head_CI_Audit_Release_merge_and_deployed_runtime_proof
+  prior_pull_request: 2434
+  successor_branch: codex/autopilot-cron-propagation-proof
+  status: LOCAL_REPAIR_PENDING_VALIDATION
+  base_sha: d2df53126bd2b75c3ac5e31a87273d53da1774fe
+  first_broken_transition: deployed_cron_trigger_propagation_to_fresh_scheduled_receipt
+  scope: "Keep the existing self-heal controller bounded while allowing the documented Cloudflare cron-trigger propagation window before terminal failure."
+  validation: "Pending focused runtime-proof tests. #2434 merged as d2df5312; deployed health reports that exact revision, but scheduled status remains AWAITING_FIRST_SCHEDULED_EVENT."
+  remaining: focused_validation_successor_PR_exact_head_CI_Audit_Release_merge_and_deployed_runtime_proof
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_audit_dispatch_recovery:
   work_order: WO-AUTOPILOT-20261001-AUDIT-DISPATCH-RECOVERY
