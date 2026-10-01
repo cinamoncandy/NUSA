@@ -14,6 +14,11 @@ export interface PaperOrderReason {
 const OUTCOME = /^([A-Z]{3,12}):([A-Z0-9_.:+-]{1,100})$/;
 
 const KNOWN: Readonly<Record<string, Readonly<{ category: PaperOrderReasonCategory; text: string }>>> = Object.freeze({
+  // These WAIT outcomes are recorded together with a real PAPER fill; they are not "no order".
+  "WAIT:PAPER_STRATEGY_PARTIALLY_FILLED": { category: "FILLED", text: "주문이 일부 체결되었습니다. 남은 수량은 체결을 기다립니다." },
+  "WAIT:PAPER_LIMIT_PARTIALLY_FILLED": { category: "FILLED", text: "지정가 주문이 일부 체결되었습니다. 남은 수량은 체결을 기다립니다." },
+  // Budget exhaustion is reported both with and without a fill, so it is described neutrally.
+  "WAIT:PAPER_STRATEGY_BUDGET_EXHAUSTED": { category: "UNKNOWN", text: "전략에 배정된 예산을 모두 사용해 이번 주문을 마쳤습니다." },
   "WAIT:NO_ACTIONABLE_PAPER_DECISION": { category: "WAITING", text: "전략이 매수·매도 신호를 내지 않아 주문하지 않았습니다." },
   "BLOCKED:PAPER_INVESTMENT_ALLOCATION_EXCEEDED": { category: "EXECUTION_BLOCKED", text: "투자 비중 한도를 넘는 주문이라 실행하지 않았습니다." },
   "BLOCKED:PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_CASH": { category: "EXECUTION_BLOCKED", text: "업비트 최소 주문금액(₩5,000)을 맞출 가용 현금이 부족해 주문하지 않았습니다." },
