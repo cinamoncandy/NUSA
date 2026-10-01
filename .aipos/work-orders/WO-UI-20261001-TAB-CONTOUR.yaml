@@ -1,0 +1,23 @@
+id: WO-UI-20261001-TAB-CONTOUR
+title: "PAPER and LIVE tab headers use the HOME contour core"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-tabs-contour
+authority_impact: none
+objective: "Owner report (2026-10-01): the redesign showed only on HOME; PAPER and LIVE still drew the earlier dot nebula with a diamond core."
+scope:
+  - "fieldHeader.tsx: the nebula, strands and diamond are replaced by a compact, still ContourCore in the tab tone; the sealed LIVE ring, pose and state-change glow are kept."
+  - "contourCore.tsx: optional size and testID props (HOME defaults unchanged)."
+exclusions:
+  - "No change to screen models, data, LIVE authority, or HOME."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-field-screens.test.js tests/mobile-presentation-boundary.test.js tests/mobile-uiux-v3-canonical.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."
