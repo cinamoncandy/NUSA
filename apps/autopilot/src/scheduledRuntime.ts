@@ -266,7 +266,6 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
   if (!coordinator) return result("ABSTAINED", "persistent-execution-coordinator-required");
   if (!safeTimestamp(now)) return result("ABSTAINED", "scheduled-time-invalid");
 
-  const zeroCreditMode = env.NUSA_AUTOPILOT_ZERO_CREDIT_MODE?.trim().toLowerCase() === "true";
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
 
@@ -282,9 +281,8 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
     return result("ABSTAINED", "provider-capacity-state-unavailable");
   }
   if (providerWait && now < providerWait.nextRetryAt) {
-    // In zero-credit mode the persisted wait receipt is authoritative until expiry.
-    // Avoid a Cloudflare egress/GitHub read on every scheduler tick solely to refresh the same head.
-    if (zeroCreditMode) return result("WAITING_RATE_LIMIT", "waiting-provider-capacity");
+    // Provider backoff suppresses execution, not exact-main receipt provenance.
+    // Read only the head; backlog, workflows and AI remain untouched.
     try {
       const main = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl);
       const mainCommit = object(main.commit);

@@ -7,8 +7,11 @@ const evidencePath = (process.env.NUSA_RUNTIME_PROOF_OUTPUT ?? "artifacts/autopi
 const sourceSha = String(process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA ?? "").trim().toLowerCase();
 const sourceBranch = String(process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH ?? "").trim();
 const repository = String(process.env.GITHUB_REPOSITORY ?? "").trim();
-const maxAttempts = Number(process.env.NUSA_RUNTIME_SELF_HEAL_MAX_ATTEMPTS ?? 14);
-const delayMs = Number(process.env.NUSA_RUNTIME_SELF_HEAL_DELAY_MS ?? 25000);
+// Cloudflare permits cron-trigger changes to take up to fifteen minutes to
+// propagate, followed by up to one five-minute cron interval. Include execution
+// margin without increasing the bounded attempt count.
+const maxAttempts = Number(process.env.NUSA_RUNTIME_SELF_HEAL_MAX_ATTEMPTS ?? 20);
+const delayMs = Number(process.env.NUSA_RUNTIME_SELF_HEAL_DELAY_MS ?? 70000);
 
 export function recoveryDecision(evidence) {
   const classification = String(evidence?.classification ?? "");
@@ -60,7 +63,7 @@ export async function runSelfHeal({
   expectedSourceBranch = sourceBranch,
 } = {}) {
   if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 20) throw new Error("SELF_HEAL_ATTEMPT_BUDGET_INVALID");
-  if (!Number.isSafeInteger(delayMs) || delayMs < 1000 || delayMs > 60000) throw new Error("SELF_HEAL_DELAY_INVALID");
+  if (!Number.isSafeInteger(delayMs) || delayMs < 1000 || delayMs > 90000) throw new Error("SELF_HEAL_DELAY_INVALID");
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     rmSync(evidencePath, { force: true });
