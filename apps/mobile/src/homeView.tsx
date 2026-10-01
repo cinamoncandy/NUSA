@@ -18,6 +18,7 @@ import { MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
 import { buildHomeFieldInput } from "./homeFieldInput";
+import { getConfiguredPaperEndpoint } from "./paperConnectionSession";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
 
@@ -92,7 +93,9 @@ export function HomeView({
   const tablet = width >= 768;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const marketChart = buildChartViewModel({ market: publicMarket, interval: "1m", rawCandles: publicCandles === null ? null : [...publicCandles], currentPrice: publicCurrentPrice, connectionState: publicMarketConnectionState, stale: publicMarketStale });
-  const localPaperActive = snapshot == null && isLocalPaperActive();
+  // The on-device ledger is only a fallback for a device with no PAPER server configured. While a
+  // configured server session is still recovering, its placeholder ₩10,000,000 must not show.
+  const localPaperActive = snapshot == null && isLocalPaperActive() && getConfiguredPaperEndpoint() == null;
   const localTradingSnapshot = useLocalPaperSnapshot();
   const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
   const localPortfolio = localPaperActive ? buildLocalPortfolio(localTradingSnapshot, localMarkPrice) : null;
@@ -175,7 +178,8 @@ export function HomeView({
 
       <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.paperOrderCount} /></View>
 
-      <View style={styles.glanceRail} testID="home-status-rail">
+      {/* While a fault banner is shown above the core, the one-line rail would only repeat it. */}
+      <View style={[styles.glanceRail, ringsStatus ? styles.hiddenAcceptanceHooks : null]} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
         <Text style={[styles.glanceRisk, { color: riskColor }]}>RISK {rail.riskLabel}</Text>
         <View style={styles.hiddenAcceptanceHooks}><Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text></View>
