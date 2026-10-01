@@ -37,6 +37,8 @@ test("initial PAPER projection resolves immediately after the first canonical re
   assert.ok(app.includes('const notConfigured = !paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null;'));
   assert.ok(app.includes('const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;'));
   assert.ok(app.includes('const paperLearningServerSource = paperProjectionPending ? "PROJECTION_ABSENT" as const'));
+  assert.ok(app.includes('if (active) setStatus("SIGNED_IN");'), "a configured endpoint opens the shell before the network restore settles");
+  for (const key of ["shadowReason", "realReason", "unavailableReason"]) assert.match(app, new RegExp(`${key}=\\{[^}]*paperProjectionPending \\? PENDING_REASON`));
   assert.ok(!app.includes("로컬 상태 확인 중") && !app.includes("PAPER 상태 복구 중"));
 });
 
