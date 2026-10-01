@@ -1962,3 +1962,27 @@ current_ui_whole_app_rule:
   branch: claude/nusa-repository-j93sd8-ui-whole-app
   authority_impact: none
   rule: "UI/UX changes apply to the whole app (owner, 2026-10-01)."
+current_mobile_attractor:
+  work_order: WO-UI-20261001-ATTRACTOR
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-attractor
+  authority_impact: none
+  remaining: exact-head-CI_incl_mobile-native_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_plain_labels:
+  work_order: WO-UI-20261001-PLAIN-LABELS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-plain-labels
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-More-detail-screen-copy-pass
+current_mobile_detail_copy:
+  work_order: WO-UI-20261001-DETAIL-COPY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-detail-copy
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_session_timeout:
+  work_order: WO-UI-20261001-SESSION-TIMEOUT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-session-timeout
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check

@@ -32,7 +32,7 @@ test("Home uses the content-first command center hierarchy and keeps AI read-onl
   assert.match(source, /testID="home-now"/);
   assert.match(source, /testID="account-hero-card"/);
   assert.match(source, /PAPER EQUITY/);
-  assert.match(source, /TOTAL PNL/);
+  assert.match(source, /총 손익/);
   assert.doesNotMatch(source, />오늘</);
   assert.match(source, /DECISION BASIS/);
   assert.match(source, />NOW<\/Text>/);
@@ -73,10 +73,10 @@ test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   assert.match(portfolio, /<AuthorityRail/);
   assert.match(portfolio, /<ScreenLead/);
   assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
-  assert.match(portfolio, /label: "PAPER EQUITY"/);
+  assert.match(portfolio, /label: "PAPER 자산"/);
   assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
   assert.match(portfolio, /testID="portfolio-allocation-rail"/);
-  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
+  assert.match(portfolio, /실계좌 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
   assert.doesNotMatch(portfolio, /testID="portfolio-summary"/);
   assert.doesNotMatch(portfolio, /<MetricTile/);
   assert.match(ai, /<ScreenHeader/);

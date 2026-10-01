@@ -46,7 +46,7 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.doesNotMatch(source, /settings-theme-segmented-control|화면 테마/);
 
   assert.match(source, /testID="settings-safety"/);
-  assert.match(source, /StatusChip label="PAPER ONLY"/);
+  assert.match(source, /StatusChip label="PAPER 전용"/);
   assert.match(source, /DataRow label="기본 운영 모드" value="LOCAL PAPER"/);
   assert.match(source, /DataRow label="Cloud 연결" value="선택"/);
   assert.match(source, /DataRow label="LIVE 주문" value="금지"/);

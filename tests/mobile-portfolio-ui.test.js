@@ -54,18 +54,18 @@ test("Portfolio UI model fails closed for unavailable or inconsistent data", () 
 test("Portfolio screen exposes truthful verified totals without unavailable return UI", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "portfolioView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(source, /PAPER DATA UNAVAILABLE/);
-  assert.match(source, /UNKNOWN 값을 0으로 표시하지 않습니다/);
-  assert.match(source, /NO EXPOSURE/);
+  assert.match(source, /PAPER 자산 정보 없음/);
+  assert.match(source, /모르는 값은 0으로 표시하지 않습니다/);
+  assert.match(source, /보유 종목 없음/);
   assert.match(source, /RefreshControl/);
   assert.match(source, /testID="portfolio-supervisor-summary"/);
-  assert.match(source, /label: "PAPER EQUITY", value: money\(model\?\.totalEquity\)/);
-  assert.match(source, /kicker="CAPITAL"/);
-  assert.match(source, /label="REALIZED PNL" value=\{signedMoney\(position\.realizedPnl\)\}/);
-  assert.match(source, /label="UNREALIZED PNL" value=\{signedMoney\(position\.unrealizedPnl\)\}/);
+  assert.match(source, /label: "PAPER 자산", value: money\(model\?\.totalEquity\)/);
+  assert.match(source, /kicker="자본"/);
+  assert.match(source, /label="실현 손익" value=\{signedMoney\(position\.realizedPnl\)\}/);
+  assert.match(source, /label="평가 손익" value=\{signedMoney\(position\.unrealizedPnl\)\}/);
   assert.match(source, /testID="portfolio-upbit-read-only"/);
-  assert.match(source, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다\./);
-  assert.match(source, /PAPER RESULT/);
+  assert.match(source, /실계좌 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다\./);
+  assert.match(source, /PAPER 결과/);
   assert.doesNotMatch(source, /대표 포지션|대표 열린 포지션/);
   assert.doesNotMatch(source, /수익률/);
   assert.doesNotMatch(source, /testID="portfolio-summary"/);
