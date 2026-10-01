@@ -11,6 +11,7 @@ objective: "Production /health on 2026-10-01 showed decisionCount 109746, paperO
 scope:
   - "apps/cloud/src/cloudPaperCanonicalRiskGateway.ts realizedLossState: the consecutive-loss streak counts only completed sells filled on the current UTC day (same day function as the daily realized-loss limit)."
   - "Requalification pin updated to the new exact source blob with an assertion for the day-scoped streak."
+  - "Module qualification registry (moduleQualificationV1.ts) RISK blob updated to the same exact source; owner explicitly approved this registry update in session on 2026-10-01."
 unchanged:
   - "maxConsecutiveLosses stays 3; the full CLOUD_PAPER_RISK_LIMITS envelope is asserted unchanged."
   - "An unmatched or oversized sell still halts with RECONCILIATION_FAILED (fail closed)."
