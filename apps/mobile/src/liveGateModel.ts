@@ -20,7 +20,8 @@ export interface LiveGateSnapshot {
   readonly idempotencyTests: string;
   readonly exchangeFaultTests: string;
   readonly prohibitedFinancialMutationScan: string;
-  readonly runtimeSafety: Readonly<Record<string, boolean>>;
+  /** Every boolean flag on it is a safety breach when true. */
+  readonly runtimeSafety: object;
 }
 
 export interface LiveGate {
@@ -50,7 +51,7 @@ function allOf(id: string, title: string, detail: string, values: readonly strin
 
 export function buildLiveGates(snapshot: LiveGateSnapshot | null): LiveGateSummary | null {
   if (snapshot == null) return null;
-  const safetyBreached = Object.values(snapshot.runtimeSafety).some((flag) => flag === true);
+  const safetyBreached = Object.values(snapshot.runtimeSafety as Record<string, unknown>).some((flag) => flag === true);
   const gates = Object.freeze([
     gate("paper", "PAPER 자동 학습이 안정적", "모의 매매 학습 결과가 흔들리지 않아야 합니다.", snapshot.paperAutoLearning, "STABLE"),
     gate("shadow", "SHADOW 재현 검증 통과", "같은 시장 기록으로 판단을 재현할 수 있어야 합니다.", snapshot.shadowReplay, "VALID", "MISSING"),
