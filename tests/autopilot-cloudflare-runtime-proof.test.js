@@ -310,7 +310,7 @@ test("runtime proof self-heal controller classifies only bounded recoverable fai
   const healer = fs.readFileSync(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs"), "utf8");
   for (const marker of ["worker_unreachable", "worker_receipt_stale", "proof_not_scheduled", "proof_scheduled_late", "head_mismatch_failed_closed", "SCHEDULED_RECEIPT_HEAD_INVALID"]) assert.equal(healer.includes(marker), true, marker);
   assert.equal(healer.includes("auth_failed_closed"), false);
-  assert.equal(healer.includes("maxAttempts>20"), true);
+  assert.match(healer, /maxAttempts\s*>\s*20/);
 });
 
 test("runtime proof never treats an un-deployed pull request as Worker acceptance", () => {
@@ -319,7 +319,10 @@ test("runtime proof never treats an un-deployed pull request as Worker acceptanc
 
 test("runtime proof self-heal retries a recoverable deployed receipt exactly once before success", async () => {
   const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href);
-  const evidence = [{ classification: "proof_invalid", reasonCode: "SCHEDULED_RECEIPT_HEAD_INVALID" }];
+  const evidence = [
+    { classification: "proof_invalid", reasonCode: "SCHEDULED_RECEIPT_HEAD_INVALID" },
+    { status: "PASS", proofStatus: "PROOF_FRESH" },
+  ];
   let verifications = 0;
   let waits = 0;
   const result = await healer.runSelfHeal({
@@ -349,6 +352,8 @@ test("runtime proof self-heal suppresses stale main after head mismatch", async 
       wait: async () => {},
       readEvidence: () => ({ classification: "head_mismatch_failed_closed", reasonCode: "HEAD_MISMATCH_FAILED_CLOSED" }),
       readCurrentMain: async () => "b".repeat(40),
+      expectedSourceSha: "a".repeat(40),
+      expectedSourceBranch: "main",
     });
     assert.deepEqual(result, { status: "STALE_SOURCE_SUPPRESSED", attempts: 1, reason: "MAIN_ADVANCED" });
   } finally {
