@@ -1,0 +1,23 @@
+id: WO-UI-20261001-PAPER-TABS
+title: "PAPER tab renewal: plain Korean mode tabs with a one-line explanation"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-paper-tabs
+authority_impact: none
+objective: "Owner asked to keep improving the rest of the UI/UX. The PAPER tab opened on four small English tabs (PAPER / 학습 / SHADOW / REAL) and a faint READ ONLY tag with no hint of what each tab answers."
+scope:
+  - "paperShadowMonitorView.tsx: visible tab labels 운영 / 학습 / 재현 / 실계좌, 44pt touch targets, a Korean read-only tag that keeps the canonical 'READ ONLY' accessible name, and one sentence under the tabs that explains the selected mode."
+  - "Mode identities, BASE_MODES, testIDs and the separate PAPER / SYSTEM / SHADOW / REAL evidence domains are unchanged."
+exclusions:
+  - "No change to the four monitor views, data sources, server, strategy, risk, execution, credential or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/mobile-paper-tabs-plain.test.js tests/real-readonly-observability.test.js tests/mobile-uiux-system-learning-supervisor.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

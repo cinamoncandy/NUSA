@@ -61,6 +61,19 @@ test("canonical merge is bound to the dedicated GitHub App token", () => {
   assert.doesNotMatch(merge, /GH_TOKEN: \$\{\{ github\.token \}\}/);
 });
 
+test("Release waits a bounded interval for GitHub branch protection to observe its exact App status", () => {
+  const release = jobSlice(releaseWorkflow, "release");
+  const waitStart = release.indexOf("      - name: Wait for protected-branch authorization propagation");
+  const mergeStart = release.indexOf("      - name: Canonical expected-head merge");
+  assert.ok(waitStart >= 0 && waitStart < mergeStart, "authorization propagation wait must precede canonical merge");
+  const wait = release.slice(waitStart, mergeStart);
+  assert.match(wait, /seq 1 10/);
+  assert.match(wait, /head\.sha/);
+  assert.match(wait, /base\.sha/);
+  assert.match(wait, /nusa\/release-authorized/);
+  assert.match(wait, /sleep 3/);
+});
+
 test("Audit and Release keep zero-authority fail-closed safety invariants", () => {
   const audit = jobSlice(consumerWorkflow, "audit-request", "audit-recovery");
   const deterministicAudit = jobSlice(releaseWorkflow, "audit", "release");
