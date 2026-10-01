@@ -167,7 +167,7 @@ export function HomeView({
 
       <DecisionRings decisionCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.paperOrderCount} />
 
-      <View testID="home-now"><IntelligenceField input={fieldInput} /></View>
+      <View testID="home-now"><IntelligenceField input={buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale })} /></View>
 
       <View style={styles.glanceRail} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
