@@ -26,6 +26,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SHA40 = /^[a-f0-9]{40}$/;
 const sha256 = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
+export function isOwnerBaselineSourceCommitSha(value: string): boolean {
+  return SHA40.test(value.trim().toLowerCase());
+}
+
 export function ownerBaselineAdvisory(market: string, periodStartAt: number): LeagueCapitalAllocationAdvisory {
   if (!Number.isSafeInteger(periodStartAt) || periodStartAt < DAY_MS) throw new Error("owner baseline period start is invalid");
   const normalizedMarket = market.trim().toUpperCase();
@@ -71,7 +75,7 @@ export function ownerBaselineStrategyEnabled(env: NodeJS.ProcessEnv): boolean {
 
 export function ownerBaselineStrategySpec(sourceCommitSha: string): PaperCandidateStrategySpec {
   const codeSha = sourceCommitSha.trim().toLowerCase();
-  if (!SHA40.test(codeSha)) throw new Error("owner baseline strategy requires the exact 40-hex source commit");
+  if (!isOwnerBaselineSourceCommitSha(codeSha)) throw new Error("owner baseline strategy requires the exact 40-hex source commit");
   const parameters = Object.freeze({ shortPeriod: 5, longPeriod: 20 });
   const identity = { candidateId: OWNER_BASELINE_CANDIDATE_ID, familyId: "sma-crossover", lineageId: "owner-baseline", parameters, costModelVersion: "nusa-paper-cost-v1" };
   return Object.freeze({ ...identity, specificationHash: sha256(identity), codeSha });
@@ -98,11 +102,14 @@ export class OwnerBaselinePaperBindingProvider implements PaperCandidateBindingP
     challenger?: PaperCandidateBindingProvider;
     sourceCommitSha: string;
     enabled: boolean;
+    baselineMarket?: string;
   }>) {}
 
   public read(market: string, decisionAt: number): PaperCandidateExecutionBinding | undefined {
     const challenger = this.options.challenger?.read(market, decisionAt);
     if (challenger != null || !this.options.enabled) return challenger;
+    const baselineMarket = this.options.baselineMarket?.trim().toUpperCase();
+    if (!baselineMarket || market.trim().toUpperCase() !== baselineMarket) return undefined;
     try {
       return ownerBaselineBinding(market, decisionAt, this.options.sourceCommitSha);
     } catch {

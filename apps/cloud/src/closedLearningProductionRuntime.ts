@@ -9,7 +9,7 @@ import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
 import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
-import { OwnerBaselinePaperBindingProvider, ownerBaselineStrategyEnabled } from "./ownerBaselinePaperStrategy";
+import { OwnerBaselinePaperBindingProvider, isOwnerBaselineSourceCommitSha, ownerBaselineStrategyEnabled } from "./ownerBaselinePaperStrategy";
 import { buildOwnerBaselinePaperPeriodInput, isOwnerBaselinePeriodStartAt } from "./ownerBaselinePaperPeriod";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
@@ -84,6 +84,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     challenger: challengerBindings,
     sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "",
     enabled: ownerBaselineStrategyEnabled(env),
+    baselineMarket: config.upbitMarkets.length === 1 ? config.upbitMarkets[0] : undefined,
   });
   const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider });
 
@@ -244,6 +245,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     if (!ownerBaselineStrategyEnabled(env) || periods.listOpenPeriods().length > 0 || periods.listRealizedPeriods().length > 0) return;
     const account = readCanonicalPaperAccount();
     if (account == null || !isOwnerBaselinePeriodStartAt(account.updatedAt)) return;
+    const sourceCommitSha = env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "";
+    if (!isOwnerBaselineSourceCommitSha(sourceCommitSha)) return;
     const market = config.upbitMarkets[0];
     if (market == null) return;
     const periodIndex = periods.listRealizedPeriods().reduce((maximum, item) => Math.max(maximum, item.record.periodIndex), -1) + 1;
@@ -251,7 +254,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       market,
       periodIndex,
       periodStartAt: account.updatedAt,
-      sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "",
+      sourceCommitSha,
     });
     periods.openPeriodFromCanonicalAccount(input);
   };
@@ -264,8 +267,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       // If Research has no deployable snapshot, preserve the canonical PAPER loop by opening one
       // truthful market-bound owner-baseline period. The period uses the same account boundary and
       // provenance as the executable baseline binding; it never fabricates fills or benchmark data.
-      if (bootstrap.status === "WAITING_RESEARCH_SNAPSHOT") {
-        researchRefresh.requestIfDue();
+      if (bootstrap.status === "WAITING_RESEARCH_SNAPSHOT" || bootstrap.status === "RESEARCH_NOT_DEPLOYABLE" || bootstrap.status === "WAITING_GOVERNANCE_APPROVAL") {
+        if (bootstrap.status === "WAITING_RESEARCH_SNAPSHOT") researchRefresh.requestIfDue();
         ensureOwnerBaselinePeriod();
       }
       await runClosedLearningRolloverAsync();

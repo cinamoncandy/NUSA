@@ -212,7 +212,7 @@ current_paper_owner_baseline_period:
   authority_impact: none
   first_broken_transition: invalid_account_updatedAt_to_owner_baseline_period_open
   scope: "Reject non-Unix account timestamps before the PAPER-only owner baseline period is opened; no synthetic timestamp, order, or authority change."
-  remaining: exact_head_CI_then_independent_Audit_then_canonical_Release_then_exact_main_PAPER_runtime_evidence
+  remaining: review_remediation_for_baseline_rollover_lineage_replacement_and_observation_bound_then_fresh_exact_head_CI_Audit_Release
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_capital_10000_account:
   work_order: WO-PAPER-20260929-CAPITAL-10000-ACCOUNT
