@@ -53,7 +53,7 @@ export function DecisionRings({ status = null, ...props }: DecisionRingsInput & 
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   const armRotate = sweep.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
 
-  return <View style={styles.wrap} testID="home-decision-rings" accessibilityLabel={`${model.headline}. ${model.detail}`}>
+  return <View style={styles.wrap} testID="home-decision-rings" accessibilityLabel={status && model.state === "UNKNOWN" ? `${status.title}. ${status.detail}` : `${model.headline}. ${model.detail}`}>
     {status ? <View style={[styles.status, { borderColor: status.tone === "halt" ? theme.colors.danger : theme.colors.warning }]} testID="home-decision-rings-status" accessibilityRole="alert">
       <Text style={[styles.statusTitle, { color: status.tone === "halt" ? theme.colors.danger : theme.colors.warning }]}>{status.title}</Text>
       <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{status.detail}</Text>
