@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { NusaButton } from "./components";
 import { FieldHeader } from "./fieldHeader";
-import { buildPaperFieldHeader } from "./fieldScreensModel";
+import { buildPaperFieldHeader, paperRiskWord, paperSourceWord } from "./fieldScreensModel";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
 import { FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
@@ -118,7 +118,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
   const sourceMessage = useMemo(() => dataSourceMessage(state), [state]);
   const totalPnl = state.latestAccount == null ? state.performance.realizedPnL + state.performance.unrealizedPnL : state.latestAccount.realizedPnL + state.latestAccount.unrealizedPnL;
   const pnlTone: IntelligenceTone = totalPnl > 0 ? "success" : totalPnl < 0 ? "danger" : "neutral";
-  const learningLabel = state.latestEvidence?.outcome == null ? "WAITING" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
+  const learningLabel = state.latestEvidence?.outcome == null ? "대기" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
   const learningTone: IntelligenceTone = state.latestEvidence?.outcome === "PROMOTE" ? "success" : state.latestEvidence?.outcome === "REJECT" ? "danger" : "neutral";
   const sourceColor = sourceTone(state.dataSource) === "success" ? theme.colors.success : sourceTone(state.dataSource) === "warning" ? theme.colors.warning : theme.colors.danger;
 
@@ -133,18 +133,18 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]} testID="paper-learning-read-only-label">PAPER LEARNING · READ ONLY</Text>
     <MetricStrip
       items={[
-        { label: "EQUITY", value: money(state.latestAccount?.equity), tone: "neutral" },
-        { label: "TOTAL PNL", value: signedMoney(totalPnl), tone: pnlTone },
-        { label: "RISK", value: state.latestRisk?.status ?? "UNKNOWN", tone: riskTone(state.latestRisk?.status) },
-        { label: "LEARNING", value: learningLabel, tone: learningTone },
+        { label: "자산", value: money(state.latestAccount?.equity), tone: "neutral" },
+        { label: "총 손익", value: signedMoney(totalPnl), tone: pnlTone },
+        { label: "위험", value: paperRiskWord(state.latestRisk?.status), tone: riskTone(state.latestRisk?.status) },
+        { label: "학습", value: learningLabel, tone: learningTone },
       ]}
       testID="paper-learning-glance-strip"
     />
 
     <View style={styles.sourceRow} testID="paper-learning-data-source">
       <View style={styles.sourceCopy}>
-        <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>DATA SOURCE</Text>
-        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{state.dataSource}</Text>
+        <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>데이터 출처</Text>
+        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{paperSourceWord(state.dataSource)}</Text>
       </View>
       <View style={[styles.sourcePill, { borderColor: sourceColor }]}><Text style={[styles.sourcePillText, { color: sourceColor }]}>{state.dataSource === "SERVER_STREAM" ? "SERVER" : state.dataSource === "LOCAL_FALLBACK" ? "LOCAL" : "CHECK"}</Text></View>
     </View>

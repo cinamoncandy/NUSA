@@ -98,7 +98,7 @@ test("production HomeView wires the status rail and keeps cumulative PnL truth e
   assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
   assert.match(home, /RISK \{rail\.riskLabel\}/);
   assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /총 손익/);
   assert.doesNotMatch(home, />오늘</);
   assert.doesNotMatch(home, /accessibilityLabel="알림"/);
 });
