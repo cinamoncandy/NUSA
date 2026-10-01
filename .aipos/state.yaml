@@ -1942,3 +1942,9 @@ current_mobile_tab_contour:
   branch: claude/nusa-repository-j93sd8-tabs-contour
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_paper_body:
+  work_order: WO-UI-20261001-PAPER-BODY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-body
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
