@@ -3,12 +3,14 @@ title: Recover malformed scheduled runtime receipt state
 status: IN_PROGRESS
 priority: P0
 canonical_owner: evolve-autopilot
-canonical_pr: 2434
+canonical_pr: 2436
+prior_canonical_pr: 2434
+canonical_successor_branch: codex/autopilot-cron-propagation-proof
 supersedes_pr: 2335
-base_main: e6e3293f5cb54962c7d2a52e85a085470a45f61c
-implementation_head: PENDING_PUSH_EXACT_HEAD
-first_broken_transition: "un-deployed PR runtime proof -> deployed Worker observation"
-root_cause: "Persisted legacy GITHUB_HTTP_401 receipt carried headSha=null; the persistence validator accepted null as structurally valid, so recovery skipped it and Runtime Proof rejected the same receipt as SCHEDULED_RECEIPT_HEAD_INVALID. PR #2434 then retried the deployed Worker from an un-deployed pull-request revision, so the deployed recovery could never be observed."
+base_main: d2df53126bd2b75c3ac5e31a87273d53da1774fe
+implementation_head: PENDING_EXACT_HEAD_CI
+first_broken_transition: "deployed cron trigger propagation -> fresh scheduled receipt"
+root_cause: "PR #2434 deployed the deterministic receipt recovery, but its 14 x 25-second proof window expired before Cloudflare's documented cron-trigger propagation window (up to fifteen minutes). The receipt recovery is present; the terminal failure is a bounded-window mismatch, not authentication, authority, or receipt corruption."
 dependency: "exact-head CI, independent Audit, Release, protected-main deploy, Runtime Proof"
 acceptance:
   - "Legacy null-head scheduled receipts are removed deterministically before replay."
@@ -16,10 +18,10 @@ acceptance:
   - "All other corruption and authority drift remain fail-closed."
   - "A fresh valid receipt can be appended after recovery."
   - "An un-deployed pull request is never reported as Cloudflare runtime acceptance or recovery failure."
-  - "After exact-main deployment, bounded proof retries allow the Worker five-minute scheduled recovery to persist a fresh receipt."
+  - "After exact-main deployment, bounded proof retries allow the Worker up to the documented Cloudflare cron-trigger propagation window to persist a fresh receipt."
   - "Post-merge deploy and Runtime Proof produce canonical successful workload/recovery evidence."
 evidence:
-  local_validation: "preflight, TypeScript build, scheduled runtime receipt recovery 11/11, runtime proof controller 17/17, AIPOS YAML, and git diff --check PASS. Legacy null-head removal, malformed-head recovery, duplicate scheduledTime fail-closed, append-after-recovery, authority drift, and deterministic replay remain covered."
+  local_validation: "Successor PR #2436: runtime proof controller 20/20, preflight, TypeScript build, validate:full, security gate, AIPOS YAML, and git diff --check PASS. Legacy null-head removal, malformed-head recovery, duplicate scheduledTime fail-closed, append-after-recovery, authority drift, and deterministic replay remain covered."
   observed_deploy_run: 36295228144
   observed_runtime_proof_run: 36295263408
   failure: SCHEDULED_RECEIPT_HEAD_INVALID
@@ -31,4 +33,4 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next_permitted_action: "Focused validation -> latest-main reconvergence -> fresh exact-head CI -> independent Audit -> Release -> merge -> deploy -> Runtime Proof recovery evidence."
+next_permitted_action: "Focused validation -> create canonical successor PR -> fresh exact-head CI -> independent Audit -> Release -> merge -> deploy -> Runtime Proof recovery evidence."

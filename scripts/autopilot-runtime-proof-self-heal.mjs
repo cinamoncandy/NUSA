@@ -7,8 +7,10 @@ const evidencePath = (process.env.NUSA_RUNTIME_PROOF_OUTPUT ?? "artifacts/autopi
 const sourceSha = String(process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA ?? "").trim().toLowerCase();
 const sourceBranch = String(process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH ?? "").trim();
 const repository = String(process.env.GITHUB_REPOSITORY ?? "").trim();
-const maxAttempts = Number(process.env.NUSA_RUNTIME_SELF_HEAL_MAX_ATTEMPTS ?? 14);
-const delayMs = Number(process.env.NUSA_RUNTIME_SELF_HEAL_DELAY_MS ?? 25000);
+// Cloudflare permits cron-trigger changes to take up to fifteen minutes to
+// propagate. Keep one bounded proof window long enough for that normal delay.
+const maxAttempts = Number(process.env.NUSA_RUNTIME_SELF_HEAL_MAX_ATTEMPTS ?? 20);
+const delayMs = Number(process.env.NUSA_RUNTIME_SELF_HEAL_DELAY_MS ?? 50000);
 
 export function recoveryDecision(evidence) {
   const classification = String(evidence?.classification ?? "");
