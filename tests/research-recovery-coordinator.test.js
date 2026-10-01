@@ -25,7 +25,14 @@ function validState() {
   const familyMembership = new StrategyFamilyRegistry();
   familyMembership.registerFamily({ familyId: "test.mean-reversion", name: "Test Mean Reversion", category: "MEAN_REVERSION", thesis: "Recovery fixture family.", lifecycle: "RESEARCHING" });
   familyMembership.registerMember({ strategyId: "strategy-1", version: "1.0.0", familyId: "test.mean-reversion", role: "RESEARCH_CANDIDATE" });
-  const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership, ownerAuthorization, now: () => now });
+  const runtime = new CandidatePromotionRuntime({
+    repository,
+    evaluationLedger: ledger,
+    familyMembership,
+    currentDatasetIdentity: { currentDataFingerprint: (datasetId) => datasetId === "dataset-1" ? "a".repeat(64) : null },
+    ownerAuthorization,
+    now: () => now,
+  });
   const record = evidence();
   ledger.append(record);
   runtime.registerCandidate(identity());

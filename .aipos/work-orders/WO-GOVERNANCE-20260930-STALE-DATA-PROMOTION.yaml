@@ -28,7 +28,7 @@ acceptance:
   - helper evaluator validates required current fingerprint before decision returns
 validation:
   status: LOCAL_PASS_PENDING_EXACT_HEAD_CI
-  commands: "pnpm run build; focused Strategy Governance and CandidatePromotionRuntime tests 31/31 PASS; pnpm run validate; pnpm run security:gate; AIPOS/architecture/safety validation; diff check PASS; fresh exact-head CI required"
+  commands: "pnpm run build; focused Strategy Governance, CandidatePromotionRuntime, and ResearchRecoveryCoordinator tests 42/42 PASS; pnpm run validate; pnpm run security:gate; AIPOS/architecture/safety validation; diff check PASS; fresh exact-head CI required"
 safety:
   paper_only: true
   liveAuthority: NONE
