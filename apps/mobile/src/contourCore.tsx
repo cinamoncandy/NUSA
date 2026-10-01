@@ -66,7 +66,7 @@ export function ContourCore({ decisionCount, reducedMotion, innerColor, outerCol
   useEffect(() => () => { pulseAnimation.current?.stop(); }, []);
 
   const loose = Animated.subtract(1, align);
-  return <View style={[styles.stage, { width: stage, height: stage }]} pointerEvents="none" testID={testID}>
+  return <View style={[styles.stage, { width: stage, height: stage, marginTop: stage === SIZE ? 6 : 0 }]} pointerEvents="none" testID={testID}>
     {wobbles.map((value, i) => {
       const t = (i + 1) / RINGS;
       const size = stage * 0.92 * t;
@@ -93,7 +93,7 @@ export function ContourCore({ decisionCount, reducedMotion, innerColor, outerCol
 }
 
 const styles = StyleSheet.create({
-  stage: { width: SIZE, height: SIZE, alignItems: "center", justifyContent: "center", marginTop: 6 },
+  stage: { width: SIZE, height: SIZE, alignItems: "center", justifyContent: "center" },
   ring: { position: "absolute", borderWidth: 1 },
   pulse: { width: SIZE * 0.92, height: SIZE * 0.92, borderRadius: SIZE * 0.46, borderWidth: 1.5 },
   core: { width: 6, height: 6, borderRadius: 3 },
