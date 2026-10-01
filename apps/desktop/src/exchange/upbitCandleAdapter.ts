@@ -50,6 +50,9 @@ export interface MapUpbitDayCandlesOptions {
 }
 
 export interface UpbitCandleFreshness {
+  readonly source: "upbit-public-api";
+  readonly market: string;
+  readonly interval: UpbitResearchInterval;
   readonly asOf: number;
   readonly expectedLatestCloseTime: number;
   readonly actualLatestCloseTime: number;
@@ -80,6 +83,12 @@ export function evaluateUpbitCandleFreshness(
   const intervalMs = UPBIT_INTERVAL_MS[interval];
   if (!Number.isFinite(asOf)) throw new Error("asOf must be finite");
   if (candles.length === 0) throw new Error("candle freshness requires at least one candle");
+  const markets = new Set(candles.map((candle) => candle.market));
+  const intervals = new Set(candles.map((candle) => candle.interval));
+  if (markets.size !== 1 || intervals.size !== 1 || !intervals.has(interval)) {
+    throw new Error("candle freshness requires one exact market and requested interval");
+  }
+  const market = candles[0]!.market;
   const actualLatestCloseTime = Math.max(...candles.map((candle) => candle.closeTime));
   const expectedLatestCloseTime = Math.floor(asOf / intervalMs) * intervalMs;
   if (!Number.isFinite(actualLatestCloseTime) || actualLatestCloseTime > asOf) {
@@ -90,6 +99,9 @@ export function evaluateUpbitCandleFreshness(
     throw new Error("candle freshness requires UTC-aligned interval close timestamps");
   }
   return Object.freeze({
+    source: "upbit-public-api" as const,
+    market,
+    interval,
     asOf,
     expectedLatestCloseTime,
     actualLatestCloseTime,
