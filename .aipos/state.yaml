@@ -1962,3 +1962,9 @@ current_ui_whole_app_rule:
   branch: claude/nusa-repository-j93sd8-ui-whole-app
   authority_impact: none
   rule: "UI/UX changes apply to the whole app (owner, 2026-10-01)."
+current_mobile_detail_copy:
+  work_order: WO-UI-20261001-DETAIL-COPY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-detail-copy
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge

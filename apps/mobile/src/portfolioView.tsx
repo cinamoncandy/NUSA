@@ -52,29 +52,29 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   const upbitConnected = upbitStatus === "READY" && upbitSnapshot != null && upbitError == null;
 
   return <ScrollView style={{ backgroundColor: theme.colors.background }} contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false} testID="portfolio-screen">
-    <AuthorityRail detail="PAPER CAPITAL · REAL ACCOUNT SEPARATE · LIVE NONE" status={model ? (usingLocalPaper ? "LOCAL PAPER" : "PAPER READY") : error ? "DEGRADED" : "UNAVAILABLE"} tone={model ? "success" : "warning"} testID="portfolio-authority-rail" />
-    <ScreenLead eyebrow="PORTFOLIO" title="PAPER 자산과 결과" detail="Equity와 누적 손익을 먼저 보고, 자본 배분·노출·회계 근거를 아래에서 확인합니다." badge="PORTFOLIO" badgeTone="primary" />
-    {error ? <StateNotice title="PAPER PORTFOLIO DEGRADED" detail={error} tone="danger" /> : null}
-    {!model ? <StateNotice title="PAPER DATA UNAVAILABLE" detail="PAPER 서버에 연결하거나 LOCAL PAPER 결과가 생성되면 자산과 손익을 표시합니다. UNKNOWN 값을 0으로 표시하지 않습니다." tone="warning" /> : null}
-    <MetricStrip testID="portfolio-supervisor-summary" items={[{ label: "PAPER EQUITY", value: money(model?.totalEquity) }, { label: "TOTAL PNL", value: signedMoney(model?.totalPnl), tone: model == null ? "neutral" : model.totalPnl >= 0 ? "success" : "danger" }, { label: "CASH", value: money(model?.cash) }, { label: "EXPOSURE", value: money(model?.assetValue) }]} />
+    <AuthorityRail detail="PAPER 자산 · 실계좌와 분리 · LIVE 없음" status={model ? (usingLocalPaper ? "LOCAL PAPER" : "PAPER READY") : error ? "DEGRADED" : "UNAVAILABLE"} tone={model ? "success" : "warning"} testID="portfolio-authority-rail" />
+    <ScreenLead eyebrow="포트폴리오" title="PAPER 자산과 결과" detail="Equity와 누적 손익을 먼저 보고, 자본 배분·노출·회계 근거를 아래에서 확인합니다." badge="PAPER" badgeTone="primary" />
+    {error ? <StateNotice title="PAPER 자산 정보 일부 불완전" detail={error} tone="danger" /> : null}
+    {!model ? <StateNotice title="PAPER 자산 정보 없음" detail="PAPER 서버에 연결하거나 LOCAL PAPER 결과가 생성되면 자산과 손익을 표시합니다. 모르는 값은 0으로 표시하지 않습니다." tone="warning" /> : null}
+    <MetricStrip testID="portfolio-supervisor-summary" items={[{ label: "PAPER 자산", value: money(model?.totalEquity) }, { label: "총 손익", value: signedMoney(model?.totalPnl), tone: model == null ? "neutral" : model.totalPnl >= 0 ? "success" : "danger" }, { label: "현금", value: money(model?.cash) }, { label: "보유 비중", value: money(model?.assetValue) }]} />
     <View style={tablet ? styles.columns : styles.stack}>
-    {model && allocation ? <IntelligenceSection style={tablet ? styles.column : undefined} title="자본 배분" kicker="CAPITAL" tone="primary" testID="portfolio-allocation-rail">
-      <FactRow label="INVESTMENT LIMIT" value={`${allocation.investmentPercent}%`} /><FactRow label="INVESTABLE CASH" value={money(allocation.investableCash)} testID="portfolio-investable-cash" /><FactRow label="PROTECTED CASH" value={money(allocation.reservedCash)} tone="success" testID="portfolio-reserved-cash" />
+    {model && allocation ? <IntelligenceSection style={tablet ? styles.column : undefined} title="자본 배분" kicker="자본" tone="primary" testID="portfolio-allocation-rail">
+      <FactRow label="투자 한도" value={`${allocation.investmentPercent}%`} /><FactRow label="투자 가능 현금" value={money(allocation.investableCash)} testID="portfolio-investable-cash" /><FactRow label="보호 현금" value={money(allocation.reservedCash)} tone="success" testID="portfolio-reserved-cash" />
       <View style={[styles.allocationRail, { backgroundColor: theme.colors.surfaceRaised }]}><View style={[styles.allocationFill, { backgroundColor: theme.colors.primary, width: `${allocation.investmentPercent}%` as `${number}%` }]} /></View><Text style={[styles.note, { color: theme.colors.textMuted }]}>보호 현금은 신규 PAPER 매수 한도에서 제외됩니다.</Text>
     </IntelligenceSection> : null}
-    <IntelligenceSection style={tablet ? styles.column : undefined} title="현재 노출" kicker="PAPER EXPOSURE" tone={position ? "info" : "neutral"} testID={position ? "portfolio-position" : "portfolio-empty"}>
-      {position ? <><FactRow label="MARKET" value={position.market} /><FactRow label="QUANTITY" value={String(position.quantity)} /><FactRow label="AVERAGE PRICE" value={money(position.averagePrice)} /><FactRow label="CURRENT PRICE" value={money(position.currentPrice)} /><FactRow label="UNREALIZED PNL" value={signedMoney(position.unrealizedPnl)} tone={position.unrealizedPnl >= 0 ? "success" : "danger"} /><FactRow label="REALIZED PNL" value={signedMoney(position.realizedPnl)} tone={position.realizedPnl >= 0 ? "success" : "danger"} /></> : <StateNotice title="NO EXPOSURE" detail={model ? "현재 PAPER 시장 노출이 없습니다. 현금 대기 상태입니다." : "포지션 데이터를 확인할 수 없습니다."} tone="info" />}
+    <IntelligenceSection style={tablet ? styles.column : undefined} title="현재 노출" kicker="PAPER 보유" tone={position ? "info" : "neutral"} testID={position ? "portfolio-position" : "portfolio-empty"}>
+      {position ? <><FactRow label="종목" value={position.market} /><FactRow label="수량" value={String(position.quantity)} /><FactRow label="평균 단가" value={money(position.averagePrice)} /><FactRow label="현재가" value={money(position.currentPrice)} /><FactRow label="평가 손익" value={signedMoney(position.unrealizedPnl)} tone={position.unrealizedPnl >= 0 ? "success" : "danger"} /><FactRow label="실현 손익" value={signedMoney(position.realizedPnl)} tone={position.realizedPnl >= 0 ? "success" : "danger"} /></> : <StateNotice title="보유 종목 없음" detail={model ? "현재 PAPER 시장 노출이 없습니다. 현금 대기 상태입니다." : "포지션 데이터를 확인할 수 없습니다."} tone="info" />}
     </IntelligenceSection>
     </View>
     <View style={tablet ? styles.columns : styles.stack}>
-    <IntelligenceSection style={tablet ? styles.column : undefined} title="PAPER 회계" kicker="ACCOUNTING" tone="success" testID="portfolio-account-breakdown">
-      <FactRow label="OPEN ORDERS" value={model == null ? "—" : String(model.openOrderCount)} /><FactRow label="MARKET EXPOSURE" value={money(model?.assetValue)} /><FactRow label="PAPER RESULT" value={signedMoney(model?.totalPnl)} tone={model == null ? "neutral" : model.totalPnl >= 0 ? "success" : "danger"} />
+    <IntelligenceSection style={tablet ? styles.column : undefined} title="PAPER 회계" kicker="회계" tone="success" testID="portfolio-account-breakdown">
+      <FactRow label="미체결 주문" value={model == null ? "—" : String(model.openOrderCount)} /><FactRow label="시장 노출" value={money(model?.assetValue)} /><FactRow label="PAPER 결과" value={signedMoney(model?.totalPnl)} tone={model == null ? "neutral" : model.totalPnl >= 0 ? "success" : "danger"} />
       {onOpenPaperLearning ? <NusaButton label="학습 / 평가 근거 보기" tone="neutral" onPress={onOpenPaperLearning} testID="portfolio-paper-learning" /> : null}
     </IntelligenceSection>
-    <IntelligenceSection style={tablet ? styles.column : undefined} title="실계좌 기준선" kicker="REAL ACCOUNT · READ ONLY" tone="info" testID="portfolio-upbit-read-only">
-      <FactRow label="CONNECTION" value={String(upbitStatus)} tone={upbitConnected ? "success" : upbitError ? "danger" : "neutral"} /><FactRow label="KRW AVAILABLE" value={money(upbitSnapshot?.cash.available)} /><FactRow label="KRW LOCKED" value={money(upbitSnapshot?.cash.locked)} /><FactRow label="ASSETS" value={upbitSnapshot ? String(upbitSnapshot.assets.length) : "—"} />
-      {upbitError ? <StateNotice title="REAL_READ_ONLY DEGRADED" detail={upbitError} tone="warning" testID="portfolio-upbit-monitor-error" /> : null}
-      <Text style={[styles.note, { color: theme.colors.textMuted }]}>REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다.</Text>
+    <IntelligenceSection style={tablet ? styles.column : undefined} title="실계좌 기준선" kicker="실계좌 · 읽기 전용" tone="info" testID="portfolio-upbit-read-only">
+      <FactRow label="연결" value={String(upbitStatus)} tone={upbitConnected ? "success" : upbitError ? "danger" : "neutral"} /><FactRow label="원화 사용 가능" value={money(upbitSnapshot?.cash.available)} /><FactRow label="원화 묶임" value={money(upbitSnapshot?.cash.locked)} /><FactRow label="보유 자산" value={upbitSnapshot ? String(upbitSnapshot.assets.length) : "—"} />
+      {upbitError ? <StateNotice title="실계좌 정보 일부 불완전" detail={upbitError} tone="warning" testID="portfolio-upbit-monitor-error" /> : null}
+      <Text style={[styles.note, { color: theme.colors.textMuted }]}>실계좌 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다.</Text>
     </IntelligenceSection>
     </View>
     <Text style={[styles.footer, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text>
