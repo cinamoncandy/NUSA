@@ -13,8 +13,8 @@ test("product v5 keeps the four primary jobs literal and glanceable", () => {
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   const home = read("src/homeView.tsx");
-  assert.match(home, /PAPER CAPITAL/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /PAPER 자산/);
+  assert.match(home, /총 손익/);
   assert.doesNotMatch(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
 });
 

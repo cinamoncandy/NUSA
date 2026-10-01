@@ -26,7 +26,7 @@ test("PAPER header fails closed and never reads green without a verified source"
   assert.equal(buildPaperFieldHeader(paper({ status: "PAUSED" })).tone, "dim");
   const idle = buildPaperFieldHeader(paper());
   assert.match(idle.headline, /체결이 없습니다/);
-  assert.equal(idle.facts.find((f) => f.label === "FILLED CYCLES").value, "0");
+  assert.equal(idle.facts.find((f) => f.label === "체결 사이클").value, "0");
   for (const source of ["PROJECTION_ABSENT", "PROJECTION_EMPTY", "LOCAL_FALLBACK"]) assert.equal(buildPaperFieldHeader(paper({ dataSource: source })).tone, "amber");
   assert.equal(buildPaperFieldHeader(paper({ performance: { ...perf, filledCycles: 3 } })).headline, "PAPER 실행 중");
 });
@@ -47,7 +47,7 @@ test("PAPER, LIVE and MORE render the field visual language", () => {
   assert.doesNotMatch(read("paperLearningMonitorView.tsx"), /IntelligenceMotionField/);
   assert.doesNotMatch(read("liveReadinessMonitorView.tsx"), /IntelligenceMotionField|LIVE 준비 상태 관측/);
   assert.doesNotMatch(read("homeView.tsx"), /IntelligenceMotionField|intelligenceHero/);
-  assert.match(read("liveReadinessMonitorView.tsx"), /<FieldHeader model=\{buildLiveFieldHeader\(snapshot, unavailableReason\)\}/);
+  assert.match(read("liveReadinessMonitorView.tsx"), /<FieldHeader model=\{buildLiveFieldHeader\(snapshot, unavailableReason, unavailableKind\)\}/);
   assert.match(read("moreMenuView.tsx"), /fieldPalette\.void/);
   const header = read("fieldHeader.tsx");
   assert.match(header, /reducedMotion !== false \|\| !changed/);
@@ -116,4 +116,27 @@ test("PAPER body does not repeat the header status band and keeps the read-only 
 test("More title carries the still contour mark", () => {
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/moreMenuView.tsx"), "utf8");
   assert.match(view, /<ContourCore decisionCount=\{null\} reducedMotion size=\{34\} testID="more-contour"/);
+});
+
+test("PAPER risk and source words are plain Korean and fail closed", () => {
+  const { paperRiskWord, paperSourceWord } = shim.exports;
+  assert.equal(paperRiskWord(null), "확인 불가");
+  assert.equal(paperRiskWord("PASS"), "통과");
+  assert.equal(paperRiskWord("BLOCKED_BY_LIMIT"), "차단");
+  assert.equal(paperRiskWord("REVIEW"), "주의");
+  assert.equal(paperSourceWord("SERVER_STREAM"), "서버 실시간");
+  assert.equal(paperSourceWord("LOCAL_FALLBACK"), "기기 대체 관측");
+  assert.equal(paperSourceWord("UNAVAILABLE"), "확인 필요");
+});
+
+test("LIVE unavailable states lead with what to do, never with a raw exception", () => {
+  const { liveUnavailableMessage } = shim.exports;
+  const failed = buildLiveFieldHeader(null, "Property 'structuredClone' doesn't exist");
+  assert.doesNotMatch(failed.detail, /structuredClone/);
+  assert.equal(failed.detail, liveUnavailableMessage("FAILED"));
+  assert.equal(failed.facts[0].label, "실거래 권한");
+  const setup = buildLiveFieldHeader(null, "PAPER endpoint must be verified before LIVE readiness reads.", "SETUP");
+  assert.match(setup.detail, /설정에서 서버를 연결하세요/);
+  assert.doesNotMatch(setup.detail, /잠시 후 다시/);
+  assert.equal(buildLiveFieldHeader(null, "pending", "PENDING").detail, "서버 상태를 확인하는 중입니다.");
 });
