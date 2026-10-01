@@ -1845,3 +1845,10 @@ current_paper_fill_lineage:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; open gaps are market-observation id and decision-reason retention in the intent
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_live_gates:
+  work_order: WO-UI-20261001-LIVE-GATES
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-live-redesign
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are HOME below the rings, PAPER and More
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
