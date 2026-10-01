@@ -39,6 +39,7 @@ export interface CodingRunnerEnv {
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
+  NUSA_AUTOPILOT_ZERO_CREDIT_MODE?: string;
   NUSA_JEV_SHADOW_ENABLED?: string;
   NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
   NUSA_JEV_API_KEY?: string;
@@ -888,12 +889,13 @@ export async function executeCodingRunner(
   options: CodingRunnerExecutionOptions = {},
 ): Promise<CodingRunnerResult> {
   const verifiedWorkflow = await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
-  const jevFailureEvidence = isJevBoundedCodingAdmissionCandidate(request, env)
+  const zeroCreditMode = env.NUSA_AUTOPILOT_ZERO_CREDIT_MODE?.trim().toLowerCase() === "true";
+  const jevFailureEvidence = !zeroCreditMode && isJevBoundedCodingAdmissionCandidate(request, env)
     ? await verifiedJevCodingFailureEvidence(request, verifiedWorkflow, env.NUSA_GITHUB_TOKEN, fetchImpl)
     : null;
   const jevAdmission = await decideJevBoundedCodingAdmission(
     request,
-    env,
+    zeroCreditMode ? { ...env, NUSA_JEV_BOUNDED_ROUTING_ENABLED: "false" } : env,
     options.jevAdmissionClassify ? { classify: options.jevAdmissionClassify } : {},
     jevFailureEvidence,
   );
@@ -921,7 +923,8 @@ export async function executeCodingRunner(
   // remains subject to the same sandbox validation/publish gates. If unavailable, keep the current
   // provider path unchanged.
   const sandboxRepairEscalation = Boolean(
-    env.AI
+    !zeroCreditMode
+    && env.AI
     && request.proposalContext
     && (
       request.proposalFeedback?.includes("SANDBOX_PATCH_APPLY_CHECK_FAILED")
@@ -942,7 +945,7 @@ export async function executeCodingRunner(
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
   // Prefer the binding-backed Workers AI path whenever it is available. A stale or retired
   // configured endpoint must not shadow the canonical Worker AI binding in production.
-  const useConfiguredEngine = Boolean(endpoint && token && !env.AI);
+  const useConfiguredEngine = Boolean(!zeroCreditMode && endpoint && token && !env.AI);
   if (useConfiguredEngine) {
     const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!, Boolean(request.proposalContext)));
     if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: "coding-engine-request-failed" };
@@ -954,7 +957,7 @@ export async function executeCodingRunner(
     }
   }
 
-  if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
+  if (!env.AI) return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured" };
   const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
   // Dashboard vars can outlive provider deprecations or retain a model that cannot satisfy the current JSON-schema contract.
   const model = !configuredModel || UNUSABLE_CODING_WORKERS_AI_MODELS.has(configuredModel)
@@ -975,7 +978,7 @@ export async function executeCodingRunner(
       const current = now();
       if (waitUntil !== null && current < waitUntil) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken) {
+        if (githubToken && !zeroCreditMode) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
@@ -1027,7 +1030,7 @@ export async function executeCodingRunner(
       const rateLimitReason = workersAiRateLimitReason(error);
       if (rateLimitReason) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken) {
+        if (githubToken && !zeroCreditMode) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);

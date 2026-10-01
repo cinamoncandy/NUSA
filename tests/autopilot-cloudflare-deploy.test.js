@@ -31,6 +31,7 @@ test("deployment is Worker-only and has no paid Cloudflare Containers rollout", 
 });
 
 test("Jev shadow deployment does not override the global release freeze", () => {
+  assert.match(workflow, /--var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:true"/);
   assert.match(workflow, /--var "NUSA_JEV_SHADOW_ENABLED:true"/);
   assert.match(workflow, /--var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"/);
   assert.doesNotMatch(workflow, /--var "NUSA_GLOBAL_RELEASE_FREEZE:false"/);

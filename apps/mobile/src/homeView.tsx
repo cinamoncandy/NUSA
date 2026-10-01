@@ -19,6 +19,7 @@ import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
 import { IntelligenceField } from "./intelligenceField";
 import { buildHomeFieldInput } from "./homeFieldInput";
+import { DecisionRings } from "./decisionRings";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
@@ -150,6 +151,7 @@ export function HomeView({
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
   const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
 
+  const fieldInput = buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
       contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]}
@@ -165,6 +167,8 @@ export function HomeView({
           <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{shownConnectionLabel}</Text>
         </Pressable>
       </View>
+
+      <DecisionRings decisionCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.paperOrderCount} />
 
       <View testID="home-now"><IntelligenceField input={buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale })} /></View>
 

@@ -1,4 +1,23 @@
 version: 1
+current_jev_canonical_domain_bridge:
+  work_order: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
+  status: READY_FOR_REVIEW
+  branch: codex/jev-domain-bridge
+  base_sha: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
+  authority_impact: none
+  scope: "Canonical SHADOW observation projection for existing Autopilot and Research Jev receipts; unvalidated domains remain non-emitting."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  verification: "build, focused Jev regressions, validate:full, security gate, typecheck, lint, and 1090-file clean full test passed; independent Audit and CI remain required."
+current_paper_cancelled_fill_risk:
+  work_order: WO-PAPER-20261001-CANCELLED-FILL-RISK
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/paper-cancelled-fill-risk
+  base_sha: 51ece7a3c74e715f9407a6d8b8f51ff8a2140376
+  first_broken_transition: cancelled_partial_fill_to_realized_loss_risk_reconstruction
+  scope: "Preserve actual executions after remainder cancellation in canonical PAPER Risk accounting; no policy relaxation or forced orders."
+  validation: "34 focused/adversarial/production-path and exact-source qualification tests PASS; typecheck, build, preflight, validate:full, lint (0 errors, 14 unrelated warnings), security gate PASS (0 secrets, 0 high/critical). Fresh CI/Audit/Release and deployed automatic fill proof remain unverified."
+  remaining: exact_head_CI_Audit_Release_and_runtime_proof
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_release_target_settle:
   work_order: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
@@ -31,11 +50,11 @@ current_issue_2017_component_health:
 current_issue_2118_ci_saturation_wip:
   work_order: WO-ISSUE-2118-CI-SATURATION-WIP
   issue: 2118
-  status: AUTOPILOT_INCREMENT_IMPLEMENTED_PENDING_WORKFLOW_VALIDATION
-  base_sha: 408432cf1f2860d9927fa891e2f2e510814b9723
-  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution; legacy ciUtilization remains the compatibility fallback."
-  validation: "Not run locally per delegated-validation shared-host guard; Autopilot publish workflow must run the recorded heavy gates on separate hardware."
-  remaining: "Workflow validation and publication, then exact-head CI before Audit/Release; current baseline and after-change p50/p95 measurement remain later increments."
+  status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  base_sha: 08dd953aee7ea3db49993464a2244eca6c41e3ac
+  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP; legacy ciUtilization remains the compatibility fallback."
+  validation: "Prior exact-head CI passed; review repair adds minimum-WIP contention attribution coverage and corrects recovery metadata. Fresh exact-head CI is required; heavy local validation remains prohibited on the shared 1 GB PAPER host."
+  remaining: "Fresh exact-head CI, independent Audit, and canonical Release; current baseline and after-change p50/p95 measurement remain later increments."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
@@ -715,18 +734,15 @@ latest_event_bridge_oidc_slice:
 
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
-  status: COMPLETED
-  base_commit: 07b92f86bbac6e939906c9de88575ac89d316f9f
-  implementation_branch: codex/research-factory-hypothesis-admission
-  implementation_commit: 74e349ce4a3f56da8a0f7d50ae71f23b45791960
-  pull_request: 1319
-  merge_commit: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
-  exact_head_ci: "6/6 PASS (PR head 74e349ce4a3f56da8a0f7d50ae71f23b45791960)"
-  post_merge_main: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
-  scope: "Candidate-level canonical research hypothesis admission and provenance binding in the existing Research Factory path."
-  validation: "Focused 30/30; research/League regression 39/39; full isolated 825/825; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
+  status: REVIEW_CORRECTIONS_APPLIED_PENDING_FRESH_CI
+  base_commit: 0cc2f8cd47978c10373797d34ef6d1daa8aa0313
+  implementation_branch: fix/1094-research-universe-provenance
+  pull_request: 2411
+  scope: "Point-in-time universe/survivorship provenance over the existing Research Integrity and Run Factory path."
+  review_corrections: "Canonical real-market multi-market runner now passes the complete precommitted market cohort; universe availability is bound at/before historical selection start; every evidence dataset ID/hash is constituent-bound for the full evaluated period; optional eligibility fields are normalized before hashing; market IDs use deterministic ASCII grammar; AIPOS state/work-order are synchronized."
+  validation: "Prior head 8deaac13 exact-head CI 6/6 PASS and deterministic Audit PASS; Release merge was correctly blocked by unresolved review threads. Fresh exact-head CI/Audit required after corrections."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Truthful longitudinal PAPER source remains unavailable and fail-closed; continue #861 only when verified runtime evidence exists."
+  remaining: "Fresh exact-head CI -> independent Audit -> Release -> merge -> protected-main verification."
 latest_portfolio_risk_data_quality_slice:
   status: COMPLETED
   base_commit: e400a0329f269a122483e7b4f17e244d0d28639c
@@ -1792,6 +1808,17 @@ current_pr1991_review_hardening:
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_zero_credit_mode:
+  work_order: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
+  status: IN_PROGRESS
+  pull_request: 2393
+  branch: fix/autopilot-zero-credit-mode
+  base_sha: 61aaa2c47dcd6d92d15a39eba627a11542f2bfef
+  implementation_code_head: fa9b7f682d5c0279a8d1180dfa30b0416eda227e
+  objective: "Continue deterministic Autopilot work without paid coding-provider fallback while minimizing Cloudflare idle spend."
+  validation: "Reconciled unchanged zero-credit functional delta onto protected main 61aaa2c47dcd6d92d15a39eba627a11542f2bfef with functional overlap 0; fresh exact-head CI is required on the new branch head."
+  next: "Fresh exact-head CI -> independent Audit -> nusa/release-authorized -> canonical merge -> exact-main Cloudflare deploy -> health zeroCreditMode=ENFORCED -> ZERO_CREDIT runtime proof."
+
 current_paper_orderbook_snapshot_refresh:
   work_order: WO-PAPER-ORDERBOOK-SNAPSHOT-REFRESH
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
@@ -1803,4 +1830,11 @@ current_paper_orderbook_snapshot_refresh:
   validation: "25 focused reconciliation, real runtime wiring, liveness, restart and health tests PASS; TypeScript compile/typecheck, preflight, targeted lint and repository validate PASS."
   diagnostic_recovery: "Fresh valid quotes for every configured market clear only orderbook diagnostics; failure timestamp and accepted-market receipt health gate remain intact. Prior exact-head actual PAPER artifact remained INCOMPLETE with no actionable signal."
   next: "Exact-head CI, independent Audit, canonical Release, then long-lived Oracle runtime proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_decision_rings:
+  work_order: WO-UI-20261001-DECISION-RINGS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-decision-rings
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

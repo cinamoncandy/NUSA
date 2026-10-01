@@ -221,7 +221,9 @@ shift || true
 
 case "$verb" in
   backup)
-    exec runuser -u "$SERVICE_USER" -- node "$(script_in "$(active_release)" sqlite-backup.js)"
+    state_db="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_CLOUD_STATE_DB_PATH:-}")"
+    [[ "$state_db" = /* ]] || die "Cloud state path must be absolute before backup"
+    exec runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 
   preflight)
