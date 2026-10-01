@@ -20,4 +20,20 @@ verification_commands:
   - pnpm run typecheck
   - node --test tests/mobile-live-gates.test.js tests/live-readiness-observability.test.js tests/mobile-field-screens.test.js
   - pnpm run validate
+evidence:
+  head_validated_locally: "follow-up commit on claude/nusa-repository-j93sd8-live-redesign after review round 1"
+  node: "v24.21.0"
+  results:
+    - "pnpm install --frozen-lockfile: exit 0"
+    - "pnpm run build: exit 0"
+    - "pnpm run typecheck: exit 0"
+    - "pnpm run validate: exit 0"
+    - "pnpm run security:gate: exit 0"
+    - "node scripts/aipos-work-order-index.js --check: exit 0"
+    - "node --test tests/*.test.js: exit 0 (includes tests/mobile-live-gates.test.js, 10 cases)"
+    - "node scripts/run-tests-isolated.js: exit 0"
+  authority_evidence:
+    - "liveReadinessMonitorView.tsx still contains no order, cancel, withdraw, transfer, activation or lease creation path (asserted by tests/live-readiness-observability.test.js)."
+    - "liveGateModel.ts reads only the read-only snapshot; it has no imports and no side effects."
+    - "Gates fail closed: missing evidence is UNKNOWN; runtime safety passes only when its source is FRESH; canonical evaluator blockers keep a gate BLOCKED; all gates passing still states the owner must enable LIVE outside the app."
 residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

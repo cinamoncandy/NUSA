@@ -13,7 +13,7 @@ new Function("module", "exports", "require", compiled)(moduleShim, moduleShim.ex
 const { buildLiveGates } = moduleShim.exports;
 
 const safe = { killSwitchActive: false, staleMarketData: false, reconciliationMismatch: false, exchangeError: false, abnormalBalanceDrift: false, riskBudgetBreached: false, strategyInvalidated: false, latencyOrSlippageBreached: false };
-const ready = { status: "READY_FOR_MANUAL_ENABLE", blockers: [], paperAutoLearning: "STABLE", shadowReplay: "VALID", realAccountMonitor: "CONNECTED", credentialReadiness: "READY", governance: "APPROVED", tradePermission: "PERMIT", riskAuthority: "HEALTHY", reconciliationTests: "PASS", killSwitchTests: "PASS", idempotencyTests: "PASS", exchangeFaultTests: "PASS", prohibitedFinancialMutationScan: "ABSENT", runtimeSafety: safe };
+const ready = { status: "READY_FOR_MANUAL_ENABLE", blockers: [], paperAutoLearning: "STABLE", shadowReplay: "VALID", realAccountMonitor: "CONNECTED", credentialReadiness: "READY", governance: "APPROVED", tradePermission: "PERMIT", riskAuthority: "HEALTHY", reconciliationTests: "PASS", killSwitchTests: "PASS", idempotencyTests: "PASS", exchangeFaultTests: "PASS", prohibitedFinancialMutationScan: "ABSENT", runtimeSafety: safe, freshness: { runtimeSafety: "FRESH" } };
 
 test("live gate model is import-free", () => { assert.doesNotMatch(source, /^import /m); });
 
@@ -22,7 +22,7 @@ test("no snapshot yields no gates instead of invented ones", () => { assert.equa
 test("all gates passing still reads as awaiting owner approval, never enabled", () => {
   const model = buildLiveGates(ready);
   assert.equal(model.passed, model.total);
-  assert.match(model.headline, /소유자 승인 대기/);
+  assert.match(model.headline, /소유자 LIVE 활성화 승인 대기/);
   assert.match(model.detail, /앱에서는 LIVE를 켤 수 없습니다/);
 });
 
@@ -32,7 +32,7 @@ test("unknown evidence is UNKNOWN, a contrary value is BLOCKED", () => {
   assert.equal(byId.governance, "UNKNOWN");
   assert.equal(byId.permission, "BLOCKED");
   assert.equal(model.headline, "LIVE는 잠겨 있습니다");
-  assert.match(model.detail, /관문 10개 중 8개 통과/);
+  assert.match(model.detail, /관문 11개 중 8개 통과/);
 });
 
 test("any runtime safety flag halts and blocks the runtime gate", () => {
@@ -51,4 +51,24 @@ test("drills pass only when all four pass; one failure blocks, all unknown is un
 test("missing shadow replay evidence is unknown, not blocked", () => {
   assert.equal(buildLiveGates({ ...ready, shadowReplay: "MISSING" }).gates.find((x) => x.id === "shadow").state, "UNKNOWN");
   assert.equal(buildLiveGates({ ...ready, shadowReplay: "INVALID" }).gates.find((x) => x.id === "shadow").state, "BLOCKED");
+});
+
+test("canonical blockers keep the evaluator gate closed even when every raw field passes", () => {
+  const model = buildLiveGates({ ...ready, status: "NOT_READY", blockers: ["REQUIRED_CI_NOT_GREEN"] });
+  assert.equal(model.gates.find((g) => g.id === "evaluator").state, "BLOCKED");
+  assert.notEqual(model.passed, model.total);
+  assert.equal(model.headline, "LIVE는 잠겨 있습니다");
+});
+
+test("runtime safety only passes when its source is fresh", () => {
+  assert.equal(buildLiveGates({ ...ready, freshness: { runtimeSafety: "UNKNOWN" } }).gates.find((g) => g.id === "runtime").state, "UNKNOWN");
+  assert.equal(buildLiveGates({ ...ready, freshness: { runtimeSafety: "STALE" } }).gates.find((g) => g.id === "runtime").state, "UNKNOWN");
+});
+
+test("strategy governance approval is not presented as owner LIVE activation", () => {
+  const model = buildLiveGates(ready);
+  const governance = model.gates.find((g) => g.id === "governance");
+  assert.equal(governance.title, "전략 거버넌스 승인");
+  assert.match(governance.detail, /LIVE 활성화 승인과는 별개/);
+  assert.match(model.headline, /소유자 LIVE 활성화 승인 대기/);
 });
