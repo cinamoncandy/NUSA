@@ -56,6 +56,8 @@ export async function runSelfHeal({
   wait = sleep,
   readEvidence = readProofEvidence,
   readCurrentMain = currentMainSha,
+  expectedSourceSha = sourceSha,
+  expectedSourceBranch = sourceBranch,
 } = {}) {
   if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 20) throw new Error("SELF_HEAL_ATTEMPT_BUDGET_INVALID");
   if (!Number.isSafeInteger(delayMs) || delayMs < 1000 || delayMs > 60000) throw new Error("SELF_HEAL_DELAY_INVALID");
@@ -79,10 +81,10 @@ export async function runSelfHeal({
       return Object.freeze({ status: "FAILED_CLOSED", attempts: attempt, reason: decision.reason });
     }
 
-    if (String(evidence?.classification ?? "") === "head_mismatch_failed_closed" && sourceBranch === "main") {
+    if (String(evidence?.classification ?? "") === "head_mismatch_failed_closed" && expectedSourceBranch === "main") {
       const currentMain = await readCurrentMain();
-      if (currentMain && currentMain !== sourceSha) {
-        console.log(`AUTOPILOT_RUNTIME_SELF_HEAL_STALE_SOURCE source=${sourceSha} currentMain=${currentMain}`);
+      if (currentMain && currentMain !== expectedSourceSha) {
+        console.log(`AUTOPILOT_RUNTIME_SELF_HEAL_STALE_SOURCE source=${expectedSourceSha} currentMain=${currentMain}`);
         return Object.freeze({ status: "STALE_SOURCE_SUPPRESSED", attempts: attempt, reason: "MAIN_ADVANCED" });
       }
     }
