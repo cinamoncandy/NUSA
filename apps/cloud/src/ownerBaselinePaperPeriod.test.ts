@@ -16,6 +16,11 @@ test("owner baseline opens one truthful market-bound period from the canonical a
   assert.equal(isOwnerBaselinePeriodInput(input), true);
 });
 
+test("owner baseline binding uses the KST day boundary", () => {
+  const input = buildOwnerBaselinePaperPeriodInput({ market: "KRW-BTC", periodIndex: 0, periodStartAt: START, sourceCommitSha: COMMIT });
+  assert.equal(new Date(input.advisory.generatedAt).toISOString(), "2026-09-30T14:59:59.999Z");
+});
+
 test("owner baseline period identity is deterministic and market-bound", () => {
   const first = buildOwnerBaselinePaperPeriodInput({ market: "KRW-BTC", periodIndex: 0, periodStartAt: START, sourceCommitSha: COMMIT });
   assert.deepEqual(buildOwnerBaselinePaperPeriodInput({ market: "KRW-BTC", periodIndex: 0, periodStartAt: START, sourceCommitSha: COMMIT }), first);

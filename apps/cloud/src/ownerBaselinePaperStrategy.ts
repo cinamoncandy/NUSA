@@ -23,6 +23,7 @@ export const OWNER_BASELINE_CANDIDATE_ID = "owner-baseline-sma-5-20";
 export const OWNER_BASELINE_REASON = "OWNER_BASELINE_PAPER_NOT_QUALIFIED";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const SHA40 = /^[a-f0-9]{40}$/;
 const sha256 = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
@@ -35,7 +36,9 @@ export function ownerBaselineAdvisory(market: string, periodStartAt: number): Le
   const normalizedMarket = market.trim().toUpperCase();
   if (!/^KRW-[A-Z0-9-]+$/.test(normalizedMarket)) throw new Error("owner baseline market is invalid");
   const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
-  const generatedAt = periodStartAt - 1;
+  const kstShifted = periodStartAt + KST_OFFSET_MS;
+  const kstDayStart = Math.floor(kstShifted / DAY_MS) * DAY_MS - KST_OFFSET_MS;
+  const generatedAt = kstDayStart - 1;
   return Object.freeze({
     schemaVersion: 1,
     generatedAt: new Date(generatedAt).toISOString(),
@@ -86,7 +89,8 @@ export function ownerBaselineBinding(market: string, decisionAt: number, sourceC
   if (!Number.isSafeInteger(decisionAt) || decisionAt < DAY_MS) throw new Error("owner baseline decision time is invalid");
   const normalizedMarket = market.trim().toUpperCase();
   const strategy = ownerBaselineStrategySpec(sourceCommitSha);
-  const periodStartAt = Math.floor(decisionAt / DAY_MS) * DAY_MS;
+  const kstShifted = decisionAt + KST_OFFSET_MS;
+  const periodStartAt = Math.floor(kstShifted / DAY_MS) * DAY_MS - KST_OFFSET_MS;
   const advisory = ownerBaselineAdvisory(normalizedMarket, periodStartAt);
   return bindPaperCandidateForExecution(
     advisory,
@@ -108,10 +112,11 @@ export class OwnerBaselinePaperBindingProvider implements PaperCandidateBindingP
   public read(market: string, decisionAt: number): PaperCandidateExecutionBinding | undefined {
     const challenger = this.options.challenger?.read(market, decisionAt);
     if (challenger != null || !this.options.enabled) return challenger;
+    const normalizedMarket = market.trim().toUpperCase();
     const baselineMarket = this.options.baselineMarket?.trim().toUpperCase();
-    if (!baselineMarket || market.trim().toUpperCase() !== baselineMarket) return undefined;
+    if (!baselineMarket || normalizedMarket !== baselineMarket) return undefined;
     try {
-      return ownerBaselineBinding(market, decisionAt, this.options.sourceCommitSha);
+      return ownerBaselineBinding(normalizedMarket, decisionAt, this.options.sourceCommitSha);
     } catch {
       return undefined; // fail closed: no baseline means no automatic PAPER action
     }

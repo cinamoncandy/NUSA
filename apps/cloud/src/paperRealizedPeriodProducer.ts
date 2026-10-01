@@ -92,6 +92,14 @@ const MARKET = /^KRW-[A-Z0-9-]+$/;
 const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|access[_-]?key|private[_-]?key|cookie|jwt|nonce|signature|account[_-]?id|order[_-]?id|fill[_-]?id)/i;
 const OBSERVATION_STATUSES = new Set<PaperRuntimeObservation["status"]>(["FILLED", "WAIT", "BLOCKED", "REJECTED", "FAILED", "DUPLICATE"]);
 const MAXIMUM_OBSERVATIONS = 1_024;
+const NON_FILL_SAMPLE_INTERVAL = 64;
+function shouldPersistObservation(observation: PaperRuntimeObservation, existingCount: number): boolean {
+  if (observation.status === "FILLED") return true;
+  if (existingCount >= MAXIMUM_OBSERVATIONS - 1) return false;
+  let hash = 0;
+  for (const char of observation.observationId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash % NON_FILL_SAMPLE_INTERVAL === 0;
+}
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function canonical(value: unknown, seen = new Set<object>()): string {
@@ -329,6 +337,7 @@ export class PaperRealizedPeriodProducer {
           if (existing.observedAt !== normalized.observedAt || existing.status !== normalized.status) throw new PaperRealizedPeriodProducerError("OBSERVATION_ID_CONFLICT", "PAPER runtime observation identity was reused with different evidence", periodId);
           continue;
         }
+        if (!shouldPersistObservation(normalized, current.observationIds.length)) continue;
         if (current.observationIds.length >= MAXIMUM_OBSERVATIONS) throw new PaperRealizedPeriodProducerError("OBSERVATION_LIMIT", "PAPER period observation limit reached", periodId);
         const next = validatePlan({ ...current, observationIds: [...current.observationIds, normalized.observationId], observations: [...current.observations, normalized], lastObservedAt: Math.max(current.lastObservedAt ?? 0, normalized.observedAt) });
         this.repository.updatePending({ ...pending, payloadJson: canonical(next), checksum: digest(next) });
@@ -436,6 +445,20 @@ export class PaperRealizedPeriodProducer {
    * against the new account, and only one period may be open, so without this the learning loop
    * would stay blocked forever. Only a period whose boundary provably differs is retired.
    */
+  public retireOpenPeriodForReplacement(periodId: string, reason: string): PersistedPaperRealizedPeriodPlan {
+    const normalizedReason = reason.trim();
+    if (!normalizedReason.startsWith("SUPERSEDED_BY_QUALIFIED_CHALLENGER:")) throw new PaperRealizedPeriodProducerError("INVALID_RETIREMENT_REASON", "PAPER period replacement reason is invalid", periodId);
+    const current = this.openPeriods.get(periodId);
+    if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+    if (current.candidateProvenance[0]?.candidateId !== "owner-baseline-sma-5-20") throw new PaperRealizedPeriodProducerError("PERIOD_REPLACEMENT_FORBIDDEN", "only owner baseline periods may be replaced by a qualified challenger", periodId);
+    const pending = this.repository.getPending(periodId);
+    if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+    this.repository.retirePending(periodId, pending.checksum);
+    this.openPeriods.delete(periodId);
+    this.emit({ type: "PERIOD_REJECTED", periodId, occurredAt: this.options.now?.() ?? Date.now(), reasonCode: "SUPERSEDED_BY_QUALIFIED_CHALLENGER" });
+    return current;
+  }
+
   public retireOpenPeriodForAccountChange(periodId: string): PersistedPaperRealizedPeriodPlan {
     try {
       const current = this.openPeriods.get(periodId);

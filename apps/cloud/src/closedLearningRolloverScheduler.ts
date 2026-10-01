@@ -3,6 +3,7 @@ import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integ
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 export type ClosedLearningRolloverStatus =
   | "NO_OPEN_PERIOD"
@@ -33,6 +34,7 @@ export interface ClosedLearningRolloverPort {
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   /** Retires an open period whose canonical PAPER account was replaced (different initial capital). */
   readonly retireOpenPeriodForAccountChange?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
+  readonly retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
@@ -116,6 +118,19 @@ export class ClosedLearningRolloverScheduler {
     }
 
     const closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
+    if (plan.candidateProvenance[0]?.candidateId === OWNER_BASELINE_CANDIDATE_ID) {
+      const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
+      const periodIndex = nextPeriodIndex(realizedPeriods);
+      this.port.openPeriodFromCanonicalAccount({
+        periodId: "owner-baseline-rollover:" + periodIndex + ":" + account.updatedAt,
+        periodIndex,
+        advisory: plan.advisory,
+        candidateProvenance: plan.candidateProvenance,
+        ...(plan.market == null ? {} : { market: plan.market }),
+        periodStartAt: account.updatedAt,
+      });
+      return Object.freeze({ status: "CLOSED_AND_EVALUATED", periodId: plan.periodId });
+    }
     const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
     if (!realizedPeriods.some((item) => item.record.recordId === closed.record.recordId)) {
       throw new Error("closed PAPER period is missing from the durable realized denominator");

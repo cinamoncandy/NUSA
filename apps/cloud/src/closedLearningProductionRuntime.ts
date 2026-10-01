@@ -178,6 +178,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
     retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,
+    retireOpenPeriodForReplacement: periods.retireOpenPeriodForReplacement,
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
