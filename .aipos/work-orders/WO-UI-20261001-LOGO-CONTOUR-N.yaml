@@ -1,0 +1,24 @@
+id: WO-UI-20261001-LOGO-CONTOUR-N
+title: "Redraw the NUSA logo and launcher icon as the contour N"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-logo-contour-n
+authority_impact: none
+objective: "Owner chose logo option B (Contour N) from three prototypes, noting a later renewal is planned. The N monogram is redrawn as three contour strokes with a lime decision point on near-black, matching the HOME contour core."
+scope:
+  - "Vector drawables: ic_nusa_logo, ic_nusa_logo_foreground, ic_nusa_splash, ic_nusa_logo_monochrome, mipmap-anydpi-v24 launcher and round launcher."
+  - "Notification icon uses a single centre stroke and the point so it stays legible at status-bar size; monochrome white only."
+  - "Adaptive icon background color #121B30 -> #0B0C0E; legacy mipmap PNGs regenerated to match (minSdk 24 renders the vectors)."
+  - "tests/mobile-brand-concept1.test.js expects the new background color."
+exclusions:
+  - "No server, strategy, risk, execution, credential or LIVE change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - node --test tests/mobile-brand-concept1.test.js tests/mobile-design-system-v1.test.js
+  - pnpm run validate
+residual: "Launcher appearance on a physical Android device is HUMAN_ENVIRONMENT_ONLY."
