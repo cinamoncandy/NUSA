@@ -104,3 +104,11 @@ test("PAPER and LIVE headers draw the HOME contour core instead of the old nebul
   const core = fs.readFileSync(path.join(root, "apps/mobile/src/contourCore.tsx"), "utf8");
   assert.match(core, /size: stage = SIZE, testID = "home-contour-core"/);
 });
+
+test("PAPER body does not repeat the header status band and keeps the read-only marker", () => {
+  const view = fs.readFileSync(path.join(root, "apps/mobile/src/paperLearningMonitorView.tsx"), "utf8");
+  assert.doesNotMatch(view, /<AuthorityRail|<ScreenLead/);
+  assert.match(view, /testID="paper-learning-read-only-label">PAPER LEARNING · READ ONLY</);
+  const os = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceOs.tsx"), "utf8");
+  assert.doesNotMatch(os, /metricStrip: \{[^}]*borderRadius/);
+});

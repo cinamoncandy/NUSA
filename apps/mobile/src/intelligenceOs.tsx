@@ -42,7 +42,7 @@ export function ScreenLead({ eyebrow, title, detail, badge, badgeTone = "neutral
 
 export function MetricStrip({ items, testID }: Readonly<{ items: readonly { label: string; value: string; tone?: IntelligenceTone }[]; testID?: string }>) {
   const { theme } = useTheme();
-  return <View style={[styles.metricStrip, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} testID={testID}>
+  return <View style={[styles.metricStrip, { borderColor: theme.colors.border, backgroundColor: "transparent" }]} testID={testID}>
     {items.map((item, index) => <View key={`${item.label}-${index}`} style={[styles.metricCell, index > 0 ? { borderLeftColor: theme.colors.border, borderLeftWidth: StyleSheet.hairlineWidth } : null]}>
       <Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>{item.label}</Text>
       <Text style={[styles.metricValue, { color: toneColor(theme, item.tone ?? "neutral") === theme.colors.textMuted ? theme.colors.text : toneColor(theme, item.tone ?? "neutral") }]} numberOfLines={1} adjustsFontSizeToFit>{item.value}</Text>
@@ -102,9 +102,9 @@ const styles = StyleSheet.create({
   leadDetail: { maxWidth: 720, fontSize: 11, lineHeight: 17 },
   badge: { minHeight: 24, borderRadius: 999, borderWidth: 1, justifyContent: "center", paddingHorizontal: 8 },
   badgeText: { fontSize: 8, lineHeight: 11, fontWeight: "600", letterSpacing: 0.55 },
-  metricStrip: { flexDirection: "row", borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, overflow: "hidden" },
-  metricCell: { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingVertical: 9, gap: 2 },
-  metricLabel: { fontSize: 8, lineHeight: 11, fontWeight: "500", letterSpacing: 0.45 },
+  metricStrip: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
+  metricCell: { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingVertical: 12, gap: 4 },
+  metricLabel: { fontSize: 9, lineHeight: 12, fontWeight: "500", letterSpacing: 1.4 },
   metricValue: { fontSize: 14, lineHeight: 19, fontWeight: "600", fontVariant: ["tabular-nums"] },
   section: { borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingHorizontal: 2, paddingTop: 18, paddingBottom: 6, gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
