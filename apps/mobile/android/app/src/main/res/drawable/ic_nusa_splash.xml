@@ -3,6 +3,9 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- NUSA N monogram mark: amber N on deep navy. -->
-    <path android:fillColor="#B6F04B" android:pathData="M36,76 L36,32 L45,32 L63,58 L63,32 L72,32 L72,76 L63,76 L45,50 L45,76Z" />
+    <!-- NUSA N monogram mark, contour edition (2026-10-01): the N drawn as three contour strokes with the decision point, lime on near-black. -->
+    <path android:strokeColor="#B6F04B" android:strokeAlpha="0.45" android:strokeWidth="3.40" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M27.00,78.00 L27.00,34.10 L67.00,73.90 L67.00,30.00" />
+    <path android:strokeColor="#B6F04B" android:strokeAlpha="1.0" android:strokeWidth="3.40" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M34.00,78.00 L34.00,32.00 L74.00,76.00 L74.00,30.00" />
+    <path android:strokeColor="#B6F04B" android:strokeAlpha="0.45" android:strokeWidth="3.40" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M41.00,78.00 L41.00,34.10 L81.00,73.90 L81.00,30.00" />
+    <path android:fillColor="#B6F04B" android:pathData="M69.00,30.00 a5.00,5.00 0 1,0 10.00,0 a5.00,5.00 0 1,0 -10.00,0Z" />
 </vector>

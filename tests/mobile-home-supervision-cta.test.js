@@ -30,9 +30,10 @@ test("HOME connection failure copy wins over stale AI output while fail-closed s
   assert.match(home, /const disconnected = notConfigured != null/);
   assert.match(home, /const decisionSurface = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: readOnlyError != null/);
   assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  // The HOME headline is the Intelligence Field; connection/read failures reach it before any AI copy.
-  // The field input is a tested screen model (tests/mobile-home-field-input.test.js); HOME only wires it.
-  assert.match(home, /<IntelligenceField input=\{buildHomeFieldInput\(\{ snapshot, readOnlyError, notConfigured,/);
+  // The HOME headline is the decision rings, fed from the tested field input screen model
+  // (tests/mobile-home-field-input.test.js); connection/read failures blank its counts.
+  assert.match(home, /const fieldInput = buildHomeFieldInput\(\{ snapshot, readOnlyError, notConfigured,/);
+  assert.match(home, /<DecisionRings status=\{ringsStatus\} decisionCount=\{fieldInput\.disconnected \|\| readOnlyError != null \? null :/);
   assert.match(home, /const why = aiInsightAvailable \? decisionSurface\.why : disconnected \? "Cloud PAPER 상태가 연결되기 전에는 판단 근거를 확정하지 않습니다\." : decisionSurface\.why/);
 
   const whyStart = decisionSurface.indexOf("const why = input.disconnected");
