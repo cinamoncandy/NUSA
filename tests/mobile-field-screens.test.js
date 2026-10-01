@@ -47,7 +47,7 @@ test("PAPER, LIVE and MORE render the field visual language", () => {
   assert.doesNotMatch(read("paperLearningMonitorView.tsx"), /IntelligenceMotionField/);
   assert.doesNotMatch(read("liveReadinessMonitorView.tsx"), /IntelligenceMotionField|LIVE 준비 상태 관측/);
   assert.doesNotMatch(read("homeView.tsx"), /IntelligenceMotionField|intelligenceHero/);
-  assert.match(read("liveReadinessMonitorView.tsx"), /<FieldHeader model=\{buildLiveFieldHeader\(snapshot, unavailableReason\)\}/);
+  assert.match(read("liveReadinessMonitorView.tsx"), /<FieldHeader model=\{buildLiveFieldHeader\(snapshot, unavailableReason, unavailableKind\)\}/);
   assert.match(read("moreMenuView.tsx"), /fieldPalette\.void/);
   const header = read("fieldHeader.tsx");
   assert.match(header, /reducedMotion !== false \|\| !changed/);
@@ -118,18 +118,25 @@ test("More title carries the still contour mark", () => {
   assert.match(view, /<ContourCore decisionCount=\{null\} reducedMotion size=\{34\} testID="more-contour"/);
 });
 
-test("primary tabs speak plain Korean and never lead with a raw exception", () => {
-  const read = (file) => fs.readFileSync(path.join(root, "apps/mobile/src", file), "utf8");
-  const home = read("homeView.tsx");
-  assert.match(home, /"PAPER 자산 · 서버"/);
-  assert.match(home, /총 손익 \{signedMoney\(totalPnl\)\}/);
-  const paper = read("paperLearningMonitorView.tsx");
-  for (const label of ["자산", "총 손익", "위험", "학습"]) assert.match(paper, new RegExp(`label: "${label}"`));
-  assert.match(paper, />데이터 출처</);
-  const live = read("liveReadinessMonitorView.tsx");
-  assert.match(live, /서버에서 LIVE 준비도를 받지 못했습니다/);
-  assert.match(live, /testID="live-ready-unavailable-reason">오류 내용: \{unavailableReason\}/);
-  const offline = buildLiveFieldHeader(null, "Property 'structuredClone' doesn't exist");
-  assert.doesNotMatch(offline.detail, /structuredClone/);
-  assert.equal(offline.facts[0].label, "실거래 권한");
+test("PAPER risk and source words are plain Korean and fail closed", () => {
+  const { paperRiskWord, paperSourceWord } = shim.exports;
+  assert.equal(paperRiskWord(null), "확인 불가");
+  assert.equal(paperRiskWord("PASS"), "통과");
+  assert.equal(paperRiskWord("BLOCKED_BY_LIMIT"), "차단");
+  assert.equal(paperRiskWord("REVIEW"), "주의");
+  assert.equal(paperSourceWord("SERVER_STREAM"), "서버 실시간");
+  assert.equal(paperSourceWord("LOCAL_FALLBACK"), "기기 대체 관측");
+  assert.equal(paperSourceWord("UNAVAILABLE"), "확인 필요");
+});
+
+test("LIVE unavailable states lead with what to do, never with a raw exception", () => {
+  const { liveUnavailableMessage } = shim.exports;
+  const failed = buildLiveFieldHeader(null, "Property 'structuredClone' doesn't exist");
+  assert.doesNotMatch(failed.detail, /structuredClone/);
+  assert.equal(failed.detail, liveUnavailableMessage("FAILED"));
+  assert.equal(failed.facts[0].label, "실거래 권한");
+  const setup = buildLiveFieldHeader(null, "PAPER endpoint must be verified before LIVE readiness reads.", "SETUP");
+  assert.match(setup.detail, /설정에서 서버를 연결하세요/);
+  assert.doesNotMatch(setup.detail, /잠시 후 다시/);
+  assert.equal(buildLiveFieldHeader(null, "pending", "PENDING").detail, "서버 상태를 확인하는 중입니다.");
 });

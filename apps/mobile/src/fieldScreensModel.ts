@@ -49,9 +49,32 @@ export function buildPaperFieldHeader(paper: PaperLearningScreenState): FieldHea
   return Object.freeze({ ...base, statusWord: "RUNNING", tone: "green", headline: "관측은 하지만\n체결이 없습니다", detail: "사이클은 진행되지만 가상 체결이 있었던 사이클은 아직 없습니다.", subsystem: "paper" });
 }
 
-export function buildLiveFieldHeader(snapshot: LiveReadinessObservabilitySnapshot | null, unavailableReason?: string): FieldHeaderModel {
+/** Why LIVE readiness is missing; decides whether the owner must act (setup) or simply wait. */
+export type LiveUnavailableKind = "SETUP" | "PENDING" | "FAILED";
+
+/** The lead sentence for a missing LIVE readiness projection. Setup states name the action. */
+export function liveUnavailableMessage(kind: LiveUnavailableKind): string {
+  if (kind === "SETUP") return "PAPER 서버 연결을 먼저 설정해야 LIVE 준비도를 볼 수 있습니다. 설정에서 서버를 연결하세요.";
+  if (kind === "PENDING") return "서버 상태를 확인하는 중입니다.";
+  return "서버에서 LIVE 준비도를 받지 못했습니다. LIVE는 계속 잠겨 있으며 잠시 후 다시 확인합니다.";
+}
+
+/** Plain words for a PAPER risk status; the raw code stays in the 권한 / 위험 section. */
+export function paperRiskWord(status: string | null | undefined): string {
+  if (status == null) return "확인 불가";
+  const normalized = status.toUpperCase();
+  if (normalized.includes("PASS") || normalized.includes("OK") || normalized.includes("ALLOW")) return "통과";
+  if (normalized.includes("BLOCK") || normalized.includes("HALT") || normalized.includes("FAIL") || normalized.includes("REJECT")) return "차단";
+  return "주의";
+}
+
+export function paperSourceWord(source: PaperLearningScreenState["dataSource"]): string {
+  return source === "SERVER_STREAM" ? "서버 실시간" : source === "LOCAL_FALLBACK" ? "기기 대체 관측" : "확인 필요";
+}
+
+export function buildLiveFieldHeader(snapshot: LiveReadinessObservabilitySnapshot | null, unavailableReason?: string, unavailableKind: LiveUnavailableKind = "FAILED"): FieldHeaderModel {
   if (snapshot == null) {
-    return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "dim", headline: "LIVE는 봉인되어 있습니다", detail: unavailableReason ? "서버에서 LIVE 준비도를 받지 못했습니다. 잠시 후 다시 확인합니다." : "준비도 정보를 불러오지 못했습니다.", subsystem: "governance", facts: Object.freeze([{ label: "실거래 권한", value: "없음" }]) });
+    return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "dim", headline: "LIVE는 봉인되어 있습니다", detail: unavailableReason ? liveUnavailableMessage(unavailableKind) : "준비도 정보를 불러오지 못했습니다.", subsystem: "governance", facts: Object.freeze([{ label: "실거래 권한", value: "없음" }]) });
   }
   const s = snapshot.runtimeSafety;
   const hardStop = snapshot.status === "HALTED" || s.killSwitchActive || s.exchangeError || s.staleMarketData || s.riskBudgetBreached || s.reconciliationMismatch || s.abnormalBalanceDrift || s.strategyInvalidated || s.latencyOrSlippageBreached;

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { NusaButton } from "./components";
 import { FieldHeader } from "./fieldHeader";
-import { buildPaperFieldHeader } from "./fieldScreensModel";
+import { buildPaperFieldHeader, paperRiskWord, paperSourceWord } from "./fieldScreensModel";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
 import { FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
@@ -99,17 +99,6 @@ function sourceTone(source: PaperLearningScreenState["dataSource"]): Intelligenc
   return "danger";
 }
 
-/** Plain words for the risk status; the raw code stays in the 권한 / 위험 section. */
-function riskWord(status: string | null | undefined): string {
-  if (status == null) return "확인 불가";
-  const tone = riskTone(status);
-  return tone === "success" ? "통과" : tone === "danger" ? "차단" : "주의";
-}
-
-function sourceWord(source: PaperLearningScreenState["dataSource"]): string {
-  return source === "SERVER_STREAM" ? "서버 실시간" : source === "LOCAL_FALLBACK" ? "기기 대체 관측" : "확인 필요";
-}
-
 function riskTone(status: string | null | undefined): IntelligenceTone {
   if (status == null) return "neutral";
   const normalized = status.toUpperCase();
@@ -146,7 +135,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       items={[
         { label: "자산", value: money(state.latestAccount?.equity), tone: "neutral" },
         { label: "총 손익", value: signedMoney(totalPnl), tone: pnlTone },
-        { label: "위험", value: riskWord(state.latestRisk?.status), tone: riskTone(state.latestRisk?.status) },
+        { label: "위험", value: paperRiskWord(state.latestRisk?.status), tone: riskTone(state.latestRisk?.status) },
         { label: "학습", value: learningLabel, tone: learningTone },
       ]}
       testID="paper-learning-glance-strip"
@@ -155,7 +144,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     <View style={styles.sourceRow} testID="paper-learning-data-source">
       <View style={styles.sourceCopy}>
         <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>데이터 출처</Text>
-        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{sourceWord(state.dataSource)}</Text>
+        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{paperSourceWord(state.dataSource)}</Text>
       </View>
       <View style={[styles.sourcePill, { borderColor: sourceColor }]}><Text style={[styles.sourcePillText, { color: sourceColor }]}>{state.dataSource === "SERVER_STREAM" ? "SERVER" : state.dataSource === "LOCAL_FALLBACK" ? "LOCAL" : "CHECK"}</Text></View>
     </View>

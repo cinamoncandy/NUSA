@@ -10,9 +10,10 @@ objective: "Owner asked for UI/UX improvements beyond motion (2026-10-01). The p
 scope:
   - "HOME: PAPER 자산 · 서버/기기, 총 손익."
   - "PAPER: 자산/총 손익/위험/학습 metrics with plain values (통과/주의/차단/확인 불가, 대기), 데이터 출처 서버 실시간/기기 대체 관측; header facts 사이클/체결 사이클/데이터."
+  - "LIVE: a missing readiness projection leads with the action for its cause: setup (connect the server in Settings), pending, or server failure (wait)."
   - "LIVE: header facts 남은 차단/상태/실거래 권한 없음; unavailable state leads with a plain sentence and keeps the raw error as a small 오류 내용 note."
 exclusions:
-  - "Detail screens behind More (portfolio, system status, settings, evidence, order history) still carry English codes; they need their own copy pass and test-pin update and are named here per the whole-app rule."
+  - "Detail screens behind More (portfolio, order history, settings, notifications) are done in the same pass by WO-UI-20261001-DETAIL-COPY (PR #2445), opened alongside this one; neither is a deferral."
   - "No change to data, authority or safety markers."
 safety:
   liveAuthority: NONE

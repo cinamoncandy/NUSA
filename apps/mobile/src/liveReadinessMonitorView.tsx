@@ -3,13 +3,14 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { NusaButton, NusaCard } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { FieldHeader } from "./fieldHeader";
-import { buildLiveFieldHeader } from "./fieldScreensModel";
+import { buildLiveFieldHeader, liveUnavailableMessage, type LiveUnavailableKind } from "./fieldScreensModel";
 import { buildLiveGates, type LiveGateState } from "./liveGateModel";
 import type { LiveReadinessObservabilitySnapshot } from "../../../packages/contracts/src/liveReadinessObservability";
 
 export interface LiveReadinessMonitorViewProps {
   readonly snapshot: LiveReadinessObservabilitySnapshot | null;
   readonly unavailableReason?: string;
+  readonly unavailableKind?: LiveUnavailableKind;
   readonly refreshing: boolean;
   readonly onRefresh: () => void | Promise<void>;
   readonly onClose?: () => void;
@@ -18,15 +19,15 @@ export interface LiveReadinessMonitorViewProps {
 const time = (value: string | undefined): string => value == null ? "확인되지 않음" : new Date(value).toLocaleString("ko-KR");
 const state = (value: boolean): string => value ? "ACTIVE" : "CLEAR";
 
-export function LiveReadinessMonitorView({ snapshot, unavailableReason, refreshing, onRefresh, onClose }: LiveReadinessMonitorViewProps) {
+export function LiveReadinessMonitorView({ snapshot, unavailableReason, unavailableKind = "FAILED", refreshing, onRefresh, onClose }: LiveReadinessMonitorViewProps) {
   const { theme } = useTheme();
   const status = snapshot?.status ?? "UNAVAILABLE";
   const [detailsOpen, setDetailsOpen] = useState(false);
   const gates = buildLiveGates(snapshot);
   const runtimeBlocked = snapshot != null && (snapshot.runtimeSafety.killSwitchActive || snapshot.runtimeSafety.exchangeError || snapshot.runtimeSafety.staleMarketData || snapshot.runtimeSafety.riskBudgetBreached || snapshot.runtimeSafety.reconciliationMismatch || snapshot.runtimeSafety.abnormalBalanceDrift || snapshot.runtimeSafety.strategyInvalidated);
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} style={[styles.screen, { backgroundColor: theme.colors.background }]} testID="live-ready-monitor">
-    <View style={styles.fieldBleed}><FieldHeader model={buildLiveFieldHeader(snapshot, unavailableReason)} testID="live-field-header" /></View>
-    {snapshot == null || gates == null ? <NusaCard testID="live-ready-unavailable"><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>LIVE 준비 데이터 없음</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>서버에서 LIVE 준비도를 받지 못했습니다. LIVE는 계속 잠겨 있으며 잠시 후 다시 확인합니다.</Text>{unavailableReason ? <Text style={[styles.body, { color: theme.colors.textMuted, fontSize: 11, opacity: 0.7 }]} testID="live-ready-unavailable-reason">오류 내용: {unavailableReason}</Text> : null}</NusaCard> : <>
+    <View style={styles.fieldBleed}><FieldHeader model={buildLiveFieldHeader(snapshot, unavailableReason, unavailableKind)} testID="live-field-header" /></View>
+    {snapshot == null || gates == null ? <NusaCard testID="live-ready-unavailable"><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>LIVE 준비 데이터 없음</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{liveUnavailableMessage(unavailableKind)}</Text>{unavailableReason ? <Text style={[styles.body, { color: theme.colors.textMuted, fontSize: 11, opacity: 0.7 }]} testID="live-ready-unavailable-reason">오류 내용: {unavailableReason}</Text> : null}</NusaCard> : <>
       <View style={styles.hero} testID="live-ready-overview">
         <Text style={[styles.heroTitle, { color: runtimeBlocked ? theme.colors.warning : theme.colors.text }]}>{gates.headline}</Text>
         <Text style={[styles.body, { color: theme.colors.textMuted }]}>{gates.detail}</Text>
