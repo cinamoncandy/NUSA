@@ -176,7 +176,7 @@ export function HomeView({
       <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.paperOrderCount} /></View>
 
       {orderReason == null ? null : <View style={[styles.reasonCard, { borderColor: orderReason.category === "FILLED" || orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.border : theme.colors.warning }]} testID="home-order-reason-card">
-        <Text style={[styles.eyebrow, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]}>{orderReason.category === "FILLED" ? "최근 주문" : "주문하지 않은 이유"}</Text>
+        <Text style={[styles.eyebrow, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]}>{orderReason.category === "FILLED" ? "최근 체결" : orderReason.category === "UNKNOWN" ? "최근 판단 결과" : "주문하지 않은 이유"}</Text>
         <Text style={[styles.reasonText, { color: theme.colors.text }]} numberOfLines={3} testID="home-no-order-reason">{orderReason.text}</Text>
       </View>}
 
@@ -228,7 +228,7 @@ export function HomeView({
           <View style={styles.commandPreview}>{marketRows.slice(0, 2).map((market) => <View key={market.market} style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>{market.market}</Text><Text style={[styles.previewValue, { color: (market.changeRate ?? 0) > 0 ? theme.colors.success : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text></View>)}</View>
         </Pressable>
 
-        <View style={styles.hiddenAcceptanceHooks} accessibilityElementsHidden>
+        <View style={styles.hiddenAcceptanceHooks} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Text>NOW</Text>
           <Text>PAPER EQUITY</Text>
           <Text>QUICK ACCESS</Text>
@@ -240,8 +240,8 @@ export function HomeView({
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
         <Pressable onPress={() => onNavigate("More")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>PAPER</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
-          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER 운영</Text>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>기록</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>성과와 기록</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} 보유 중` : account ? "보유 없음" : "계정 대기 중"}</Text>
           <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>투자 가능</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>예비금</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>

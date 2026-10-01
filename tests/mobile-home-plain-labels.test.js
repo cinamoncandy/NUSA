@@ -18,3 +18,9 @@ test("HOME section labels are plain Korean instead of internal codes", () => {
     assert.equal(home.includes(code), false, code);
   }
 });
+
+test("the reason card heading only says 'no order' for no-order categories and hidden hooks stay out of TalkBack", () => {
+  assert.match(home, /orderReason\.category === "FILLED" \? "최근 체결" : orderReason\.category === "UNKNOWN" \? "최근 판단 결과" : "주문하지 않은 이유"/);
+  assert.match(home, /accessibilityElementsHidden importantForAccessibility="no-hide-descendants"/);
+  assert.match(home, /onNavigate\("More"\)[\s\S]{0,900}>성과와 기록</);
+});
