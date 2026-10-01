@@ -60,3 +60,9 @@ test("the operations validator rejects a non-string decision outcome before test
   assert.throws(() => attempt({ toString: () => "WAIT:X" }), /lastPaperDecisionOutcome must be a coded/);
   assert.throws(() => attempt("balance is 9,999 KRW"), /lastPaperDecisionOutcome must be a coded/);
 });
+
+test("partial-fill WAIT outcomes are fills, not no-order reasons", () => {
+  assert.equal(describePaperOrderReason("WAIT:PAPER_STRATEGY_PARTIALLY_FILLED").category, "FILLED");
+  assert.equal(describePaperOrderReason("WAIT:PAPER_LIMIT_PARTIALLY_FILLED").category, "FILLED");
+  assert.equal(describePaperOrderReason("WAIT:PAPER_STRATEGY_BUDGET_EXHAUSTED").category, "UNKNOWN");
+});

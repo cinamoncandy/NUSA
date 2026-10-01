@@ -1,4 +1,26 @@
 version: 1
+current_autopilot_runtime_proof_cron_propagation:
+  work_order: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY
+  prior_pull_request: 2434
+  pull_request: 2436
+  successor_branch: codex/autopilot-cron-propagation-proof
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  base_sha: a8a24ec1cccd6063927fce6e4ab0a4212c70f401
+  first_broken_transition: deployed_cron_trigger_propagation_to_fresh_scheduled_receipt
+  scope: "Bounded propagation plus next-cron margin; preserve fresh exact-main receipt identity during zero-credit provider backoff without backlog or AI calls."
+  validation: "Review repair: runtime-proof controller 20/20 and scheduled runtime regression PASS; build PASS. Prior local preflight, validate:full and security gate PASS; final metadata gates and fresh exact-head CI/Audit/Release remain required. Worker a8a24ec1 has no scheduled receipt; zero-credit provider-wait null-head output is a confirmed code defect, not proven trigger non-delivery."
+  remaining: focused_validation_successor_PR_exact_head_CI_Audit_Release_merge_and_deployed_runtime_proof
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_audit_dispatch_recovery:
+  work_order: WO-AUTOPILOT-20261001-AUDIT-DISPATCH-RECOVERY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/audit-exact-head-dedupe
+  base_sha: 1a320be30ac6e69445a2ed6961da56fa462f28bc
+  authority_impact: none
+  scope: "One bounded recovery of an accepted but non-materialized exact-head Audit repository_dispatch plus bounded GitHub protected-branch authorization propagation, reusing the canonical #903 coordinator and Release workflow."
+  validation: "The initial exact head passed CI 36823131361 and all required safety/runtime workflows; deterministic Audit 36823595811 passed but Release hit GitHub's transient protected-status indexing delay and fail-closed before merge. The repair adds a bounded exact-binding propagation wait. The second exact head passed CI 36824001352 and deterministic Audit 36824457057, but Release skipped because main advanced. Latest main 1a320be3 was merged without conflicts; pnpm run build; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full; and pnpm run security:gate PASS."
+  remaining: "Commit the review repair (Audit-dispatch materialization grace and durable one-recovery budget), then fresh exact-head CI, independent Audit, canonical Release, merge, and exact-main evidence remain required."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_canonical_domain_bridge:
   work_order: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
   status: READY_FOR_REVIEW
@@ -1852,3 +1874,91 @@ current_mobile_logo_contour_n:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; owner plans a later logo renewal
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_paper_tabs:
+  work_order: WO-UI-20261001-PAPER-TABS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-tabs
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; renewal slices done for HOME, LIVE, More and PAPER tab chrome
+current_mobile_live_gates:
+  work_order: WO-UI-20261001-LIVE-GATES
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-live-redesign
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are HOME below the rings, PAPER and More
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_fast_startup:
+  work_order: WO-UI-20261001-FAST-STARTUP
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-fast-startup
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_daily_loss_streak:
+  work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-daily-loss-streak
+  authority_impact: paper_risk_policy
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-deploy_then-health-recheck
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_recovering_quiet:
+  work_order: WO-UI-20261001-RECOVERING-QUIET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-recovering-home
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_contour_core:
+  work_order: WO-UI-20261001-CONTOUR-CORE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-contour-core
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+current_mobile_home_plain:
+  work_order: WO-UI-20261001-HOME-PLAIN
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-home-below
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are PAPER and More
+current_mobile_more_groups:
+  work_order: WO-UI-20261001-MORE-GROUPS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-more-renewal
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slice is the PAPER tab
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_recovery_bound:
+  work_order: WO-UI-20261001-RECOVERY-BOUND
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-recovery-bound
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_hermes_clone:
+  work_order: WO-UI-20261001-HERMES-CLONE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-structuredclone
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_tab_contour:
+  work_order: WO-UI-20261001-TAB-CONTOUR
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-tabs-contour
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_paper_body:
+  work_order: WO-UI-20261001-PAPER-BODY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-body
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_more_contour:
+  work_order: WO-UI-20261001-MORE-CONTOUR
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-more-contour
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_ui_whole_app_rule:
+  work_order: WO-DOC-20261001-UI-WHOLE-APP
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ui-whole-app
+  authority_impact: none
+  rule: "UI/UX changes apply to the whole app (owner, 2026-10-01)."

@@ -23,6 +23,7 @@ import {
   readCodingExecutionEvidence,
   recordCodingExecutionEvidence,
   releasePersistentExecution,
+  recoverPersistentAuditDispatch,
   readScheduledRuntimeEvidence,
   recordScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
@@ -593,7 +594,32 @@ export default {
           now: Date.now(),
           leaseExpiresAt: boundedExecution?.state.lease?.expiresAt ?? Date.now() + WEBHOOK_EXECUTION_LEASE_MS,
         });
-        if (!persistent.acquired) return json({
+        if (!persistent.acquired) {
+          const canRecoverMissingAudit = dispatch.kind === "PR_CI_SUCCEEDED"
+            && persistent.reason === "ALREADY_DISPATCHED"
+            && planned.kind === "AUDIT_REQUEST"
+            && Boolean(env.NUSA_GITHUB_TOKEN);
+          if (canRecoverMissingAudit) {
+            const recovered = await recoverPersistentAuditDispatch(env.NUSA_EXECUTION_COORDINATOR, {
+              dedupeKey: persistentExecutionIdentity.dedupeKey,
+              executionId: persistentExecutionIdentity.executionId,
+              now: Date.now(),
+              leaseExpiresAt: Date.now() + WEBHOOK_EXECUTION_LEASE_MS,
+            });
+            if (recovered.recovered) {
+              const recoveredExecutor = await executeGithubDispatch(execution, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
+              if (recoveredExecutor.status === "DISPATCHED" || (recoveredExecutor.status === "REJECTED" && recoveredExecutor.reason === "github-executor-duplicate-audit-run-suppressed")) {
+                await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, { dedupeKey: persistentExecutionIdentity.dedupeKey, executionId: persistentExecutionIdentity.executionId, now: Date.now() });
+              } else {
+                await releasePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, { dedupeKey: persistentExecutionIdentity.dedupeKey, executionId: persistentExecutionIdentity.executionId, now: Date.now() });
+              }
+              const recoveryExecutor = recoveredExecutor.status === "REJECTED" && recoveredExecutor.reason === "github-executor-duplicate-audit-run-suppressed"
+                ? { status: "REJECTED" as const, reason: "github-executor-duplicate-execution-suppressed", httpStatus: null, requestedHeadSha: dispatch.headSha, observedHeadSha: null }
+                : recoveredExecutor;
+              return json({ accepted: true, status: recoveredExecutor.status === "DISPATCHED" ? "AUDIT_DISPATCH_RECOVERED" : "DUPLICATE_EXECUTION_SUPPRESSED", reason: recoveryExecutor.reason, deliveryId, event, dispatch, execution, executor: recoveryExecutor, executionBoundary: { dedupeKey: persistentExecutionIdentity.dedupeKey, origin: boundedExecution?.envelope.origin ?? "AUTO_BACKGROUND" }, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
+            }
+          }
+          return json({
           accepted: true,
           status: "DUPLICATE_EXECUTION_SUPPRESSED",
           reason: persistent.reason,
@@ -612,7 +638,8 @@ export default {
           liveAuthority: "NONE",
           productionMutationAllowed: false,
           aiAuthority: "ZERO_AUTHORITY",
-        }, 202);
+          }, 202);
+        }
       }
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "PRODUCTION_EXECUTION_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);

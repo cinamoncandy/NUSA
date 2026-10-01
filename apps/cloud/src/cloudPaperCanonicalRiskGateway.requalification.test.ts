@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
-const EXPECTED_RISK_BLOB = "ff33193f8c637541a000ed59546e4ee6434c6b55";
+const EXPECTED_RISK_BLOB = "36526fb630290a11fde773c7be48af06c7bdab39";
 
 function committedGitBlobSha(path: string): string {
   return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
@@ -37,6 +37,13 @@ describe("RISK exact-source re-qualification evidence", () => {
     assert.match(source, /IDEMPOTENCY_FINGERPRINT_INVALID/);
     assert.match(source, /payloadFingerprint, createdAtMs: input\.now/);
     assert.doesNotMatch(source, /payloadFingerprint:\s*"PENDING"/);
+  });
+
+  it("re-qualifies the consecutive-loss streak as scoped to the current UTC trading day", () => {
+    const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
+    assert.match(source, /const completed = \[\.\.\.sellOrders\.values\(\)\]\.filter\(\(sell\) => dayOf\(sell\.filledAt\) === today\)/);
+    // The unmatched-sell fail-closed path is unchanged.
+    assert.match(source, /consecutiveLossCount: Number\.MAX_SAFE_INTEGER/);
   });
 
   it("verifies the complete PAPER risk envelope is unchanged", () => {

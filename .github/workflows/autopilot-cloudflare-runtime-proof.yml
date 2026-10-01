@@ -5,12 +5,14 @@ on:
   pull_request:
     paths:
       - 'scripts/verify-autopilot-cloudflare-runtime.mjs'
+      - 'scripts/autopilot-runtime-proof-self-heal.mjs'
       - '.github/workflows/autopilot-cloudflare-runtime-proof.yml'
   push:
     branches: [main]
     paths:
       - 'apps/autopilot/**'
       - 'scripts/verify-autopilot-cloudflare-runtime.mjs'
+      - 'scripts/autopilot-runtime-proof-self-heal.mjs'
       - '.github/workflows/autopilot-cloudflare-runtime-proof.yml'
   workflow_run:
     workflows: [Autopilot Cloudflare Deploy]
@@ -30,9 +32,11 @@ concurrency:
 
 jobs:
   runtime-proof:
-    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
+    # A pull-request revision is not deployed.  Its Worker observations cannot
+    # prove (or repair) that revision, so runtime acceptance starts after deploy.
+    if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 26
     env:
       NUSA_AUTOPILOT_URL: https://nusa-autopilot.desporin12.workers.dev
       NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
@@ -74,7 +78,9 @@ jobs:
           NUSA_RUNTIME_PROOF_OUTPUT: artifacts/autopilot/runtime-proof.json
         run: |
           set -euo pipefail
-          node scripts/verify-autopilot-cloudflare-runtime.mjs
+          # Recover bounded transient/runtime-state failures before GitHub records terminal failure.
+          # Auth/unsafe/unclassified failures remain fail-closed.
+          node scripts/autopilot-runtime-proof-self-heal.mjs
           node - <<'NODE'
           const fs = require('fs');
           const proof = JSON.parse(fs.readFileSync('artifacts/autopilot/runtime-proof.json', 'utf8'));

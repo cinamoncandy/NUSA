@@ -95,6 +95,9 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
 
 export default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }
 
+/** Shown by read-only monitors while the first canonical refresh is still in flight. */
+const PENDING_REASON = "서버 상태를 확인하는 중입니다.";
+
 function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [status, setStatus] = useState<AuthStatus>("CHECKING");
   const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);
@@ -106,6 +109,10 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
       const endpoint = settings.paperEndpoint || (canonical.status === "READY" ? canonical.origin : null);
       if (endpoint == null) return false;
       setConfiguredPaperEndpoint(endpoint);
+      // A configured endpoint already means SIGNED_IN whatever the restore returns (see below), so
+      // open the shell now instead of holding the splash until the network restore settles. The
+      // restore keeps running and the session state reads RECOVERING until it does.
+      if (active) setStatus("SIGNED_IN");
       // Cold start and the first launch after an app update use the registered DeviceKey too.
       const native = ownerDeviceCredential();
       if (native == null) return restoreConfiguredPaperSession(endpoint);
@@ -422,17 +429,19 @@ function AuthenticatedApp() {
   }, [refresh, refreshPublicMarkets]);
 
   const entryProfile = getHomeVisualProfile(appTheme.preset);
-  if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
+  if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text></View></SafeAreaView>;
   if (authStatus !== "SIGNED_IN") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><View style={[styles.authPanel, { maxWidth: entryProfile.screen.maxWidth, gap: entryProfile.density.contentGap }]}><View style={styles.authBrand}><WaveMark /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL INTELLIGENCE</Text></View></View><Text style={[styles.authHeading, { color: appTheme.colors.text, fontSize: entryProfile.hero.balanceSize * 0.66, letterSpacing: entryProfile.hero.balanceLetterSpacing * 0.35 }]}>개인 PAPER 모드</Text><Text style={[styles.subtitle, { color: appTheme.colors.textMuted, fontSize: entryProfile.type.body, lineHeight: entryProfile.type.bodyLineHeight }]}>개인 기기에서 PAPER 작업공간으로 진입합니다. 서버 자격 증명은 Settings에서 별도로 검증합니다.</Text><View style={[styles.entryBadges, { gap: entryProfile.density.metricGap }]}><StatusChip label="LOCAL ENTRY" tone="neutral" /><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label="LIVE NONE" tone="info" /></View><NusaButton accessibilityLabel="Start personal mode" label="개인 모드 시작" onPress={signIn} testID="local-entry-submit" /><Text style={[styles.meta, { color: appTheme.colors.textMuted, fontSize: entryProfile.type.meta }]}>이 진입 단계는 계정 인증이 아닙니다. 사용자 신원을 검증하지 않으며 비밀번호를 수집하거나 저장하지 않습니다.</Text></View></View></SafeAreaView>;
 
   // Do not render owner-action/SETUP projections from placeholder NOT_CONFIGURED state before
-  // the first canonical PAPER refresh has classified the configured endpoint/session. This gate is
-  // projection-only: it grants no credential or transport authority.
-  if (!initialPaperProjectionResolved) return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>PAPER 상태 복구 중</Text></View></SafeAreaView>;
+  // the first canonical PAPER refresh has classified the configured endpoint/session. Instead of
+  // blocking the whole app behind a full-screen gate, the shell renders at once and the pending
+  // projection reads as "checking" (no snapshot, no setup prompt, no error). Projection-only: it
+  // grants no credential or transport authority.
+  const paperProjectionPending = !initialPaperProjectionResolved;
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
-  const readOnlyError = operations.status === "UNAVAILABLE" ? operations.reason : null;
-  const notConfigured = operations.status === "NOT_CONFIGURED" ? operations.reason : null;
+  const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;
+  const notConfigured = !paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null;
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
   const publicMarketConnectionState = publicMarkets.status === "READY" || publicMarkets.status === "STALE" ? "CONNECTED" : "UNKNOWN";
   const stale = snapshot == null || snapshot.health !== "HEALTHY";
@@ -442,7 +451,7 @@ function AuthenticatedApp() {
   const homeShellActive = utilityView === null && detailSurface === null && activeTab === "Home";
   const localPaperReadiness = getLocalPaperLearningReadiness();
   const paperLearningRuntimeStatus = snapshot?.paperLearning?.events?.length ? snapshot.paperLearning.runtimeStatus : snapshot?.paperLearning?.runtimeStatus === "HALTED" || snapshot?.paperLearning?.runtimeStatus === "ERROR" ? snapshot.paperLearning.runtimeStatus : localPaperReadiness.status;
-  const paperLearningServerSource = operations.status === "NOT_CONFIGURED" ? "NOT_CONFIGURED" as const : operations.status === "UNAVAILABLE" ? "UNAVAILABLE" as const : snapshot?.paperLearning == null ? "PROJECTION_ABSENT" as const : (snapshot.paperLearning.events?.length ?? 0) > 0 ? "SERVER_STREAM" as const : "PROJECTION_EMPTY" as const;
+  const paperLearningServerSource = paperProjectionPending ? "PROJECTION_ABSENT" as const : operations.status === "NOT_CONFIGURED" ? "NOT_CONFIGURED" as const : operations.status === "UNAVAILABLE" ? "UNAVAILABLE" as const : snapshot?.paperLearning == null ? "PROJECTION_ABSENT" as const : (snapshot.paperLearning.events?.length ?? 0) > 0 ? "SERVER_STREAM" as const : "PROJECTION_EMPTY" as const;
   const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus, paperLearningServerSource);
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
@@ -450,7 +459,7 @@ function AuthenticatedApp() {
     {!homeShellActive && utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
 
-    <TabTransition transitionKey={`${activeTab}:${detailSurface ?? ""}:${utilityView ?? ""}:${paperLearningOpen ? "learning" : ""}`}>{paperLearningOpen ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
+    <TabTransition transitionKey={`${activeTab}:${detailSurface ?? ""}:${utilityView ?? ""}:${paperLearningOpen ? "learning" : ""}`}>{paperLearningOpen ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
       : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView canonicalEndpoint={getConfiguredPaperEndpoint()} credentialSession={credentialSession} exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
@@ -458,8 +467,8 @@ function AuthenticatedApp() {
       : detailSurface === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
       : detailSurface === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : detailSurface === "Risk" || detailSurface === "Performance" || detailSurface === "SystemStatus" || detailSurface === "Help" ? <MoreDetailView destination={detailSurface} onClose={() => setDetailSurface(null)} />
-      : activeTab === "Paper" ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setActiveTab("Home")} />
-      : activeTab === "Live" ? <LiveReadinessMonitorView snapshot={liveReadinessOperations.status === "READY" ? liveReadinessOperations.snapshot : null} unavailableReason={liveReadinessOperations.status === "READY" ? undefined : liveReadinessOperations.reason} refreshing={refreshing} onRefresh={onRefresh} />
+      : activeTab === "Paper" ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setActiveTab("Home")} />
+      : activeTab === "Live" ? <LiveReadinessMonitorView snapshot={liveReadinessOperations.status === "READY" ? liveReadinessOperations.snapshot : null} unavailableReason={liveReadinessOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : liveReadinessOperations.reason} refreshing={refreshing} onRefresh={onRefresh} />
       : activeTab === "More" ? <MoreMenuView onOpen={(destination: MoreDestination) => {
           if (destination === "Strategies") setDetailSurface("Strategies");
           else if (destination === "Portfolio") setDetailSurface("Portfolio");
