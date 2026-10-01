@@ -330,3 +330,41 @@ test("runtime proof self-heal retries a recoverable deployed receipt exactly onc
   assert.deepEqual(result, { status: "VERIFIED", attempts: 2 });
   assert.equal(waits, 1);
 });
+
+
+test("runtime proof self-heal leaves margin beyond one five-minute scheduler interval", async () => {
+  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href + "?margin=" + Date.now());
+  assert.equal(fs.readFileSync(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs"), "utf8").includes("?? 14"), true);
+});
+
+test("runtime proof self-heal suppresses stale main after head mismatch", async () => {
+  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href + "?stale=" + Date.now());
+  const previousSha = process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA;
+  const previousBranch = process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH;
+  process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA = "a".repeat(40);
+  process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH = "main";
+  try {
+    const result = await healer.runSelfHeal({
+      verify: async () => 1,
+      wait: async () => {},
+      readEvidence: () => ({ classification: "head_mismatch_failed_closed", reasonCode: "HEAD_MISMATCH_FAILED_CLOSED" }),
+      readCurrentMain: async () => "b".repeat(40),
+    });
+    assert.deepEqual(result, { status: "STALE_SOURCE_SUPPRESSED", attempts: 1, reason: "MAIN_ADVANCED" });
+  } finally {
+    if (previousSha === undefined) delete process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA;
+    else process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA = previousSha;
+    if (previousBranch === undefined) delete process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH;
+    else process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH = previousBranch;
+  }
+});
+
+test("runtime proof self-heal does not call insufficient evidence verified", async () => {
+  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href + "?insufficient=" + Date.now());
+  const result = await healer.runSelfHeal({
+    verify: async () => 0,
+    wait: async () => {},
+    readEvidence: () => ({ status: "INSUFFICIENT_EVIDENCE", proofStatus: "INSUFFICIENT_EVIDENCE" }),
+  });
+  assert.deepEqual(result, { status: "INSUFFICIENT_EVIDENCE", attempts: 1, reason: "INSUFFICIENT_EVIDENCE" });
+});
