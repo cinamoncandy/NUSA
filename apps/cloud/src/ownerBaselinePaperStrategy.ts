@@ -83,7 +83,6 @@ export function ownerBaselineBinding(market: string, decisionAt: number, sourceC
   const normalizedMarket = market.trim().toUpperCase();
   const strategy = ownerBaselineStrategySpec(sourceCommitSha);
   const periodStartAt = Math.floor(decisionAt / DAY_MS) * DAY_MS;
-  const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
   const advisory = ownerBaselineAdvisory(normalizedMarket, periodStartAt);
   return bindPaperCandidateForExecution(
     advisory,
