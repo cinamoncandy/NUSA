@@ -1,0 +1,25 @@
+id: WO-OBS-20260930-DECISION-OUTCOME
+title: "Expose the latest PAPER boundary decision outcome on /health as a coded reason"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-decision-outcome
+authority_impact: none
+objective: "Answer 'why was no PAPER order placed?' from /health. The boundary already returns a status, a reason and risk reason codes for every tick; they were only written to the learning recorder, never surfaced. This is step 1 (P0 explainable decisions) of the owner's integrated upgrade brief, taken as a minimal delta."
+scope:
+  - "New apps/cloud/src/paperDecisionOutcome.ts: codePaperDecisionOutcome(result) -> `STATUS:REASON`, reason taken from result.reason, else risk reason codes, else the status; free text is reduced to an upper-case bounded code."
+  - "runtime.ts: heartbeat.lastPaperDecisionOutcome is set from the boundary result on every tick that reaches it; the runtime liveness source publishes it only when present."
+  - "server.ts: /health allowlist accepts the field only when it matches the public code pattern; anything else is dropped, so free text can never become public. The field is additive and optional."
+exclusions:
+  - "No new decision taxonomy: the codes are the boundary's existing reasons. Mapping them to the brief's BLOCKED_BY_RISK / BLOCKED_BY_EXECUTION / WAITING_FOR_MORE_DATA labels and showing them in the Android decision surface are separate, later deltas."
+  - "No prices, balances, positions, order detail or credentials are added to /health. No server strategy, risk, execution, accounting, credential or LIVE change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/paper-decision-outcome.test.js tests/cloud-runtime-liveness-health.test.js
+  - pnpm run validate
+residual: "After merge, exact-main Oracle release is needed for /health to show the field; the first reading appears on the next tick that reaches the boundary."

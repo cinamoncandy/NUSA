@@ -5,7 +5,7 @@ import { FieldHeader } from "./fieldHeader";
 import { buildPaperFieldHeader } from "./fieldScreensModel";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
-import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice, type IntelligenceTone } from "./intelligenceOs";
+import { FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
 
 export interface PaperLearningMonitorViewProps {
   readonly state: PaperLearningScreenState;
@@ -93,12 +93,6 @@ const dataSourceMessage = (state: PaperLearningScreenState): Readonly<{ title: s
   });
 };
 
-function statusTone(status: PaperLearningScreenState["status"]): IntelligenceTone {
-  if (status === "RUNNING") return "success";
-  if (status === "PAUSED") return "warning";
-  return "danger";
-}
-
 function sourceTone(source: PaperLearningScreenState["dataSource"]): IntelligenceTone {
   if (source === "SERVER_STREAM") return "success";
   if (source === "LOCAL_FALLBACK" || source === "PROJECTION_EMPTY") return "warning";
@@ -122,8 +116,6 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
   const latestOrderEvent = useMemo(() => state.timeline.find((event) => event.stage === "ORDER_INTENT") ?? null, [state.timeline]);
   const latestTerminalEvent = useMemo(() => state.timeline.find((event) => event.stage === "HALT" || event.stage === "ERROR" || event.stage === "IDEMPOTENCY") ?? null, [state.timeline]);
   const sourceMessage = useMemo(() => dataSourceMessage(state), [state]);
-  const runtimeTone = statusTone(state.status);
-  const runtimeLabel = state.status === "RUNNING" ? "PAPER ACTIVE" : state.status === "PAUSED" ? "OBSERVING" : state.status;
   const totalPnl = state.latestAccount == null ? state.performance.realizedPnL + state.performance.unrealizedPnL : state.latestAccount.realizedPnL + state.latestAccount.unrealizedPnL;
   const pnlTone: IntelligenceTone = totalPnl > 0 ? "success" : totalPnl < 0 ? "danger" : "neutral";
   const learningLabel = state.latestEvidence?.outcome == null ? "WAITING" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
@@ -138,19 +130,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     testID="paper-learning-monitor"
   >
     <View style={styles.fieldBleed}><FieldHeader model={buildPaperFieldHeader(state)} testID="paper-field-header" /></View>
-    <AuthorityRail
-      detail="AUTONOMOUS PAPER · LIVE NONE · AI ZERO AUTHORITY"
-      status={runtimeLabel}
-      tone={runtimeTone}
-      testID="paper-learning-authority-rail"
-    />
-    <ScreenLead
-      eyebrow="PAPER LEARNING · READ ONLY"
-      title="PAPER 학습 상태"
-      detail="AI 판단이 PAPER에서 어떻게 검증되고 학습되는지 한 사이클로 확인합니다."
-      badge="READ ONLY"
-      badgeTone="info"
-    />
+    <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]} testID="paper-learning-read-only-label">PAPER LEARNING · READ ONLY</Text>
     <MetricStrip
       items={[
         { label: "EQUITY", value: money(state.latestAccount?.equity), tone: "neutral" },

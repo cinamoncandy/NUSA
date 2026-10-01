@@ -2,7 +2,7 @@ import type { AutopilotDispatchPlan } from "./dispatchPlanner";
 import { executeGithubDispatch, type GithubExecutorResult } from "./githubExecutor";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
-import { deriveGithubIssueBacklogReadiness } from "./evolveGithubIssueBacklog";
+import { deriveGithubIssueBacklogReadiness, selectStalenessProbePulls } from "./evolveGithubIssueBacklog";
 import { runScheduledEvolutionCoding } from "./scheduledEvolutionCoding";
 import {
   UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY,
@@ -15,6 +15,7 @@ import {
 import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
+  readProviderCapacityWait,
   readScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
 } from "./executionCoordinator";
@@ -24,6 +25,7 @@ export interface ScheduledRuntimeEnv {
   readonly NUSA_GITHUB_REPOSITORY?: string;
   readonly NUSA_AI_CODING_ENDPOINT?: string;
   readonly NUSA_AI_CODING_TOKEN?: string;
+  readonly NUSA_AUTOPILOT_ZERO_CREDIT_MODE?: string;
   readonly NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
 }
 
@@ -79,6 +81,12 @@ function result(
     ...authority,
   });
 }
+
+/**
+ * The scheduler runs every minute. Each probe costs two GitHub calls, so this cap keeps a tick
+ * well under the Workers subrequest limit and the token's hourly GitHub budget.
+ */
+const MAX_STALENESS_PROBES_PER_TICK = 8;
 
 async function githubJson(url: string, token: string, fetchImpl: typeof fetch): Promise<JsonObject> {
   const response = await fetchImpl(url, {
@@ -145,8 +153,10 @@ async function enrichOpenPullStaleness(
   openPulls: readonly unknown[],
   mainSha: string,
   fetchImpl: typeof fetch,
+  probe: ReadonlySet<unknown>,
 ): Promise<readonly unknown[]> {
   const enriched = await Promise.all(openPulls.map(async (value) => {
+    if (!probe.has(value)) return value;
     const pull = object(value);
     const number = positiveInteger(pull?.number);
     if (!pull || !number) return value;
@@ -259,6 +269,31 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
 
+  // A persisted provider wait is a global stop for inference admission. Check it
+  // before issue/PR searches and workflow history reads so every minute spent
+  // waiting does not also spend the GitHub API budget. Read only current main to
+  // keep the wait receipt bound to a fresh head; the actual bounded probe still
+  // happens through the existing coding path after nextRetryAt.
+  let providerWait;
+  try {
+    providerWait = await readProviderCapacityWait(coordinator, "workers-ai");
+  } catch {
+    return result("ABSTAINED", "provider-capacity-state-unavailable");
+  }
+  if (providerWait && now < providerWait.nextRetryAt) {
+    // Provider backoff suppresses execution, not exact-main receipt provenance.
+    // Read only the head; backlog, workflows and AI remain untouched.
+    try {
+      const main = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl);
+      const mainCommit = object(main.commit);
+      const mainSha = text(mainCommit?.sha);
+      if (!mainSha || !SHA40.test(mainSha)) return result("ABSTAINED", "main-sha-invalid-during-provider-wait");
+      return result("WAITING_RATE_LIMIT", "waiting-provider-capacity", mainSha);
+    } catch {
+      return result("ABSTAINED", "main-sha-unavailable-during-provider-wait");
+    }
+  }
+
   // Backlog discovery and the previous receipt are independent reads. Starting
   // them together removes one more full network/storage round trip from every
   // scheduled cycle without changing any authorization or dedupe decision.
@@ -285,7 +320,8 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
     if (!resolvedMainSha || !SHA40.test(resolvedMainSha)) return result("ABSTAINED", "main-sha-invalid", null, null, null, discoveredOpportunityIds, workSupply);
     mainSha = resolvedMainSha;
 
-    const openPulls = await enrichOpenPullStaleness(repository, token, backlog.openPulls, mainSha, fetchImpl);
+    const probe = selectStalenessProbePulls(backlog.issues, backlog.openPulls, MAX_STALENESS_PROBES_PER_TICK);
+    const openPulls = await enrichOpenPullStaleness(repository, token, backlog.openPulls, mainSha, fetchImpl, probe);
     const readiness = deriveGithubIssueBacklogReadiness(backlog.issues, openPulls, new Date(now));
     workSupply = backlog.readinessEvidenceComplete
       ? withObservedCapabilityBlockedWork(

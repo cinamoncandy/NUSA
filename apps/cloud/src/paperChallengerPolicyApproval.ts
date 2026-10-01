@@ -10,14 +10,22 @@ const SHA256 = /^[a-f0-9]{64}$/;
 
 export interface PaperChallengerPolicyApprovalOptions {
   readonly artifacts: QualifiedPaperChallengerArtifactReader;
-  /** Off unless the operator explicitly enables it; disabled means no approval exists. */
+  /** On by default on the PAPER host (ADR-0018 amendment); disabled means no approval exists. */
   readonly enabled: boolean;
   readonly now?: () => number;
 }
 
-/** Enabled only by the exact value ENABLED. Anything else, including absence, is disabled. */
+/**
+ * ADR-0018 amendment (owner, 2026-09-28): on by default on the PAPER host. Absent or exactly
+ * ENABLED turns it on; exactly DISABLED is the operator off switch. Any other value is treated as
+ * a typo and fails closed (disabled). A host whose NUSA_MODE is set to anything but PAPER never
+ * gets policy approval.
+ */
 export function paperChallengerPolicyEnabled(env: NodeJS.ProcessEnv): boolean {
-  return env[PAPER_CHALLENGER_POLICY_ENV] === "ENABLED";
+  const mode = env.NUSA_MODE;
+  if (mode !== undefined && mode !== "PAPER") return false;
+  const value = env[PAPER_CHALLENGER_POLICY_ENV];
+  return value === undefined || value === "ENABLED";
 }
 
 /**

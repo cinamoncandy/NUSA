@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
 const { startCloudDashboardServer } = require("../dist/apps/cloud/src/server.js");
+const { evaluateComponentHealth } = require("../dist/apps/cloud/src/componentHealth.js");
 
 /**
  * 24-hour PAPER operation must be observable, not assumed.
@@ -127,9 +128,48 @@ test("/health publishes only the allowlisted liveness fields, whatever the sourc
   }, 41887);
 });
 
+test("/health strips extra component-health fields from an alternate callback", async () => {
+  const measuredAt = 2_000;
+  const health = (componentId, provenance, evidenceId) => evaluateComponentHealth({
+    componentId, now: measuredAt, policy: { staleAfterMs: 1_000 },
+    latest: { componentId, signal: "PASS", observedAt: measuredAt, provenance, evidenceId },
+  });
+  const process = { ...health("PAPER_PROCESS", "cloud-runtime-heartbeat", "heartbeat:1000:2000"), extra: "private-marker-42" };
+  const workload = { ...health("PAPER_WORKLOAD", "cloud-paper-market-events", "market-event:1000:2000:1"), extra: "private-marker-42" };
+  await withServer({ runtimeHealth: () => ({ process, workload, extra: "private-marker-42" }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.equal(res.status, 200);
+    assert.equal(body.runtimeHealth.process.state, "HEALTHY");
+    assert.equal(body.runtimeHealth.workload.state, "HEALTHY");
+    assert.doesNotMatch(res.body, /private-marker-42/);
+  }, 41890);
+});
+
+test("/health omits malformed component-health evidence without exposing callback text", async () => {
+  await withServer({ runtimeHealth: () => ({ process: null, workload: { error: "private-marker-42" } }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.equal(res.status, 200);
+    assert.equal(JSON.parse(res.body).runtimeHealth, undefined);
+    assert.doesNotMatch(res.body, /private-marker-42/);
+  }, 41891);
+});
+
 test("a coded liveness error is published unchanged", async () => {
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, lastError: "PUBLIC_MARKET_EVENT_REJECTED:STALE" }) }, async (handle) => {
     const body = JSON.parse((await request(handle.port, "/health")).body);
     assert.equal(body.runtime.lastError, "PUBLIC_MARKET_EVENT_REJECTED:STALE");
   }, 41888);
+});
+
+test("the previous stop reason is published only as a coded value and never as free text", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, previousStop: "PREVIOUS_CLOSED_LEARNING_SCHEDULER:MESSAGE_0123456789AB" }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.previousStop, "PREVIOUS_CLOSED_LEARNING_SCHEDULER:MESSAGE_0123456789AB");
+  }, 41889);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, previousStop: "failed for account acct-123" }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.equal(JSON.parse(res.body).runtime.previousStop, undefined);
+    assert.doesNotMatch(res.body, /acct-123/);
+  }, 41889);
 });

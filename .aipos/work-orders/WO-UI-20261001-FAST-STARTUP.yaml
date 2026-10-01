@@ -1,0 +1,25 @@
+id: WO-UI-20261001-FAST-STARTUP
+title: "Open the app shell immediately instead of waiting behind startup status screens"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-fast-startup
+authority_impact: none
+objective: "Owner asked for a faster first load without the '로컬 상태 확인 중' and 'PAPER 상태 복구 중' screens. The second screen blocked the whole app until the first cloud PAPER refresh (network, session restore) finished."
+scope:
+  - "App.tsx: the full-screen 'PAPER 상태 복구 중' gate is removed. Until the first canonical refresh settles, notConfigured, readOnlyError and the paper-learning source are masked (null / PROJECTION_ABSENT), so screens render their checking state and never a placeholder SETUP prompt or error. This keeps the original intent of the gate (no owner-action projection from placeholder state) without blocking."
+  - "The brief local-auth CHECKING splash shows only the logo, no status sentence, and ends as soon as a configured endpoint is loaded from local settings; the network session restore continues in the background (it never changed the SIGNED_IN outcome for a configured endpoint)."
+  - "SHADOW, REAL and LIVE monitors show '서버 상태를 확인하는 중입니다.' instead of their placeholder NOT_CONFIGURED reasons while the first refresh is pending."
+exclusions:
+  - "Session restore, credential handling, refresh cadence and transport are unchanged. No server, strategy, risk, execution or LIVE change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - node --test tests/mobile-paper-autoconnect.test.js
+  - pnpm run validate
+residual: "Measured startup time on a physical Android device is HUMAN_ENVIRONMENT_ONLY."

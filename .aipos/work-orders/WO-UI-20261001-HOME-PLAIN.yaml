@@ -1,0 +1,23 @@
+id: WO-UI-20261001-HOME-PLAIN
+title: "HOME renewal: lift the no-order reason under the hero and use plain Korean labels"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-home-below
+authority_impact: none
+objective: "Owner asked to keep improving the rest of the UI/UX. The answer to 'why no order' was buried inside the second HOME card and section labels were internal codes (MARKET CANVAS, NUSA LOOP, 01 · OBSERVE, INVESTABLE)."
+scope:
+  - "homeView.tsx: the existing describePaperOrderReason sentence moves into its own card (home-order-reason-card) right under the hero; the testID home-no-order-reason is kept. Border turns warning only for blocked categories."
+  - "Plain Korean labels for the market card, the flow section, its three cards and the cash preview; 'TOTAL PNL' and other strings pinned by existing contracts are unchanged."
+exclusions:
+  - "No data, server, strategy, risk, execution, credential or LIVE change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/mobile-home-plain-labels.test.js tests/paper-order-reason.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

@@ -19,5 +19,5 @@ test("the production closed-learning composition passes a Governance port to PAP
   assert.ok(start > 0, "expected the production composition to construct PaperChallengerDeploymentRuntime");
   const call = source.slice(start, source.indexOf("});", start));
   assert.match(call, /governance:\s*new PaperChallengerPolicyApproval\(/, "the deployment runtime must receive the ADR-0018 Governance approval port");
-  assert.match(call, /enabled:\s*paperChallengerPolicyEnabled\(env\)/, "policy approval must stay behind the explicit operator switch");
+  assert.match(call, /enabled:\s*paperChallengerPolicyEnabled\(env\)/, "policy approval must stay behind the operator switch (default on, DISABLED turns it off)");
 });

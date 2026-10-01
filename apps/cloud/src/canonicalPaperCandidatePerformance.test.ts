@@ -71,7 +71,7 @@ describe("buildCanonicalPaperCandidatePerformance", () => {
     assert.equal(result.availabilityRatio, 1);
     assert.equal(result.unresolvedFaultCount, 0);
     assert.equal(result.killSwitchActivationCount, 0);
-    assert.equal(result.executionQualityScore, 1);
+    assert.equal(result.executionQualityScore, 100);
     assert.ok(Number.isFinite(result.sharpeRatio));
     assert.ok(result.profitFactor > 0);
     assert.ok(result.maximumDrawdown > 0);

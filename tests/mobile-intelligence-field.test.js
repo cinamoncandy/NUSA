@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(fs.readFileSync(sourcePath, "utf8"), {
 }).outputText;
 const moduleShim = { exports: {} };
 new Function("module", "exports", "require", compiled)(moduleShim, moduleShim.exports, require);
-const { buildIntelligenceField } = moduleShim.exports;
+const { buildIntelligenceField, fieldPose, buildHomeFieldFacts } = moduleShim.exports;
 
 const base = { checking: false, disconnected: false, recovering: false, haltActive: false, degraded: false, feedStale: false, readyForPaperOperations: true, decisionCount: 10, paperOrderCount: 3 };
 const field = (overrides) => buildIntelligenceField({ ...base, ...overrides });
@@ -35,8 +35,8 @@ test("unavailable or unhealthy PAPER state fails closed instead of reading CONNE
   assert.equal(model.tone, "amber");
   assert.equal(field({ degraded: true, haltActive: true }).phase, "HALTED");
   const home = fs.readFileSync(path.join(root, "apps/mobile/src/homeView.tsx"), "utf8");
-  assert.match(home, /degraded: readOnlyError != null \|\| \(snapshot != null && \(snapshot\.health !== "HEALTHY"/);
-  assert.match(home, /runtimeState === "HALTED"/);
+  // Behaviour of the mapping is covered in tests/mobile-home-field-input.test.js.
+  assert.match(home, /const fieldInput = buildHomeFieldInput\(/);
 });
 
 test("a stale phone quote feed is described as local display lag, not a server decision pause", () => {
@@ -67,8 +67,8 @@ test("field model is frozen and HOME wires only real state", () => {
   const model = field({});
   assert.ok(Object.isFrozen(model) && Object.isFrozen(model.lit) && Object.isFrozen(model.states));
   const home = fs.readFileSync(path.join(root, "apps/mobile/src/homeView.tsx"), "utf8");
-  assert.match(home, /<IntelligenceField input=/);
-  assert.match(home, /operations\.heartbeat\?\.decisionCount/);
+  assert.match(home, /const fieldInput = buildHomeFieldInput\(/);
+  assert.doesNotMatch(home, /<IntelligenceField/, "the decision rings replaced the field on HOME");
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceField.tsx"), "utf8");
   assert.match(view, /isReduceMotionEnabled/);
   assert.match(view, /useState<boolean \| null>\(null\)/);
@@ -83,7 +83,30 @@ test("state changes propagate as signals along strands, inward for problems, nev
   assert.match(view, /function Signal\(/);
   assert.match(view, /setInward\(model\.tone === "amber" \|\| model\.tone === "red"\)/);
   assert.match(view, /if \(reducedMotion !== false \|\| !changed\)/);
-  assert.match(view, /Animated\.stagger\(110/);
+  assert.match(view, /Animated\.stagger\(fieldMotion\.signalStaggerMs/);
   assert.doesNotMatch(view, /Animated\.loop/);
   assert.doesNotMatch(view, /useNativeDriver: false/);
+});
+
+test("field pose collapses on HALTED and scatters and fades while unverified", () => {
+  assert.deepEqual({ ...fieldPose("HALTED") }, { spread: 0.3, presence: 1 });
+  for (const phase of ["LAUNCH", "AUTHENTICATION", "DEGRADED"]) {
+    const pose = fieldPose(phase);
+    assert.ok(pose.spread > 1 && pose.presence < 0.5, phase);
+  }
+  for (const phase of ["CONNECTED", "ATTENTION"]) assert.deepEqual({ ...fieldPose(phase) }, { spread: 1, presence: 1 });
+  assert.ok(Object.isFrozen(fieldPose("RECOVERING")));
+  const view = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceField.tsx"), "utf8");
+  assert.match(view, /const pose = fieldPose\(model\.phase\)/);
+  assert.match(view, /transform: \[\{ rotate: orbitRotate \}, \{ scale: spread \}\]/);
+  assert.match(view, /fieldMotion\.poseMs/);
+});
+
+test("HOME evidence row shows canonical counters verbatim and never guesses a zero", () => {
+  const base = { checking: false, disconnected: false, recovering: false, haltActive: false, degraded: false, feedStale: false, readyForPaperOperations: true };
+  const facts = buildHomeFieldFacts({ ...base, decisionCount: 1284, paperOrderCount: 0, pipelineStage: "OBSERVE_ONLY" });
+  assert.deepEqual(facts.map((f) => f.value), ["1,284", "0", "OBSERVE ONLY"]);
+  const unknown = buildHomeFieldFacts({ ...base, decisionCount: null, paperOrderCount: null, pipelineStage: null });
+  assert.deepEqual(unknown.map((f) => f.value), ["—", "—", "—"]);
+  assert.ok(Object.isFrozen(facts) && Object.isFrozen(facts[0]));
 });

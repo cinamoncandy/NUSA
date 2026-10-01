@@ -79,6 +79,8 @@ export const fieldPalette = Object.freeze({
   halt: "#FF5C5C",
   risk: "#FFA94D",
   focus: "#FFB547",
+  /** Selection/focus highlight for field visuals (focused subsystem, selected tab). Amber `focus` is kept for warning tones only. */
+  accent: "#B6F04B",
 });
 
 const interaction = Object.freeze({
@@ -90,12 +92,12 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
-/** Near-black void, hairline structure, amber emphasis. Identical in light and dark. */
+/** Near-black void, hairline structure, one lime accent with a cyan focus ring. Identical in light and dark. Amber stays a warning-only tone; red stays a halt/danger-only tone. */
 const fieldSurface = Object.freeze({
   background: "#010204", surface: "#06090D", surfaceRaised: "#0B1016", surfaceSunken: "#030507",
-  text: "#EEF3F6", textMuted: "#8A96A0", primary: "#FFB547", primarySoft: "#1F1708", onPrimary: "#010204",
-  navSurface: "#010204", border: "#1A2129", borderStrong: "#39434D", info: "#4FC3F7", focus: "#FFB547",
-  neonGlow: "rgba(255, 181, 71, 0.12)",
+  text: "#EEF3F6", textMuted: "#8A96A0", primary: "#B6F04B", primarySoft: "#0C1606", onPrimary: "#010204",
+  navSurface: "#010204", border: "#1A2129", borderStrong: "#39434D", info: "#4FC3F7", focus: "#4FC3F7",
+  neonGlow: "rgba(182, 240, 75, 0.10)",
 });
 
 export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({
@@ -105,7 +107,7 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
     light: fieldSurface,
     typography: Object.freeze({ micro: 10, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 44 }),
     layout: Object.freeze({ screenPadding: 20, sectionGap: 18, cardPadding: 16, heroRadius: 6 }),
-    radii: Object.freeze({ sm: 2, md: 4, lg: 6, xl: 8, full: 9999 as const }),
+    radii: Object.freeze({ sm: 4, md: 8, lg: 12, xl: 16, full: 9999 as const }),
   }),
 });
 
@@ -221,3 +223,24 @@ export function cardTokens(theme: Theme) {
 export function designSystemSnapshot(theme: Theme): string {
   return JSON.stringify({ preset: theme.preset, mode: theme.mode, colors: theme.colors, typography: theme.typography, layout: theme.layout, spacing: theme.spacing, radii: theme.radii, icons: theme.icons, interaction: theme.interaction });
 }
+
+/**
+ * Field motion tokens. Every field animation reads its timing from here so a redesign can retune
+ * or replace motion in one place. Motion always runs only on a semantic state change.
+ */
+export const fieldMotion = Object.freeze({
+  settleMs: 900,
+  settleStaggerMs: 90,
+  coreTurnMs: 700,
+  signalMs: 950,
+  signalStaggerMs: 110,
+  pulseInMs: 260,
+  pulseOutMs: 900,
+  flareDelayMs: 700,
+  flareMs: 900,
+  headerGlowMs: 800,
+  headerSignalMs: 900,
+  tabTransitionMs: 320,
+  poseMs: 1100,
+  orbitStepDeg: 18,
+});

@@ -30,6 +30,13 @@ test("deployment is Worker-only and has no paid Cloudflare Containers rollout", 
   assert.doesNotMatch(workflow, /containers list/);
 });
 
+test("Jev shadow deployment does not override the global release freeze", () => {
+  assert.match(workflow, /--var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:true"/);
+  assert.match(workflow, /--var "NUSA_JEV_SHADOW_ENABLED:true"/);
+  assert.match(workflow, /--var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"/);
+  assert.doesNotMatch(workflow, /--var "NUSA_GLOBAL_RELEASE_FREEZE:false"/);
+});
+
 test("deployment fail-closes and synchronizes the persistent runtime secret before Worker deploy", () => {
   const preflightIndex = workflow.indexOf("Verify Cloudflare deployment credentials and account access");
   const secretIndex = workflow.indexOf("Sync persistent Autopilot runtime bearer secret");
