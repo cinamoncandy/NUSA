@@ -53,13 +53,15 @@ export function DecisionRings({ status = null, ...props }: DecisionRingsInput & 
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   const armRotate = sweep.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
 
-  return <View style={styles.wrap} testID="home-decision-rings" accessibilityLabel={`${model.headline}. ${model.detail}`}>
+  return <View style={styles.wrap} testID="home-decision-rings" accessibilityLabel={status && model.state === "UNKNOWN" ? `${status.title}. ${status.detail}` : `${model.headline}. ${model.detail}`}>
     {status ? <View style={[styles.status, { borderColor: status.tone === "halt" ? theme.colors.danger : theme.colors.warning }]} testID="home-decision-rings-status" accessibilityRole="alert">
       <Text style={[styles.statusTitle, { color: status.tone === "halt" ? theme.colors.danger : theme.colors.warning }]}>{status.title}</Text>
       <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{status.detail}</Text>
     </View> : null}
-    <Text style={[fieldFonts.monoMedium, styles.count, { color: theme.colors.text }]} testID="home-decision-rings-count">{model.headline}</Text>
-    <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{model.detail}</Text>
+    {model.state === "UNKNOWN" ? (status ? null : <Text style={[styles.pending, { color: theme.colors.textMuted }]} testID="home-decision-rings-count">{model.headline}</Text>) : <>
+      <Text style={[fieldFonts.monoMedium, styles.count, { color: theme.colors.text }]} testID="home-decision-rings-count">{model.headline}</Text>
+      <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{model.detail}</Text>
+    </>}
     <View style={styles.stage}>
       {[0.25, 0.5, 0.75, 1].map((k) => <View key={k} style={[styles.guide, { width: RADIUS * 2 * k, height: RADIUS * 2 * k, borderRadius: RADIUS * k, borderColor: theme.colors.border }]} />)}
       <Animated.View style={[styles.layer, { transform: [{ rotate }] }]}>
@@ -87,6 +89,7 @@ const styles = StyleSheet.create({
   wrap: { alignItems: "center", paddingVertical: 8, gap: 6 },
   status: { alignSelf: "stretch", borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, gap: 4, marginBottom: 6 },
   statusTitle: { fontSize: 15, fontWeight: "600" },
+  pending: { fontSize: 14, textAlign: "center" },
   count: { fontSize: 34, fontWeight: "600", letterSpacing: -0.8 },
   detail: { fontSize: 13, textAlign: "center", maxWidth: 300, lineHeight: 19 },
   stage: { width: SIZE, height: SIZE, alignItems: "center", justifyContent: "center", marginTop: 6 },
