@@ -91,3 +91,29 @@ test("foreground RECOVERING preserves the last PAPER projection while runtime st
   assert.doesNotMatch(recoveringBranch, /setOperations\(/);
   assert.doesNotMatch(recoveringBranch, /RECOVERY_FAILED/);
 });
+
+test("a retry loop that never verifies stops projecting RECOVERING after the bounded window", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const session = mobileApprovedSession();
+  const originalRestore = session.restore;
+  const originalRetryable = session.shouldRetryRestore;
+  let calls = 0;
+  try {
+    connection.clearConfiguredPaperEndpoint();
+    session.restore = async () => { calls += 1; return null; };
+    session.shouldRetryRestore = () => true;
+    connection.setConfiguredPaperEndpoint(ENDPOINT);
+    const settle = async () => { for (let i = 0; i < 6; i += 1) await new Promise((resolve) => setImmediate(resolve)); };
+    await settle();
+    assert.equal(connection.getPaperSessionState(), "RECOVERING");
+    for (let i = 0; i < 6; i += 1) { t.mock.timers.tick(30_000); await settle(); }
+    assert.equal(connection.getPaperSessionState(), "RECOVERY_REQUIRED");
+    const before = calls;
+    t.mock.timers.tick(30_000); await settle();
+    assert.ok(calls > before, "background retry keeps running after the projection gives up");
+  } finally {
+    connection.clearConfiguredPaperEndpoint();
+    session.restore = originalRestore;
+    session.shouldRetryRestore = originalRetryable;
+  }
+});

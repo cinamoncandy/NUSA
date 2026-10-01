@@ -1,0 +1,22 @@
+id: WO-UI-20261001-RECOVERY-BOUND
+title: "PAPER session recovery is projected as RECOVERING only for a bounded window"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-recovery-bound
+authority_impact: none
+objective: "Owner screenshot (2026-10-01): the app sat on the 서버 세션 재연결 / PAPER 재연결 중 banner indefinitely. A missing silent DeviceKey with no stored bearer session is deliberately classified retryable (it is indistinguishable from a transient Keystore failure), so the backoff retry never stopped and the UI never offered the connect action."
+scope:
+  - "paperConnectionSession.ts: after six armed retries (about 30 s of backoff) getPaperSessionState returns RECOVERY_REQUIRED; the background retry keeps running and a later success still verifies the session."
+exclusions:
+  - "No change to credential handling, DeviceKey proofs, retry classification, server code or trading authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-paper-session-projection-invariant.test.js tests/mobile-paper-session-single-owner.test.js tests/mobile-paper-session-verified-notify.test.js tests/mobile-app-update-continuity.test.js
+  - pnpm run validate
+residual: "Physical Android reconnect acceptance is HUMAN_ENVIRONMENT_ONLY."
