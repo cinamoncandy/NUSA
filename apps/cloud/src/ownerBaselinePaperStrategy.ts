@@ -26,6 +26,42 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SHA40 = /^[a-f0-9]{40}$/;
 const sha256 = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
+export function ownerBaselineAdvisory(market: string, periodStartAt: number): LeagueCapitalAllocationAdvisory {
+  if (!Number.isSafeInteger(periodStartAt) || periodStartAt < DAY_MS) throw new Error("owner baseline period start is invalid");
+  const normalizedMarket = market.trim().toUpperCase();
+  if (!/^KRW-[A-Z0-9-]+$/.test(normalizedMarket)) throw new Error("owner baseline market is invalid");
+  const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
+  const generatedAt = periodStartAt - 1;
+  return Object.freeze({
+    schemaVersion: 1,
+    generatedAt: new Date(generatedAt).toISOString(),
+    policy: Object.freeze({ maximumCandidateWeight: 1, minimumEvidenceBreadth: 0, maximumCandidateCount: 1, maximumFamilyWeight: 1 }),
+    entries: Object.freeze([Object.freeze({
+      id: OWNER_BASELINE_CANDIDATE_ID,
+      familyId: "sma-crossover",
+      rank: 1,
+      leagueScore: 0,
+      evidenceBreadth: 0,
+      researchWeight: 1,
+      reasons: Object.freeze([OWNER_BASELINE_REASON]),
+      sourceDatasetIds: Object.freeze([datasetId]),
+    })]),
+    excludedCandidateIds: Object.freeze([]),
+    reasons: Object.freeze([OWNER_BASELINE_REASON]),
+    provenance: Object.freeze({ sourceDatasetIds: Object.freeze([datasetId]) }),
+  });
+}
+
+export function ownerBaselineCandidateProvenance(market: string, specificationHash: string): Readonly<{ candidateId: string; datasetId: string; datasetContentSha256: string }> {
+  const normalizedMarket = market.trim().toUpperCase();
+  const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
+  return Object.freeze({
+    candidateId: OWNER_BASELINE_CANDIDATE_ID,
+    datasetId,
+    datasetContentSha256: sha256({ datasetId, specificationHash }),
+  });
+}
+
 export function ownerBaselineStrategyEnabled(env: NodeJS.ProcessEnv): boolean {
   const mode = env.NUSA_MODE;
   if (mode !== undefined && mode !== "PAPER") return false;
@@ -49,27 +85,10 @@ export function ownerBaselineBinding(market: string, decisionAt: number, sourceC
   const periodStartAt = Math.floor(decisionAt / DAY_MS) * DAY_MS;
   const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
   const datasetContentSha256 = sha256({ datasetId, specificationHash: strategy.specificationHash });
-  const advisory: LeagueCapitalAllocationAdvisory = Object.freeze({
-    schemaVersion: 1,
-    generatedAt: new Date(periodStartAt - 1).toISOString(),
-    policy: Object.freeze({ maximumCandidateWeight: 1, minimumEvidenceBreadth: 0, maximumCandidateCount: 1, maximumFamilyWeight: 1 }),
-    entries: Object.freeze([Object.freeze({
-      id: OWNER_BASELINE_CANDIDATE_ID,
-      familyId: strategy.familyId,
-      rank: 1,
-      leagueScore: 0,
-      evidenceBreadth: 0,
-      researchWeight: 1,
-      reasons: Object.freeze([OWNER_BASELINE_REASON]),
-      sourceDatasetIds: Object.freeze([datasetId]),
-    })]),
-    excludedCandidateIds: Object.freeze([]),
-    reasons: Object.freeze([OWNER_BASELINE_REASON]),
-    provenance: Object.freeze({ sourceDatasetIds: Object.freeze([datasetId]) }),
-  });
+  const advisory = ownerBaselineAdvisory(normalizedMarket, periodStartAt);
   return bindPaperCandidateForExecution(
     advisory,
-    [{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId, datasetContentSha256 }],
+    [ownerBaselineCandidateProvenance(normalizedMarket, strategy.specificationHash)],
     OWNER_BASELINE_CANDIDATE_ID,
     periodStartAt,
     strategy,

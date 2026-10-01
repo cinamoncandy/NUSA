@@ -10,6 +10,7 @@ import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
 import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
 import { OwnerBaselinePaperBindingProvider, ownerBaselineStrategyEnabled } from "./ownerBaselinePaperStrategy";
+import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
@@ -239,14 +240,34 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     log: (line) => console.log(line),
   });
 
+  const ensureOwnerBaselinePeriod = (): void => {
+    if (!ownerBaselineStrategyEnabled(env) || periods.listOpenPeriods().length > 0 || periods.listRealizedPeriods().length > 0) return;
+    const account = readCanonicalPaperAccount();
+    if (account == null || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) return;
+    const market = config.upbitMarkets[0];
+    if (market == null) return;
+    const periodIndex = periods.listRealizedPeriods().reduce((maximum, item) => Math.max(maximum, item.record.periodIndex), -1) + 1;
+    const input = buildOwnerBaselinePaperPeriodInput({
+      market,
+      periodIndex,
+      periodStartAt: account.updatedAt,
+      sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "",
+    });
+    periods.openPeriodFromCanonicalAccount(input);
+  };
+
   const runClosedLearningTick = (): Promise<void> => {
     if (stopping) return Promise.resolve();
     if (closedLearningTick != null) return closedLearningTick;
     const task = (async () => {
       const bootstrap = await runClosedLearningBootstrapAsync();
-      // No replayable snapshot means no challenger and so no PAPER trading until the daily Research
-      // timer. Refresh it now through the same canonical Research entrypoint (rate limited).
-      if (bootstrap.status === "WAITING_RESEARCH_SNAPSHOT") researchRefresh.requestIfDue();
+      // If Research has no deployable snapshot, preserve the canonical PAPER loop by opening one
+      // truthful market-bound owner-baseline period. The period uses the same account boundary and
+      // provenance as the executable baseline binding; it never fabricates fills or benchmark data.
+      if (bootstrap.status === "WAITING_RESEARCH_SNAPSHOT") {
+        researchRefresh.requestIfDue();
+        ensureOwnerBaselinePeriod();
+      }
       await runClosedLearningRolloverAsync();
     })();
     closedLearningTick = task;
