@@ -3,6 +3,7 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- NUSA N monogram mark: amber N on deep navy. Notification (monochrome). -->
-    <path android:fillColor="#FFFFFFFF" android:pathData="M4.8,20.8 L4.8,3.2 L8.4,3.2 L15.6,13.6 L15.6,3.2 L19.2,3.2 L19.2,20.8 L15.6,20.8 L8.4,10.4 L8.4,20.8Z" />
+    <!-- NUSA N monogram mark, contour edition (2026-10-01): single centre stroke with the decision point so it stays legible at status-bar size. Notification (monochrome). -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M6.44,18.67 L6.44,5.89 L17.56,18.11 L17.56,5.33" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M15.86,5.33 a1.7,1.7 0 1,0 3.4,0 a1.7,1.7 0 1,0 -3.4,0Z" />
 </vector>

@@ -1845,3 +1845,10 @@ current_paper_fill_lineage:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; open gaps are market-observation id and decision-reason retention in the intent
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_logo_contour_n:
+  work_order: WO-UI-20261001-LOGO-CONTOUR-N
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-logo-contour-n
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; owner plans a later logo renewal
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
