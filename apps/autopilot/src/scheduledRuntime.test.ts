@@ -148,6 +148,24 @@ test("scheduled runtime checks a persisted provider wait before spending GitHub 
   assert.equal(outcome.aiAuthority, "ZERO_AUTHORITY");
 });
 
+test("zero-credit provider wait preserves fresh head without backlog or AI calls", async () => {
+  const future = NOW + 60 * 60 * 1000;
+  const coordinator: ExecutionCoordinatorNamespace = {
+    idFromName: (name) => ({ name }),
+    get: () => ({ async fetch() { return new Response(JSON.stringify({ wait: { schemaVersion: 1, taskId: "issue-2118", executionId: "evolve-coding:existing-work", provider: "workers-ai", headSha: SHA, stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED", stoppedAt: NOW - 1_000, attemptCount: 1, lastFailure: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED", nextRetryAt: future, resumeCondition: "provider-capacity-and-exact-head-revalidation", dedupeKey: "existing-dedupe", evidenceRef: "coding-evidence:existing-work" } }), { status: 200, headers: { "content-type": "application/json" } }); } }),
+  };
+  let githubCalls = 0;
+  const outcome = await runScheduledAutopilot({ NUSA_GITHUB_TOKEN: "token", NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA", NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "true", NUSA_EXECUTION_COORDINATOR: coordinator }, NOW, (async (input: RequestInfo | URL) => {
+    githubCalls += 1;
+    assert.ok(String(input).endsWith("/branches/main"));
+    return new Response(JSON.stringify({ commit: { sha: FAILED_SHA } }), { status: 200 });
+  }) as typeof fetch);
+  assert.equal(outcome.status, "WAITING_RATE_LIMIT");
+  assert.equal(outcome.reason, "waiting-provider-capacity");
+  assert.equal(outcome.headSha, FAILED_SHA, "never reuse the stale provider-wait head");
+  assert.equal(githubCalls, 1);
+});
+
 test("scheduled runtime fails closed when provider-wait state cannot be read", async () => {
   let githubCalls = 0;
   const coordinator: ExecutionCoordinatorNamespace = {

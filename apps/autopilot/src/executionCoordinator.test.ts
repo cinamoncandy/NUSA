@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, readProviderCapacityWait, recordProviderCapacityWait, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, readProviderCapacityWait, recordProviderCapacityWait, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, recoverPersistentAuditDispatch, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -236,6 +236,19 @@ describe("persistent execution coordination", () => {
       releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 }),
       /PERSISTENT_EXECUTION_RELEASE_FAILED/,
     );
+  });
+
+  it("waits for Audit dispatch materialization and preserves the one recovery budget across a released retry", async () => {
+    const ns = memoryNamespace();
+    const request = { dedupeKey: "audit:materialization:abc", executionId: "audit:materialization", now: 100, leaseExpiresAt: 1_000 };
+    assert.deepEqual(await acquirePersistentExecution(ns, request), { acquired: true });
+    await markPersistentExecutionDispatched(ns, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 });
+    assert.deepEqual(await recoverPersistentAuditDispatch(ns, { ...request, now: 200 + AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS - 1, leaseExpiresAt: 40_000 }), { recovered: false, reason: "AUDIT_DISPATCH_MATERIALIZATION_PENDING" });
+    assert.deepEqual(await recoverPersistentAuditDispatch(ns, { ...request, now: 200 + AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, leaseExpiresAt: 40_000 }), { recovered: true });
+    await releasePersistentExecution(ns, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 30_201 });
+    assert.deepEqual(await acquirePersistentExecution(ns, { ...request, now: 30_202, leaseExpiresAt: 40_000 }), { acquired: true });
+    await markPersistentExecutionDispatched(ns, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 30_203 });
+    assert.deepEqual(await recoverPersistentAuditDispatch(ns, { ...request, now: 30_203 + AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, leaseExpiresAt: 70_000 }), { recovered: false, reason: "AUDIT_DISPATCH_RECOVERY_EXHAUSTED" });
   });
 
   it("persists, replays, orders, and deduplicates coding evidence without mutation", async () => {

@@ -1,4 +1,45 @@
 version: 1
+current_autopilot_runtime_proof_cron_propagation:
+  work_order: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY
+  prior_pull_request: 2434
+  pull_request: 2436
+  successor_branch: codex/autopilot-cron-propagation-proof
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  base_sha: a8a24ec1cccd6063927fce6e4ab0a4212c70f401
+  first_broken_transition: deployed_cron_trigger_propagation_to_fresh_scheduled_receipt
+  scope: "Bounded propagation plus next-cron margin; preserve fresh exact-main receipt identity during zero-credit provider backoff without backlog or AI calls."
+  validation: "Review repair: runtime-proof controller 20/20 and scheduled runtime regression PASS; build PASS. Prior local preflight, validate:full and security gate PASS; final metadata gates and fresh exact-head CI/Audit/Release remain required. Worker a8a24ec1 has no scheduled receipt; zero-credit provider-wait null-head output is a confirmed code defect, not proven trigger non-delivery."
+  remaining: focused_validation_successor_PR_exact_head_CI_Audit_Release_merge_and_deployed_runtime_proof
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_audit_dispatch_recovery:
+  work_order: WO-AUTOPILOT-20261001-AUDIT-DISPATCH-RECOVERY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/audit-exact-head-dedupe
+  base_sha: 1a320be30ac6e69445a2ed6961da56fa462f28bc
+  authority_impact: none
+  scope: "One bounded recovery of an accepted but non-materialized exact-head Audit repository_dispatch plus bounded GitHub protected-branch authorization propagation, reusing the canonical #903 coordinator and Release workflow."
+  validation: "The initial exact head passed CI 36823131361 and all required safety/runtime workflows; deterministic Audit 36823595811 passed but Release hit GitHub's transient protected-status indexing delay and fail-closed before merge. The repair adds a bounded exact-binding propagation wait. The second exact head passed CI 36824001352 and deterministic Audit 36824457057, but Release skipped because main advanced. Latest main 1a320be3 was merged without conflicts; pnpm run build; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full; and pnpm run security:gate PASS."
+  remaining: "Commit the review repair (Audit-dispatch materialization grace and durable one-recovery budget), then fresh exact-head CI, independent Audit, canonical Release, merge, and exact-main evidence remain required."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_jev_canonical_domain_bridge:
+  work_order: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
+  status: READY_FOR_REVIEW
+  branch: codex/jev-domain-bridge
+  base_sha: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
+  authority_impact: none
+  scope: "Canonical SHADOW observation projection for existing Autopilot and Research Jev receipts; unvalidated domains remain non-emitting."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  verification: "build, focused Jev regressions, validate:full, security gate, typecheck, lint, and 1090-file clean full test passed; independent Audit and CI remain required."
+current_paper_cancelled_fill_risk:
+  work_order: WO-PAPER-20261001-CANCELLED-FILL-RISK
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/paper-cancelled-fill-risk
+  base_sha: 51ece7a3c74e715f9407a6d8b8f51ff8a2140376
+  first_broken_transition: cancelled_partial_fill_to_realized_loss_risk_reconstruction
+  scope: "Preserve actual executions after remainder cancellation in canonical PAPER Risk accounting; no policy relaxation or forced orders."
+  validation: "34 focused/adversarial/production-path and exact-source qualification tests PASS; typecheck, build, preflight, validate:full, lint (0 errors, 14 unrelated warnings), security gate PASS (0 secrets, 0 high/critical). Fresh CI/Audit/Release and deployed automatic fill proof remain unverified."
+  remaining: exact_head_CI_Audit_Release_and_runtime_proof
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_release_target_settle:
   work_order: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
@@ -31,11 +72,11 @@ current_issue_2017_component_health:
 current_issue_2118_ci_saturation_wip:
   work_order: WO-ISSUE-2118-CI-SATURATION-WIP
   issue: 2118
-  status: AUTOPILOT_INCREMENT_IMPLEMENTED_PENDING_WORKFLOW_VALIDATION
-  base_sha: 408432cf1f2860d9927fa891e2f2e510814b9723
-  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution; legacy ciUtilization remains the compatibility fallback."
-  validation: "Not run locally per delegated-validation shared-host guard; Autopilot publish workflow must run the recorded heavy gates on separate hardware."
-  remaining: "Workflow validation and publication, then exact-head CI before Audit/Release; current baseline and after-change p50/p95 measurement remain later increments."
+  status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  base_sha: 08dd953aee7ea3db49993464a2244eca6c41e3ac
+  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP; legacy ciUtilization remains the compatibility fallback."
+  validation: "Prior exact-head CI passed; review repair adds minimum-WIP contention attribution coverage and corrects recovery metadata. Fresh exact-head CI is required; heavy local validation remains prohibited on the shared 1 GB PAPER host."
+  remaining: "Fresh exact-head CI, independent Audit, and canonical Release; current baseline and after-change p50/p95 measurement remain later increments."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
@@ -230,6 +271,13 @@ current_paper_decision_outcome:
   branch: claude/nusa-repository-j93sd8-decision-outcome
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-Oracle-exact-main-release_then-read-/health
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_ui_why_no_order:
+  work_order: WO-UI-20260930-WHY-NO-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-why-no-order
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-app-build_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_screens:
   work_order: WO-UI-20260928-FIELD-SCREENS
@@ -1782,6 +1830,17 @@ current_pr1991_review_hardening:
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_zero_credit_mode:
+  work_order: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
+  status: IN_PROGRESS
+  pull_request: 2393
+  branch: fix/autopilot-zero-credit-mode
+  base_sha: 61aaa2c47dcd6d92d15a39eba627a11542f2bfef
+  implementation_code_head: fa9b7f682d5c0279a8d1180dfa30b0416eda227e
+  objective: "Continue deterministic Autopilot work without paid coding-provider fallback while minimizing Cloudflare idle spend."
+  validation: "Reconciled unchanged zero-credit functional delta onto protected main 61aaa2c47dcd6d92d15a39eba627a11542f2bfef with functional overlap 0; fresh exact-head CI is required on the new branch head."
+  next: "Fresh exact-head CI -> independent Audit -> nusa/release-authorized -> canonical merge -> exact-main Cloudflare deploy -> health zeroCreditMode=ENFORCED -> ZERO_CREDIT runtime proof."
+
 current_paper_orderbook_snapshot_refresh:
   work_order: WO-PAPER-ORDERBOOK-SNAPSHOT-REFRESH
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
@@ -1794,3 +1853,112 @@ current_paper_orderbook_snapshot_refresh:
   diagnostic_recovery: "Fresh valid quotes for every configured market clear only orderbook diagnostics; failure timestamp and accepted-market receipt health gate remain intact. Prior exact-head actual PAPER artifact remained INCOMPLETE with no actionable signal."
   next: "Exact-head CI, independent Audit, canonical Release, then long-lived Oracle runtime proof."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_decision_rings:
+  work_order: WO-UI-20261001-DECISION-RINGS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-home-field-cleanup
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_fill_lineage:
+  work_order: WO-TEST-20261001-PAPER-FILL-LINEAGE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-lineage-test
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; open gaps are market-observation id and decision-reason retention in the intent
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_logo_contour_n:
+  work_order: WO-UI-20261001-LOGO-CONTOUR-N
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-logo-contour-n
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; owner plans a later logo renewal
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_paper_tabs:
+  work_order: WO-UI-20261001-PAPER-TABS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-tabs
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; renewal slices done for HOME, LIVE, More and PAPER tab chrome
+current_mobile_live_gates:
+  work_order: WO-UI-20261001-LIVE-GATES
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-live-redesign
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are HOME below the rings, PAPER and More
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_fast_startup:
+  work_order: WO-UI-20261001-FAST-STARTUP
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-fast-startup
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_daily_loss_streak:
+  work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-daily-loss-streak
+  authority_impact: paper_risk_policy
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-deploy_then-health-recheck
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_recovering_quiet:
+  work_order: WO-UI-20261001-RECOVERING-QUIET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-recovering-home
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_contour_core:
+  work_order: WO-UI-20261001-CONTOUR-CORE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-contour-core
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+current_mobile_home_plain:
+  work_order: WO-UI-20261001-HOME-PLAIN
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-home-below
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are PAPER and More
+current_mobile_more_groups:
+  work_order: WO-UI-20261001-MORE-GROUPS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-more-renewal
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slice is the PAPER tab
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_recovery_bound:
+  work_order: WO-UI-20261001-RECOVERY-BOUND
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-recovery-bound
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_hermes_clone:
+  work_order: WO-UI-20261001-HERMES-CLONE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-structuredclone
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_tab_contour:
+  work_order: WO-UI-20261001-TAB-CONTOUR
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-tabs-contour
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_paper_body:
+  work_order: WO-UI-20261001-PAPER-BODY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-body
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_more_contour:
+  work_order: WO-UI-20261001-MORE-CONTOUR
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-more-contour
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_ui_whole_app_rule:
+  work_order: WO-DOC-20261001-UI-WHOLE-APP
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ui-whole-app
+  authority_impact: none
+  rule: "UI/UX changes apply to the whole app (owner, 2026-10-01)."

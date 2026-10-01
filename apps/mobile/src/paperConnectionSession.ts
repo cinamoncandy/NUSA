@@ -21,6 +21,11 @@ let restoreRetryAttempts = 0;
 let foregroundRecoveryPending = false;
 const RESTORE_RETRY_BASE_MS = 1_000;
 const RESTORE_RETRY_MAX_MS = 30_000;
+// Silent recovery is projected as RECOVERING only for a bounded window (about 30 s of backoff).
+// A device whose key or stored session is gone looks transient to the restore owner and would
+// otherwise retry forever behind a "재연결 중" banner with no action offered. Past this bound the
+// owner is shown RECOVERY_REQUIRED (the connect action) while the background retry keeps running.
+const RECOVERING_RETRY_ATTEMPT_LIMIT = 6;
 const verificationListeners = new Set<() => void>();
 
 /**
@@ -172,6 +177,7 @@ export type PaperSessionState = "NOT_CONFIGURED" | "VERIFIED" | "RECOVERING" | "
 export function getPaperSessionState(): PaperSessionState {
   if (configuredEndpoint == null) return "NOT_CONFIGURED";
   if (isPaperConnectionVerified(configuredEndpoint)) return "VERIFIED";
+  if (restoreRetryAttempts >= RECOVERING_RETRY_ATTEMPT_LIMIT) return "RECOVERY_REQUIRED";
   if (foregroundRecoveryPending || restoreInFlight != null || restoreRetryTimer != null) return "RECOVERING";
   return "RECOVERY_REQUIRED";
 }

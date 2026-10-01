@@ -25,6 +25,7 @@ export interface ScheduledRuntimeEnv {
   readonly NUSA_GITHUB_REPOSITORY?: string;
   readonly NUSA_AI_CODING_ENDPOINT?: string;
   readonly NUSA_AI_CODING_TOKEN?: string;
+  readonly NUSA_AUTOPILOT_ZERO_CREDIT_MODE?: string;
   readonly NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
 }
 
@@ -280,6 +281,8 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
     return result("ABSTAINED", "provider-capacity-state-unavailable");
   }
   if (providerWait && now < providerWait.nextRetryAt) {
+    // Provider backoff suppresses execution, not exact-main receipt provenance.
+    // Read only the head; backlog, workflows and AI remain untouched.
     try {
       const main = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl);
       const mainCommit = object(main.commit);

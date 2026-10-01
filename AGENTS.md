@@ -124,6 +124,12 @@ These rules are mandatory for every AI coding agent and are specifically intende
 9. **Respect notification-stop instructions as a hard hold.** If the owner says to stop CI/failure emails or stop opening PRs, no agent may create/reopen/synchronize a PR until the owner explicitly resumes that work.
 10. PR descriptions must report the exact local validation actually run. Missing validation means the PR must remain local and must not be opened.
 
+## UI/UX rule
+
+- Every UI/UX change applies to the whole app, not one tab. See `docs/UI_ARCHITECTURE.md`
+  ("How to ship a redesign"). A screen left on the old design must be named, with the reason, in
+  the PR and work order.
+
 ## Trading research rules
 
 - Do not promote a strategy based only on in-sample backtests.
