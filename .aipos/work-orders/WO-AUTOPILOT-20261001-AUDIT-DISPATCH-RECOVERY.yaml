@@ -12,13 +12,15 @@ objective: "Prevent a durable Audit execution from remaining permanently DISPATC
 evidence:
   observed_failure: "Workflow-run bridge 36819399722 received a successful PR CI event for PR #2344 exact head fba363f4057f912a2c5f4c6a91bbf023f99af8e2, but the execution coordinator rejected it as ALREADY_DISPATCHED before the GitHub executor could verify that no Audit workflow run existed."
   root_cause: "DISPATCHED represented GitHub repository_dispatch acceptance, not durable proof that the exact Audit workflow had materialized; duplicate suppression therefore prevented the one safe recovery attempt."
+  release_follow_up: "PR #2428 exact-head CI 36823131361 and all safety/runtime workflows passed. Its deterministic Audit run 36823595811 passed the audit job, but GitHub returned HTTP 405 Required status check nusa/release-authorized is expected during the immediate merge attempt even though the dedicated App had just published and re-read the exact status; the workflow then correctly revoked the status and did not merge."
 scope:
   - "Reuse the existing #903 execution coordinator and GitHub executor; do not create a second queue, scheduler, dispatcher, Audit authority, or merge engine."
   - "Allow exactly one persistent recovery lease for the same PR/CI-run/head dedupe identity only from DISPATCHED state."
   - "Before the recovery dispatch, reuse the canonical executor's exact open-PR head and existing-Audit-run checks."
   - "Return the existing duplicate response contract once the bounded recovery is consumed or an exact Audit workflow is already observable."
+  - "After deterministic Audit passes, allow the existing Release workflow a bounded protected-branch status-propagation wait while rechecking the exact PR/head/base on every poll."
 exclusions:
-  - "No Audit verdict, Release approval, merge, deployment, trading, credential, or authority behavior change."
+  - "No Audit verdict, Release authority source, trading, credential, or authority behavior change."
   - "No retry loop, provider-capacity bypass, or mutable external state beyond the existing canonical GitHub repository_dispatch."
 acceptance_criteria:
   - "An accepted but non-materialized exact Audit dispatch can be retried once from the same durable identity."
@@ -26,6 +28,7 @@ acceptance_criteria:
   - "A third replay after the recovery is duplicate-suppressed."
   - "Malformed, stale, missing-token, and GitHub API failures remain fail-closed."
   - "All three authority invariants remain unchanged."
+  - "A GitHub status-indexing delay cannot make the canonical Release attempt a premature single-shot failure."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -37,5 +40,5 @@ verification_commands:
   - pnpm run validate:full
   - pnpm run security:gate
   - git diff --check origin/main...HEAD
-validation_evidence: "2026-10-01: pnpm run build PASS; compiled Autopilot coordinator/executor/webhook tests PASS (58/58); pnpm run validate:full PASS; pnpm run security:gate PASS. Current origin/main 0640abb6efabc916657e08617151c80582039c0d advanced only with mobile logo contour work and does not overlap or semantically affect this Autopilot-only change."
-next_permitted_action: "Inspect the final four-file implementation diff plus this work order, commit, create one PR, and require fresh exact-head CI plus independent Audit before Release."
+validation_evidence: "2026-10-01: after adding the bounded protected-branch propagation repair, pnpm run build PASS; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full PASS; and pnpm run security:gate PASS. Current origin/main 0640abb6efabc916657e08617151c80582039c0d advanced only with mobile logo contour work and does not overlap or semantically affect this Autopilot-only change."
+next_permitted_action: "Inspect the exact diff, commit to existing PR #2428, then require fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."

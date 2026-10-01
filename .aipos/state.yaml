@@ -5,9 +5,9 @@ current_autopilot_audit_dispatch_recovery:
   branch: codex/audit-exact-head-dedupe
   base_sha: 39a655f29b19594ce6b7221e566cdf460ebc4140
   authority_impact: none
-  scope: "One bounded recovery of an accepted but non-materialized exact-head Audit repository_dispatch, reusing the canonical #903 coordinator and executor."
-  validation: "pnpm run build; compiled Autopilot coordinator/executor/webhook tests PASS (58/58); pnpm run validate:full; and pnpm run security:gate PASS. The recovery test proves one retry after missing Audit materialization, then durable duplicate suppression. Current origin/main 0640abb6 was inspected: its mobile-logo-only delta has no conflict or semantic dependency."
-  remaining: "commit, exact-head CI, independent Audit, and Release remain required."
+  scope: "One bounded recovery of an accepted but non-materialized exact-head Audit repository_dispatch plus bounded GitHub protected-branch authorization propagation, reusing the canonical #903 coordinator and Release workflow."
+  validation: "The initial exact head passed CI 36823131361 and all required safety/runtime workflows; deterministic Audit 36823595811 passed but Release hit GitHub's transient protected-status indexing delay and fail-closed before merge. The repair adds a bounded exact-binding propagation wait. pnpm run build; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full; and pnpm run security:gate PASS. Current origin/main 0640abb6 was inspected: its mobile-logo-only delta has no conflict or semantic dependency."
+  remaining: "Local revalidation after the deterministic Release propagation repair, commit, fresh exact-head CI, independent Audit, and Release remain required."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_canonical_domain_bridge:
   work_order: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
