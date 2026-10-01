@@ -15,6 +15,10 @@ export interface OwnerBaselinePaperPeriodContext {
   readonly sourceCommitSha: string;
 }
 
+export function isOwnerBaselinePeriodStartAt(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 24 * 60 * 60 * 1000;
+}
+
 export function buildOwnerBaselinePaperPeriodInput(context: OwnerBaselinePaperPeriodContext): PaperRealizedPeriodOpenInput {
   const market = context.market.trim().toUpperCase();
   const strategy = ownerBaselineStrategySpec(context.sourceCommitSha);

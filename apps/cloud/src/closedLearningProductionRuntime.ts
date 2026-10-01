@@ -10,7 +10,7 @@ import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
 import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
 import { OwnerBaselinePaperBindingProvider, ownerBaselineStrategyEnabled } from "./ownerBaselinePaperStrategy";
-import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
+import { buildOwnerBaselinePaperPeriodInput, isOwnerBaselinePeriodStartAt } from "./ownerBaselinePaperPeriod";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
@@ -243,7 +243,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const ensureOwnerBaselinePeriod = (): void => {
     if (!ownerBaselineStrategyEnabled(env) || periods.listOpenPeriods().length > 0 || periods.listRealizedPeriods().length > 0) return;
     const account = readCanonicalPaperAccount();
-    if (account == null || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) return;
+    if (account == null || !isOwnerBaselinePeriodStartAt(account.updatedAt)) return;
     const market = config.upbitMarkets[0];
     if (market == null) return;
     const periodIndex = periods.listRealizedPeriods().reduce((maximum, item) => Math.max(maximum, item.record.periodIndex), -1) + 1;

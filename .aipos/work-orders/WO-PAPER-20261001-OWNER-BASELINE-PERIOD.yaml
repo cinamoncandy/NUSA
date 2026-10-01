@@ -1,0 +1,34 @@
+id: WO-PAPER-20261001-OWNER-BASELINE-PERIOD
+title: "Fail closed before an invalid PAPER owner-baseline period opens"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_sha: e6e3293f5cb54962c7d2a52e85a085470a45f61c
+implementation_branch: fix/paper-owner-baseline-period
+pull_request: 2419
+authority_impact: none
+objective: "The closed-learning scheduler must not pass a sentinel or malformed account.updatedAt value into ownerBaselineAdvisory, which rejects non-Unix period starts and terminates the runtime."
+scope:
+  - "Use the existing ownerBaselinePaperPeriod module to validate the period start before opening a baseline period."
+  - "Reject invalid timestamps by not opening a period; do not synthesize time, records, orders, or fills."
+exclusions:
+  - "No qualification, trading policy, risk, credential, persistence-schema, LIVE, or execution-boundary change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - "Zero and non-finite account timestamps do not reach ownerBaselineAdvisory."
+  - "A valid Unix timestamp retains deterministic baseline period construction."
+  - "The runtime remains fail-closed and creates no substitute period for invalid input."
+verification_commands:
+  - "pnpm exec tsc -p tsconfig.json"
+  - "node --test dist/apps/cloud/src/ownerBaselinePaperPeriod.test.js"
+  - "node --test dist/apps/cloud/src/closedLearningInitialPaperBootstrap.test.js dist/apps/cloud/src/closedLearningRolloverScheduler.test.js"
+  - "pnpm run preflight"
+  - "pnpm run validate:full"
+  - "node scripts/aipos-work-order-index.js --check"
+known_environment_limit:
+  - "The actual PAPER runtime harness uses child SIGTERM. On Windows this is forceful rather than POSIX-graceful and can leave the SQLite writer lease until expiry; Linux CI and Oracle runtime remain the canonical graceful-shutdown evidence."
+remaining: "Fresh exact-head CI, independent Audit, canonical Release, merge, and exact-main Linux/Oracle PAPER runtime evidence."
