@@ -1,12 +1,12 @@
 id: WO-ISSUE-2118-CI-SATURATION-WIP
 title: "Issue #2118 feed measured CI saturation into worker-pool WIP advice"
-status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+status: RECONVERGED_TARGETED_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P0
 owner: autopilot
 repository: cinamoncandy/NUSA
 issue: 2118
 base_branch: main
-base_commit: 08dd953aee7ea3db49993464a2244eca6c41e3ac
+base_commit: 52c11bcc4644d995d357d9ee2019eb9ca71fa9f1
 objective: "Make verified CI saturation a direct fail-closed input to the advisory worker-pool WIP limit without changing mandatory exact-head, Audit, or Release gates."
 architecture_impact:
   acknowledged: true
@@ -38,7 +38,7 @@ acceptance:
   - the advisor remains non-mutating
   - independent Audit and Release gates remain unchanged
 validation:
-  status: INCLUSIVE_BOUNDARY_REPAIR_PENDING_WORKFLOW_VALIDATION
-  commands: "The delegated publish workflow must run build, typecheck, validate, work-order index validation, tests/*.test.js, and colocated tests. This increment treats exactly 85% measured CI saturation as high pressure. Local heavy commands were not run because they are prohibited on the shared 1 GB PAPER host."
+  status: LOCAL_TARGETED_VALIDATION_PASSED_EXACT_HEAD_CI_REQUIRED
+  commands: "Latest-main reconvergence completed. pnpm run build and node --test --test-reporter=spec dist/apps/autopilot/src/concurrencyAdvisor.test.js PASS (9/9). This increment treats exactly 85% measured CI saturation as high pressure. Fresh canonical exact-head CI remains mandatory; no shared PAPER host validation was used."
   local_heavy_commands: NOT_RUN_PER_SHARED_HOST_GUARD
-next: "Let the delegated workflow validate and publish the inclusive high-saturation boundary, then collect independent Audit and canonical Release evidence. Baseline/after p50/p95 optimization remains a later issue increment."
+next: "Push the latest-main reconverged exact head, collect fresh canonical CI, then independent Audit and canonical Release evidence. Baseline/after p50/p95 optimization remains a later issue increment."
