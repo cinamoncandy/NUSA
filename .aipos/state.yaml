@@ -1,4 +1,13 @@
 version: 1
+current_jev_canonical_domain_bridge:
+  work_order: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
+  status: READY_FOR_REVIEW
+  branch: codex/jev-domain-bridge
+  base_sha: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
+  authority_impact: none
+  scope: "Canonical SHADOW observation projection for existing Autopilot and Research Jev receipts; unvalidated domains remain non-emitting."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  verification: "build, focused Jev regressions, validate:full, security gate, typecheck, lint, and 1090-file clean full test passed; independent Audit and CI remain required."
 current_paper_cancelled_fill_risk:
   work_order: WO-PAPER-20261001-CANCELLED-FILL-RISK
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI

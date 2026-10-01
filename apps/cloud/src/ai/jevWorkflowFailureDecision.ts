@@ -1,4 +1,4 @@
-import type { JevShadowProjection } from "./jevShadowRouter";
+import type { JevRequiredModel, JevRootCause, JevShadowProjection } from "./jevShadowRouter";
 
 export const JEV_WORKFLOW_FAILURE_CONTRACT_VERSION = 1 as const;
 export type JevFailureOutcome = "CODE" | "TEST" | "INFRA" | "AUTH" | "RUNNER" | "FLAKY" | "UNKNOWN" | "INSUFFICIENT_EVIDENCE" | "ESCALATE";
@@ -15,6 +15,7 @@ export interface JevWorkflowFailureReceipt {
   readonly taskId: string; readonly executionId: string; readonly stateFingerprint: string; readonly sourceMainSha: string;
   readonly inputEvidenceIds: readonly string[]; readonly allowedActions: readonly ["OBSERVE","ESCALATE"];
   readonly selectedOutcome: JevFailureOutcome; readonly confidence: number; readonly reasonCode: string;
+  readonly rootCause: JevRootCause; readonly safeToAutofix: "YES" | "NO"; readonly severity: 1 | 2 | 3 | 4 | 5; readonly requiredModel: JevRequiredModel;
   readonly model: string; readonly timestamp: string; readonly escalated: boolean; readonly eventualOutcome: string | null;
   readonly usableForRouting: false; readonly liveAuthority: "NONE"; readonly productionMutationAllowed: false; readonly aiAuthority: "ZERO_AUTHORITY";
 }
@@ -29,7 +30,7 @@ export function createJevWorkflowFailurePacket(input: Omit<JevWorkflowFailureSta
 export function projectJevWorkflowFailureReceipt(packet:JevWorkflowFailureStatePacket,shadow:JevShadowProjection,model:string,timestamp:string):JevWorkflowFailureReceipt {
   const raw=shadow.decision.rootCause;
   const selectedOutcome:JevFailureOutcome=shadow.fallbackApplied?"INSUFFICIENT_EVIDENCE":raw;
-  return Object.freeze({decisionId:packet.decisionId,decisionType:"WORKFLOW_FAILURE_CLASSIFICATION",contractVersion:JEV_WORKFLOW_FAILURE_CONTRACT_VERSION,taskId:packet.taskId,executionId:packet.executionId,stateFingerprint:packet.stateFingerprint,sourceMainSha:packet.sourceMainSha,inputEvidenceIds:packet.evidenceRefs,allowedActions:packet.availableActions,selectedOutcome,confidence:shadow.decision.confidence,reasonCode:shadow.fallbackApplied?"SHADOW_FALLBACK":"SHADOW_CLASSIFIED",model:bounded(model,128)||"unknown",timestamp,escalated:shadow.fallbackApplied,eventualOutcome:null,usableForRouting:false,liveAuthority:"NONE",productionMutationAllowed:false,aiAuthority:"ZERO_AUTHORITY"});
+  return Object.freeze({decisionId:packet.decisionId,decisionType:"WORKFLOW_FAILURE_CLASSIFICATION",contractVersion:JEV_WORKFLOW_FAILURE_CONTRACT_VERSION,taskId:packet.taskId,executionId:packet.executionId,stateFingerprint:packet.stateFingerprint,sourceMainSha:packet.sourceMainSha,inputEvidenceIds:packet.evidenceRefs,allowedActions:packet.availableActions,selectedOutcome,confidence:shadow.decision.confidence,reasonCode:shadow.fallbackApplied?"SHADOW_FALLBACK":"SHADOW_CLASSIFIED",rootCause:shadow.decision.rootCause,safeToAutofix:shadow.decision.safeToAutofix,severity:shadow.decision.severity,requiredModel:shadow.decision.requiredModel,model:bounded(model,128)||"unknown",timestamp,escalated:shadow.fallbackApplied,eventualOutcome:null,usableForRouting:false,liveAuthority:"NONE",productionMutationAllowed:false,aiAuthority:"ZERO_AUTHORITY"});
 }
 export function linkJevWorkflowFailureOutcome(receipt:JevWorkflowFailureReceipt,eventualOutcome:string):JevWorkflowFailureReceipt {
   const outcome=bounded(eventualOutcome,120); if(!outcome) throw new Error("JEV_EVENTUAL_OUTCOME_REQUIRED");
