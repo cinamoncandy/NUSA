@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
 const { validatePaperExecutionIntent, paperExecutionIntentCommandId } = require("../dist/apps/cloud/src/paperExecutionIntent.js");
+const { bindPaperCandidateForExecution } = require("../dist/packages/contracts/src/paperCandidateExecutionBinding.js");
 
 /**
  * Lineage check for one real PAPER fill through the canonical boundary: the fill must lead back,
@@ -10,26 +11,35 @@ const { validatePaperExecutionIntent, paperExecutionIntentCommandId } = require(
  * execution intent, the candidate binding, its dataset identity and the CIO decision/portfolio
  * plan that caused it; and forward from the decision to the fill, order and idempotency ledger.
  *
+ * Decision identity: the intent retains the candidate binding, candidate id, decision time and
+ * portfolio plan time. It does not retain the decision's free-text reasons or the candidate
+ * strategy decision's reason/observation time, so two decisions that differ only in those
+ * fields are indistinguishable from the fill. The test asserts only the retained fields.
+ *
  * Scope note: this proves the links that exist today. A fill does not yet reference the exact
  * market observation (ticker/orderbook) id that produced its decision; that missing link is the
  * open gap of the integrated upgrade brief (P0 evidence lineage) and is deliberately not asserted.
  */
 
-const candidateBinding = Object.freeze({
-  schemaVersion: 1,
-  status: "BOUND_UNVERIFIED",
-  authority: "PAPER_RESEARCH_ONLY",
-  liveAuthority: "NONE",
-  productionMutationAllowed: false,
-  candidateId: "sma-5-20",
-  datasetId: "fixture-dataset",
-  datasetContentSha256: "a".repeat(64),
-  advisoryGeneratedAt: 500,
-  periodStartAt: 900,
-  advisoryFingerprintSha256: "b".repeat(64),
-  bindingFingerprintSha256: "c".repeat(64),
-  candidateStrategy: Object.freeze({ candidateId: "sma-5-20", familyId: "sma-crossover", lineageId: "fixture-lineage", specificationHash: "d".repeat(64), codeSha: "e".repeat(40), costModelVersion: "fixture-cost-v1", parameters: Object.freeze({ shortPeriod: 5, longPeriod: 20 }) })
-});
+const datasetId = "fixture-dataset";
+const candidateStrategy = Object.freeze({ candidateId: "sma-5-20", familyId: "sma-crossover", lineageId: "fixture-lineage", specificationHash: "d".repeat(64), codeSha: "e".repeat(40), costModelVersion: "fixture-cost-v1", parameters: Object.freeze({ shortPeriod: 5, longPeriod: 20 }) });
+function buildAdvisory(datasetIds) {
+  return Object.freeze({
+    schemaVersion: 1,
+    generatedAt: new Date(500).toISOString(),
+    policy: Object.freeze({ maximumCandidateWeight: 1, minimumEvidenceBreadth: 1, maximumCandidateCount: 1, maximumFamilyWeight: 1 }),
+    entries: Object.freeze([Object.freeze({ id: "sma-5-20", familyId: "sma-crossover", rank: 1, leagueScore: 1, evidenceBreadth: 1, researchWeight: 1, reasons: Object.freeze(["fixture"]), sourceDatasetIds: Object.freeze(datasetIds) })]),
+    excludedCandidateIds: Object.freeze([]),
+    reasons: Object.freeze(["fixture"]),
+    provenance: Object.freeze({ sourceDatasetIds: Object.freeze(datasetIds) })
+  });
+}
+function buildBinding(datasetContentSha256) {
+  // Built through the canonical binder so the fingerprints are real hashes of the advisory and
+  // the persisted dataset provenance, not copied placeholder strings.
+  return bindPaperCandidateForExecution(buildAdvisory([datasetId]), [Object.freeze({ candidateId: "sma-5-20", datasetId, datasetContentSha256 })], "sma-5-20", 900, candidateStrategy);
+}
+const candidateBinding = buildBinding("a".repeat(64));
 
 const decision = Object.freeze({
   symbol: "KRW-BTC", action: "BUY", confidence: 1, risk: "LOW", allocation: 0.1, leverage: 1, score: 1,
@@ -72,6 +82,11 @@ test("a PAPER fill traces back to its order, intent, binding, dataset and decisi
   assert.equal(intent.portfolioDecidedAt, portfolio.decidedAt, "intent -> portfolio plan time");
 });
 
+test("the binding fingerprint is derived from the dataset identity, so the dataset link is real", () => {
+  assert.equal(buildBinding("a".repeat(64)).bindingFingerprintSha256, candidateBinding.bindingFingerprintSha256, "deterministic");
+  assert.notEqual(buildBinding("f".repeat(64)).bindingFingerprintSha256, candidateBinding.bindingFingerprintSha256, "a different dataset yields a different binding");
+});
+
 test("the same decision leads forward to exactly one order, one fill and a consumed idempotency key", () => {
   const { state } = fillThroughBoundary();
   const fill = state.fills[0];
@@ -92,4 +107,7 @@ test("replaying the identical tick does not create a second order or fill", () =
   assert.equal(after.orders.length, before.orders.length);
   assert.equal(after.fills.length, before.fills.length);
   assert.equal(after.cash, before.cash);
+  assert.deepEqual(after.processedIdempotencyKeys, before.processedIdempotencyKeys, "replay leaves the idempotency ledger unchanged");
+  const commandId = paperExecutionIntentCommandId(after.fills[0].executionIntent);
+  assert.equal(after.processedIdempotencyKeys.filter((key) => key === commandId).length, 1, "the command identity occurs exactly once");
 });
