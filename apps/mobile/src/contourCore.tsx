@@ -24,6 +24,7 @@ export function ContourCore({ decisionCount, reducedMotion, innerColor, outerCol
   const align = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(1)).current;
   const lastCount = useRef<number | null>(null);
+  const pulseAnimation = useRef<Animated.CompositeAnimation | null>(null);
   const animate = !reducedMotion && decisionCount != null;
 
   useEffect(() => {
@@ -40,14 +41,26 @@ export function ContourCore({ decisionCount, reducedMotion, innerColor, outerCol
   useEffect(() => {
     const previous = lastCount.current;
     lastCount.current = decisionCount;
-    if (!animate || previous == null || decisionCount == null || decisionCount <= previous) return;
+    if (!animate) {
+      // Reduce-motion (or an unknown count) stops a pulse that is still in flight and settles the rings.
+      pulseAnimation.current?.stop();
+      pulseAnimation.current = null;
+      align.setValue(0);
+      pulse.setValue(1);
+      return;
+    }
+    if (previous == null || decisionCount == null || decisionCount <= previous) return;
     align.setValue(1);
     pulse.setValue(0);
-    Animated.parallel([
+    pulseAnimation.current?.stop();
+    pulseAnimation.current = Animated.parallel([
       Animated.timing(align, { toValue: 0, duration: 1600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(pulse, { toValue: 1, duration: 1400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    ]).start();
+    ]);
+    pulseAnimation.current.start();
   }, [animate, decisionCount, align, pulse]);
+
+  useEffect(() => () => { pulseAnimation.current?.stop(); }, []);
 
   const loose = Animated.subtract(1, align);
   return <View style={styles.stage} pointerEvents="none" testID="home-contour-core">
