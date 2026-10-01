@@ -161,8 +161,11 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
   }
   const today = dayOf(now);
   const dailyRealizedPnL = sells.filter((sell) => dayOf(sell.filledAt) === today).reduce((sum, sell) => sum + sell.pnl, 0);
+  // The streak is scoped to the current UTC trading day, like the daily loss limit. Counting the
+  // whole history made the limit permanent: once tripped, no order could run to produce the
+  // winning sell that would clear it. The owner chose a daily reset on 2026-10-01.
   let consecutiveLossCount = 0;
-  const completed = [...sellOrders.values()].sort((a, b) => a.filledAt - b.filledAt);
+  const completed = [...sellOrders.values()].filter((sell) => dayOf(sell.filledAt) === today).sort((a, b) => a.filledAt - b.filledAt);
   for (let index = completed.length - 1; index >= 0; index -= 1) {
     if (completed[index]!.pnl >= 0) break;
     consecutiveLossCount += 1;
