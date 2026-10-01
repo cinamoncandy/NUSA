@@ -36,7 +36,7 @@ test("unavailable or unhealthy PAPER state fails closed instead of reading CONNE
   assert.equal(field({ degraded: true, haltActive: true }).phase, "HALTED");
   const home = fs.readFileSync(path.join(root, "apps/mobile/src/homeView.tsx"), "utf8");
   // Behaviour of the mapping is covered in tests/mobile-home-field-input.test.js.
-  assert.match(home, /input=\{buildHomeFieldInput\(/);
+  assert.match(home, /const fieldInput = buildHomeFieldInput\(/);
 });
 
 test("a stale phone quote feed is described as local display lag, not a server decision pause", () => {
@@ -67,7 +67,8 @@ test("field model is frozen and HOME wires only real state", () => {
   const model = field({});
   assert.ok(Object.isFrozen(model) && Object.isFrozen(model.lit) && Object.isFrozen(model.states));
   const home = fs.readFileSync(path.join(root, "apps/mobile/src/homeView.tsx"), "utf8");
-  assert.match(home, /<IntelligenceField input=\{buildHomeFieldInput\(/);
+  assert.match(home, /const fieldInput = buildHomeFieldInput\(/);
+  assert.doesNotMatch(home, /<IntelligenceField/, "the decision rings replaced the field on HOME");
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceField.tsx"), "utf8");
   assert.match(view, /isReduceMotionEnabled/);
   assert.match(view, /useState<boolean \| null>\(null\)/);
