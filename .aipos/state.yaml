@@ -1968,3 +1968,9 @@ current_mobile_plain_labels:
   branch: claude/nusa-repository-j93sd8-plain-labels
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-More-detail-screen-copy-pass
+current_mobile_detail_copy:
+  work_order: WO-UI-20261001-DETAIL-COPY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-detail-copy
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
