@@ -12,7 +12,7 @@ test("owner baseline opens one truthful market-bound period from the canonical a
   assert.equal(input.periodStartAt, START);
   assert.equal(input.candidateProvenance[0]?.candidateId, OWNER_BASELINE_CANDIDATE_ID);
   assert.equal(input.advisory.entries[0]?.id, OWNER_BASELINE_CANDIDATE_ID);
-  assert.equal(new Date(input.advisory.generatedAt).getTime(), START - 1);
+  assert.equal(new Date(input.advisory.generatedAt).getTime(), START - 9 * 60 * 60 * 1000 - 1);
   assert.equal(isOwnerBaselinePeriodInput(input), true);
 });
 
