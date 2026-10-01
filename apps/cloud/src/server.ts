@@ -59,6 +59,7 @@ import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependen
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
 import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
 import type { UxTelemetryStorage } from "./uxTelemetryJournal";
+import { COMPONENT_HEALTH_STATES, type ComponentHealthResult } from "./componentHealth";
 
 /**
  * Evidence that the continuous PAPER runtime is alive, not merely that the process answers HTTP.
@@ -83,6 +84,8 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly decisionCount: number;
   readonly paperOrderCount: number;
   readonly paperFillCount: number;
+  /** Coded `STATUS:REASON` of the latest PAPER boundary decision, e.g. `BLOCKED:PAPER_INVESTMENT_ALLOCATION_EXCEEDED`. */
+  readonly lastPaperDecisionOutcome?: string | null;
   readonly lastError: string | null;
   /** Why the previous runtime process stopped, when a failure record exists. */
   readonly previousStop?: string;
@@ -119,6 +122,8 @@ export interface CloudDashboardServerOptions {
   readonly readiness?: () => CloudReadinessSnapshot;
   /** Continuous PAPER runtime liveness, surfaced on /health so 24-hour operation is observable. */
   readonly runtimeLiveness?: () => CloudRuntimeLivenessSnapshot;
+  /** Deterministic process/workload health; HTTP 200 alone never implies workload health. */
+  readonly runtimeHealth?: () => Readonly<{ process: ComponentHealthResult; workload: ComponentHealthResult }>;
   /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
   /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
@@ -232,6 +237,7 @@ const auditHttpResponse = (
 const PUBLIC_LIVENESS_TIMESTAMPS = ["startedAt", "lastHeartbeatAt", "lastMarketEventAt", "lastPaperDecisionAt", "lastPaperOrderAt", "lastPaperFillAt"] as const;
 const PUBLIC_LIVENESS_COUNTERS = ["eventCount", "decisionCount", "paperOrderCount", "paperFillCount"] as const;
 const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
+const PUBLIC_DECISION_OUTCOME_CODE = /^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/;
 
 /**
  * `/health` is unauthenticated, so the runtime object is rebuilt here from a fixed allowlist instead
@@ -257,7 +263,32 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
   const rawPreviousStop = source.previousStop;
   const previousStop = typeof rawPreviousStop === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawPreviousStop) ? rawPreviousStop : undefined;
-  return Object.freeze({ ...timestamps, ...counters, lastError, ...(previousStop === undefined ? {} : { previousStop }) }) as unknown as CloudRuntimeLivenessSnapshot;
+  const rawOutcome = source.lastPaperDecisionOutcome;
+  const lastPaperDecisionOutcome = typeof rawOutcome === "string" && PUBLIC_DECISION_OUTCOME_CODE.test(rawOutcome) ? rawOutcome : undefined;
+  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }) }) as unknown as CloudRuntimeLivenessSnapshot;
+}
+
+const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);
+function publicComponentHealth(value: ComponentHealthResult, componentId: "PAPER_PROCESS" | "PAPER_WORKLOAD"): ComponentHealthResult | null {
+  if (value == null || typeof value !== "object") return null;
+  const provenance = componentId === "PAPER_PROCESS" ? "cloud-runtime-heartbeat" : "cloud-paper-market-events";
+  const evidencePrefix = componentId === "PAPER_PROCESS" ? "heartbeat" : "market-event";
+  if (value.componentId !== componentId || !COMPONENT_HEALTH_STATES.includes(value.state)
+    || !PUBLIC_HEALTH_REASONS.has(value.reasonCode) || !Number.isSafeInteger(value.evaluatedAt)
+    || value.evaluatedAt < 0 || typeof value.fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(value.fingerprint)) return null;
+  if (value.observedAt !== undefined && (!Number.isSafeInteger(value.observedAt) || value.observedAt < 0 || value.observedAt > value.evaluatedAt)) return null;
+  if (value.provenance !== undefined && value.provenance !== provenance) return null;
+  if (value.evidenceId !== undefined && (typeof value.evidenceId !== "string" || !new RegExp(`^${evidencePrefix}:\\d+:\\d+(?::\\d+)?$`).test(value.evidenceId))) return null;
+  return Object.freeze({ componentId, state: value.state, reasonCode: value.reasonCode,
+    evaluatedAt: value.evaluatedAt, ...(value.observedAt === undefined ? {} : { observedAt: value.observedAt }),
+    ...(value.provenance === undefined ? {} : { provenance }),
+    ...(value.evidenceId === undefined ? {} : { evidenceId: value.evidenceId }), fingerprint: value.fingerprint });
+}
+function publicRuntimeHealth(value: ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined): ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined {
+  if (value == null || typeof value !== "object") return undefined;
+  const process = publicComponentHealth(value.process, "PAPER_PROCESS");
+  const workload = publicComponentHealth(value.workload, "PAPER_WORKLOAD");
+  return process === null || workload === null ? undefined : Object.freeze({ process, workload });
 }
 
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
@@ -417,11 +448,13 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         // `runtime` appears only when a liveness source is wired, and carries the counters that
         // show whether the continuous PAPER loop is actually ticking.
         const liveness = options.runtimeLiveness?.();
+        const runtimeHealth = publicRuntimeHealth(options.runtimeHealth?.());
         respond("health", dashboardJsonResponse(200, {
           ok: true,
           observedAt: new Date().toISOString(),
           capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
-          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) })
+          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) }),
+          ...(runtimeHealth === undefined ? {} : { runtimeHealth })
         }));
         return;
       }

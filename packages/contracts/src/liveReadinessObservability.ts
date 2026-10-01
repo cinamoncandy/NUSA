@@ -223,7 +223,7 @@ export function validateLiveReadinessObservabilitySnapshot(snapshot: LiveReadine
   if (new Set(snapshot.timeline.map((entry) => entry.eventId)).size !== 4 || new Set(snapshot.timeline.map((entry) => entry.correlationId)).size !== 1) throw new Error("LIVE_READY lifecycle identity is inconsistent");
   if (!ISO_DATE.test(snapshot.lastRefresh) || !Number.isFinite(Date.parse(snapshot.lastRefresh))) throw new Error("invalid LIVE_READY last refresh");
   assertSafeObject(snapshot);
-  return Object.freeze(structuredClone(snapshot));
+  return Object.freeze(JSON.parse(JSON.stringify(snapshot)));
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;

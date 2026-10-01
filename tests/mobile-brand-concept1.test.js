@@ -27,16 +27,14 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  // Intelligence Field mark: amber diamond core inside an orbit of five subsystem arcs.
+  // Owner-chosen N monogram (2026-09-28), lime (2026-09-30), redrawn as the contour N on near-black (2026-10-01).
   for (const drawable of [fallback, fallbackRound, logo, splash]) {
-    assert.match(drawable, /orbit of five subsystem arcs/);
-    assert.match(drawable, /NUSA Intelligence Field mark/);
-    assert.match(drawable, /#FFB547/);
-    for (const hue of ["#4FC3F7", "#9B7BFF", "#3DDC97", "#7C8CFF", "#FFA94D"]) assert.ok(drawable.includes(hue), hue);
+    assert.match(drawable, /NUSA N monogram mark/);
+    assert.match(drawable, /#B6F04B/);
   }
-  assert.match(fallback, /#010204/);
+  for (const drawable of [fallback, fallbackRound]) assert.match(drawable, /#0B0C0E/);
   assert.match(adaptive, /<monochrome android:drawable="@drawable\/ic_nusa_logo_monochrome"\s*\/>/);
-  assert.match(notification, /NUSA Intelligence Field mark/);
+  assert.match(notification, /NUSA N monogram mark/);
   assert.doesNotMatch(notification, /#(?!FFFFFFFF|00000000)[0-9A-F]{6}/i, "notification icon must stay monochrome");
   assert.match(api31Theme, /windowSplashScreenAnimatedIcon/);
 });

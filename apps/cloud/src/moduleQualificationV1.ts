@@ -33,9 +33,9 @@ export const MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1: Readonly<Record<Modul
   INTELLIGENCE: "c0286d1056d554e1a9be604c2b9fe1eb02a9f8d9",
   STRATEGY: "6f7395f2e37db73df42bc33d0a697020d38b8d7c",
   DECISION: "904b3e78562ca3f2350133942d2743ac49babd51",
-  RISK: "62c7f32b2eea1d91e929891b0086a32c46cecce0",
+  RISK: "36526fb630290a11fde773c7be48af06c7bdab39",
   PORTFOLIO: "8da5e80589e03004c3d4147528b97da5c473c40a",
-  EXECUTION: "cc61f40b945138d9fb372efe93fd7a92c20f7a86",
+  EXECUTION: "926d6e98410d72b8b5055a4498adb0e1e3de4d25",
   PAPER_ADAPTER: "1285594b2477c30dfd87e6f22daea83aaf1d09fd",
   REVIEW: "675b11025fda5678f152f98277a2b527141c8b7c",
   MEMORY: "70bf43e419fb36b453f634505cd09bb0ca50343c"
@@ -80,7 +80,7 @@ export const MODULE_QUALIFICATION_RECORDS_V1: Readonly<Record<ModuleStage, Modul
     return [stage, Object.freeze({
       schemaVersion: 1 as const,
       stage,
-      sourceCommitSha: MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
+      sourceCommitSha: stage === "RISK" ? "bc19f6d13a17b06aaee8fc852215414a2d2679dc" : MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
       sourceBlobSha,
       sourceRef: MODULE_RUNTIME_BINDING_BY_STAGE_10XS[stage].canonicalEntrypoint,
       verificationAuthority: "INDEPENDENT_EVIDENCE_REQUIRED" as const,

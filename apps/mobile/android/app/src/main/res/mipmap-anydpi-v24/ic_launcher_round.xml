@@ -3,14 +3,10 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- NUSA Intelligence Field mark: amber core inside an orbit of five subsystem arcs (market, axiom, paper, governance, risk). -->
-    <path android:fillColor="#010204" android:pathData="M0,54a54,54 0,1 0,108,0a54,54 0,1 0,-108,0z" />
-    <path android:strokeColor="#4FC3F7" android:strokeWidth="5.1" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M58.46,25.85A28.5,28.5 0,0 1,79.39,41.06" />
-    <path android:strokeColor="#9B7BFF" android:strokeWidth="5.1" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M82.15,49.54A28.5,28.5 0,0 1,74.15,74.15" />
-    <path android:strokeColor="#3DDC97" android:strokeWidth="5.1" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M66.94,79.39A28.5,28.5 0,0 1,41.06,79.39" />
-    <path android:strokeColor="#7C8CFF" android:strokeWidth="5.1" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M33.85,74.15A28.5,28.5 0,0 1,25.85,49.54" />
-    <path android:strokeColor="#FFA94D" android:strokeWidth="5.1" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M28.61,41.06A28.5,28.5 0,0 1,49.54,25.85" />
-    <path android:fillColor="#FFB547" android:fillAlpha="0.07" android:pathData="M34.5,54a19.5,19.5 0,1 0,39,0a19.5,19.5 0,1 0,-39,0z" />
-    <path android:strokeColor="#FFB547" android:strokeWidth="3.9" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M54,41.7L66.3,54L54,66.3L41.7,54Z" />
-    <path android:fillColor="#F4F8FA" android:pathData="M50.55,54a3.45,3.45 0,1 0,6.9,0a3.45,3.45 0,1 0,-6.9,0z" />
+    <!-- NUSA N monogram mark, contour edition (2026-10-01): the N drawn as three contour strokes with the decision point, lime on near-black. -->
+    <path android:fillColor="#0B0C0E" android:pathData="M18,10h72a8,8 0,0 1,8 8v72a8,8 0,0 1,-8 8h-72a8,8 0,0 1,-8 -8v-72a8,8 0,0 1,8 -8z" />
+    <path android:strokeColor="#B6F04B" android:strokeAlpha="0.45" android:strokeWidth="3.91" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M22.95,81.60 L22.95,31.12 L68.95,76.89 L68.95,26.40" />
+    <path android:strokeColor="#B6F04B" android:strokeAlpha="1.0" android:strokeWidth="3.91" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M31.00,81.60 L31.00,28.70 L77.00,79.30 L77.00,26.40" />
+    <path android:strokeColor="#B6F04B" android:strokeAlpha="0.45" android:strokeWidth="3.91" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M39.05,81.60 L39.05,31.12 L85.05,76.89 L85.05,26.40" />
+    <path android:fillColor="#B6F04B" android:pathData="M71.25,26.40 a5.75,5.75 0 1,0 11.50,0 a5.75,5.75 0 1,0 -11.50,0Z" />
 </vector>
