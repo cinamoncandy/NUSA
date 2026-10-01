@@ -1,0 +1,31 @@
+version: 1
+id: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
+title: "Enforce zero-credit Autopilot and minimize Cloudflare idle spend"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+pull_request: 2393
+implementation_branch: fix/autopilot-zero-credit-mode
+base_commit: c7f95afc881a8e91171d743583fd4ff535371fcd
+objective: "Keep deterministic Autopilot work progressing without paid coding-provider fallback while minimizing idle Cloudflare invocations and proving the deployed runtime enforces the mode."
+scope:
+  - "Disable configured paid coding-engine, GitHub Models fallback/escalation, and paid Jev bounded admission when zero-credit mode is enabled."
+  - "Preserve free Workers AI capacity as wait-only when unavailable; do not convert provider-capacity waits into paid fallback."
+  - "Reduce idle scheduler cadence from one minute to five minutes and avoid redundant GitHub reads while a persisted provider wait remains active."
+  - "Preserve Jev SHADOW enablement and all PAPER/LIVE authority boundaries."
+  - "Bind zero-credit mode into canonical Cloudflare deploy arguments and fail closed unless health reports zeroCreditMode=ENFORCED."
+constraints:
+  - "No LIVE authority, production mutation authority, paid-provider bypass, or secret expansion."
+  - "No duplicate Autopilot implementation lane."
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  implementation_code_head: 696beccb05bca3571c0dde62d76e404f8d874124
+  prior_exact_head_ci: "17ca8d087bf6a90814bc1c4c4d6f348506e5ac2f: all required workflows PASS; superseded by review remediation."
+  focused: "Cloudflare deploy contract 11/11 PASS; git diff --check PASS."
+  fresh_exact_head_ci: PENDING
+  runtime_proof: PENDING_AFTER_MERGE
+next_permitted_action: "Run fresh exact-head CI on the AIPOS-bound head; after PASS request independent Audit/Release, merge only through nusa/release-authorized, deploy exact merged main, then require health zeroCreditMode=ENFORCED and ZERO_CREDIT runtime evidence."
