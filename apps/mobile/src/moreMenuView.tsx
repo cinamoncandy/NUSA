@@ -3,6 +3,7 @@ import { fieldFonts } from "./fieldFonts";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MORE_DESTINATIONS, type MoreDestination } from "./navigationContract";
 import { fieldPalette } from "./designSystem";
+import { ContourCore } from "./contourCore";
 
 /** Field-style index grouped by what the owner is trying to do; thin rows, no cards. */
 const LABELS: Readonly<Record<MoreDestination, { readonly title: string; readonly hint: string }>> = Object.freeze({
@@ -32,7 +33,10 @@ if (grouped.length !== MORE_DESTINATIONS.length || MORE_DESTINATIONS.some((desti
 
 export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDestination) => void }>) {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="more-view">
-    <Text style={styles.title}>더보기</Text>
+    <View style={styles.titleRow}>
+      <ContourCore decisionCount={null} reducedMotion size={34} testID="more-contour" innerColor={fieldPalette.paper} outerColor={fieldPalette.dim} pulseColor={fieldPalette.paper} coreColor={fieldPalette.text} />
+      <Text style={styles.title}>더보기</Text>
+    </View>
     {GROUPS.map((group) => <View key={group.title} style={styles.group}>
       <Text style={styles.groupTitle}>{group.title}</Text>
       <View style={styles.list}>
@@ -59,6 +63,7 @@ export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDe
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: fieldPalette.void },
   content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 120, gap: 22 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   title: { color: fieldPalette.text, fontSize: 28, lineHeight: 36, ...fieldFonts.displayLight },
   group: { gap: 8 },
   groupTitle: { color: fieldPalette.muted, fontSize: 12, letterSpacing: 0.6, ...fieldFonts.monoMedium },
