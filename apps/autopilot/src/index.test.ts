@@ -9,7 +9,7 @@ import worker, {
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import type { CodingRuntime, WorkersAiBinding } from "./codingRunner";
-import { acquirePersistentExecution, ExecutionCoordinator, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, ExecutionCoordinator, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -478,6 +478,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       body: workflowBody,
     });
     const originalFetch = globalThis.fetch;
+    const originalNow = Date.now;
     const dispatched: unknown[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -499,14 +500,21 @@ describe("NUSA autopilot GitHub webhook", () => {
     }) as typeof fetch;
     try {
       const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+      let now = 1_000_000;
+      Date.now = () => now;
       const initial = await worker.fetch(request("audit-recovery-initial"), env);
+      const pending = await worker.fetch(request("audit-recovery-pending"), env);
+      now += AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS;
       const recovered = await worker.fetch(request("audit-recovery-replay"), env);
       const exhausted = await worker.fetch(request("audit-recovery-exhausted"), env);
       const initialPayload = await initial.json() as { executor: { status: string } };
+      const pendingPayload = await pending.json() as { status: string; executor: { reason: string } };
       const recoveredPayload = await recovered.json() as { status: string; executor: { status: string } };
       const exhaustedPayload = await exhausted.json() as { status: string; executor: { status: string; reason: string } };
 
       assert.equal(initialPayload.executor.status, "DISPATCHED");
+      assert.equal(pendingPayload.status, "DUPLICATE_EXECUTION_SUPPRESSED");
+      assert.equal(pendingPayload.executor.reason, "github-executor-duplicate-execution-suppressed");
       assert.equal(recoveredPayload.status, "AUDIT_DISPATCH_RECOVERED");
       assert.equal(recoveredPayload.executor.status, "DISPATCHED");
       assert.equal(exhaustedPayload.status, "DUPLICATE_EXECUTION_SUPPRESSED");
@@ -514,6 +522,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       assert.equal(dispatched.length, 2);
     } finally {
       globalThis.fetch = originalFetch;
+      Date.now = originalNow;
     }
   });
 

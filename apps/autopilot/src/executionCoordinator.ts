@@ -57,6 +57,9 @@ export interface PersistentExecutionRecord {
 
 type ExecutionRecord = PersistentExecutionRecord;
 
+/** GitHub repository_dispatch is asynchronous; immediate replays are ordinary materialization lag. */
+export const AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS = 30_000;
+
 export interface PersistentExecutionAcquireRequest {
   dedupeKey: string;
   executionId: string;
@@ -428,6 +431,7 @@ export class ExecutionCoordinator {
         ...(request.provider ? { provider: request.provider } : current?.provider ? { provider: current.provider } : {}),
         ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
         ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
+        ...(current?.auditDispatchRecoveryCount !== undefined ? { auditDispatchRecoveryCount: current.auditDispatchRecoveryCount } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, record }, 201);
@@ -459,6 +463,7 @@ export class ExecutionCoordinator {
       if (!current || current.dedupeKey !== request.dedupeKey || current.executionId !== request.executionId) return json({ recovered: false, reason: "EXECUTION_LEASE_MISMATCH" }, 409);
       if (current.state !== "DISPATCHED") return json({ recovered: false, reason: "EXECUTION_NOT_DISPATCHED" }, 409);
       if ((current.auditDispatchRecoveryCount ?? 0) !== 0) return json({ recovered: false, reason: "AUDIT_DISPATCH_RECOVERY_EXHAUSTED" }, 409);
+      if (request.now < current.updatedAt + AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS) return json({ recovered: false, reason: "AUDIT_DISPATCH_MATERIALIZATION_PENDING" }, 409);
       const record: ExecutionRecord = Object.freeze({
         ...current,
         state: "LEASED",
@@ -522,6 +527,7 @@ export class ExecutionCoordinator {
         ...(request.provider ? { provider: request.provider } : current?.provider ? { provider: current.provider } : {}),
         ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
         ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
+        ...(current?.auditDispatchRecoveryCount !== undefined ? { auditDispatchRecoveryCount: current.auditDispatchRecoveryCount } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, handoff: false, record }, 201);

@@ -40,5 +40,5 @@ verification_commands:
   - pnpm run validate:full
   - pnpm run security:gate
   - git diff --check origin/main...HEAD
-validation_evidence: "2026-10-01: the first exact head passed CI and deterministic Audit, but its Release correctly skipped after main advanced. After merging latest main 1a320be30ac6e69445a2ed6961da56fa462f28bc without conflicts, pnpm run build PASS; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full PASS; and pnpm run security:gate PASS."
-next_permitted_action: "Commit the latest-main AIPOS rebind to existing PR #2428, then require fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."
+validation_evidence: "2026-10-01: the first exact head passed CI and deterministic Audit, but its Release correctly skipped after main advanced. After merging latest main 1a320be30ac6e69445a2ed6961da56fa462f28bc without conflicts, the review repair passed pnpm run build; compiled coordinator/executor/webhook tests 59/59; pnpm run validate:full; and pnpm run security:gate."
+next_permitted_action: "Commit the review repair, then require fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."
