@@ -422,17 +422,19 @@ function AuthenticatedApp() {
   }, [refresh, refreshPublicMarkets]);
 
   const entryProfile = getHomeVisualProfile(appTheme.preset);
-  if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
+  if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text></View></SafeAreaView>;
   if (authStatus !== "SIGNED_IN") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><View style={[styles.authPanel, { maxWidth: entryProfile.screen.maxWidth, gap: entryProfile.density.contentGap }]}><View style={styles.authBrand}><WaveMark /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL INTELLIGENCE</Text></View></View><Text style={[styles.authHeading, { color: appTheme.colors.text, fontSize: entryProfile.hero.balanceSize * 0.66, letterSpacing: entryProfile.hero.balanceLetterSpacing * 0.35 }]}>개인 PAPER 모드</Text><Text style={[styles.subtitle, { color: appTheme.colors.textMuted, fontSize: entryProfile.type.body, lineHeight: entryProfile.type.bodyLineHeight }]}>개인 기기에서 PAPER 작업공간으로 진입합니다. 서버 자격 증명은 Settings에서 별도로 검증합니다.</Text><View style={[styles.entryBadges, { gap: entryProfile.density.metricGap }]}><StatusChip label="LOCAL ENTRY" tone="neutral" /><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label="LIVE NONE" tone="info" /></View><NusaButton accessibilityLabel="Start personal mode" label="개인 모드 시작" onPress={signIn} testID="local-entry-submit" /><Text style={[styles.meta, { color: appTheme.colors.textMuted, fontSize: entryProfile.type.meta }]}>이 진입 단계는 계정 인증이 아닙니다. 사용자 신원을 검증하지 않으며 비밀번호를 수집하거나 저장하지 않습니다.</Text></View></View></SafeAreaView>;
 
   // Do not render owner-action/SETUP projections from placeholder NOT_CONFIGURED state before
-  // the first canonical PAPER refresh has classified the configured endpoint/session. This gate is
-  // projection-only: it grants no credential or transport authority.
-  if (!initialPaperProjectionResolved) return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>PAPER 상태 복구 중</Text></View></SafeAreaView>;
+  // the first canonical PAPER refresh has classified the configured endpoint/session. Instead of
+  // blocking the whole app behind a full-screen gate, the shell renders at once and the pending
+  // projection reads as "checking" (no snapshot, no setup prompt, no error). Projection-only: it
+  // grants no credential or transport authority.
+  const paperProjectionPending = !initialPaperProjectionResolved;
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
-  const readOnlyError = operations.status === "UNAVAILABLE" ? operations.reason : null;
-  const notConfigured = operations.status === "NOT_CONFIGURED" ? operations.reason : null;
+  const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;
+  const notConfigured = !paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null;
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
   const publicMarketConnectionState = publicMarkets.status === "READY" || publicMarkets.status === "STALE" ? "CONNECTED" : "UNKNOWN";
   const stale = snapshot == null || snapshot.health !== "HEALTHY";
@@ -442,7 +444,7 @@ function AuthenticatedApp() {
   const homeShellActive = utilityView === null && detailSurface === null && activeTab === "Home";
   const localPaperReadiness = getLocalPaperLearningReadiness();
   const paperLearningRuntimeStatus = snapshot?.paperLearning?.events?.length ? snapshot.paperLearning.runtimeStatus : snapshot?.paperLearning?.runtimeStatus === "HALTED" || snapshot?.paperLearning?.runtimeStatus === "ERROR" ? snapshot.paperLearning.runtimeStatus : localPaperReadiness.status;
-  const paperLearningServerSource = operations.status === "NOT_CONFIGURED" ? "NOT_CONFIGURED" as const : operations.status === "UNAVAILABLE" ? "UNAVAILABLE" as const : snapshot?.paperLearning == null ? "PROJECTION_ABSENT" as const : (snapshot.paperLearning.events?.length ?? 0) > 0 ? "SERVER_STREAM" as const : "PROJECTION_EMPTY" as const;
+  const paperLearningServerSource = paperProjectionPending ? "PROJECTION_ABSENT" as const : operations.status === "NOT_CONFIGURED" ? "NOT_CONFIGURED" as const : operations.status === "UNAVAILABLE" ? "UNAVAILABLE" as const : snapshot?.paperLearning == null ? "PROJECTION_ABSENT" as const : (snapshot.paperLearning.events?.length ?? 0) > 0 ? "SERVER_STREAM" as const : "PROJECTION_EMPTY" as const;
   const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus, paperLearningServerSource);
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
