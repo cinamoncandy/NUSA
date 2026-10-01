@@ -261,6 +261,13 @@ current_paper_decision_outcome:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-Oracle-exact-main-release_then-read-/health
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_ui_why_no_order:
+  work_order: WO-UI-20260930-WHY-NO-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-why-no-order
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-app-build_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_screens:
   work_order: WO-UI-20260928-FIELD-SCREENS
   status: READY_FOR_REVIEW
@@ -1834,4 +1841,18 @@ current_paper_orderbook_snapshot_refresh:
   validation: "25 focused reconciliation, real runtime wiring, liveness, restart and health tests PASS; TypeScript compile/typecheck, preflight, targeted lint and repository validate PASS."
   diagnostic_recovery: "Fresh valid quotes for every configured market clear only orderbook diagnostics; failure timestamp and accepted-market receipt health gate remain intact. Prior exact-head actual PAPER artifact remained INCOMPLETE with no actionable signal."
   next: "Exact-head CI, independent Audit, canonical Release, then long-lived Oracle runtime proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_decision_rings:
+  work_order: WO-UI-20261001-DECISION-RINGS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-decision-rings
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_fill_lineage:
+  work_order: WO-TEST-20261001-PAPER-FILL-LINEAGE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-lineage-test
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; open gaps are market-observation id and decision-reason retention in the intent
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
