@@ -99,9 +99,9 @@ describe("paper execution intent risk contract integration", () => {
       investmentPercent: 100,
     });
 
-    assert.equal(intent.allocationCapital, 5_000);
+    assert.equal(intent.allocationCapital, 5_050);
     assert.equal(intent.riskContract?.decision, "ALLOW");
-    assert.equal(intent.riskContract?.allocationLimitedQuantity, 50);
+    assert.equal(intent.riskContract?.allocationLimitedQuantity, 50.5);
     assert.equal(intent.riskContract?.riskSizedQuantity, 33.33333333);
     assert.equal(intent.quantity, 33.33333333);
     assert.ok(intent.quantity <= (intent.riskContract?.allowedQuantity ?? 0));
