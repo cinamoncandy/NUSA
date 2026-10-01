@@ -54,7 +54,7 @@ test("market observation is explicitly separated from strategy and order authori
 });
 
 test("REAL_READ_ONLY is never presented as PAPER performance", () => {
-  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
+  assert.match(portfolio, /실계좌 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
   assert.match(spec, /REAL_READ_ONLY account data is never summed into PAPER performance/);
 });
 
