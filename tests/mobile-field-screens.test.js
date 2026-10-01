@@ -96,3 +96,11 @@ test("header pose follows the HOME grammar and never collapses a healthy tab", (
   const header = fs.readFileSync(path.join(root, "apps/mobile/src/fieldHeader.tsx"), "utf8");
   assert.match(header, /const sealed = model\.eyebrow === "LIVE" && model\.statusWord === "SEALED"/);
 });
+
+test("PAPER and LIVE headers draw the HOME contour core instead of the old nebula", () => {
+  const header = fs.readFileSync(path.join(root, "apps/mobile/src/fieldHeader.tsx"), "utf8");
+  assert.match(header, /<ContourCore decisionCount=\{null\} reducedMotion size=\{CONTOUR_SIZE\}/);
+  assert.doesNotMatch(header, /buildFieldGeometry|buildStrandPaths/);
+  const core = fs.readFileSync(path.join(root, "apps/mobile/src/contourCore.tsx"), "utf8");
+  assert.match(core, /size: stage = SIZE, testID = "home-contour-core"/);
+});

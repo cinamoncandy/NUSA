@@ -12,6 +12,9 @@ export interface ContourCoreProps {
   readonly outerColor: string;
   readonly pulseColor: string;
   readonly coreColor: string;
+  /** Stage diameter; HOME uses the default, secondary tab headers a compact one. */
+  readonly size?: number;
+  readonly testID?: string;
 }
 
 /**
@@ -19,7 +22,7 @@ export interface ContourCoreProps {
  * market measurement) and snap back into alignment once for every new decision the runtime
  * reports. All transforms run on the native driver; nothing moves under reduce-motion.
  */
-export function ContourCore({ decisionCount, reducedMotion, innerColor, outerColor, pulseColor, coreColor }: ContourCoreProps) {
+export function ContourCore({ decisionCount, reducedMotion, innerColor, outerColor, pulseColor, coreColor, size: stage = SIZE, testID = "home-contour-core" }: ContourCoreProps) {
   const wobbles = useMemo(() => Array.from({ length: RINGS }, () => new Animated.Value(0)), []);
   const align = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(1)).current;
@@ -63,10 +66,10 @@ export function ContourCore({ decisionCount, reducedMotion, innerColor, outerCol
   useEffect(() => () => { pulseAnimation.current?.stop(); }, []);
 
   const loose = Animated.subtract(1, align);
-  return <View style={styles.stage} pointerEvents="none" testID="home-contour-core">
+  return <View style={[styles.stage, { width: stage, height: stage }]} pointerEvents="none" testID={testID}>
     {wobbles.map((value, i) => {
       const t = (i + 1) / RINGS;
-      const size = SIZE * 0.92 * t;
+      const size = stage * 0.92 * t;
       const amp = 0.035 + 0.05 * t;
       const sway = Animated.multiply(Animated.multiply(value, amp), loose);
       return <Animated.View key={i} style={[styles.ring, {
@@ -80,7 +83,7 @@ export function ContourCore({ decisionCount, reducedMotion, innerColor, outerCol
         ],
       }]} />;
     })}
-    <Animated.View style={[styles.ring, styles.pulse, {
+    <Animated.View style={[styles.ring, styles.pulse, { width: stage * 0.92, height: stage * 0.92, borderRadius: stage * 0.46,
       borderColor: pulseColor,
       opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] }),
       transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.15, 1] }) }],

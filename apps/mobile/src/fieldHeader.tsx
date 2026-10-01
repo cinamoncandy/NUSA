@@ -1,36 +1,30 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { buildFieldGeometry, buildStrandPaths, Signal } from "./intelligenceField";
 import { fieldMotion, fieldPalette } from "./designSystem";
 import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
+import { ContourCore } from "./contourCore";
 import { fieldHeaderPose, type FieldHeaderModel } from "./fieldScreensModel";
 
 /**
- * Compact Intelligence Field band for secondary tabs: a smaller nebula with the arm the tab is
- * about lit and the rest faint. Moves only when the tone or subsystem changes. A sealed LIVE tab
+ * Compact header band for secondary tabs: the HOME contour core, drawn still and in the tab's
+ * tone (its rings are the same language as HOME; this band has no decision heartbeat). Moves only when the tone or subsystem changes. A sealed LIVE tab
  * draws a dashed seal ring around the nebula.
  */
 const HEIGHT = 150;
 const SEAL_RADIUS = 70;
+const CONTOUR_SIZE = 128;
 const HUE: Record<FieldSubsystem, string> = { market: fieldPalette.market, axiom: fieldPalette.axiom, paper: fieldPalette.paper, governance: fieldPalette.governance, risk: fieldPalette.risk };
 const TONE: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
-const ORDER: readonly FieldSubsystem[] = ["market", "axiom", "paper", "governance", "risk"];
 
-const Dots = memo(function Dots({ dots, color, faint }: Readonly<{ dots: readonly { x: number; y: number; size: number; opacity: number }[]; color: string; faint: boolean }>) {
-  return <>{dots.map((d, i) => <View key={i} style={{ position: "absolute", left: d.x - d.size / 2, top: d.y - d.size / 2, width: d.size, height: d.size, borderRadius: d.size / 2, backgroundColor: color, opacity: faint ? d.opacity * 0.18 : d.opacity }} />)}</>;
-});
 
 export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderModel; testID: string }>) {
   const [width, setWidth] = useState(0);
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
-  const geometry = useMemo(() => (width > 0 ? buildFieldGeometry(width, HEIGHT, 0.6) : null), [width]);
   const glow = useRef(new Animated.Value(1)).current;
-  const signal = useRef(new Animated.Value(0)).current;
   const pose = fieldHeaderPose(model);
   const spread = useRef(new Animated.Value(pose.spread)).current;
   const presence = useRef(new Animated.Value(pose.presence)).current;
-  const paths = useMemo(() => (width > 0 ? buildStrandPaths(width, HEIGHT) : null), [width]);
 
   useEffect(() => {
     let mounted = true;
@@ -45,19 +39,17 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     const changed = previousKey.current != null && previousKey.current !== key;
     previousKey.current = key;
     // Mounting or revisiting a tab is not a state change: animate only on a later semantic change.
-    if (reducedMotion !== false || !changed) { glow.setValue(1); signal.setValue(0); spread.setValue(pose.spread); presence.setValue(pose.presence); return undefined; }
+    if (reducedMotion !== false || !changed) { glow.setValue(1); spread.setValue(pose.spread); presence.setValue(pose.presence); return undefined; }
     glow.setValue(0.25);
-    signal.setValue(0);
-    // Same language as HOME: one signal rides the lit strand, inward when the state is a problem.
+    // A state change re-settles the rings: they tighten or loosen and the tone glows back in.
     const animation = Animated.parallel([
       Animated.timing(spread, { toValue: pose.spread, duration: fieldMotion.poseMs, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
       Animated.timing(presence, { toValue: pose.presence, duration: fieldMotion.poseMs, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       Animated.timing(glow, { toValue: 1, duration: fieldMotion.headerGlowMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(signal, { toValue: 1, duration: fieldMotion.headerSignalMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
     ]);
     animation.start();
     return () => animation.stop();
-  }, [model.tone, model.subsystem, reducedMotion, glow, signal, spread, presence, pose.spread, pose.presence]);
+  }, [model.tone, model.subsystem, reducedMotion, glow, spread, presence, pose.spread, pose.presence]);
 
   const tone = TONE[model.tone];
   const sealed = model.eyebrow === "LIVE" && model.statusWord === "SEALED";
@@ -70,15 +62,11 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     </View>
     <View style={styles.field} onLayout={onLayout}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: presence, transform: [{ scale: spread }] }]}>
-        {geometry == null ? null : ORDER.map((id) => {
-          const lit = id === model.subsystem;
-          const dots = <Dots dots={geometry[id]} color={lit ? (model.tone === "dim" ? HUE[id] : tone) : HUE[id]} faint={!lit} />;
-          return lit ? <Animated.View key={id} style={[StyleSheet.absoluteFill, { opacity: glow }]}>{dots}</Animated.View> : <View key={id} style={StyleSheet.absoluteFill}>{dots}</View>;
-        })}
-        {paths == null ? null : <Signal path={paths[model.subsystem]} progress={signal} color={tone} inward={model.tone === "amber" || model.tone === "red"} />}
+        <Animated.View style={[styles.contour, { opacity: glow }]}>
+          <ContourCore decisionCount={null} reducedMotion size={CONTOUR_SIZE} testID={`${testID}-contour`} innerColor={model.tone === "dim" ? HUE[model.subsystem] : tone} outerColor={fieldPalette.dim} pulseColor={tone} coreColor={tone} />
+        </Animated.View>
       </Animated.View>
       {width > 0 && sealed ? <View pointerEvents="none" style={[styles.seal, { left: width / 2 - SEAL_RADIUS, top: HEIGHT / 2 - SEAL_RADIUS }]} /> : null}
-      {width > 0 ? <View pointerEvents="none" style={[styles.core, { left: width / 2 - 9, top: HEIGHT / 2 - 9, borderColor: tone }]} /> : null}
     </View>
     <Text style={styles.headline} testID={`${testID}-headline`}>{model.headline}</Text>
     <Text style={styles.detail}>{model.detail}</Text>
@@ -96,7 +84,7 @@ const styles = StyleSheet.create({
   status: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
   field: { height: HEIGHT, overflow: "hidden" },
   seal: { position: "absolute", width: SEAL_RADIUS * 2, height: SEAL_RADIUS * 2, borderRadius: SEAL_RADIUS, borderWidth: 1, borderStyle: "dashed", borderColor: fieldPalette.dim },
-  core: { position: "absolute", width: 18, height: 18, borderWidth: 1.2, transform: [{ rotate: "45deg" }] },
+  contour: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
   headline: { color: fieldPalette.text, fontSize: 24, lineHeight: 31, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   facts: { flexDirection: "row", marginTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim, paddingTop: 10 },
