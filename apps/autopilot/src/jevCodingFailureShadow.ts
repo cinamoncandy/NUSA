@@ -5,6 +5,10 @@ import { JevShadowProvider } from "../../cloud/src/ai/jevShadowProvider";
 import { JevWorkersAiProvider, type JevWorkersAiReceipt, type JevWorkersAiRuntime } from "../../cloud/src/ai/jevWorkersAiProvider";
 import { JevShadowRouter } from "../../cloud/src/ai/jevShadowRouter";
 import { createJevWorkflowFailurePacket, projectJevWorkflowFailureReceipt, type JevWorkflowFailureReceipt } from "../../cloud/src/ai/jevWorkflowFailureDecision";
+import {
+  projectJevWorkflowFailureDomainObservation,
+} from "../../cloud/src/ai/jevDomainObservationProjection";
+import type { JevDomainObservation } from "../../cloud/src/ai/jevDomainObservation";
 
 interface RunnerRequestLike {
   readonly headSha: string;
@@ -33,6 +37,11 @@ const PROVIDER_STOP_REASONS=new Set([
   "BLOCKED_RATE_LIMIT",
 ]);
 
+export type JevCodingFailureShadowReceipt = JevWorkflowFailureReceipt & Readonly<{
+  /** Canonical metadata-only Jev envelope; it remains non-routing SHADOW evidence. */
+  domainObservation: JevDomainObservation;
+}>;
+
 function boundedFailureEvidence(value:string):string {
   return value
     .replace(/(authorization|token|secret|password|api[-_ ]?key)\s*[:=]\s*[^\s,;]+/ig,"$1=[REDACTED]")
@@ -47,7 +56,7 @@ export async function observeJevCodingFailureShadow(input:{
   readonly failureReason: string|null;
   readonly failureClass: AutopilotFailureClass;
   readonly env: JevEnv;
-}):Promise<JevWorkflowFailureReceipt|null>{
+}):Promise<JevCodingFailureShadowReceipt|null>{
   if(!input.failureReason || input.failureClass!=="deterministic" || PROVIDER_STOP_REASONS.has(input.failureReason)) return null;
   const request=input.runnerRequest;
   const failureEvidence=boundedFailureEvidence(input.failureReason);
@@ -136,5 +145,14 @@ export async function observeJevCodingFailureShadow(input:{
       liveAuthority:"NONE",productionMutationAllowed:false,aiAuthority:"ZERO_AUTHORITY"
     }));
   }
-  return projectJevWorkflowFailureReceipt(packet,shadow,classifier ? modelIdentity : "deterministic-fallback",new Date().toISOString());
+  const receipt=projectJevWorkflowFailureReceipt(
+    packet,
+    shadow,
+    classifier ? modelIdentity : "deterministic-fallback",
+    new Date().toISOString(),
+  );
+  return Object.freeze({
+    ...receipt,
+    domainObservation: projectJevWorkflowFailureDomainObservation(receipt),
+  });
 }

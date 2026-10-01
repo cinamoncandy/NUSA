@@ -51,7 +51,6 @@ export const UNWIRED_CONTROL_PLANE_DEBT: readonly string[] = Object.freeze([
   "evolveStrategyLifecyclePolicy.ts#decideStrategyEdgeDecayContainment",
   "evolveValidation.ts#createEvolutionValidationResult",
   "executionCoordinator.ts#clearPersistentControlPlaneHold",
-  "executionCoordinator.ts#createEvolutionLearningMemoryStorage",
   "opportunityPlanner.ts#planOpportunity",
   "opportunityPlanner.ts#rankOpportunities",
   // #2185 intentionally lands the deterministic provider-local primitive before runtime wiring;

@@ -32,6 +32,11 @@ test("eligible unknown deterministic failure emits typed shadow fallback without
   assert.equal(receipt.aiAuthority, "ZERO_AUTHORITY");
   assert.equal(receipt.productionMutationAllowed, false);
   assert.equal(receipt.liveAuthority, "NONE");
+  assert.equal(receipt.domainObservation.taskType, "WORKFLOW_FAILURE_CLASSIFICATION");
+  assert.equal(receipt.domainObservation.domain, "AUTOPILOT_DEVELOPMENT");
+  assert.equal(receipt.domainObservation.inputFingerprint, receipt.stateFingerprint);
+  assert.equal(receipt.domainObservation.usableForRouting, false);
+  assert.equal(receipt.domainObservation.aiAuthority, "ZERO_AUTHORITY");
 });
 
 test("disabled Jev preserves existing path and emits non-routing evidence", async () => {
@@ -75,6 +80,9 @@ test("native Workers AI binding uses the lower-neuron Jev shadow model with boun
     assert.equal(receipt.selectedOutcome, "TEST");
     assert.match(receipt.model, /^workers-ai:/);
     assert.equal(receipt.usableForRouting, false);
+    assert.equal(receipt.domainObservation.decision.rootCause, "TEST");
+    assert.equal(receipt.domainObservation.decision.requiredModel, "TERRA");
+    assert.equal(receipt.domainObservation.usableForRouting, false);
     const usage = JSON.parse(lines.find((line) => line.includes('"NUSA_AI_CALL"')));
     assert.equal(usage.caller, "C3_JEV");
     assert.equal(usage.model, seenModel);
