@@ -10,7 +10,7 @@ const source = read("attractorModel.ts");
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const shim = { exports: {} };
 new Function("module", "exports", "require", compiled)(shim, shim.exports, require);
-const { initialAttractorState, observeAttractor, tickAttractor, decisionTarget, iterateAttractor, ATTRACTOR_COLORS } = shim.exports;
+const { initialAttractorState, observeAttractor, tickAttractor, settleAttractor, isAttractorSettled, decisionTarget, iterateAttractor, ATTRACTOR_COLORS } = shim.exports;
 
 test("attractor model is import-free and deterministic", () => {
   assert.doesNotMatch(source, /^import /m);
@@ -18,19 +18,41 @@ test("attractor model is import-free and deterministic", () => {
   assert.deepEqual({ ...decisionTarget(7) }, { ...decisionTarget(7) });
 });
 
-test("the first observation only records the baseline", () => {
+test("the first observation records the baseline without a bloom", () => {
   const s = observeAttractor(initialAttractorState(), 100, 2);
-  assert.equal(s.step, 0);
   assert.equal(s.bloom, 0);
+  assert.deepEqual({ ...s.target }, { ...decisionTarget(100) });
 });
 
-test("a new decision moves the figure one step; no new decision leaves it alone", () => {
-  let s = observeAttractor(initialAttractorState(), 100, 2);
-  const same = observeAttractor(s, 100, 2);
-  assert.equal(same.step, 0);
-  s = observeAttractor(s, 101, 2);
-  assert.equal(s.step, 1);
-  assert.deepEqual({ ...s.target }, { ...decisionTarget(1) });
+test("the figure follows the reported count, not the polling cadence", () => {
+  const base = observeAttractor(initialAttractorState(), 100, 2);
+  assert.equal(observeAttractor(base, 100, 2).bloom, 0);
+  let stepwise = base;
+  for (let n = 101; n <= 105; n += 1) stepwise = observeAttractor(stepwise, n, 2);
+  const jumped = observeAttractor(base, 105, 2);
+  assert.deepEqual({ ...jumped.target }, { ...stepwise.target });
+  assert.deepEqual({ ...jumped.target }, { ...decisionTarget(105) });
+});
+
+test("a counter that goes backwards is a new baseline, not a fill", () => {
+  const s = observeAttractor(observeAttractor(initialAttractorState(), 500, 9), 3, 0);
+  assert.equal(s.bloom, 0);
+  assert.notEqual(s.color, ATTRACTOR_COLORS.fill);
+});
+
+test("reduce-motion settles straight to the end state, so a fill bloom never sticks", () => {
+  let s = observeAttractor(observeAttractor(initialAttractorState(), 100, 2), 101, 3);
+  s = settleAttractor(s, "normal");
+  assert.equal(s.bloom, 0);
+  assert.deepEqual({ ...s.params }, { ...s.target });
+  assert.equal(s.color, ATTRACTOR_COLORS.decide);
+});
+
+test("the frame loop has a settled condition to stop on", () => {
+  let s = observeAttractor(observeAttractor(initialAttractorState(), 100, 2), 101, 2);
+  let ticks = 0;
+  for (;;) { const next = tickAttractor(s, "normal"); ticks += 1; if (isAttractorSettled(s, next) || ticks > 2000) break; s = next; }
+  assert.ok(ticks < 2000, "settles in bounded time");
 });
 
 test("a new fill locks the symmetric form and blooms green, then relaxes to the tone", () => {
@@ -62,6 +84,7 @@ test("every tab uses the attractor and none keeps the old contour core", () => {
   assert.match(read("moreMenuView.tsx"), /<AttractorField /);
   assert.ok(!fs.existsSync(path.join(root, "apps/mobile/src/contourCore.tsx")));
   const field = read("attractorField.tsx");
-  assert.match(field, /if \(reducedMotion \|\| decisionCount == null\)/);
-  assert.match(field, /cancelAnimationFrame\(frame\)/);
+  assert.match(field, /state\.current = settleAttractor\(state\.current, tone\)/);
+  assert.match(field, /if \(drawn\.current && isAttractorSettled\(before, state\.current\)\) return;/);
+  assert.match(field, /\}, \[decisionCount, fillCount, tone, reducedMotion, size\]\)/);
 });

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { BlendMode, Canvas, Picture, PointMode, Skia, createPicture, type SkPicture, type SkPoint } from "@shopify/react-native-skia";
-import { initialAttractorState, iterateAttractor, observeAttractor, tickAttractor, type AttractorTone } from "./attractorModel";
+import { initialAttractorState, isAttractorSettled, iterateAttractor, observeAttractor, settleAttractor, tickAttractor, type AttractorTone } from "./attractorModel";
 
 export interface AttractorFieldProps {
   /** Real runtime decision count; each increase morphs the figure one step. Null draws a still figure. */
@@ -17,13 +17,6 @@ export interface AttractorFieldProps {
 }
 
 const FRAME_MS = 33;
-
-function isSettled(before: ReturnType<typeof initialAttractorState>, after: ReturnType<typeof initialAttractorState>): boolean {
-  const p = after.params, t = after.target;
-  const still = Math.abs(p.a - t.a) + Math.abs(p.b - t.b) + Math.abs(p.c - t.c) + Math.abs(p.d - t.d) < 1e-3;
-  const color = Math.abs(before.color[0] - after.color[0]) + Math.abs(before.color[1] - after.color[1]) + Math.abs(before.color[2] - after.color[2]) < 0.5;
-  return still && after.bloom < 0.01 && color;
-}
 
 /**
  * NUSA attractor: a glowing Clifford attractor drawn with Skia. It never moves on a clock; the
@@ -41,8 +34,6 @@ export function AttractorField({ decisionCount, fillCount, tone, reducedMotion, 
   const paint = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setStrokeWidth(size > 120 ? 1.2 : 1); p.setAntiAlias(true); return p; }, [size]);
   const [picture, setPicture] = useState<SkPicture | null>(null);
   const drawn = useRef(false);
-  const toneRef = useRef(tone);
-  toneRef.current = tone;
 
   const render = () => {
     const s = state.current, { xs, ys, pts } = cloud;
@@ -56,15 +47,13 @@ export function AttractorField({ decisionCount, fillCount, tone, reducedMotion, 
     setPicture(createPicture((canvas) => canvas.drawPoints(PointMode.Points, pts as SkPoint[], paint), { width: size, height: size }));
   };
 
+  // One effect owns both the observation and the frame loop. The loop runs only while the figure
+  // is still moving and stops once settled; a new count, tone or size re-runs this effect.
   useEffect(() => {
     state.current = observeAttractor(state.current, decisionCount, fillCount);
-    if (reducedMotion || decisionCount == null) render();
-  }, [decisionCount, fillCount]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
     if (reducedMotion || decisionCount == null) {
-      // Still figure: settle straight to the current tone so a held or halted tab is tinted at once.
-      for (let i = 0; i < 160; i += 1) state.current = tickAttractor(state.current, toneRef.current);
+      // Still figure (reduce-motion, unknown count, or a secondary-tab mark): jump to the end state.
+      state.current = settleAttractor(state.current, tone);
       render();
       return undefined;
     }
@@ -74,15 +63,15 @@ export function AttractorField({ decisionCount, fillCount, tone, reducedMotion, 
       if (now - last >= FRAME_MS) {
         last = now;
         const before = state.current;
-        state.current = tickAttractor(before, toneRef.current);
-        // Settled figures are not redrawn: no decision, no work.
-        if (!drawn.current || !isSettled(before, state.current)) render();
+        state.current = tickAttractor(before, tone);
+        if (drawn.current && isAttractorSettled(before, state.current)) return;
+        render();
       }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
     return () => { alive = false; cancelAnimationFrame(frame); };
-  }, [reducedMotion, decisionCount == null, size, tone]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [decisionCount, fillCount, tone, reducedMotion, size]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <View style={[styles.stage, { width: size, height: size }]} pointerEvents="none" testID={testID} importantForAccessibility="no-hide-descendants">
     <Canvas style={{ width: size, height: size }}>{picture ? <Picture picture={picture} /> : null}</Canvas>

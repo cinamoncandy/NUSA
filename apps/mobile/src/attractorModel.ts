@@ -38,19 +38,39 @@ export function decisionTarget(step: number): AttractorParams {
   return Object.freeze({ a: -1.4 + 0.4 * s(0), b: 1.6 + 0.35 * s(1), c: 1.0 + 0.4 * s(2), d: 0.85 + 0.35 * s(3) });
 }
 
-/** Folds the latest runtime counts into the state. The first observation only records the baseline. */
+/**
+ * Folds the latest runtime counts into the state. The first observation, and a counter that went
+ * backwards (runtime restart), only record a baseline. The target is derived from the reported
+ * decision count itself, so a poll that sees 100 -> 105 lands on the same figure as five single
+ * steps would: the form never depends on polling timing.
+ */
 export function observeAttractor(state: AttractorState, decisionCount: number | null, fillCount: number | null): AttractorState {
-  if (state.decisionCount == null || state.fillCount == null || decisionCount == null || fillCount == null) {
-    return Object.freeze({ ...state, decisionCount, fillCount });
+  if (state.decisionCount == null || state.fillCount == null || decisionCount == null || fillCount == null
+    || decisionCount < state.decisionCount || fillCount < state.fillCount) {
+    const target = decisionCount == null ? state.target : decisionTarget(decisionCount);
+    return Object.freeze({ ...state, decisionCount, fillCount, target, step: decisionCount ?? state.step });
   }
   if (fillCount > state.fillCount) {
-    return Object.freeze({ ...state, decisionCount, fillCount, target: FILL_FORM, bloom: 1, color: ATTRACTOR_COLORS.fill, step: state.step + 1 });
+    return Object.freeze({ ...state, decisionCount, fillCount, target: FILL_FORM, bloom: 1, color: ATTRACTOR_COLORS.fill, step: decisionCount });
   }
   if (decisionCount > state.decisionCount) {
-    const step = state.step + 1;
-    return Object.freeze({ ...state, decisionCount, fillCount, target: decisionTarget(step), bloom: Math.max(state.bloom, 0.3), step });
+    return Object.freeze({ ...state, decisionCount, fillCount, target: decisionTarget(decisionCount), bloom: Math.max(state.bloom, 0.3), step: decisionCount });
   }
   return Object.freeze({ ...state, decisionCount, fillCount });
+}
+
+/** The non-animated end state: target reached, bloom spent, colour at the tone. Used under reduce-motion. */
+export function settleAttractor(state: AttractorState, tone: AttractorTone): AttractorState {
+  const color = tone === "halt" ? ATTRACTOR_COLORS.halt : tone === "hold" ? ATTRACTOR_COLORS.hold : ATTRACTOR_COLORS.decide;
+  return Object.freeze({ ...state, params: state.target, bloom: 0, color });
+}
+
+/** True once a tick no longer changes anything visible, so the frame loop can stop. */
+export function isAttractorSettled(before: AttractorState, after: AttractorState): boolean {
+  const p = after.params, t = after.target;
+  const still = Math.abs(p.a - t.a) + Math.abs(p.b - t.b) + Math.abs(p.c - t.c) + Math.abs(p.d - t.d) < 1e-3;
+  const color = Math.abs(before.color[0] - after.color[0]) + Math.abs(before.color[1] - after.color[1]) + Math.abs(before.color[2] - after.color[2]) < 0.5;
+  return still && after.bloom < 0.01 && color;
 }
 
 /** One animation tick: parameters glide toward the target, bloom decays, colour settles toward the tone. */
