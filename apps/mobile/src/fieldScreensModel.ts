@@ -22,9 +22,9 @@ const count = (value: number) => (Number.isFinite(value) ? Math.max(0, Math.trun
 export function buildPaperFieldHeader(paper: PaperLearningScreenState): FieldHeaderModel {
   const perf = paper.performance;
   const facts = Object.freeze([
-    { label: "CYCLES", value: count(perf.completedCycles) },
-    { label: "FILLED CYCLES", value: count(perf.filledCycles) },
-    { label: "SOURCE", value: paper.dataSource.replace(/_/g, " ") },
+    { label: "사이클", value: count(perf.completedCycles) },
+    { label: "체결 사이클", value: count(perf.filledCycles) },
+    { label: "데이터", value: paper.dataSource === "SERVER_STREAM" ? "서버" : paper.dataSource === "LOCAL_FALLBACK" ? "기기" : "확인 필요" },
   ]);
   const base = { eyebrow: "PAPER", facts } as const;
   if (paper.dataSource === "NOT_CONFIGURED" || paper.dataSource === "UNAVAILABLE") {
@@ -51,14 +51,14 @@ export function buildPaperFieldHeader(paper: PaperLearningScreenState): FieldHea
 
 export function buildLiveFieldHeader(snapshot: LiveReadinessObservabilitySnapshot | null, unavailableReason?: string): FieldHeaderModel {
   if (snapshot == null) {
-    return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "dim", headline: "LIVE는 봉인되어 있습니다", detail: unavailableReason ? `준비도 정보를 불러오지 못했습니다 · ${unavailableReason}` : "준비도 정보를 불러오지 못했습니다.", subsystem: "governance", facts: Object.freeze([{ label: "AUTHORITY", value: "NONE" }]) });
+    return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "dim", headline: "LIVE는 봉인되어 있습니다", detail: unavailableReason ? "서버에서 LIVE 준비도를 받지 못했습니다. 잠시 후 다시 확인합니다." : "준비도 정보를 불러오지 못했습니다.", subsystem: "governance", facts: Object.freeze([{ label: "실거래 권한", value: "없음" }]) });
   }
   const s = snapshot.runtimeSafety;
   const hardStop = snapshot.status === "HALTED" || s.killSwitchActive || s.exchangeError || s.staleMarketData || s.riskBudgetBreached || s.reconciliationMismatch || s.abnormalBalanceDrift || s.strategyInvalidated || s.latencyOrSlippageBreached;
   const facts = Object.freeze([
-    { label: "BLOCKERS", value: count(snapshot.blockers.length) },
-    { label: "STATUS", value: snapshot.status.replace(/_/g, " ") },
-    { label: "AUTHORITY", value: snapshot.liveAuthority },
+    { label: "남은 차단", value: count(snapshot.blockers.length) },
+    { label: "상태", value: snapshot.status.replace(/_/g, " ") },
+    { label: "실거래 권한", value: snapshot.liveAuthority === "NONE" ? "없음" : snapshot.liveAuthority },
   ]);
   if (hardStop) {
     return Object.freeze({ eyebrow: "LIVE", statusWord: "HALTED", tone: "red", headline: "안전 정지 신호", detail: "런타임 안전 조건이 위반되어 LIVE 후보에서 제외됩니다.", subsystem: "risk", facts });

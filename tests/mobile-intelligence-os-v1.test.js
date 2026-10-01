@@ -38,7 +38,7 @@ test("primary screens share Intelligence OS truth grammar while PAPER specialize
   assert.match(portfolio, /AuthorityRail/);
   assert.match(paper, /PaperLearningMonitorView/);
   assert.match(paperMonitor, /PAPER LEARNING · READ ONLY/);
-  assert.match(paperMonitor, /DATA SOURCE/);
+  assert.match(paperMonitor, /데이터 출처/);
   assert.match(os, /minHeight: 48/);
   assert.match(os, /fontVariant: \["tabular-nums"\]/);
   assert.match(spec, /3 seconds/);

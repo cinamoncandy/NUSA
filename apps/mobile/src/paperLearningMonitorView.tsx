@@ -99,6 +99,17 @@ function sourceTone(source: PaperLearningScreenState["dataSource"]): Intelligenc
   return "danger";
 }
 
+/** Plain words for the risk status; the raw code stays in the 권한 / 위험 section. */
+function riskWord(status: string | null | undefined): string {
+  if (status == null) return "확인 불가";
+  const tone = riskTone(status);
+  return tone === "success" ? "통과" : tone === "danger" ? "차단" : "주의";
+}
+
+function sourceWord(source: PaperLearningScreenState["dataSource"]): string {
+  return source === "SERVER_STREAM" ? "서버 실시간" : source === "LOCAL_FALLBACK" ? "기기 대체 관측" : "확인 필요";
+}
+
 function riskTone(status: string | null | undefined): IntelligenceTone {
   if (status == null) return "neutral";
   const normalized = status.toUpperCase();
@@ -118,7 +129,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
   const sourceMessage = useMemo(() => dataSourceMessage(state), [state]);
   const totalPnl = state.latestAccount == null ? state.performance.realizedPnL + state.performance.unrealizedPnL : state.latestAccount.realizedPnL + state.latestAccount.unrealizedPnL;
   const pnlTone: IntelligenceTone = totalPnl > 0 ? "success" : totalPnl < 0 ? "danger" : "neutral";
-  const learningLabel = state.latestEvidence?.outcome == null ? "WAITING" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
+  const learningLabel = state.latestEvidence?.outcome == null ? "대기" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
   const learningTone: IntelligenceTone = state.latestEvidence?.outcome === "PROMOTE" ? "success" : state.latestEvidence?.outcome === "REJECT" ? "danger" : "neutral";
   const sourceColor = sourceTone(state.dataSource) === "success" ? theme.colors.success : sourceTone(state.dataSource) === "warning" ? theme.colors.warning : theme.colors.danger;
 
@@ -133,18 +144,18 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]} testID="paper-learning-read-only-label">PAPER LEARNING · READ ONLY</Text>
     <MetricStrip
       items={[
-        { label: "EQUITY", value: money(state.latestAccount?.equity), tone: "neutral" },
-        { label: "TOTAL PNL", value: signedMoney(totalPnl), tone: pnlTone },
-        { label: "RISK", value: state.latestRisk?.status ?? "UNKNOWN", tone: riskTone(state.latestRisk?.status) },
-        { label: "LEARNING", value: learningLabel, tone: learningTone },
+        { label: "자산", value: money(state.latestAccount?.equity), tone: "neutral" },
+        { label: "총 손익", value: signedMoney(totalPnl), tone: pnlTone },
+        { label: "위험", value: riskWord(state.latestRisk?.status), tone: riskTone(state.latestRisk?.status) },
+        { label: "학습", value: learningLabel, tone: learningTone },
       ]}
       testID="paper-learning-glance-strip"
     />
 
     <View style={styles.sourceRow} testID="paper-learning-data-source">
       <View style={styles.sourceCopy}>
-        <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>DATA SOURCE</Text>
-        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{state.dataSource}</Text>
+        <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>데이터 출처</Text>
+        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{sourceWord(state.dataSource)}</Text>
       </View>
       <View style={[styles.sourcePill, { borderColor: sourceColor }]}><Text style={[styles.sourcePillText, { color: sourceColor }]}>{state.dataSource === "SERVER_STREAM" ? "SERVER" : state.dataSource === "LOCAL_FALLBACK" ? "LOCAL" : "CHECK"}</Text></View>
     </View>

@@ -26,7 +26,7 @@ test("PAPER header fails closed and never reads green without a verified source"
   assert.equal(buildPaperFieldHeader(paper({ status: "PAUSED" })).tone, "dim");
   const idle = buildPaperFieldHeader(paper());
   assert.match(idle.headline, /체결이 없습니다/);
-  assert.equal(idle.facts.find((f) => f.label === "FILLED CYCLES").value, "0");
+  assert.equal(idle.facts.find((f) => f.label === "체결 사이클").value, "0");
   for (const source of ["PROJECTION_ABSENT", "PROJECTION_EMPTY", "LOCAL_FALLBACK"]) assert.equal(buildPaperFieldHeader(paper({ dataSource: source })).tone, "amber");
   assert.equal(buildPaperFieldHeader(paper({ performance: { ...perf, filledCycles: 3 } })).headline, "PAPER 실행 중");
 });
@@ -116,4 +116,20 @@ test("PAPER body does not repeat the header status band and keeps the read-only 
 test("More title carries the still contour mark", () => {
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/moreMenuView.tsx"), "utf8");
   assert.match(view, /<ContourCore decisionCount=\{null\} reducedMotion size=\{34\} testID="more-contour"/);
+});
+
+test("primary tabs speak plain Korean and never lead with a raw exception", () => {
+  const read = (file) => fs.readFileSync(path.join(root, "apps/mobile/src", file), "utf8");
+  const home = read("homeView.tsx");
+  assert.match(home, /"PAPER 자산 · 서버"/);
+  assert.match(home, /총 손익 \{signedMoney\(totalPnl\)\}/);
+  const paper = read("paperLearningMonitorView.tsx");
+  for (const label of ["자산", "총 손익", "위험", "학습"]) assert.match(paper, new RegExp(`label: "${label}"`));
+  assert.match(paper, />데이터 출처</);
+  const live = read("liveReadinessMonitorView.tsx");
+  assert.match(live, /서버에서 LIVE 준비도를 받지 못했습니다/);
+  assert.match(live, /testID="live-ready-unavailable-reason">오류 내용: \{unavailableReason\}/);
+  const offline = buildLiveFieldHeader(null, "Property 'structuredClone' doesn't exist");
+  assert.doesNotMatch(offline.detail, /structuredClone/);
+  assert.equal(offline.facts[0].label, "실거래 권한");
 });
