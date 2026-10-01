@@ -1907,4 +1907,10 @@ current_mobile_home_plain:
   branch: claude/nusa-repository-j93sd8-home-below
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are PAPER and More
+current_mobile_more_groups:
+  work_order: WO-UI-20261001-MORE-GROUPS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-more-renewal
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slice is the PAPER tab
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
