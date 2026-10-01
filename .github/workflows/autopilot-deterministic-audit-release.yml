@@ -316,6 +316,34 @@ jobs:
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
           test "$main" = "$AUDITED_BASE"
 
+      - name: Wait for protected-branch authorization propagation
+        env:
+          GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
+          AUTH_CONTEXT: nusa/release-authorized
+        run: |
+          set -euo pipefail
+          # GitHub can accept and expose an App-bound commit status before branch
+          # protection has indexed it. Wait a bounded interval; each poll keeps the
+          # immutable PR/head/base binding fail-closed.
+          for poll in $(seq 1 10); do
+            pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+            main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            test "$(jq -r '.state' <<<"$pr")" = "open"
+            test "$(jq -r '.draft // false' <<<"$pr")" = "false"
+            test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
+            test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+            test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
+            test "$main" = "$AUDITED_BASE"
+            status="$(gh api "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses" --jq '[.[] | select(.context == "nusa/release-authorized") | select(.state == "success")] | sort_by(.id) | last // empty')"
+            if [ -n "$status" ]; then
+              echo "Waiting for protected-branch evaluation to observe $AUTH_CONTEXT (poll $poll/10)."
+              sleep 3
+              continue
+            fi
+            echo "::error::Exact-head release authorization disappeared before protected-branch evaluation."
+            exit 1
+          done
+
       - name: Canonical expected-head merge
         id: merge
         env:

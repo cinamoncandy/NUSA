@@ -1,0 +1,35 @@
+id: WO-PAPER-20261001-DAILY-LOSS-STREAK
+title: "Scope the PAPER consecutive-loss streak to the current UTC trading day"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-daily-loss-streak
+authority_impact: paper_risk_policy
+owner_approval: "Owner chose option 1 (daily reset) in session on 2026-10-01 after the diagnosis below."
+objective: "Production /health on 2026-10-01 showed decisionCount 109746, paperOrderCount 0 and lastPaperDecisionOutcome REJECTED:PAPER_RISK_REJECT:CONSECUTIVE_LOSS_LIMIT. The canonical cloud risk gateway counted consecutive losing sells across the entire persisted PAPER history with no reset, so after three losses no order could ever run to produce the winning sell that clears the streak: a permanent stop of PAPER trading."
+scope:
+  - "apps/cloud/src/cloudPaperCanonicalRiskGateway.ts realizedLossState: the consecutive-loss streak counts only completed sells filled on the current UTC day (same day function as the daily realized-loss limit)."
+  - "Requalification pin updated to the new exact source blob with an assertion for the day-scoped streak."
+  - "Module qualification registry (moduleQualificationV1.ts) RISK blob updated to the same exact source; owner explicitly approved this registry update in session on 2026-10-01."
+unchanged:
+  - "maxConsecutiveLosses stays 3; the full CLOUD_PAPER_RISK_LIMITS envelope is asserted unchanged."
+  - "An unmatched or oversized sell still halts with RECONCILIATION_FAILED (fail closed)."
+  - "Daily loss, drawdown, notional, rate, streak-side and every other limit are untouched."
+  - "Desktop paperRiskState.computeConsecutiveLossCount is a separate domain and is not changed."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  scope: PAPER_ONLY
+evidence:
+  package: .aipos/evidence/WO-PAPER-20261001-DAILY-LOSS-STREAK.md
+  source_commit: 51f7ba6555b1306298eff11d9f408ef1cb82a1f1
+  risk_source_blob: 36526fb630290a11fde773c7be48af06c7bdab39
+verification_commands:
+  - pnpm run build
+  - node --test tests/cloud-paper-daily-loss-streak.test.js tests/cloud-paper-cancelled-fill-risk.test.js
+  - node --test dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.requalification.test.js
+  - pnpm run validate
+  - node scripts/run-tests-isolated.js
+residual: "Whether today's own losing sells also exist is unknown until the next deploy; if three occur today the limit still (correctly) stops PAPER trading until the next UTC day."
