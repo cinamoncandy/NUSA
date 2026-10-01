@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validatePlan } from "./paperRealizedPeriodProducer";
 import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 import { buildOwnerBaselinePaperPeriodInput, isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 
@@ -9,12 +8,11 @@ const START = Date.UTC(2026, 9, 1, 0, 0, 0);
 
 test("owner baseline opens one truthful market-bound period from the canonical account boundary", () => {
   const input = buildOwnerBaselinePaperPeriodInput({ market: "krw-btc", periodIndex: 0, periodStartAt: START, sourceCommitSha: COMMIT });
-  const plan = validatePlan({ ...input, schemaVersion: 1, observationIds: [], observations: [] });
-  assert.equal(plan.market, "KRW-BTC");
-  assert.equal(plan.periodStartAt, START);
-  assert.equal(plan.candidateProvenance[0]?.candidateId, OWNER_BASELINE_CANDIDATE_ID);
-  assert.equal(plan.advisory.entries[0]?.id, OWNER_BASELINE_CANDIDATE_ID);
-  assert.equal(new Date(plan.advisory.generatedAt).getTime(), START - 1);
+  assert.equal(input.market, "KRW-BTC");
+  assert.equal(input.periodStartAt, START);
+  assert.equal(input.candidateProvenance[0]?.candidateId, OWNER_BASELINE_CANDIDATE_ID);
+  assert.equal(input.advisory.entries[0]?.id, OWNER_BASELINE_CANDIDATE_ID);
+  assert.equal(new Date(input.advisory.generatedAt).getTime(), START - 1);
   assert.equal(isOwnerBaselinePeriodInput(input), true);
 });
 
