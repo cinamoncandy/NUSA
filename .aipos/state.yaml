@@ -220,11 +220,11 @@ current_paper_owner_baseline_period:
   pull_request: 2419
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: fix/paper-owner-baseline-period
-  base_sha: e6e3293f5cb54962c7d2a52e85a085470a45f61c
+  base_sha: 6b100d5e4805d89a43fd0a43270f0f94e4a1732f
   authority_impact: none
-  first_broken_transition: invalid_account_updatedAt_to_owner_baseline_period_open
-  scope: "Reject non-Unix account timestamps before the PAPER-only owner baseline period is opened; no synthetic timestamp, order, or authority change."
-  remaining: review_remediation_for_baseline_rollover_lineage_replacement_and_observation_bound_then_fresh_exact_head_CI_Audit_Release
+  first_broken_transition: fresh_exact_head_CI
+  scope: "Fail close invalid PAPER owner-baseline period admission, preserve the first non-fill observation, and route qualified-challenger replacement through the canonical owner-baseline-only retirement path; no synthetic timestamp, order, or authority change."
+  remaining: fresh_exact_head_CI_then_Audit_Release_merge_then_exact_main_Oracle_PAPER_runtime_evidence
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_capital_10000_account:
   work_order: WO-PAPER-20260929-CAPITAL-10000-ACCOUNT

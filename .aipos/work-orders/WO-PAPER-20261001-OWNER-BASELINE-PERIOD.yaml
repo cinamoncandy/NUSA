@@ -4,7 +4,7 @@ status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_sha: e6e3293f5cb54962c7d2a52e85a085470a45f61c
+base_sha: 6b100d5e4805d89a43fd0a43270f0f94e4a1732f
 implementation_branch: fix/paper-owner-baseline-period
 pull_request: 2419
 authority_impact: none
@@ -32,7 +32,8 @@ verification_commands:
 review_remediation:
   - "Baseline admission now requires exactly one configured market and an exact source commit; malformed identity and multi-market fallback fail closed."
   - "Baseline period admission also covers no snapshot, non-deployable Research, and Governance-wait outcomes."
-  - "Remaining review findings require a baseline-specific rollover/evidence lifecycle before a safe release: binding-day alignment, non-fill observation bound, qualified-challenger replacement, and no-Research-lineage rollover handling."
+  - "Baseline-specific rollover now retains its first non-fill observation, so observation-required realization cannot discard all evidence before bounded sampling begins."
+  - "Qualified-challenger replacement now reaches the canonical owner-baseline-only retirement path through the production runtime adapter; no Research lineage rollover is created."
 known_environment_limit:
   - "The actual PAPER runtime harness uses child SIGTERM. On Windows this is forceful rather than POSIX-graceful and can leave the SQLite writer lease until expiry; Linux CI and Oracle runtime remain the canonical graceful-shutdown evidence."
 remaining: "Fresh exact-head CI, independent Audit, canonical Release, merge, and exact-main Linux/Oracle PAPER runtime evidence."

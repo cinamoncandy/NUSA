@@ -95,6 +95,7 @@ const MAXIMUM_OBSERVATIONS = 1_024;
 const NON_FILL_SAMPLE_INTERVAL = 64;
 function shouldPersistObservation(observation: PaperRuntimeObservation, existingCount: number): boolean {
   if (observation.status === "FILLED") return true;
+  if (existingCount === 0) return true;
   if (existingCount >= MAXIMUM_OBSERVATIONS - 1) return false;
   let hash = 0;
   for (const char of observation.observationId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
