@@ -32,10 +32,16 @@ export interface CandidateFamilyMembershipPort {
   requireMembership(strategyId: string, version: string, familyId: string): unknown;
 }
 
+export interface CurrentResearchDatasetIdentityPort {
+  currentDataFingerprint(datasetId: string): string | null;
+}
+
 export interface CandidatePromotionRuntimeOptions {
   readonly repository: CandidatePromotionRepository;
   readonly evaluationLedger: ResearchEvaluationLedger;
   readonly familyMembership: CandidateFamilyMembershipPort;
+  /** Read-only canonical dataset-owner identity. Missing/unavailable identity must fail promotion closed. */
+  readonly currentDatasetIdentity?: CurrentResearchDatasetIdentityPort;
   readonly ownerAuthorization?: OwnerAuthorizationPort;
   /** @deprecated A string allow-list is not an authentication boundary and cannot authorize promotion. */
   readonly ownerActorRefs?: readonly string[];
@@ -121,6 +127,16 @@ export class CandidatePromotionRuntime {
         evidence.costEvidence.datasetId !== evidence.provenance.datasetId
         || evidence.costEvidence.datasetContentSha256 !== evidence.provenance.datasetContentSha256
       )) return { eligible: false, reason: "COST_EVIDENCE_PROVENANCE_MISMATCH" };
+      const datasetId = evidence.provenance?.datasetId ?? evidence.costEvidence.datasetId;
+      const evaluatedDataFingerprint = (evidence.provenance?.datasetContentSha256 ?? evidence.costEvidence.datasetContentSha256).trim().toLowerCase();
+      let currentDataFingerprint: string | null = null;
+      try {
+        currentDataFingerprint = this.options.currentDatasetIdentity?.currentDataFingerprint(datasetId)?.trim().toLowerCase() ?? null;
+      } catch {
+        return { eligible: false, reason: "CURRENT_DATA_FINGERPRINT_UNAVAILABLE" };
+      }
+      if (currentDataFingerprint == null || !/^[a-f0-9]{64}$/.test(currentDataFingerprint)) return { eligible: false, reason: "CURRENT_DATA_FINGERPRINT_UNAVAILABLE" };
+      if (currentDataFingerprint !== evaluatedDataFingerprint) return { eligible: false, reason: "STALE_DATA_FINGERPRINT_MISMATCH" };
       if (typeof evidence.challenger.metrics.costAdjustedReturn !== "number" || !Number.isFinite(evidence.challenger.metrics.costAdjustedReturn)) return { eligible: false, reason: "COST_ADJUSTED_RETURN_MISSING" };
       if (Math.abs(evidence.costEvidence.netReturn - evidence.challenger.metrics.costAdjustedReturn) > 1e-12) return { eligible: false, reason: "COST_EVIDENCE_RETURN_MISMATCH" };
       if (!evidence.fillModelVersion || !evidence.feeModelVersion || !evidence.slippageModelVersion) return { eligible: false, reason: "COST_MODEL_MISSING" };
