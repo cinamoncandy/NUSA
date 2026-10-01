@@ -1876,3 +1876,10 @@ current_mobile_fast_startup:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_daily_loss_streak:
+  work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-daily-loss-streak
+  authority_impact: paper_risk_policy
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-deploy_then-health-recheck
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
