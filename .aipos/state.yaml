@@ -50,11 +50,11 @@ current_issue_2017_component_health:
 current_issue_2118_ci_saturation_wip:
   work_order: WO-ISSUE-2118-CI-SATURATION-WIP
   issue: 2118
-  status: AUTOPILOT_INCREMENT_IMPLEMENTED_PENDING_WORKFLOW_VALIDATION
-  base_sha: 408432cf1f2860d9927fa891e2f2e510814b9723
-  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution; legacy ciUtilization remains the compatibility fallback."
-  validation: "Not run locally per delegated-validation shared-host guard; Autopilot publish workflow must run the recorded heavy gates on separate hardware."
-  remaining: "Workflow validation and publication, then exact-head CI before Audit/Release; current baseline and after-change p50/p95 measurement remain later increments."
+  status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  base_sha: 08dd953aee7ea3db49993464a2244eca6c41e3ac
+  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP; legacy ciUtilization remains the compatibility fallback."
+  validation: "Prior exact-head CI passed; review repair adds minimum-WIP contention attribution coverage and corrects recovery metadata. Fresh exact-head CI is required; heavy local validation remains prohibited on the shared 1 GB PAPER host."
+  remaining: "Fresh exact-head CI, independent Audit, and canonical Release; current baseline and after-change p50/p95 measurement remain later increments."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER

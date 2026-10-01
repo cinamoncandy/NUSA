@@ -69,6 +69,17 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     });
   }
 
+  if (pressureHigh) {
+    return Object.freeze({
+      action: "HOLD",
+      recommendedWip: evidence.currentWip,
+      reason: ciSaturationHigh
+        ? "verified-ci-saturation-pressure-at-minimum-wip"
+        : "verified-contention-or-capacity-pressure-at-minimum-wip",
+      mutationAllowed: false,
+    });
+  }
+
   const headroomVerified =
     evidence.throughputTrend > 0 &&
     evidence.conflictRate <= 0.05 &&
