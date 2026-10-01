@@ -305,3 +305,71 @@ test("retry exhaustion remains bounded and stale receipts never pass", async () 
   }), (error) => error?.classification === "worker_receipt_stale");
 });
 
+
+test("runtime proof self-heal controller classifies only bounded recoverable failures", () => {
+  const healer = fs.readFileSync(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs"), "utf8");
+  for (const marker of ["worker_unreachable", "worker_receipt_stale", "proof_not_scheduled", "proof_scheduled_late", "head_mismatch_failed_closed", "SCHEDULED_RECEIPT_HEAD_INVALID"]) assert.equal(healer.includes(marker), true, marker);
+  assert.equal(healer.includes("auth_failed_closed"), false);
+  assert.match(healer, /maxAttempts\s*>\s*20/);
+});
+
+test("runtime proof never treats an un-deployed pull request as Worker acceptance", () => {
+  assert.equal(workflow.includes("github.event_name != 'pull_request'"), true);
+});
+
+test("runtime proof self-heal retries a recoverable deployed receipt exactly once before success", async () => {
+  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href);
+  const evidence = [
+    { classification: "proof_invalid", reasonCode: "SCHEDULED_RECEIPT_HEAD_INVALID" },
+    { status: "PASS", proofStatus: "PROOF_FRESH" },
+  ];
+  let verifications = 0;
+  let waits = 0;
+  const result = await healer.runSelfHeal({
+    verify: async () => (++verifications === 1 ? 1 : 0),
+    wait: async () => { waits += 1; },
+    readEvidence: () => evidence.shift() ?? null,
+  });
+  assert.deepEqual(result, { status: "VERIFIED", attempts: 2 });
+  assert.equal(waits, 1);
+});
+
+
+test("runtime proof self-heal leaves margin beyond one five-minute scheduler interval", async () => {
+  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href + "?margin=" + Date.now());
+  assert.equal(fs.readFileSync(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs"), "utf8").includes("?? 14"), true);
+});
+
+test("runtime proof self-heal suppresses stale main after head mismatch", async () => {
+  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href + "?stale=" + Date.now());
+  const previousSha = process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA;
+  const previousBranch = process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH;
+  process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA = "a".repeat(40);
+  process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH = "main";
+  try {
+    const result = await healer.runSelfHeal({
+      verify: async () => 1,
+      wait: async () => {},
+      readEvidence: () => ({ classification: "head_mismatch_failed_closed", reasonCode: "HEAD_MISMATCH_FAILED_CLOSED" }),
+      readCurrentMain: async () => "b".repeat(40),
+      expectedSourceSha: "a".repeat(40),
+      expectedSourceBranch: "main",
+    });
+    assert.deepEqual(result, { status: "STALE_SOURCE_SUPPRESSED", attempts: 1, reason: "MAIN_ADVANCED" });
+  } finally {
+    if (previousSha === undefined) delete process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA;
+    else process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA = previousSha;
+    if (previousBranch === undefined) delete process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH;
+    else process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH = previousBranch;
+  }
+});
+
+test("runtime proof self-heal does not call insufficient evidence verified", async () => {
+  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href + "?insufficient=" + Date.now());
+  const result = await healer.runSelfHeal({
+    verify: async () => 0,
+    wait: async () => {},
+    readEvidence: () => ({ status: "INSUFFICIENT_EVIDENCE", proofStatus: "INSUFFICIENT_EVIDENCE" }),
+  });
+  assert.deepEqual(result, { status: "INSUFFICIENT_EVIDENCE", attempts: 1, reason: "INSUFFICIENT_EVIDENCE" });
+});
