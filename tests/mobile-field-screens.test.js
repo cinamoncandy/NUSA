@@ -112,3 +112,8 @@ test("PAPER body does not repeat the header status band and keeps the read-only 
   const os = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceOs.tsx"), "utf8");
   assert.doesNotMatch(os, /metricStrip: \{[^}]*borderRadius/);
 });
+
+test("More title carries the still contour mark", () => {
+  const view = fs.readFileSync(path.join(root, "apps/mobile/src/moreMenuView.tsx"), "utf8");
+  assert.match(view, /<ContourCore decisionCount=\{null\} reducedMotion size=\{34\} testID="more-contour"/);
+});
