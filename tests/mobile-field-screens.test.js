@@ -97,12 +97,10 @@ test("header pose follows the HOME grammar and never collapses a healthy tab", (
   assert.match(header, /const sealed = model\.eyebrow === "LIVE" && model\.statusWord === "SEALED"/);
 });
 
-test("PAPER and LIVE headers draw the HOME contour core instead of the old nebula", () => {
+test("PAPER and LIVE headers draw the HOME attractor, still and tinted by state", () => {
   const header = fs.readFileSync(path.join(root, "apps/mobile/src/fieldHeader.tsx"), "utf8");
-  assert.match(header, /<ContourCore decisionCount=\{null\} reducedMotion size=\{CONTOUR_SIZE\}/);
-  assert.doesNotMatch(header, /buildFieldGeometry|buildStrandPaths/);
-  const core = fs.readFileSync(path.join(root, "apps/mobile/src/contourCore.tsx"), "utf8");
-  assert.match(core, /size: stage = SIZE, testID = "home-contour-core"/);
+  assert.match(header, /<AttractorField decisionCount=\{null\} fillCount=\{null\} tone=\{model\.tone === "red" \? "halt"/);
+  assert.doesNotMatch(header, /buildFieldGeometry|buildStrandPaths|ContourCore/);
 });
 
 test("PAPER body does not repeat the header status band and keeps the read-only marker", () => {
@@ -113,7 +111,7 @@ test("PAPER body does not repeat the header status band and keeps the read-only 
   assert.doesNotMatch(os, /metricStrip: \{[^}]*borderRadius/);
 });
 
-test("More title carries the still contour mark", () => {
+test("More title carries the still attractor mark", () => {
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/moreMenuView.tsx"), "utf8");
-  assert.match(view, /<ContourCore decisionCount=\{null\} reducedMotion size=\{34\} testID="more-contour"/);
+  assert.match(view, /<AttractorField decisionCount=\{null\} fillCount=\{null\} tone="normal" reducedMotion size=\{34\}/);
 });

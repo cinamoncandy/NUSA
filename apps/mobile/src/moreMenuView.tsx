@@ -3,7 +3,7 @@ import { fieldFonts } from "./fieldFonts";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MORE_DESTINATIONS, type MoreDestination } from "./navigationContract";
 import { fieldPalette } from "./designSystem";
-import { ContourCore } from "./contourCore";
+import { AttractorField } from "./attractorField";
 
 /** Field-style index grouped by what the owner is trying to do; thin rows, no cards. */
 const LABELS: Readonly<Record<MoreDestination, { readonly title: string; readonly hint: string }>> = Object.freeze({
@@ -34,7 +34,7 @@ if (grouped.length !== MORE_DESTINATIONS.length || MORE_DESTINATIONS.some((desti
 export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDestination) => void }>) {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="more-view">
     <View style={styles.titleRow}>
-      <ContourCore decisionCount={null} reducedMotion size={34} testID="more-contour" innerColor={fieldPalette.paper} outerColor={fieldPalette.dim} pulseColor={fieldPalette.paper} coreColor={fieldPalette.text} />
+      <AttractorField decisionCount={null} fillCount={null} tone="normal" reducedMotion size={34} points={900} testID="more-attractor" />
       <Text style={styles.title}>더보기</Text>
     </View>
     {GROUPS.map((group) => <View key={group.title} style={styles.group}>
