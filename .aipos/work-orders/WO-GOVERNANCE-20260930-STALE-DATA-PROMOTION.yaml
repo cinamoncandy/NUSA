@@ -6,6 +6,7 @@ owner: strategy-governance
 repository: cinamoncandy/NUSA
 pull_request: 2344
 base_branch: main
+base_commit: a48711f275e77d23fc2e64b5e97efea8a50cdc34
 objective: "Reject owner promotion when the evaluation dataset fingerprint no longer matches the canonical current dataset identity."
 architecture_impact:
   acknowledged: true
@@ -27,7 +28,7 @@ acceptance:
   - helper evaluator validates required current fingerprint before decision returns
 validation:
   status: LOCAL_PASS_PENDING_EXACT_HEAD_CI
-  commands: "focused Strategy Governance and CandidatePromotionRuntime tests 31/31 PASS; AIPOS PASS; diff check PASS; fresh exact-head CI required"
+  commands: "pnpm run build; focused Strategy Governance and CandidatePromotionRuntime tests 31/31 PASS; pnpm run validate; pnpm run security:gate; AIPOS/architecture/safety validation; diff check PASS; fresh exact-head CI required"
 safety:
   paper_only: true
   liveAuthority: NONE

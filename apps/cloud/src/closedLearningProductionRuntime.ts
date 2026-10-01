@@ -203,6 +203,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     identity: StrategyIdentity;
     validation?: StrategyValidationSummary;
     votes: readonly CommitteeVote[];
+    /** Canonical current dataset identity supplied by the dataset owner. */
+    currentDataFingerprint: string;
   }>): PaperPerformanceGovernanceFeedbackReceipt => {
     const ledgerPerformance = readPaperPerformanceEvidence(input.periodId);
     const adapted = adaptPersistedPaperForwardEvidence(baseHandle.listPaperRealizedPeriods());
@@ -220,6 +222,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       validation: input.validation,
       paper,
       votes: input.votes,
+      currentDataFingerprint: input.currentDataFingerprint,
       ledgerPerformance,
     });
   };

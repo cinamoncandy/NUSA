@@ -23,9 +23,11 @@ current_strategy_governance_stale_data_promotion:
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: fix/governance-stale-evidence-binding
   pull_request: 2344
+  base_sha: a48711f275e77d23fc2e64b5e97efea8a50cdc34
   first_broken_transition: canonical_evaluation_dataset_identity_to_owner_promotion
   authority_impact: none
-  remaining: focused_validation_then_exact_head_CI_then_independent_Audit_then_Release
+  validation: "Rebased onto a48711f; canonical dataset-owner identity now crosses the Closed Learning feedback boundary; pnpm build, 31 focused tests, validate, security gate, and diff check PASS."
+  remaining: exact_head_CI_then_independent_Audit_then_Release
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_release_target_settle:
   work_order: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
