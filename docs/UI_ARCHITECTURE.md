@@ -17,6 +17,12 @@ production-mutation or AI authority.
 
 ## How to ship a redesign
 
+**Owner rule (2026-10-01): every UI/UX change applies to the whole app.** A new visual language,
+component style, motion or copy pattern ships to every tab and screen that shows the same kind of
+thing (NUSA, PAPER, LIVE, More and their detail screens) in the same piece of work. A HOME-only or
+single-tab rollout is not done. If one screen genuinely cannot follow yet, say so in the PR and the
+work order with the reason.
+
 1. Design the screens first (canvas prototype, owner approval).
 2. Build new presenters that consume the **existing** screen models; add screen models for anything a
    presenter currently derives inline (follow `homeFieldInput.ts`).
