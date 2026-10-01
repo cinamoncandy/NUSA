@@ -51,9 +51,14 @@ export interface PersistentExecutionRecord {
   headSha?: string;
   stop?: PersistentExecutionStop;
   resumeCount?: number;
+  /** A repository dispatch is asynchronous; one verified missing-consumer recovery is permitted. */
+  auditDispatchRecoveryCount?: number;
 }
 
 type ExecutionRecord = PersistentExecutionRecord;
+
+/** GitHub repository_dispatch is asynchronous; immediate replays are ordinary materialization lag. */
+export const AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS = 30_000;
 
 export interface PersistentExecutionAcquireRequest {
   dedupeKey: string;
@@ -382,6 +387,7 @@ export class ExecutionCoordinator {
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/handoff-or-acquire") return this.handoffOrAcquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
+    if (url.pathname === "/audit-dispatch-recovery") return this.recoverAuditDispatch(await request.json());
     if (url.pathname === "/release") return this.release(await request.json());
     if (url.pathname === "/complete") return this.complete(await request.json());
     if (url.pathname === "/active-wip/admit") return this.admitActiveWip(await request.json());
@@ -425,6 +431,7 @@ export class ExecutionCoordinator {
         ...(request.provider ? { provider: request.provider } : current?.provider ? { provider: current.provider } : {}),
         ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
         ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
+        ...(current?.auditDispatchRecoveryCount !== undefined ? { auditDispatchRecoveryCount: current.auditDispatchRecoveryCount } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, record }, 201);
@@ -446,6 +453,27 @@ export class ExecutionCoordinator {
     const record: ExecutionRecord = Object.freeze({ ...current, state: "DISPATCHED", updatedAt: Number(request.now) });
     await this.ctx.storage.put("execution", record);
     return json({ updated: true, record });
+  }
+
+  private async recoverAuditDispatch(value: unknown): Promise<Response> {
+    if (!validAcquire(value)) return json({ error: "AUDIT_DISPATCH_RECOVERY_REQUEST_INVALID" }, 400);
+    const request = value;
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<ExecutionRecord>("execution");
+      if (!current || current.dedupeKey !== request.dedupeKey || current.executionId !== request.executionId) return json({ recovered: false, reason: "EXECUTION_LEASE_MISMATCH" }, 409);
+      if (current.state !== "DISPATCHED") return json({ recovered: false, reason: "EXECUTION_NOT_DISPATCHED" }, 409);
+      if ((current.auditDispatchRecoveryCount ?? 0) !== 0) return json({ recovered: false, reason: "AUDIT_DISPATCH_RECOVERY_EXHAUSTED" }, 409);
+      if (request.now < current.updatedAt + AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS) return json({ recovered: false, reason: "AUDIT_DISPATCH_MATERIALIZATION_PENDING" }, 409);
+      const record: ExecutionRecord = Object.freeze({
+        ...current,
+        state: "LEASED",
+        leaseExpiresAt: request.leaseExpiresAt,
+        updatedAt: request.now,
+        auditDispatchRecoveryCount: 1,
+      });
+      await storage.put("execution", record);
+      return json({ recovered: true, record }, 201);
+    });
   }
 
   private async release(value: unknown): Promise<Response> {
@@ -499,6 +527,7 @@ export class ExecutionCoordinator {
         ...(request.provider ? { provider: request.provider } : current?.provider ? { provider: current.provider } : {}),
         ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
         ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
+        ...(current?.auditDispatchRecoveryCount !== undefined ? { auditDispatchRecoveryCount: current.auditDispatchRecoveryCount } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, handoff: false, record }, 201);
@@ -995,6 +1024,15 @@ export async function markPersistentExecutionDispatched(namespace: ExecutionCoor
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/dispatched", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_DISPATCH_RECONCILIATION_FAILED");
+}
+
+export async function recoverPersistentAuditDispatch(namespace: ExecutionCoordinatorNamespace, input: PersistentExecutionAcquireRequest): Promise<{ recovered: boolean; reason?: string }> {
+  const stub = namespace.get(namespace.idFromName(input.dedupeKey));
+  const response = await stub.fetch("https://execution-coordinator/audit-dispatch-recovery", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { recovered?: boolean; reason?: unknown };
+  if (response.status === 201 && body.recovered === true) return { recovered: true };
+  if (response.status === 409 && body.recovered === false) return { recovered: false, reason: typeof body.reason === "string" ? body.reason : "AUDIT_DISPATCH_RECOVERY_REJECTED" };
+  throw new Error("PERSISTENT_AUDIT_DISPATCH_RECOVERY_FAILED");
 }
 
 export async function releasePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {
