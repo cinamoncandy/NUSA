@@ -1801,6 +1801,17 @@ current_pr1991_review_hardening:
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_zero_credit_mode:
+  work_order: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
+  status: IN_PROGRESS
+  pull_request: 2393
+  branch: fix/autopilot-zero-credit-mode
+  base_sha: 61aaa2c47dcd6d92d15a39eba627a11542f2bfef
+  implementation_code_head: fa9b7f682d5c0279a8d1180dfa30b0416eda227e
+  objective: "Continue deterministic Autopilot work without paid coding-provider fallback while minimizing Cloudflare idle spend."
+  validation: "Reconciled unchanged zero-credit functional delta onto protected main 61aaa2c47dcd6d92d15a39eba627a11542f2bfef with functional overlap 0; fresh exact-head CI is required on the new branch head."
+  next: "Fresh exact-head CI -> independent Audit -> nusa/release-authorized -> canonical merge -> exact-main Cloudflare deploy -> health zeroCreditMode=ENFORCED -> ZERO_CREDIT runtime proof."
+
 current_paper_orderbook_snapshot_refresh:
   work_order: WO-PAPER-ORDERBOOK-SNAPSHOT-REFRESH
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI

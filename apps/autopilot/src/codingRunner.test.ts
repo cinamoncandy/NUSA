@@ -906,6 +906,33 @@ describe("coding runner", () => {
     assert.equal(result.reason, "ai-coding-engine-not-configured");
   });
 
+  it("zero-credit mode disables a configured external coding engine without spending a call", async () => {
+    let paidEngineCalls = 0;
+    const result = await executeCodingRunner(request, { ...runtimeEnv, NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "true" }, async (url) => {
+      if (url === runtimeEnv.NUSA_AI_CODING_ENDPOINT) { paidEngineCalls += 1; return response(200, { patch }); }
+      return verifiedGithubFetch(url);
+    });
+    assert.equal(result.status, "INTERFACE_READY");
+    assert.equal(result.reason, "zero-credit-paid-engine-disabled");
+    assert.equal(paidEngineCalls, 0);
+  });
+
+  it("zero-credit mode never falls back to GitHub Models while free Workers AI is waiting", async () => {
+    let githubModelsCalls = 0;
+    let workersAiCalls = 0;
+    const waitUntil = 20_000;
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "true", AI: { async run() { workersAiCalls += 1; return { response: { patch } }; } } }, async (url) => {
+      if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+      return verifiedGithubFetch(url);
+    }, undefined, undefined, { now: () => 10_000, providerWaitUntil: async () => waitUntil });
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WAITING_PROVIDER_CAPACITY");
+    assert.equal(githubModelsCalls, 0);
+    assert.equal(workersAiCalls, 0);
+    assert.equal(result.nextRetryAt, waitUntil);
+    assert.equal(result.fallbackProvider, undefined);
+  });
+
   it("falls back from the deprecated llama 3.1 model to the active JSON-schema default", async () => {
     const calls: string[] = [];
     const ai: WorkersAiBinding = {
