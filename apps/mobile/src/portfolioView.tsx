@@ -6,6 +6,7 @@ import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildPortfolioViewModel, type PortfolioAccountResponse, type PortfolioViewModel } from "./portfolioViewModel";
 import type { UpbitReadOnlyAccountSnapshot, UpbitReadOnlyConnectionStatus } from "./upbitReadOnlyAccount";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
+import { isLocalPaperLedgerDisplayable } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
 
@@ -39,7 +40,7 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
-  const localPaperActive = snapshot === null && isLocalPaperActive();
+  const localPaperActive = snapshot === null && isLocalPaperActive() && isLocalPaperLedgerDisplayable();
   const localTradingSnapshot = useLocalPaperSnapshot();
   const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
   const localPortfolio = localPaperActive ? buildLocalPortfolio(localTradingSnapshot, localMarkPrice) : null;

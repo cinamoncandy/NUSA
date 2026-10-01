@@ -52,8 +52,8 @@ export function buildDecisionRings(input: DecisionRingsInput): DecisionRings {
   const count = decisions == null ? "—" : decisions.toLocaleString("ko-KR");
   const headline = state === "UNKNOWN" ? "판단 기록을 아직 받지 못했습니다" : `${count}번 판단`;
   const detail =
-    state === "UNKNOWN" ? "Cloud PAPER 상태가 연결되면 판단이 나선으로 쌓입니다." :
-    state === "EMPTY" ? "아직 판단이 없습니다. 시세를 받으면 첫 판단이 가운데에 생깁니다." :
+    state === "UNKNOWN" ? "Cloud PAPER 상태가 연결되면 판단 횟수가 표시됩니다." :
+    state === "EMPTY" ? "아직 판단이 없습니다. 판단할 때마다 고리가 한 번 정렬됩니다." :
     state === "WAITING" ? "아직 주문하지 않았습니다. 신호가 약할 때 기다리는 것도 판단입니다." :
     `그중 PAPER 주문 ${(orders ?? 0).toLocaleString("ko-KR")}건이 나갔습니다.`;
   return Object.freeze({

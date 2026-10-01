@@ -1,4 +1,14 @@
 version: 1
+current_autopilot_runtime_proof_self_heal:
+  work_order: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY
+  pull_request: 2434
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  base_sha: e6e3293f5cb54962c7d2a52e85a085470a45f61c
+  first_broken_transition: un-deployed_PR_runtime_proof_to_deployed_Worker_observation
+  scope: "Use the existing scheduled receipt recovery in the deployed Worker; prevent a pull-request revision from retrying or judging a Worker revision it cannot deploy."
+  validation: "preflight, TypeScript build, scheduled receipt recovery tests 11/11, runtime-proof controller tests 17/17, AIPOS YAML, and diff check PASS. No Cloudflare acceptance is claimed before an exact-main deployment."
+  remaining: latest_main_reconvergence_exact_head_CI_Audit_Release_merge_and_deployed_runtime_proof
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_audit_dispatch_recovery:
   work_order: WO-AUTOPILOT-20261001-AUDIT-DISPATCH-RECOVERY
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
@@ -1868,4 +1878,49 @@ current_mobile_paper_tabs:
   branch: claude/nusa-repository-j93sd8-paper-tabs
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; renewal slices done for HOME, LIVE, More and PAPER tab chrome
+current_mobile_live_gates:
+  work_order: WO-UI-20261001-LIVE-GATES
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-live-redesign
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are HOME below the rings, PAPER and More
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_fast_startup:
+  work_order: WO-UI-20261001-FAST-STARTUP
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-fast-startup
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_daily_loss_streak:
+  work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-daily-loss-streak
+  authority_impact: paper_risk_policy
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-deploy_then-health-recheck
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_recovering_quiet:
+  work_order: WO-UI-20261001-RECOVERING-QUIET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-recovering-home
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_contour_core:
+  work_order: WO-UI-20261001-CONTOUR-CORE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-contour-core
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+current_mobile_home_plain:
+  work_order: WO-UI-20261001-HOME-PLAIN
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-home-below
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are PAPER and More
+current_mobile_more_groups:
+  work_order: WO-UI-20261001-MORE-GROUPS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-more-renewal
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slice is the PAPER tab
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
