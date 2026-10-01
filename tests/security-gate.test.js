@@ -26,10 +26,17 @@ test("lockfile contains integrity metadata for every resolved package", () => {
 test("lockfile pins the patched versions for audited high advisories", () => {
   const packages = parseLockfile().packages;
   assert.ok(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.8"));
-  assert.ok(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.18"));
   assert.equal(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.4"), false);
   assert.equal(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.6"), false);
+  for (const [name, fixed, vulnerable] of [["brace-expansion", "1.1.21", "1.1.18"], ["brace-expansion", "2.1.7", "2.1.4"], ["brace-expansion", "5.0.12", "5.0.9"]]) {
+    assert.ok(packages.some((item) => item.name === name && item.version === fixed), `${name} ${fixed} is pinned`);
+    assert.equal(packages.some((item) => item.name === name && item.version === vulnerable), false, `${name} ${vulnerable} is gone`);
+  }
   assert.equal(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.17"), false);
+  for (const [name, fixed, vulnerable] of [["undici", "7.29.1", "7.29.0"], ["undici", "6.28.1", "6.28.0"], ["joi", "17.13.7", "17.13.6"]]) {
+    assert.ok(packages.some((item) => item.name === name && item.version === fixed), `${name} ${fixed} is pinned`);
+    assert.equal(packages.some((item) => item.name === name && item.version === vulnerable), false, `${name} ${vulnerable} is gone`);
+  }
 });
 
 test("peer suffix normalization removes every trailing peer group", () => {

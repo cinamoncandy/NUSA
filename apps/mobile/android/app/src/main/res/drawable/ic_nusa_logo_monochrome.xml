@@ -3,12 +3,6 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- NUSA Intelligence Field mark: amber core inside an orbit of five subsystem arcs (market, axiom, paper, governance, risk). Monochrome. -->
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.4" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M56.97,35.23A19,19 0,0 1,70.93,45.37" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.4" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M72.77,51.03A19,19 0,0 1,67.44,67.44" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.4" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M62.63,70.93A19,19 0,0 1,45.37,70.93" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.4" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M40.56,67.44A19,19 0,0 1,35.23,51.03" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.4" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M37.07,45.37A19,19 0,0 1,51.03,35.23" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.6" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M54,45.8L62.2,54L54,62.2L45.8,54Z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M51.7,54a2.3,2.3 0,1 0,4.6,0a2.3,2.3 0,1 0,-4.6,0z" />
+    <!-- NUSA N monogram mark: amber N on deep navy. Monochrome. -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M36,76 L36,32 L45,32 L63,58 L63,32 L72,32 L72,76 L63,76 L45,50 L45,76Z" />
 </vector>

@@ -9,6 +9,11 @@ export interface ConcurrencyEvidence {
   readonly conflictRate: number;
   readonly reworkRate: number;
   readonly ciUtilization: number;
+  /**
+   * Measured CI saturation across the evidence window, from 0 (idle) to 1 (fully saturated).
+   * Optional while legacy producers migrate; ciUtilization remains the fail-closed fallback.
+   */
+  readonly ciSaturation?: number;
 }
 
 export type ConcurrencyAction = "HOLD" | "INCREASE_BY_ONE" | "DECREASE_BY_ONE";
@@ -36,7 +41,8 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     finite(evidence.throughputTrend) &&
     boundedRate(evidence.conflictRate) &&
     boundedRate(evidence.reworkRate) &&
-    boundedRate(evidence.ciUtilization);
+    boundedRate(evidence.ciUtilization) &&
+    (evidence.ciSaturation === undefined || boundedRate(evidence.ciSaturation));
 
   if (!valid) {
     return Object.freeze({
@@ -47,14 +53,18 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     });
   }
 
+  const ciSaturation = evidence.ciSaturation ?? evidence.ciUtilization;
+  const ciSaturationHigh = ciSaturation > 0.85;
   const pressureHigh =
-    evidence.conflictRate > 0.15 || evidence.reworkRate > 0.15 || evidence.ciUtilization > 0.85;
+    evidence.conflictRate > 0.15 || evidence.reworkRate > 0.15 || ciSaturationHigh;
 
   if (pressureHigh && evidence.currentWip > 1) {
     return Object.freeze({
       action: "DECREASE_BY_ONE",
       recommendedWip: evidence.currentWip - 1,
-      reason: "verified-contention-or-capacity-pressure",
+      reason: ciSaturationHigh
+        ? "verified-ci-saturation-pressure"
+        : "verified-contention-or-capacity-pressure",
       mutationAllowed: false,
     });
   }
@@ -63,7 +73,7 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     evidence.throughputTrend > 0 &&
     evidence.conflictRate <= 0.05 &&
     evidence.reworkRate <= 0.05 &&
-    evidence.ciUtilization <= 0.7;
+    ciSaturation <= 0.7;
 
   if (headroomVerified && evidence.currentWip < evidence.maxWip) {
     return Object.freeze({

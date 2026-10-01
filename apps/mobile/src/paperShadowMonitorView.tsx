@@ -30,7 +30,7 @@ export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, real
   const supervisorEndpoint = getConfiguredPaperEndpoint() ?? "";
   return <View style={styles.wrapper}>
     <View style={styles.switcher} accessibilityRole="tablist" testID="paper-shadow-monitor-switcher">
-      {MODES.map((item) => <Pressable key={item} accessibilityLabel={`${modeLabel(item)} read only monitor`} accessibilityRole="tab" accessibilityState={{ selected: mode === item }} hitSlop={{ top: 6, bottom: 6 }} onPress={() => setMode(item)} style={[styles.switch, { borderBottomColor: mode === item ? fieldPalette.focus : "transparent" }]} testID={`monitor-mode-${item.toLowerCase()}`}><Text style={[styles.switchText, { color: mode === item ? fieldPalette.text : fieldPalette.muted }]}>{shortLabel(item)}</Text></Pressable>)}
+      {MODES.map((item) => <Pressable key={item} accessibilityLabel={`${modeLabel(item)} read only monitor`} accessibilityRole="tab" accessibilityState={{ selected: mode === item }} hitSlop={{ top: 6, bottom: 6 }} onPress={() => setMode(item)} style={[styles.switch, { borderBottomColor: mode === item ? fieldPalette.accent : "transparent" }]} testID={`monitor-mode-${item.toLowerCase()}`}><Text style={[styles.switchText, { color: mode === item ? fieldPalette.text : fieldPalette.muted }]}>{shortLabel(item)}</Text></Pressable>)}
       <Text style={styles.readOnly}>READ ONLY</Text>
     </View>
     {mode === "PAPER" ? <PaperLearningMonitorView state={paper} refreshing={refreshing} onRefresh={onRefresh} onClose={onClose} />

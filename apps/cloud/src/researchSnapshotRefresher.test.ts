@@ -9,22 +9,38 @@ import { RESEARCH_REFRESH_RECORD_FILE, ResearchSnapshotRefresher } from "./resea
 function harness(startAt = 1_000) {
   const dir = mkdtempSync(path.join(tmpdir(), "nusa-refresh-"));
   let now = startAt;
-  const spawned: Array<{ command: string; args: readonly string[]; child: EventEmitter & { kill: () => boolean; killed: boolean } }> = [];
+  let free = 900 * 1024 * 1024;
+  const lowered: number[] = [];
+  const spawned: Array<{ command: string; args: readonly string[]; env: NodeJS.ProcessEnv; child: EventEmitter & { pid: number; kill: () => boolean; killed: boolean } }> = [];
   const make = () => new ResearchSnapshotRefresher({
     cloudStateDbPath: path.join(dir, "state.sqlite"),
     cwd: "/opt/nusa/current",
     executable: "/usr/bin/node",
-    env: { NUSA_MODE: "PAPER" },
+    env: { NUSA_MODE: "PAPER", NODE_OPTIONS: "--max-old-space-size=4096 --enable-source-maps" },
     now: () => now,
     minIntervalMs: 100,
-    spawn: (command, args) => {
-      const child = Object.assign(new EventEmitter(), { killed: false, kill() { this.killed = true; return true; } });
-      spawned.push({ command, args, child });
+    freeMemoryBytes: () => free,
+    lowerPriority: (pid) => { lowered.push(pid); },
+    spawn: (command, args, options) => {
+      const child = Object.assign(new EventEmitter(), { pid: 4242, killed: false, kill() { this.killed = true; return true; } });
+      spawned.push({ command, args, env: options.env, child });
       return child as never;
     },
   });
-  return { dir, spawned, make, advance: (ms: number) => { now += ms; } };
+  return { dir, spawned, lowered, make, advance: (ms: number) => { now += ms; }, setFree: (bytes: number) => { free = bytes; } };
 }
+
+test("a refresh never starts when the shared host is low on memory, and is capped and deprioritised when it does", () => {
+  const { spawned, lowered, make, setFree } = harness();
+  const refresher = make();
+  setFree(500 * 1024 * 1024);
+  assert.equal(refresher.requestIfDue(), "LOW_MEMORY");
+  assert.equal(spawned.length, 0);
+  setFree(900 * 1024 * 1024);
+  assert.equal(refresher.requestIfDue(), "STARTED", "a low-memory skip is not counted as an attempt");
+  assert.equal(spawned[0]!.env.NODE_OPTIONS, "--enable-source-maps --max-old-space-size=256", "the whole Research process tree inherits the heap cap");
+  assert.deepEqual(lowered, [4242]);
+});
 
 test("runs the canonical Research entrypoint once and never concurrently", () => {
   const { spawned, make } = harness();

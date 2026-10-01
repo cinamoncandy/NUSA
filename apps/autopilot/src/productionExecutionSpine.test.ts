@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AutopilotDispatchPlan } from "./dispatchPlanner";
-import { prepareProductionExecution } from "./productionExecutionSpine";
+import { prepareProductionExecution, reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
+import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
+import type { CodingRunnerRequest } from "./codingRunner";
 
 const repository = "cinamoncandy/NUSA";
 const sha = "a".repeat(40);
@@ -63,5 +65,44 @@ describe("production execution spine", () => {
     assert.equal(prepared.envelope.liveAuthority, "NONE");
     assert.equal(prepared.envelope.productionMutationAllowed, false);
     assert.equal(prepared.envelope.aiAuthority, "ZERO_AUTHORITY");
+  });
+
+  it("reconciles an exact coding receipt into one deterministic next transition", () => {
+    const prepared = prepareProductionExecution(success, options);
+    assert.ok(prepared);
+    const request = prepared.request;
+    const recorded = createCodingExecutionEvidence({ ...request, kind: "REPOSITORY_AUTOPILOT", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" } as CodingRunnerRequest, {
+      status: "EXECUTION_ACCEPTED",
+      commitSha: "b".repeat(40),
+      pullRequestNumber: 77,
+      pullRequestUrl: "https://github.com/cinamoncandy/NUSA/pull/77",
+    }, 2_000);
+    assert.equal(recorded.status, "RECORDED");
+    if (recorded.status !== "RECORDED") return;
+    assert.equal(reconcileCodingExecutionEvidence(prepared.state, recorded.evidence), "PR_OPEN");
+
+    const missingCommit = createCodingExecutionEvidence({ ...request, kind: "REPOSITORY_AUTOPILOT", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" } as CodingRunnerRequest, {
+      status: "EXECUTION_ACCEPTED",
+      pullRequestNumber: 78,
+      pullRequestUrl: "https://github.com/cinamoncandy/NUSA/pull/78",
+    }, 2_001);
+    assert.equal(missingCommit.status, "RECORDED");
+    if (missingCommit.status === "RECORDED") {
+      assert.equal(reconcileCodingExecutionEvidence(prepared.state, missingCommit.evidence), "CODING_DISPATCHED");
+    }
+
+    const waiting = createCodingExecutionEvidence({ ...request, kind: "REPOSITORY_AUTOPILOT", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" } as CodingRunnerRequest, {
+      status: "WAITING_RATE_LIMIT",
+      reason: "WORKERS_AI_RATE_LIMITED",
+    }, 2_002);
+    assert.equal(waiting.status, "RECORDED");
+    if (waiting.status === "RECORDED") {
+      assert.equal(reconcileCodingExecutionEvidence(prepared.state, waiting.evidence), "IMPLEMENTATION_BLOCKED");
+    }
+
+    assert.throws(() => reconcileCodingExecutionEvidence(prepared.state, {
+      ...recorded.evidence,
+      request: { ...recorded.evidence.request, dedupeKey: "different" },
+    }), /IDENTITY_MISMATCH/);
   });
 });

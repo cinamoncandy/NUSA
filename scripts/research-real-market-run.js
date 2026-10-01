@@ -26,6 +26,7 @@ const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/rese
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { featureFingerprint, validateEvidenceProvenance } = require("../dist/apps/desktop/src/cloud/researchIntegrity.js");
 const { validateResearchCandidateSpecification } = require("../dist/apps/desktop/src/cloud/researchCandidateSpecification.js");
 const { buildInvestmentLearningEvidence, buildInvestmentResearchAttentionPlan, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
 const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
@@ -553,6 +554,35 @@ function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
   return Object.freeze({ market, candles, sourceRequests, freshness, manifest });
 }
 
+function buildResearchUniverseContext(marketDatasets, dataAsOf) {
+  if (!Array.isArray(marketDatasets) || marketDatasets.length !== RESEARCH_MARKETS.length) {
+    throw new Error("research universe requires the complete precommitted market cohort");
+  }
+  const manifests = marketDatasets.map((entry) => entry.manifest);
+  const selectionAt = Math.min(...manifests.map((manifest) => manifest.startOpenTime));
+  const constituents = manifests.map((manifest) => ({
+    market: manifest.market,
+    datasetId: manifest.datasetId,
+    datasetContentSha256: manifest.contentSha256,
+    eligibleFrom: manifest.startOpenTime,
+    evidenceRef: `dataset:${manifest.datasetId}:${manifest.contentSha256}`
+  }));
+  return Object.freeze({
+    selectionMode: "POINT_IN_TIME_UNIVERSE",
+    manifests: Object.freeze(manifests.map((manifest) => Object.freeze({ ...manifest }))),
+    provenance: Object.freeze({
+      schemaVersion: 1,
+      universeId: RESEARCH_MARKET_SET_VERSION,
+      version: RESEARCH_MARKET_SET_VERSION,
+      asOf: selectionAt,
+      availableAt: selectionAt,
+      selectionPolicyId: "precommitted-complete-market-cohort",
+      source: `research-market-set:${RESEARCH_MARKET_SET_VERSION}`,
+      constituents: Object.freeze(constituents.map((constituent) => Object.freeze(constituent)))
+    })
+  });
+}
+
 async function main() {
   const dataAsOf = Date.now();
   const timeline = buildResearchRunTimeline(dataAsOf);
@@ -568,6 +598,7 @@ async function main() {
   if (primaryDataset == null) throw new Error(`primary research market ${MARKET} was not loaded`);
   const { candles, manifest, freshness } = primaryDataset;
   const regimeInputs = marketDatasets.map((entry) => ({ manifest: entry.manifest, candles: entry.candles }));
+  const universeContext = buildResearchUniverseContext(marketDatasets, dataAsOf);
 
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
@@ -618,7 +649,14 @@ async function main() {
       })
     };
   });
-  const provenancePlan = buildResearchRunProvenancePlan({ manifest, hypothesis, timeline, sourceCommitSha, candidates: candidateSeeds });
+  const provenancePlan = buildResearchRunProvenancePlan({
+    manifest,
+    hypothesis,
+    timeline,
+    sourceCommitSha,
+    candidates: candidateSeeds,
+    universeContext
+  });
   const candidateSpecifications = new Map(provenancePlan.candidates.map((candidate) => [candidate.candidateId, candidate.specification]));
   const candidates = provenancePlan.candidates.map((candidate) => ({
     id: candidate.candidateId,
@@ -784,6 +822,32 @@ async function main() {
       hypothesis
     }
   );
+  // Bind qualification inputs to immutable dataset/candidate/source identities before the
+  // existing factory gate consumes them. Only REAL evidence crosses this promotion-safe boundary.
+  const integrityProvenance = provenancePlan.candidates.map((candidate) => {
+    const specification = candidate.specification;
+    const featureIdentity = {
+      featureId: `strategy-input:${candidate.candidateId}`,
+      featureVersion: candidate.lineageId ?? definition.lineageId,
+      datasetFingerprint: manifest.contentSha256,
+      inputCutoff: manifest.endCloseTime,
+      parameters: candidate.parameters
+    };
+    const provenance = {
+      evidenceKind: "REAL",
+      datasetFingerprint: manifest.contentSha256,
+      featureFingerprint: featureFingerprint(featureIdentity),
+      strategyId: candidate.candidateId,
+      strategyVersion: candidate.lineageId ?? definition.lineageId,
+      familyId: definition.familyId,
+      engineVersion: costModelVersion,
+      gitCommitSha: sourceCommitSha,
+      researchRunId: hypothesis.hypothesisId,
+      createdAt: specification.evaluationEndedAt
+    };
+    validateEvidenceProvenance(provenance, { promotionEligible: true });
+    return Object.freeze({ candidateId: candidate.candidateId, featureIdentity: Object.freeze(featureIdentity), provenance: Object.freeze(provenance) });
+  });
   const factoryQualification = qualifyResearchFactoryRun(league);
   const learningStore = new FileResearchInvestmentLearningLedgerStore(researchLearningLedgerPath());
   const cumulativeLearningLedger = learningStore.appendRun(league, factoryQualification);
@@ -801,6 +865,8 @@ async function main() {
   console.log(JSON.stringify({
     NOTICE: "REAL_MARKET_DATA_RESEARCH_TIER_ONLY -- not operational Paper evidence, does not authorize release",
     strategyFamily: definition.familyId,
+    researchUniverse: provenancePlan.universe,
+    integrityProvenance,
     researchMarketSet: {
       version: RESEARCH_MARKET_SET_VERSION,
       timeframe: TIMEFRAME,

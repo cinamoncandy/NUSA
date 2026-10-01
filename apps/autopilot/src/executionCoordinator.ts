@@ -728,9 +728,16 @@ export class ExecutionCoordinator {
     } catch {
       return json({ error: "CODING_EVIDENCE_CORRUPT" }, 500);
     }
-    const existing = current.evidence.find((candidate) => candidate.evidenceId === evidence.evidenceId);
+    const existing = current.evidence.find((candidate) =>
+      candidate.request.executionId === evidence.request.executionId
+      && candidate.request.dedupeKey === evidence.request.dedupeKey);
     if (existing) {
-      if (JSON.stringify(existing) !== JSON.stringify(evidence)) return json({ error: "CODING_EVIDENCE_IDENTITY_CONFLICT" }, 409);
+      const equivalentReplay = JSON.stringify(existing.request) === JSON.stringify(evidence.request)
+        && JSON.stringify(existing.outcome) === JSON.stringify(evidence.outcome)
+        && existing.liveAuthority === evidence.liveAuthority
+        && existing.productionMutationAllowed === evidence.productionMutationAllowed
+        && existing.aiAuthority === evidence.aiAuthority;
+      if (!equivalentReplay) return json({ error: "CODING_EVIDENCE_IDENTITY_CONFLICT" }, 409);
       return json({ updated: false, evidence: existing });
     }
     const next = [...current.evidence, evidence]
@@ -1178,7 +1185,7 @@ export function createEvolutionLearningMemoryStorage(namespace: ExecutionCoordin
   });
 }
 
-export async function recordCodingExecutionEvidence(namespace: ExecutionCoordinatorNamespace, evidence: CodingExecutionEvidence): Promise<void> {
+export async function recordCodingExecutionEvidence(namespace: ExecutionCoordinatorNamespace, evidence: CodingExecutionEvidence): Promise<CodingExecutionEvidence> {
   const stub = namespace.get(namespace.idFromName(CODING_EVIDENCE_COORDINATOR_KEY));
   const response = await stub.fetch("https://execution-coordinator/coding-evidence", {
     method: "POST",
@@ -1186,6 +1193,14 @@ export async function recordCodingExecutionEvidence(namespace: ExecutionCoordina
     body: JSON.stringify({ evidence }),
   });
   if (!response.ok) throw new Error("CODING_EVIDENCE_PERSIST_FAILED");
+  const body = await response.json() as { evidence?: unknown };
+  validatePersistedCodingExecutionEvidence(body.evidence);
+  const persisted = body.evidence;
+  if (persisted.request.executionId !== evidence.request.executionId
+    || persisted.request.dedupeKey !== evidence.request.dedupeKey) {
+    throw new Error("CODING_EVIDENCE_PERSIST_IDENTITY_MISMATCH");
+  }
+  return Object.freeze(persisted);
 }
 
 export async function readCodingExecutionEvidence(namespace: ExecutionCoordinatorNamespace): Promise<{

@@ -25,7 +25,7 @@ test("runtime brand placeholder stays suppressed and legacy motion components ar
   assert.match(waveMark, /return null;/);
 });
 
-test("Android launcher uses the field mark while themed and notification icons stay monochrome", () => {
+test("Android launcher uses the N monogram while themed and notification icons stay monochrome", () => {
   for (const file of [
     "apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo.xml",
     "apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo_foreground.xml",
@@ -35,8 +35,8 @@ test("Android launcher uses the field mark while themed and notification icons s
   ]) {
     const source = read(file);
     // Retired legacy brand hues must not return.
-    assert.doesNotMatch(source, /#6D8DFF|#87A0F7|#9B6CFF|#5B8CFF|#36D8CB/);
-    assert.match(source, /#FFB547/);
+    assert.doesNotMatch(source, /#6D8DFF|#87A0F7|#9B6CFF|#5B8CFF|#36D8CB|#FFB547/);
+    assert.match(source, /#B6F04B/);
   }
   for (const file of [
     "apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo_monochrome.xml",
