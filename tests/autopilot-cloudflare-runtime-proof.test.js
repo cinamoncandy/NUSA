@@ -312,3 +312,21 @@ test("runtime proof self-heal controller classifies only bounded recoverable fai
   assert.equal(healer.includes("auth_failed_closed"), false);
   assert.equal(healer.includes("maxAttempts>20"), true);
 });
+
+test("runtime proof never treats an un-deployed pull request as Worker acceptance", () => {
+  assert.equal(workflow.includes("github.event_name != 'pull_request'"), true);
+});
+
+test("runtime proof self-heal retries a recoverable deployed receipt exactly once before success", async () => {
+  const healer = await import(pathToFileURL(path.join(__dirname, "..", "scripts", "autopilot-runtime-proof-self-heal.mjs")).href);
+  const evidence = [{ classification: "proof_invalid", reasonCode: "SCHEDULED_RECEIPT_HEAD_INVALID" }];
+  let verifications = 0;
+  let waits = 0;
+  const result = await healer.runSelfHeal({
+    verify: async () => (++verifications === 1 ? 1 : 0),
+    wait: async () => { waits += 1; },
+    readEvidence: () => evidence.shift() ?? null,
+  });
+  assert.deepEqual(result, { status: "VERIFIED", attempts: 2 });
+  assert.equal(waits, 1);
+});
