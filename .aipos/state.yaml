@@ -3,10 +3,10 @@ current_autopilot_audit_dispatch_recovery:
   work_order: WO-AUTOPILOT-20261001-AUDIT-DISPATCH-RECOVERY
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: codex/audit-exact-head-dedupe
-  base_sha: 39a655f29b19594ce6b7221e566cdf460ebc4140
+  base_sha: 1a320be30ac6e69445a2ed6961da56fa462f28bc
   authority_impact: none
   scope: "One bounded recovery of an accepted but non-materialized exact-head Audit repository_dispatch plus bounded GitHub protected-branch authorization propagation, reusing the canonical #903 coordinator and Release workflow."
-  validation: "The initial exact head passed CI 36823131361 and all required safety/runtime workflows; deterministic Audit 36823595811 passed but Release hit GitHub's transient protected-status indexing delay and fail-closed before merge. The repair adds a bounded exact-binding propagation wait. pnpm run build; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full; and pnpm run security:gate PASS. Current origin/main 0640abb6 was inspected: its mobile-logo-only delta has no conflict or semantic dependency."
+  validation: "The initial exact head passed CI 36823131361 and all required safety/runtime workflows; deterministic Audit 36823595811 passed but Release hit GitHub's transient protected-status indexing delay and fail-closed before merge. The repair adds a bounded exact-binding propagation wait. The second exact head passed CI 36824001352 and deterministic Audit 36824457057, but Release skipped because main advanced. Latest main 1a320be3 was merged without conflicts; pnpm run build; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full; and pnpm run security:gate PASS."
   remaining: "Local revalidation after the deterministic Release propagation repair, commit, fresh exact-head CI, independent Audit, and Release remain required."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_canonical_domain_bridge:

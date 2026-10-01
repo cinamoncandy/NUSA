@@ -4,7 +4,7 @@ status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 39a655f29b19594ce6b7221e566cdf460ebc4140
+base_commit: 1a320be30ac6e69445a2ed6961da56fa462f28bc
 implementation_branch: codex/audit-exact-head-dedupe
 priority: P0
 authority_impact: none
@@ -40,5 +40,5 @@ verification_commands:
   - pnpm run validate:full
   - pnpm run security:gate
   - git diff --check origin/main...HEAD
-validation_evidence: "2026-10-01: after adding the bounded protected-branch propagation repair, pnpm run build PASS; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full PASS; and pnpm run security:gate PASS. Current origin/main 0640abb6efabc916657e08617151c80582039c0d advanced only with mobile logo contour work and does not overlap or semantically affect this Autopilot-only change."
-next_permitted_action: "Inspect the exact diff, commit to existing PR #2428, then require fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."
+validation_evidence: "2026-10-01: the first exact head passed CI and deterministic Audit, but its Release correctly skipped after main advanced. After merging latest main 1a320be30ac6e69445a2ed6961da56fa462f28bc without conflicts, pnpm run build PASS; compiled Audit authority/coordinator/executor/webhook tests PASS (64/64); pnpm run validate:full PASS; and pnpm run security:gate PASS."
+next_permitted_action: "Commit the latest-main AIPOS rebind to existing PR #2428, then require fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."
