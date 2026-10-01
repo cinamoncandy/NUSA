@@ -1852,3 +1852,10 @@ current_mobile_logo_contour_n:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; owner plans a later logo renewal
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_paper_tabs:
+  work_order: WO-UI-20261001-PAPER-TABS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-tabs
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge; renewal slices done for HOME, LIVE, More and PAPER tab chrome
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
