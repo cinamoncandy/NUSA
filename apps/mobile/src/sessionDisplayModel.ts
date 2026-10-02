@@ -7,7 +7,7 @@
  * just before the resume keeps its verified look for a short grace window; past the window, or if
  * the proof fails, the real state shows. App launch counts like a resume (a paired device restores
  * silently on cold start). Presentation only: no credential, transport or trading
- * decision reads this.
+ * decision reads this, and the safety line keeps the real state (it only words it 확인 중).
  */
 export type SessionState = "NOT_CONFIGURED" | "VERIFIED" | "RECOVERING" | "RECOVERY_REQUIRED";
 export const RESUME_GRACE_MS = 5_000;

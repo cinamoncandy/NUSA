@@ -32,6 +32,8 @@ test("only presentation reads the grace state; the refresh path still uses the r
   const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8").replace(/\r\n/g, "\n");
   assert.match(app, /const sessionState = getPaperSessionState\(\);/);
   assert.equal((app.match(/shownSessionState/g) || []).length, 3);
+  // The safety line always gets the real session state; grace only softens its wording.
+  assert.match(app, /buildSafetyLine\(\{ sessionState: paperSessionState, resuming: shownSessionState !== paperSessionState,/);
 });
 
 test("app launch gets the same grace as a resume", () => {
