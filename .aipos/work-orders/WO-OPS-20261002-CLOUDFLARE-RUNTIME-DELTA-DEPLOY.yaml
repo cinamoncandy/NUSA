@@ -1,0 +1,64 @@
+id: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
+title: "Skip Cloudflare Worker deployment when exact main has no runtime-input delta"
+status: IN_PROGRESS
+priority: P2
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: f4be73c8008afcea9c65ac247115e43dc4f00bc5
+implementation_branch: codex/cloudflare-deploy-runtime-delta
+authority_impact: deployment-control
+risk: MEDIUM
+objective: "Reduce unnecessary Cloudflare Worker deployment and secret synchronization by proving the exact-main change includes Worker runtime/build inputs before any Cloudflare credential access or mutation."
+observed_evidence:
+  exact_main: f4be73c8008afcea9c65ac247115e43dc4f00bc5
+  changed_paths_in_prior_pr: ".aipos/state.yaml, .aipos/work-orders/WO-ISSUE-2118-MAIN-CI-MATERIALIZATION.yaml, .github/workflows/autopilot-deterministic-audit-release.yml, tests/autopilot-deterministic-audit-release.test.js"
+  unnecessary_deploy_run: 36950117047
+  deployed_revision: f4be73c8008afcea9c65ac247115e43dc4f00bc5
+  safety_health: "liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY verified"
+scope:
+  include:
+    - "Use the existing canonical Cloudflare deployment workflow; add no queue, scheduler, deployment engine, or authority path."
+    - "For push/workflow_run, classify the cumulative exact-main diff from the latest successful canonical Cloudflare deployment head for apps/autopilot/**, packages/contracts/**, and root package/workspace/TypeScript build inputs; this preserves pending runtime deltas across later docs-only commits."
+    - "Query only the latest 100 completed main deployment runs; select a successful same-repository main run. If no successful baseline is present, deploy fail-safe; if the baseline is not an ancestor of exact main, fail before Cloudflare credential access."
+    - "Use NUL-delimited Git paths, disable rename detection, validate exact SHA and fail the job before credential access if scope cannot be determined safely."
+    - "Skip dependency installation, Cloudflare credential checks, secret synchronization, deploy, and post-deploy health mutation when no relevant runtime input changed."
+    - "Preserve explicit owner-initiated exact-head workflow_dispatch as the intentional deployment override; token-dispatched Release fallback remains subject to runtime-delta classification."
+    - "Add deterministic regression coverage for runtime inputs, non-runtime changes, malformed paths, workflow ordering, and manual-vs-automation dispatch behavior."
+  exclude:
+    - "No change to Worker application behavior, trading behavior, secrets, credentials, runtime tokens, or deployed authority values."
+    - "No disabling CI, exact-head checks, safety workflows, Release, or runtime proof."
+    - "No automatic LIVE activation, account mutation, order, withdrawal, transfer, or credential exposure."
+acceptance:
+  - "Runtime source/build/config deltas still require successful exact-head CI, current-main check, existing credential preflight, secret-sync ordering, deployment, and safe health verification."
+  - "A non-runtime exact-main delta skips before Cloudflare credential access and all Cloudflare mutation."
+  - "Owner workflow_dispatch with an exact head remains an explicit deployment path; GITHUB_TOKEN Release dispatch does not bypass the scope gate."
+  - "Malformed SHA, unavailable parent, invalid Git path, or failed diff classification fails closed before Cloudflare credential access."
+  - "The only changed source-of-truth deployment path remains .github/workflows/autopilot-cloudflare-deploy.yml."
+  - "Safety remains liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY; no money-plane behavior changes."
+verification_commands:
+  - "node --test tests/autopilot-cloudflare-deploy.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "git diff --check"
+validation:
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  targeted_tests: "node --test tests/autopilot-cloudflare-deploy.test.js PASS (16/16)"
+  validate_full: PASS
+  security_gate: "PASS; 0 secrets, 0 unmitigated high/critical findings"
+  lint_scripts: "PASS; 0 errors, 14 pre-existing warnings"
+  build: PASS
+  aipos: "YAML (261 files), provenance, drift PASS"
+  diff_check: PASS
+  observed_deployment_baseline: "Read-only GitHub API returned f4be73c8008afcea9c65ac247115e43dc4f00bc5, which is an ancestor of current main f4be73c8008afcea9c65ac247115e43dc4f00bc5"
+  exact_head_ci: PENDING
+  independent_audit: PENDING
+  canonical_release: PENDING
+  next_exact_main_skip_evidence: PENDING
+next_permitted_action: "Rerun full validation on the final cumulative-baseline implementation, inspect actual successful deployment history read-only, then commit and open one PR for exact-head CI/Audit/Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

@@ -85,12 +85,18 @@ current_issue_2118_ci_saturation_wip:
 current_issue_2118_main_ci_materialization:
   work_order: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
   issue: 2118
-  status: LATEST_MAIN_SYNCED_REVALIDATION_REQUIRED
+  status: MERGED_POST_MERGE_CI_AND_SAFE_RUNTIME_PROOF_PASS
   branch: codex/issue-2118-main-ci-materialization
   base_sha: 3c49bdd253e51dd67821bfa735d618cd15e70328
   pull_request: 2451
-  evidence: "Same-SHA post-merge runs 36944149502 (push, SUCCESS) and 36944151942 (workflow_dispatch, redundant; cancelled after start). Recurrence reproduced on main ae1a8dc63846c431ec0e00b94a64bb1f524699e8: push CI 36947837266 SUCCESS and workflow_dispatch CI 36947838794 started six shards. Canonical Release 36943121052 completed SUCCESS."
-  main_sync: "Merged latest main 3c49bdd253e51dd67821bfa735d618cd15e70328 (#2453) after Audit run 36948929273 returned NO_ACTION because PR base ae1a8dc63846c431ec0e00b94a64bb1f524699e8 was stale. The new delta is mobile HOME UI/AIPOS only; release workflow diff remains intact."
+  exact_head: 17c5bd89755cc861297b9bba847cbd121c1656e2
+  merge_commit: f4be73c8008afcea9c65ac247115e43dc4f00bc5
+  exact_head_ci: "36949215023 PASS"
+  independent_audit: "36949608492 audit job PASS for PR #2451 exact head 17c5bd89755cc861297b9bba847cbd121c1656e2 and base 3c49bdd253e51dd67821bfa735d618cd15e70328"
+  release: "Canonical Release merged the exact audited head as f4be73c8008afcea9c65ac247115e43dc4f00bc5; post-merge Release job was intentionally cancelled after merge and before its duplicate-CI recovery/deploy dispatch steps."
+  evidence: "Same-SHA post-merge runs 36944149502 (push, SUCCESS) and 36944151942 (workflow_dispatch, redundant). Recurrence on main ae1a8dc63846c431ec0e00b94a64bb1f524699e8: push CI 36947837266 SUCCESS and workflow_dispatch CI 36947838794 started six shards. On f4be73c8, push CI 36949715181 PASS and redundant workflow_dispatch CI 36949716125 was cancelled before jobs."
+  deployed_runtime: "Cloudflare Deploy run 36950117047 succeeded for exact revision f4be73c8008afcea9c65ac247115e43dc4f00bc5; health verified liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY. Runtime Proof 36950200257 and Promote 36950117074 succeeded on the same SHA."
+  main_sync: "PR #2451 was synchronized to latest main 3c49bdd253e51dd67821bfa735d618cd15e70328; its intermediate Audit returned NO_ACTION on stale base, then the exact latest-base Audit passed."
   prior_exact_head: bfe10f34ba5a6d70570ba3dc94f072956ccdba41
   prior_exact_head_ci: 36947076495
   prior_independent_audit: 36947732272
@@ -98,8 +104,19 @@ current_issue_2118_main_ci_materialization:
   prior_release_state: CANCELLED_STALE_BASE
   intermediate_exact_head_ci: 36948354610
   intermediate_exact_head_ci_state: PASS_THEN_INVALIDATED_BY_MAIN_SYNC
-  local_validation: "After #2450 only: targeted workflow tests 13/13, validate:full, security gate, AIPOS provenance/drift, lint:scripts, and diff check PASS. After #2452 intermediate sync: targeted tests 13/13, AIPOS YAML/provenance/drift, security gate and exact-head CI run 36948354610 PASS; Audit 36948929273 returned NO_ACTION on stale base. After #2453 sync f484735e: targeted tests 13/13, AIPOS YAML (261 files), provenance, drift, security gate (zero secrets/high/critical), and diff check PASS; fresh exact-head CI pending."
-  remaining: "Run targeted/AIPOS/security validation, commit and push one updated exact head to PR #2451, then fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."
+  local_validation: "Latest-main sync f484735e: workflow regressions 13/13, AIPOS YAML/provenance/drift, security gate (zero secrets/high/critical), and diff check PASS. Exact head 17c5bd89 CI passed all validation/build/typecheck/architecture/security/coverage/test jobs and all five PAPER/Restricted LIVE/read-only-broker companions."
+  remaining: "The change became active on main only after its canonical Release completed merge. Verify duplicate post-merge CI suppression on a subsequent Release execution; do not claim runtime exercise from the pre-merge workflow version."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_worker_deploy_scope:
+  work_order: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/cloudflare-deploy-runtime-delta
+  base_sha: f4be73c8008afcea9c65ac247115e43dc4f00bc5
+  authority_impact: deployment-control
+  observed_gap: "Post-merge CI for PR #2451 changed only AIPOS, workflow, and tests, yet Cloudflare Deploy 36950117047 republished the Worker at the same source revision."
+  scope: "In the existing deploy workflow, gate credential reads/secrets/deploy/health mutation on cumulative exact-main runtime-input delta since the latest successful same-repository main deployment; preserve manual owner dispatch, CI success, exact-current-main, and fail-closed authority contracts."
+  validation: "Final tree: targeted deployment workflow tests 16/16; validate:full; security gate (0 secrets, 0 high/critical); lint:scripts (0 errors, 14 pre-existing warnings); build; AIPOS YAML/provenance/drift; diff check all PASS. Read-only GitHub API selected successful deployment baseline f4be73c8008afcea9c65ac247115e43dc4f00bc5; confirmed it is an ancestor of current main f4be73c8008afcea9c65ac247115e43dc4f00bc5. Exact-head CI/Audit/Release remain pending."
+  remaining: focused_deploy_scope_tests_validate_full_security_exact_head_ci_Audit_canonical_Release_and_runtime_skip_evidence
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
