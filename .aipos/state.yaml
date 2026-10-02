@@ -2229,3 +2229,10 @@ current_research_orchestrator_composition:
   authority_impact: research-evidence-only
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
   deploy: not_deployed_flag_default_off_owner_approval_required
+current_ops_release_prune:
+  work_order: WO-OPS-20261002-RELEASE-PRUNE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-release-main-drift
+  authority_impact: release-pipeline-hygiene
+  finding: "Release runs 88/89 failed in the host backup step: No space left on device. No workflow pruned old releases."
+  deploy: not_deployed_owner_approval_required

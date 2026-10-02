@@ -1,0 +1,26 @@
+id: WO-OPS-20261002-RELEASE-PRUNE
+title: "Prune superseded Oracle releases before the host is touched (disk-full backup failure)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-release-main-drift
+authority_impact: release-pipeline-hygiene
+objective: "Oracle PAPER Release runs 88 and 89 failed in the host backup step with 'No space left on device' on the runner host, before any release change. Old releases were never pruned automatically, so they accumulate until the 1 GB host fills."
+finding: "Annotation on run 89 host job: System.IO.IOException No space left on device (/opt/actions-runner-nusa-paper/_diag). No workflow called the existing prune helper; the runbook listed it as a manual step."
+scope:
+  - ".github/workflows/oracle-paper-release.yml: one step, after the exact-main recheck and before download, that runs the existing privileged helper `sudo $STEP prune`."
+  - "tests/oracle-paper-release-workflow.test.js: pins the position (after recheck, before download and backup), single invocation, and that the workflow itself never deletes."
+  - "docs/operations/oracle-p1-008-runbook.md: when to dispatch the release workflow (main moving before the host recheck fails closed, run 87; a later move is not detected, no gate added here)."
+exclusions:
+  - "No change to the prune helper, retention, the gate that refuses a stale main, the backup, activation, rollback, LIVE, credentials, risk, or AI authority. No deploy by this change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The helper keeps the active release, the rollback release and the newest few, validates every candidate directory name before deleting anything, refuses symlinks and unexpected names, and never touches /var/lib/nusa or /var/backups/nusa. If it fails the release stops before any host change."
+rollback: "Revert the one workflow step."
+verification_commands:
+  - node --test tests/oracle-paper-release-workflow.test.js
+  - node scripts/validate-aipos-yaml.js
+residual: "Does not free space already consumed by runner work/diag directories or other files. The host may still need a manual cleanup once; owner approval needed for any deploy."
