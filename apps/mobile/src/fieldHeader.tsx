@@ -3,17 +3,17 @@ import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { fieldMotion, fieldPalette } from "./designSystem";
 import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
-import { AttractorField } from "./attractorField";
+import { HoloSphere } from "./holoSphere";
 import { fieldHeaderPose, type FieldHeaderModel } from "./fieldScreensModel";
 
 /**
- * Compact header band for secondary tabs: the HOME attractor, drawn still and tinted by the tab's
+ * Compact header band for secondary tabs: the HOME holo sphere, drawn still and tinted by the tab's
  * state (same figure as HOME; this band has no decision heartbeat). Moves only when the tone or subsystem changes. A sealed LIVE tab
  * draws a dashed seal ring around the nebula.
  */
 const HEIGHT = 150;
 const SEAL_RADIUS = 70;
-const ATTRACTOR_SIZE = 128;
+const SPHERE_SIZE = 128;
 const HUE: Record<FieldSubsystem, string> = { market: fieldPalette.market, axiom: fieldPalette.axiom, paper: fieldPalette.paper, governance: fieldPalette.governance, risk: fieldPalette.risk };
 const TONE: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
 
@@ -63,7 +63,7 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     <View style={styles.field} onLayout={onLayout}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: presence, transform: [{ scale: spread }] }]}>
         <Animated.View style={[styles.figure, { opacity: glow }]}>
-          <AttractorField decisionCount={null} fillCount={null} tone={model.tone === "red" ? "halt" : model.tone === "amber" ? "hold" : "normal"} reducedMotion size={ATTRACTOR_SIZE} points={2500} testID={`${testID}-attractor`} />
+          <HoloSphere decisionCount={null} fillCount={null} tone={model.tone === "red" ? "halt" : model.tone === "amber" ? "hold" : "normal"} reducedMotion size={SPHERE_SIZE} points={900} testID={`${testID}-holo`} />
         </Animated.View>
       </Animated.View>
       {width > 0 && sealed ? <View pointerEvents="none" style={[styles.seal, { left: width / 2 - SEAL_RADIUS, top: HEIGHT / 2 - SEAL_RADIUS }]} /> : null}

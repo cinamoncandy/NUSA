@@ -80,6 +80,7 @@ test("high-confidence non-code failure abstains only with bounded verified evide
   assert.equal(result.aiAuthority, "ZERO_AUTHORITY");
   assert.equal(result.productionMutationAllowed, false);
   assert.equal(result.liveAuthority, "NONE");
+  assert.equal(result.safeToAutofix, "NO");
   assert.deepEqual(captured.failureEvidence.failedJobs, ["validation"]);
   assert.deepEqual(captured.failureEvidence.failedSteps, ["Preflight"]);
   assert.equal("log" in captured.failureEvidence, false);
@@ -103,6 +104,7 @@ test("code/test decisions and low-confidence decisions preserve the existing cod
   ]) {
     const result = await decideJevBoundedCodingAdmission(request, env, { classify: async () => routed }, evidence);
     assert.equal(result.action, "PROCEED_EXISTING");
+    assert.equal(result.safeToAutofix, routed.safeToAutofix);
   }
 });
 

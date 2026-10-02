@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NusaButton, NusaCard } from "./components";
 import { useTheme } from "./ThemeProvider";
@@ -37,14 +37,15 @@ export function LiveReadinessMonitorView({ snapshot, unavailableReason, unavaila
         <Text style={[styles.count, { color: theme.colors.textMuted }]}>{gates.passed} / {gates.total} 관문 통과</Text>
       </View>
       <View style={[styles.gateList, { borderTopColor: theme.colors.border }]} testID="live-ready-gates">
-        {gates.gates.map((gate) => <View key={gate.id} style={[styles.gateRow, { borderBottomColor: theme.colors.border }]} testID={`live-gate-${gate.id}`}>
+        {[...gates.gates].sort((left, right) => Number(left.state === "PASS") - Number(right.state === "PASS")).map((gate, index, ordered) => <Fragment key={gate.id}>
+        {index === 0 || (ordered[index - 1].state !== "PASS" && gate.state === "PASS") ? <Text style={[styles.gateGroup, { color: theme.colors.textMuted }]} testID={gate.state === "PASS" ? "live-gates-passed-heading" : "live-gates-remaining-heading"}>{gate.state === "PASS" ? `통과 ${gates.passed}개` : `남은 조건 ${gates.total - gates.passed}개`}</Text> : null} <View key={gate.id} style={[styles.gateRow, { borderBottomColor: theme.colors.border }]} testID={`live-gate-${gate.id}`}>
           <View style={[styles.gateDot, gateDotStyle(gate.state, theme.colors.primary, theme.colors.warning, theme.colors.textMuted)]} />
           <View style={styles.rowMain}>
             <Text style={[styles.gateTitle, { color: gate.state === "PASS" ? theme.colors.text : theme.colors.textMuted }]}>{gate.title}</Text>
             <Text style={[styles.rowMeta, { color: theme.colors.textMuted }]}>{gate.detail}</Text>
           </View>
           <Text style={[styles.gateState, { color: gate.state === "PASS" ? theme.colors.primary : gate.state === "BLOCKED" ? theme.colors.warning : theme.colors.textMuted }]}>{GATE_LABEL[gate.state]}</Text>
-        </View>)}
+        </View></Fragment>)}
       </View>
       <Text style={[styles.reason, { color: theme.colors.textMuted }]}>관측 전용: 주문·취소·출금·이체·LIVE 활성화·lease 생성 기능이 없습니다.</Text>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: detailsOpen }} onPress={() => setDetailsOpen((open) => !open)} style={({ pressed }) => [styles.toggle, { borderColor: theme.colors.border, opacity: pressed ? 0.7 : 1 }]} testID="live-ready-details-toggle">
@@ -78,6 +79,7 @@ const styles = StyleSheet.create({
   track: { height: 4, borderRadius: 2, overflow: "hidden", marginTop: 6 },
   fill: { height: 4, borderRadius: 2 },
   count: { fontSize: 11, letterSpacing: 0.6 },
+  gateGroup: { fontSize: 12, marginTop: 14, marginBottom: 4 },
   gateList: { borderTopWidth: StyleSheet.hairlineWidth },
   gateRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   gateDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5 },
