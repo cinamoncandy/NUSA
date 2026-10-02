@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { buildJournal, journalTime } from "./journalModel";
 import { fieldFonts } from "./fieldFonts";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useTheme } from "./ThemeProvider";
@@ -111,6 +112,7 @@ export function HomeView({
     .sort((a, b) => Math.abs(b.changeRate ?? 0) - Math.abs(a.changeRate ?? 0))
     .slice(0, tablet ? 5 : 3);
   const ai = snapshot?.ai ?? null;
+  const journal = buildJournal(snapshot?.paperLearning?.events ?? []);
   const disconnected = notConfigured != null;
   const decisionSurface = buildHomeDecisionSurface({
     runtimeState: snapshot?.operations.runtimeState,
@@ -205,6 +207,18 @@ export function HomeView({
         </View>
       </MotionReveal>
 
+      {journal.length === 0 ? null : <View style={styles.journal} testID="home-journal">
+        <View style={styles.journalHead}><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>최근 기록</Text><Text style={[styles.journalHint, { color: theme.colors.textMuted }]}>중요한 일만</Text></View>
+        {journal.map((entry, index) => <View key={entry.id} style={[styles.journalRow, index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border } : null]} testID={`home-journal-${entry.kind}`}>
+          <Text style={[fieldFonts.mono, styles.journalTime, { color: theme.colors.textMuted }]}>{journalTime(entry.at)}</Text>
+          <View style={[styles.journalDot, entry.kind === "fill" ? { backgroundColor: theme.colors.success, borderColor: theme.colors.success } : entry.kind === "hold" ? { borderColor: theme.colors.warning } : entry.kind === "halt" ? { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger } : { borderColor: theme.colors.border, backgroundColor: theme.colors.border }]} />
+          <View style={styles.journalBody}>
+            <Text style={[styles.journalTitle, { color: entry.kind === "quiet" ? theme.colors.textMuted : theme.colors.text }]}>{entry.title}</Text>
+            <Text style={[styles.journalDetail, { color: theme.colors.textMuted }]} numberOfLines={2}>{entry.detail}</Text>
+          </View>
+        </View>)}
+      </View>}
+
       {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${recovering ? "기기 신뢰는 유지되고 있으며 세션을 자동 복구하는 중입니다." : disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
       <MotionReveal testID="home-market-canvas-reveal">
@@ -291,6 +305,15 @@ export function HomeView({
 }
 
 const styles = StyleSheet.create({
+  journal: { gap: 2 },
+  journalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 },
+  journalHint: { fontSize: 12 },
+  journalRow: { flexDirection: "row", gap: 10, paddingVertical: 11 },
+  journalTime: { width: 42, fontSize: 11.5, paddingTop: 2 },
+  journalDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, marginTop: 6 },
+  journalBody: { flex: 1, minWidth: 0, gap: 2 },
+  journalTitle: { fontSize: 14, lineHeight: 20 },
+  journalDetail: { fontSize: 12.5, lineHeight: 18 },
   reasonCard: { borderWidth: 1, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, gap: 6 },
   reasonText: { fontSize: 15, lineHeight: 22, fontWeight: "500" },
   shell: { flex: 1 },

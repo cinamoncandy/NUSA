@@ -1,0 +1,23 @@
+id: WO-UI-20261002-JOURNAL
+title: "Prototype layout step 2: HOME 최근 기록 from the existing PAPER events"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-journal
+authority_impact: none
+objective: "The approved prototype leads HOME with a short journal of events worth a sentence. The read-only PAPER learning events the server already sends (fills, risk FAIL with reason, HALT, cycles) are enough, so no server change is needed."
+scope:
+  - "journalModel.ts (import-free): fills (PASS only) with quantity, price and fee; risk holds with their reason; halts; runs of other cycles collapse into one 사이클 N번 동안 대기 line; newest first; at most six."
+  - "HOME shows 최근 기록 under the capital section when there is at least one entry."
+exclusions:
+  - "Titled 최근 기록 (not 오늘) because the event window can span past midnight. The PAPER seven-day equity chart remains a later step."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-journal.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."
