@@ -38,3 +38,14 @@ Optional tuning (invalid values keep it disabled): `NUSA_RESEARCH_MARKETS` (defa
 ## Disable / rollback
 Unset the flag and restart. Stored candles, holdout records and ledgered evidence stay (append-only); nothing else is
 affected. To undo the schema, revert the build; the two extra empty tables are harmless.
+
+## Verifying after enabling
+Check the service log, in this order:
+1. `[research-experiments] enabled: markets=... variants=4 tickMinutes=...` right after start. A
+   `disabled: <reason>` line means a setting is invalid; fix it and restart (nothing ran).
+2. `[research-experiments] tick ...` lines every tick. `started=0 experiments=0` during the first ~11 days is expected
+   (not enough candles yet), not a fault.
+3. After the history window fills: `tick ... experiments=N completed=M`. `candidate gate eligible (not registered ...)`
+   is informational only; nothing is registered or promoted.
+Any `ERROR`/`SKIPPED` experiment carries a stable reason and is never retried or forced; report it instead of
+changing thresholds. If the log shows nothing at all, the flag is not exactly `1`.
