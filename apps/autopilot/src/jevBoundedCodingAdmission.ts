@@ -45,6 +45,7 @@ export interface JevCodingAdmissionDecision {
   readonly action: JevCodingAdmissionAction;
   readonly reasonCode: JevCodingAdmissionReason;
   readonly rootCause: JevRootCause | null;
+  readonly safeToAutofix: "YES" | "NO" | null;
   readonly requiredModel: JevRequiredModel | null;
   readonly confidence: number;
   readonly provider: "jev" | null;
@@ -70,6 +71,7 @@ function decision(
   action: JevCodingAdmissionAction,
   reasonCode: JevCodingAdmissionReason,
   rootCause: JevRootCause | null = null,
+  safeToAutofix: "YES" | "NO" | null = null,
   requiredModel: JevRequiredModel | null = null,
   confidence = 0,
   provider: "jev" | null = null,
@@ -78,6 +80,7 @@ function decision(
     action,
     reasonCode,
     rootCause,
+    safeToAutofix,
     requiredModel,
     confidence,
     provider,
@@ -188,12 +191,12 @@ export async function decideJevBoundedCodingAdmission(
     }));
     const routed = validateJevShadowDecision(raw);
     if (routed.confidence < MIN_ACTIVE_CONFIDENCE) {
-      return decision("PROCEED_EXISTING", "LOW_CONFIDENCE", routed.rootCause, routed.requiredModel, routed.confidence, "jev");
+      return decision("PROCEED_EXISTING", "LOW_CONFIDENCE", routed.rootCause, routed.safeToAutofix, routed.requiredModel, routed.confidence, "jev");
     }
     if (routed.safeToAutofix === "NO" && NON_CODE_ROOT_CAUSES.has(routed.rootCause)) {
-      return decision("ABSTAIN_EXPENSIVE_INFERENCE", "NON_CODE_AUTOFIX_FORBIDDEN", routed.rootCause, routed.requiredModel, routed.confidence, "jev");
+      return decision("ABSTAIN_EXPENSIVE_INFERENCE", "NON_CODE_AUTOFIX_FORBIDDEN", routed.rootCause, routed.safeToAutofix, routed.requiredModel, routed.confidence, "jev");
     }
-    return decision("PROCEED_EXISTING", "JEV_ADMITTED", routed.rootCause, routed.requiredModel, routed.confidence, "jev");
+    return decision("PROCEED_EXISTING", "JEV_ADMITTED", routed.rootCause, routed.safeToAutofix, routed.requiredModel, routed.confidence, "jev");
   } catch {
     return decision("PROCEED_EXISTING", "PROVIDER_UNAVAILABLE");
   }

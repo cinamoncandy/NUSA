@@ -41,6 +41,8 @@ export { SqlitePersistedPaperPeriodStore, PersistedPaperPeriodStoreError } from 
 export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodCostEvidenceKind, PaperPeriodLifecycleStatus, PersistedPaperPendingPeriod } from "./persistedPaperPeriodStore";
 export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
 export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
+export { SqliteResearchCandleStore, ResearchCandleStoreError } from "./researchCandleStore";
+export type { StoredResearchCandle } from "./researchCandleStore";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -509,4 +511,16 @@ CREATE INDEX IF NOT EXISTS idx_research_intelligence_source
   ON research_intelligence_records (source_type, source_id, discovered_at, record_id);
 CREATE INDEX IF NOT EXISTS idx_research_intelligence_hypothesis
   ON research_intelligence_records (hypothesis_semantic_fingerprint, discovered_at, record_id);
-` }, cloudPaperLegacyReconciliationMigration];
+` }, cloudPaperLegacyReconciliationMigration, { id: "026_research_closed_candles", sql: `
+CREATE TABLE IF NOT EXISTS research_closed_candles (
+  market TEXT NOT NULL,
+  interval_ms INTEGER NOT NULL CHECK (interval_ms > 0),
+  close_time_ms INTEGER NOT NULL CHECK (close_time_ms > 0),
+  open REAL NOT NULL CHECK (open > 0),
+  high REAL NOT NULL CHECK (high > 0),
+  low REAL NOT NULL CHECK (low > 0),
+  close REAL NOT NULL CHECK (close > 0),
+  checksum TEXT NOT NULL,
+  PRIMARY KEY (market, interval_ms, close_time_ms)
+);
+` }];

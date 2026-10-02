@@ -13,8 +13,8 @@ test("product v5 keeps the four primary jobs literal and glanceable", () => {
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   const home = read("src/homeView.tsx");
-  assert.match(home, /PAPER CAPITAL/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /PAPER 자산/);
+  assert.match(home, /총 손익/);
   assert.doesNotMatch(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
 });
 
@@ -77,8 +77,15 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /grep -q "more-view" qa\/android-product-ux\/05-more\.xml/);
   assert.match(workflow, /grep -q "paper-learning-monitor" qa\/android-product-ux\/06-paper\.xml/);
   assert.match(workflow, /paper-shadow-monitor-switcher\|dashboard-connection-required/);
-  assert.match(workflow, /grep -q "LIVE" qa\/android-product-ux\/03-live-readiness\.xml/);
-  assert.match(workflow, /grep -q "PORTFOLIO" qa\/android-product-ux\/09-portfolio\.xml/);
+  assert.match(workflow, /grep -q "live-field-header" qa\/android-product-ux\/03-live-readiness\.xml/);
+  assert.match(workflow, /grep -q "portfolio-screen" qa\/android-product-ux\/09-portfolio\.xml/);
+  // Acceptance keys on testIDs, never on display copy: renaming a label must not fail the emulator gate.
+  for (const file of ["03-live-readiness", "09-portfolio"]) {
+    const greps = workflow.split("\n").filter((line) => line.includes(`qa/android-product-ux/${file}.xml`) && /\bgrep\b/.test(line));
+    assert.equal(greps.length, 1, `${file} must have exactly one acceptance check`);
+    // The pattern must look like a testID (lowercase-hyphen); any display copy, Korean or English, fails.
+    assert.match(greps[0], /grep -q "[a-z][a-z0-9]*(?:-[a-z0-9]+)+" /, `${file} must be keyed on a testID, not display copy`);
+  }
   assert.match(workflow, /grep -q "home-screen" qa\/android-product-ux\/13-home-return\.xml/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });
