@@ -98,13 +98,16 @@ sudo node scripts/oracle-validate.js
 `oracle-validate` fails closed if the environment file, backup directory, service unit, localhost binding, token strength, persistent database location, or current symlink contract is invalid.
 
 ## When to dispatch the release workflow
-The workflow refuses any source that is not the current protected main, both when it builds and again immediately
-before it touches the host. That gate is intentional and must not be loosened: a stale build never reaches the host.
-The practical consequence is that a merge landing during the roughly 5-minute run makes the host job fail closed with
-"Protected main moved after build" and no host change (seen in run 87). To avoid wasted runs:
+The workflow verifies that the requested source is the current protected main at two points only: when the build job
+starts, and once more at the start of the host job, before the download. Nothing re-checks main after that, so a merge
+that lands after the host job's recheck is not detected and the already-built source is still activated. A merge that
+lands earlier is caught: the build job or the host recheck stops with "Protected main moved after build" and the host is
+unchanged (seen in run 87). Do not rely on the gate to cover the rest of the roughly 5-minute run. To avoid wasted or
+stale releases:
 1. Dispatch only when no merge is queued or in flight, and take `source_sha` from the current main tip.
 2. Wait for the post-merge `CI` push run on that exact SHA to be green; the workflow requires it and fails otherwise.
-3. If main moved anyway, nothing was changed on the host; repeat steps 1-2 with the new tip.
+3. If main moved before the host recheck, nothing was changed on the host; repeat steps 1-2 with the new tip. If main may
+   have moved after it, check which commit is active before assuming the release matches the latest main.
 
 ## Atomic release switch
 

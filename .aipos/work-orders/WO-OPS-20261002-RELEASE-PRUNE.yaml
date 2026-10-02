@@ -11,7 +11,7 @@ finding: "Annotation on run 89 host job: System.IO.IOException No space left on 
 scope:
   - ".github/workflows/oracle-paper-release.yml: one step, after the exact-main recheck and before download, that runs the existing privileged helper `sudo $STEP prune`."
   - "tests/oracle-paper-release-workflow.test.js: pins the position (after recheck, before download and backup), single invocation, and that the workflow itself never deletes."
-  - "docs/operations/oracle-p1-008-runbook.md: when to dispatch the release workflow (main moving during a run fails closed, run 87)."
+  - "docs/operations/oracle-p1-008-runbook.md: when to dispatch the release workflow (main moving before the host recheck fails closed, run 87; a later move is not detected, no gate added here)."
 exclusions:
   - "No change to the prune helper, retention, the gate that refuses a stale main, the backup, activation, rollback, LIVE, credentials, risk, or AI authority. No deploy by this change."
 safety:
