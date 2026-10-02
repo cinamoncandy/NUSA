@@ -1,6 +1,6 @@
 id: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
 title: "Skip Cloudflare Worker deployment when exact main has no runtime-input delta"
-status: IN_PROGRESS
+status: COMPLETED
 priority: P2
 owner: nusa-development
 repository: cinamoncandy/NUSA
@@ -42,7 +42,7 @@ verification_commands:
   - "pnpm run security:gate"
   - "git diff --check"
 validation:
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: MERGED_POST_MERGE_VALIDATION_AND_DEPLOY_SKIP_VERIFIED
   targeted_tests: "node --test tests/autopilot-cloudflare-deploy.test.js PASS (16/16)"
   validate_full: PASS
   security_gate: "PASS; 0 secrets, 0 unmitigated high/critical findings"
@@ -51,11 +51,13 @@ validation:
   aipos: "YAML (261 files), provenance, drift PASS"
   diff_check: PASS
   observed_deployment_baseline: "Read-only GitHub API returned f4be73c8008afcea9c65ac247115e43dc4f00bc5, which is an ancestor of current main f4be73c8008afcea9c65ac247115e43dc4f00bc5"
-  exact_head_ci: PENDING
-  independent_audit: PENDING
-  canonical_release: PENDING
-  next_exact_main_skip_evidence: PENDING
-next_permitted_action: "Rerun full validation on the final cumulative-baseline implementation, inspect actual successful deployment history read-only, then commit and open one PR for exact-head CI/Audit/Release."
+  exact_head_ci: "36952049929 PASS for b7c951e14e4111b0e4c6cded4640d570a58c3544"
+  required_safety: "PAPER runtime 36952049958, Restricted LIVE guard 36952049845, activation 36952049871, transport 36952049815, read-only broker 36952049825, Cloudflare preflight 36952050056 all PASS"
+  independent_audit_and_canonical_release: "Run 36952490339 Audit + Release SUCCESS; PR #2454 merged as 7e41118ee7798a1c196e147dc7a0c9923c8cb27e"
+  post_merge_ci: "36952589474 PASS on merge commit 7e41118ee7798a1c196e147dc7a0c9923c8cb27e"
+  next_exact_main_skip_evidence: "Cloudflare Deploy runs 36953015931 (workflow_run) and 36953019954 (Release bot workflow_dispatch) both SUCCESS and explicitly skipped Cloudflare credentials, secret synchronization, Worker deploy and health mutation. Baselines were f4be73c8008afcea9c65ac247115e43dc4f00bc5 and then 7e41118ee7798a1c196e147dc7a0c9923c8cb27e."
+  observed_runner_time: "Prior full deploy job: 56s; two skip jobs: 10s each. Observational only, not a cost estimate."
+next_permitted_action: "Select the next highest-priority READY work order from current AIPOS state; do not reimplement this deployment-scope work."
 safety:
   paper_only: true
   liveAuthority: NONE
