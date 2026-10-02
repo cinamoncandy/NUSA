@@ -6,7 +6,7 @@ import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 // Screen presenters come only from the presentation boundary (docs/UI_ARCHITECTURE.md).
 import {
   HomeView, LiveReadinessMonitorView, MoreDetailView, MoreMenuView, NotificationView, NusaButton, NusaCard, OrderHistoryView,
-  PaperShadowMonitorView, PortfolioView, PrimaryNavigation, SafetyLine, SettingsView, StatusChip, StrategiesView, TabTransition, ThemeProvider, useTheme, WaveMark,
+  PaperShadowMonitorView, PerformanceView, PortfolioView, PrimaryNavigation, SafetyLine, SettingsView, StatusChip, StrategiesView, TabTransition, ThemeProvider, useTheme, WaveMark,
   type HomeDestination, type ThemePreference, type TruthfulMoreDetail,
 } from "./src/presentation";
 import { getHomeVisualProfile } from "./src/homeVisualProfile";
@@ -15,6 +15,7 @@ import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/se
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { buildSafetyLine } from "./src/safetyLineModel";
+import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
@@ -468,7 +469,8 @@ function AuthenticatedApp() {
       : detailSurface === "Strategies" ? <StrategiesView presentation={{ champion: null, challenger: null, evidenceStatus: "UNAVAILABLE" }} />
       : detailSurface === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
       : detailSurface === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
-      : detailSurface === "Risk" || detailSurface === "Performance" || detailSurface === "SystemStatus" || detailSurface === "Help" ? <MoreDetailView destination={detailSurface} onClose={() => setDetailSurface(null)} />
+      : detailSurface === "Performance" ? <PerformanceView screen={buildPerformanceScreen(paperLearningState.performance, paperLearningState.dataSource === "SERVER_STREAM")} onClose={() => setDetailSurface(null)} />
+      : detailSurface === "Risk" || detailSurface === "SystemStatus" || detailSurface === "Help" ? <MoreDetailView destination={detailSurface} onClose={() => setDetailSurface(null)} />
       : activeTab === "Paper" ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setActiveTab("Home")} />
       : activeTab === "Live" ? <LiveReadinessMonitorView snapshot={liveReadinessOperations.status === "READY" ? liveReadinessOperations.snapshot : null} unavailableReason={liveReadinessOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : liveReadinessOperations.reason} unavailableKind={paperProjectionPending ? "PENDING" : liveReadinessOperations.status === "NOT_CONFIGURED" ? "SETUP" : "FAILED"} refreshing={refreshing} onRefresh={onRefresh} />
       : activeTab === "More" ? <MoreMenuView onOpen={(destination: MoreDestination) => {
