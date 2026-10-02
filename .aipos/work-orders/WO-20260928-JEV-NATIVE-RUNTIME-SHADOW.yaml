@@ -1,6 +1,6 @@
 id: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
 title: "Wire native Workers AI Jev into Autopilot SHADOW runtime"
-status: IN_PROGRESS
+status: WAITING_FOR_REAL_SHADOW_RUNTIME_RECEIPT
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -30,7 +30,7 @@ acceptance:
   - "Exact-main deploy preserves the repository-configured global release-freeze value while explicitly keeping Jev bounded routing disabled."
   - "Exact-head CI, independent Audit, and canonical Release pass."
   - "Post-merge deployed runtime captures at least one real NUSA_JEV_WORKERS_AI_SHADOW_CALL receipt."
-current_runtime_finding: "Runtime proof 36515211048 is fresh and PASS on deployment revision 45faa722b697b75387a05b4e8c441147903a2386, with fail-closed authority intact. Scheduler remains WAITING_RATE_LIMIT / waiting-provider-capacity; no native Jev call receipt or usage telemetry is present."
+current_runtime_finding: "Latest Runtime Proof 36982353106 passed for sourceSha=expectedMainSha=2fd7ad1dbe7cf9e22b2ab267765af7c0261af18e, reports EXECUTION_DISPATCHED / github-coding-dispatch-accepted and worker receipt run 36981712119, but contains no real NUSA_JEV_WORKERS_AI_SHADOW_CALL receipt or token-usage evidence. Provider capacity was not re-probed, so older WAITING_RATE_LIMIT evidence is historical, not current confirmation."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -42,4 +42,4 @@ verification_commands:
   - "pnpm run aipos:yaml"
   - "pnpm run aipos:drift"
   - "git diff --check"
-next_permitted_action: "Wait for provider-capacity recovery without duplicate dispatch or forced inference. Then resume the same logical work and verify a real typed native Jev SHADOW receipt and usage telemetry; bounded routing remains disabled."
+next_permitted_action: "Wait for a naturally eligible SHADOW event or verified provider-capacity recovery without duplicate dispatch or forced inference. Capture a real typed native Jev SHADOW receipt and usage telemetry before calibration; bounded routing and model-tier activation remain disabled."

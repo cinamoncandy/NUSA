@@ -1,12 +1,15 @@
 id: WO-ISSUE-2118-CI-SATURATION-WIP
 title: "Issue #2118 feed measured CI saturation into worker-pool WIP advice"
-status: REVIEW_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: MERGED_INCREMENT_POST_MERGE_VERIFIED
 priority: P0
 owner: autopilot
 repository: cinamoncandy/NUSA
 issue: 2118
 base_branch: main
-base_commit: 52c11bcc4644d995d357d9ee2019eb9ca71fa9f1
+base_commit: 064ce25dd91da92d084d4ca0d5ee570b94ef97b1
+implementation_head: 979f78b679a6ff8a98b76e1e0bbb7a9ddec777c7
+pull_request: 2460
+merge_commit: 9eb600a4173858c361b97a5ddfb87ceae5a654a4
 objective: "Make verified CI saturation a direct fail-closed input to the advisory worker-pool WIP limit without changing mandatory exact-head, Audit, or Release gates."
 architecture_impact:
   acknowledged: true
@@ -38,15 +41,16 @@ acceptance:
   - the advisor remains non-mutating
   - independent Audit and Release gates remain unchanged
 validation:
-  status: LOCAL_TARGETED_VALIDATION_PASSED_EXACT_HEAD_CI_REQUIRED
-  commands: "Latest-main reconvergence completed. pnpm run build and node --test --test-reporter=spec dist/apps/autopilot/src/concurrencyAdvisor.test.js PASS (9/9). This increment treats exactly 85% measured CI saturation as high pressure. Fresh canonical exact-head CI remains mandatory; no shared PAPER host validation was used."
+  status: MERGED_AND_POST_MERGE_VERIFIED
+  commands: "Exact head 979f78b679a6ff8a98b76e1e0bbb7a9ddec777c7: CI 36979533215 PASS; canonical Audit/Release 36980030111 PASS and merged as 9eb600a4173858c361b97a5ddfb87ceae5a654a4. Post-merge CI 36980168622, exact-revision Cloudflare Deploy 36980168557, and Actual PAPER runtime 36980168527 PASS. Local focused 14/14, build, typecheck, validate:full, security gate, lint:scripts, AIPOS YAML, and diff check PASS."
   local_heavy_commands: NOT_RUN_PER_SHARED_HOST_GUARD
-next: "Push the latest-main reconverged exact head, collect fresh canonical CI, then independent Audit and canonical Release evidence. Baseline/after p50/p95 optimization remains a later issue increment."
+next: "This bounded increment is complete. Continue Issue #2118 only with a newly measured current-main p50/p95 and owner-latency baseline plus a bounded critical-path change."
 delegated_increment:
   base_commit: 064ce25dd91da92d084d4ca0d5ee570b94ef97b1
   scope: "Preserve fail-closed HOLD for malformed explicit CI saturation while attributing the failure deterministically as invalid-ci-saturation-evidence."
-  reviewed_head: 7609e7ee56d8fe610f51262b5d8b378c1c2c4a41
-  first_exact_head_ci: "36977896793 SUCCESS; canonical PAPER and restricted-LIVE safety companions PASS."
-  independent_audit: "36978402320 found that production projection loses malformed saturation provenance and the AIPOS handoff misstates the increment as uncommitted. The repair now preserves an explicit invalid-evidence marker through to the advisor, where it still produces non-mutating HOLD with deterministic invalid-ci-saturation-evidence attribution."
-  local_validation: "Node 24.18.0 / pnpm 11.7.0: build PASS; worker-throughput regression 14/14 PASS including production evaluator reason; typecheck PASS; validate:full PASS; security gate PASS (0 secrets, 0 high/critical); AIPOS YAML 268 files PASS; lint:scripts PASS (0 errors, 14 existing warnings); git diff --check PASS."
-  next: "Publish this bounded repair to the existing PR branch and require fresh exact-head CI, independent review-thread resolution/acceptance, Audit, and canonical Release. No merge before those exact-head gates pass."
+  reviewed_head: 979f78b679a6ff8a98b76e1e0bbb7a9ddec777c7
+  first_exact_head_ci: "36979533215 PASS; required PAPER and Restricted LIVE/read-only companions PASS."
+  independent_audit: "36980030111 canonical independent Audit and Release PASS; PR #2460 merged as 9eb600a4173858c361b97a5ddfb87ceae5a654a4."
+  local_validation: "Node 24.18.0 / pnpm 11.7.0: focused worker-throughput regression 14/14, build, typecheck, validate:full, security gate (0 secrets/0 high-critical), AIPOS YAML, lint:scripts, and diff check PASS."
+  post_merge: "Exact-main CI 36980168622, Cloudflare Deploy 36980168557, and Actual PAPER runtime 36980168527 PASS. Runtime Proof 36982353106 is an accepted scheduler dispatch receipt, not evidence of coding completion."
+  next: "Track remaining p50/p95 and owner-latency optimization separately with new current-main measurements; retain all canonical CI/Audit/Release and safety gates."

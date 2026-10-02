@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
 title: "Stop repeated deterministic proposal failures before another inference call"
-status: IN_PROGRESS
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P1
 owner: nusa-development
 repository: cinamoncandy/NUSA
@@ -45,12 +45,12 @@ verification_commands:
   - "pnpm run aipos:provenance"
   - "git diff --check"
 validation:
-  status: PENDING
-  evidence: "No exact token/credit savings claim. Evidence establishes one avoidable third proposal attempt in the observed deterministic-failure sequence; actual provider usage was not captured."
+  status: LOCAL_VALIDATION_PASS
+  evidence: "Node 24.18.0 / pnpm 11.7.0: focused dispatch-retry tests 35/35; preflight, build, typecheck, validate:full, security gate (0 secrets, 0 high/critical), AIPOS YAML (271 files), drift, provenance, and diff check PASS. The test harness initially rejected the dirty checkout by design; rerun from clean commit passed. No exact token/credit savings claim because provider usage was not recorded."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Run focused regression and repository validation; then update this work order and AIPOS state with exact results before any PR."
+next_permitted_action: "Recheck current main and competing PRs, push the validated feature branch, and require fresh exact-head CI, independent Audit, and canonical Release. Never merge outside Release."
