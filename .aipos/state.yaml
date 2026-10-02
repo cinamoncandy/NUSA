@@ -85,13 +85,14 @@ current_issue_2118_ci_saturation_wip:
 current_issue_2118_main_ci_materialization:
   work_order: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
   issue: 2118
-  status: LOCAL_VALIDATED_PENDING_COMMIT_AND_EXACT_HEAD_CI
+  status: PR_OPEN_PENDING_EXACT_HEAD_CI
   branch: codex/issue-2118-main-ci-materialization
   base_sha: f05aa4a4d6bb0c3802fd06596026bd73147c331f
+  pull_request: 2451
   evidence: "Same-SHA post-merge runs 36944149502 (push, SUCCESS) and 36944151942 (workflow_dispatch, redundant; cancelled after start). Canonical Release 36943121052 completed SUCCESS."
   main_sync: "Merged non-conflicting main updates #2449 and #2448; latest base f05aa4a4d6bb0c3802fd06596026bd73147c331f. Both were mobile-only and did not change the release workflow hunk."
   local_validation: "13/13 targeted tests, validate:full, security gate, AIPOS YAML/provenance/drift, and diff check PASS. lint:scripts 0 errors with 14 existing unrelated warnings."
-  remaining: "Commit, re-check main and PR #2446 overlap, then exact-head CI, independent Audit, canonical Release, and post-merge evidence."
+  remaining: "Track canonical checks for current PR #2451 exact head, then independent Audit, canonical Release, and post-merge evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER

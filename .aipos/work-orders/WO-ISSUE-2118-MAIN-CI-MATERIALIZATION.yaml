@@ -1,6 +1,6 @@
 id: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
 title: "Suppress duplicate post-merge CI when push-run indexing is delayed"
-status: LOCAL_VALIDATED_PENDING_COMMIT_AND_EXACT_HEAD_CI
+status: PR_OPEN_PENDING_EXACT_HEAD_CI
 priority: P1
 owner: nusa-development
 repository: cinamoncandy/NUSA
@@ -49,4 +49,5 @@ validation:
     - "AIPOS YAML/provenance/drift validators — PASS"
     - "git diff --check — PASS"
   exact_head_ci: PENDING
-next_permitted_action: "Commit the locally validated change, re-check main and overlapping PR #2446, then push and open one PR if the change remains non-conflicting."
+pull_request: 2451
+next_permitted_action: "Verify canonical required checks on the current exact PR head; then independent Audit and canonical Release are required."
