@@ -68,7 +68,7 @@ test("invalid counts are treated as unknown, never as zero", () => {
 
 test("HOME keeps a current runtime fault on top of the rings", () => {
   const home = fs.readFileSync(path.join(root, "apps/mobile/src/homeView.tsx"), "utf8");
-  assert.match(home, /const field = buildIntelligenceField\(fieldInput\)/);
+  assert.match(home, /const field = buildIntelligenceField\(\{ \.\.\.fieldInput/);
   assert.match(home, /field\.phase === "HALTED" \|\| field\.phase === "DEGRADED" \|\| field\.phase === "AUTHENTICATION" \|\| field\.phase === "RECOVERING"/);
   assert.match(home, /<DecisionRings status=\{ringsStatus\}/);
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/decisionRings.tsx"), "utf8");

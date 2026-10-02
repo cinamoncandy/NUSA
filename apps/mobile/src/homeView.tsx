@@ -21,6 +21,7 @@ import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
 import { buildHomeFieldInput } from "./homeFieldInput";
 import { buildLearningLine } from "./learningLineModel";
+import { useDailyCounts } from "./useDailyCounts";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
 
@@ -161,7 +162,8 @@ export function HomeView({
 
   const fieldInput = buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
   // The rings show history; a current fault (halt, degraded runtime, lost connection) stays on top of them.
-  const field = buildIntelligenceField(fieldInput);
+  const dailyCounts = useDailyCounts(snapshot?.operations.heartbeat?.startedAt ?? null, fieldInput.decisionCount, fieldInput.paperOrderCount);
+  const field = buildIntelligenceField({ ...fieldInput, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
     ? { title: field.headline, detail: field.detail, tone: field.phase === "HALTED" ? "halt" as const : "warning" as const }
     : null;
@@ -181,7 +183,7 @@ export function HomeView({
         </Pressable>
       </View>
 
-      <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.paperOrderCount} /></View>
+      <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.paperOrderCount} /></View>
 
       {orderReason == null ? null : <View style={[styles.reasonCard, { borderColor: orderReason.category === "FILLED" || orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.border : theme.colors.warning }]} testID="home-order-reason-card">
         <Text style={[styles.eyebrow, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]}>{orderReason.category === "FILLED" ? "최근 체결" : orderReason.category === "UNKNOWN" ? "최근 판단 결과" : "주문하지 않은 이유"}</Text>
