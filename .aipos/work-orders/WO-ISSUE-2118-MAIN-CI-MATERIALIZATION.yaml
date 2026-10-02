@@ -1,12 +1,12 @@
 id: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
 title: "Suppress duplicate post-merge CI when push-run indexing is delayed"
-status: PR_OPEN_PENDING_EXACT_HEAD_CI
+status: LATEST_MAIN_REVALIDATED_PENDING_PUSH_AND_EXACT_HEAD_CI
 priority: P1
 owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2118
 base_branch: main
-base_commit: f05aa4a4d6bb0c3802fd06596026bd73147c331f
+base_commit: 8bfa0c50e53e738fb63462051a4645756bd6efa
 objective: "Prevent a same-SHA workflow_dispatch CI from being queued when the canonical push CI exists but has not yet appeared in the Actions run listing, while preserving exact-head coverage and fail-closed recovery."
 architecture_impact:
   acknowledged: true
@@ -40,7 +40,7 @@ verification_commands:
   - "pnpm run security:gate"
 validation:
   status: LOCAL_PASS
-  latest_main: f05aa4a4d6bb0c3802fd06596026bd73147c331f
+  latest_main: 8bfa0c50e53e738fb63462051a4645756bd6efa
   commands:
     - "node --test tests/autopilot-deterministic-audit-release.test.js — PASS 13/13"
     - "pnpm run validate:full — PASS"
@@ -48,6 +48,6 @@ validation:
     - "pnpm run lint:scripts — PASS, 0 errors; 14 existing warnings in unrelated files"
     - "AIPOS YAML/provenance/drift validators — PASS"
     - "git diff --check — PASS"
-  exact_head_ci: PENDING
+  exact_head_ci: PENDING_AFTER_MAIN_SYNC
 pull_request: 2451
-next_permitted_action: "Verify canonical required checks on the current exact PR head; then independent Audit and canonical Release are required."
+next_permitted_action: "Commit this latest-main revalidation record and non-force-push the synchronized branch to PR #2451; then require fresh exact-head CI and independent Audit."

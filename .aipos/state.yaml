@@ -85,14 +85,14 @@ current_issue_2118_ci_saturation_wip:
 current_issue_2118_main_ci_materialization:
   work_order: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
   issue: 2118
-  status: PR_OPEN_PENDING_EXACT_HEAD_CI
+  status: LATEST_MAIN_REVALIDATED_PENDING_PUSH_AND_EXACT_HEAD_CI
   branch: codex/issue-2118-main-ci-materialization
-  base_sha: f05aa4a4d6bb0c3802fd06596026bd73147c331f
+  base_sha: 8bfa0c50e53e738fb63462051a4645756bd6efa
   pull_request: 2451
   evidence: "Same-SHA post-merge runs 36944149502 (push, SUCCESS) and 36944151942 (workflow_dispatch, redundant; cancelled after start). Canonical Release 36943121052 completed SUCCESS."
-  main_sync: "Merged non-conflicting main updates #2449 and #2448; latest base f05aa4a4d6bb0c3802fd06596026bd73147c331f. Both were mobile-only and did not change the release workflow hunk."
-  local_validation: "13/13 targeted tests, validate:full, security gate, AIPOS YAML/provenance/drift, and diff check PASS. lint:scripts 0 errors with 14 existing unrelated warnings."
-  remaining: "Track canonical checks for current PR #2451 exact head, then independent Audit, canonical Release, and post-merge evidence."
+  main_sync: "Merged main update #2450 at 8bfa0c50e53e738fb63462051a4645756bd6efa. It adds mobile PAPER journal UI and does not modify the post-merge Release CI block; PR #2446 remains open with a separate preflight hunk."
+  local_validation: "After #2450 merge: 13/13 targeted workflow tests, validate:full, security gate, AIPOS provenance, and diff check PASS. Prior exact-head checks on 60e87c1e are stale after main advanced."
+  remaining: "Commit validation record, push synchronized branch to PR #2451, then fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
