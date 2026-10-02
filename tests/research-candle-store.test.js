@@ -15,7 +15,7 @@ const open = (max) => {
 
 test("migration 026 creates the table and the store records and reads candles in order", () => {
   const { db, store } = open();
-  assert.equal(db.migrationResult.currentVersion, "026_research_closed_candles");
+  assert.equal(db.migrationResult.currentVersion, "027_research_holdout_usage");
   assert.equal(store.append("KRW-BTC", M, [candle(2), candle(0), candle(1)]), 3);
   assert.deepEqual(store.read("KRW-BTC", M, 0, 99 * M).map((c) => c.closeTimeMs), [10 * M, 11 * M, 12 * M]);
   assert.deepEqual(store.read("KRW-BTC", M, 11 * M, 11 * M).map((c) => c.closeTimeMs), [11 * M]);

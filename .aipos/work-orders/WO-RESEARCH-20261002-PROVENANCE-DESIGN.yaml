@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261002-PROVENANCE-DESIGN
 title: "Design review: provenance for continuous research experiments (Stage 2b-4; documentation only)"
-status: DESIGN_PROPOSED
+status: DECISIONS_TAKEN_BY_DELEGATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -19,4 +19,4 @@ safety:
 verification_commands:
   - node scripts/validate-aipos-yaml.js
   - node scripts/aipos-work-order-index.js --check
-residual: "Awaiting owner decisions D1-D5 before the provenance builder is implemented."
+residual: "D1-D5 were taken as proposed after the owner instructed to stop asking and finish (2026-10-02); recorded in WO-RESEARCH-20261002-PROVENANCE-BUILDER."
