@@ -2002,5 +2002,9 @@ current_mobile_performance:
   work_order: WO-UI-20261002-PERFORMANCE
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-performance
+current_mobile_journal:
+  work_order: WO-UI-20261002-JOURNAL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-journal
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
