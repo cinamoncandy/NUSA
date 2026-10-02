@@ -77,8 +77,10 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /grep -q "more-view" qa\/android-product-ux\/05-more\.xml/);
   assert.match(workflow, /grep -q "paper-learning-monitor" qa\/android-product-ux\/06-paper\.xml/);
   assert.match(workflow, /paper-shadow-monitor-switcher\|dashboard-connection-required/);
-  assert.match(workflow, /grep -q "LIVE" qa\/android-product-ux\/03-live-readiness\.xml/);
-  assert.match(workflow, /grep -Eq "PORTFOLIO\|포트폴리오" qa\/android-product-ux\/09-portfolio\.xml/);
+  assert.match(workflow, /grep -q "live-field-header" qa\/android-product-ux\/03-live-readiness\.xml/);
+  assert.match(workflow, /grep -q "portfolio-screen" qa\/android-product-ux\/09-portfolio\.xml/);
+  // Acceptance keys on testIDs, never on display copy: renaming a label must not fail the emulator gate.
+  assert.doesNotMatch(workflow, /grep -[Eq]+ "(?:LIVE|PORTFOLIO)/);
   assert.match(workflow, /grep -q "home-screen" qa\/android-product-ux\/13-home-return\.xml/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });

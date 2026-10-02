@@ -99,6 +99,10 @@ async function issueDesktopBootstrap(port) {
   return payload.token;
 }
 
+// Generous on purpose: a Windows CI runner doing SQLite + HTTP + risk in one process exceeded the old
+// 2 s bound once ("Cloud PAPER request timed out") while nothing was wrong. Production defaults are untouched.
+const CLOUD_REQUEST_TIMEOUT_MS = 20_000;
+
 async function bootstrapDesktopClient(port, sessionPath) {
   const store = new DesktopCloudSessionStore(safeStorage, sessionPath);
   const session = new DesktopCloudSessionClient(store);
@@ -109,14 +113,14 @@ async function bootstrapDesktopClient(port, sessionPath) {
   assert.equal(snapshot.endpoint, `http://127.0.0.1:${port}`);
   assert.equal(Object.prototype.hasOwnProperty.call(snapshot, "accessToken"), false);
   assert.equal(Object.prototype.hasOwnProperty.call(snapshot, "refreshToken"), false);
-  return { store, session, client: new CloudPaperClient({ session, timeoutMs: 2_000 }) };
+  return { store, session, client: new CloudPaperClient({ session, timeoutMs: CLOUD_REQUEST_TIMEOUT_MS }) };
 }
 
 async function restoreDesktopClient(sessionPath) {
   const store = new DesktopCloudSessionStore(safeStorage, sessionPath);
   const session = new DesktopCloudSessionClient(store);
   assert.equal(await session.restore(), true, "Desktop restart must restore through the rotated encrypted refresh credential");
-  return { store, session, client: new CloudPaperClient({ session, timeoutMs: 2_000 }) };
+  return { store, session, client: new CloudPaperClient({ session, timeoutMs: CLOUD_REQUEST_TIMEOUT_MS }) };
 }
 
 async function waitForOperations(client, timeoutMs = 5_000) {
