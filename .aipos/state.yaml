@@ -2004,3 +2004,9 @@ current_mobile_journal:
   branch: claude/nusa-repository-j93sd8-journal
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_home_simplify:
+  work_order: WO-UI-20261002-HOME-SIMPLIFY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-home-simplify
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
