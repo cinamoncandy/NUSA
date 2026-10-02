@@ -28,6 +28,8 @@ export interface ConcurrencyRecommendation {
 const finite = (value: number): boolean => Number.isFinite(value);
 const boundedRate = (value: number): boolean => finite(value) && value >= 0 && value <= 1;
 const positiveInteger = (value: number): boolean => Number.isInteger(value) && value > 0;
+const HIGH_CI_SATURATION = 0.85;
+const CI_EXPANSION_HEADROOM = 0.7;
 const evidenceSource = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0 && value.trim().length <= 256;
 
@@ -54,7 +56,7 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
   }
 
   const ciSaturation = evidence.ciSaturation ?? evidence.ciUtilization;
-  const ciSaturationHigh = ciSaturation > 0.85;
+  const ciSaturationHigh = ciSaturation >= HIGH_CI_SATURATION;
   const pressureHigh =
     evidence.conflictRate > 0.15 || evidence.reworkRate > 0.15 || ciSaturationHigh;
 
@@ -84,7 +86,7 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     evidence.throughputTrend > 0 &&
     evidence.conflictRate <= 0.05 &&
     evidence.reworkRate <= 0.05 &&
-    ciSaturation <= 0.7;
+    ciSaturation <= CI_EXPANSION_HEADROOM;
 
   if (headroomVerified && evidence.currentWip < evidence.maxWip) {
     return Object.freeze({
