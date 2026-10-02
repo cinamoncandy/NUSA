@@ -237,3 +237,15 @@ test("rollback restores a legacy release that predates the Autopilot systemd uni
   assert.match(installUnits, /rm -f -- "\$\{SYSTEMD_UNIT_DIR\}\/\$\{AUTOPILOT_SERVICE\}"/);
   assert.match(installUnits, /die "missing nusa-autopilot\.service/, "forward activation must still fail closed when the unit is missing");
 });
+
+test("superseded releases are pruned before the host is touched so a full disk cannot fail the backup", () => {
+  const release = workflow.slice(workflow.indexOf("  release:"));
+  const recheck = release.indexOf("Recheck exact protected main before host mutation");
+  const prune = release.indexOf('sudo "$STEP" prune');
+  const download = release.indexOf("Download built release");
+  const backup = release.indexOf('"$STEP" backup');
+  assert.ok(prune > recheck && prune < download, "prune must run after the main recheck and before the download");
+  assert.ok(prune < backup, "prune must free space before the backup");
+  assert.equal(release.split('"$STEP" prune').length - 1, 1, "prune is invoked exactly once");
+  assert.doesNotMatch(release, /rm -rf|find .* -delete/, "the workflow itself never deletes; only the bounded helper does");
+});

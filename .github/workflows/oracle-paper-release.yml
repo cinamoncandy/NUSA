@@ -108,6 +108,12 @@ jobs:
           MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           [ "$MAIN_SHA" = "$SOURCE_SHA" ] || { echo "::error::Protected main moved after build; refusing stale release"; exit 1; }
 
+      - name: Free disk by pruning superseded releases (bounded)
+        # The helper keeps the active release, the rollback release and the newest few, validates every
+        # candidate before deleting, and never touches state or backups. Without this, old releases pile
+        # up until the host fills and the backup step fails before any release change (runs 88 and 89).
+        run: sudo "$STEP" prune
+
       - name: Download built release
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
