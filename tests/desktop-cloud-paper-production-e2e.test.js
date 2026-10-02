@@ -127,7 +127,15 @@ async function waitForOperations(client, timeoutMs = 5_000) {
   const deadline = Date.now() + timeoutMs;
   let latest;
   while (Date.now() < deadline) {
-    latest = await client.loadOperations();
+    // Bound every poll by the remaining readiness deadline, so a slow response can never extend it
+    // (the per-request bound below is deliberately larger than this helper's own limit).
+    let timer;
+    const remaining = Math.max(1, deadline - Date.now());
+    latest = await Promise.race([
+      client.loadOperations(),
+      new Promise((resolve) => { timer = setTimeout(() => resolve({ status: "POLL_DEADLINE" }), remaining); }),
+    ]);
+    clearTimeout(timer);
     if (latest.status === "READY" && latest.value.portfolio != null) return latest.value;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }

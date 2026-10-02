@@ -2108,3 +2108,9 @@ current_mobile_warm_resume:
   branch: claude/nusa-repository-j93sd8-warm-resume
   authority_impact: session-projection
   remaining: exact-head-CI_then-Audit_then-Release-merge
+current_ci_robustness:
+  work_order: WO-OPS-20261002-CI-ROBUSTNESS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ci-robustness
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
