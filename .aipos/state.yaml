@@ -4,7 +4,7 @@ current_autopilot_runtime_proof_cron_propagation:
   prior_pull_request: 2434
   pull_request: 2436
   successor_branch: codex/autopilot-cron-propagation-proof
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: LATEST_MAIN_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   base_sha: a8a24ec1cccd6063927fce6e4ab0a4212c70f401
   first_broken_transition: deployed_cron_trigger_propagation_to_fresh_scheduled_receipt
   scope: "Bounded propagation plus next-cron margin; preserve fresh exact-main receipt identity during zero-credit provider backoff without backlog or AI calls."
@@ -13,7 +13,7 @@ current_autopilot_runtime_proof_cron_propagation:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_audit_dispatch_recovery:
   work_order: WO-AUTOPILOT-20261001-AUDIT-DISPATCH-RECOVERY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: LATEST_MAIN_SYNCED_PENDING_VALIDATION
   branch: codex/audit-exact-head-dedupe
   base_sha: 1a320be30ac6e69445a2ed6961da56fa462f28bc
   authority_impact: none
@@ -407,17 +407,34 @@ current_provider_backpressure:
   next: focused-local-validation_then_push-existing-PR_then_exact-head-CI-Audit-Release
 current_jev_bounded_coding_admission:
   work_order: WO-20260924-AI-CAPACITY-COST-CEILING
-  status: READY_FOR_REVIEW
+  status: MERGED
   branch: feat/ai-capacity-jev-bounded-admission
   base_sha: b631ef9a352bfd3ed6b90d27de45d5816d48b3c5
   pull_request: 2331
+  implementation_head: 74935ee83b77721e6424ca4f46e26afacdf7a8dd
+  merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
+  exact_head_ci: "36362184764 PASS"
   rollout_mode: BOUNDED_ROUTING_DISABLED_PENDING_2329
   first_broken_transition: verified_failure_to_expensive_coding_admission
   scope: verified-failure-evidence_negative-admission_plus_production-no-action-propagation
-  implementation_head: 08adc66b24719d92010301ed2b7b7416b17e4486
   correction: "Canonical gha failure reasons are eligible; Jev abstention requires exact GitHub failed job/step evidence; repair retries do not reclassify; /coding/propose and dispatcher propagate abstention as successful NO_ACTION."
-  validation: "Focused admission TypeScript compile/runtime PASS; dispatcher JEV_ROUTING_ABSTAINED->NO_ACTION test PASS; git diff --check PASS; review threads RESOLVED. Fresh exact-head CI required."
-  remaining: push-rebased-existing-PR_then_fresh-exact-head-CI_then_independent-Audit_then_Release
+  validation: "PR #2331 exact-head CI 36362184764 and required PAPER/Restricted LIVE/read-only companion workflows PASS; merged as 1b058a1d26e14125afb51cc2d87a49a662044130."
+  remaining: accepted_2329_shadow_calibration_and_provider_capacity_recovery_before_runtime_activation
+current_jev_coding_model_tiering:
+  work_order: WO-20260927-JEV-CODING-MODEL-TIERING
+  parent_pr: 2331
+  parent_merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
+  pull_request: 2334
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: feat/ai-capacity-jev-model-tiering
+  base_sha: 958912f8a37544b780a554d9e214600b109b4869
+  latest_main_sync_commit: 56d7045125a3c938b04ac9beaf99c12da08eac91
+  implementation_head: 4ddbdae5f7c4ad5911d1f804d41fe2a692c8808c
+  scope: "Use only verified high-confidence Jev admission to select an explicitly configured Workers AI coding tier; preserve current zero-credit and provider-backpressure controls."
+  runtime_activation: DISABLED
+  activation_blocker: "No accepted real SHADOW calibration/runtime Jev receipt; provider-capacity wait remains unverified as recovered."
+  evidence: "Head 571e251717eb769f5aae080918c8c21c4309e1df passed canonical CI 36975583427, Cloudflare preflight 36975583341, and all required safety companions. Independent Audit request 36976141645 safely returned NO_ACTION because main advanced to 958912f8a37544b780a554d9e214600b109b4869 after the PR base remained 9ed2cee88fc668a6859f6b04e233e3ea7092c444. Latest main was synchronized at 56d7045125a3c938b04ac9beaf99c12da08eac91; after correcting a duplicate AIPOS key introduced by the merge, latest-main build, 74 focused tests, typecheck, validate:full, security, YAML, drift, provenance, lint, and diff check all pass. Fresh exact-head CI/preflight and Audit are pending. Tier gate and bounded routing stay disabled; runtime savings are unproven."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_ai_provider_reliability:
   work_order: WO-20260927-AI-PROVIDER-RELIABILITY
   issue: 1997
