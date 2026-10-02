@@ -55,10 +55,20 @@ The research coordinator validates every experiment input strictly (`researchRun
   slippage models) must be registered with the coordinator. None exists in production composition today; the
   challenger variants should come from the deterministic optimizer parameter grid (now in
   `packages/core/src/optimizer`).
-- Historical candles must be collected and stored first (public Upbit 1-minute candles, rate limited).
+- Historical candles must be collected and stored first: derive them from the stored ticker observations (see the
+  finding below) and, for earlier periods, optionally public Upbit 1-minute candles (rate limited).
 
 Because a wrong provenance would manufacture false evidence, Stage 2b starts with a design review of the
 provenance derivation before any code is wired.
+
+## Finding: stored market data (2026-10-02)
+The server already persists public ticker observations durably (`paper_public_market_observations`,
+`SqlitePaperMarketObservationRepository.readWindow`). Its retention is capped at 50,000 rows across all
+markets by default (`runtime.ts` constructs it without a larger limit), so it holds hours of history, not the
+days or weeks a 30-day walk-forward needs. Plan: derive closed 1-minute candles from these observations
+(`closedCandleAggregator.ts`, added in WO-RESEARCH-20261002-CANDLE-AGGREGATOR) and keep them in a separate
+long-retention candle store (next stage; a storage schema change that needs its own work order). Backfill from
+public Upbit candles remains an option for the period before collection started.
 
 ## Proposal
 A bounded scheduler that submits walk-forward experiments on stored historical candles:

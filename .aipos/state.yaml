@@ -2171,3 +2171,9 @@ current_research_session_planner:
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
   depends_on: claude/nusa-repository-j93sd8-optimizer-core
+current_research_candle_aggregator:
+  work_order: WO-RESEARCH-20261002-CANDLE-AGGREGATOR
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-candle-aggregator
+  authority_impact: none
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
