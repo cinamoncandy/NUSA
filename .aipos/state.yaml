@@ -2146,6 +2146,7 @@ current_daily_reset:
   work_order: WO-UI-20261002-DAILY-RESET
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-daily-reset
+  authority_impact: none
 current_learning_line:
   work_order: WO-UI-20261002-LEARNING-LINE
   status: READY_FOR_REVIEW

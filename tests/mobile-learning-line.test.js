@@ -53,3 +53,18 @@ test("AI trust: unhealthy calibration storage is flagged even when calibrated", 
   assert.equal(l.tone, "warn");
   assert.match(l.value, /보정 기록 저장 이상/);
 });
+
+test("a fail-closed research state with zero experiments is not hidden behind 실험 아직 없음", () => {
+  const l = buildLearningLine(r({ experimentCount: 0, health: "FAIL_CLOSED" }));
+  assert.equal(l.tone, "warn");
+  assert.match(l.value, /실험 아직 없음 · 연구 일시 제한/);
+});
+test("malformed research projection never throws and reads as a warning", () => {
+  for (const bad of [r({ metrics: undefined }), r({ metrics: null }), r({ experimentCount: "x" }), r({ candidateCount: undefined }), r({ experimentCount: NaN })]) {
+    const l = buildLearningLine(bad);
+    assert.equal(l.tone, "warn");
+    assert.match(l.value, /형식 확인 필요/);
+  }
+  assert.doesNotThrow(() => promotionProgress(undefined));
+  assert.doesNotThrow(() => buildLearningLine(r({ metrics: {} })));
+});

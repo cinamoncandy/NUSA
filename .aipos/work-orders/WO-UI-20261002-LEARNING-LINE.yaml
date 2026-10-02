@@ -13,6 +13,15 @@ scope:
   - "docs/PROPOSAL_CONTINUOUS_RESEARCH_EXPERIMENTS.md: owner-approval proposal only; no implementation."
   - "learningLineModel.ts buildAiTrustLine + homeView AI 신뢰 row: calibration status, sample count, expected error, Brier; only CALIBRATED is shown as trusted, all else reads as zero trust (display only, from snapshot.ai)."
   - "homeView.tsx: LEARNING row in the 이 판단의 근거 block (testID home-learning-line)."
+ui_scope:
+  rule: "AGENTS.md UI/UX rule: a UI change applies to the whole app; every screen left unchanged is named with its reason."
+  applied:
+    - "HOME (자세히 보기): LEARNING and AI 신뢰 summary lines."
+  excluded_with_reason:
+    - "AI tab (aiView.tsx): already presents the full research card (candidates, experiments) and calibration/AI detail; a summary line there would duplicate the primary view."
+    - "PAPER tab learning screens (paperLearningMonitorView.tsx, paperLearningScreen.ts): present per-cycle PAPER events, a different concept from the research/calibration summary."
+    - "System learning supervisor view (systemLearningSupervisorView.tsx): detailed evolution evidence loaded separately; this change adds a read-only summary that links nothing new."
+    - "Other tabs (market, portfolio, settings): no learning or AI-trust concept to present."
 exclusions:
   - "Display only. No learning, promotion, strategy, risk, execution, server or LIVE change; AI stays ZERO_AUTHORITY. Whether the server loop actually produces candidates still needs a server-side check (not verifiable from the sandbox)."
 safety:
