@@ -23,6 +23,7 @@ export { OrderHistoryView } from "./orderHistoryView";
 export { StrategiesView } from "./strategiesView";
 export { MoreDetailView, type TruthfulMoreDetail } from "./moreDetailView";
 export { PrimaryNavigation } from "./primaryNavigation";
+export { SafetyLine } from "./safetyLine";
 // Shared primitives and theming the shell renders directly.
 export { NusaButton, NusaCard, StatusChip, WaveMark } from "./components";
 export { ThemeProvider, useTheme, type ThemePreference } from "./ThemeProvider";

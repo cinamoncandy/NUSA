@@ -72,10 +72,10 @@ current_issue_2017_component_health:
 current_issue_2118_ci_saturation_wip:
   work_order: WO-ISSUE-2118-CI-SATURATION-WIP
   issue: 2118
-  status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
-  base_sha: 08dd953aee7ea3db49993464a2244eca6c41e3ac
-  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP; legacy ciUtilization remains the compatibility fallback."
-  validation: "Prior exact-head CI passed; review repair adds minimum-WIP contention attribution coverage and corrects recovery metadata. Fresh exact-head CI is required; heavy local validation remains prohibited on the shared 1 GB PAPER host."
+  status: RECONVERGED_TARGETED_VALIDATED_PENDING_EXACT_HEAD_CI
+  base_sha: 52c11bcc4644d995d357d9ee2019eb9ca71fa9f1
+  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP and an inclusive 85% high-pressure boundary; legacy ciUtilization remains the compatibility fallback."
+  validation: "Implementation now treats exactly 85% measured CI saturation as high pressure. Latest-main reconvergence completed; pnpm run build and compiled concurrencyAdvisor regression tests 9/9 PASS locally. Fresh exact-head CI remains required; no shared PAPER host validation was used."
   remaining: "Fresh exact-head CI, independent Audit, and canonical Release; current baseline and after-change p50/p95 measurement remain later increments."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
@@ -1992,3 +1992,9 @@ current_mobile_holo_sphere:
   branch: claude/nusa-repository-j93sd8-holo-sphere
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-four-tab-layout-redesign
+current_mobile_safety_line:
+  work_order: WO-UI-20261002-SAFETY-LINE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-safety-line
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-server-journal-and-equity-history-projections
