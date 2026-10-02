@@ -40,6 +40,15 @@ observation of the live server; the app's LEARNING line shows the real state.
 - Default budget proposed for Stage 2 (owner may change): one session per KST day, at most 288 experiments
   (about one per 5 minutes), PAPER/Research evidence only.
 
+## Finding: stored market data (2026-10-02)
+The server already persists public ticker observations durably (`paper_public_market_observations`,
+`SqlitePaperMarketObservationRepository.readWindow`). Its retention is capped at 50,000 rows across all
+markets by default (`runtime.ts` constructs it without a larger limit), so it holds hours of history, not the
+days or weeks a 30-day walk-forward needs. Plan: derive closed 1-minute candles from these observations
+(`closedCandleAggregator.ts`, added in WO-RESEARCH-20261002-CANDLE-AGGREGATOR) and keep them in a separate
+long-retention candle store (next stage; a storage schema change that needs its own work order). Backfill from
+public Upbit candles remains an option for the period before collection started.
+
 ## Proposal
 A bounded scheduler that submits walk-forward experiments on stored historical candles:
 
