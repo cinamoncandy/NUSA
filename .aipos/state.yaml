@@ -2190,6 +2190,13 @@ current_research_candle_collector:
   branch: claude/nusa-repository-j93sd8-candle-collector
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+current_research_provenance_design:
+  work_order: WO-RESEARCH-20261002-PROVENANCE-DESIGN
+  status: DESIGN_PROPOSED
+  branch: claude/nusa-repository-j93sd8-provenance-design
+  authority_impact: none
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+  decisions: D1_to_D5_taken_as_proposed_by_owner_delegation_2026-10-02_see_WO-RESEARCH-20261002-PROVENANCE-BUILDER
 current_research_provenance_builder:
   work_order: WO-RESEARCH-20261002-PROVENANCE-BUILDER
   status: READY_FOR_REVIEW
