@@ -82,6 +82,25 @@ test("Release reuses an exact-main CI run before dispatching a duplicate", () =>
   assert.match(workflow, /merged_main/);
 });
 
+test("Release gives an exact-main CI push a bounded visibility grace before fallback dispatch", () => {
+  const startCi = workflow.split("- name: Start canonical post-merge main CI", 2)[1].split("\n      - name:", 1)[0];
+  assert.match(startCi, /for poll in \$\(seq 1 8\)/);
+  assert.match(startCi, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(startCi, /\.name == "CI" and \.path == "\.github\/workflows\/ci\.yml" and \.head_sha == \$sha/);
+  assert.match(startCi, /sleep 5/);
+  assert.match(startCi, /Waiting for exact-main push CI to materialize before fallback dispatch/);
+  assert.match(startCi, /Main advanced during exact-main CI visibility grace/);
+  assert.match(startCi, /actions\/workflows\/ci\.yml\/dispatches/);
+  assert.match(startCi, /Exact-main CI attempt \$failed_ci_run failed; preserving the existing bounded rerun recovery path and suppressing fallback dispatch/);
+  assert.ok(startCi.indexOf("for poll in") < startCi.indexOf("actions/workflows/ci.yml/dispatches"),
+    "manual fallback must remain after the bounded exact-head propagation grace");
+  const recovery = workflow.split("- name: Recover post-merge CI retries and dispatch Cloudflare Deploy", 2)[1].split("\n      - name:", 1)[0];
+  assert.match(recovery, /Post-merge CI attempt \$failed_attempt failed; requesting bounded rerun/);
+  assert.match(recovery, /rerun-failed-jobs/);
+  assert.ok(startCi.indexOf("failed_ci_run=") < startCi.indexOf("actions/workflows/ci.yml/dispatches"),
+    "a failed exact-head run must defer to the existing bounded recovery, not launch a second full CI");
+});
+
 test("Release recovers bounded post-merge CI and suppresses duplicate Cloudflare Deploy dispatch", () => {
   assert.match(workflow, /Recover post-merge CI retries and dispatch Cloudflare Deploy/);
   assert.match(workflow, /for poll in \$\(seq 1 40\)/);

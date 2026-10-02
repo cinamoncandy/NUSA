@@ -72,11 +72,24 @@ current_issue_2017_component_health:
 current_issue_2118_ci_saturation_wip:
   work_order: WO-ISSUE-2118-CI-SATURATION-WIP
   issue: 2118
-  status: RECONVERGED_TARGETED_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: MERGED_INCREMENT_FOLLOW_UP_ACTIVE
   base_sha: 52c11bcc4644d995d357d9ee2019eb9ca71fa9f1
+  pull_request: 2430
+  implementation_head: 56bf5900a484355f8cb0f9ae41d56e845cf5cc63
+  merge_commit: 070078d31342fff277909c4929f9445e2728488e
+  exact_head_ci: "36942370607 PASS"
   scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP and an inclusive 85% high-pressure boundary; legacy ciUtilization remains the compatibility fallback."
-  validation: "Implementation now treats exactly 85% measured CI saturation as high pressure. Latest-main reconvergence completed; pnpm run build and compiled concurrencyAdvisor regression tests 9/9 PASS locally. Fresh exact-head CI remains required; no shared PAPER host validation was used."
-  remaining: "Fresh exact-head CI, independent Audit, and canonical Release; current baseline and after-change p50/p95 measurement remain later increments."
+  validation: "PR #2430 merged through canonical Release at 070078d31342fff277909c4929f9445e2728488e. Exact-head CI 36942370607, independent Audit, and canonical Release passed. Post-merge CI 36944149502 succeeded."
+  remaining: "Successor WO-ISSUE-2118-MAIN-CI-MATERIALIZATION addresses the observed same-SHA push-run indexing race that launched redundant CI run 36944151942."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_issue_2118_main_ci_materialization:
+  work_order: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
+  issue: 2118
+  status: IN_PROGRESS
+  branch: codex/issue-2118-main-ci-materialization
+  base_sha: 070078d31342fff277909c4929f9445e2728488e
+  evidence: "Same-SHA post-merge runs 36944149502 (push, SUCCESS) and 36944151942 (workflow_dispatch, redundant; cancelled after start). Canonical Release 36943121052 completed SUCCESS."
+  remaining: "Targeted workflow regression, full local validation, security gate, exact-head CI, independent Audit, canonical Release, and post-merge evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER

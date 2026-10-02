@@ -1,0 +1,41 @@
+id: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
+title: "Suppress duplicate post-merge CI when push-run indexing is delayed"
+status: IN_PROGRESS
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2118
+base_branch: main
+base_commit: 070078d31342fff277909c4929f9445e2728488e
+objective: "Prevent a same-SHA workflow_dispatch CI from being queued when the canonical push CI exists but has not yet appeared in the Actions run listing, while preserving exact-head coverage and fail-closed recovery."
+architecture_impact:
+  acknowledged: true
+  analysis: "Tightens the existing single #903 Release control path with bounded read-model propagation handling. Adds no queue, scheduler, CI workflow, authority, or required-check changes."
+evidence:
+  observation: "After PR #2430 merged as 070078d31342fff277909c4929f9445e2728488e, canonical CI push run 36944149502 completed SUCCESS. Release step 12 had already dispatched workflow_dispatch CI run 36944151942 on the identical SHA; the redundant run began shards and was cancelled after Release confirmed its exact-main CI and downstream convergence."
+  cost_signal: "Before cancellation, duplicate validation/UI/core jobs ran approximately 30–82 seconds each. This is measured runner work avoided only in part; no billing-credit amount is asserted."
+scope:
+  - "Add a bounded, exact-head Actions-run visibility grace before the existing CI fallback dispatch."
+  - "Re-check protected main before fallback dispatch; a stale merge SHA exits through the existing newer-convergence path."
+  - "Keep existing exact workflow path, head SHA, active/success eligibility; failed/cancelled exact-head runs defer to the existing bounded rerun recovery."
+  - "Add a regression test for bounded wait ordering, exact binding, stale-main guard, and non-suppression of failed CI."
+exclusions:
+  - "No required CI, coverage, security, safety, Audit, or Release gate reduction."
+  - "No additional scheduler, queue, retry loop, workflow, or API authority."
+  - "No live trading, credential, or production mutation changes."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - "A visible queued, in-progress, pending, or successful CI run is reused only when name/path/head exactly match the canonical CI and merged SHA."
+  - "The fallback dispatch is not attempted until the bounded visibility grace expires without an eligible exact-head run."
+  - "Main advancing during the grace suppresses stale fallback dispatch."
+  - "Failed/cancelled CI is not treated as success and does not trigger a duplicate full dispatch; existing bounded rerun/exhaustion behavior remains intact."
+  - "Targeted regression, full validation, security gate, exact-head CI, independent Audit, and canonical Release are recorded truthfully."
+verification_commands:
+  - "node --test tests/autopilot-deterministic-audit-release.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+next_permitted_action: "Run targeted workflow regression and inspect the diff; then run prescribed local validation and open one PR if clean."
