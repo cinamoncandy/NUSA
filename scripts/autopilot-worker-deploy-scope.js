@@ -3,6 +3,8 @@ const fs = require("node:fs");
 const WORKER_RUNTIME_INPUTS = [
   (file) => file.startsWith("apps/autopilot/"),
   (file) => file.startsWith("packages/contracts/"),
+  // The Worker bundles executable code from apps/cloud (e.g. apps/cloud/src/ai/*).
+  (file) => file.startsWith("apps/cloud/"),
   (file) => [
     "package.json",
     "pnpm-lock.yaml",
