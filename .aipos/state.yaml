@@ -2190,3 +2190,10 @@ current_research_candle_collector:
   branch: claude/nusa-repository-j93sd8-candle-collector
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+current_research_holdout_ledger:
+  work_order: WO-RESEARCH-20261002-HOLDOUT-LEDGER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-holdout-ledger
+  authority_impact: persistence-schema-additive
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+  deploy: not_deployed_owner_approval_required

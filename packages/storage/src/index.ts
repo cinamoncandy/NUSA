@@ -42,6 +42,8 @@ export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, P
 export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
 export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
 export { SqliteResearchCandleStore, ResearchCandleStoreError } from "./researchCandleStore";
+export { SqliteResearchHoldoutLedger, ResearchHoldoutLedgerError } from "./researchHoldoutLedger";
+export type { HoldoutKey } from "./researchHoldoutLedger";
 export type { StoredResearchCandle } from "./researchCandleStore";
 
 type SqlRow = Record<string, string | number | bigint | null>;
@@ -522,5 +524,16 @@ CREATE TABLE IF NOT EXISTS research_closed_candles (
   close REAL NOT NULL CHECK (close > 0),
   checksum TEXT NOT NULL,
   PRIMARY KEY (market, interval_ms, close_time_ms)
+);
+` }, { id: "027_research_holdout_usage", sql: `
+CREATE TABLE IF NOT EXISTS research_holdout_usage (
+  strategy_config_hash TEXT NOT NULL,
+  market TEXT NOT NULL,
+  interval_ms INTEGER NOT NULL CHECK (interval_ms > 0),
+  holdout_start_ms INTEGER NOT NULL CHECK (holdout_start_ms > 0),
+  holdout_end_ms INTEGER NOT NULL CHECK (holdout_end_ms >= holdout_start_ms),
+  evaluation_id TEXT NOT NULL,
+  used_at_ms INTEGER NOT NULL CHECK (used_at_ms > 0),
+  PRIMARY KEY (strategy_config_hash, market, interval_ms, holdout_start_ms, holdout_end_ms)
 );
 ` }];
