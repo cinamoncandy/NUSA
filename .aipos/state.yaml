@@ -2158,3 +2158,9 @@ current_research_continuous_experiments:
   branch: claude/nusa-repository-j93sd8-research-scheduler
   authority_impact: research-evidence-only
   remaining: stage_2_composition_then_stage_3_tests_then_owner_approved_deploy
+current_optimizer_core:
+  work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-optimizer-core
+  authority_impact: none
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
