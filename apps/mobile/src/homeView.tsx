@@ -160,7 +160,7 @@ export function HomeView({
 
   const fieldInput = buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
   // The rings show history; a current fault (halt, degraded runtime, lost connection) stays on top of them.
-  const dailyCounts = useDailyCounts(fieldInput.decisionCount, fieldInput.paperOrderCount);
+  const dailyCounts = useDailyCounts(snapshot?.operations.heartbeat?.startedAt ?? null, fieldInput.decisionCount, fieldInput.paperOrderCount);
   const field = buildIntelligenceField({ ...fieldInput, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
     ? { title: field.headline, detail: field.detail, tone: field.phase === "HALTED" ? "halt" as const : "warning" as const }
