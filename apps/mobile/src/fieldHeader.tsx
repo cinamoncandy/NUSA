@@ -3,17 +3,17 @@ import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { fieldMotion, fieldPalette } from "./designSystem";
 import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
-import { ContourCore } from "./contourCore";
+import { HoloSphere } from "./holoSphere";
 import { fieldHeaderPose, type FieldHeaderModel } from "./fieldScreensModel";
 
 /**
- * Compact header band for secondary tabs: the HOME contour core, drawn still and in the tab's
- * tone (its rings are the same language as HOME; this band has no decision heartbeat). Moves only when the tone or subsystem changes. A sealed LIVE tab
+ * Compact header band for secondary tabs: the HOME holo sphere, drawn still and tinted by the tab's
+ * state (same figure as HOME; this band has no decision heartbeat). Moves only when the tone or subsystem changes. A sealed LIVE tab
  * draws a dashed seal ring around the nebula.
  */
 const HEIGHT = 150;
 const SEAL_RADIUS = 70;
-const CONTOUR_SIZE = 128;
+const SPHERE_SIZE = 128;
 const HUE: Record<FieldSubsystem, string> = { market: fieldPalette.market, axiom: fieldPalette.axiom, paper: fieldPalette.paper, governance: fieldPalette.governance, risk: fieldPalette.risk };
 const TONE: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
 
@@ -62,8 +62,8 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     </View>
     <View style={styles.field} onLayout={onLayout}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: presence, transform: [{ scale: spread }] }]}>
-        <Animated.View style={[styles.contour, { opacity: glow }]}>
-          <ContourCore decisionCount={null} reducedMotion size={CONTOUR_SIZE} testID={`${testID}-contour`} innerColor={model.tone === "dim" ? HUE[model.subsystem] : tone} outerColor={fieldPalette.dim} pulseColor={tone} coreColor={tone} />
+        <Animated.View style={[styles.figure, { opacity: glow }]}>
+          <HoloSphere decisionCount={null} fillCount={null} tone={model.tone === "red" ? "halt" : model.tone === "amber" ? "hold" : "normal"} reducedMotion size={SPHERE_SIZE} points={900} testID={`${testID}-holo`} />
         </Animated.View>
       </Animated.View>
       {width > 0 && sealed ? <View pointerEvents="none" style={[styles.seal, { left: width / 2 - SEAL_RADIUS, top: HEIGHT / 2 - SEAL_RADIUS }]} /> : null}
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   status: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
   field: { height: HEIGHT, overflow: "hidden" },
   seal: { position: "absolute", width: SEAL_RADIUS * 2, height: SEAL_RADIUS * 2, borderRadius: SEAL_RADIUS, borderWidth: 1, borderStyle: "dashed", borderColor: fieldPalette.dim },
-  contour: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
+  figure: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
   headline: { color: fieldPalette.text, fontSize: 24, lineHeight: 31, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   facts: { flexDirection: "row", marginTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim, paddingTop: 10 },

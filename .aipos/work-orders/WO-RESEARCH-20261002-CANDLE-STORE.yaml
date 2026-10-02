@@ -1,0 +1,30 @@
+id: WO-RESEARCH-20261002-CANDLE-STORE
+title: "Durable long-retention store for closed research candles (Stage 2b-2; additive migration, not wired, not deployed)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-candle-store
+authority_impact: persistence-schema-additive
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "The ticker observation table keeps only hours of history (50,000 rows across all markets), but a 30-day walk-forward needs weeks of closed 1-minute candles. Add a separate, additive, bounded-retention store for closed candles produced by the candle aggregator."
+scope:
+  - "Migration 026_research_closed_candles: one new table research_closed_candles (market, interval_ms, close_time_ms primary key; open/high/low/close positive; row checksum). No existing table or data is altered."
+  - "packages/storage/src/researchCandleStore.ts: SqliteResearchCandleStore. Candles are immutable per (market, interval, close time): identical append is a no-op, a different candle for the same key is a conflict that throws. A batch with any invalid candle writes nothing. Retention is bounded per market (default 100,000 rows, about 69 days of 1-minute candles). Every read verifies the row checksum. Volume is not stored."
+  - "Existing tests that pin the schema version/applied list now expect 026 (storage-migrations, research-memory-semantics, cloudPaperAccountHistoryMigration)."
+  - "tests/research-candle-store.test.js: record/read order, idempotency and conflict, atomic invalid batch, retention per market, corruption detection, window/market validation."
+exclusions:
+  - "Not wired: nothing writes candles or reads them yet (the aggregator and the store are not composed). Migration 026 runs only when a build containing it is deployed, and any server deploy still needs explicit owner approval."
+  - "No change to the ticker observation table, its retention, or any existing data. No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Invalid candles, conflicting duplicates and corrupted rows throw; nothing is repaired."
+rollback: "Revert the commit; the extra empty table is harmless, or drop it manually. No existing data is touched."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-candle-store.test.js tests/storage-migrations.test.js tests/research-memory-semantics.test.js
+  - node --test dist/packages/storage/src/cloudPaperAccountHistoryMigration.test.js
+  - pnpm run validate
+residual: "Composition (collector that aggregates ticks into this store), input builder with provenance, evaluators and owner-approved deploy not started. Not run: pnpm run validate (sandbox Node 22)."
