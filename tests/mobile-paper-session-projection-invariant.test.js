@@ -71,7 +71,7 @@ test("only a stopped recovery projects RECOVERY_REQUIRED; no endpoint projects N
 test("home projection renders a recovering session as reconnecting, never as SETUP", () => {
   const home = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
   const app = fs.readFileSync("apps/mobile/App.tsx", "utf8");
-  assert.match(app, /sessionRecovering=\{paperSessionState === "RECOVERING"\}/);
+  assert.match(app, /sessionRecovering=\{shownSessionState === "RECOVERING"\}/);
   assert.match(app, /const sessionState = getPaperSessionState\(\);[\s\S]*setPaperSessionState\(sessionState\)/);
   assert.match(home, /const shownConnectionLabel = recovering \? "RECOVERING" : connectionLabel/);
   assert.match(home, /\{shownConnectionLabel\}/);

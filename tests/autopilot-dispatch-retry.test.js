@@ -877,7 +877,7 @@ test("regenerates a bounded build rejection before publishing", async () => {
   });
 });
 
-test("bounds repeated apply-check rejection at three proposal attempts", async () => {
+test("stops after one correction repeats the same deterministic apply-check failure", async () => {
   await withOidcEnvironment(async () => {
     let proposalCalls = 0;
     const result = await executeGithubActionsRunner(
@@ -901,11 +901,42 @@ test("bounds repeated apply-check rejection at three proposal attempts", async (
 
     assert.equal(result.status, "NO_ACTION");
     assert.equal(result.reason, "SANDBOX_PATCH_APPLY_CHECK_FAILED");
-    assert.equal(result.proposalAttempts, 3);
-    assert.equal(result.proposalRetries, 2);
+    assert.equal(result.proposalAttempts, 2);
+    assert.equal(result.proposalRetries, 1);
     assert.equal(result.codeChanged, false);
-    assert.equal(proposalCalls, 3);
-    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "RETRY", "NO_ACTION"]);
+    assert.equal(proposalCalls, 2);
+    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "NO_ACTION"]);
+  });
+});
+
+test("stops on a repeated deterministic proposal validation failure before another provider call", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(200, { status: "PROPOSAL_READY", patch: `invalid-patch-${proposalCalls}` });
+        }
+        throw new Error("publish must not run");
+      },
+      {
+        validatePatch() {
+          throw new Error("CODING_PROPOSAL_JSON_INVALID");
+        },
+      },
+    );
+
+    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.reason, "CODING_PROPOSAL_JSON_INVALID");
+    assert.equal(result.proposalAttempts, 2);
+    assert.equal(result.proposalRetries, 1);
+    assert.equal(proposalCalls, 2);
+    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "NO_ACTION"]);
   });
 });
 

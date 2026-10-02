@@ -824,6 +824,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   const attempts = [];
   const rateLimitEvents = [];
   const seenPatches = new Set();
+  const seenDeterministicFailureCodes = new Set();
   let feedback = null;
   // Attempt 1 gets a real excerpt of a real in-scope file. Without it the model has to invent the
   // context lines that `git apply --check` compares byte for byte, so the first attempt of every
@@ -1005,7 +1006,9 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
       }
       const code = retryableProposalFailureCode(reason);
       if (!code) throw error;
-      const decision = attempt < maxProposalAttempts ? "RETRY" : "NO_ACTION";
+      const repeatedFailure = seenDeterministicFailureCodes.has(code);
+      seenDeterministicFailureCodes.add(code);
+      const decision = attempt < maxProposalAttempts && !repeatedFailure ? "RETRY" : "NO_ACTION";
       attempts.push(attemptRecord({
         request,
         attempt,
@@ -1051,7 +1054,9 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
 
       resetProposalRetryWorkspace();
 
-      const decision = attempt < maxProposalAttempts ? "RETRY" : "NO_ACTION";
+      const repeatedFailure = seenDeterministicFailureCodes.has(code);
+      seenDeterministicFailureCodes.add(code);
+      const decision = attempt < maxProposalAttempts && !repeatedFailure ? "RETRY" : "NO_ACTION";
       attempts.push(attemptRecord({
         request,
         attempt,

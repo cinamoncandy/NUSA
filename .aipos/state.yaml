@@ -4,16 +4,24 @@ current_autopilot_runtime_proof_cron_propagation:
   prior_pull_request: 2434
   pull_request: 2436
   successor_branch: codex/autopilot-cron-propagation-proof
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: SCHEDULED_RECEIPT_DISPATCH_CONFIRMED_CODING_COMPLETION_UNVERIFIED
   base_sha: a8a24ec1cccd6063927fce6e4ab0a4212c70f401
+  latest_runtime_proof: 36982353106
+  runtime_proof_source_sha: 2fd7ad1dbe7cf9e22b2ab267765af7c0261af18e
+  runtime_proof_deployment_revision: 9eb600a4173858c361b97a5ddfb87ceae5a654a4
+  scheduled_status: EXECUTION_DISPATCHED
+  scheduled_reason: github-coding-dispatch-accepted
+  worker_receipt_identity: 911e2bb7d1515dbc2eb4da65b09773a8c26155a22ffb91c652ff590e811fc710
+  worker_receipt_workflow_run: 36981712119
+  worker_receipt_ci: PASS
   first_broken_transition: deployed_cron_trigger_propagation_to_fresh_scheduled_receipt
   scope: "Bounded propagation plus next-cron margin; preserve fresh exact-main receipt identity during zero-credit provider backoff without backlog or AI calls."
-  validation: "Review repair: runtime-proof controller 20/20 and scheduled runtime regression PASS; build PASS. Prior local preflight, validate:full and security gate PASS; final metadata gates and fresh exact-head CI/Audit/Release remain required. Worker a8a24ec1 has no scheduled receipt; zero-credit provider-wait null-head output is a confirmed code defect, not proven trigger non-delivery."
-  remaining: focused_validation_successor_PR_exact_head_CI_Audit_Release_merge_and_deployed_runtime_proof
+  validation: "Runtime Proof 36982353106 passed for sourceSha=expectedMainSha=2fd7ad1dbe7cf9e22b2ab267765af7c0261af18e, reporting EXECUTION_DISPATCHED / github-coding-dispatch-accepted with worker receipt 911e2bb7d1515dbc2eb4da65b09773a8c26155a22ffb91c652ff590e811fc710 and successful CI run 36981712119. It proves receipt/dispatch, not code change or a PR. Later stale consumer 36982542612 correctly failed closed before proposal because main advanced to 3b9c74185307e8019be925dd7ea9157e79edeca4."
+  remaining: "Preserve stale-head suppression; wait for a naturally current actionable execution and verify proposal acceptance/code delta. No forced inference or duplicate dispatch."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_audit_dispatch_recovery:
   work_order: WO-AUTOPILOT-20261001-AUDIT-DISPATCH-RECOVERY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: LATEST_MAIN_SYNCED_PENDING_VALIDATION
   branch: codex/audit-exact-head-dedupe
   base_sha: 1a320be30ac6e69445a2ed6961da56fa462f28bc
   authority_impact: none
@@ -72,11 +80,69 @@ current_issue_2017_component_health:
 current_issue_2118_ci_saturation_wip:
   work_order: WO-ISSUE-2118-CI-SATURATION-WIP
   issue: 2118
-  status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
-  base_sha: 08dd953aee7ea3db49993464a2244eca6c41e3ac
-  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP; legacy ciUtilization remains the compatibility fallback."
-  validation: "Prior exact-head CI passed; review repair adds minimum-WIP contention attribution coverage and corrects recovery metadata. Fresh exact-head CI is required; heavy local validation remains prohibited on the shared 1 GB PAPER host."
-  remaining: "Fresh exact-head CI, independent Audit, and canonical Release; current baseline and after-change p50/p95 measurement remain later increments."
+  status: MERGED_INCREMENT_POST_MERGE_VERIFIED
+  base_sha: 064ce25dd91da92d084d4ca0d5ee570b94ef97b1
+  pull_request: 2460
+  implementation_head: 979f78b679a6ff8a98b76e1e0bbb7a9ddec777c7
+  final_exact_head_ci: "36979533215 PASS"
+  independent_audit_release: "36980030111 PASS; canonical expected-head merge"
+  post_merge_ci: "36980168622 PASS on exact main 9eb600a4173858c361b97a5ddfb87ceae5a654a4"
+  cloudflare_deploy: "36980168557 PASS; exact revision verified"
+  actual_paper_runtime: "36980168527 PASS"
+  prior_pull_request: 2430
+  prior_merge_commit: 070078d31342fff277909c4929f9445e2728488e
+  prior_exact_head_ci: "36942370607 PASS"
+  merge_commit: 9eb600a4173858c361b97a5ddfb87ceae5a654a4
+  exact_head_ci: "36979533215 PASS"
+  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP and an inclusive 85% high-pressure boundary; legacy ciUtilization remains the compatibility fallback."
+  validation: "PR #2460 merged through canonical Audit/Release 36980030111 at 9eb600a4173858c361b97a5ddfb87ceae5a654a4 after exact-head CI 36979533215 passed. Post-merge CI 36980168622, Cloudflare Deploy 36980168557 (exact revision verified), and actual PAPER runtime 36980168527 passed."
+  remaining: "This bounded increment is complete. Continue Issue #2118 with measured current-main p50/p95 and owner-latency evidence; do not claim autonomous coding completion from a scheduler receipt."
+  delegated_increment: "Final exact head 979f78b679a6ff8a98b76e1e0bbb7a9ddec777c7; focused throughput regression 14/14, build, typecheck, validate:full, security gate, lint:scripts, AIPOS YAML, and diff check passed. Runtime Proof 36982353106 later recorded a scheduler-owned dispatch receipt but not a code change or PR."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_issue_2118_main_ci_materialization:
+  work_order: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
+  issue: 2118
+  status: MERGED_POST_MERGE_CI_AND_SAFE_RUNTIME_PROOF_PASS
+  branch: codex/issue-2118-main-ci-materialization
+  base_sha: 3c49bdd253e51dd67821bfa735d618cd15e70328
+  pull_request: 2451
+  exact_head: 17c5bd89755cc861297b9bba847cbd121c1656e2
+  merge_commit: f4be73c8008afcea9c65ac247115e43dc4f00bc5
+  exact_head_ci: "36949215023 PASS"
+  independent_audit: "36949608492 audit job PASS for PR #2451 exact head 17c5bd89755cc861297b9bba847cbd121c1656e2 and base 3c49bdd253e51dd67821bfa735d618cd15e70328"
+  release: "Canonical Release merged the exact audited head as f4be73c8008afcea9c65ac247115e43dc4f00bc5; post-merge Release job was intentionally cancelled after merge and before its duplicate-CI recovery/deploy dispatch steps."
+  evidence: "Same-SHA post-merge runs 36944149502 (push, SUCCESS) and 36944151942 (workflow_dispatch, redundant). Recurrence on main ae1a8dc63846c431ec0e00b94a64bb1f524699e8: push CI 36947837266 SUCCESS and workflow_dispatch CI 36947838794 started six shards. On f4be73c8, push CI 36949715181 PASS and redundant workflow_dispatch CI 36949716125 was cancelled before jobs."
+  deployed_runtime: "Cloudflare Deploy run 36950117047 succeeded for exact revision f4be73c8008afcea9c65ac247115e43dc4f00bc5; health verified liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY. Runtime Proof 36950200257 and Promote 36950117074 succeeded on the same SHA."
+  main_sync: "PR #2451 was synchronized to latest main 3c49bdd253e51dd67821bfa735d618cd15e70328; its intermediate Audit returned NO_ACTION on stale base, then the exact latest-base Audit passed."
+  prior_exact_head: bfe10f34ba5a6d70570ba3dc94f072956ccdba41
+  prior_exact_head_ci: 36947076495
+  prior_independent_audit: 36947732272
+  prior_audit_state: "36947732272 PASS_ON_STALE_BASE; 36948929273 NO_ACTION_STALE_BASE"
+  prior_release_state: CANCELLED_STALE_BASE
+  intermediate_exact_head_ci: 36948354610
+  intermediate_exact_head_ci_state: PASS_THEN_INVALIDATED_BY_MAIN_SYNC
+  local_validation: "Latest-main sync f484735e: workflow regressions 13/13, AIPOS YAML/provenance/drift, security gate (zero secrets/high/critical), and diff check PASS. Exact head 17c5bd89 CI passed all validation/build/typecheck/architecture/security/coverage/test jobs and all five PAPER/Restricted LIVE/read-only-broker companions."
+  remaining: "The change became active on main only after its canonical Release completed merge. Verify duplicate post-merge CI suppression on a subsequent Release execution; do not claim runtime exercise from the pre-merge workflow version."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_worker_deploy_scope:
+  work_order: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
+  status: MERGED_POST_MERGE_VALIDATION_AND_DEPLOY_SKIP_VERIFIED
+  branch: codex/cloudflare-deploy-runtime-delta
+  base_sha: f4be73c8008afcea9c65ac247115e43dc4f00bc5
+  implementation_head: b7c951e14e4111b0e4c6cded4640d570a58c3544
+  merge_commit: 7e41118ee7798a1c196e147dc7a0c9923c8cb27e
+  pull_request: 2454
+  exact_head_ci: "36952049929 PASS"
+  required_safety_workflows: "PAPER runtime 36952049958; LIVE surface 36952049845; LIVE rehearsal 36952049871; LIVE transport 36952049815; readonly broker 36952049825; Cloudflare preflight 36952050056 all PASS"
+  independent_audit_and_release: "Canonical Audit + Release run 36952490339 PASS; Release merged PR #2454 at 7e41118ee7798a1c196e147dc7a0c9923c8cb27e"
+  post_merge_ci: "36952589474 PASS on exact merge SHA 7e41118ee7798a1c196e147dc7a0c9923c8cb27e"
+  runtime_skip_evidence: "Cloudflare Deploy 36953015931 (workflow_run) and 36953019954 (Release bot workflow_dispatch) SUCCESS on 7e41118ee7798a1c196e147dc7a0c9923c8cb27e; both logs state no runtime-input delta since last successful deployment and explicitly skip Cloudflare credentials, secret sync, deploy, and health mutation. First baseline f4be73c8008afcea9c65ac247115e43dc4f00bc5; fallback run then used 7e41118ee7798a1c196e147dc7a0c9923c8cb27e."
+  authority_impact: deployment-control
+  observed_gap: "Post-merge CI for PR #2451 changed only AIPOS, workflow, and tests, yet Cloudflare Deploy 36950117047 republished the Worker at the same source revision."
+  scope: "In the existing deploy workflow, gate credential reads/secrets/deploy/health mutation on cumulative exact-main runtime-input delta since the latest successful same-repository main deployment; preserve manual owner dispatch, CI success, exact-current-main, and fail-closed authority contracts."
+  validation: "Local focused 16/16; validate:full; security gate (0 secrets/high/critical); lint:scripts (0 errors, 14 existing warnings); build; AIPOS YAML/provenance/drift and diff check PASS. Exact PR CI, all required safety workflows, canonical Audit/Release, post-merge CI and two exact-main skip runs verified as recorded above."
+  measured_efficiency: "One previous full deployment job 36950117047 ran 56s; the two post-merge scope-skip jobs ran 10s each. This is a small observational sample, not a dollar/credit estimate; both attempts avoided Cloudflare credential access and mutation."
+  remaining: none
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
@@ -312,7 +378,7 @@ current_jev_workers_ai_native_provider:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_shadow_runtime_config:
   work_order: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
-  status: WAITING_PROVIDER_CAPACITY
+  status: REAL_SHADOW_RECEIPT_PENDING_PROVIDER_STATE_UNVERIFIED
   pull_request: 2355
   branch: codex/jev-shadow-runtime-config
   base_sha: 7c480e962b3b50fe2a724267c168a0aa8280adfc
@@ -321,12 +387,14 @@ current_jev_shadow_runtime_config:
   exact_main_ci: 36514749050
   cloudflare_deploy: 36514749190
   runtime_proof: 36515211048
+  latest_runtime_proof: 36982353106
+  latest_runtime_proof_main_sha: 2fd7ad1dbe7cf9e22b2ab267765af7c0261af18e
   runtime_proof_result: "PASS: exactHeadVerified=true; deploymentRevision=45faa722b697b75387a05b4e8c441147903a2386; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY. Scheduler remains WAITING_RATE_LIMIT/waiting-provider-capacity; no native Jev call or neuron usage recorded."
   parent_pr: 2348
   scope: repository-controlled-native-jev-shadow-runtime-config-and-deploy-var-preservation
   first_broken_transition: partial-wrangler-var-deploy-overrides-shadow-config_and_global-release-freeze-override
   safety_correction: "Removed unconditional deploy CLI override NUSA_GLOBAL_RELEASE_FREEZE:false; retain Jev SHADOW true and bounded routing false."
-  current_runtime_finding: "Exact deployed runtime proof passes on main 45faa722; provider is WAITING_RATE_LIMIT / waiting-provider-capacity and has produced no Jev call receipt or usage telemetry."
+  current_runtime_finding: "Runtime Proof 36982353106 passed on main source SHA 2fd7ad1dbe7cf9e22b2ab267765af7c0261af18e and reports a scheduled execution dispatch, but contains no real NUSA_JEV_WORKERS_AI_SHADOW_CALL receipt or token-usage evidence. Provider capacity was not re-probed; the older WAITING_RATE_LIMIT result is historical."
   next_permitted_action: targeted_validation_then_exact-head-CI_then_independent-Audit_then-canonical-Release_then_runtime_receipt
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_domain_observation_contract:
@@ -358,17 +426,34 @@ current_provider_backpressure:
   next: focused-local-validation_then_push-existing-PR_then_exact-head-CI-Audit-Release
 current_jev_bounded_coding_admission:
   work_order: WO-20260924-AI-CAPACITY-COST-CEILING
-  status: READY_FOR_REVIEW
+  status: MERGED
   branch: feat/ai-capacity-jev-bounded-admission
   base_sha: b631ef9a352bfd3ed6b90d27de45d5816d48b3c5
   pull_request: 2331
+  implementation_head: 74935ee83b77721e6424ca4f46e26afacdf7a8dd
+  merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
+  exact_head_ci: "36362184764 PASS"
   rollout_mode: BOUNDED_ROUTING_DISABLED_PENDING_2329
   first_broken_transition: verified_failure_to_expensive_coding_admission
   scope: verified-failure-evidence_negative-admission_plus_production-no-action-propagation
-  implementation_head: 08adc66b24719d92010301ed2b7b7416b17e4486
   correction: "Canonical gha failure reasons are eligible; Jev abstention requires exact GitHub failed job/step evidence; repair retries do not reclassify; /coding/propose and dispatcher propagate abstention as successful NO_ACTION."
-  validation: "Focused admission TypeScript compile/runtime PASS; dispatcher JEV_ROUTING_ABSTAINED->NO_ACTION test PASS; git diff --check PASS; review threads RESOLVED. Fresh exact-head CI required."
-  remaining: push-rebased-existing-PR_then_fresh-exact-head-CI_then_independent-Audit_then_Release
+  validation: "PR #2331 exact-head CI 36362184764 and required PAPER/Restricted LIVE/read-only companion workflows PASS; merged as 1b058a1d26e14125afb51cc2d87a49a662044130."
+  remaining: accepted_2329_shadow_calibration_and_provider_capacity_recovery_before_runtime_activation
+current_jev_coding_model_tiering:
+  work_order: WO-20260927-JEV-CODING-MODEL-TIERING
+  parent_pr: 2331
+  parent_merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
+  pull_request: 2334
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: feat/ai-capacity-jev-model-tiering
+  base_sha: 958912f8a37544b780a554d9e214600b109b4869
+  latest_main_sync_commit: 56d7045125a3c938b04ac9beaf99c12da08eac91
+  implementation_head: 4ddbdae5f7c4ad5911d1f804d41fe2a692c8808c
+  scope: "Use only verified high-confidence Jev admission to select an explicitly configured Workers AI coding tier; preserve current zero-credit and provider-backpressure controls."
+  runtime_activation: DISABLED
+  activation_blocker: "No accepted real SHADOW calibration/runtime Jev receipt; provider-capacity wait remains unverified as recovered."
+  evidence: "Head 571e251717eb769f5aae080918c8c21c4309e1df passed canonical CI 36975583427, Cloudflare preflight 36975583341, and all required safety companions. Independent Audit request 36976141645 safely returned NO_ACTION because main advanced to 958912f8a37544b780a554d9e214600b109b4869 after the PR base remained 9ed2cee88fc668a6859f6b04e233e3ea7092c444. Latest main was synchronized at 56d7045125a3c938b04ac9beaf99c12da08eac91; after correcting a duplicate AIPOS key introduced by the merge, latest-main build, 74 focused tests, typecheck, validate:full, security, YAML, drift, provenance, lint, and diff check all pass. Fresh exact-head CI/preflight and Audit are pending. Tier gate and bounded routing stay disabled; runtime savings are unproven."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_ai_provider_reliability:
   work_order: WO-20260927-AI-PROVIDER-RELIABILITY
   issue: 1997
@@ -602,24 +687,18 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-26T23:27:32+09:00"
+updated_at: "2026-10-02T17:53:30+09:00"
 current_execution_target:
-  work_order: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
-  status: WIP
-  branch: feat/jev-native-runtime-shadow
-  base_sha: bc420633ada54854d0f6fd666da937f0844cad89
-  pull_request: 2348
-  scope: "Wire the merged native Workers AI Jev provider into the existing Autopilot workflow-failure SHADOW runtime and capture bounded typed evidence."
+  work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
+  status: VERIFYING
+  branch: codex/autopilot-repeat-failure-stop
+  base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
+  pull_request: 2464
+  scope: "Stop the existing bounded proposal retry loop when one correction repeats the same deterministic validation failure code, reducing avoidable inference attempts without weakening validation."
   authority_impact: none
-  first_broken_transition: native_provider_to_real_shadow_runtime_call
-  review_corrections: "Bounded sanitized failure evidence; JSON-schema-capable default model; provider-capacity stop guard; canonical C3_JEV AI-call telemetry; active AIPOS recovery state; latest protected main reconciled."
-  validation: "Focused runtime test updated; fresh exact-head CI required after review corrections."
-  dependency: "PR #2345 merged; #2338 external credential blocker is independent and does not block this lane."
-  next: "Fresh exact-head CI -> resolve review findings -> READY_FOR_REVIEW -> Independent Audit -> Release -> merge -> deployed real NUSA_JEV_WORKERS_AI_SHADOW_CALL evidence."
-  prior_target: WO-20260927-AUDIT-EXACT-HEAD-BINDING
-  prior_target_status: READY_FOR_REVIEW
-  prior_target_preserved: true
-  updated_at: "2026-09-28T01:50:00Z"
+  first_broken_transition: repeated_deterministic_failure_to_extra_proposal_call
+  evidence: "Runtime 36982300882: same SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED on attempts 1 and 2, then CODING_PROPOSAL_JSON_INVALID on attempt 3; 0 accepted proposals and 0 code changes."
+  next: "After publishing AIPOS corrections, resolve all actionable review threads; require fresh exact-head CI, independent Audit, then canonical Release. Do not merge outside Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_exact_head_binding:
   work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
@@ -642,6 +721,17 @@ latest_autopilot_normalized_apply_failure:
   scope: "Preserve SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED and carry exact bounded source context into the existing repair escalation; no authority or execution-path expansion."
   validation: "Dispatch retry 32/32, coding runner 49/49, build/typecheck/targeted lint/AI zero-authority/safety invariants PASS."
   remaining: "Exact-head protected CI passed; independent Audit/Release must be rerun after this AIPOS metadata update."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_repeated_deterministic_failure_stop:
+  work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
+  status: VERIFYING
+  branch: codex/autopilot-repeat-failure-stop
+  base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
+  pull_request: 2464
+  observed_run: 36982300882
+  observation: "One logical execution repeated SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED on two distinct proposals, then returned CODING_PROPOSAL_JSON_INVALID on the third; no proposal was accepted and no code changed."
+  expected_efficiency: "Stop after the first bounded correction repeats the same deterministic failure code, avoiding additional proposal calls for that repeated failure. Actual token/credit savings are unmeasured."
+  next: "Resolve the actionable AIPOS review threads; then fresh exact-head CI, independent Audit, and canonical Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_deterministic_coding_patches:
   work_order: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
@@ -1962,3 +2052,128 @@ current_ui_whole_app_rule:
   branch: claude/nusa-repository-j93sd8-ui-whole-app
   authority_impact: none
   rule: "UI/UX changes apply to the whole app (owner, 2026-10-01)."
+current_mobile_attractor:
+  work_order: WO-UI-20261001-ATTRACTOR
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-attractor
+  authority_impact: none
+  remaining: exact-head-CI_incl_mobile-native_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_plain_labels:
+  work_order: WO-UI-20261001-PLAIN-LABELS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-plain-labels
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-More-detail-screen-copy-pass
+current_mobile_detail_copy:
+  work_order: WO-UI-20261001-DETAIL-COPY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-detail-copy
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_session_timeout:
+  work_order: WO-UI-20261001-SESSION-TIMEOUT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-session-timeout
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_holo_sphere:
+  work_order: WO-UI-20261002-HOLO-SPHERE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-holo-sphere
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-four-tab-layout-redesign
+current_mobile_safety_line:
+  work_order: WO-UI-20261002-SAFETY-LINE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-safety-line
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-server-journal-and-equity-history-projections
+current_mobile_performance:
+  work_order: WO-UI-20261002-PERFORMANCE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-performance
+current_mobile_journal:
+  work_order: WO-UI-20261002-JOURNAL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-journal
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_home_simplify:
+  work_order: WO-UI-20261002-HOME-SIMPLIFY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-home-simplify
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+current_ops_preflight_runtime_unchanged:
+  work_order: WO-OPS-20261002-PREFLIGHT-RUNTIME-UNCHANGED
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-preflight-delta
+  authority_impact: deployment-control
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-trusted-preflight-closes-P0-1461
+current_mobile_event_banner:
+  work_order: WO-UI-20261002-EVENT-BANNER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-event-banner
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-decision-on-FCM-push
+current_mobile_resume_grace:
+  work_order: WO-UI-20261002-RESUME-GRACE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-resume-grace
+current_mobile_safety_truth:
+  work_order: WO-UI-20261002-SAFETY-TRUTH
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-safety-truth
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_warm_resume:
+  work_order: WO-UI-20261002-WARM-RESUME
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-warm-resume
+  authority_impact: session-projection
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_grace_notice:
+  work_order: WO-UI-20261002-GRACE-NOTICE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-grace-notice
+current_ci_robustness:
+  work_order: WO-OPS-20261002-CI-ROBUSTNESS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ci-robustness
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+current_daily_reset:
+  work_order: WO-UI-20261002-DAILY-RESET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-daily-reset
+  authority_impact: none
+current_learning_line:
+  work_order: WO-UI-20261002-LEARNING-LINE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-learning-line
+  authority_impact: none
+current_research_continuous_experiments:
+  work_order: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+  status: PLANNED
+  branch: claude/nusa-repository-j93sd8-research-scheduler
+  authority_impact: research-evidence-only
+  remaining: stage_2_composition_then_stage_3_tests_then_owner_approved_deploy
+current_optimizer_core:
+  work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-optimizer-core
+  authority_impact: none
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+current_research_session_planner:
+  work_order: WO-RESEARCH-20261002-SESSION-PLANNER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-planner
+  authority_impact: none
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+  depends_on: claude/nusa-repository-j93sd8-optimizer-core
+current_research_candle_aggregator:
+  work_order: WO-RESEARCH-20261002-CANDLE-AGGREGATOR
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-candle-aggregator
+  authority_impact: none
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
