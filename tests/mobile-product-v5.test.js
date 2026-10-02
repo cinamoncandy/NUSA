@@ -77,8 +77,15 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /grep -q "more-view" qa\/android-product-ux\/05-more\.xml/);
   assert.match(workflow, /grep -q "paper-learning-monitor" qa\/android-product-ux\/06-paper\.xml/);
   assert.match(workflow, /paper-shadow-monitor-switcher\|dashboard-connection-required/);
-  assert.match(workflow, /grep -q "LIVE" qa\/android-product-ux\/03-live-readiness\.xml/);
-  assert.match(workflow, /grep -Eq "PORTFOLIO\|포트폴리오" qa\/android-product-ux\/09-portfolio\.xml/);
+  assert.match(workflow, /grep -q "live-field-header" qa\/android-product-ux\/03-live-readiness\.xml/);
+  assert.match(workflow, /grep -q "portfolio-screen" qa\/android-product-ux\/09-portfolio\.xml/);
+  // Acceptance keys on testIDs, never on display copy: renaming a label must not fail the emulator gate.
+  for (const file of ["03-live-readiness", "09-portfolio"]) {
+    const greps = workflow.split("\n").filter((line) => line.includes(`qa/android-product-ux/${file}.xml`) && /\bgrep\b/.test(line));
+    assert.equal(greps.length, 1, `${file} must have exactly one acceptance check`);
+    // The pattern must look like a testID (lowercase-hyphen); any display copy, Korean or English, fails.
+    assert.match(greps[0], /grep -q "[a-z][a-z0-9]*(?:-[a-z0-9]+)+" /, `${file} must be keyed on a testID, not display copy`);
+  }
   assert.match(workflow, /grep -q "home-screen" qa\/android-product-ux\/13-home-return\.xml/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });

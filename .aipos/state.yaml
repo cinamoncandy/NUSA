@@ -2116,5 +2116,9 @@ current_mobile_grace_notice:
   work_order: WO-UI-20261002-GRACE-NOTICE
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-grace-notice
+current_ci_robustness:
+  work_order: WO-OPS-20261002-CI-ROBUSTNESS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ci-robustness
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge

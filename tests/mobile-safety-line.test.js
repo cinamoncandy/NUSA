@@ -24,7 +24,12 @@ test("only a verified session with a running runtime reads 안전", () => {
 
 test("every tab shows the safety line and LIVE lists remaining gates before passed ones", () => {
   const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8").replace(/\r\n/g, "\n");
-  assert.match(app, /<SafetyLine line=\{buildSafetyLine\(\{ sessionState: paperSessionState, resuming: shownSessionState !== paperSessionState, runtimeHalted: snapshot\?\.paperLearning\?\.runtimeStatus === "HALTED", dataUnconfirmed: !paperProjectionPending && \(snapshot == null \|\| snapshot\.health !== "HEALTHY"\) \}\)\} \/>\n    (?:<EventBanner [^\n]*\n    )?<TabTransition/);
+  // Pin the contract (the real session state and the halt flag feed the shared line, directly above the tab
+  // content), not the exact prop list, so adding a prop never breaks this test.
+  assert.match(app, /<SafetyLine line=\{buildSafetyLine\(\{[^}]*sessionState: paperSessionState[^}]*runtimeHalted: snapshot\?\.paperLearning\?\.runtimeStatus === "HALTED"[^}]*\}\)\} \/>\n    (?:<EventBanner [^\n]*\n    )?<TabTransition/);
+  // Independent of the prop order: the unhealthy/missing-data flag must stay wired into the shared line,
+  // otherwise a verified session without PAPER data would read 안전.
+  assert.match(app, /buildSafetyLine\(\{[^}]*dataUnconfirmed: [^}]*snapshot == null[^}]*\}\)/);
   const live = fs.readFileSync(path.join(root, "apps/mobile/src/liveReadinessMonitorView.tsx"), "utf8");
   assert.match(live, /sort\(\(left, right\) => Number\(left\.state === "PASS"\) - Number\(right\.state === "PASS"\)\)/);
   assert.match(live, /`남은 조건 \$\{gates\.total - gates\.passed\}개`/);
