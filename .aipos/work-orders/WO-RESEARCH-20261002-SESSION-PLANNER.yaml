@@ -23,4 +23,4 @@ verification_commands:
   - npx tsc -p tsconfig.json
   - node --test tests/research-session-planner.test.js
   - pnpm run validate
-residual: "Stage 2b (candle collection, input builder, production composition, owner-approved deploy) not started. Not run: pnpm run validate (sandbox Node 22)."
+residual: "Stage 2b (candle collection, input builder with full provenance, champion/challenger evaluators, production composition, owner-approved deploy) not started; see the Stage 2b requirements section of docs/PROPOSAL_CONTINUOUS_RESEARCH_EXPERIMENTS.md. Not run: pnpm run validate (sandbox Node 22)."
