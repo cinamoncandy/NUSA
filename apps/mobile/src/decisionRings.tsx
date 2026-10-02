@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { AccessibilityInfo, StyleSheet, Text, View } from "react-native";
-import { AttractorField } from "./attractorField";
+import { HoloSphere } from "./holoSphere";
 import { useTheme } from "./ThemeProvider";
 import { fieldFonts } from "./fieldFonts";
 import { buildDecisionRings, type DecisionRingsInput } from "./decisionRingsModel";
 
-// Home hero: the reported PAPER decision count over the NUSA attractor, which morphs once per
-// new decision and blooms on each new PAPER order. Motion stops entirely when the OS reduce-motion setting is on.
+// Home hero: the reported PAPER decision count over the NUSA holo sphere: a wave per new decision,
+// a ring burst on each new PAPER order. Motion stops entirely when the OS reduce-motion setting is on.
 export interface DecisionRingsStatus {
   readonly title: string;
   readonly detail: string;
@@ -33,9 +33,9 @@ export function DecisionRings({ status = null, ...props }: DecisionRingsInput & 
       <Text style={[fieldFonts.monoMedium, styles.count, { color: theme.colors.text }]} testID="home-decision-rings-count">{model.headline}</Text>
       <Text style={[styles.detail, { color: theme.colors.textMuted }]}>{model.detail}</Text>
     </>}
-    <AttractorField decisionCount={model.decisionCount} fillCount={model.paperOrderCount} tone={status?.tone === "halt" ? "halt" : status ? "hold" : "normal"} reducedMotion={reducedMotion} size={280} testID="home-attractor" />
+    <HoloSphere decisionCount={model.decisionCount} fillCount={model.paperOrderCount} tone={status?.tone === "halt" ? "halt" : status ? "hold" : "normal"} reducedMotion={reducedMotion} size={300} testID="home-holo" />
     <View style={styles.legend}>
-      <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단할 때마다 형태가 바뀌고, 주문이 나가면 빛납니다</Text>
+      <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단할 때마다 물결이 지나가고, 주문이 나가면 고리로 펼쳐집니다</Text>
       <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.primary }]} testID="home-decision-rings-orders">PAPER 주문 {model.paperOrderCount == null ? "—" : model.paperOrderCount.toLocaleString("ko-KR")}건</Text>
     </View>
   </View>;
