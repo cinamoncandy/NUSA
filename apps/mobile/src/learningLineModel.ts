@@ -40,3 +40,33 @@ export function buildLearningLine(research: LearningLineInput | null): LearningL
     tone: healthy ? "ok" as const : "warn" as const,
   });
 }
+
+export interface AiTrustInput {
+  readonly status: "AVAILABLE" | "UNAVAILABLE" | "INCOMPLETE";
+  readonly calibrationStatus: "UNKNOWN" | "UNVERIFIED" | "INSUFFICIENT_DATA" | "CALIBRATED" | "DEGRADED";
+  readonly calibrationSampleCount?: number;
+  readonly calibrationExpectedError?: number | null;
+  readonly calibrationBrierScore?: number | null;
+  readonly calibrationDurabilityStatus?: "DISABLED" | "HEALTHY" | "UNHEALTHY";
+}
+
+const num = (v: number | null | undefined): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** Read-only AI prediction-trust line. Confidence is shown only when calibration is verified. */
+export function buildAiTrustLine(ai: AiTrustInput | null): LearningLine {
+  if (ai == null) return Object.freeze({ value: "AI 상태 미수신", tone: "muted" as const });
+  if (ai.status === "UNAVAILABLE") return Object.freeze({ value: "AI 분석 사용 불가", tone: "muted" as const });
+  const samples = Math.max(0, Math.floor(num(ai.calibrationSampleCount) ?? 0));
+  const durable = ai.calibrationDurabilityStatus === "UNHEALTHY" ? " · 보정 기록 저장 이상" : "";
+  if (ai.calibrationStatus === "CALIBRATED") {
+    const err = num(ai.calibrationExpectedError);
+    const brier = num(ai.calibrationBrierScore);
+    const parts = [`보정 완료 · 표본 ${samples}`];
+    if (err != null) parts.push(`예상 오차 ${(err * 100).toFixed(1)}%p`);
+    if (brier != null) parts.push(`Brier ${brier.toFixed(3)}`);
+    return Object.freeze({ value: parts.join(" · ") + durable, tone: durable ? "warn" as const : "ok" as const });
+  }
+  if (ai.calibrationStatus === "INSUFFICIENT_DATA") return Object.freeze({ value: `보정 표본 부족 (${samples}건) · 신뢰도 0으로 취급${durable}`, tone: "warn" as const });
+  if (ai.calibrationStatus === "DEGRADED") return Object.freeze({ value: `보정 저하 · 표본 ${samples} · 신뢰 낮춤${durable}`, tone: "warn" as const });
+  return Object.freeze({ value: `보정 미검증 · 신뢰도 0으로 취급${durable}`, tone: "warn" as const });
+}

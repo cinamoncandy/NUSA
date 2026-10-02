@@ -20,7 +20,7 @@ import { MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
 import { buildHomeFieldInput } from "./homeFieldInput";
-import { buildLearningLine } from "./learningLineModel";
+import { buildAiTrustLine, buildLearningLine } from "./learningLineModel";
 import { useDailyCounts } from "./useDailyCounts";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
@@ -116,6 +116,7 @@ export function HomeView({
     .slice(0, tablet ? 5 : 3);
   const ai = snapshot?.ai ?? null;
   const learningLine = buildLearningLine(snapshot?.research ?? null);
+  const aiTrustLine = buildAiTrustLine(snapshot?.ai ?? null);
   const journal = buildJournal(snapshot?.paperLearning?.events ?? []);
   const disconnected = notConfigured != null;
   const decisionSurface = buildHomeDecisionSurface({
@@ -306,6 +307,7 @@ export function HomeView({
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RESULT</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{decisionSurface.result}</Text></View>
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>SOURCE</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text></View>
           <View style={styles.detailRow} testID="home-learning-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>LEARNING</Text><Text style={[styles.detailValue, { color: learningLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{learningLine.value}</Text></View>
+          <View style={styles.detailRow} testID="home-ai-trust-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>AI 신뢰</Text><Text style={[styles.detailValue, { color: aiTrustLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{aiTrustLine.value}</Text></View>
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>AUTHORITY</Text><Text style={[styles.detailValue, { color: theme.colors.success }]}>LIVE NONE · AI ZERO</Text></View>
         </View>
       </View> : <View style={styles.hiddenAcceptanceHooks}><View testID="ai-card" /><View testID="home-risk-status" /></View>}

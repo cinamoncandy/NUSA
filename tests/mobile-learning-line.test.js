@@ -6,7 +6,7 @@ const ts = require("typescript");
 const source = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/learningLineModel.ts"), "utf8");
 const shim = { exports: {} };
 new Function("module", "exports", ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(shim, shim.exports);
-const { buildLearningLine, promotionProgress } = shim.exports;
+const { buildLearningLine, promotionProgress, buildAiTrustLine } = shim.exports;
 const r = (o = {}) => ({ health: "HEALTHY", candidateCount: 3, experimentCount: 12, evidenceAgeMs: 5 * 3_600_000, metrics: { championBetterCount: 4, challengerBetterCount: 6, equivalentCount: 1, inconclusiveCount: 1 }, ...o });
 
 test("missing research projection is stated, not invented", () => {
@@ -30,4 +30,26 @@ test("promotion progress shows trades and days toward the 50/30 gate and tolerat
   assert.equal(promotionProgress({ tradeCount: 8, observationDays: 3 }), "승격 기준 거래 8/50 · 관측 3/30일");
   assert.equal(promotionProgress({}), "승격 기준 거래 0/50 · 관측 0/30일");
   assert.equal(promotionProgress({ tradeCount: -4, observationDays: NaN }), "승격 기준 거래 0/50 · 관측 0/30일");
+});
+
+const ai = (o = {}) => ({ status: "AVAILABLE", calibrationStatus: "CALIBRATED", calibrationSampleCount: 120, calibrationExpectedError: 0.043, calibrationBrierScore: 0.2111, calibrationDurabilityStatus: "HEALTHY", ...o });
+test("AI trust: missing or unavailable AI is stated, never invented", () => {
+  assert.equal(buildAiTrustLine(null).value, "AI 상태 미수신");
+  assert.equal(buildAiTrustLine(ai({ status: "UNAVAILABLE" })).value, "AI 분석 사용 불가");
+});
+test("AI trust: calibrated shows samples, expected error and Brier", () => {
+  const l = buildAiTrustLine(ai());
+  assert.equal(l.tone, "ok");
+  assert.equal(l.value, "보정 완료 · 표본 120 · 예상 오차 4.3%p · Brier 0.211");
+});
+test("AI trust: only CALIBRATED is trusted; everything else reads as zero trust", () => {
+  for (const st of ["UNKNOWN", "UNVERIFIED"]) assert.match(buildAiTrustLine(ai({ calibrationStatus: st })).value, /신뢰도 0/);
+  assert.match(buildAiTrustLine(ai({ calibrationStatus: "INSUFFICIENT_DATA", calibrationSampleCount: 7 })).value, /표본 부족 \(7건\) · 신뢰도 0/);
+  assert.match(buildAiTrustLine(ai({ calibrationStatus: "DEGRADED" })).value, /보정 저하/);
+  assert.equal(buildAiTrustLine(ai({ calibrationStatus: "UNKNOWN" })).tone, "warn");
+});
+test("AI trust: unhealthy calibration storage is flagged even when calibrated", () => {
+  const l = buildAiTrustLine(ai({ calibrationDurabilityStatus: "UNHEALTHY" }));
+  assert.equal(l.tone, "warn");
+  assert.match(l.value, /보정 기록 저장 이상/);
 });
