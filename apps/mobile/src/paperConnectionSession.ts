@@ -50,6 +50,31 @@ function notifyVerified(): void {
   }
 }
 
+/** Clears VERIFIED and, if it was set, tells the UI to re-project now (fail-closed display). */
+function dropVerification(): void {
+  const wasVerified = verifiedEndpoint != null;
+  verifiedEndpoint = null;
+  if (wasVerified) notifyVerified();
+}
+
+let warmResumeCutoff: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Bounds a warm resume: if no fresh proof lands before the warm window of the current observation
+ * ends (e.g. the installation-id lookup that precedes the re-proof stalls), VERIFIED is dropped and
+ * the session projects RECOVERING, exactly as a stale resume would.
+ */
+export function armWarmResumeCutoff(now = Date.now()): void {
+  if (warmResumeCutoff != null) clearTimeout(warmResumeCutoff);
+  const provenAt = verifiedAt;
+  const remaining = Math.max(0, provenAt + WARM_RESUME_MS - now);
+  warmResumeCutoff = setTimeout(() => {
+    warmResumeCutoff = null;
+    if (verifiedAt !== provenAt || verifiedEndpoint == null) return;
+    foregroundRecoveryPending = true;
+    dropVerification();
+  }, remaining);
+}
+
 function cancelRestoreRetry(): void {
   if (restoreRetryTimer != null) clearTimeout(restoreRetryTimer);
   restoreRetryTimer = null;
@@ -111,12 +136,13 @@ function startRestore(endpoint: string, force: boolean, silent?: SilentContext):
       // credential. Re-establish its GET-only monitor after a cold-start restore.
       void connectUpbitReadOnlyAccount(endpoint);
     } else {
-      // No fresh identity: a warm-resume VERIFIED observation must not outlive a failed re-proof.
-      verifiedEndpoint = null;
+      // No fresh identity: a warm-resume VERIFIED observation must not outlive a failed re-proof,
+      // and the UI must re-project immediately rather than on the next poll.
+      dropVerification();
       if (mobileApprovedSession().shouldRetryRestore()) scheduleRestoreRetry(endpoint, force, silent);
     }
   }).catch(() => {
-    if (generation === restoreGeneration && configuredEndpoint === endpoint) verifiedEndpoint = null;
+    if (generation === restoreGeneration && configuredEndpoint === endpoint) dropVerification();
   });
   restoreInFlight = operation;
   restoreInFlightSilent = wantsSilent;
@@ -207,7 +233,9 @@ export function markPaperConnectionVerified(value: string): void {
 export function clearPaperConnectionVerification(): void { verifiedEndpoint = null; restoreGeneration += 1; cancelRestoreRetry(); }
 /** Whether a foreground resume may keep VERIFIED while it re-proves (see WARM_RESUME_MS). */
 export function isWarmResumeFresh(now = Date.now()): boolean {
-  return configuredEndpoint != null && isPaperConnectionVerified(configuredEndpoint) && now - verifiedAt < WARM_RESUME_MS;
+  const elapsed = now - verifiedAt;
+  // A backward wall-clock change yields a negative elapsed time; never treat that as fresh.
+  return configuredEndpoint != null && isPaperConnectionVerified(configuredEndpoint) && elapsed >= 0 && elapsed < WARM_RESUME_MS;
 }
 export function isPaperConnectionVerified(value = configuredEndpoint): boolean { return value != null && normalizeEndpoint(value) === verifiedEndpoint; }
 /**
@@ -256,7 +284,9 @@ export function resumePaperConnection(silent?: SilentContext): void {
   // revalidation begins. Clear it before the forced restore so a transient null result can enter the
   // bounded retry path instead of being suppressed as "already verified". A fresher observation is
   // kept while the same forced re-proof runs; a null or failed result clears it (startRestore).
-  if (!isWarmResumeFresh()) verifiedEndpoint = null;
+  // A restore already in flight predates this resume (possibly fenced by an explicit verification)
+  // and must not stand in for the fresh re-proof, so the warm path requires an idle restore owner.
+  if (!isWarmResumeFresh() || restoreInFlight != null) verifiedEndpoint = null;
   const restore = restoreApprovedSession(endpoint, true, silent);
   foregroundRecoveryPending = false;
   void restore;

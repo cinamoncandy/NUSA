@@ -9,7 +9,8 @@ authority_impact: session-projection
 objective: "Owner: the app should already be connected when opened. Every foreground resume cleared VERIFIED before re-proving, so even a few seconds away showed recovery. The mobile access credential lives 10 minutes, so a proof younger than 5 minutes cannot have expired."
 scope:
   - "paperConnectionSession.ts: track when VERIFIED was last proven; resume keeps VERIFIED only within WARM_RESUME_MS (5 min) and runs the same forced re-proof; a null or failed re-proof now clears VERIFIED (it used to only schedule a retry). Older observations fail closed exactly as before."
-  - "App.tsx: the foreground handler projects RECOVERING only when the warm window does not apply."
+  - "App.tsx: the foreground handler projects RECOVERING only when the warm window does not apply, and arms a cutoff that drops VERIFIED when the warm window ends without a fresh proof."
+  - "Review hardening: a dropped VERIFIED notifies the UI at once; a backward wall clock is never fresh; a warm resume never joins a restore already in flight."
 exclusions:
   - "Cold start (process killed) still re-proves before VERIFIED: the session token is memory-only by design, so nothing can be shown as verified before a fresh identity. That path shows 확인 중 for up to 5 s (WO-UI-20261002-RESUME-GRACE)."
   - "No credential persistence, token lifetime, server, trading, risk or LIVE change."

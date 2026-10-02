@@ -9,6 +9,8 @@ const {
   resumePaperConnection,
   isWarmResumeFresh,
   WARM_RESUME_MS,
+  armWarmResumeCutoff,
+  subscribePaperSessionVerified,
 } = require("../dist/apps/mobile/src/paperConnectionSession.js");
 
 /**
@@ -171,4 +173,42 @@ test("an explicit verification is not undone by a slower restore that fails afte
     session.restore = originalRestore;
     session.shouldRetryRestore = originalRetryable;
   }
+});
+
+test("a backward wall clock never makes an old proof look fresh", async (t) => {
+  clearConfiguredPaperEndpoint();
+  setConfiguredPaperEndpoint(ENDPOINT);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  markPaperConnectionVerified(ENDPOINT);
+  const realNow = Date.now;
+  t.after(() => { Date.now = realNow; });
+  Date.now = () => realNow() - 60_000;
+  assert.equal(isWarmResumeFresh(), false);
+  clearConfiguredPaperEndpoint();
+});
+
+test("a warm resume never joins a restore that was already in flight", () => {
+  clearConfiguredPaperEndpoint();
+  setConfiguredPaperEndpoint(ENDPOINT); // starts a restore that is still in flight
+  markPaperConnectionVerified(ENDPOINT);
+  assert.equal(isWarmResumeFresh(), true);
+  resumePaperConnection();
+  assert.equal(isPaperConnectionVerified(ENDPOINT), false, "an older in-flight restore cannot stand in for the fresh re-proof");
+  clearConfiguredPaperEndpoint();
+});
+
+test("the warm window is bounded even if the re-proof never starts, and the UI is told at once", async (t) => {
+  clearConfiguredPaperEndpoint();
+  setConfiguredPaperEndpoint(ENDPOINT);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  markPaperConnectionVerified(ENDPOINT);
+  let notified = 0;
+  const unsubscribe = subscribePaperSessionVerified(() => { notified += 1; });
+  t.after(unsubscribe);
+  // Pretend the proof is about to leave the warm window.
+  armWarmResumeCutoff(Date.now() + WARM_RESUME_MS - 5);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(isPaperConnectionVerified(ENDPOINT), false, "VERIFIED must not outlive the warm window");
+  assert.ok(notified >= 1, "the UI must re-project when VERIFIED is dropped");
+  clearConfiguredPaperEndpoint();
 });
