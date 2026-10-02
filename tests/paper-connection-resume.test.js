@@ -7,6 +7,8 @@ const {
   markPaperConnectionVerified,
   isPaperConnectionVerified,
   resumePaperConnection,
+  isWarmResumeFresh,
+  WARM_RESUME_MS,
 } = require("../dist/apps/mobile/src/paperConnectionSession.js");
 
 /**
@@ -41,13 +43,34 @@ test("resuming never invents verification for an unrestored session", () => {
   clearConfiguredPaperEndpoint();
 });
 
-test("resuming revalidates even when the process-local endpoint was already verified", () => {
+test("resuming a stale verification fails closed until fresh identity succeeds", (t) => {
   clearConfiguredPaperEndpoint();
   setConfiguredPaperEndpoint(ENDPOINT);
   markPaperConnectionVerified(ENDPOINT);
   assert.equal(isPaperConnectionVerified(ENDPOINT), true);
+  // Hours of background: the observation is older than the warm window.
+  const realNow = Date.now;
+  t.after(() => { Date.now = realNow; });
+  Date.now = () => realNow() + WARM_RESUME_MS + 1;
+  assert.equal(isWarmResumeFresh(), false);
   resumePaperConnection();
   assert.equal(isPaperConnectionVerified(ENDPOINT), false, "foreground revalidation must fail closed until fresh identity succeeds");
+  clearConfiguredPaperEndpoint();
+});
+
+test("resuming a fresh verification keeps VERIFIED while it re-proves, and a failed re-proof clears it", async () => {
+  clearConfiguredPaperEndpoint();
+  setConfiguredPaperEndpoint(ENDPOINT);
+  // In the app VERIFIED follows a settled restore; let the endpoint's initial restore settle first.
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  markPaperConnectionVerified(ENDPOINT);
+  assert.equal(WARM_RESUME_MS, 5 * 60 * 1000, "must stay well under the 10-minute mobile access credential lifetime");
+  assert.equal(isWarmResumeFresh(), true);
+  resumePaperConnection();
+  assert.equal(isPaperConnectionVerified(ENDPOINT), true, "a recently proven session stays connected while it re-proves");
+  // No stored session exists in this test, so the background re-proof returns no identity.
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(isPaperConnectionVerified(ENDPOINT), false, "a re-proof without fresh identity must clear VERIFIED");
   clearConfiguredPaperEndpoint();
 });
 

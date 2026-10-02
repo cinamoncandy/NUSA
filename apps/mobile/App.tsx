@@ -19,7 +19,7 @@ import { displaySessionState, RESUME_GRACE_MS } from "./src/sessionDisplayModel"
 import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
-import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
+import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, isWarmResumeFresh, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
@@ -384,7 +384,8 @@ function AuthenticatedApp() {
       if (nextState === "active") {
         // Screen unlock can render before AsyncStorage returns the installation id needed for the
         // silent DeviceKey proof. Project that interval as recovery, not lost configuration.
-        if (getConfiguredPaperEndpoint() != null) {
+        // A session proven within WARM_RESUME_MS stays VERIFIED while it re-proves in the background.
+        if (getConfiguredPaperEndpoint() != null && !isWarmResumeFresh()) {
           beginPaperConnectionRecovery();
           setPaperSessionState("RECOVERING");
         }

@@ -2085,3 +2085,9 @@ current_mobile_safety_truth:
   branch: claude/nusa-repository-j93sd8-safety-truth
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_warm_resume:
+  work_order: WO-UI-20261002-WARM-RESUME
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-warm-resume
+  authority_impact: session-projection
+  remaining: exact-head-CI_then-Audit_then-Release-merge
