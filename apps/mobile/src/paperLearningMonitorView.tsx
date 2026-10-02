@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from "react";
+import { EquityChart } from "./equityChart";
+import { buildEquitySeries } from "./performanceModel";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { NusaButton } from "./components";
 import { FieldHeader } from "./fieldHeader";
@@ -130,6 +132,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     testID="paper-learning-monitor"
   >
     <View style={styles.fieldBleed}><FieldHeader model={buildPaperFieldHeader(state)} testID="paper-field-header" /></View>
+    {state.dataSource === "SERVER_STREAM" ? <EquityChart points={buildEquitySeries(state.timeline, Date.now())} /> : null}
     <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]} testID="paper-learning-read-only-label">PAPER LEARNING · READ ONLY</Text>
     <MetricStrip
       items={[

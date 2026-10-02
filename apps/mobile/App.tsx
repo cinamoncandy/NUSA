@@ -6,7 +6,7 @@ import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 // Screen presenters come only from the presentation boundary (docs/UI_ARCHITECTURE.md).
 import {
   HomeView, LiveReadinessMonitorView, MoreDetailView, MoreMenuView, NotificationView, NusaButton, NusaCard, OrderHistoryView,
-  PaperShadowMonitorView, PortfolioView, PrimaryNavigation, SettingsView, StatusChip, StrategiesView, TabTransition, ThemeProvider, useTheme, WaveMark,
+  EventBanner, PaperShadowMonitorView, PerformanceView, PortfolioView, PrimaryNavigation, SafetyLine, SettingsView, StatusChip, StrategiesView, TabTransition, ThemeProvider, useTheme, WaveMark,
   type HomeDestination, type ThemePreference, type TruthfulMoreDetail,
 } from "./src/presentation";
 import { getHomeVisualProfile } from "./src/homeVisualProfile";
@@ -14,9 +14,12 @@ import { WatchlistRepository } from "./src/watchlist";
 import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
+import { buildSafetyLine } from "./src/safetyLineModel";
+import { displaySessionState, graceNotConfigured, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
+import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
-import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
+import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, armWarmResumeCutoff, isPaperConnectionVerified, isWarmResumeFresh, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
@@ -96,6 +99,7 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
 export default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }
 
 /** Shown by read-only monitors while the first canonical refresh is still in flight. */
+const EMPTY_EVENTS: readonly never[] = [];
 const PENDING_REASON = "서버 상태를 확인하는 중입니다.";
 
 function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -139,6 +143,25 @@ function AuthenticatedApp() {
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
   const [initialPaperProjectionResolved, setInitialPaperProjectionResolved] = useState(false);
   const [paperSessionState, setPaperSessionState] = useState<PaperSessionState>("NOT_CONFIGURED");
+  // Resume grace (presentation only): remember whether the session was verified when recovery began.
+  const resumeGrace = useRef<{ verified: boolean; since: number } | null>(null);
+  const lastSessionState = useRef<PaperSessionState>("NOT_CONFIGURED");
+  // App launch counts like a resume: a paired device is expected to come up connected.
+  const launchPending = useRef(true);
+  const [, setGraceTick] = useState(0);
+  if (paperSessionState === "RECOVERING" && resumeGrace.current == null) resumeGrace.current = { verified: lastSessionState.current === "VERIFIED" || launchPending.current, since: Date.now() };
+  if (paperSessionState !== "RECOVERING") resumeGrace.current = null;
+  if (paperSessionState !== "NOT_CONFIGURED") launchPending.current = false;
+  lastSessionState.current = paperSessionState;
+  useEffect(() => {
+    if (paperSessionState !== "RECOVERING") return;
+    const timer = setTimeout(() => setGraceTick((tick) => tick + 1), RESUME_GRACE_MS + 50);
+    return () => clearTimeout(timer);
+  }, [paperSessionState]);
+  const shownSessionState = displaySessionState(paperSessionState, resumeGrace.current?.verified === true, resumeGrace.current == null ? 0 : Date.now() - resumeGrace.current.since);
+  // Inside the resume grace the transient not-configured projection that RECOVERING leaves behind
+  // stays quiet (see graceNotConfigured); genuine read failures are never hidden.
+  const resumingQuietly = shownSessionState !== paperSessionState;
   const [shadowOperations, setShadowOperations] = useState<ShadowOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." });
   const [realReadOnlyOperations, setRealReadOnlyOperations] = useState<RealReadOnlyOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." });
   const [liveReadinessOperations, setLiveReadinessOperations] = useState<LiveReadinessOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." });
@@ -364,9 +387,13 @@ function AuthenticatedApp() {
       if (nextState === "active") {
         // Screen unlock can render before AsyncStorage returns the installation id needed for the
         // silent DeviceKey proof. Project that interval as recovery, not lost configuration.
+        // A session proven within WARM_RESUME_MS stays VERIFIED while it re-proves in the background.
         if (getConfiguredPaperEndpoint() != null) {
-          beginPaperConnectionRecovery();
-          setPaperSessionState("RECOVERING");
+          if (isWarmResumeFresh()) armWarmResumeCutoff();
+          else {
+            beginPaperConnectionRecovery();
+            setPaperSessionState("RECOVERING");
+          }
         }
         const native = ownerDeviceCredential();
         if (native == null) resumePaperConnection();
@@ -441,7 +468,8 @@ function AuthenticatedApp() {
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
   const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;
-  const notConfigured = !paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null;
+  // Applied once at the source so HOME, PAPER and every screen agree during the resume grace.
+  const notConfigured = graceNotConfigured(!paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null, resumingQuietly);
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
   const publicMarketConnectionState = publicMarkets.status === "READY" || publicMarkets.status === "STALE" ? "CONNECTED" : "UNKNOWN";
   const stale = snapshot == null || snapshot.health !== "HEALTHY";
@@ -459,6 +487,8 @@ function AuthenticatedApp() {
     {!homeShellActive && utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
 
+    <SafetyLine line={buildSafetyLine({ sessionState: paperSessionState, resuming: shownSessionState !== paperSessionState, runtimeHalted: snapshot?.paperLearning?.runtimeStatus === "HALTED", dataUnconfirmed: !paperProjectionPending && (snapshot == null || snapshot.health !== "HEALTHY") })} />
+    <EventBanner ready={!paperProjectionPending && snapshot?.paperLearning != null} sourceKey={getConfiguredPaperEndpoint() ?? ""} events={snapshot?.paperLearning?.events ?? EMPTY_EVENTS} halted={snapshot?.paperLearning?.runtimeStatus === "HALTED"} />
     <TabTransition transitionKey={`${activeTab}:${detailSurface ?? ""}:${utilityView ?? ""}:${paperLearningOpen ? "learning" : ""}`}>{paperLearningOpen ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
       : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
@@ -466,7 +496,8 @@ function AuthenticatedApp() {
       : detailSurface === "Strategies" ? <StrategiesView presentation={{ champion: null, challenger: null, evidenceStatus: "UNAVAILABLE" }} />
       : detailSurface === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
       : detailSurface === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
-      : detailSurface === "Risk" || detailSurface === "Performance" || detailSurface === "SystemStatus" || detailSurface === "Help" ? <MoreDetailView destination={detailSurface} onClose={() => setDetailSurface(null)} />
+      : detailSurface === "Performance" ? <PerformanceView screen={buildPerformanceScreen(paperLearningState.performance, paperLearningState.dataSource === "SERVER_STREAM")} onClose={() => setDetailSurface(null)} />
+      : detailSurface === "Risk" || detailSurface === "SystemStatus" || detailSurface === "Help" ? <MoreDetailView destination={detailSurface} onClose={() => setDetailSurface(null)} />
       : activeTab === "Paper" ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setActiveTab("Home")} />
       : activeTab === "Live" ? <LiveReadinessMonitorView snapshot={liveReadinessOperations.status === "READY" ? liveReadinessOperations.snapshot : null} unavailableReason={liveReadinessOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : liveReadinessOperations.reason} unavailableKind={paperProjectionPending ? "PENDING" : liveReadinessOperations.status === "NOT_CONFIGURED" ? "SETUP" : "FAILED"} refreshing={refreshing} onRefresh={onRefresh} />
       : activeTab === "More" ? <MoreMenuView onOpen={(destination: MoreDestination) => {
@@ -478,7 +509,7 @@ function AuthenticatedApp() {
           else if (destination === "Settings") setUtilityView("SETTINGS");
           else if (destination === "Risk" || destination === "Performance" || destination === "SystemStatus" || destination === "Help") setDetailSurface(destination);
         }} />
-      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} sessionRecovering={paperSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}</TabTransition>
+      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} sessionRecovering={shownSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}</TabTransition>
 
     <PrimaryNavigation activeDestination={activeTab} obscured={paperLearningOpen || utilityView !== null || detailSurface !== null} onNavigate={(destination) => { setUtilityMenuOpen(false); setUtilityView(null); setDetailSurface(null); setPaperLearningOpen(false); setActiveTab(destination); }} />
   </SafeAreaView>;

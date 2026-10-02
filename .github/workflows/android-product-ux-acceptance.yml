@@ -149,8 +149,8 @@ jobs:
           grep -q "more-view" qa/android-product-ux/05-more.xml
           grep -q "paper-learning-monitor" qa/android-product-ux/06-paper.xml
           grep -Eq "paper-shadow-monitor-switcher|dashboard-connection-required" qa/android-product-ux/02-paper-primary.xml
-          grep -q "LIVE" qa/android-product-ux/03-live-readiness.xml
-          grep -q "PORTFOLIO" qa/android-product-ux/09-portfolio.xml
+          grep -q "live-field-header" qa/android-product-ux/03-live-readiness.xml
+          grep -q "portfolio-screen" qa/android-product-ux/09-portfolio.xml
           grep -q "paper-learning-monitor" qa/android-product-ux/07-paper-evidence-open.xml
           grep -q "home-screen" qa/android-product-ux/13-home-return.xml
           printf 'touch_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nsettings_close=PASS\nreturn_home=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt

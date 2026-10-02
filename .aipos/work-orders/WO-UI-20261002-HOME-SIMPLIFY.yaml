@@ -1,0 +1,22 @@
+id: WO-UI-20261002-HOME-SIMPLIFY
+title: "Prototype layout step 4: HOME keeps the sphere, capital and 최근 기록; the rest folds behind 자세히 보기"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-home-simplify
+authority_impact: none
+objective: "The approved prototype HOME is short. Market canvas, NUSA flow, learning and decision evidence fold behind one toggle so HOME reads at a glance."
+scope:
+  - "homeView.tsx: a home-details-toggle Pressable opens home-more-block. While closed the block stays mounted but hidden, so existing acceptance markers stay present exactly once."
+exclusions:
+  - "Other tabs are already short and keep their layout; this only shortens HOME, matching the prototype that every tab already follows."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-home-simplify.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."
