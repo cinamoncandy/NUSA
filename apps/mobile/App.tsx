@@ -98,6 +98,7 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
 export default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }
 
 /** Shown by read-only monitors while the first canonical refresh is still in flight. */
+const EMPTY_EVENTS: readonly never[] = [];
 const PENDING_REASON = "서버 상태를 확인하는 중입니다.";
 
 function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -462,7 +463,7 @@ function AuthenticatedApp() {
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
 
     <SafetyLine line={buildSafetyLine({ sessionState: paperSessionState, runtimeHalted: snapshot?.paperLearning?.runtimeStatus === "HALTED" })} />
-    <EventBanner events={snapshot?.paperLearning?.events ?? []} />
+    <EventBanner ready={!paperProjectionPending && snapshot?.paperLearning != null} sourceKey={getConfiguredPaperEndpoint() ?? ""} events={snapshot?.paperLearning?.events ?? EMPTY_EVENTS} halted={snapshot?.paperLearning?.runtimeStatus === "HALTED"} />
     <TabTransition transitionKey={`${activeTab}:${detailSurface ?? ""}:${utilityView ?? ""}:${paperLearningOpen ? "learning" : ""}`}>{paperLearningOpen ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
       : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
