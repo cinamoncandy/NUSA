@@ -78,7 +78,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /grep -q "paper-learning-monitor" qa\/android-product-ux\/06-paper\.xml/);
   assert.match(workflow, /paper-shadow-monitor-switcher\|dashboard-connection-required/);
   assert.match(workflow, /grep -q "LIVE" qa\/android-product-ux\/03-live-readiness\.xml/);
-  assert.match(workflow, /grep -q "PORTFOLIO" qa\/android-product-ux\/09-portfolio\.xml/);
+  assert.match(workflow, /grep -Eq "PORTFOLIO\|포트폴리오" qa\/android-product-ux\/09-portfolio\.xml/);
   assert.match(workflow, /grep -q "home-screen" qa\/android-product-ux\/13-home-return\.xml/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });
