@@ -1998,3 +1998,9 @@ current_mobile_safety_line:
   branch: claude/nusa-repository-j93sd8-safety-line
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-server-journal-and-equity-history-projections
+current_mobile_performance:
+  work_order: WO-UI-20261002-PERFORMANCE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-performance
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
