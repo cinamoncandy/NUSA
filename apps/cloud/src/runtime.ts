@@ -178,6 +178,8 @@ export function startCloudRuntime(
     decisionCount: number;
     paperOrderCount: number;
     paperFillCount: number;
+    buySignalCount: number;
+    buyBlockedCount: number;
     lastPaperDecisionOutcome: string | null;
     lastError: string | null;
   } = {
@@ -193,6 +195,8 @@ export function startCloudRuntime(
     decisionCount: 0,
     paperOrderCount: 0,
     paperFillCount: 0,
+    buySignalCount: 0,
+    buyBlockedCount: 0,
     lastPaperDecisionOutcome: null,
     lastError: null
   };
@@ -399,6 +403,8 @@ export function startCloudRuntime(
           if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
           heartbeat.paperOrderCount += result.orders.length;
           heartbeat.paperFillCount += result.fills.length;
+          // Display-only counters: how often the decision was BUY, and how often a BUY produced no order.
+          if (canonicalDecision?.action === "BUY") { heartbeat.buySignalCount += 1; if (result.orders.length === 0) heartbeat.buyBlockedCount += 1; }
           if (result.status === "FAILED") recordFailure(result.reason ?? "PAPER_EXECUTION_FAILED");
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
