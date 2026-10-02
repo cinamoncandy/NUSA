@@ -85,14 +85,19 @@ current_issue_2118_ci_saturation_wip:
 current_issue_2118_main_ci_materialization:
   work_order: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
   issue: 2118
-  status: LATEST_MAIN_REVALIDATED_PENDING_PUSH_AND_EXACT_HEAD_CI
+  status: MAIN_SYNCED_REVALIDATION_REQUIRED
   branch: codex/issue-2118-main-ci-materialization
-  base_sha: 8bfa0c50e53e738fb63462051a4645756bd6efa
+  base_sha: ae1a8dc63846c431ec0e00b94a64bb1f524699e8
   pull_request: 2451
-  evidence: "Same-SHA post-merge runs 36944149502 (push, SUCCESS) and 36944151942 (workflow_dispatch, redundant; cancelled after start). Canonical Release 36943121052 completed SUCCESS."
-  main_sync: "Merged main update #2450 at 8bfa0c50e53e738fb63462051a4645756bd6efa. It adds mobile PAPER journal UI and does not modify the post-merge Release CI block; PR #2446 remains open with a separate preflight hunk."
-  local_validation: "After #2450 merge: 13/13 targeted workflow tests, validate:full, security gate, AIPOS provenance, and diff check PASS. Prior exact-head checks on 60e87c1e are stale after main advanced."
-  remaining: "Commit validation record, push synchronized branch to PR #2451, then fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."
+  evidence: "Same-SHA post-merge runs 36944149502 (push, SUCCESS) and 36944151942 (workflow_dispatch, redundant; cancelled after start). Recurrence reproduced on main ae1a8dc63846c431ec0e00b94a64bb1f524699e8: push CI 36947837266 SUCCESS and workflow_dispatch CI 36947838794 started six shards. Canonical Release 36943121052 completed SUCCESS."
+  main_sync: "Merged latest main ae1a8dc63846c431ec0e00b94a64bb1f524699e8 (#2452). Changes are mobile performance UI and AIPOS state; workflow change remains intact."
+  prior_exact_head: bfe10f34ba5a6d70570ba3dc94f072956ccdba41
+  prior_exact_head_ci: 36947076495
+  prior_independent_audit: 36947732272
+  prior_audit_state: PASS_ON_STALE_BASE_INVALIDATED_BY_MAIN_ADVANCE
+  prior_release_state: CANCELLED_STALE_BASE
+  local_validation: "After #2450 only: targeted workflow tests 13/13, validate:full, security gate, AIPOS provenance/drift, lint:scripts, and diff check PASS. Revalidation against #2452-synced head is pending."
+  remaining: "Run targeted/AIPOS/security validation, commit and push one updated exact head to PR #2451, then fresh exact-head CI, independent Audit, canonical Release, and post-merge evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
