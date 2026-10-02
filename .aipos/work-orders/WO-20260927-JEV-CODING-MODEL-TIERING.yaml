@@ -8,7 +8,7 @@ parent_pr: 2331
 parent_merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
 pull_request: 2334
 base_branch: main
-base_commit: 9ed2cee88fc668a6859f6b04e233e3ea7092c444
+base_commit: 958912f8a37544b780a554d9e214600b109b4869
 implementation_branch: feat/ai-capacity-jev-model-tiering
 authority_impact: none
 objective: "Use accepted bounded Jev admission evidence only to select an explicitly configured Workers AI coding model tier while preserving the canonical coding path, safety validation, and ZERO_AUTHORITY."
@@ -32,12 +32,12 @@ acceptance:
 evidence:
   implementation_status: LATEST_MAIN_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   prior_implementation_head: b04b40fde3d39a9a987d3e343f1a2d4dc88592c4
-  base_main: 9ed2cee88fc668a6859f6b04e233e3ea7092c444
-  latest_main_sync_commit: 2630bdbe0977029361c9c951b047774a7b32b5af
+  base_main: 958912f8a37544b780a554d9e214600b109b4869
+  latest_main_sync_commit: 56d7045125a3c938b04ac9beaf99c12da08eac91
   implementation_head: 4ddbdae5f7c4ad5911d1f804d41fe2a692c8808c
-  local_validation: "After latest-main merge 2630bdbe0977029361c9c951b047774a7b32b5af: pnpm run build; targeted Jev tier/admission/codingRunner tests 74/74; pnpm run typecheck; pnpm run validate:full; pnpm run security:gate; pnpm run aipos:yaml, aipos:drift, aipos:provenance; pnpm run lint all PASS. Lint had 0 errors and 14 existing warnings. git diff --check PASS."
-  prior_exact_head_validation: "Head 38040f5663fbd98c037e0cb3d7cb79b652d2ca05 canonical CI 36959600612 success; Restricted LIVE Capability 36959600523, Activation 36959600597, Transport 36959600530, Read-only Broker 36959600568, and PAPER Runtime 36959600610 all success. Cloudflare preflight 36959598851 and 36959599146 failed because no successful exact-main deployment for 686b6a3 was available at that time."
-  external_validation: "Main advanced to 9ed2cee88fc668a6859f6b04e233e3ea7092c444 and canonical Cloudflare deploy run 36974854648 succeeded for that exact SHA. Fresh PR-head CI/preflight, independent Audit, and canonical Release remain required. PR #2329 remains SHADOW/usableForRouting=false; latest runtime evidence records provider-capacity wait and no real Jev call receipt."
+  local_validation: "After latest-main merge 56d7045125a3c938b04ac9beaf99c12da08eac91: pnpm run build; targeted Jev tier/admission/codingRunner tests 74/74; pnpm run typecheck; pnpm run validate:full; pnpm run security:gate; pnpm run aipos:yaml, aipos:drift, aipos:provenance; pnpm run lint all PASS. Lint had 0 errors and 14 existing warnings. Initial validate:full detected duplicate latest_main_sync_commit metadata after merge; the duplicate was removed and AIPOS YAML/full validation passed. Fresh exact-head CI and Cloudflare preflight are pending."
+  prior_exact_head_validation: "Head 38040f5663fbd98c037e0cb3d7cb79b652d2ca05 canonical CI 36959600612 succeeded but two preflights failed before deployment. Head 571e251717eb769f5aae080918c8c21c4309e1df on base 9ed2cee88fc668a6859f6b04e233e3ea7092c444 passed CI 36975583427, Cloudflare preflight 36975583341, and required Restricted LIVE/PAPER/read-only companions; the Audit request safely returned NO_ACTION in run 36976141645 because main advanced to 958912f8a37544b780a554d9e214600b109b4869."
+  external_validation: "Main 9ed2cee had successful canonical Cloudflare deployment run 36974854648. Current main 958912f8a37544b780a554d9e214600b109b4869 is now synchronized in merge commit 56d7045125a3c938b04ac9beaf99c12da08eac91; fresh exact-head CI/preflight and independent Audit are pending. PR #2329 remains SHADOW/usableForRouting=false; latest runtime evidence records provider-capacity wait and no real Jev call receipt."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -47,4 +47,4 @@ safety:
 blocker:
   type: SHADOW_CALIBRATION_AND_PROVIDER_CAPACITY
   dependency: "A real, validated SHADOW calibration and recovered provider capacity are required before any runtime activation; neither can be inferred from unit tests or stale runtime evidence."
-next_permitted_action: "Update existing PR #2334 without force-push and verify fresh exact-head CI plus Cloudflare preflight against main 9ed2cee88fc668a6859f6b04e233e3ea7092c444. Then request independent Audit and canonical Release. Keep NUSA_JEV_BOUNDED_ROUTING_ENABLED and NUSA_JEV_MODEL_TIERING_ENABLED false until calibration is accepted; do not claim runtime cost savings before measured runtime evidence."
+next_permitted_action: "Complete validation on latest main 958912f8a37544b780a554d9e214600b109b4869, update existing PR #2334 without force-push, verify fresh exact-head CI and Cloudflare preflight, then request independent Audit. Keep NUSA_JEV_BOUNDED_ROUTING_ENABLED and NUSA_JEV_MODEL_TIERING_ENABLED false until calibration is accepted; do not claim runtime cost savings before measured runtime evidence."
