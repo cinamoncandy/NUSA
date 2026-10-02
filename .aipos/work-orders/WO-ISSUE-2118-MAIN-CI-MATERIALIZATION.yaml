@@ -1,12 +1,12 @@
 id: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
 title: "Suppress duplicate post-merge CI when push-run indexing is delayed"
-status: MAIN_SYNCED_REVALIDATION_REQUIRED
+status: LATEST_MAIN_SYNCED_REVALIDATION_REQUIRED
 priority: P1
 owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2118
 base_branch: main
-base_commit: ae1a8dc63846c431ec0e00b94a64bb1f524699e8
+base_commit: 3c49bdd253e51dd67821bfa735d618cd15e70328
 objective: "Prevent a same-SHA workflow_dispatch CI from being queued when the canonical push CI exists but has not yet appeared in the Actions run listing, while preserving exact-head coverage and fail-closed recovery."
 architecture_impact:
   acknowledged: true
@@ -41,7 +41,7 @@ verification_commands:
   - "pnpm run security:gate"
 validation:
   status: LOCAL_PASS
-  latest_main: ae1a8dc63846c431ec0e00b94a64bb1f524699e8
+  latest_main: 3c49bdd253e51dd67821bfa735d618cd15e70328
   commands:
     - "node --test tests/autopilot-deterministic-audit-release.test.js — PASS 13/13"
     - "pnpm run validate:full — PASS"
@@ -49,12 +49,23 @@ validation:
     - "pnpm run lint:scripts — PASS, 0 errors; 14 existing warnings in unrelated files"
     - "AIPOS YAML/provenance/drift validators — PASS"
     - "git diff --check — PASS"
-  exact_head_ci: INVALIDATED_BY_BASE_ADVANCE
+  exact_head_ci: PENDING_AFTER_LATEST_MAIN_SYNC
   prior_exact_head: bfe10f34ba5a6d70570ba3dc94f072956ccdba41
   prior_exact_head_ci: 36947076495
   prior_independent_audit: 36947732272
   prior_audit_result: PASS_ON_STALE_BASE
   prior_release_result: CANCELLED_AFTER_BASE_ADVANCE
-  main_sync_commit: d5a54a8bbf33b1ca41c63234966bef19fc6ff7cc
+  intermediate_exact_head_ci: 36948354610
+  intermediate_ci_result: PASS_ON_STALE_BASE
+  intermediate_audit_run: 36948929273
+  intermediate_audit_result: NO_ACTION_STALE_BASE
+  latest_main_sync_commit: f484735e9b671d56f0ca620bf3bb374abef0fc32
+  latest_sync_local_validation:
+    - "node --test tests/autopilot-deterministic-audit-release.test.js — PASS 13/13"
+    - "pnpm run aipos:yaml — PASS (261 files)"
+    - "pnpm run aipos:provenance — PASS"
+    - "pnpm run aipos:drift — PASS"
+    - "pnpm run security:gate — PASS; zero secrets, zero high/critical"
+    - "git diff --check — PASS"
 pull_request: 2451
-next_permitted_action: "Run targeted regression, AIPOS validators, and security gate; update this record with those results, then commit and non-force-push once. Require fresh exact-head CI and independent Audit; do not treat prior Audit/Release as valid for the new base."
+next_permitted_action: "Commit and non-force-push this latest-main sync and evidence record once. Require fresh exact-head CI, independent Audit on the exact current base, canonical Release, and post-merge proof; do not reuse stale evidence."
