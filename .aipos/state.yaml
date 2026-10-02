@@ -2152,3 +2152,9 @@ current_learning_line:
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-learning-line
   authority_impact: none
+current_research_continuous_experiments:
+  work_order: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+  status: PLANNED
+  branch: claude/nusa-repository-j93sd8-research-scheduler
+  authority_impact: research-evidence-only
+  remaining: stage_2_composition_then_stage_3_tests_then_owner_approved_deploy

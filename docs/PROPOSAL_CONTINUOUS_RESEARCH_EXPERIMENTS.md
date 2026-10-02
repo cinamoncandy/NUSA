@@ -1,6 +1,6 @@
 # Proposal: continuous walk-forward research experiments (PAPER/Research only)
 
-Status: PROPOSAL, owner approval required before any implementation or Worker deploy.
+Status: OWNER DECISIONS RECEIVED 2026-10-02 (see "Owner decisions"). Implementation is staged; any server deploy still needs explicit owner approval.
 Authority impact if implemented: research evidence only. LIVE NONE, productionMutation false, AI ZERO_AUTHORITY.
 
 ## Why
@@ -14,6 +14,31 @@ Observed bottlenecks for learning speed:
 3. A research session ends at `maxExperiments` (`researchAutomationRuntime.ts`). No server-side timer that
    starts new sessions or experiments was found in `apps/cloud/src`; other launchers (autopilot, scripts,
    deploy config) were not inspected, so this must be confirmed first.
+
+## Finding (code reading, 2026-10-02)
+`ResearchAutomationRuntime` already runs one experiment per accepted market tick while a RUNNING session exists
+(`onMarketData`), and `startCloudRuntime` accepts `researchRuntime`, `researchRecoveryCoordinator` and
+`researchAutomation`. Both production entrypoints pass `undefined` for all three
+(`closedLearningProductionRuntime.ts` and `runtime.ts` `main()`), and nothing outside tests calls
+`startSession`. So in production no research session exists and no experiment runs from market data. This is
+the likely reason the Research projection shows no experiments. It is a reading of the code, not an
+observation of the live server; the app's LEARNING line shows the real state.
+
+## Owner decisions (2026-10-02)
+1. PAPER capital stays at the current amount. No capital, minimum-order or risk change is part of this work.
+2. Continuous research experiments: proceed (staged below).
+3. No paid AI calls. Improvement must come from NUSA's own deterministic, compute-only learning. This work
+   uses no model/provider credits.
+
+## Staged plan
+- Stage 1 (this PR): findings, owner decisions and this plan (documentation and work order only).
+- Stage 2: compose the research runtime in production: durable session repository, recovery coordinator,
+  deterministic `buildInput` from stored market data, one RUNNING session with a daily experiment budget, and
+  automatic restart of a COMPLETED session on the next day. Fail closed on recovery failure.
+- Stage 3: tests (budget exhaustion, restart, recovery failure, no promotion path), full local validation,
+  then an explicit owner approval before any Worker/Cloud deploy.
+- Default budget proposed for Stage 2 (owner may change): one session per KST day, at most 288 experiments
+  (about one per 5 minutes), PAPER/Research evidence only.
 
 ## Proposal
 A bounded scheduler that submits walk-forward experiments on stored historical candles:
