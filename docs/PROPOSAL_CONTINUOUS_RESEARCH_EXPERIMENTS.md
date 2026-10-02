@@ -40,6 +40,26 @@ observation of the live server; the app's LEARNING line shows the real state.
 - Default budget proposed for Stage 2 (owner may change): one session per KST day, at most 288 experiments
   (about one per 5 minutes), PAPER/Research evidence only.
 
+## Stage 2b requirements found while designing the input builder
+The research coordinator validates every experiment input strictly (`researchRuntimeCoordinator.ts`,
+`researchHardening.ts`), so the production input builder is not a thin mapper:
+
+- Market points must be finite, positive, unique per market/time and newer than `staleWindowMs`; an empty
+  window is rejected. (`ResearchMarketWindow` already refuses partial windows.)
+- Evidence that can qualify a candidate needs full provenance: dataset id and content SHA-256, feature
+  pipeline version/hash, strategy artifact and config hashes, source commit, split hash, walk-forward config
+  hash, train/validation/final-holdout window hashes, attempt number and experiment lineage. A HOLDOUT window
+  must be untouched. This must be derived from the optimizer's actual Train/Validation/Holdout split, not
+  filled with placeholders.
+- A champion evaluator and challenger evaluators (real strategy evaluations over the window, with fee and
+  slippage models) must be registered with the coordinator. None exists in production composition today; the
+  challenger variants should come from the deterministic optimizer parameter grid (now in
+  `packages/core/src/optimizer`).
+- Historical candles must be collected and stored first (public Upbit 1-minute candles, rate limited).
+
+Because a wrong provenance would manufacture false evidence, Stage 2b starts with a design review of the
+provenance derivation before any code is wired.
+
 ## Proposal
 A bounded scheduler that submits walk-forward experiments on stored historical candles:
 
