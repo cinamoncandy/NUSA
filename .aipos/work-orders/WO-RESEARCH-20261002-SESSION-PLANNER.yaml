@@ -1,0 +1,26 @@
+id: WO-RESEARCH-20261002-SESSION-PLANNER
+title: "Pure daily research-session planner and bounded market window (Stage 2a-2 parts; not wired)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-research-planner
+authority_impact: none
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "Provide the two pure building blocks the production research runtime will need: a planner that decides when to start the one daily research session within a bounded experiment budget, and a bounded per-market price window that rejects bad data."
+scope:
+  - "apps/cloud/src/researchSessionPlanner.ts: one session per KST trading day (id research-YYYY-MM-DD, via the server tradingDayKey), budget 1..1000, fails closed on invalid clock or budget or unready recovery, never restarts a HALTED/FAILED/PAUSED/COMPLETED session of the same day, waits while an earlier session is RUNNING."
+  - "apps/cloud/src/researchMarketWindow.ts: bounded per-market ordered history, rejects non-finite or non-positive prices, bad markets and non-increasing timestamps, returns only full windows."
+  - "tests/research-session-planner.test.js: behavior tests for both."
+exclusions:
+  - "Not wired into any runtime: nothing starts a session, stores data or runs an experiment yet (Stage 2b). No deploy."
+  - "No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-session-planner.test.js
+  - pnpm run validate
+residual: "Stage 2b (candle collection, input builder, production composition, owner-approved deploy) not started. Not run: pnpm run validate (sandbox Node 22)."
