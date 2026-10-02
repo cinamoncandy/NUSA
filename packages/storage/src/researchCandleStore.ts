@@ -89,6 +89,13 @@ export class SqliteResearchCandleStore {
     return row?.earliest == null ? undefined : Number(row.earliest);
   }
 
+  /** Latest stored close time for a market/interval, or undefined when empty. */
+  public latestCloseTime(market: string, intervalMs: number): number | undefined {
+    if (!MARKET.test(market)) throw new ResearchCandleStoreError("INVALID_MARKET", "research candle market is invalid");
+    const row = this.db.connection.prepare(`SELECT MAX(close_time_ms) AS latest FROM ${TABLE} WHERE market = ? AND interval_ms = ?`).get(market, intervalMs) as { latest: number | null } | undefined;
+    return row?.latest == null ? undefined : Number(row.latest);
+  }
+
   public count(market: string, intervalMs: number): number {
     const row = this.db.connection.prepare(`SELECT COUNT(*) AS n FROM ${TABLE} WHERE market = ? AND interval_ms = ?`).get(market, intervalMs) as { n: number };
     return Number(row.n);
