@@ -6,7 +6,7 @@ owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2118
 base_branch: main
-base_commit: 2cd9879f29460a5f59b222ae75caba0aa953264e
+base_commit: f05aa4a4d6bb0c3802fd06596026bd73147c331f
 objective: "Prevent a same-SHA workflow_dispatch CI from being queued when the canonical push CI exists but has not yet appeared in the Actions run listing, while preserving exact-head coverage and fail-closed recovery."
 architecture_impact:
   acknowledged: true
@@ -40,7 +40,7 @@ verification_commands:
   - "pnpm run security:gate"
 validation:
   status: LOCAL_PASS
-  latest_main: 2cd9879f29460a5f59b222ae75caba0aa953264e
+  latest_main: f05aa4a4d6bb0c3802fd06596026bd73147c331f
   commands:
     - "node --test tests/autopilot-deterministic-audit-release.test.js — PASS 13/13"
     - "pnpm run validate:full — PASS"
