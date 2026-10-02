@@ -72,15 +72,19 @@ current_issue_2017_component_health:
 current_issue_2118_ci_saturation_wip:
   work_order: WO-ISSUE-2118-CI-SATURATION-WIP
   issue: 2118
-  status: MERGED_INCREMENT_FOLLOW_UP_ACTIVE
-  base_sha: 52c11bcc4644d995d357d9ee2019eb9ca71fa9f1
-  pull_request: 2430
-  implementation_head: 56bf5900a484355f8cb0f9ae41d56e845cf5cc63
+  status: REVIEW_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  base_sha: 064ce25dd91da92d084d4ca0d5ee570b94ef97b1
+  pull_request: 2460
+  implementation_head: 7609e7ee56d8fe610f51262b5d8b378c1c2c4a41
+  prior_pull_request: 2430
+  prior_merge_commit: 070078d31342fff277909c4929f9445e2728488e
+  prior_exact_head_ci: "36942370607 PASS"
   merge_commit: 070078d31342fff277909c4929f9445e2728488e
   exact_head_ci: "36942370607 PASS"
   scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP and an inclusive 85% high-pressure boundary; legacy ciUtilization remains the compatibility fallback."
-  validation: "PR #2430 merged through canonical Release at 070078d31342fff277909c4929f9445e2728488e. Exact-head CI 36942370607, independent Audit, and canonical Release passed. Post-merge CI 36944149502 succeeded."
-  remaining: "Successor WO-ISSUE-2118-MAIN-CI-MATERIALIZATION addresses the observed same-SHA push-run indexing race that launched redundant CI run 36944151942."
+  validation: "Prior WIP merged as PR #2430 at 070078d31342fff277909c4929f9445e2728488e (exact-head CI 36942370607 PASS; post-merge CI 36944149502 PASS). Current bounded attribution increment is PR #2460; first synchronized head 7609e7ee56d8fe610f51262b5d8b378c1c2c4a41 passed exact-head CI 36977896793 and safety/PAPER companions, then review repair findings were addressed locally."
+  remaining: "Repair exact-head review findings, then require fresh CI, independent acceptance, Audit, and canonical Release; successor WO-ISSUE-2118-MAIN-CI-MATERIALIZATION separately addresses the observed same-SHA push-run indexing race."
+  delegated_increment: "PR #2460 exact head 7609e7ee56d8fe610f51262b5d8b378c1c2c4a41 passed fresh CI 36977896793 and PAPER/safety companions. Independent Audit/Release run 36978402320 found two valid review findings: preserve malformed saturation through the production projection, and correct the AIPOS handoff that still called the committed increment uncommitted. Both are repaired locally on current main 064ce25dd91da92d084d4ca0d5ee570b94ef97b1; focused 14/14, build, typecheck, validate:full, security gate, AIPOS YAML, and scripts lint passed. Fresh exact-head CI and review remain pending."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_issue_2118_main_ci_materialization:
   work_order: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
