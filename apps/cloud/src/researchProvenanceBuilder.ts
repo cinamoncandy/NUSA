@@ -58,6 +58,8 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const SHA1 = /^[a-f0-9]{40}$/;
 const MARKET = /^KRW-[A-Z0-9-]+$/;
 const sha = (value: unknown): string => createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
+/** Canonical SHA-256 used for every provenance hash; exported so callers hash configurations identically. */
+export const canonicalSha256 = sha;
 const text = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
 const fail = (code: string, message: string): never => { throw new ResearchProvenanceError(code, message); };
 
