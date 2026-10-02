@@ -2216,3 +2216,9 @@ current_research_holdout_ledger:
   authority_impact: persistence-schema-additive
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
   deploy: not_deployed_owner_approval_required
+current_research_evaluator_runner:
+  work_order: WO-RESEARCH-20261002-EVALUATOR-RUNNER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-evaluators
+  authority_impact: none
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
