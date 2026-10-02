@@ -8,7 +8,7 @@ parent_pr: 2331
 parent_merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
 pull_request: 2334
 base_branch: main
-base_commit: 686b6a3b27f3e014497d54544431af42cd4c294a
+base_commit: 9ed2cee88fc668a6859f6b04e233e3ea7092c444
 implementation_branch: feat/ai-capacity-jev-model-tiering
 authority_impact: none
 objective: "Use accepted bounded Jev admission evidence only to select an explicitly configured Workers AI coding model tier while preserving the canonical coding path, safety validation, and ZERO_AUTHORITY."
@@ -30,12 +30,14 @@ acceptance:
   - "NUSA_JEV_MODEL_TIERING_ENABLED remains false in committed runtime configuration."
   - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
 evidence:
-  implementation_status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  implementation_status: LATEST_MAIN_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   prior_implementation_head: b04b40fde3d39a9a987d3e343f1a2d4dc88592c4
-  base_main: 686b6a3b27f3e014497d54544431af42cd4c294a
+  base_main: 9ed2cee88fc668a6859f6b04e233e3ea7092c444
+  latest_main_sync_commit: 2630bdbe0977029361c9c951b047774a7b32b5af
   implementation_head: 4ddbdae5f7c4ad5911d1f804d41fe2a692c8808c
-  local_validation: "Node 24.18.0 / pnpm 11.7.0; targeted Jev tier/admission/codingRunner tests 74/74 PASS; pnpm run build, typecheck, validate:full, ai:architecture, safety:invariants, security:gate, aipos:yaml, aipos:drift, aipos:provenance PASS; pnpm run lint PASS with 0 errors and 14 existing warnings; git diff --check PASS. Exact-head CI, independent Audit, and Release remain pending."
-  external_validation: "PR #2331 merged as 1b058a1d26e14125afb51cc2d87a49a662044130. PR #2329 is merged but rollout remains SHADOW/usableForRouting=false; latest runtime evidence records provider-capacity wait and no real Jev call receipt. Fresh exact-head CI, independent Audit, and canonical Release remain required."
+  local_validation: "After latest-main merge 2630bdbe0977029361c9c951b047774a7b32b5af: pnpm run build; targeted Jev tier/admission/codingRunner tests 74/74; pnpm run typecheck; pnpm run validate:full; pnpm run security:gate; pnpm run aipos:yaml, aipos:drift, aipos:provenance; pnpm run lint all PASS. Lint had 0 errors and 14 existing warnings. git diff --check PASS."
+  prior_exact_head_validation: "Head 38040f5663fbd98c037e0cb3d7cb79b652d2ca05 canonical CI 36959600612 success; Restricted LIVE Capability 36959600523, Activation 36959600597, Transport 36959600530, Read-only Broker 36959600568, and PAPER Runtime 36959600610 all success. Cloudflare preflight 36959598851 and 36959599146 failed because no successful exact-main deployment for 686b6a3 was available at that time."
+  external_validation: "Main advanced to 9ed2cee88fc668a6859f6b04e233e3ea7092c444 and canonical Cloudflare deploy run 36974854648 succeeded for that exact SHA. Fresh PR-head CI/preflight, independent Audit, and canonical Release remain required. PR #2329 remains SHADOW/usableForRouting=false; latest runtime evidence records provider-capacity wait and no real Jev call receipt."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -45,4 +47,4 @@ safety:
 blocker:
   type: SHADOW_CALIBRATION_AND_PROVIDER_CAPACITY
   dependency: "A real, validated SHADOW calibration and recovered provider capacity are required before any runtime activation; neither can be inferred from unit tests or stale runtime evidence."
-next_permitted_action: "Complete latest-main focused/full validations, update existing PR #2334 without force-push, and require fresh exact-head CI/Audit/Release. Keep NUSA_JEV_BOUNDED_ROUTING_ENABLED and NUSA_JEV_MODEL_TIERING_ENABLED false until calibration is accepted; do not claim runtime cost savings before measured runtime evidence."
+next_permitted_action: "Update existing PR #2334 without force-push and verify fresh exact-head CI plus Cloudflare preflight against main 9ed2cee88fc668a6859f6b04e233e3ea7092c444. Then request independent Audit and canonical Release. Keep NUSA_JEV_BOUNDED_ROUTING_ENABLED and NUSA_JEV_MODEL_TIERING_ENABLED false until calibration is accepted; do not claim runtime cost savings before measured runtime evidence."
