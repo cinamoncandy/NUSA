@@ -2190,21 +2190,18 @@ current_research_candle_collector:
   branch: claude/nusa-repository-j93sd8-candle-collector
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-<<<<<<< HEAD
-<<<<<<< HEAD
 current_research_provenance_builder:
   work_order: WO-RESEARCH-20261002-PROVENANCE-BUILDER
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-provenance-builder
-=======
+  authority_impact: none
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
 current_research_wf_windows:
   work_order: WO-RESEARCH-20261002-WF-WINDOWS
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-wf-windows
->>>>>>> claude/nusa-repository-j93sd8-wf-windows
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-=======
 current_research_holdout_ledger:
   work_order: WO-RESEARCH-20261002-HOLDOUT-LEDGER
   status: READY_FOR_REVIEW
@@ -2212,4 +2209,3 @@ current_research_holdout_ledger:
   authority_impact: persistence-schema-additive
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
   deploy: not_deployed_owner_approval_required
->>>>>>> claude/nusa-repository-j93sd8-holdout-ledger
