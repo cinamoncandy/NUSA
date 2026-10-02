@@ -87,15 +87,7 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal(session.shouldRetryRestore(), true);
   });
 
-  it("marks retryable when a falsely-negative silent status and an empty bearer session both come up empty", async () => {
-    // The native silent-status check resolves available:false on an internal Keystore read
-    // exception too -- it never rejects for that (see NusaOwnerDeviceCredentialModule.hasSilentKey).
-    // So a transient hardware hiccup and a genuinely absent silent key are indistinguishable here,
-    // and this branch falls back to the bearer-refresh restore() path. restore() unconditionally
-    // resets restoreRetryable via clearMemory() before it runs, so when nothing is persisted either
-    // (also not a definitive rejection), the pre-fix code left restoreRetryable false and the
-    // foreground retry timer unarmed -- indistinguishable, from the owner's side, from a real
-    // DEVICE_UNREGISTERED.
+  it("fails closed without retry or bearer fallback when native inspection definitively reports the key absent", async () => {
     const storage = new MemorySecureStorage(); // nothing persisted: no bearer session to fall back to
     const endpoint = "https://paper.example";
     const request = (async () => { throw new Error("must not reach the network with no persisted session and no silent key"); }) as unknown as typeof fetch;
@@ -108,6 +100,24 @@ describe("mobile approved session persistence boundary", () => {
     await assert.rejects(
       () => session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0003", native),
       /registered silent DeviceKey is unavailable/,
+    );
+    assert.equal(session.shouldRetryRestore(), false);
+  });
+
+  it("preserves transient native reason/correlation evidence and arms silent recovery", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const correlationId = "d3b07384-d9a0-4f6f-a3d4-3f95f6f73902";
+    const request = (async () => { throw new Error("must not reach the network for an inspection failure"); }) as unknown as typeof fetch;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: false, canCreate: false, hardwareBacked: false, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: "silent-credential-0123456789", reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId }),
+      signSilentChallenge: async () => { throw new Error("must not be called"); },
+      deleteSilentDeviceCredential: async () => { throw new Error("must not be called"); },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    await assert.rejects(
+      () => session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0004", native),
+      (error: unknown) => error instanceof Error && error.name === "SilentDeviceStatusInspectionError" && error.message.includes(correlationId),
     );
     assert.equal(session.shouldRetryRestore(), true);
   });

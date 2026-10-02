@@ -73,6 +73,21 @@ export class MobileSessionRequestError extends Error {
   }
 }
 
+export class SilentDeviceStatusInspectionError extends Error {
+  public readonly reasonCode = "ANDROID_KEYSTORE_INSPECTION_FAILED";
+  public constructor(public readonly correlationId?: string) {
+    super(`silent DeviceKey status is temporarily unavailable${correlationId ? ` (${correlationId})` : ""}.`);
+    this.name = "SilentDeviceStatusInspectionError";
+  }
+}
+
+function transientSilentStatusError(status: Awaited<ReturnType<OwnerDeviceCredentialNative["getSilentDeviceStatus"]>>): SilentDeviceStatusInspectionError {
+  const correlationId = typeof status.correlationId === "string" && /^[0-9a-f-]{36}$/i.test(status.correlationId)
+    ? status.correlationId
+    : undefined;
+  return new SilentDeviceStatusInspectionError(correlationId);
+}
+
 function readRetryAfterMs(response: Response): number | undefined {
   const raw = response.headers.get("retry-after")?.trim();
   if (!raw) return undefined;
@@ -412,7 +427,7 @@ export class MobileApprovedSession {
       // after foreground resume. Preserve device trust and let the existing bounded retry repeat the
       // silent proof instead of turning the transient status into a terminal-looking auth failure.
       this.restoreRetryable = true;
-      throw new Error("silent DeviceKey status is temporarily unavailable.");
+      throw transientSilentStatusError(status);
     }
     const id = readToken(credentialId ?? status.credentialId ?? "", "owner device credential id");
     if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
@@ -553,15 +568,14 @@ export class MobileApprovedSession {
         // Do not downgrade device trust or fall back to a bearer-only proof; retry the same silent
         // DeviceKey recovery through paperConnectionSession's bounded single-flight coordinator.
         this.restoreRetryable = true;
-        throw new Error("silent DeviceKey status is temporarily unavailable.");
+        throw transientSilentStatusError(status);
       }
       if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) {
-        const restored = await this.restoreBearer(endpoint);
-        if (restored == null) {
-          this.restoreRetryable = true;
-          throw new Error("registered silent DeviceKey is unavailable.");
-        }
-        return restored;
+        // Native inspection completed: missing metadata/alias or invalid hardware backing is a
+        // definitive local trust failure, not a transport condition. Do not replace/delete the
+        // key here and do not downgrade to bearer-only proof or arm the transient retry loop.
+        this.restoreRetryable = false;
+        throw new Error("registered silent DeviceKey is unavailable.");
       }
       this.silentNative = native;
       this.silentCredentialId = readToken(status.credentialId, "owner device credential id");
