@@ -2079,5 +2079,9 @@ current_mobile_resume_grace:
   work_order: WO-UI-20261002-RESUME-GRACE
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-resume-grace
+current_mobile_safety_truth:
+  work_order: WO-UI-20261002-SAFETY-TRUTH
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-safety-truth
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
