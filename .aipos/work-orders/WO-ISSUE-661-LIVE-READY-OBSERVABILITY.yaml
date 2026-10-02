@@ -1,6 +1,6 @@
 id: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
 title: "Issue #661 LIVE-ready read-only observability"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 661
@@ -73,4 +73,7 @@ validation:
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
   issue_661_final_audit: NOT_YET_RUN_POST_MERGE
 blockers: []
-next: "Merge PR #770 under repository policy, verify the merge on current main, then continue the Issue #661 acceptance audit and post-merge Android preview path."
+next: "None. Historical Issue #661 implementation is merged/closed; any successor work belongs to the current canonical owner and must not remain as separate WIP."
+
+implementation_status: MERGED_PR_770
+merge_sha: 51f3b584435fbe0fdf76f856803508a3f0a0cddd

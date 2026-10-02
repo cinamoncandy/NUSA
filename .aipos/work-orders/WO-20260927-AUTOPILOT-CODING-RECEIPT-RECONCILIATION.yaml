@@ -1,0 +1,25 @@
+id: WO-20260927-AUTOPILOT-CODING-RECEIPT-RECONCILIATION
+title: Autopilot coding receipt reconciliation
+status: IN_PROGRESS
+branch: codex/core-autopilot-integration
+base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+implementation_code_head: 5aed3c955c6ec0887c91ed73ad72cf73443dca46
+pull_request: 2330
+canonical_owner: autopilot
+scope: "Converge the existing production /coding/publish result into durable CodingExecutionEvidence and one exact-identity canonical transition; no successor engine is added here."
+first_broken_transition: "published coding result -> durable canonical receipt -> canonical transition"
+changes:
+  - "Persist the actual /coding/publish outcome before exposing PR_OPEN."
+  - "Require commitSha plus pullRequestNumber for PR_OPEN."
+  - "Map persisted WAITING_RATE_LIMIT to IMPLEMENTATION_BLOCKED."
+  - "Make duplicate receipt replay idempotent by executionId + dedupeKey while rejecting conflicting outcomes."
+  - "Keep Core/AIPOS automatic successor dispatch owned by #903."
+validation:
+  focused_tests_added:
+    - apps/autopilot/src/productionExecutionSpine.test.ts
+    - apps/autopilot/src/executionCoordinator.test.ts
+    - apps/autopilot/src/worker.test.ts
+  exact_head_ci: PENDING_FRESH_HEAD
+  companion_safety_workflows: PENDING_FRESH_HEAD
+next_permitted_action: "Fresh exact-head CI and companion safety workflows; on PASS independent Integration/E2E review, then Audit/Release. #903 owns successor dispatch."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

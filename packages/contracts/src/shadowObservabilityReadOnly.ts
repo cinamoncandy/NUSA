@@ -121,5 +121,5 @@ export function validateShadowObservabilitySnapshot(snapshot: ShadowObservabilit
   for (const [name, value] of Object.entries(snapshot.counters)) nonNegativeInteger(value as number, `counters.${name}`);
   if (snapshot.counters.actualBrokerCallCount !== 0) throw new Error("SHADOW broker mutation invariant violated");
   assertSafeObject(snapshot);
-  return Object.freeze(structuredClone(snapshot));
+  return Object.freeze(JSON.parse(JSON.stringify(snapshot)));
 }

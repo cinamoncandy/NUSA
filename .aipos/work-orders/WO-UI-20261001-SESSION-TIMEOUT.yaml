@@ -1,0 +1,22 @@
+id: WO-UI-20261001-SESSION-TIMEOUT
+title: "Mobile session requests are bounded so a stalled connection cannot hold RECOVERING forever"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-session-timeout
+authority_impact: none
+objective: "Owner screenshot (2026-10-01, LTE): HOME still sat on 서버 세션 재연결 / RECOVERING. React Native fetch has no default timeout, so a stalled session request kept the restore in flight forever; the bounded RECOVERING window (WO-UI-20261001-RECOVERY-BOUND) only counts armed retries and never got a turn."
+scope:
+  - "mobileApprovedSession.ts: every session request (refresh, owner-device challenge/complete, identity) aborts after 15 s; a timeout is transient, so the existing bounded retry and RECOVERY_REQUIRED projection take over."
+exclusions:
+  - "No change to credential handling, rejection classification, server code or authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-session-request-timeout.test.js dist/apps/mobile/src/mobileApprovedSession.test.js
+  - pnpm run validate
+residual: "Physical Android reconnect acceptance on LTE is HUMAN_ENVIRONMENT_ONLY."

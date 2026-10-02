@@ -1,0 +1,39 @@
+id: WO-UI-20261001-LIVE-GATES
+title: "Redesign the LIVE tab as a plain-language gate checklist"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-live-redesign
+authority_impact: none
+objective: "Owner asked for a full design renewal and UX improvement. First slice: the LIVE tab showed raw enum grids (HEAD, LEASE, CREDENTIAL, ...). It now leads with one sentence, a progress bar and ten gates in plain Korean; the raw records move behind a details toggle."
+scope:
+  - "New import-free model apps/mobile/src/liveGateModel.ts maps the read-only readiness snapshot to ten gates (PASS / BLOCKED / UNKNOWN), a pass count and a headline. Missing evidence is UNKNOWN, never PASS. All gates passing still reads as awaiting owner approval; the app cannot enable LIVE."
+  - "liveReadinessMonitorView.tsx: hero sentence + progress, gate list, the read-only authority sentence, and a '세부 기록 보기' toggle that keeps every previous record card (status, safety, blockers, freshness, incidents, timeline, authority)."
+exclusions:
+  - "No change to the readiness contract, server, risk, execution, credential or LIVE authority. Presentation only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/mobile-live-gates.test.js tests/live-readiness-observability.test.js tests/mobile-field-screens.test.js
+  - pnpm run validate
+evidence:
+  head_validated_locally: "follow-up commit on claude/nusa-repository-j93sd8-live-redesign after review round 1"
+  node: "v24.21.0"
+  results:
+    - "pnpm install --frozen-lockfile: exit 0"
+    - "pnpm run build: exit 0"
+    - "pnpm run typecheck: exit 0"
+    - "pnpm run validate: exit 0"
+    - "pnpm run security:gate: exit 0"
+    - "node scripts/aipos-work-order-index.js --check: exit 0"
+    - "node --test tests/*.test.js: exit 0 (includes tests/mobile-live-gates.test.js, 10 cases)"
+    - "node scripts/run-tests-isolated.js: exit 0"
+  authority_evidence:
+    - "liveReadinessMonitorView.tsx still contains no order, cancel, withdraw, transfer, activation or lease creation path (asserted by tests/live-readiness-observability.test.js)."
+    - "liveGateModel.ts reads only the read-only snapshot; it has no imports and no side effects."
+    - "Gates fail closed: missing evidence is UNKNOWN; runtime safety passes only when its source is FRESH; canonical evaluator blockers keep a gate BLOCKED; all gates passing still states the owner must enable LIVE outside the app."
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

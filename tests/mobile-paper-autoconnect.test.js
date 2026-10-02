@@ -31,7 +31,15 @@ test("clean install remains fail-closed while a configured device stays in the r
 test("initial PAPER projection resolves immediately after the first canonical refresh", () => {
   const app = read("apps/mobile/App.tsx");
   assert.ok(app.includes('void refresh().catch(() => undefined).finally(() => { setInitialPaperProjectionResolved(true); scheduleNext(); });'));
-  assert.ok(app.includes('if (!initialPaperProjectionResolved) return'));
+  // The shell no longer waits behind a full-screen gate; the pending projection is masked instead.
+  assert.ok(!app.includes('if (!initialPaperProjectionResolved) return'));
+  assert.ok(app.includes('const paperProjectionPending = !initialPaperProjectionResolved;'));
+  assert.ok(app.includes('const notConfigured = !paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null;'));
+  assert.ok(app.includes('const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;'));
+  assert.ok(app.includes('const paperLearningServerSource = paperProjectionPending ? "PROJECTION_ABSENT" as const'));
+  assert.ok(app.includes('if (active) setStatus("SIGNED_IN");'), "a configured endpoint opens the shell before the network restore settles");
+  for (const key of ["shadowReason", "realReason", "unavailableReason"]) assert.match(app, new RegExp(`${key}=\\{[^}]*paperProjectionPending \\? PENDING_REASON`));
+  assert.ok(!app.includes("로컬 상태 확인 중") && !app.includes("PAPER 상태 복구 중"));
 });
 
 test("temporary approved-session restore failure schedules a bounded automatic retry", async () => {

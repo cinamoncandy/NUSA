@@ -1,0 +1,25 @@
+id: WO-UI-20260930-WHY-NO-ORDER
+title: "Show why no PAPER order was placed on the HOME PAPER card"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-why-no-order
+authority_impact: none
+objective: "Step 2 of the owner's integrated upgrade brief (P0 explainable decisions), taken as a minimal delta on top of WO-OBS-20260930-DECISION-OUTCOME. The cloud already publishes a coded `STATUS:REASON` for the latest boundary decision; the app showed only counters, so 'why no order?' had no answer on the phone."
+scope:
+  - "contracts/personalPaperOperations.ts: optional heartbeat.lastPaperDecisionOutcome, validated to the coded pattern when present; the validator requires a string first, so a coerced non-string cannot pass. The cloud heartbeat already carries it, so no cloud change is needed."
+  - "apps/mobile/src/paperOrderReason.ts: pure mapping from the code to a Korean sentence and a category (WAITING, RISK_BLOCKED, EXECUTION_BLOCKED, INSUFFICIENT_EVIDENCE, FILLED, UNKNOWN). Unrecognised codes are shown verbatim, never guessed; only outcomes carrying the risk gate prefix PAPER_RISK_REJECT/PAPER_RISK_HALT are labelled as risk results, execution rejections (insufficient position, zero allocation) are labelled as execution constraints, and any other rejection is shown neutrally; absent or malformed values produce nothing."
+  - "homeView.tsx: one line on the PAPER card (testID home-no-order-reason), hidden while disconnected, errored or session-recovering (the retained pre-background snapshot is not shown as current). homeDecisionSurface.ts is untouched so it stays dependency-free."
+exclusions:
+  - "No new decision taxonomy in the cloud and no risk, execution, accounting, credential or LIVE change. The text only restates what the cloud reported."
+  - "Not included: a decision history list, per-market reasons, and the brief's extra labels (WAITING_FOR_MORE_DATA, STALE_DATA); they need cloud-side reasons that do not exist yet."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/paper-order-reason.test.js tests/mobile-home-decision-surface.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY. The line appears only after an app build and only against a cloud release that includes WO-OBS-20260930-DECISION-OUTCOME (already deployed)."

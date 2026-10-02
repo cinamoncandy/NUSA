@@ -11,12 +11,11 @@ const withoutComments = (source) => source
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
-  assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
-  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#101318"/);
-  assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
+  assert.match(design, /background: "#010204"/);
+  assert.doesNotMatch(design, /classic:|master:/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
-  assert.match(design, /chartUp: dark \? "#36D8CB" : "#147A50"/);
+  assert.match(design, /chartUp: fieldPalette\.paper/);
   assert.match(primitives, /metricAccent: \{ position: "absolute", left: 14, right: 14/);
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
@@ -29,7 +28,7 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
   assert.match(home, /"ACTIVE" : "OBSERVING"/);
   assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /총 손익/);
   assert.match(home, /QUICK ACCESS/);
   assert.match(home, />MARKETS</);
   assert.match(home, />PORTFOLIO</);

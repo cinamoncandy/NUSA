@@ -316,6 +316,34 @@ jobs:
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
           test "$main" = "$AUDITED_BASE"
 
+      - name: Wait for protected-branch authorization propagation
+        env:
+          GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
+          AUTH_CONTEXT: nusa/release-authorized
+        run: |
+          set -euo pipefail
+          # GitHub can accept and expose an App-bound commit status before branch
+          # protection has indexed it. Wait a bounded interval; each poll keeps the
+          # immutable PR/head/base binding fail-closed.
+          for poll in $(seq 1 10); do
+            pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+            main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            test "$(jq -r '.state' <<<"$pr")" = "open"
+            test "$(jq -r '.draft // false' <<<"$pr")" = "false"
+            test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
+            test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+            test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
+            test "$main" = "$AUDITED_BASE"
+            status="$(gh api "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses" --jq '[.[] | select(.context == "nusa/release-authorized") | select(.state == "success")] | sort_by(.id) | last // empty')"
+            if [ -n "$status" ]; then
+              echo "Waiting for protected-branch evaluation to observe $AUTH_CONTEXT (poll $poll/10)."
+              sleep 3
+              continue
+            fi
+            echo "::error::Exact-head release authorization disappeared before protected-branch evaluation."
+            exit 1
+          done
+
       - name: Canonical expected-head merge
         id: merge
         env:
@@ -381,16 +409,35 @@ jobs:
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           echo "merged_main=$MERGED_MAIN" >> "$GITHUB_OUTPUT"
           if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced from audited merge $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."; exit 0; fi
-          exact_ci_runs="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100" \
-            | jq -c --arg sha "$MERGED_MAIN" '[.[].workflow_runs[]
-              | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha
-                and (.status == "queued" or .status == "in_progress" or .status == "pending"
-                  or (.status == "completed" and .conclusion == "success")))]')"
-          existing_ci_run="$(jq -r 'sort_by(.created_at) | reverse | .[0].id // empty' <<<"$exact_ci_runs")"
+          existing_ci_run=""
+          for poll in $(seq 1 6); do
+            exact_ci_runs="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100" \
+              | jq -c --arg sha "$MERGED_MAIN" '[.[].workflow_runs[]
+                | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha
+                  and (.status == "queued" or .status == "in_progress" or .status == "pending"
+                    or (.status == "completed" and .conclusion == "success")))]')"
+            existing_ci_run="$(jq -r 'sort_by(.created_at) | reverse | .[0].id // empty' <<<"$exact_ci_runs")"
+            if [ -n "$existing_ci_run" ]; then break; fi
+            if [ "$poll" -lt 6 ]; then
+              echo "Waiting for exact-main push CI to materialize before fallback dispatch (poll $poll/6)."
+              sleep 3
+            fi
+          done
           if [ -n "$existing_ci_run" ]; then
             echo "Exact-main CI already owns convergence for $MERGED_MAIN via run $existing_ci_run; suppressing duplicate dispatch."
             exit 0
           fi
+          failed_ci_run="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100" \
+            | jq -r --arg sha "$MERGED_MAIN" '[.[].workflow_runs[]
+              | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha
+                and .status == "completed" and (.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled"))]
+              | sort_by(.updated_at) | reverse | .[0].id // empty')"
+          if [ -n "$failed_ci_run" ]; then
+            echo "Exact-main CI attempt $failed_ci_run failed; preserving the existing bounded rerun recovery path and suppressing fallback dispatch."
+            exit 0
+          fi
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced during exact-main CI visibility grace from $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."; exit 0; fi
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f ref=main
           echo "Dispatched canonical main CI for merged revision $MERGED_MAIN"
 

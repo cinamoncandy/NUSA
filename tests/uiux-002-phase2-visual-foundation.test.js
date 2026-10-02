@@ -15,44 +15,23 @@ const contrast = (left, right) => {
   const b = relativeLuminance(right);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 };
-const presetColorPair = (design, presetName, name) => {
-  const presetStart = design.indexOf(`${presetName}: Object.freeze({`);
-  assert.ok(presetStart >= 0, `${presetName} preset must exist`);
-  const nextPresetName = presetName === "classic" ? "master" : null;
-  const presetEnd = nextPresetName
-    ? design.indexOf(`${nextPresetName}: Object.freeze({`, presetStart)
-    : design.indexOf("const freezeTheme", presetStart);
-  assert.ok(presetEnd > presetStart, `${presetName} preset block must be bounded`);
-  const preset = design.slice(presetStart, presetEnd);
-  const darkStart = preset.indexOf("dark: Object.freeze({");
-  const lightStart = preset.indexOf("light: Object.freeze({");
-  assert.ok(darkStart >= 0 && lightStart > darkStart, `${presetName} must define dark and light palettes`);
-  const dark = preset.slice(darkStart, lightStart);
-  const light = preset.slice(lightStart);
-  const extract = (block, mode) => {
-    const match = block.match(new RegExp(`${name}: "(#[0-9A-F]{6})"`, "i"));
-    assert.ok(match, `${presetName}.${mode}.${name} must be explicit`);
-    return match[1];
-  };
-  return { dark: extract(dark, "dark"), light: extract(light, "light") };
-};
-const explicitThemeColorPair = (design, name) => {
-  const match = design.match(new RegExp(`${name}: dark \\? "(#[0-9A-F]{6})"(?: : preset\\.name === "master" \\? "(#[0-9A-F]{6})" : "(#[0-9A-F]{6})"| : "(#[0-9A-F]{6})")`, "i"));
-  assert.ok(match, `${name} must have explicit theme colors`);
-  return { dark: match[1], light: match[2] ?? match[4] };
+
+const loadDesign = () => {
+  const ts = require("typescript");
+  const file = path.join(src, "designSystem.ts");
+  const out = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }, fileName: file }).outputText;
+  const shim = { exports: {} };
+  new Function("module", "exports", "require", out)(shim, shim.exports, require);
+  return shim.exports;
 };
 
-test("Phase 2 theme follows the canonical preset identity and restrained accent", () => {
-  const design = read("designSystem.ts");
-  assert.match(design, /export type DesignPresetName = "classic" \| "master"/);
-  assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
-  assert.match(design, /background: palette\.background/);
-  assert.match(design, /primary: palette\.primary/);
-  assert.match(design, /surfaceRaised: palette\.surfaceRaised/);
-  assert.match(design, /terrain: dark \? "#DCEBFF"/);
-  assert.match(design, /classic: Object\.freeze\(/);
-  assert.match(design, /master: Object\.freeze\(/);
-  assert.match(design, /radii: preset\.radii/);
+test("Phase 2 theme follows the field preset identity and restrained accent", () => {
+  const { themes } = loadDesign();
+  for (const theme of [themes.dark, themes.light]) {
+    assert.equal(theme.preset, "field");
+    assert.equal(theme.colors.background, "#010204");
+    assert.equal(theme.colors.primary, "#B6F04B");
+  }
 });
 
 test("financial values use stable tabular numerals and touch targets remain accessible", () => {
@@ -65,34 +44,15 @@ test("financial values use stable tabular numerals and touch targets remain acce
 });
 
 test("danger button foreground keeps WCAG AA contrast in both themes", () => {
-  const design = read("designSystem.ts");
-  const danger = explicitThemeColorPair(design, "danger");
-  const onDanger = explicitThemeColorPair(design, "onDanger");
-  assert.ok(contrast(danger.dark, onDanger.dark) >= 4.5, "dark danger button contrast must meet WCAG AA");
-  assert.ok(contrast(danger.light, onDanger.light) >= 4.5, "light danger button contrast must meet WCAG AA");
+  const { themes } = loadDesign();
+  for (const theme of [themes.dark, themes.light]) assert.ok(contrast(theme.colors.danger, theme.colors.onDanger) >= 4.5, "danger button contrast must meet WCAG AA");
 });
 
 test("status chip foregrounds remain readable in both themes", () => {
-  const design = read("designSystem.ts");
-  for (const presetName of ["classic", "master"]) {
-    const surfaceSunken = presetColorPair(design, presetName, "surfaceSunken");
-    const primarySoft = presetColorPair(design, presetName, "primarySoft");
-    const presetTones = {
-      primary: presetColorPair(design, presetName, "primary"),
-      info: presetColorPair(design, presetName, "info"),
-      neutral: presetColorPair(design, presetName, "textMuted"),
-    };
-    const explicitTones = {
-      success: explicitThemeColorPair(design, "success"),
-      warning: explicitThemeColorPair(design, "warning"),
-      danger: explicitThemeColorPair(design, "danger"),
-    };
-    for (const mode of ["dark", "light"]) {
-      for (const [tone, foreground] of Object.entries({ ...presetTones, ...explicitTones })) {
-        const background = tone === "primary" ? primarySoft[mode] : surfaceSunken[mode];
-        const minimum = tone === "warning" && mode === "light" ? 3 : 4.5;
-        assert.ok(contrast(foreground[mode], background) >= minimum, `${presetName} ${mode} ${tone} status chip contrast must remain readable`);
-      }
+  const { themes } = loadDesign();
+  for (const theme of [themes.dark, themes.light]) {
+    for (const name of ["success", "warning", "danger", "info", "primary", "text", "textMuted"]) {
+      assert.ok(contrast(theme.colors[name], theme.colors.background) >= 4.5, `${name} must be readable on the field background`);
     }
   }
 });

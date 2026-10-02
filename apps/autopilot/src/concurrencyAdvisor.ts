@@ -9,6 +9,11 @@ export interface ConcurrencyEvidence {
   readonly conflictRate: number;
   readonly reworkRate: number;
   readonly ciUtilization: number;
+  /**
+   * Measured CI saturation across the evidence window, from 0 (idle) to 1 (fully saturated).
+   * Optional while legacy producers migrate; ciUtilization remains the fail-closed fallback.
+   */
+  readonly ciSaturation?: number;
 }
 
 export type ConcurrencyAction = "HOLD" | "INCREASE_BY_ONE" | "DECREASE_BY_ONE";
@@ -23,6 +28,8 @@ export interface ConcurrencyRecommendation {
 const finite = (value: number): boolean => Number.isFinite(value);
 const boundedRate = (value: number): boolean => finite(value) && value >= 0 && value <= 1;
 const positiveInteger = (value: number): boolean => Number.isInteger(value) && value > 0;
+const HIGH_CI_SATURATION = 0.85;
+const CI_EXPANSION_HEADROOM = 0.7;
 const evidenceSource = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0 && value.trim().length <= 256;
 
@@ -36,7 +43,8 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     finite(evidence.throughputTrend) &&
     boundedRate(evidence.conflictRate) &&
     boundedRate(evidence.reworkRate) &&
-    boundedRate(evidence.ciUtilization);
+    boundedRate(evidence.ciUtilization) &&
+    (evidence.ciSaturation === undefined || boundedRate(evidence.ciSaturation));
 
   if (!valid) {
     return Object.freeze({
@@ -47,14 +55,29 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     });
   }
 
+  const ciSaturation = evidence.ciSaturation ?? evidence.ciUtilization;
+  const ciSaturationHigh = ciSaturation >= HIGH_CI_SATURATION;
   const pressureHigh =
-    evidence.conflictRate > 0.15 || evidence.reworkRate > 0.15 || evidence.ciUtilization > 0.85;
+    evidence.conflictRate > 0.15 || evidence.reworkRate > 0.15 || ciSaturationHigh;
 
   if (pressureHigh && evidence.currentWip > 1) {
     return Object.freeze({
       action: "DECREASE_BY_ONE",
       recommendedWip: evidence.currentWip - 1,
-      reason: "verified-contention-or-capacity-pressure",
+      reason: ciSaturationHigh
+        ? "verified-ci-saturation-pressure"
+        : "verified-contention-or-capacity-pressure",
+      mutationAllowed: false,
+    });
+  }
+
+  if (pressureHigh) {
+    return Object.freeze({
+      action: "HOLD",
+      recommendedWip: evidence.currentWip,
+      reason: ciSaturationHigh
+        ? "verified-ci-saturation-pressure-at-minimum-wip"
+        : "verified-contention-or-capacity-pressure-at-minimum-wip",
       mutationAllowed: false,
     });
   }
@@ -63,7 +86,7 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     evidence.throughputTrend > 0 &&
     evidence.conflictRate <= 0.05 &&
     evidence.reworkRate <= 0.05 &&
-    evidence.ciUtilization <= 0.7;
+    ciSaturation <= CI_EXPANSION_HEADROOM;
 
   if (headroomVerified && evidence.currentWip < evidence.maxWip) {
     return Object.freeze({

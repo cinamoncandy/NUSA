@@ -1,9 +1,13 @@
 import React, { useMemo, useState } from "react";
+import { EquityChart } from "./equityChart";
+import { buildEquitySeries } from "./performanceModel";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { IntelligenceMotionField, NusaButton } from "./components";
+import { NusaButton } from "./components";
+import { FieldHeader } from "./fieldHeader";
+import { buildPaperFieldHeader, paperRiskWord, paperSourceWord } from "./fieldScreensModel";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
-import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice, type IntelligenceTone } from "./intelligenceOs";
+import { FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
 
 export interface PaperLearningMonitorViewProps {
   readonly state: PaperLearningScreenState;
@@ -91,12 +95,6 @@ const dataSourceMessage = (state: PaperLearningScreenState): Readonly<{ title: s
   });
 };
 
-function statusTone(status: PaperLearningScreenState["status"]): IntelligenceTone {
-  if (status === "RUNNING") return "success";
-  if (status === "PAUSED") return "warning";
-  return "danger";
-}
-
 function sourceTone(source: PaperLearningScreenState["dataSource"]): IntelligenceTone {
   if (source === "SERVER_STREAM") return "success";
   if (source === "LOCAL_FALLBACK" || source === "PROJECTION_EMPTY") return "warning";
@@ -120,14 +118,11 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
   const latestOrderEvent = useMemo(() => state.timeline.find((event) => event.stage === "ORDER_INTENT") ?? null, [state.timeline]);
   const latestTerminalEvent = useMemo(() => state.timeline.find((event) => event.stage === "HALT" || event.stage === "ERROR" || event.stage === "IDEMPOTENCY") ?? null, [state.timeline]);
   const sourceMessage = useMemo(() => dataSourceMessage(state), [state]);
-  const runtimeTone = statusTone(state.status);
-  const runtimeLabel = state.status === "RUNNING" ? "PAPER ACTIVE" : state.status === "PAUSED" ? "OBSERVING" : state.status;
   const totalPnl = state.latestAccount == null ? state.performance.realizedPnL + state.performance.unrealizedPnL : state.latestAccount.realizedPnL + state.latestAccount.unrealizedPnL;
   const pnlTone: IntelligenceTone = totalPnl > 0 ? "success" : totalPnl < 0 ? "danger" : "neutral";
-  const learningLabel = state.latestEvidence?.outcome == null ? "WAITING" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
+  const learningLabel = state.latestEvidence?.outcome == null ? "대기" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
   const learningTone: IntelligenceTone = state.latestEvidence?.outcome === "PROMOTE" ? "success" : state.latestEvidence?.outcome === "REJECT" ? "danger" : "neutral";
   const sourceColor = sourceTone(state.dataSource) === "success" ? theme.colors.success : sourceTone(state.dataSource) === "warning" ? theme.colors.warning : theme.colors.danger;
-  const fieldState = state.status === "RUNNING" ? "ACTIVE" as const : state.status === "HALTED" || state.status === "ERROR" ? "BLOCKED" as const : state.dataSource === "UNAVAILABLE" || state.dataSource === "NOT_CONFIGURED" ? "DEGRADED" as const : "OBSERVING" as const;
 
   return <ScrollView
     contentContainerStyle={styles.content}
@@ -136,34 +131,23 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     showsVerticalScrollIndicator={false}
     testID="paper-learning-monitor"
   >
-    <IntelligenceMotionField active={state.status === "RUNNING"} evidenceCount={state.timeline.length} state={fieldState} label={`NUSA PAPER ${fieldState.toLowerCase()} state`} />
-    <AuthorityRail
-      detail="AUTONOMOUS PAPER · LIVE NONE · AI ZERO AUTHORITY"
-      status={runtimeLabel}
-      tone={runtimeTone}
-      testID="paper-learning-authority-rail"
-    />
-    <ScreenLead
-      eyebrow="PAPER LEARNING · READ ONLY"
-      title="PAPER 학습 상태"
-      detail="AI 판단이 PAPER에서 어떻게 검증되고 학습되는지 한 사이클로 확인합니다."
-      badge="READ ONLY"
-      badgeTone="info"
-    />
+    <View style={styles.fieldBleed}><FieldHeader model={buildPaperFieldHeader(state)} testID="paper-field-header" /></View>
+    {state.dataSource === "SERVER_STREAM" ? <EquityChart points={buildEquitySeries(state.timeline, Date.now())} /> : null}
+    <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]} testID="paper-learning-read-only-label">PAPER LEARNING · READ ONLY</Text>
     <MetricStrip
       items={[
-        { label: "EQUITY", value: money(state.latestAccount?.equity), tone: "neutral" },
-        { label: "TOTAL PNL", value: signedMoney(totalPnl), tone: pnlTone },
-        { label: "RISK", value: state.latestRisk?.status ?? "UNKNOWN", tone: riskTone(state.latestRisk?.status) },
-        { label: "LEARNING", value: learningLabel, tone: learningTone },
+        { label: "자산", value: money(state.latestAccount?.equity), tone: "neutral" },
+        { label: "총 손익", value: signedMoney(totalPnl), tone: pnlTone },
+        { label: "위험", value: paperRiskWord(state.latestRisk?.status), tone: riskTone(state.latestRisk?.status) },
+        { label: "학습", value: learningLabel, tone: learningTone },
       ]}
       testID="paper-learning-glance-strip"
     />
 
     <View style={styles.sourceRow} testID="paper-learning-data-source">
       <View style={styles.sourceCopy}>
-        <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>DATA SOURCE</Text>
-        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{state.dataSource}</Text>
+        <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>데이터 출처</Text>
+        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{paperSourceWord(state.dataSource)}</Text>
       </View>
       <View style={[styles.sourcePill, { borderColor: sourceColor }]}><Text style={[styles.sourcePillText, { color: sourceColor }]}>{state.dataSource === "SERVER_STREAM" ? "SERVER" : state.dataSource === "LOCAL_FALLBACK" ? "LOCAL" : "CHECK"}</Text></View>
     </View>
@@ -273,37 +257,38 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14 },
-  eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
+  fieldBleed: { marginHorizontal: -20, marginTop: -10 },
+  eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 1.15 },
   sourceRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
   sourceCopy: { flex: 1, minWidth: 0, gap: 3 },
-  sourceValue: { fontSize: 13, lineHeight: 18, fontWeight: "800" },
+  sourceValue: { fontSize: 13, lineHeight: 18, fontWeight: "500" },
   sourcePill: { minHeight: 28, minWidth: 62, borderWidth: 1, borderRadius: 999, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
-  sourcePillText: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.7 },
+  sourcePillText: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 0.7 },
   columns: { flexDirection: "row", alignItems: "stretch", gap: 14 },
   column: { flex: 1, minWidth: 0 },
   note: { fontSize: 10, lineHeight: 16 },
   learningSummary: { fontSize: 12, lineHeight: 18 },
   performanceGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   performanceCell: { minWidth: 132, flex: 1, flexBasis: "44%", gap: 3, paddingVertical: 4 },
-  performanceLabel: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.75 },
-  performanceValue: { fontSize: 18, lineHeight: 23, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  performanceLabel: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 0.75 },
+  performanceValue: { fontSize: 18, lineHeight: 23, fontWeight: "600", fontVariant: ["tabular-nums"] },
   disclaimer: { fontSize: 10, lineHeight: 15 },
   disclosure: { minHeight: 68, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 14 },
   disclosureCopy: { flex: 1, minWidth: 0, gap: 3 },
-  disclosureTitle: { fontSize: 15, lineHeight: 20, fontWeight: "800" },
+  disclosureTitle: { fontSize: 15, lineHeight: 20, fontWeight: "500" },
   disclosureIcon: { fontSize: 22, lineHeight: 24, fontWeight: "500" },
   detailStack: { gap: 14 },
   cycleRow: { minHeight: 56, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   cycleCopy: { flex: 1, minWidth: 0, gap: 3 },
-  cycleTitle: { fontSize: 12, lineHeight: 17, fontWeight: "800" },
+  cycleTitle: { fontSize: 12, lineHeight: 17, fontWeight: "500" },
   cycleDetail: { fontSize: 10, lineHeight: 15 },
-  cycleDecision: { maxWidth: "36%", textAlign: "right", fontSize: 10, lineHeight: 15, fontWeight: "800" },
+  cycleDecision: { maxWidth: "36%", textAlign: "right", fontSize: 10, lineHeight: 15, fontWeight: "500" },
   timelineItem: { borderLeftWidth: 2, paddingLeft: 11, paddingVertical: 8, gap: 4 },
   timelineHeader: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-  timelineStage: { fontSize: 11, lineHeight: 16, fontWeight: "900" },
+  timelineStage: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
   timelineStatus: { flexShrink: 1, textAlign: "right", fontSize: 9, lineHeight: 14 },
   timelineBody: { fontSize: 10, lineHeight: 16 },
   actions: { gap: 8 },
-  footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.05, paddingTop: 4 },
+  footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 1.05, paddingTop: 4 },
   hiddenAcceptanceText: { position: "absolute", width: 1, height: 1, opacity: 0 },
 });

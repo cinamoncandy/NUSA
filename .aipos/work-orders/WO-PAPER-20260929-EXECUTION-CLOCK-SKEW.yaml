@@ -1,0 +1,28 @@
+id: WO-PAPER-20260929-EXECUTION-CLOCK-SKEW
+title: "PAPER execution rejects every admitted Upbit ticker as stale when the host clock trails Upbit"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-clock-skew
+authority_impact: none
+objective: "Ticker admission accepts trade timestamps up to 5s ahead of the local clock, but the PAPER execution gate and canonical risk gate treat any observedAt > now as stale. Upbit timestamps were measured ~0.3-1.4s ahead, and every PAPER order intent was recorded as 'market data is stale', so no order could ever be placed."
+scope:
+  - "apps/cloud/src/paperExecutionObservation.ts: paperExecutionObservedAt(tradeTimestamp, now) = min(tradeTimestamp, now) for tickers the runtime already admitted; runtime.ts passes it to the PAPER execution boundary."
+exclusions:
+  - "No change to the pinned execution loop or risk gateway, stale windows, skew tolerance, admission, decisions, risk limits, accounting, credentials or LIVE. Past observations keep their real age, so staleness is still enforced."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "Before: 50/50 retained ORDER_INTENT records were 'market data is stale' on live Upbit data. After (120s live run): 0 stale; every record is 'no actionable paper decision'."
+  - "apps/cloud/src/paperExecutionObservation.test.ts covers future-skew clamp, preserved age for past data, and the runtime wiring."
+residual: "Orders still require an actionable BUY/SELL decision; without a qualified challenger none is produced."

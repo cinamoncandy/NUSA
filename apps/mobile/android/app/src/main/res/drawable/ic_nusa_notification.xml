@@ -3,6 +3,7 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M12,3L20,14H4Z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M5,17c3,2 5,3 7,3s4,-1 7,-3c-2,3 -4,4 -7,4s-5,-1 -7,-4z" />
+    <!-- NUSA N monogram mark, contour edition (2026-10-01): single centre stroke with the decision point so it stays legible at status-bar size. Notification (monochrome). -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M6.44,18.67 L6.44,5.89 L17.56,18.11 L17.56,5.33" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M15.86,5.33 a1.7,1.7 0 1,0 3.4,0 a1.7,1.7 0 1,0 -3.4,0Z" />
 </vector>

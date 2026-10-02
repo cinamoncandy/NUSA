@@ -1,5 +1,4 @@
 import { logAiCall } from "./aiCallTelemetry";
-import { selectJevCodingModel } from "./jevCodingModelTier";
 import {
   decideJevBoundedCodingAdmission,
   isJevBoundedCodingAdmissionCandidate,
@@ -27,6 +26,8 @@ export interface CodingRunnerRequest {
   readonly proposalContext?: CodingProposalContext;
   readonly executionId: string;
   readonly dedupeKey: string;
+  /** Immutable parent CodingExecutionEnvelope fingerprint when present. */
+  readonly contractFingerprintSha256?: string;
   readonly mutationAllowed: false;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -38,13 +39,9 @@ export interface CodingRunnerEnv {
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
+  NUSA_AUTOPILOT_ZERO_CREDIT_MODE?: string;
   NUSA_JEV_SHADOW_ENABLED?: string;
   NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
-  NUSA_JEV_MODEL_TIERING_ENABLED?: string;
-  NUSA_AI_CODING_MODEL_LUNA?: string;
-  NUSA_AI_CODING_MODEL_TERRA?: string;
-  NUSA_AI_CODING_MODEL_SOL?: string;
-  NUSA_AI_CODING_MODEL_ASTRA?: string;
   NUSA_JEV_API_KEY?: string;
   NUSA_JEV_ENDPOINT?: string;
   NUSA_JEV_TIMEOUT_MS?: string;
@@ -281,6 +278,7 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
   if (typeof request.headSha !== "string" || !SHA40.test(request.headSha)) throw new Error("CODING_RUNNER_HEAD_SHA_INVALID");
   if (typeof request.executionId !== "string" || !EXECUTION_ID.test(request.executionId)) throw new Error("CODING_RUNNER_EXECUTION_ID_INVALID");
   if (typeof request.dedupeKey !== "string" || !DEDUPE_KEY.test(request.dedupeKey)) throw new Error("CODING_RUNNER_DEDUPE_KEY_INVALID");
+  if (request.contractFingerprintSha256 !== undefined && (typeof request.contractFingerprintSha256 !== "string" || !/^[a-f0-9]{64}$/i.test(request.contractFingerprintSha256))) throw new Error("CODING_RUNNER_CONTRACT_FINGERPRINT_INVALID");
   if (request.liveAuthority !== "NONE") throw new Error("CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN");
   if (request.productionMutationAllowed !== false || request.mutationAllowed !== false) throw new Error("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
   if (request.aiAuthority !== "ZERO_AUTHORITY") throw new Error("CODING_RUNNER_AI_AUTHORITY_INVALID");
@@ -891,12 +889,13 @@ export async function executeCodingRunner(
   options: CodingRunnerExecutionOptions = {},
 ): Promise<CodingRunnerResult> {
   const verifiedWorkflow = await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
-  const jevFailureEvidence = isJevBoundedCodingAdmissionCandidate(request, env)
+  const zeroCreditMode = env.NUSA_AUTOPILOT_ZERO_CREDIT_MODE?.trim().toLowerCase() === "true";
+  const jevFailureEvidence = !zeroCreditMode && isJevBoundedCodingAdmissionCandidate(request, env)
     ? await verifiedJevCodingFailureEvidence(request, verifiedWorkflow, env.NUSA_GITHUB_TOKEN, fetchImpl)
     : null;
   const jevAdmission = await decideJevBoundedCodingAdmission(
     request,
-    env,
+    zeroCreditMode ? { ...env, NUSA_JEV_BOUNDED_ROUTING_ENABLED: "false" } : env,
     options.jevAdmissionClassify ? { classify: options.jevAdmissionClassify } : {},
     jevFailureEvidence,
   );
@@ -924,7 +923,8 @@ export async function executeCodingRunner(
   // remains subject to the same sandbox validation/publish gates. If unavailable, keep the current
   // provider path unchanged.
   const sandboxRepairEscalation = Boolean(
-    env.AI
+    !zeroCreditMode
+    && env.AI
     && request.proposalContext
     && (
       request.proposalFeedback?.includes("SANDBOX_PATCH_APPLY_CHECK_FAILED")
@@ -945,7 +945,7 @@ export async function executeCodingRunner(
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
   // Prefer the binding-backed Workers AI path whenever it is available. A stale or retired
   // configured endpoint must not shadow the canonical Worker AI binding in production.
-  const useConfiguredEngine = Boolean(endpoint && token && !env.AI);
+  const useConfiguredEngine = Boolean(!zeroCreditMode && endpoint && token && !env.AI);
   if (useConfiguredEngine) {
     const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!, Boolean(request.proposalContext)));
     if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: "coding-engine-request-failed" };
@@ -957,15 +957,8 @@ export async function executeCodingRunner(
     }
   }
 
-  if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
-  const tierSelection = selectJevCodingModel(jevAdmission, env);
-  const tierConfiguredModel = tierSelection?.model?.trim();
-  const tierModel = tierConfiguredModel
-    && validWorkersAiModel(tierConfiguredModel)
-    && !UNUSABLE_CODING_WORKERS_AI_MODELS.has(tierConfiguredModel)
-    ? tierConfiguredModel
-    : null;
-  const configuredModel = tierModel ?? env.NUSA_AI_CODING_MODEL?.trim();
+  if (!env.AI) return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured" };
+  const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
   // Dashboard vars can outlive provider deprecations or retain a model that cannot satisfy the current JSON-schema contract.
   // A Jev tier can only replace the canonical model when the selected tier model is explicitly configured
   // and already satisfies the same Workers AI model + structured-output allowlist.
@@ -987,7 +980,7 @@ export async function executeCodingRunner(
       const current = now();
       if (waitUntil !== null && current < waitUntil) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken) {
+        if (githubToken && !zeroCreditMode) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
@@ -1039,7 +1032,7 @@ export async function executeCodingRunner(
       const rateLimitReason = workersAiRateLimitReason(error);
       if (rateLimitReason) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken) {
+        if (githubToken && !zeroCreditMode) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);

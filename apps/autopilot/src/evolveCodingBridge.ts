@@ -1,6 +1,7 @@
 import { validateCodingRunnerRequest, type CodingRunnerRequest } from "./codingRunner";
 import { selectNextEvolutionOpportunity, type EvolutionAutonomousSelectionInput } from "./evolveAutonomousSelector";
 import { discoverEvolutionOpportunities, type EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
+import type { EvolutionLearningRecord } from "./evolveLearningMemory";
 
 export interface EvolutionCodingBridgeInput extends Omit<EvolutionAutonomousSelectionInput, "opportunities"> {
   readonly signals: readonly EvolutionDiscoverySignal[];
@@ -10,6 +11,7 @@ export interface EvolutionCodingBridgeInput extends Omit<EvolutionAutonomousSele
   readonly workflowRunId: number;
   readonly executionId: string;
   readonly dedupeKey: string;
+  readonly learningRecords?: readonly EvolutionLearningRecord[];
 }
 
 export interface EvolutionCodingBridgeResult {
@@ -47,6 +49,7 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     schedulePolicy: input.schedulePolicy,
     activeExecutions: input.activeExecutions,
     elapsedSecondsSinceLastRun: input.elapsedSecondsSinceLastRun,
+    learningRecords: input.learningRecords,
   });
 
   if (!selection.selectedOpportunity) {

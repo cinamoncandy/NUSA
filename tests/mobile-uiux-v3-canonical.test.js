@@ -8,7 +8,7 @@ test("App shell routes the canonical four-destination PAPER/LIVE flow", () => {
   const app = read("App.tsx");
   const contract = read("src/navigationContract.ts");
   const navigation = read("src/primaryNavigation.tsx");
-  assert.match(app, /import \{ HomeView/);
+  assert.match(app, /import \{[\s\S]*?\bHomeView\b[\s\S]*?\} from "\.\/src\/presentation"/);
   assert.match(app, /<HomeView/);
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
@@ -32,7 +32,7 @@ test("Home uses the content-first command center hierarchy and keeps AI read-onl
   assert.match(source, /testID="home-now"/);
   assert.match(source, /testID="account-hero-card"/);
   assert.match(source, /PAPER EQUITY/);
-  assert.match(source, /TOTAL PNL/);
+  assert.match(source, /총 손익/);
   assert.doesNotMatch(source, />오늘</);
   assert.match(source, /DECISION BASIS/);
   assert.match(source, />NOW<\/Text>/);
@@ -63,7 +63,6 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(trading, /LegacyTradingView/);
   assert.match(tradingLegacy, /paper-side-segmented-control/);
   assert.match(tradingLegacy, /paper-type-segmented-control/);
-  assert.match(settings, /settings-theme-segmented-control/);
   assert.match(history, /order-history-filters/);
   assert.match(history, /order-history-periods/);
   assert.match(history, /order-history-sorts/);
@@ -74,10 +73,10 @@ test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   assert.match(portfolio, /<AuthorityRail/);
   assert.match(portfolio, /<ScreenLead/);
   assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
-  assert.match(portfolio, /label: "PAPER EQUITY"/);
+  assert.match(portfolio, /label: "PAPER 자산"/);
   assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
   assert.match(portfolio, /testID="portfolio-allocation-rail"/);
-  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
+  assert.match(portfolio, /실계좌 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
   assert.doesNotMatch(portfolio, /testID="portfolio-summary"/);
   assert.doesNotMatch(portfolio, /<MetricTile/);
   assert.match(ai, /<ScreenHeader/);
@@ -91,12 +90,12 @@ test("Notification utility is honest about unavailable runtime capability", () =
   assert.match(notifications, /가짜 알림/);
   assert.match(notifications, /READ ONLY/);
 });
-test("Intelligence field motion is evidence-driven rather than ambient", () => {
-  const source = read("src/components.tsx");
-  assert.match(source, /previousFieldState/);
-  assert.match(source, /previous\.evidenceCount === boundedEvidence/);
-  assert.match(source, /\[active, depth, evidenceCount, orbit, pulse, reducedMotion, scan, state\]/);
-  assert.doesNotMatch(source, /Animated\.loop\(/);
+test("Intelligence field motion is state-driven rather than ambient", () => {
+  const field = read("src/intelligenceField.tsx");
+  const header = read("src/fieldHeader.tsx");
+  assert.match(field, /reducedMotion !== false/);
+  assert.match(header, /reducedMotion !== false \|\| !changed/);
+  for (const source of [field, header]) assert.doesNotMatch(source, /Animated\.loop\(/);
 });
 
 test("UI v3 never introduces live execution authority", () => {
