@@ -15,7 +15,7 @@ import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/se
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { buildSafetyLine } from "./src/safetyLineModel";
-import { displaySessionState, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
+import { displaySessionState, graceNotConfigured, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
 import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
@@ -159,6 +159,9 @@ function AuthenticatedApp() {
     return () => clearTimeout(timer);
   }, [paperSessionState]);
   const shownSessionState = displaySessionState(paperSessionState, resumeGrace.current?.verified === true, resumeGrace.current == null ? 0 : Date.now() - resumeGrace.current.since);
+  // Inside the resume grace the transient not-configured projection that RECOVERING leaves behind
+  // stays quiet (see graceNotConfigured); genuine read failures are never hidden.
+  const resumingQuietly = shownSessionState !== paperSessionState;
   const [shadowOperations, setShadowOperations] = useState<ShadowOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." });
   const [realReadOnlyOperations, setRealReadOnlyOperations] = useState<RealReadOnlyOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." });
   const [liveReadinessOperations, setLiveReadinessOperations] = useState<LiveReadinessOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." });
@@ -465,7 +468,8 @@ function AuthenticatedApp() {
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
   const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;
-  const notConfigured = !paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null;
+  // Applied once at the source so HOME, PAPER and every screen agree during the resume grace.
+  const notConfigured = graceNotConfigured(!paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null, resumingQuietly);
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
   const publicMarketConnectionState = publicMarkets.status === "READY" || publicMarkets.status === "STALE" ? "CONNECTED" : "UNKNOWN";
   const stale = snapshot == null || snapshot.health !== "HEALTHY";

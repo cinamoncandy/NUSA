@@ -16,3 +16,13 @@ export function displaySessionState(state: SessionState, verifiedBeforeResume: b
   if (state === "RECOVERING" && verifiedBeforeResume && recoveringForMs < RESUME_GRACE_MS) return "VERIFIED";
   return state;
 }
+
+/**
+ * The not-configured notice inside the resume grace. While a verified session re-proves, the
+ * operations projection reads NOT_CONFIGURED only because the session is momentarily unverified, so
+ * "PAPER 서버 연결 필요" would contradict the 확인 중 safety line. It is hidden only during the grace;
+ * read failures (UNAVAILABLE) are a different input and are never hidden.
+ */
+export function graceNotConfigured(notConfigured: string | null, resuming: boolean): string | null {
+  return resuming ? null : notConfigured;
+}

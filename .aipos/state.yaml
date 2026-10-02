@@ -2112,3 +2112,9 @@ current_mobile_warm_resume:
   branch: claude/nusa-repository-j93sd8-warm-resume
   authority_impact: session-projection
   remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_grace_notice:
+  work_order: WO-UI-20261002-GRACE-NOTICE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-grace-notice
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge

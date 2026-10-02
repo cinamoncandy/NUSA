@@ -9,7 +9,7 @@ const source = fs.readFileSync(path.join(root, "apps/mobile/src/sessionDisplayMo
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const shim = { exports: {} };
 new Function("module", "exports", "require", compiled)(shim, shim.exports, require);
-const { displaySessionState, RESUME_GRACE_MS } = shim.exports;
+const { displaySessionState, graceNotConfigured, RESUME_GRACE_MS } = shim.exports;
 
 test("session display model is import-free", () => {
   assert.doesNotMatch(source, /^import /m);
@@ -31,7 +31,7 @@ test("no grace without a prior verified session, and real failures always show",
 test("only presentation reads the grace state; the refresh path still uses the real session state", () => {
   const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8").replace(/\r\n/g, "\n");
   assert.match(app, /const sessionState = getPaperSessionState\(\);/);
-  assert.equal((app.match(/shownSessionState/g) || []).length, 3);
+  assert.equal((app.match(/shownSessionState/g) || []).length, 4);
   // The safety line always gets the real session state; grace only softens its wording.
   assert.match(app, /buildSafetyLine\(\{ sessionState: paperSessionState, resuming: shownSessionState !== paperSessionState,/);
 });
@@ -40,4 +40,15 @@ test("app launch gets the same grace as a resume", () => {
   const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8").replace(/\r\n/g, "\n");
   assert.match(app, /verified: lastSessionState\.current === "VERIFIED" \|\| launchPending\.current/);
   assert.match(app, /if \(paperSessionState !== "NOT_CONFIGURED"\) launchPending\.current = false;/);
+});
+
+test("grace hides only the transient not-configured notice, at its source, for every screen", () => {
+  assert.equal(graceNotConfigured("PAPER endpoint must be verified", true), null, "transient setup notice is quiet during the grace");
+  assert.equal(graceNotConfigured("PAPER endpoint must be verified", false), "PAPER endpoint must be verified", "after the grace the real notice shows");
+  assert.equal(graceNotConfigured(null, true), null);
+  const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8");
+  // One source value feeds HOME, the PAPER connection screen and every other consumer.
+  assert.match(app, /const notConfigured = graceNotConfigured\(/);
+  // Genuine read failures are passed through untouched.
+  assert.match(app, /readOnlyError=\{readOnlyError\}/);
 });
