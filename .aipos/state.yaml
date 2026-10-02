@@ -2222,3 +2222,10 @@ current_research_evaluator_runner:
   branch: claude/nusa-repository-j93sd8-evaluators
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+current_research_orchestrator_composition:
+  work_order: WO-RESEARCH-20261002-ORCHESTRATOR-COMPOSITION
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-evaluators
+  authority_impact: research-evidence-only
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+  deploy: not_deployed_flag_default_off_owner_approval_required

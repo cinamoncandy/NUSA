@@ -23,10 +23,10 @@ export interface ResearchCandleSource {
   read(market: string, intervalMs: number, fromCloseMs: number, toCloseMs: number): readonly ResearchCandleRow[];
 }
 
-export interface BacktestEvaluatorOptions {
+export interface BacktestEvaluatorOptions<A extends "PAPER_ONLY" | "ZERO_AUTHORITY" = "PAPER_ONLY" | "ZERO_AUTHORITY"> {
   readonly strategyId: string;
   readonly strategyVersion: string;
-  readonly authority: "PAPER_ONLY" | "ZERO_AUTHORITY";
+  readonly authority: A;
   readonly evaluatorVersion: string;
   readonly strategy: GeneratedStrategy;
   readonly candles: ResearchCandleSource;
@@ -78,13 +78,13 @@ export function buildSmaResearchStrategy(input: {
   return validated.strategy;
 }
 
-export class BacktestResearchEvaluator {
+export class BacktestResearchEvaluator<A extends "PAPER_ONLY" | "ZERO_AUTHORITY" = "PAPER_ONLY" | "ZERO_AUTHORITY"> {
   public readonly strategyId: string;
   public readonly strategyVersion: string;
-  public readonly authority: "PAPER_ONLY" | "ZERO_AUTHORITY";
+  public readonly authority: A;
   public readonly evaluatorVersion: string;
 
-  public constructor(private readonly options: BacktestEvaluatorOptions) {
+  public constructor(private readonly options: BacktestEvaluatorOptions<A>) {
     const { initialCash, feeRate, slippageBps } = options.backtest ?? {};
     if (!(typeof initialCash === "number" && Number.isFinite(initialCash) && initialCash > 0)) fail("INVALID_CONFIG", "initialCash must be explicit and positive");
     if (!(typeof feeRate === "number" && Number.isFinite(feeRate) && feeRate >= 0 && feeRate < 0.05)) fail("INVALID_CONFIG", "feeRate must be explicit and below 5%");
