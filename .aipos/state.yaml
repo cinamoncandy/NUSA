@@ -407,17 +407,33 @@ current_provider_backpressure:
   next: focused-local-validation_then_push-existing-PR_then_exact-head-CI-Audit-Release
 current_jev_bounded_coding_admission:
   work_order: WO-20260924-AI-CAPACITY-COST-CEILING
-  status: READY_FOR_REVIEW
+  status: MERGED
   branch: feat/ai-capacity-jev-bounded-admission
   base_sha: b631ef9a352bfd3ed6b90d27de45d5816d48b3c5
   pull_request: 2331
+  implementation_head: 74935ee83b77721e6424ca4f46e26afacdf7a8dd
+  merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
+  exact_head_ci: "36362184764 PASS"
   rollout_mode: BOUNDED_ROUTING_DISABLED_PENDING_2329
   first_broken_transition: verified_failure_to_expensive_coding_admission
   scope: verified-failure-evidence_negative-admission_plus_production-no-action-propagation
-  implementation_head: 08adc66b24719d92010301ed2b7b7416b17e4486
   correction: "Canonical gha failure reasons are eligible; Jev abstention requires exact GitHub failed job/step evidence; repair retries do not reclassify; /coding/propose and dispatcher propagate abstention as successful NO_ACTION."
-  validation: "Focused admission TypeScript compile/runtime PASS; dispatcher JEV_ROUTING_ABSTAINED->NO_ACTION test PASS; git diff --check PASS; review threads RESOLVED. Fresh exact-head CI required."
-  remaining: push-rebased-existing-PR_then_fresh-exact-head-CI_then_independent-Audit_then_Release
+  validation: "PR #2331 exact-head CI 36362184764 and required PAPER/Restricted LIVE/read-only companion workflows PASS; merged as 1b058a1d26e14125afb51cc2d87a49a662044130."
+  remaining: accepted_2329_shadow_calibration_and_provider_capacity_recovery_before_runtime_activation
+current_jev_coding_model_tiering:
+  work_order: WO-20260927-JEV-CODING-MODEL-TIERING
+  parent_pr: 2331
+  parent_merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
+  pull_request: 2334
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: feat/ai-capacity-jev-model-tiering
+  base_sha: 686b6a3b27f3e014497d54544431af42cd4c294a
+  implementation_head: 4ddbdae5f7c4ad5911d1f804d41fe2a692c8808c
+  scope: "Use only verified high-confidence Jev admission to select an explicitly configured Workers AI coding tier; preserve current zero-credit and provider-backpressure controls."
+  runtime_activation: DISABLED
+  activation_blocker: "No accepted real SHADOW calibration/runtime Jev receipt; provider-capacity wait remains unverified as recovered."
+  evidence: "Implementation commit 4ddbdae5f7c4ad5911d1f804d41fe2a692c8808c locally validated; exact-head CI/Audit/Release remain pending. No runtime cost savings are claimed. Tier gate and bounded routing remain disabled."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_ai_provider_reliability:
   work_order: WO-20260927-AI-PROVIDER-RELIABILITY
   issue: 1997

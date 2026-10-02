@@ -1,13 +1,14 @@
 id: WO-20260927-JEV-CODING-MODEL-TIERING
 title: "Jev bounded coding model tier selection"
-status: BLOCKED
+status: IN_PROGRESS
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 parent_work_order: WO-20260924-AI-CAPACITY-COST-CEILING
 parent_pr: 2331
+parent_merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
 pull_request: 2334
-base_branch: feat/ai-capacity-jev-bounded-admission
-base_commit: d9169219009de9ef12c4cf63af073136b937be68
+base_branch: main
+base_commit: 686b6a3b27f3e014497d54544431af42cd4c294a
 implementation_branch: feat/ai-capacity-jev-model-tiering
 authority_impact: none
 objective: "Use accepted bounded Jev admission evidence only to select an explicitly configured Workers AI coding model tier while preserving the canonical coding path, safety validation, and ZERO_AUTHORITY."
@@ -21,7 +22,7 @@ scope:
   exclude:
     - "Positive coding authority or autonomous patch authorization."
     - "Audit verdict, Release authorization, merge, secrets, LIVE execution, Portfolio/Risk authority."
-    - "Activation before #2329 SHADOW acceptance/calibration and #2331 bounded admission acceptance."
+    - "Activation before measured #2329 SHADOW calibration and provider-capacity recovery."
 acceptance:
   - "Each configured LUNA/TERRA/SOL/ASTRA tier can be selected only from matching accepted evidence."
   - "Repair reuse, abstain, unsafe, low-confidence, HUMAN, non-code, disabled, unconfigured, invalid, and unusable tier routes preserve canonical model selection."
@@ -29,10 +30,12 @@ acceptance:
   - "NUSA_JEV_MODEL_TIERING_ENABLED remains false in committed runtime configuration."
   - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
 evidence:
-  implementation_status: READY_FOR_REVIEW_STACKED
-  implementation_head: b04b40fde3d39a9a987d3e343f1a2d4dc88592c4
-  local_validation: "Focused tier selector runtime matrix PASS for LUNA/TERRA/SOL/ASTRA plus disabled/unsafe/low-confidence/HUMAN/non-code/unconfigured/repair/provider-fallback preservation; codingRunner TypeScript compile PASS; exact integration test confirms configured LUNA reaches the Workers AI call with ZERO_AUTHORITY telemetry; AIPOS YAML parse PASS; git diff --check PASS; committed NUSA_JEV_MODEL_TIERING_ENABLED remains false."
-  external_validation: "BLOCKED on parent #2331 acceptance/merge; after parent merge, reconverge to latest main and run fresh exact-head CI/Audit/Release."
+  implementation_status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  prior_implementation_head: b04b40fde3d39a9a987d3e343f1a2d4dc88592c4
+  base_main: 686b6a3b27f3e014497d54544431af42cd4c294a
+  implementation_head: 4ddbdae5f7c4ad5911d1f804d41fe2a692c8808c
+  local_validation: "Node 24.18.0 / pnpm 11.7.0; targeted Jev tier/admission/codingRunner tests 74/74 PASS; pnpm run build, typecheck, validate:full, ai:architecture, safety:invariants, security:gate, aipos:yaml, aipos:drift, aipos:provenance PASS; pnpm run lint PASS with 0 errors and 14 existing warnings; git diff --check PASS. Exact-head CI, independent Audit, and Release remain pending."
+  external_validation: "PR #2331 merged as 1b058a1d26e14125afb51cc2d87a49a662044130. PR #2329 is merged but rollout remains SHADOW/usableForRouting=false; latest runtime evidence records provider-capacity wait and no real Jev call receipt. Fresh exact-head CI, independent Audit, and canonical Release remain required."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -40,6 +43,6 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
 blocker:
-  type: PARENT_DEPENDENCY
-  dependency: "PR #2331 must be accepted and merged first."
-next_permitted_action: "Complete focused stacked validation only. Do not activate tiering. After #2331 merge, reconverge #2334 onto latest main and run fresh exact-head validation."
+  type: SHADOW_CALIBRATION_AND_PROVIDER_CAPACITY
+  dependency: "A real, validated SHADOW calibration and recovered provider capacity are required before any runtime activation; neither can be inferred from unit tests or stale runtime evidence."
+next_permitted_action: "Complete latest-main focused/full validations, update existing PR #2334 without force-push, and require fresh exact-head CI/Audit/Release. Keep NUSA_JEV_BOUNDED_ROUTING_ENABLED and NUSA_JEV_MODEL_TIERING_ENABLED false until calibration is accepted; do not claim runtime cost savings before measured runtime evidence."
