@@ -687,10 +687,10 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-10-02T17:26:13+09:00"
+updated_at: "2026-10-02T17:41:55+09:00"
 current_execution_target:
   work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: VERIFYING
   branch: codex/autopilot-repeat-failure-stop
   base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
   pull_request: null
