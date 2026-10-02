@@ -1,0 +1,56 @@
+id: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
+title: "Stop repeated deterministic proposal failures before another inference call"
+status: IN_PROGRESS
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 3b9c74185307e8019be925dd7ea9157e79edeca4
+implementation_branch: codex/autopilot-repeat-failure-stop
+authority_impact: none
+objective: "Bound proposal retries by deterministic failure identity so a correction that repeats the same failure stops the current logical execution instead of consuming another model call."
+canonical_owner: "Existing Autopilot GitHub runner proposal/retry path"
+observed_evidence:
+  runtime_proof_run: 36982353106
+  scheduler_receipt: "EXECUTION_DISPATCHED / github-coding-dispatch-accepted; worker receipt run 36981712119 concluded success."
+  rejected_repair_run: 36982300882
+  logical_execution: "ci-failure:36982260265"
+  deterministic_attempts: "Two distinct proposals failed with SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED; a third proposal failed with CODING_PROPOSAL_JSON_INVALID; proposalAccepted=0 and codeChanged=0."
+  stale_head_run: "Consumer run 36982542612 failed closed before proposal dispatch because requested head 2fd7ad1dbe7cf9e22b2ab267765af7c0261af18e was no longer current main (3b9c74185307e8019be925dd7ea9157e79edeca4). This stale-head stop remains unchanged."
+scope:
+  include:
+    - "Track deterministic proposal-validation failure codes within one logical execution."
+    - "Permit one bounded correction for a failure code, then stop with NO_ACTION if that same code recurs."
+    - "Preserve provider retry ceilings, fail-closed patch validation, exact-head checks, and execution identity."
+    - "Add regression coverage proving repeated deterministic failures do not start another proposal call."
+  exclude:
+    - "New queue, scheduler, provider, model router, retry service, durable journal, or execution engine."
+    - "Provider quota bypass, forced Jev/Workers AI calls, or cost/credit claims without usage evidence."
+    - "LIVE, broker, production mutation, credential, trading-risk, or authority changes."
+acceptance:
+  - "First occurrence of a deterministic validation failure may receive the existing bounded correction."
+  - "A repeated identical deterministic failure code ends the same execution as NO_ACTION before another proposal call."
+  - "Distinct bounded failure codes retain the existing attempt ceiling."
+  - "No rejected patch is published and no safety or exact-head check is weakened."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "node --test tests/autopilot-dispatch-retry.test.js"
+  - "pnpm run preflight"
+  - "pnpm run build"
+  - "pnpm run typecheck"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "pnpm run aipos:yaml"
+  - "pnpm run aipos:drift"
+  - "pnpm run aipos:provenance"
+  - "git diff --check"
+validation:
+  status: PENDING
+  evidence: "No exact token/credit savings claim. Evidence establishes one avoidable third proposal attempt in the observed deterministic-failure sequence; actual provider usage was not captured."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Run focused regression and repository validation; then update this work order and AIPOS state with exact results before any PR."
