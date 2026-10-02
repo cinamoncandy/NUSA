@@ -2008,3 +2008,9 @@ current_mobile_journal:
   branch: claude/nusa-repository-j93sd8-journal
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
+current_mobile_event_banner:
+  work_order: WO-UI-20261002-EVENT-BANNER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-event-banner
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-decision-on-FCM-push
