@@ -1,12 +1,12 @@
 id: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
 title: "Suppress duplicate post-merge CI when push-run indexing is delayed"
-status: IN_PROGRESS
+status: LOCAL_VALIDATED_PENDING_COMMIT_AND_EXACT_HEAD_CI
 priority: P1
 owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2118
 base_branch: main
-base_commit: 070078d31342fff277909c4929f9445e2728488e
+base_commit: 2cd9879f29460a5f59b222ae75caba0aa953264e
 objective: "Prevent a same-SHA workflow_dispatch CI from being queued when the canonical push CI exists but has not yet appeared in the Actions run listing, while preserving exact-head coverage and fail-closed recovery."
 architecture_impact:
   acknowledged: true
@@ -15,10 +15,10 @@ evidence:
   observation: "After PR #2430 merged as 070078d31342fff277909c4929f9445e2728488e, canonical CI push run 36944149502 completed SUCCESS. Release step 12 had already dispatched workflow_dispatch CI run 36944151942 on the identical SHA; the redundant run began shards and was cancelled after Release confirmed its exact-main CI and downstream convergence."
   cost_signal: "Before cancellation, duplicate validation/UI/core jobs ran approximately 30–82 seconds each. This is measured runner work avoided only in part; no billing-credit amount is asserted."
 scope:
-  - "Add a bounded, exact-head Actions-run visibility grace before the existing CI fallback dispatch."
+  - "Add a bounded, exact-head Actions-run visibility grace (at most six reads / fifteen seconds) before the existing CI fallback dispatch."
   - "Re-check protected main before fallback dispatch; a stale merge SHA exits through the existing newer-convergence path."
   - "Keep existing exact workflow path, head SHA, active/success eligibility; failed/cancelled exact-head runs defer to the existing bounded rerun recovery."
-  - "Add a regression test for bounded wait ordering, exact binding, stale-main guard, and non-suppression of failed CI."
+  - "Add a regression test for bounded wait ordering, exact binding, stale-main guard, and failed-CI handoff to bounded recovery."
 exclusions:
   - "No required CI, coverage, security, safety, Audit, or Release gate reduction."
   - "No additional scheduler, queue, retry loop, workflow, or API authority."
@@ -38,4 +38,15 @@ verification_commands:
   - "node --test tests/autopilot-deterministic-audit-release.test.js"
   - "pnpm run validate:full"
   - "pnpm run security:gate"
-next_permitted_action: "Run targeted workflow regression and inspect the diff; then run prescribed local validation and open one PR if clean."
+validation:
+  status: LOCAL_PASS
+  latest_main: 2cd9879f29460a5f59b222ae75caba0aa953264e
+  commands:
+    - "node --test tests/autopilot-deterministic-audit-release.test.js — PASS 13/13"
+    - "pnpm run validate:full — PASS"
+    - "pnpm run security:gate — PASS; 0 secrets, 0 high/critical"
+    - "pnpm run lint:scripts — PASS, 0 errors; 14 existing warnings in unrelated files"
+    - "AIPOS YAML/provenance/drift validators — PASS"
+    - "git diff --check — PASS"
+  exact_head_ci: PENDING
+next_permitted_action: "Commit the locally validated change, re-check main and overlapping PR #2446, then push and open one PR if the change remains non-conflicting."

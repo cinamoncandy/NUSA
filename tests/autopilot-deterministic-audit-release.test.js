@@ -84,10 +84,10 @@ test("Release reuses an exact-main CI run before dispatching a duplicate", () =>
 
 test("Release gives an exact-main CI push a bounded visibility grace before fallback dispatch", () => {
   const startCi = workflow.split("- name: Start canonical post-merge main CI", 2)[1].split("\n      - name:", 1)[0];
-  assert.match(startCi, /for poll in \$\(seq 1 8\)/);
+  assert.match(startCi, /for poll in \$\(seq 1 6\)/);
   assert.match(startCi, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
   assert.match(startCi, /\.name == "CI" and \.path == "\.github\/workflows\/ci\.yml" and \.head_sha == \$sha/);
-  assert.match(startCi, /sleep 5/);
+  assert.match(startCi, /sleep 3/);
   assert.match(startCi, /Waiting for exact-main push CI to materialize before fallback dispatch/);
   assert.match(startCi, /Main advanced during exact-main CI visibility grace/);
   assert.match(startCi, /actions\/workflows\/ci\.yml\/dispatches/);
