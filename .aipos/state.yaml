@@ -2177,3 +2177,10 @@ current_research_candle_aggregator:
   branch: claude/nusa-repository-j93sd8-candle-aggregator
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+current_research_candle_store:
+  work_order: WO-RESEARCH-20261002-CANDLE-STORE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-candle-store
+  authority_impact: persistence-schema-additive
+  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+  deploy: not_deployed_owner_approval_required
