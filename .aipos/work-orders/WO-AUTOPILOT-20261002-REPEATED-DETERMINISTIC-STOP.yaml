@@ -53,4 +53,5 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Push this AIPOS evidence update and require fresh exact-head CI for its new SHA; then independent Audit and canonical Release. Never merge outside Release."
+release_attempt: "Canonical Release run 36986188884 failed closed at exact-head merge with GitHub HTTP 405: All comments must be resolved. No merge occurred; the workflow revoked its exact-head authorization. Three review threads are being reconciled before fresh CI/Audit/Release."
+next_permitted_action: "Resolve all actionable review threads after reconciling the AIPOS records, then require fresh exact-head CI, independent Audit, and canonical Release. Never merge outside Release."

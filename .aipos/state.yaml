@@ -92,8 +92,8 @@ current_issue_2118_ci_saturation_wip:
   prior_pull_request: 2430
   prior_merge_commit: 070078d31342fff277909c4929f9445e2728488e
   prior_exact_head_ci: "36942370607 PASS"
-  merge_commit: 070078d31342fff277909c4929f9445e2728488e
-  exact_head_ci: "36942370607 PASS"
+  merge_commit: 9eb600a4173858c361b97a5ddfb87ceae5a654a4
+  exact_head_ci: "36979533215 PASS"
   scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP and an inclusive 85% high-pressure boundary; legacy ciUtilization remains the compatibility fallback."
   validation: "PR #2460 merged through canonical Audit/Release 36980030111 at 9eb600a4173858c361b97a5ddfb87ceae5a654a4 after exact-head CI 36979533215 passed. Post-merge CI 36980168622, Cloudflare Deploy 36980168557 (exact revision verified), and actual PAPER runtime 36980168527 passed."
   remaining: "This bounded increment is complete. Continue Issue #2118 with measured current-main p50/p95 and owner-latency evidence; do not claim autonomous coding completion from a scheduler receipt."
@@ -687,18 +687,18 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-10-02T17:41:55+09:00"
+updated_at: "2026-10-02T17:53:30+09:00"
 current_execution_target:
   work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
   status: VERIFYING
   branch: codex/autopilot-repeat-failure-stop
   base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
-  pull_request: null
+  pull_request: 2464
   scope: "Stop the existing bounded proposal retry loop when one correction repeats the same deterministic validation failure code, reducing avoidable inference attempts without weakening validation."
   authority_impact: none
   first_broken_transition: repeated_deterministic_failure_to_extra_proposal_call
   evidence: "Runtime 36982300882: same SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED on attempts 1 and 2, then CODING_PROPOSAL_JSON_INVALID on attempt 3; 0 accepted proposals and 0 code changes."
-  next: "Focused regression -> preflight/build/typecheck/full/security/AIPOS validation -> exact-head CI -> independent Audit and canonical Release."
+  next: "After publishing AIPOS corrections, resolve all actionable review threads; require fresh exact-head CI, independent Audit, then canonical Release. Do not merge outside Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_exact_head_binding:
   work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
@@ -724,13 +724,14 @@ latest_autopilot_normalized_apply_failure:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_repeated_deterministic_failure_stop:
   work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/autopilot-repeat-failure-stop
   base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
+  pull_request: 2464
   observed_run: 36982300882
   observation: "One logical execution repeated SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED on two distinct proposals, then returned CODING_PROPOSAL_JSON_INVALID on the third; no proposal was accepted and no code changed."
   expected_efficiency: "Stop after the first bounded correction repeats the same deterministic failure code, avoiding additional proposal calls for that repeated failure. Actual token/credit savings are unmeasured."
-  next: "Run focused retry regression, preflight, build, typecheck, validate:full, security gate, AIPOS YAML/drift/provenance, and diff check; retain exact-head and safety gates."
+  next: "Resolve the actionable AIPOS review threads; then fresh exact-head CI, independent Audit, and canonical Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_deterministic_coding_patches:
   work_order: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
