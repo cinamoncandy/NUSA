@@ -74,7 +74,7 @@ test("HOME rendered financial values keep stable tabular numerals in the command
     assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
   }
   assert.match(home, /\{krw\(account\?\.equity\)\}/);
-  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
+  assert.match(home, /총 손익 \{signedMoney\(totalPnl\)\}/);
 });
 
 test("fresh or stale installs converge on the field preset", () => {

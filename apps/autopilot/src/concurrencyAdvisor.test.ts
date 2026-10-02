@@ -34,6 +34,13 @@ describe("concurrencyAdvisor", () => {
     assert.equal(result.recommendedWip, 1);
   });
 
+  it("treats the measured CI saturation boundary as pressure", () => {
+    const result = adviseConcurrency({ ...verified(), ciSaturation: 0.85 });
+    assert.equal(result.action, "DECREASE_BY_ONE");
+    assert.equal(result.recommendedWip, 1);
+    assert.equal(result.reason, "verified-ci-saturation-pressure");
+  });
+
   it("fails closed for UNKNOWN evidence", () => {
     const result = adviseConcurrency({ ...verified(), confidence: "UNKNOWN" });
     assert.equal(result.action, "HOLD");

@@ -34,7 +34,7 @@ test("initial PAPER projection resolves immediately after the first canonical re
   // The shell no longer waits behind a full-screen gate; the pending projection is masked instead.
   assert.ok(!app.includes('if (!initialPaperProjectionResolved) return'));
   assert.ok(app.includes('const paperProjectionPending = !initialPaperProjectionResolved;'));
-  assert.ok(app.includes('const notConfigured = !paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null;'));
+  assert.ok(app.includes('const notConfigured = graceNotConfigured(!paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null, resumingQuietly);'));
   assert.ok(app.includes('const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;'));
   assert.ok(app.includes('const paperLearningServerSource = paperProjectionPending ? "PROJECTION_ABSENT" as const'));
   assert.ok(app.includes('if (active) setStatus("SIGNED_IN");'), "a configured endpoint opens the shell before the network restore settles");

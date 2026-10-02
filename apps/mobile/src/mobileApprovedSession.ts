@@ -203,7 +203,28 @@ async function readRefusal(response: Response): Promise<string | undefined> {
   } catch { return undefined; }
 }
 
-async function requestJson(request: typeof fetch, endpoint: string, init: RequestInit): Promise<unknown> {
+/**
+ * Every session request is bounded. React Native fetch has no default timeout, so a connection that
+ * stalls (an LTE/Wi-Fi handover, a half-open socket after Doze) used to leave the restore in flight
+ * forever: the session read RECOVERING indefinitely and the bounded retry never got a turn. A timeout
+ * is transient, never a definitive rejection, so callers mark it retryable.
+ */
+export const MOBILE_SESSION_REQUEST_TIMEOUT_MS = 15_000;
+
+async function requestJson(request: typeof fetch, endpoint: string, init: RequestInit, timeoutMs = MOBILE_SESSION_REQUEST_TIMEOUT_MS): Promise<unknown> {
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { controller?.abort(); reject(new Error("mobile session request timed out.")); }, timeoutMs);
+  });
+  try {
+    return await Promise.race([requestJsonUnbounded(request, endpoint, { ...init, ...(controller ? { signal: controller.signal } : {}) }), timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+async function requestJsonUnbounded(request: typeof fetch, endpoint: string, init: RequestInit): Promise<unknown> {
   const response = await request(endpoint, { ...init, redirect: "error", headers: { accept: "application/json", "content-type": "application/json", ...(init.headers ?? {}) } });
   if (response.redirected === true || (response.url && new URL(response.url).href !== new URL(endpoint).href)) throw new Error("mobile session redirect is prohibited.");
   if (!response.ok) throw new MobileSessionRequestError(response.status, await readRefusal(response), response.status === 429 ? readRetryAfterMs(response) : undefined);

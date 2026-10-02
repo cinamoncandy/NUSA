@@ -1,0 +1,35 @@
+id: WO-UI-20261002-LEARNING-LINE
+title: "HOME shows a one-line read-only summary of the research/learning loop"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-learning-line
+authority_impact: none
+objective: "Owner asked whether the system is learning. The research loop exists and its projection is already in the snapshot but is only visible deep in the AI tab. HOME 자세히 보기 now states experiments, candidates, challenger-vs-champion tally and evidence age, flagging STALE/DEGRADED/FAIL_CLOSED honestly."
+scope:
+  - "learningLineModel.ts: pure summary of snapshot.research (no new fetch)."
+  - "learningLineModel.ts also shows promotion progress (trades x/50, observation days x/30, mirrored from researchCandidateGate defaults; display only)."
+  - "docs/PROPOSAL_CONTINUOUS_RESEARCH_EXPERIMENTS.md: owner-approval proposal only; no implementation."
+  - "learningLineModel.ts buildAiTrustLine + homeView AI 신뢰 row: calibration status, sample count, expected error, Brier; only CALIBRATED is shown as trusted, all else reads as zero trust (display only, from snapshot.ai)."
+  - "homeView.tsx: LEARNING row in the 이 판단의 근거 block (testID home-learning-line)."
+ui_scope:
+  rule: "AGENTS.md UI/UX rule: a UI change applies to the whole app; every screen left unchanged is named with its reason."
+  applied:
+    - "HOME (자세히 보기): LEARNING and AI 신뢰 summary lines."
+  excluded_with_reason:
+    - "AI tab (aiView.tsx): already presents the full research card (candidates, experiments) and calibration/AI detail; a summary line there would duplicate the primary view."
+    - "PAPER tab learning screens (paperLearningMonitorView.tsx, paperLearningScreen.ts): present per-cycle PAPER events, a different concept from the research/calibration summary."
+    - "System learning supervisor view (systemLearningSupervisorView.tsx): detailed evolution evidence loaded separately; this change adds a read-only summary that links nothing new."
+    - "Other tabs (market, portfolio, settings): no learning or AI-trust concept to present."
+exclusions:
+  - "Display only. No learning, promotion, strategy, risk, execution, server or LIVE change; AI stays ZERO_AUTHORITY. Whether the server loop actually produces candidates still needs a server-side check (not verifiable from the sandbox)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/mobile-learning-line.test.js
+  - pnpm run validate
+residual: "Physical Android acceptance is HUMAN_ENVIRONMENT_ONLY."
