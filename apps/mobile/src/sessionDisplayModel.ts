@@ -5,7 +5,8 @@
  * process-local VERIFIED flag on purpose). That usually takes a second or two, so flashing
  * 재연결 중 on every app open made a healthy connection look broken. A session that was verified
  * just before the resume keeps its verified look for a short grace window; past the window, or if
- * the proof fails, the real state shows. Presentation only: no credential, transport or trading
+ * the proof fails, the real state shows. App launch counts like a resume (a paired device restores
+ * silently on cold start). Presentation only: no credential, transport or trading
  * decision reads this.
  */
 export type SessionState = "NOT_CONFIGURED" | "VERIFIED" | "RECOVERING" | "RECOVERY_REQUIRED";

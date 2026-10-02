@@ -33,3 +33,9 @@ test("only presentation reads the grace state; the refresh path still uses the r
   assert.match(app, /const sessionState = getPaperSessionState\(\);/);
   assert.equal((app.match(/shownSessionState/g) || []).length, 3);
 });
+
+test("app launch gets the same grace as a resume", () => {
+  const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8").replace(/\r\n/g, "\n");
+  assert.match(app, /verified: lastSessionState\.current === "VERIFIED" \|\| launchPending\.current/);
+  assert.match(app, /if \(paperSessionState !== "NOT_CONFIGURED"\) launchPending\.current = false;/);
+});

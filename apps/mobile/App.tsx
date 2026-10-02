@@ -145,9 +145,12 @@ function AuthenticatedApp() {
   // Resume grace (presentation only): remember whether the session was verified when recovery began.
   const resumeGrace = useRef<{ verified: boolean; since: number } | null>(null);
   const lastSessionState = useRef<PaperSessionState>("NOT_CONFIGURED");
+  // App launch counts like a resume: a paired device is expected to come up connected.
+  const launchPending = useRef(true);
   const [, setGraceTick] = useState(0);
-  if (paperSessionState === "RECOVERING" && resumeGrace.current == null) resumeGrace.current = { verified: lastSessionState.current === "VERIFIED", since: Date.now() };
+  if (paperSessionState === "RECOVERING" && resumeGrace.current == null) resumeGrace.current = { verified: lastSessionState.current === "VERIFIED" || launchPending.current, since: Date.now() };
   if (paperSessionState !== "RECOVERING") resumeGrace.current = null;
+  if (paperSessionState !== "NOT_CONFIGURED") launchPending.current = false;
   lastSessionState.current = paperSessionState;
   useEffect(() => {
     if (paperSessionState !== "RECOVERING") return;

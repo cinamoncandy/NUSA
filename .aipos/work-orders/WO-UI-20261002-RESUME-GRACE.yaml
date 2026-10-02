@@ -8,7 +8,7 @@ implementation_branch: claude/nusa-repository-j93sd8-resume-grace
 authority_impact: none
 objective: "Owner: the app should already be connected when opened. Every foreground resume deliberately re-proves the device session and briefly projected RECOVERING, so a healthy connection looked broken on every open."
 scope:
-  - "sessionDisplayModel.ts (import-free): a session verified just before resume keeps its verified look for 5 s while re-proving; after that, or on failure, the real state shows."
+  - "sessionDisplayModel.ts (import-free): a session verified just before resume keeps its verified look for 5 s while re-proving (app launch counts like a resume); after that, or on failure, the real state shows."
   - "App.tsx: only the safety line and HOME recovery notice read the display state. Refresh, credentials and the runtime still use getPaperSessionState(). The safety line is shared, so this applies to every tab."
 exclusions:
   - "The foreground re-proof itself is unchanged (security design in paperConnectionSession.ts)."
