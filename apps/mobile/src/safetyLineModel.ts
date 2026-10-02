@@ -8,6 +8,8 @@ export interface SafetyLineInput {
   readonly runtimeHalted: boolean;
   /** The verified session could not load PAPER data, or the server reports it is not healthy. */
   readonly dataUnconfirmed?: boolean;
+  /** RECOVERING inside the short resume grace: still not 안전, but worded as a routine check. */
+  readonly resuming?: boolean;
 }
 export interface SafetyLine { readonly tone: SafetyTone; readonly word: string; readonly detail: string }
 
@@ -17,6 +19,7 @@ export function buildSafetyLine(input: SafetyLineInput): SafetyLine {
   if (input.runtimeHalted) return Object.freeze({ tone: "halt", word: "정지됨", detail: BOUNDARY });
   if (input.sessionState === "VERIFIED" && input.dataUnconfirmed === true) return Object.freeze({ tone: "act", word: "확인 필요", detail: BOUNDARY });
   if (input.sessionState === "VERIFIED") return Object.freeze({ tone: "ok", word: "안전", detail: BOUNDARY });
+  if (input.sessionState === "RECOVERING" && input.resuming === true) return Object.freeze({ tone: "wait", word: "확인 중", detail: BOUNDARY });
   if (input.sessionState === "RECOVERING") return Object.freeze({ tone: "wait", word: "재연결 중", detail: BOUNDARY });
   if (input.sessionState === "RECOVERY_REQUIRED") return Object.freeze({ tone: "act", word: "연결 필요", detail: BOUNDARY });
   return Object.freeze({ tone: "act", word: "서버 미설정", detail: BOUNDARY });
