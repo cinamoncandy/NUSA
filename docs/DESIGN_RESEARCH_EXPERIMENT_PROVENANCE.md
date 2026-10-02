@@ -1,6 +1,6 @@
 # Design: provenance for continuous research experiments (Stage 2b-4)
 
-Status: DESIGN PROPOSED for owner review. No code accompanies this document.
+Status: DECISIONS D1-D5 TAKEN AS PROPOSED (owner instruction 2026-10-02: stop asking and finish); see WO-RESEARCH-20261002-PROVENANCE-BUILDER. The builder, walk-forward window builder and holdout ledger implement this design.
 Scope: PAPER/Research evidence only. LIVE NONE, productionMutation false, AI ZERO_AUTHORITY. No paid AI.
 
 A wrong provenance manufactures false evidence, so this is reviewed before any builder is written. It maps
