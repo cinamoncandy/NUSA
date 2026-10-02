@@ -232,6 +232,7 @@ export function toConcurrencyEvidence(summary: WorkerThroughputSummary, currentW
     reworkRate: verified && summary.reworkRate !== null ? summary.reworkRate : 1,
     ciUtilization: verified && summary.ciUtilization !== null ? summary.ciUtilization : 1,
     ...(summary.ciSaturation !== null && summary.ciSaturation !== undefined ? { ciSaturation: summary.ciSaturation } : {}),
+    ...(summary.unmeasured.includes("ci-saturation") ? { invalidCiSaturationEvidence: true } : {}),
   });
 }
 
