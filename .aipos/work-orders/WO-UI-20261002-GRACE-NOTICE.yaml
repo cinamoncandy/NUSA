@@ -8,7 +8,8 @@ implementation_branch: claude/nusa-repository-j93sd8-grace-notice
 authority_impact: none
 objective: "Owner device: the safety line read 확인 중 while HOME showed 'PAPER 서버 연결 필요 · SETUP'. During RECOVERING the operations projection is NOT_CONFIGURED; the grace hid the recovering notice, so the not-configured notice showed instead."
 scope:
-  - "App.tsx: inside the resume grace, HOME receives no readOnlyError/notConfigured notice. After the grace the real state shows unchanged. The safety line keeps the real session state."
+  - "sessionDisplayModel.ts graceNotConfigured: inside the resume grace the transient not-configured notice is null; App.tsx applies it once at the source so HOME, the PAPER connection screen and every other consumer agree (whole-app rule)."
+  - "Genuine read failures (UNAVAILABLE / readOnlyError) are never hidden. After the grace the real state shows unchanged. The safety line keeps the real session state."
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
