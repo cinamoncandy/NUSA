@@ -10,7 +10,7 @@ test("a configured PAPER server never falls back to the on-device ₩10,000,000 
   assert.match(home, /const localPaperActive = snapshot == null && isLocalPaperActive\(\) && isLocalPaperLedgerDisplayable\(\);/);
   assert.match(read("portfolioView.tsx"), /const localPaperActive = snapshot === null && isLocalPaperActive\(\) && isLocalPaperLedgerDisplayable\(\);/);
   assert.match(read("localPaperLedger.ts"), /return isLocalPaperActive\(\) && getConfiguredPaperEndpoint\(\) == null;/);
-  assert.match(home, /"CLOUD PAPER CAPITAL" \+ \(sessionRecovering \? " · 재확인 중" : ""\)/);
+  assert.match(home, /"PAPER 자산 · 서버" \+ \(sessionRecovering \? " · 재확인 중" : ""\)/);
 });
 
 test("an unknown decision count is a quiet line, and is omitted when a fault banner already explains it", () => {

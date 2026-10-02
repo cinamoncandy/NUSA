@@ -28,7 +28,7 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
   assert.match(home, /"ACTIVE" : "OBSERVING"/);
   assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /총 손익/);
   assert.match(home, /QUICK ACCESS/);
   assert.match(home, />MARKETS</);
   assert.match(home, />PORTFOLIO</);

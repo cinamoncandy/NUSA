@@ -10,8 +10,8 @@ const homePath = path.join(__dirname, "..", "apps", "mobile", "src", "homeView.t
 test("HOME visibly distinguishes CLOUD PAPER from LOCAL PAPER capital", () => {
   const home = fs.readFileSync(homePath, "utf8");
 
-  assert.match(home, /accountSource === "LOCAL" \? "LOCAL PAPER CAPITAL"/);
-  assert.match(home, /accountSource === "CLOUD" \? "CLOUD PAPER CAPITAL"/);
+  assert.match(home, /accountSource === "LOCAL" \? "PAPER 자산 · 기기"/);
+  assert.match(home, /accountSource === "CLOUD" \? "PAPER 자산 · 서버"/);
   assert.match(home, /const capitalLabel = /);
   assert.match(home, /\{capitalLabel\}/);
 });
