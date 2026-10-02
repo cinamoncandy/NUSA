@@ -171,3 +171,16 @@ test("Release serialization is classified as NO_ACTION before deterministic Audi
   assert.ok(serializationIndex >= 0 && ciFetchIndex > serializationIndex,
     "canonical P0 serialization must short-circuit before CI/evidence Audit work");
 });
+
+
+test("Release preflights expected review blocks before merge API and keeps them non-terminal", () => {
+  assert.match(workflow, /Preflight protected-branch mergeability/);
+  assert.match(workflow, /reviewThreads\(first:100\)/);
+  assert.match(workflow, /BLOCKED Release preflight: unresolved_review_threads=/);
+  assert.match(workflow, /merge_ready=false/);
+  assert.match(workflow, /steps\.merge_preflight\.outputs\.merge_ready == 'true'/);
+  const preflightIndex = workflow.indexOf("Preflight protected-branch mergeability");
+  const mergeIndex = workflow.indexOf("Canonical expected-head merge");
+  assert.ok(preflightIndex >= 0 && mergeIndex > preflightIndex);
+  assert.match(workflow, /Revoke authorization if merge preflight blocks activation/);
+});
