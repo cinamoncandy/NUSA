@@ -1,0 +1,33 @@
+/** One-line, read-only summary of the research/learning loop for HOME. No new data fetch, no authority. */
+export interface LearningLineInput {
+  readonly health: string;
+  readonly candidateCount: number;
+  readonly experimentCount: number;
+  readonly evidenceAgeMs?: number;
+  readonly metrics: { readonly championBetterCount: number; readonly challengerBetterCount: number; readonly equivalentCount: number; readonly inconclusiveCount: number };
+}
+
+export interface LearningLine {
+  readonly value: string;
+  readonly tone: "ok" | "warn" | "muted";
+}
+
+const HOUR_MS = 3_600_000;
+
+function age(ms: number | undefined): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return "증거 시각 미상";
+  const h = Math.floor(ms / HOUR_MS);
+  return h < 1 ? "방금 검증" : h < 48 ? `${h}시간 전 검증` : `${Math.floor(h / 24)}일 전 검증`;
+}
+
+export function buildLearningLine(research: LearningLineInput | null): LearningLine {
+  if (research == null) return Object.freeze({ value: "리서치 상태 미수신", tone: "muted" as const });
+  if (research.experimentCount === 0) return Object.freeze({ value: `후보 ${research.candidateCount} · 실험 아직 없음`, tone: "muted" as const });
+  const m = research.metrics;
+  const healthy = research.health === "HEALTHY";
+  const state = healthy ? age(research.evidenceAgeMs) : research.health === "STALE" ? `검증 오래됨 (${age(research.evidenceAgeMs)})` : "연구 일시 제한";
+  return Object.freeze({
+    value: `실험 ${research.experimentCount} · 후보 ${research.candidateCount} · 도전자 우세 ${m.challengerBetterCount}/현재 ${m.championBetterCount} · ${state}`,
+    tone: healthy ? "ok" as const : "warn" as const,
+  });
+}

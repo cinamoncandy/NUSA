@@ -1,0 +1,23 @@
+id: WO-UI-20261002-LEARNING-LINE
+title: "HOME shows a one-line read-only summary of the research/learning loop"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-learning-line
+authority_impact: none
+objective: "Owner asked whether the system is learning. The research loop exists and its projection is already in the snapshot but is only visible deep in the AI tab. HOME 자세히 보기 now states experiments, candidates, challenger-vs-champion tally and evidence age, flagging STALE/DEGRADED/FAIL_CLOSED honestly."
+scope:
+  - "learningLineModel.ts: pure summary of snapshot.research (no new fetch)."
+  - "homeView.tsx: LEARNING row in the 이 판단의 근거 block (testID home-learning-line)."
+exclusions:
+  - "Display only. No learning, promotion, strategy, risk, execution, server or LIVE change; AI stays ZERO_AUTHORITY. Whether the server loop actually produces candidates still needs a server-side check (not verifiable from the sandbox)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/mobile-learning-line.test.js
+  - pnpm run validate
+residual: "Physical Android acceptance is HUMAN_ENVIRONMENT_ONLY."

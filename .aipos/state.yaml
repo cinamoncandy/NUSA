@@ -2142,3 +2142,8 @@ current_ci_robustness:
   branch: claude/nusa-repository-j93sd8-ci-robustness
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
+current_learning_line:
+  work_order: WO-UI-20261002-LEARNING-LINE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-learning-line
+  authority_impact: none
