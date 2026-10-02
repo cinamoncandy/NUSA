@@ -31,7 +31,8 @@ test("no grace without a prior verified session, and real failures always show",
 test("only presentation reads the grace state; the refresh path still uses the real session state", () => {
   const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8").replace(/\r\n/g, "\n");
   assert.match(app, /const sessionState = getPaperSessionState\(\);/);
-  assert.equal((app.match(/shownSessionState/g) || []).length, 3);
+  assert.equal((app.match(/shownSessionState/g) || []).length, 4);
+  assert.match(app, /readOnlyError=\{resumingQuietly \? null : readOnlyError\} notConfigured=\{resumingQuietly \? null : notConfigured\}/, "grace keeps HOME notices quiet");
   // The safety line always gets the real session state; grace only softens its wording.
   assert.match(app, /buildSafetyLine\(\{ sessionState: paperSessionState, resuming: shownSessionState !== paperSessionState,/);
 });

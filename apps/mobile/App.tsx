@@ -159,6 +159,9 @@ function AuthenticatedApp() {
     return () => clearTimeout(timer);
   }, [paperSessionState]);
   const shownSessionState = displaySessionState(paperSessionState, resumeGrace.current?.verified === true, resumeGrace.current == null ? 0 : Date.now() - resumeGrace.current.since);
+  // Inside the resume grace the HOME notices stay quiet too; otherwise the not-configured projection
+  // that RECOVERING leaves behind shows "PAPER 서버 연결 필요 · SETUP" under a "확인 중" safety line.
+  const resumingQuietly = shownSessionState !== paperSessionState;
   const [shadowOperations, setShadowOperations] = useState<ShadowOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." });
   const [realReadOnlyOperations, setRealReadOnlyOperations] = useState<RealReadOnlyOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." });
   const [liveReadinessOperations, setLiveReadinessOperations] = useState<LiveReadinessOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." });
@@ -505,7 +508,7 @@ function AuthenticatedApp() {
           else if (destination === "Settings") setUtilityView("SETTINGS");
           else if (destination === "Risk" || destination === "Performance" || destination === "SystemStatus" || destination === "Help") setDetailSurface(destination);
         }} />
-      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} sessionRecovering={shownSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}</TabTransition>
+      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={resumingQuietly ? null : readOnlyError} notConfigured={resumingQuietly ? null : notConfigured} sessionRecovering={shownSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}</TabTransition>
 
     <PrimaryNavigation activeDestination={activeTab} obscured={paperLearningOpen || utilityView !== null || detailSurface !== null} onNavigate={(destination) => { setUtilityMenuOpen(false); setUtilityView(null); setDetailSurface(null); setPaperLearningOpen(false); setActiveTab(destination); }} />
   </SafeAreaView>;
