@@ -24,7 +24,7 @@ test("only a verified session with a running runtime reads 안전", () => {
 
 test("every tab shows the safety line and LIVE lists remaining gates before passed ones", () => {
   const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8").replace(/\r\n/g, "\n");
-  assert.match(app, /<SafetyLine line=\{buildSafetyLine\(\{ sessionState: paperSessionState, resuming: shownSessionState !== paperSessionState, runtimeHalted: snapshot\?\.paperLearning\?\.runtimeStatus === "HALTED" \}\)\} \/>\n    <TabTransition/);
+  assert.match(app, /<SafetyLine line=\{buildSafetyLine\(\{ sessionState: paperSessionState, resuming: shownSessionState !== paperSessionState, runtimeHalted: snapshot\?\.paperLearning\?\.runtimeStatus === "HALTED" \}\)\} \/>\n    (?:<EventBanner [^\n]*\n    )?<TabTransition/);
   const live = fs.readFileSync(path.join(root, "apps/mobile/src/liveReadinessMonitorView.tsx"), "utf8");
   assert.match(live, /sort\(\(left, right\) => Number\(left\.state === "PASS"\) - Number\(right\.state === "PASS"\)\)/);
   assert.match(live, /`남은 조건 \$\{gates\.total - gates\.passed\}개`/);
