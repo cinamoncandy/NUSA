@@ -1,0 +1,20 @@
+id: WO-UI-20261002-GRACE-NOTICE
+title: "Resume grace keeps the HOME connection notice quiet too"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-grace-notice
+authority_impact: none
+objective: "Owner device: the safety line read 확인 중 while HOME showed 'PAPER 서버 연결 필요 · SETUP'. During RECOVERING the operations projection is NOT_CONFIGURED; the grace hid the recovering notice, so the not-configured notice showed instead."
+scope:
+  - "sessionDisplayModel.ts graceNotConfigured: inside the resume grace the transient not-configured notice is null; App.tsx applies it once at the source so HOME, the PAPER connection screen and every other consumer agree (whole-app rule)."
+  - "Genuine read failures (UNAVAILABLE / readOnlyError) are never hidden. After the grace the real state shows unchanged. The safety line keeps the real session state."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - node --test tests/mobile-session-display.test.js
+  - pnpm run validate
+residual: "Physical Android acceptance is HUMAN_ENVIRONMENT_ONLY."
