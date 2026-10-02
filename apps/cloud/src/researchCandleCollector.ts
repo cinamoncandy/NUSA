@@ -8,8 +8,10 @@ import type { StoredResearchCandle } from "../../../packages/storage/src/researc
  * is reported, never thrown, unless the pass itself is misconfigured.
  *
  * Coverage rule: if candles are already stored for a market, collection resumes exactly at the last stored
- * close time (continuity). Otherwise the first, possibly partial bucket of the retained observations is
- * skipped, because earlier ticks may have been pruned.
+ * close time (continuity) as long as the retained observations still reach back to that resume point, i.e. the
+ * first retained observation falls inside the first bucket after it. If the retained observations start later
+ * (server down, or older ticks pruned by the row cap) the oldest retained bucket may be truncated, so it is
+ * skipped exactly like the first bucket of a first run. Skipped buckets are simply never stored.
  */
 export interface ObservationReader {
   readWindow(market: string, startAt: number, endAt: number): readonly CandleObservation[];
@@ -48,9 +50,10 @@ export function collectClosedCandles(input: {
       const readFrom = latest ?? 1;
       const observations = input.observations.readWindow(market, readFrom, input.nowMs);
       if (observations.length === 0) return Object.freeze({ market, status: "NO_OBSERVATIONS", recorded: 0, incompleteBuckets: 0, missingBuckets: 0, rejectedObservations: 0 });
-      const first = observations[0].observedAt;
-      // With stored history the next bucket starts exactly at the last close; otherwise skip the first bucket.
-      const coverageStartMs = latest ?? (Math.floor(first / intervalMs) + 1) * intervalMs;
+      const first = observations.reduce((min, o) => Math.min(min, o.observedAt), Infinity);
+      const continuous = latest != null && first < latest + intervalMs;
+      // Continuous history resumes at the last close; otherwise the oldest retained bucket may be truncated: skip it.
+      const coverageStartMs = continuous ? (latest as number) : (Math.floor(first / intervalMs) + 1) * intervalMs;
       const aggregated = aggregateClosedCandles({ observations, nowMs: input.nowMs, coverageStartMs, intervalMs });
       const fresh = aggregated.candles
         .filter((candle) => latest == null || candle.timestamp > latest)

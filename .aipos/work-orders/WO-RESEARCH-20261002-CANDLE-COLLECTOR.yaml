@@ -9,7 +9,7 @@ authority_impact: none
 parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
 objective: "Connect the existing building blocks (observation repository, closed-candle aggregator, candle store) in one deterministic collection pass with injected ports, so a later composition stage only has to schedule it."
 scope:
-  - "apps/cloud/src/researchCandleCollector.ts: collectClosedCandles. Per market it resumes exactly at the last stored close time; with no stored history it skips the first, possibly truncated bucket of the retained observations. Uses the aggregator coverage rules, appends only candles newer than the stored latest, reports COLLECTED / NO_OBSERVATIONS / ERROR per market and never lets one market stop the others. Misconfiguration (clock, empty or duplicate markets) throws."
+  - "apps/cloud/src/researchCandleCollector.ts: collectClosedCandles. Per market it resumes exactly at the last stored close time while the retained observations still reach back to it; with no stored history, or when the retained observations start later (downtime or pruning), it skips the oldest retained, possibly truncated bucket. Uses the aggregator coverage rules, appends only candles newer than the stored latest, reports COLLECTED / NO_OBSERVATIONS / ERROR per market and never lets one market stop the others. Misconfiguration (clock, empty or duplicate markets) throws."
   - "packages/storage researchCandleStore.ts: add latestCloseTime (read-only helper)."
   - "tests/research-candle-collector.test.js: first-pass skip rule, resume without re-appending, per-market isolation, misconfiguration, and an end-to-end run on the real SQLite observation repository and candle store including an idempotent second pass."
 exclusions:

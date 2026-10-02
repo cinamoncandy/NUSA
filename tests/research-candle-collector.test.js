@@ -41,6 +41,16 @@ test("later passes resume exactly at the last stored close and never re-append o
   assert.deepEqual(f.appended[0].candles.map((c) => c.closeTimeMs), [T0 + 3 * M, T0 + 4 * M]);
 });
 
+test("when retained observations no longer reach back to the resume point, the oldest retained bucket is skipped", () => {
+  // Stored history ends at T0+2M, but the retained ticks start in bucket 5 (server was down / older ticks pruned).
+  const obs = [...dense(5, [100, 101, 102, 103]), ...dense(6, [103, 104, 102, 104]), ...dense(7, [104, 105, 103, 105])];
+  const f = fakes({ "KRW-BTC": obs }, { "KRW-BTC": T0 + 2 * M });
+  const [r] = collectClosedCandles({ markets: ["KRW-BTC"], nowMs: T0 + 8 * M, observations: f.observations, sink: f.sink });
+  assert.equal(r.recorded, 2);
+  assert.equal(r.incompleteBuckets, 1);
+  assert.deepEqual(f.appended[0].candles.map((c) => c.closeTimeMs), [T0 + 7 * M, T0 + 8 * M]);
+});
+
 test("a market without observations is reported and one failing market does not stop the others", () => {
   const f = fakes({ "KRW-ETH": [...dense(0, [1, 1, 1, 1]), ...dense(1, [2, 2, 2, 2]), ...dense(2, [3, 3, 3, 3])] });
   const failing = { ...f.sink, latestCloseTime: (market) => { if (market === "KRW-XRP") { const e = new Error("boom"); e.code = "CANDLE_CONFLICT"; throw e; } return undefined; } };
