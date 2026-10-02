@@ -143,27 +143,27 @@ jobs:
           if grep -q '^worker_runtime_changed=true$' "$GITHUB_OUTPUT"; then
             echo "Exact main $HEAD_SHA changes Worker runtime inputs since last successful deployment $baseline; normal CI and deployment gates remain required."
           else
-            echo "Exact main $HEAD_SHA has no Worker runtime-input delta since last successful deployment $baseline; skipping Cloudflare credentials, secret sync, deploy, and health mutation."
+            echo "Exact main $HEAD_SHA has no Worker runtime-input delta since last successful deployment $baseline; credentials are still verified and runtime secrets re-synchronized (a rotated credential must reach the live Worker), but the Worker deploy and its health verification are skipped."
           fi
 
       - name: Enable pnpm via Corepack
-        if: steps.revision.outputs.current == 'true' && steps.deploy_scope.outputs.worker_runtime_changed == 'true'
+        if: steps.revision.outputs.current == 'true'
         run: |
           corepack enable
           corepack prepare pnpm@11.7.0 --activate
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        if: steps.revision.outputs.current == 'true' && steps.deploy_scope.outputs.worker_runtime_changed == 'true'
+        if: steps.revision.outputs.current == 'true'
         with:
           node-version: 24
           cache: pnpm
 
       - name: Install locked dependencies
-        if: steps.revision.outputs.current == 'true' && steps.deploy_scope.outputs.worker_runtime_changed == 'true'
+        if: steps.revision.outputs.current == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Verify Cloudflare deployment credentials and account access
-        if: steps.revision.outputs.current == 'true' && steps.deploy_scope.outputs.worker_runtime_changed == 'true'
+        if: steps.revision.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -195,7 +195,7 @@ jobs:
           echo 'Cloudflare token/account/runtime-secret preflight passed; GitHub-secret preflight passed.'
 
       - name: Sync persistent Autopilot runtime bearer secret
-        if: steps.revision.outputs.current == 'true' && steps.deploy_scope.outputs.worker_runtime_changed == 'true'
+        if: steps.revision.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -209,7 +209,7 @@ jobs:
           echo 'Cloudflare Autopilot runtime secret synchronized without exposing token material.'
 
       - name: Sync Worker GitHub API credential
-        if: steps.revision.outputs.current == 'true' && steps.deploy_scope.outputs.worker_runtime_changed == 'true'
+        if: steps.revision.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

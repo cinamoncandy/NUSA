@@ -140,6 +140,7 @@ test("Worker deployment scope includes only runtime source and build inputs", ()
     "apps/autopilot/src/worker.ts",
     "apps/autopilot/wrangler.jsonc",
     "packages/contracts/src/referenceIntelligence.ts",
+    "apps/cloud/src/ai/jevShadowProvider.ts",
     "package.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
@@ -208,10 +209,18 @@ test("deploy scope runs after exact-main check, skips mutations, and preserves e
   assert.match(scope, /exit 1/);
   assert.match(workflow, /fetch-depth: 0/, "full exact-main ancestry must be available to compare from the last deployment");
 
-  for (const step of ["Verify Cloudflare deployment credentials and account access", "Sync persistent Autopilot runtime bearer secret", "Sync Worker GitHub API credential", "Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime", "Verify deployed Worker reports the exact-head revision and fail-closed authority"]) {
+  for (const step of ["Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime", "Verify deployed Worker reports the exact-head revision and fail-closed authority"]) {
     const index = workflow.indexOf(step);
-    const conditionStart = workflow.lastIndexOf("if:", index);
-    assert.match(workflow.slice(conditionStart, index), /steps\.deploy_scope\.outputs\.worker_runtime_changed == 'true'/, `${step} must be gated by a relevant exact-main delta`);
+    const conditionStart = workflow.indexOf("if:", index);
+    assert.match(workflow.slice(conditionStart, workflow.indexOf("\n", conditionStart)), /steps\.deploy_scope\.outputs\.worker_runtime_changed == 'true'/, `${step} must be gated by a relevant exact-main delta`);
+  }
+  // A rotated credential must reach the live Worker even when the rollout is skipped.
+  for (const step of ["Verify Cloudflare deployment credentials and account access", "Sync persistent Autopilot runtime bearer secret", "Sync Worker GitHub API credential"]) {
+    const index = workflow.indexOf(step);
+    const conditionStart = workflow.indexOf("if:", index);
+    const condition = workflow.slice(conditionStart, workflow.indexOf("\n", conditionStart));
+    assert.match(condition, /steps\.revision\.outputs\.current == 'true'/);
+    assert.doesNotMatch(condition, /worker_runtime_changed/, `${step} must run on every exact-main deploy run`);
   }
 
   assert.doesNotMatch(workflow, /\.github\/workflows\/autopilot-cloudflare-deploy\.yml\"/);
