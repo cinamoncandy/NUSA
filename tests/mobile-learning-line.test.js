@@ -6,7 +6,7 @@ const ts = require("typescript");
 const source = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/learningLineModel.ts"), "utf8");
 const shim = { exports: {} };
 new Function("module", "exports", ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(shim, shim.exports);
-const { buildLearningLine } = shim.exports;
+const { buildLearningLine, promotionProgress } = shim.exports;
 const r = (o = {}) => ({ health: "HEALTHY", candidateCount: 3, experimentCount: 12, evidenceAgeMs: 5 * 3_600_000, metrics: { championBetterCount: 4, challengerBetterCount: 6, equivalentCount: 1, inconclusiveCount: 1 }, ...o });
 
 test("missing research projection is stated, not invented", () => {
@@ -18,10 +18,16 @@ test("no experiments yet reads as not started", () => {
 test("healthy research shows counts and evidence age", () => {
   const l = buildLearningLine(r());
   assert.equal(l.tone, "ok");
-  assert.match(l.value, /실험 12 · 후보 3 · 도전자 우세 6\/현재 4 · 5시간 전 검증/);
+  assert.match(l.value, /실험 12 · 후보 3 · 도전자 우세 6\/현재 4 · 5시간 전 검증 · 승격 기준 거래 0\/50 · 관측 0\/30일/);
 });
 test("stale or degraded research is flagged, never presented as healthy", () => {
   assert.equal(buildLearningLine(r({ health: "STALE", evidenceAgeMs: 100 * 3_600_000 })).tone, "warn");
   assert.match(buildLearningLine(r({ health: "STALE", evidenceAgeMs: 100 * 3_600_000 })).value, /검증 오래됨 \(4일 전 검증\)/);
   assert.match(buildLearningLine(r({ health: "FAIL_CLOSED" })).value, /연구 일시 제한/);
+});
+
+test("promotion progress shows trades and days toward the 50/30 gate and tolerates missing metrics", () => {
+  assert.equal(promotionProgress({ tradeCount: 8, observationDays: 3 }), "승격 기준 거래 8/50 · 관측 3/30일");
+  assert.equal(promotionProgress({}), "승격 기준 거래 0/50 · 관측 0/30일");
+  assert.equal(promotionProgress({ tradeCount: -4, observationDays: NaN }), "승격 기준 거래 0/50 · 관측 0/30일");
 });

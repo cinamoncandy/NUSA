@@ -9,6 +9,8 @@ authority_impact: none
 objective: "Owner asked whether the system is learning. The research loop exists and its projection is already in the snapshot but is only visible deep in the AI tab. HOME 자세히 보기 now states experiments, candidates, challenger-vs-champion tally and evidence age, flagging STALE/DEGRADED/FAIL_CLOSED honestly."
 scope:
   - "learningLineModel.ts: pure summary of snapshot.research (no new fetch)."
+  - "learningLineModel.ts also shows promotion progress (trades x/50, observation days x/30, mirrored from researchCandidateGate defaults; display only)."
+  - "docs/PROPOSAL_CONTINUOUS_RESEARCH_EXPERIMENTS.md: owner-approval proposal only; no implementation."
   - "homeView.tsx: LEARNING row in the 이 판단의 근거 block (testID home-learning-line)."
 exclusions:
   - "Display only. No learning, promotion, strategy, risk, execution, server or LIVE change; AI stays ZERO_AUTHORITY. Whether the server loop actually produces candidates still needs a server-side check (not verifiable from the sandbox)."

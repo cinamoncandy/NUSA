@@ -4,7 +4,7 @@ export interface LearningLineInput {
   readonly candidateCount: number;
   readonly experimentCount: number;
   readonly evidenceAgeMs?: number;
-  readonly metrics: { readonly championBetterCount: number; readonly challengerBetterCount: number; readonly equivalentCount: number; readonly inconclusiveCount: number };
+  readonly metrics: { readonly tradeCount?: number; readonly observationDays?: number; readonly championBetterCount: number; readonly challengerBetterCount: number; readonly equivalentCount: number; readonly inconclusiveCount: number };
 }
 
 export interface LearningLine {
@@ -13,6 +13,15 @@ export interface LearningLine {
 }
 
 const HOUR_MS = 3_600_000;
+/** Mirrors the Research candidate gate (researchCandidateGate.ts defaults); display only. */
+export const PROMOTION_MIN_TRADES = 50;
+export const PROMOTION_MIN_DAYS = 30;
+
+export function promotionProgress(metrics: { readonly tradeCount?: number; readonly observationDays?: number }): string {
+  const trades = Number.isFinite(metrics.tradeCount) ? Math.max(0, Math.floor(metrics.tradeCount as number)) : 0;
+  const days = Number.isFinite(metrics.observationDays) ? Math.max(0, Math.floor(metrics.observationDays as number)) : 0;
+  return `승격 기준 거래 ${trades}/${PROMOTION_MIN_TRADES} · 관측 ${days}/${PROMOTION_MIN_DAYS}일`;
+}
 
 function age(ms: number | undefined): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return "증거 시각 미상";
@@ -27,7 +36,7 @@ export function buildLearningLine(research: LearningLineInput | null): LearningL
   const healthy = research.health === "HEALTHY";
   const state = healthy ? age(research.evidenceAgeMs) : research.health === "STALE" ? `검증 오래됨 (${age(research.evidenceAgeMs)})` : "연구 일시 제한";
   return Object.freeze({
-    value: `실험 ${research.experimentCount} · 후보 ${research.candidateCount} · 도전자 우세 ${m.challengerBetterCount}/현재 ${m.championBetterCount} · ${state}`,
+    value: `실험 ${research.experimentCount} · 후보 ${research.candidateCount} · 도전자 우세 ${m.challengerBetterCount}/현재 ${m.championBetterCount} · ${state} · ${promotionProgress(m)}`,
     tone: healthy ? "ok" as const : "warn" as const,
   });
 }
