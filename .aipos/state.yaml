@@ -2069,6 +2069,12 @@ current_ops_preflight_runtime_unchanged:
   branch: claude/nusa-repository-j93sd8-preflight-delta
   authority_impact: deployment-control
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-trusted-preflight-closes-P0-1461
+current_mobile_event_banner:
+  work_order: WO-UI-20261002-EVENT-BANNER
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-event-banner
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-decision-on-FCM-push
 current_mobile_safety_truth:
   work_order: WO-UI-20261002-SAFETY-TRUTH
   status: READY_FOR_REVIEW

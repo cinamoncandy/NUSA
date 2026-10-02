@@ -24,6 +24,7 @@ export { StrategiesView } from "./strategiesView";
 export { MoreDetailView, type TruthfulMoreDetail } from "./moreDetailView";
 export { PrimaryNavigation } from "./primaryNavigation";
 export { SafetyLine } from "./safetyLine";
+export { EventBanner } from "./eventBanner";
 export { PerformanceView } from "./performanceView";
 // Shared primitives and theming the shell renders directly.
 export { NusaButton, NusaCard, StatusChip, WaveMark } from "./components";
