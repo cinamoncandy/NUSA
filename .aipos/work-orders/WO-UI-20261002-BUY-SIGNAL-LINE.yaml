@@ -8,10 +8,10 @@ implementation_branch: claude/nusa-repository-j93sd8-buy-signal-line
 authority_impact: none
 objective: "With about 392k decisions and zero PAPER orders the owner could not tell whether the strategy never said BUY or BUY was blocked. Show the daily count of BUY decisions and of BUY decisions that placed no order."
 scope:
-  - "apps/cloud/src/runtime.ts: two display-only heartbeat counters, buySignalCount and buyBlockedCount, incremented after the PAPER boundary returns a result (BUY decision; BUY with zero orders). No change to decisions, risk, orders or accounting."
-  - "packages/contracts/src/personalPaperOperations.ts: optional counters on the heartbeat and non-negative-integer validation when present (older runtimes omit them)."
-  - "apps/mobile/src/buySignalModel.ts, homeView.tsx, useDailyCounts.ts: one HOME detail row; counts are since the last 09:00 KST with their own persisted baseline (storageKey parameter); a server that does not report them reads as not reported, never zero."
-  - "tests/mobile-buy-signal-line.test.js (7)."
+  - "apps/cloud/src/runtime.ts: display-only BUY counters for the current 09:00 KST window (00:00 UTC), in memory: buySignalCount (canonical decision was BUY), buyBlockedCount (the PAPER boundary result was BLOCKED or REJECTED; WAIT, DUPLICATE and FAILED are not refusals and the terminal order array is not used) and buyCountsSince (window start or runtime start if later). Reported only when the canonical PAPER boundary is active; absent otherwise. No change to decisions, risk, orders or accounting."
+  - "packages/contracts/src/personalPaperOperations.ts: optional fields and non-negative-integer validation when present (older runtimes omit them)."
+  - "apps/mobile/src/buySignalModel.ts, homeView.tsx: one HOME detail row that shows the server's window counts directly, with the KST start time, and no client-side baseline; a server that does not report them reads as not reported, never zero. The row never shows a global order total."
+  - "tests/mobile-buy-signal-line.test.js (9)."
 exclusions:
   - "No change to strategy thresholds, risk, minimum order, capital, LIVE, credentials or AI authority. The counters are not published on the unauthenticated /health. No other screen changes; this is one added row in the existing HOME detail list, not a redesign."
 safety:
@@ -25,4 +25,4 @@ verification_commands:
   - npx tsc -p apps/mobile/tsconfig.json --noEmit
   - node scripts/lint-mobile.js
   - node --test tests/mobile-buy-signal-line.test.js
-residual: "Counts are per runtime process (reset on restart) and per tick of the canonical decision, not per market. Deploy needs owner approval; until a build with the counters runs on the server the row reads not reported."
+residual: "Counts live in memory, so a runtime restart restarts them (the row states the start time), and they are per tick of the canonical decision, not per market. Deploy needs owner approval; until a build with the counters runs on the server the row reads not reported."

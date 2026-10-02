@@ -21,7 +21,7 @@ import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
 import { buildHomeFieldInput } from "./homeFieldInput";
 import { buildAiTrustLine, buildLearningLine } from "./learningLineModel";
-import { BUY_SIGNAL_KEY, useDailyCounts } from "./useDailyCounts";
+import { useDailyCounts } from "./useDailyCounts";
 import { buildBuySignalLine } from "./buySignalModel";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
@@ -166,8 +166,8 @@ export function HomeView({
   // The rings show history; a current fault (halt, degraded runtime, lost connection) stays on top of them.
   const dailyCounts = useDailyCounts(snapshot?.operations.heartbeat?.startedAt ?? null, fieldInput.decisionCount, fieldInput.paperOrderCount);
   const field = buildIntelligenceField({ ...fieldInput, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount });
-  const buyDaily = useDailyCounts(snapshot?.operations.heartbeat?.startedAt ?? null, snapshot?.operations.heartbeat?.buySignalCount ?? null, snapshot?.operations.heartbeat?.buyBlockedCount ?? null, BUY_SIGNAL_KEY);
-  const buySignalLine = buildBuySignalLine({ buySignals: fieldInput.disconnected || readOnlyError != null ? null : buyDaily.decisionCount, buyBlocked: fieldInput.disconnected || readOnlyError != null ? null : buyDaily.paperOrderCount, paperOrders: dailyCounts.paperOrderCount });
+  const buyHeartbeat = fieldInput.disconnected || readOnlyError != null ? null : snapshot?.operations.heartbeat ?? null;
+  const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
     ? { title: field.headline, detail: field.detail, tone: field.phase === "HALTED" ? "halt" as const : "warning" as const }
     : null;
