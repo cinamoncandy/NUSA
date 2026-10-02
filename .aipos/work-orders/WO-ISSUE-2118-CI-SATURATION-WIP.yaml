@@ -1,6 +1,6 @@
 id: WO-ISSUE-2118-CI-SATURATION-WIP
 title: "Issue #2118 feed measured CI saturation into worker-pool WIP advice"
-status: DELEGATED_ATTRIBUTION_INCREMENT_PENDING_WORKFLOW_VALIDATION
+status: REVIEW_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P0
 owner: autopilot
 repository: cinamoncandy/NUSA
@@ -43,7 +43,10 @@ validation:
   local_heavy_commands: NOT_RUN_PER_SHARED_HOST_GUARD
 next: "Push the latest-main reconverged exact head, collect fresh canonical CI, then independent Audit and canonical Release evidence. Baseline/after p50/p95 optimization remains a later issue increment."
 delegated_increment:
-  base_commit: 686b6a3b27f3e014497d54544431af42cd4c294a
+  base_commit: 064ce25dd91da92d084d4ca0d5ee570b94ef97b1
   scope: "Preserve fail-closed HOLD for malformed explicit CI saturation while attributing the failure deterministically as invalid-ci-saturation-evidence."
-  validation: "Not run on the shared 1 GB PAPER host per the delegated-validation contract; the publish job must run the work-order gates on separate hardware."
-  next: "Workflow validation and publication of the uncommitted bounded increment; retain all exact-head CI, independent Audit, and Release gates."
+  reviewed_head: 7609e7ee56d8fe610f51262b5d8b378c1c2c4a41
+  first_exact_head_ci: "36977896793 SUCCESS; canonical PAPER and restricted-LIVE safety companions PASS."
+  independent_audit: "36978402320 found that production projection loses malformed saturation provenance and the AIPOS handoff misstates the increment as uncommitted. The repair now preserves an explicit invalid-evidence marker through to the advisor, where it still produces non-mutating HOLD with deterministic invalid-ci-saturation-evidence attribution."
+  local_validation: "Node 24.18.0 / pnpm 11.7.0: build PASS; worker-throughput regression 14/14 PASS including production evaluator reason; typecheck PASS; validate:full PASS; security gate PASS (0 secrets, 0 high/critical); AIPOS YAML 268 files PASS; lint:scripts PASS (0 errors, 14 existing warnings); git diff --check PASS."
+  next: "Publish this bounded repair to the existing PR branch and require fresh exact-head CI, independent review-thread resolution/acceptance, Audit, and canonical Release. No merge before those exact-head gates pass."

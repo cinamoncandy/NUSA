@@ -14,6 +14,8 @@ export interface ConcurrencyEvidence {
    * Optional while legacy producers migrate; ciUtilization remains the fail-closed fallback.
    */
   readonly ciSaturation?: number;
+  /** True when an explicitly supplied saturation was malformed before its numeric value was projected. */
+  readonly invalidCiSaturationEvidence?: boolean;
 }
 
 export type ConcurrencyAction = "HOLD" | "INCREASE_BY_ONE" | "DECREASE_BY_ONE";
@@ -35,7 +37,8 @@ const evidenceSource = (value: unknown): value is string =>
 
 export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRecommendation {
   const explicitCiSaturationInvalid =
-    evidence.ciSaturation !== undefined && !boundedRate(evidence.ciSaturation);
+    evidence.invalidCiSaturationEvidence === true ||
+    (evidence.ciSaturation !== undefined && !boundedRate(evidence.ciSaturation));
   const valid =
     evidenceSource(evidence.source) &&
     evidence.confidence === "VERIFIED" && evidence.currentWip > 0 &&
@@ -46,6 +49,7 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     boundedRate(evidence.conflictRate) &&
     boundedRate(evidence.reworkRate) &&
     boundedRate(evidence.ciUtilization) &&
+    evidence.invalidCiSaturationEvidence !== true &&
     (evidence.ciSaturation === undefined || boundedRate(evidence.ciSaturation));
 
   if (!valid) {

@@ -185,7 +185,9 @@ test("measured saturation reaches the production evaluation boundary and malform
   const malformed = summariseWorkerThroughput(window({ ciSaturation: Number.NaN }));
   assert.equal(malformed.confidence, "UNKNOWN");
   assert.ok(malformed.unmeasured.includes("ci-saturation"));
-  assert.equal(evaluateWorkerPoolConcurrency(window({ currentWip: 2, ciSaturation: Number.NaN })).action, "HOLD");
+  const malformedRecommendation = evaluateWorkerPoolConcurrency(window({ currentWip: 2, ciSaturation: Number.NaN }));
+  assert.equal(malformedRecommendation.action, "HOLD");
+  assert.equal(malformedRecommendation.reason, "invalid-ci-saturation-evidence");
 });
 
 test("this repository's actually measured churn does not justify raising concurrency", () => {
