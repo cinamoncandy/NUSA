@@ -143,7 +143,12 @@ test('secret-bearing preflight validates runtime GitHub credential read-only bef
 
 test('a runtime-unchanged exact main is accepted only with proof against the live Worker revision', () => {
   // Deploy evidence: scope step succeeded and both mutation steps were skipped, nothing else.
-  assert.match(workflow, /scopeStep\?\.conclusion === 'success'\s*&& deployStep\?\.conclusion === 'skipped'\s*&& verifyStep\?\.conclusion === 'skipped'/);
+  assert.match(workflow, /scopeStep\?\.conclusion === 'success'\s*&& credentialsSynced\s*&& deployStep\?\.conclusion === 'skipped'\s*&& verifyStep\?\.conclusion === 'skipped'/);
+  for (const name of ['Verify Cloudflare deployment credentials and account access', 'Sync persistent Autopilot runtime bearer secret', 'Sync Worker GitHub API credential']) {
+    assert.ok(workflow.includes(`'${name}'`), `${name} must be required on the runtime-unchanged path`);
+  }
+  // The canonical blocker describes both accepted modes.
+  assert.match(workflow, /with the rollout skipped for no Worker runtime-input delta, after verifying and re-synchronizing the runtime credentials/);
   assert.match(workflow, /echo "mode=\$DEPLOY_MODE" >> "\$GITHUB_OUTPUT"/);
   // Exact equality remains required after a real deploy.
   assert.match(workflow, /if: steps\.deploy\.outputs\.status == 'ready' && steps\.deploy\.outputs\.mode == 'deployed'/);
@@ -159,5 +164,6 @@ test('a runtime-unchanged exact main is accepted only with proof against the liv
   assert.match(step, /health\.liveAuthority !== 'NONE'/);
   assert.match(step, /health\.productionMutationAllowed !== false/);
   assert.match(step, /health\.aiAuthority !== 'ZERO_AUTHORITY'/);
+  assert.match(step, /health\.zeroCreditMode !== 'ENFORCED'/);
   assert.match(workflow, /fetch-depth: 0/);
 });

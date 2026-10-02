@@ -21,8 +21,12 @@ scope:
     - "mode=deployed keeps the existing exact deploymentRevision == current main check."
     - "mode=runtime_unchanged requires the live deploymentRevision to be a 40-hex ancestor of exact main whose diff to main has no Worker runtime input (same classifier the deploy workflow uses), plus the unchanged fail-closed authority invariants."
     - "Trusted main checkout now fetches full history for the ancestry/diff proof."
+    - "Review (Codex P1): runtime_unchanged also requires zeroCreditMode ENFORCED, and the credential verify plus both runtime secret-sync steps to have succeeded on that run."
+    - "Deploy workflow: credential verification and runtime secret sync run on every exact-main deploy run so a rotated credential reaches the live Worker; only the rollout and its verification stay gated by the runtime delta."
+    - "Deploy scope classifier includes apps/cloud/** because the Worker bundles apps/cloud/src code (e.g. apps/cloud/src/ai/*)."
+    - "Canonical P0 blocker body describes both accepted modes."
   exclude:
-    - "No change to credential, account, Wrangler, free-tier or GitHub-credential probes; no change to the deploy workflow, Audit, Release, or the P0 issue lifecycle."
+    - "No change to credential, account, Wrangler, free-tier or GitHub-credential probes, Audit, Release, or the P0 issue lifecycle."
     - "No Worker, trading, risk, accounting or credential behavior change."
 acceptance:
   - "A skipped-rollout exact main with no runtime delta since the live revision passes preflight and lets the workflow close P0 #1461."
