@@ -1,6 +1,6 @@
 id: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
 title: "Wire native Workers AI Jev into Autopilot SHADOW runtime"
-status: WAITING_FOR_REAL_SHADOW_RUNTIME_RECEIPT
+status: BLOCKED
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main

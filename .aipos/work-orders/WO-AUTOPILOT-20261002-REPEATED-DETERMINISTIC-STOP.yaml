@@ -46,7 +46,7 @@ verification_commands:
   - "git diff --check"
 validation:
   status: LOCAL_VALIDATION_PASS
-  evidence: "Node 24.18.0 / pnpm 11.7.0: focused dispatch-retry tests 35/35; preflight, build, typecheck, validate:full, security gate (0 secrets, 0 high/critical), AIPOS YAML (271 files), drift, provenance, and diff check PASS. The test harness initially rejected the dirty checkout by design; rerun from clean commit passed. No exact token/credit savings claim because provider usage was not recorded."
+  evidence: "Node 24.18.0 / pnpm 11.7.0: focused dispatch-retry tests 35/35; preflight, build, typecheck, validate:full, security gate (0 secrets, 0 high/critical), AIPOS YAML (271 files), drift, provenance, and diff check PASS. Exact-head CI 36984207632 exposed one AIPOS index contract failure: the Jev order used a non-canonical new status. Corrected to canonical BLOCKED while retaining the detailed wait in runtime fields; fresh local AIPOS gates pass and a new exact-head CI is required. The test harness initially rejected the dirty checkout by design; rerun from clean commit passed. No exact token/credit savings claim because provider usage was not recorded."
 safety:
   paper_only: true
   liveAuthority: NONE
