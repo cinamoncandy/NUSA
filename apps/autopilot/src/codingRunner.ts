@@ -1,4 +1,5 @@
 import { logAiCall } from "./aiCallTelemetry";
+import { selectJevCodingModel } from "./jevCodingModelTier";
 import {
   decideJevBoundedCodingAdmission,
   isJevBoundedCodingAdmissionCandidate,
@@ -42,6 +43,11 @@ export interface CodingRunnerEnv {
   NUSA_AUTOPILOT_ZERO_CREDIT_MODE?: string;
   NUSA_JEV_SHADOW_ENABLED?: string;
   NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
+  NUSA_JEV_MODEL_TIERING_ENABLED?: string;
+  NUSA_AI_CODING_MODEL_LUNA?: string;
+  NUSA_AI_CODING_MODEL_TERRA?: string;
+  NUSA_AI_CODING_MODEL_SOL?: string;
+  NUSA_AI_CODING_MODEL_ASTRA?: string;
   NUSA_JEV_API_KEY?: string;
   NUSA_JEV_ENDPOINT?: string;
   NUSA_JEV_TIMEOUT_MS?: string;
@@ -958,7 +964,14 @@ export async function executeCodingRunner(
   }
 
   if (!env.AI) return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured" };
-  const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
+  const tierSelection = selectJevCodingModel(jevAdmission, env);
+  const tierConfiguredModel = tierSelection?.model?.trim();
+  const tierModel = tierConfiguredModel
+    && validWorkersAiModel(tierConfiguredModel)
+    && !UNUSABLE_CODING_WORKERS_AI_MODELS.has(tierConfiguredModel)
+    ? tierConfiguredModel
+    : null;
+  const configuredModel = tierModel ?? env.NUSA_AI_CODING_MODEL?.trim();
   // Dashboard vars can outlive provider deprecations or retain a model that cannot satisfy the current JSON-schema contract.
   // A Jev tier can only replace the canonical model when the selected tier model is explicitly configured
   // and already satisfies the same Workers AI model + structured-output allowlist.
