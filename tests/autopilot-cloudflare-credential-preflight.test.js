@@ -58,8 +58,8 @@ test('preflight waits boundedly for executed exact-main deploy evidence and live
   assert.match(workflow, /Deploy exact CI-verified Worker revision/);
   assert.match(workflow, /Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime/);
   assert.match(workflow, /Verify deployed Worker reports the exact-head revision and fail-closed authority/);
-  assert.match(workflow, /deployStep\?\.conclusion !== 'success'/);
-  assert.match(workflow, /verifyStep\?\.conclusion !== 'success'/);
+  assert.match(workflow, /deployStep\?\.conclusion === 'success' && verifyStep\?\.conclusion === 'success'/);
+  assert.match(workflow, /if \(deployJob\?\.conclusion !== 'success'\) process\.exit\(1\);/);
   assert.match(workflow, /for attempt in \$\(seq 1 18\); do/);
   assert.match(workflow, /waiting for executed exact-main deploy evidence/);
   assert.match(workflow, /waiting for Worker deployment revision/);
@@ -139,4 +139,25 @@ test('secret-bearing preflight validates runtime GitHub credential read-only bef
   assert.match(workflow, /Runtime GitHub credential rejected by GitHub API/);
   assert.match(workflow, /BLOCKED_HUMAN/);
   assert.doesNotMatch(workflow.slice(workflow.indexOf('Validate runtime GitHub credential before Cloudflare sync'), workflow.indexOf('Check Cloudflare API token self-verification')), /echo.*NUSA_GITHUB_TOKEN/);
+});
+
+test('a runtime-unchanged exact main is accepted only with proof against the live Worker revision', () => {
+  // Deploy evidence: scope step succeeded and both mutation steps were skipped, nothing else.
+  assert.match(workflow, /scopeStep\?\.conclusion === 'success'\s*&& deployStep\?\.conclusion === 'skipped'\s*&& verifyStep\?\.conclusion === 'skipped'/);
+  assert.match(workflow, /echo "mode=\$DEPLOY_MODE" >> "\$GITHUB_OUTPUT"/);
+  // Exact equality remains required after a real deploy.
+  assert.match(workflow, /if: steps\.deploy\.outputs\.status == 'ready' && steps\.deploy\.outputs\.mode == 'deployed'/);
+  // Otherwise: live revision must be a well-formed ancestor with no Worker runtime-input delta, and fail-closed.
+  const start = workflow.indexOf('Require live Worker revision is runtime-equivalent to exact current main');
+  assert.ok(start > 0);
+  const step = workflow.slice(start, workflow.indexOf('Record fail-closed preflight evidence', start));
+  assert.match(step, /if: steps\.deploy\.outputs\.status == 'ready' && steps\.deploy\.outputs\.mode == 'runtime_unchanged'/);
+  assert.match(step, /\^\[0-9a-f\]\{40\}\$/);
+  assert.match(step, /git merge-base --is-ancestor "\$HEALTH_REVISION" "\$CURRENT_MAIN"/);
+  assert.match(step, /git diff --no-renames --name-only -z "\$HEALTH_REVISION" "\$CURRENT_MAIN" \| node scripts\/autopilot-worker-deploy-scope\.js/);
+  assert.match(step, /\[ "\$scope" != 'worker_runtime_changed=false' \]/);
+  assert.match(step, /health\.liveAuthority !== 'NONE'/);
+  assert.match(step, /health\.productionMutationAllowed !== false/);
+  assert.match(step, /health\.aiAuthority !== 'ZERO_AUTHORITY'/);
+  assert.match(workflow, /fetch-depth: 0/);
 });

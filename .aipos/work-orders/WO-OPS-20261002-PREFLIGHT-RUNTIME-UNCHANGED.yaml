@@ -1,0 +1,38 @@
+id: WO-OPS-20261002-PREFLIGHT-RUNTIME-UNCHANGED
+title: "Credential preflight accepts a runtime-unchanged exact main proven against the live Worker revision"
+status: READY_FOR_REVIEW
+priority: P0
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 686b6a3b27f3e014497d54544431af42cd4c294a
+implementation_branch: claude/nusa-repository-j93sd8-preflight-delta
+authority_impact: deployment-control
+risk: MEDIUM
+objective: "WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY (#2454) made the canonical deploy skip Worker rollout when exact main has no runtime-input delta. The trusted credential preflight still required an executed exact-main deploy and live deploymentRevision == exact main, so the docs-only main 686b6a3 reopened P0 #1461 and serialized every Release (Audit PASS, Release NO_ACTION blocked_by=P0#1461 for #2456/#2457/#2458)."
+observed_evidence:
+  preflight_run: 36959598851
+  failure: "No successful exact-main Cloudflare deploy and no bounded active CI/deploy convergence for 686b6a3b27f3e014497d54544431af42cd4c294a"
+  live_worker_revision: f4be73c8008afcea9c65ac247115e43dc4f00bc5
+  local_proof: "f4be73c is an ancestor of 686b6a3; git diff classified by scripts/autopilot-worker-deploy-scope.js -> worker_runtime_changed=false"
+scope:
+  include:
+    - "Deploy evidence: accept a successful exact-main canonical deploy run either with executed deploy+verify steps (mode=deployed) or with a successful runtime-scope step and both mutation steps skipped (mode=runtime_unchanged). Anything else still fails."
+    - "mode=deployed keeps the existing exact deploymentRevision == current main check."
+    - "mode=runtime_unchanged requires the live deploymentRevision to be a 40-hex ancestor of exact main whose diff to main has no Worker runtime input (same classifier the deploy workflow uses), plus the unchanged fail-closed authority invariants."
+    - "Trusted main checkout now fetches full history for the ancestry/diff proof."
+  exclude:
+    - "No change to credential, account, Wrangler, free-tier or GitHub-credential probes; no change to the deploy workflow, Audit, Release, or the P0 issue lifecycle."
+    - "No Worker, trading, risk, accounting or credential behavior change."
+acceptance:
+  - "A skipped-rollout exact main with no runtime delta since the live revision passes preflight and lets the workflow close P0 #1461."
+  - "A runtime delta since the live revision, a non-ancestor or malformed live revision, or unsafe authority values fail closed and keep P0 open."
+verification_commands:
+  - "node --test tests/autopilot-cloudflare-credential-preflight.test.js tests/autopilot-cloudflare-deploy.test.js"
+  - "pnpm run validate"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
