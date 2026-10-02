@@ -34,6 +34,8 @@ const evidenceSource = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0 && value.trim().length <= 256;
 
 export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRecommendation {
+  const explicitCiSaturationInvalid =
+    evidence.ciSaturation !== undefined && !boundedRate(evidence.ciSaturation);
   const valid =
     evidenceSource(evidence.source) &&
     evidence.confidence === "VERIFIED" && evidence.currentWip > 0 &&
@@ -50,7 +52,9 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     return Object.freeze({
       action: "HOLD",
       recommendedWip: positiveInteger(evidence.currentWip) ? evidence.currentWip : 1,
-      reason: "insufficient-or-invalid-evidence",
+      reason: explicitCiSaturationInvalid
+        ? "invalid-ci-saturation-evidence"
+        : "insufficient-or-invalid-evidence",
       mutationAllowed: false,
     });
   }

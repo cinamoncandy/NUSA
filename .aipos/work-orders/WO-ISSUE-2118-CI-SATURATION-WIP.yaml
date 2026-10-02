@@ -1,6 +1,6 @@
 id: WO-ISSUE-2118-CI-SATURATION-WIP
 title: "Issue #2118 feed measured CI saturation into worker-pool WIP advice"
-status: RECONVERGED_TARGETED_VALIDATED_PENDING_EXACT_HEAD_CI
+status: DELEGATED_ATTRIBUTION_INCREMENT_PENDING_WORKFLOW_VALIDATION
 priority: P0
 owner: autopilot
 repository: cinamoncandy/NUSA
@@ -42,3 +42,8 @@ validation:
   commands: "Latest-main reconvergence completed. pnpm run build and node --test --test-reporter=spec dist/apps/autopilot/src/concurrencyAdvisor.test.js PASS (9/9). This increment treats exactly 85% measured CI saturation as high pressure. Fresh canonical exact-head CI remains mandatory; no shared PAPER host validation was used."
   local_heavy_commands: NOT_RUN_PER_SHARED_HOST_GUARD
 next: "Push the latest-main reconverged exact head, collect fresh canonical CI, then independent Audit and canonical Release evidence. Baseline/after p50/p95 optimization remains a later issue increment."
+delegated_increment:
+  base_commit: 686b6a3b27f3e014497d54544431af42cd4c294a
+  scope: "Preserve fail-closed HOLD for malformed explicit CI saturation while attributing the failure deterministically as invalid-ci-saturation-evidence."
+  validation: "Not run on the shared 1 GB PAPER host per the delegated-validation contract; the publish job must run the work-order gates on separate hardware."
+  next: "Workflow validation and publication of the uncommitted bounded increment; retain all exact-head CI, independent Audit, and Release gates."

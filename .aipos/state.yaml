@@ -72,7 +72,7 @@ current_issue_2017_component_health:
 current_issue_2118_ci_saturation_wip:
   work_order: WO-ISSUE-2118-CI-SATURATION-WIP
   issue: 2118
-  status: MERGED_INCREMENT_FOLLOW_UP_ACTIVE
+  status: DELEGATED_ATTRIBUTION_INCREMENT_PENDING_WORKFLOW_VALIDATION
   base_sha: 52c11bcc4644d995d357d9ee2019eb9ca71fa9f1
   pull_request: 2430
   implementation_head: 56bf5900a484355f8cb0f9ae41d56e845cf5cc63
@@ -80,7 +80,8 @@ current_issue_2118_ci_saturation_wip:
   exact_head_ci: "36942370607 PASS"
   scope: "Explicit measured CI saturation constrains advisory worker-pool WIP with deterministic CI-pressure attribution, including HOLD at minimum WIP and an inclusive 85% high-pressure boundary; legacy ciUtilization remains the compatibility fallback."
   validation: "PR #2430 merged through canonical Release at 070078d31342fff277909c4929f9445e2728488e. Exact-head CI 36942370607, independent Audit, and canonical Release passed. Post-merge CI 36944149502 succeeded."
-  remaining: "Successor WO-ISSUE-2118-MAIN-CI-MATERIALIZATION addresses the observed same-SHA push-run indexing race that launched redundant CI run 36944151942."
+  remaining: "Workflow validation and publication of the uncommitted malformed-saturation attribution increment; successor WO-ISSUE-2118-MAIN-CI-MATERIALIZATION separately addresses the observed same-SHA push-run indexing race."
+  delegated_increment: "At base 686b6a3b27f3e014497d54544431af42cd4c294a, malformed explicit CI saturation still fails closed to HOLD and now reports invalid-ci-saturation-evidence for deterministic failure attribution. Heavy validation was intentionally left to the workflow's separate hardware."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_issue_2118_main_ci_materialization:
   work_order: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
