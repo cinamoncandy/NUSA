@@ -60,14 +60,16 @@ test("the runtime counts BUY decisions in a 09:00 KST window and only refusals a
   assert.ok(runtime.lastIndexOf("if (result != null) {", at) > runtime.lastIndexOf("heartbeat.decisionCount +=", at), "counted only after the PAPER boundary produced a result");
 });
 
-test("the runtime reports the counters only when the canonical PAPER boundary is active", () => {
+test("the runtime reports the BUY counters only when the canonical PAPER boundary is active", () => {
   const start = runtime.indexOf("const readHeartbeat = ");
-  const end = runtime.indexOf("};", start);
+  const end = runtime.indexOf("\n  };\n", start);
   const body = runtime.slice(start, end);
-  assert.match(body, /if \(productionPaperBoundary == null\) return Object\.freeze\(\{ \.\.\.heartbeat \}\)/);
-  assert.match(body, /buySignalCount: buyWindow\.signals/);
-  assert.match(body, /buyCountsSince: Math\.max\(runtimeStartedAt, buyWindow\.key \* BUY_WINDOW_MS\)/);
+  assert.match(body, /if \(productionPaperBoundary == null && !config\.upbitPublicDataEnabled\) return Object\.freeze\(\{ \.\.\.heartbeat \}\)/, "nothing is added without a boundary or a feed");
+  assert.match(body, /productionPaperBoundary == null \? \{\} : \{ buySignalCount: buyWindow\.signals/, "the BUY counters need the boundary");
+  assert.match(body, /buyCountsSince: countsSince/);
+  assert.match(body, /const countsSince = Math\.max\(runtimeStartedAt, buyWindow\.key \* BUY_WINDOW_MS\)/);
 });
+
 
 test("the operations contract accepts the optional fields and drops bad values", () => {
   const { buildPersonalPaperOperationsSnapshot, validatePersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");

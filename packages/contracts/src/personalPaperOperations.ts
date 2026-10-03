@@ -24,6 +24,11 @@ export interface PersonalPaperRuntimeHeartbeat {
   /** Display only: decisions and PAPER orders in the same 09:00 KST window. Absent on older runtimes and without a canonical PAPER boundary. */
   readonly windowDecisionCount?: number;
   readonly windowOrderCount?: number;
+  /** Display only, same window: public market feed drops, ticker gaps longer than the stale window, and the longest gap in ms. */
+  readonly feedDisconnectCount?: number;
+  readonly feedStaleGapCount?: number;
+  readonly feedMaxGapMs?: number;
+  readonly feedCountsSince?: number;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -303,7 +308,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
   return deepFreeze(cloneJsonProjection(snapshot));
 }
 
-const DISPLAY_ONLY_COUNTERS = ["buySignalCount", "buyBlockedCount", "buyCountsSince", "windowDecisionCount", "windowOrderCount"] as const;
+const DISPLAY_ONLY_COUNTERS = ["buySignalCount", "buyBlockedCount", "buyCountsSince", "windowDecisionCount", "windowOrderCount", "feedDisconnectCount", "feedStaleGapCount", "feedMaxGapMs", "feedCountsSince"] as const;
 /**
  * The display-only counters are optional and untrusted: a malformed value is omitted (so the client falls back)
  * instead of rejecting the whole snapshot and hiding valid health, portfolio and operational state.
