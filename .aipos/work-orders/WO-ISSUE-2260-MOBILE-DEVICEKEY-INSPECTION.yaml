@@ -1,0 +1,40 @@
+id: WO-ISSUE-2260-MOBILE-DEVICEKEY-INSPECTION
+title: "Preserve silent DeviceKey trust on transient Android Keystore inspection failure"
+status: DELEGATED_VALIDATION_COMPLETE_PENDING_EXACT_HEAD_ACCEPTANCE
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+parent_work_order: WO-20260924-MOBILE-PAPER-SESSION-PROJECTION
+issue: 2260
+authority_impact: mobile-paper-session-trust-classification
+objective: "Distinguish definitive silent DeviceKey absence from transient AndroidKeyStore inspection failure without creating, replacing, or deleting registration material."
+first_broken_transition: "AndroidKeyStore inspection exception -> false SILENT_DEVICE_KEY_NOT_REGISTERED projection"
+scope:
+  include:
+    - "Native getSilentDeviceStatus returns a stable transient status with fixed reason and opaque correlation id when inspection throws."
+    - "MobileApprovedSession sends only that transient classification through the existing single-flight bounded-retry path."
+    - "Definitive missing or invalid hardware-backed key remains fail-closed without bearer downgrade or retry."
+  exclude:
+    - "New auth/session/reconnect coordinator, DeviceKey mutation, LIVE trading, broker credentials, workflow or deployment changes."
+acceptance:
+  - "Transient Keystore inspection failure preserves stored credential metadata and performs no create, replace, or delete operation."
+  - "Transient status arms silent proof retry with user input=0 and carries non-secret reason/correlation evidence."
+  - "Definitive key absence or invalid hardware backing does not arm transient retry and remains fail-closed."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node --test tests/mobile-silent-device-keystore-inspection.test.js"
+  - "pnpm run build"
+  - "node --test dist/apps/mobile/src/mobileApprovedSession.test.js tests/mobile-silent-device-keystore-inspection.test.js tests/mobile-silent-restore-failure-classification-contract.test.js tests/paper-connection-resume.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run aipos:index"
+evidence:
+  implementation_status: "Delegated workflow committed and published the implementation on canonical PR #2479 head f5183987d870702f9c917e4fea15caf8ea435a21."
+  local_validation: "Delegated workflow completed build, typecheck, repository validation, work-order index, and recorded test suites before PR publication."
+  external_validation: "Exact-head CI passed on f5183987d870702f9c917e4fea15caf8ea435a21; Audit passed. Release authorization was correctly withdrawn because this review thread remained unresolved. Fresh exact-head acceptance is required after this evidence correction; HUMAN_ENVIRONMENT_ONLY Galaxy acceptance remains under #2218."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Run fresh exact-head CI and independent Audit/Release after this repository-truth correction; Galaxy acceptance remains HUMAN_ENVIRONMENT_ONLY under #2218."
