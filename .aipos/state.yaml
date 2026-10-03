@@ -2307,3 +2307,14 @@ current_ui_korean_connection_label:
   branch: claude/nusa-repository-j93sd8-ui-labels
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+current_paper_orderbook_renew:
+  work_order: WO-PAPER-20261003-ORDERBOOK-RENEW
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-orderbook-renew
+  authority_impact: market_data_health_paper_only
+current_research_candle_backfill:
+  work_order: WO-RESEARCH-20261003-CANDLE-BACKFILL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-candle-backfill
+  authority_impact: research_evidence_only
+  deploy: not_deployed_server_deploy_required
