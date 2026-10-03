@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { CioDecision } from "./cioDecisionEngine";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
+import { buildPaperExecutionRiskContractFromCandidate, validatePaperExecutionRiskContract, type PaperExecutionRiskContract } from "./paperExecutionRiskContract";
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const round8 = (value: number): number => Number(value.toFixed(8));
@@ -55,6 +56,8 @@ export interface PaperExecutionIntent {
   readonly investmentPercent: number;
   readonly candidateId: string;
   readonly candidateBindingFingerprintSha256: string;
+  /** Optional only for legacy candidates that do not declare the canonical risk-math parameter set. */
+  readonly riskContract?: PaperExecutionRiskContract;
   readonly intentFingerprintSha256: string;
 }
 
@@ -111,6 +114,7 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
   let allocationCapital = 0;
   let allocationShare = 0;
   let quantity = 0;
+  let riskContract: PaperExecutionRiskContract | undefined;
 
   if (side === "BUY") {
     const allocation = allocations[0];
@@ -133,6 +137,16 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
     allocationShare = minimumOrder.raised ? Number((allocationCapital / input.state.equity).toFixed(8)) : plannedShare;
     quantity = round8(allocationCapital / input.referencePrice);
     if (allocationCapital <= 0 || allocationShare <= 0 || quantity <= 0) throw new Error("PAPER_EXECUTION_INTENT_ALLOCATION_ZERO");
+    riskContract = buildPaperExecutionRiskContractFromCandidate(binding.candidateStrategy, {
+      entryPrice: input.referencePrice,
+      accountEquity: input.state.equity,
+      allocationCapital,
+    }) ?? undefined;
+    if (riskContract != null) {
+      if (riskContract.decision !== "ALLOW") throw new Error("PAPER_EXECUTION_INTENT_RISK_CONTRACT_ABSTAIN");
+      quantity = round8(Math.min(quantity, riskContract.allowedQuantity));
+      if (quantity <= 0) throw new Error("PAPER_EXECUTION_INTENT_RISK_CONTRACT_ZERO");
+    }
   } else {
     if (allocations.length !== 0) throw new Error("PAPER_EXECUTION_INTENT_EXIT_TARGET_NOT_ZERO");
     const position = input.state.positions.find((item) => item.market === market);
@@ -159,6 +173,7 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
     investmentPercent: input.investmentPercent,
     candidateId: binding.candidateId.trim(),
     candidateBindingFingerprintSha256: binding.bindingFingerprintSha256,
+    ...(riskContract == null ? {} : { riskContract }),
   });
   return Object.freeze({ ...canonical, intentFingerprintSha256: canonicalHash(payload(canonical)) });
 }
@@ -183,6 +198,13 @@ export function validatePaperExecutionIntent(intent: PaperExecutionIntent): Pape
   if (!intent.candidateId.trim() || !SHA256.test(intent.candidateBindingFingerprintSha256) || !SHA256.test(intent.intentFingerprintSha256)) {
     throw new Error("PAPER_EXECUTION_INTENT_PROVENANCE_INVALID");
   }
+  if (intent.riskContract != null) {
+    const riskContract = validatePaperExecutionRiskContract(intent.riskContract);
+    if (intent.side !== "BUY" || riskContract.entryPrice !== intent.referencePrice || riskContract.allocationCapital !== intent.allocationCapital || intent.quantity > riskContract.allowedQuantity + 1e-8) {
+      throw new Error("PAPER_EXECUTION_INTENT_RISK_CONTRACT_MISMATCH");
+    }
+    if (riskContract.decision !== "ALLOW") throw new Error("PAPER_EXECUTION_INTENT_RISK_CONTRACT_ABSTAIN");
+  }
   const expected = canonicalHash(payload({
     schemaVersion: intent.schemaVersion,
     source: intent.source,
@@ -201,6 +223,7 @@ export function validatePaperExecutionIntent(intent: PaperExecutionIntent): Pape
     investmentPercent: intent.investmentPercent,
     candidateId: intent.candidateId.trim(),
     candidateBindingFingerprintSha256: intent.candidateBindingFingerprintSha256,
+    ...(intent.riskContract == null ? {} : { riskContract: intent.riskContract }),
   }));
   if (intent.intentFingerprintSha256 !== expected) throw new Error("PAPER_EXECUTION_INTENT_FINGERPRINT_MISMATCH");
   return intent;

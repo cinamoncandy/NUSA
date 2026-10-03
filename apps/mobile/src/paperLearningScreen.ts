@@ -55,6 +55,7 @@ export interface PaperLearningCycleSummary {
   readonly decision: PaperLearningUiEvent["decision"] | null;
   readonly reason: string | null;
 }
+export interface PaperLearningBrokenTransition { readonly from: string; readonly to: string; readonly reason: string; readonly occurredAt: number | null; }
 export interface PaperLearningScreenState {
   readonly readOnly: true;
   readonly mode: "PAPER";
@@ -71,6 +72,7 @@ export interface PaperLearningScreenState {
   readonly latestFill: PaperLearningUiEvent["fill"] | null;
   readonly latestAccount: PaperLearningUiEvent["account"] | null;
   readonly latestEvidence: PaperLearningUiEvent["evidence"] | null;
+  readonly firstBrokenTransition: PaperLearningBrokenTransition | null;
   readonly timeline: readonly PaperLearningUiEvent[];
   readonly recentCycles: readonly PaperLearningCycleSummary[];
   readonly performance: PaperLearningPerformance;
@@ -80,6 +82,30 @@ export interface PaperLearningScreenState {
 
 const freeze = <T>(value: T): T => Object.freeze(value);
 const emptyPerformance = (): PaperLearningPerformance => ({ realizedPnL: 0, unrealizedPnL: 0, fees: 0, turnover: 0, completedCycles: 0, filledCycles: 0, winRate: null, expectancy: null, maxDrawdown: 0 });
+
+function firstBrokenTransition(timeline: readonly PaperLearningUiEvent[], runtimeStatus: PaperLearningScreenState["status"]): PaperLearningBrokenTransition | null {
+  if (timeline.length === 0) {
+    if (runtimeStatus === "ERROR" || runtimeStatus === "HALTED") {
+      return freeze({ from: "RUNTIME", to: runtimeStatus, reason: `PAPER runtime reported ${runtimeStatus}`, occurredAt: null });
+    }
+    return null;
+  }
+  const currentCycle = timeline[0]?.cycleId;
+  if (currentCycle == null) return null;
+  const chronological = timeline
+    .filter((event) => event.cycleId === currentCycle)
+    .sort((a, b) => a.occurredAt - b.occurredAt || a.id.localeCompare(b.id));
+  const brokenIndex = chronological.findIndex((event) => event.status === "FAIL" || event.stage === "HALT" || event.stage === "ERROR");
+  if (brokenIndex < 0) return null;
+  const broken = chronological[brokenIndex]!;
+  const previous = brokenIndex > 0 ? chronological[brokenIndex - 1]!.stage : "CYCLE_START";
+  return freeze({
+    from: previous,
+    to: broken.stage,
+    reason: broken.reason?.trim() || `${broken.stage}_${broken.status}`,
+    occurredAt: broken.occurredAt,
+  });
+}
 
 function buildPerformance(timeline: readonly PaperLearningUiEvent[]): PaperLearningPerformance {
   const accountEvents = [...timeline].filter((event) => event.account).sort((a, b) => a.occurredAt - b.occurredAt);
@@ -151,6 +177,7 @@ export function buildPaperLearningScreen(
     latestFill: timeline.find((event) => event.fill)?.fill ?? null,
     latestAccount: timeline.find((event) => event.account)?.account ?? null,
     latestEvidence: timeline.find((event) => event.evidence)?.evidence ?? null,
+    firstBrokenTransition: firstBrokenTransition(timeline, runtimeStatus),
     timeline,
     recentCycles,
     performance: buildPerformance(timeline),
