@@ -1,6 +1,7 @@
 import type { PaperCandidateStrategySpec } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
 import type { PaperCandidateStrategyDecision } from "./cioDecisionEngine";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
+import { automaticPaperConfidenceAllowsAction } from "./automaticPaperExecutionPolicy";
 
 const SMA_FAMILY = "sma-crossover";
 const RSI_FAMILY = "rsi-mean-reversion";
@@ -95,7 +96,7 @@ function evaluateSma(
   const score = round4(clamp((short - long) / Math.max(long, Number.EPSILON) * 100, -1, 1));
   const confidence = round4(clamp(prices.length / (longPeriod * 2), 0, 1));
   const observedAt = recent.at(-1)![0];
-  const action = confidence < 0.5 ? "WAIT" : score > 0 ? "BUY" : score < 0 ? "SELL" : "HOLD";
+  const action = !automaticPaperConfidenceAllowsAction(confidence) ? "WAIT" : score > 0 ? "BUY" : score < 0 ? "SELL" : "HOLD";
   return Object.freeze({ action, score, confidence, observedAt, reason: `SMA_CROSSOVER:${shortPeriod}/${longPeriod}:short=${round4(short)}:long=${round4(long)}` });
 }
 
@@ -131,6 +132,7 @@ function evaluateDonchian(
   let action: PaperCandidateStrategyDecision["action"] = "HOLD";
   if (prior.position <= 0 && current.position === 1) action = "BUY";
   else if (prior.position >= 0 && current.position === -1) action = "SELL";
+  if ((action === "BUY" || action === "SELL") && !automaticPaperConfidenceAllowsAction(confidence)) action = "WAIT";
   const score = action === "BUY" ? confidence : action === "SELL" ? -confidence : 0;
   return Object.freeze({
     action, score, confidence, observedAt,
@@ -158,6 +160,7 @@ function evaluateRsi(
   let action: PaperCandidateStrategyDecision["action"] = "HOLD";
   if (prior <= oversold && current > oversold) action = "BUY";
   else if (prior >= overbought && current < overbought) action = "SELL";
+  if ((action === "BUY" || action === "SELL") && !automaticPaperConfidenceAllowsAction(confidence)) action = "WAIT";
   const score = action === "BUY" ? confidence : action === "SELL" ? -confidence : 0;
   return Object.freeze({
     action, score, confidence, observedAt,
