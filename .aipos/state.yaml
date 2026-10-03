@@ -2324,3 +2324,9 @@ current_ui_traded_coin:
   branch: claude/nusa-repository-j93sd8-traded-coin
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
+current_ui_home_polish:
+  work_order: WO-UI-20261003-HOME-POLISH
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-design-polish
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required

@@ -1,0 +1,29 @@
+id: WO-UI-20261003-HOME-POLISH
+title: "HOME polish: four key tiles up front, readable detail rows, Korean row labels"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-design-polish
+authority_impact: none
+objective: "The owner asked to improve the current design instead of replacing it. On HOME the four things looked at first (traded coin, BUY signals, feed steadiness, learning progress) sat behind a '+' disclosure among 9-10 plain rows with 9 px labels and 11 px values and English uppercase labels."
+scope:
+  - "apps/mobile/src/homeVitalsModel.ts: pure arrangement of the lines the other screen models already computed into four tiles in a fixed order; an unknown tone or a not-reported value is muted, never healthy."
+  - "apps/mobile/src/homeView.tsx: a 2x2 tile grid directly under the order-reason card, hidden only while setup is needed; the four rows are removed from the collapsed details (no duplicates) and the tiles keep the earlier test ids; detail typography 9/11 px to 12/14 px, row height 48."
+  - "apps/mobile/src/homeDetailCopy.ts: Korean labels (위험, 결과, 출처, 학습, AI 신뢰, 권한). The DECISION BASIS eyebrow and the English safety footer are unchanged by design."
+  - "tests/mobile-home-vitals.test.js (5); source-pinned tests migrated to the models (label pins in mobile-uiux-v3-canonical, mobile-uiux-visual-redesign, mobile-uiux-phase1-state-architecture; test-id pins in mobile-buy-signal-line, mobile-feed-diagnostics, mobile-research-progress, mobile-traded-coin)."
+named_exceptions:
+  - "PAPER, LIVE readiness, portfolio and More get the same typography and label rules in the next work order (WO-UI-20261003-APP-WIDE-RULES); this one is HOME only because the tile and row structure only exists there."
+exclusions:
+  - "No change to data, what is computed, navigation, authority, risk, execution, accounting, credentials, LIVE or AI. Presentation of existing lines only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Absent, malformed or unknown values render as not reported (muted)."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-home-vitals.test.js
+residual: "Not looked at on a device: layout was reasoned from the style tokens, so the tile height and wrapping need an owner screenshot. Depends on the traded-coin row (PR 2493)."

@@ -32,6 +32,8 @@ import { staleLabel } from "./cachedSnapshotModel";
 import { connectionLabel } from "./connectionLabelModel";
 import { buildResearchProgressLine } from "./researchProgressModel";
 import { buildTradedCoinLine } from "./tradedCoinModel";
+import { buildHomeVitals, VITAL_TEST_IDS } from "./homeVitalsModel";
+import { HOME_DETAIL_LABELS } from "./homeDetailCopy";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
@@ -188,6 +190,7 @@ export function HomeView({
   const tradedCoinLine = buildTradedCoinLine({ tradedMarkets: buyHeartbeat?.tradedMarkets, researchMarket: (buyHeartbeat?.researchCollection as { market?: unknown } | undefined)?.market, positionMarket: position?.market, positionQuantity: position?.quantity });
   const researchLine = buildResearchProgressLine(buyHeartbeat?.researchCollection as never, Date.now());
   const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
+  const vitals = buildHomeVitals({ coin: tradedCoinLine, buy: buySignalLine, feed: feedLine, learning: { value: researchLine.value, detail: researchLine.detail, tone: researchLine.tone } });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
     ? { title: field.headline, detail: field.detail, tone: field.phase === "HALTED" ? "halt" as const : "warning" as const }
     : null;
@@ -215,6 +218,17 @@ export function HomeView({
         <Text style={[styles.eyebrow, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]}>{orderReason.category === "FILLED" ? "최근 체결" : orderReason.category === "UNKNOWN" ? "최근 판단 결과" : "주문하지 않은 이유"}</Text>
         <Text style={[styles.reasonText, { color: theme.colors.text }]} numberOfLines={3} testID="home-no-order-reason">{orderReason.text}</Text>
         {decisionWhy.map((line, index) => <Text key={index} style={[styles.reasonText, { color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }]} testID={`home-decision-why-${index}`}>{line}</Text>)}
+      </View>}
+
+      {disconnected ? null : <View style={styles.vitals} testID="home-vitals">
+        {vitals.map((vital) => <View key={vital.id} style={[styles.vital, { backgroundColor: theme.colors.surface, borderColor: vital.tone === "warn" ? theme.colors.warning : theme.colors.border }]} testID={VITAL_TEST_IDS[vital.id]}>
+          <View style={styles.vitalHead}>
+            <View style={[styles.vitalDot, { backgroundColor: vital.tone === "ok" ? theme.colors.success : vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]} />
+            <Text style={[styles.vitalLabel, { color: theme.colors.textMuted }]}>{vital.label}</Text>
+          </View>
+          <Text style={[styles.vitalValue, { color: theme.colors.text }]} numberOfLines={2}>{vital.value}</Text>
+          {vital.detail == null ? null : <Text style={[styles.vitalDetail, { color: vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]} numberOfLines={3}>{vital.detail}</Text>}
+        </View>)}
       </View>}
 
       {/* While a recovery/degraded banner is shown the rail would only repeat it; on a halt it stays, because it names the cause (e.g. the kill switch). */}
@@ -329,16 +343,12 @@ export function HomeView({
           {aiInsightAvailable ? <Pressable onPress={() => onNavigate("Paper")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>PAPER 근거 상세 보기 →</Text></Pressable> : null}
         </View>
         <View style={[styles.detailFacts, { borderColor: theme.colors.border }]} testID="home-risk-status">
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RESULT</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{decisionSurface.result}</Text></View>
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>SOURCE</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text></View>
-          <View style={styles.detailRow} testID="home-learning-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>LEARNING</Text><Text style={[styles.detailValue, { color: learningLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{learningLine.value}</Text></View>
-          <View style={styles.detailRow} testID="home-traded-coin-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>거래 코인</Text><Text style={[styles.detailValue, { color: tradedCoinLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{tradedCoinLine.value}{tradedCoinLine.detail == null ? "" : `\n${tradedCoinLine.detail}`}</Text></View>
-          <View style={styles.detailRow} testID="home-research-progress-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>학습 데이터</Text><Text style={[styles.detailValue, { color: researchLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{researchLine.value}{researchLine.detail == null ? "" : `\n${researchLine.detail}`}</Text></View>
-          <View style={styles.detailRow} testID="home-feed-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>시세 연결</Text><Text style={[styles.detailValue, { color: feedLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{feedLine.value}</Text></View>
-          <View style={styles.detailRow} testID="home-buy-signal-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>BUY 신호</Text><Text style={[styles.detailValue, { color: buySignalLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{buySignalLine.value}</Text></View>
-          <View style={styles.detailRow} testID="home-ai-trust-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>AI 신뢰</Text><Text style={[styles.detailValue, { color: aiTrustLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{aiTrustLine.value}</Text></View>
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>AUTHORITY</Text><Text style={[styles.detailValue, { color: theme.colors.success }]}>LIVE NONE · AI ZERO</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.risk}</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.result}</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{decisionSurface.result}</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.source}</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text></View>
+          <View style={styles.detailRow} testID="home-learning-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.learning}</Text><Text style={[styles.detailValue, { color: learningLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{learningLine.value}</Text></View>
+          <View style={styles.detailRow} testID="home-ai-trust-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.aiTrust}</Text><Text style={[styles.detailValue, { color: aiTrustLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{aiTrustLine.value}</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.authority}</Text><Text style={[styles.detailValue, { color: theme.colors.success }]}>LIVE NONE · AI ZERO</Text></View>
         </View>
       </View> : <View style={styles.hiddenAcceptanceHooks}><View testID="ai-card" /><View testID="home-risk-status" /></View>}
       </View>
@@ -362,6 +372,13 @@ const styles = StyleSheet.create({
   journalBody: { flex: 1, minWidth: 0, gap: 2 },
   journalTitle: { fontSize: 14, lineHeight: 20 },
   journalDetail: { fontSize: 12.5, lineHeight: 18 },
+  vitals: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  vital: { flexBasis: "47%", flexGrow: 1, minHeight: 96, borderWidth: 1, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, gap: 6 },
+  vitalHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  vitalDot: { width: 8, height: 8, borderRadius: 4 },
+  vitalLabel: { fontSize: 12, lineHeight: 16, fontWeight: "600" },
+  vitalValue: { fontSize: 17, lineHeight: 22, fontWeight: "700" },
+  vitalDetail: { fontSize: 12, lineHeight: 17 },
   reasonCard: { borderWidth: 1, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, gap: 6 },
   reasonText: { fontSize: 15, lineHeight: 22, fontWeight: "500" },
   shell: { flex: 1 },
@@ -423,9 +440,9 @@ const styles = StyleSheet.create({
   detailCopy: { maxWidth: 780, fontSize: 13, lineHeight: 21, fontWeight: "600" },
   inlineLink: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
   detailFacts: { borderTopWidth: StyleSheet.hairlineWidth },
-  detailRow: { minHeight: 45, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
-  detailLabel: { flexShrink: 0, fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 0.7 },
-  detailValue: { flex: 1, textAlign: "right", fontSize: 11, lineHeight: 17, fontWeight: "500" },
+  detailRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
+  detailLabel: { flexShrink: 0, fontSize: 12, lineHeight: 17, fontWeight: "600", letterSpacing: 0.2 },
+  detailValue: { flex: 1, textAlign: "right", fontSize: 14, lineHeight: 20, fontWeight: "500" },
   hiddenAcceptanceHooks: { position: "absolute", width: 1, height: 1, opacity: 0 },
   disclaimer: { fontSize: 9, lineHeight: 15, fontWeight: "600" },
   safetyFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, alignItems: "center" },

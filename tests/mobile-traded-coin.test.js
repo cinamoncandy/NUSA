@@ -50,7 +50,8 @@ test("the runtime reports the list only with the PAPER boundary, and the contrac
 });
 
 test("HOME shows the row from the live heartbeat only", () => {
-  assert.match(view, /home-traded-coin-line/);
+  assert.match(view, /VITAL_TEST_IDS\[vital\.id\]/);
+  assert.match(fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/homeVitalsModel.ts"), "utf8"), /coin: "home-traded-coin-line"/);
   assert.match(view, /buildTradedCoinLine\(\{ tradedMarkets: buyHeartbeat\?\.tradedMarkets/);
-  assert.match(view, />거래 코인</);
+  assert.match(fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/homeVitalsModel.ts"), "utf8"), /coin: "거래 코인"/);
 });
