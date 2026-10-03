@@ -25,7 +25,7 @@ test("Home uses the content-first command center hierarchy without weakening aut
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
+  assert.match(home, /connectionLabel = stale \? "CACHED" : disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
   assert.match(home, /"ACTIVE" : "OBSERVING"/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /총 손익/);

@@ -15,6 +15,7 @@ import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/se
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { buildSafetyLine } from "./src/safetyLineModel";
+import { clearCachedSnapshot, useCachedSnapshot } from "./src/useCachedSnapshot";
 import { displaySessionState, graceNotConfigured, LAUNCH_GRACE_MS, launchSettling, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
 import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
@@ -176,6 +177,8 @@ function AuthenticatedApp() {
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
+  // Last-known values for the launch screen only; never a live reading. Called before any early return so the hook order never changes.
+  const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, operations.status === "READY" ? operations.snapshot : null);
   const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());
   const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
@@ -344,7 +347,7 @@ function AuthenticatedApp() {
   const handleSignOut = useCallback(() => {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
-    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setShadowOperations({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." }); setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." }); setLiveReadinessOperations({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(false); setActiveTab("Home"); signOut();
+    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setShadowOperations({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." }); setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." }); setLiveReadinessOperations({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(false); setActiveTab("Home"); void clearCachedSnapshot(); signOut();
   }, [credentialSession, signOut]);
 
   useEffect(() => {
@@ -517,7 +520,7 @@ function AuthenticatedApp() {
           else if (destination === "Settings") setUtilityView("SETTINGS");
           else if (destination === "Risk" || destination === "Performance" || destination === "SystemStatus" || destination === "Help") setDetailSurface(destination);
         }} />
-      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} sessionRecovering={shownSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}</TabTransition>
+      : <HomeView snapshot={snapshot} cachedSnapshot={cachedSnapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} sessionRecovering={shownSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}</TabTransition>
 
     <PrimaryNavigation activeDestination={activeTab} obscured={paperLearningOpen || utilityView !== null || detailSurface !== null} onNavigate={(destination) => { setUtilityMenuOpen(false); setUtilityView(null); setDetailSurface(null); setPaperLearningOpen(false); setActiveTab(destination); }} />
   </SafeAreaView>;

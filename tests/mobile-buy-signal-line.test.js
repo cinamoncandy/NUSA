@@ -44,7 +44,7 @@ test("blocked can never exceed signals in the display", () => {
 
 test("HOME reads the server window counts directly (no client baseline) and hides them when disconnected", () => {
   assert.match(view, /home-buy-signal-line/);
-  assert.match(view, /buyHeartbeat = fieldInput\.disconnected \|\| readOnlyError != null \? null/);
+  assert.match(view, /buyHeartbeat = stale \|\| fieldInput\.disconnected \|\| readOnlyError != null \? null/);
   assert.doesNotMatch(view, /BUY_SIGNAL_KEY/);
 });
 

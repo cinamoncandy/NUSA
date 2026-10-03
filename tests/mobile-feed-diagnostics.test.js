@@ -35,7 +35,7 @@ test("drops and long gaps are flagged", () => {
 test("HOME shows the feed row from the server window counts and hides them when disconnected", () => {
   assert.match(view, /testID="home-feed-line"/);
   assert.match(view, /feedDisconnectCount/);
-  assert.match(view, /buyHeartbeat = fieldInput\.disconnected \|\| readOnlyError != null \? null/);
+  assert.match(view, /buyHeartbeat = stale \|\| fieldInput\.disconnected \|\| readOnlyError != null \? null/);
 });
 
 test("the runtime counts feed drops and long ticker gaps on arrival time, in the same window, display only", () => {
