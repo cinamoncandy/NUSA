@@ -24,6 +24,14 @@ Observed bottlenecks for learning speed:
 the likely reason the Research projection shows no experiments. It is a reading of the code, not an
 observation of the live server; the app's LEARNING line shows the real state.
 
+## Correction (2026-10-02, later the same day)
+The production composition root (`closedLearningProductionRuntime.ts`) already runs a daily Research timer and an
+on-demand `ResearchSnapshotRefresher` that feed the closed-learning loop with replayable snapshots. The statement
+above is therefore narrowed: what is missing in production is the research SESSION path (`ResearchAutomationRuntime`
+sessions and the `research` projection the app's LEARNING line reads), not research altogether. The experiments added
+by this work are an additional, auditable evidence path with a visible projection; they do not replace the daily
+Research timer, and they are disabled unless `NUSA_CLOUD_RESEARCH_EXPERIMENTS=1`.
+
 ## Owner decisions (2026-10-02)
 1. PAPER capital stays at the current amount. No capital, minimum-order or risk change is part of this work.
 2. Continuous research experiments: proceed (staged below).

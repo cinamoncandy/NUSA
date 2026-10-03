@@ -200,7 +200,19 @@ export function startCloudRuntime(
   // Why the previous process stopped, kept apart from lastError so market start-up cannot overwrite it
   // and a supervisor restart loop stays diagnosable from /health.
   const previousStop = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readPreviousRuntimeFailure(config.cloudStateDbPath);
-  const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => Object.freeze({ ...heartbeat });
+  // Display-only BUY counters for the current 09:00 KST window (= 00:00 UTC), kept in memory. They are reported only when the
+  // canonical PAPER boundary is active; without it nothing measures BUY outcomes and 0/0 would be a false statement.
+  const BUY_WINDOW_MS = 86_400_000;
+  const buyWindow = { key: Math.floor(runtimeStartedAt / BUY_WINDOW_MS), signals: 0, blocked: 0 };
+  const rollBuyWindow = (nowMs: number): void => {
+    const key = Math.floor(nowMs / BUY_WINDOW_MS);
+    if (key !== buyWindow.key) { buyWindow.key = key; buyWindow.signals = 0; buyWindow.blocked = 0; }
+  };
+  const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
+    if (productionPaperBoundary == null) return Object.freeze({ ...heartbeat });
+    rollBuyWindow(Date.now());
+    return Object.freeze({ ...heartbeat, buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, buyCountsSince: Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS) });
+  };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
   // This recorder observes the canonical PAPER boundary below. It is deliberately
@@ -399,6 +411,8 @@ export function startCloudRuntime(
           if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
           heartbeat.paperOrderCount += result.orders.length;
           heartbeat.paperFillCount += result.fills.length;
+          // Display-only: a BUY decision, and a BUY the boundary explicitly refused (BLOCKED or REJECTED). WAIT, DUPLICATE and FAILED are not counted as refusals.
+          if (canonicalDecision?.action === "BUY") { rollBuyWindow(now); buyWindow.signals += 1; if (result.status === "BLOCKED" || result.status === "REJECTED") buyWindow.blocked += 1; }
           if (result.status === "FAILED") recordFailure(result.reason ?? "PAPER_EXECUTION_FAILED");
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });

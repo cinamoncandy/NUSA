@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261002-WF-WINDOWS
+title: "Pure walk-forward window builder over stored closed candles (Stage 2b-6; not wired)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-wf-windows
+authority_impact: none
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "Cut the most recent Train / Validation / Holdout windows from stored closed candles for the provenance builder and evaluators, refusing with a stable reason whenever history or coverage is not good enough."
+scope:
+  - "apps/cloud/src/researchWalkForwardWindows.ts: buildWalkForwardWindows. Windows end at endCloseMs, are contiguous, disjoint and ordered, each a multiple of the interval; a window may miss at most maxMissingRatio of its slots (default 0.01, hard cap 0.2) and must contain at least one candle; nothing is interpolated or shifted; missing counts are reported."
+  - "tests/research-walk-forward-windows.test.js: ordered disjoint windows, insufficient history, gap tolerance and refusal, empty window, invalid candles and configuration."
+exclusions:
+  - "Not wired. No deploy. No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-walk-forward-windows.test.js
+  - pnpm run validate
+residual: "Persisted holdout bookkeeping, evaluators, scheduler and flagged production composition not started. Not run: pnpm run validate (sandbox Node 22)."

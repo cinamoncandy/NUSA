@@ -1,0 +1,22 @@
+id: WO-RESEARCH-20261002-PROVENANCE-DESIGN
+title: "Design review: provenance for continuous research experiments (Stage 2b-4; documentation only)"
+status: DECISIONS_TAKEN_BY_DELEGATION
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-provenance-design
+authority_impact: none
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "A wrong provenance would manufacture false research evidence. Map every ResearchProvenance field to a reproducible source, define holdout discipline and the fail-closed list, and name the owner decisions before any builder is written."
+scope:
+  - "docs/DESIGN_RESEARCH_EXPERIMENT_PROVENANCE.md: field-by-field mapping, holdout rules, fail-closed list, honest limits, decisions D1-D5, order of work."
+exclusions:
+  - "No code, no runtime change, no deploy. No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+  - node scripts/aipos-work-order-index.js --check
+residual: "D1-D5 were taken as proposed after the owner instructed to stop asking and finish (2026-10-02); recorded in WO-RESEARCH-20261002-PROVENANCE-BUILDER."

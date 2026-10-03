@@ -606,7 +606,7 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   if (runRepository.full_name !== request.repository) throw new Error("CODING_RUNNER_WORKFLOW_REPOSITORY_MISMATCH");
   if (run.status !== "completed") throw new Error("CODING_RUNNER_WORKFLOW_NOT_COMPLETED");
 
-  const failureReason = request.reason.match(/^gha:(\d+):([0-9a-f]{40}):(failure|cancelled|timed_out)$/i);
+  const failureReason = request.reason.match(/(?:^|:)gha:(?:[^:]+:)?(\d+):([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i);
   const failureRepair = failureReason !== null;
   if (failureReason
     && (Number(failureReason[1]) !== request.workflowRunId

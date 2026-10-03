@@ -1,0 +1,27 @@
+id: WO-UI-20261002-LAUNCH-GRACE
+title: "Keep the PAPER setup notice quiet for 3 seconds after app launch while the session restore starts"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-cold-start
+authority_impact: none
+objective: "On a cold start the owner sees 확인 중 and then 'PAPER 서버 연결 필요' for about 2 seconds before the session connects. The shell opens as soon as an endpoint is configured, which can be before the restore flags itself as running, so the first projection reads as not configured."
+finding: "Owner report: about 2 s of the setup notice after launch, resolving by itself. Cause inferred from reading App.tsx and paperConnectionSession.ts; not reproduced on a device."
+scope:
+  - "apps/mobile/src/sessionDisplayModel.ts: LAUNCH_GRACE_MS (3 s) and launchSettling(state, sinceLaunchMs): true only while the session is not VERIFIED and inside the window; a negative or non-finite elapsed time never extends it."
+  - "apps/mobile/App.tsx: the launch window feeds the existing single graceNotConfigured source (resumingQuietly), with a timer that re-renders at the end of the window."
+  - "tests/mobile-session-display.test.js: two added tests."
+exclusions:
+  - "No change to authentication, session restore, retry, credentials, endpoint handling, runtime recovery or any trading behavior. Presentation only. Genuine read failures are never hidden, and past the window the real state shows, so an unpaired device still gets its setup notice (3 s later)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The notice is delayed by at most 3 s after launch and then shown from the real state; nothing is trusted or connected because of it."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-session-display.test.js
+residual: "Cause not reproduced on a device. Needs a new app build to take effect; install is the owner's. If the notice still flashes longer than 3 s the window may need widening."
