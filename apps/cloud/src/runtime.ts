@@ -19,6 +19,7 @@ import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type Upbit
 import { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
+import { retainObservation } from "./observationRetention";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
 import {
@@ -396,7 +397,7 @@ export function startCloudRuntime(
     latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
     try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h, sourceFingerprint: canonicalUpbitSourceFingerprint(ticker) }); }
     catch (error) { recordFailure(`PAPER_MARKET_OBSERVATION_REJECTED:${error instanceof PaperMarketObservationStoreError ? error.code : "UNKNOWN"}`); }
-    observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
+    retainObservation(observations, observation); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     if (!researchRecoveryFailClosed) { try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ } }
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
