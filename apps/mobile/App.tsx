@@ -15,7 +15,7 @@ import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/se
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { buildSafetyLine } from "./src/safetyLineModel";
-import { displaySessionState, graceNotConfigured, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
+import { displaySessionState, graceNotConfigured, LAUNCH_GRACE_MS, launchSettling, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
 import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
@@ -161,7 +161,15 @@ function AuthenticatedApp() {
   const shownSessionState = displaySessionState(paperSessionState, resumeGrace.current?.verified === true, resumeGrace.current == null ? 0 : Date.now() - resumeGrace.current.since);
   // Inside the resume grace the transient not-configured projection that RECOVERING leaves behind
   // stays quiet (see graceNotConfigured); genuine read failures are never hidden.
-  const resumingQuietly = shownSessionState !== paperSessionState;
+  const launchedAt = useRef(Date.now());
+  const launchQuiet = launchSettling(paperSessionState, Date.now() - launchedAt.current);
+  useEffect(() => {
+    if (!launchQuiet) return;
+    const remaining = Math.max(0, LAUNCH_GRACE_MS - (Date.now() - launchedAt.current)) + 50;
+    const timer = setTimeout(() => setGraceTick((tick) => tick + 1), remaining);
+    return () => clearTimeout(timer);
+  }, [launchQuiet]);
+  const resumingQuietly = shownSessionState !== paperSessionState || launchQuiet;
   const [shadowOperations, setShadowOperations] = useState<ShadowOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." });
   const [realReadOnlyOperations, setRealReadOnlyOperations] = useState<RealReadOnlyOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." });
   const [liveReadinessOperations, setLiveReadinessOperations] = useState<LiveReadinessOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." });
