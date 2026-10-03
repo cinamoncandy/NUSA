@@ -8,7 +8,9 @@ const STORE = path.join(ROOT, "node_modules", ".pnpm");
 
 const EXPECTED = Object.freeze({
   imageSize: "1.2.1",
-  nanoid: "3.3.18"
+  nanoid: "3.3.18",
+  braces: "3.0.3",
+  httpCacheSemantics: "4.2.0"
 });
 
 function resolvePackageRoots(name, version, store = STORE, rootNodeModules = path.join(ROOT, "node_modules")) {
@@ -88,6 +90,16 @@ function patchNanoidAsyncNode(text, label) {
   return patchExact(text, before, after, 1, label);
 }
 
+function patchBracesDepth(text) {
+  return patchExact(text, "if (value === CHAR_LEFT_CURLY_BRACE) {\n      depth++;", "if (value === CHAR_LEFT_CURLY_BRACE) {\n      depth++;\n      if (depth > 100) throw new SyntaxError(`Brace nesting depth exceeds security limit (100)`);", 1, "braces/nesting-depth");
+}
+
+function patchHttpCacheMaxStale(text) {
+  const before = "const allowsStaleWithoutRevalidation = 'max-stale' in requestCC &&\n                (true === requestCC['max-stale'] || requestCC['max-stale'] > this.age() - this.maxAge());";
+  const after = "const securityProhibitsSharedStale = this._isShared && ((this._resHeaders['set-cookie'] && !this._rescc.public && !this._rescc.immutable) || this._rescc['proxy-revalidate'] || this._rescc['no-cache']);\n            const allowsStaleWithoutRevalidation = !securityProhibitsSharedStale && 'max-stale' in requestCC &&\n                (true === requestCC['max-stale'] || requestCC['max-stale'] > this.age() - this.maxAge());";
+  return patchExact(text, before, after, 1, "http-cache-semantics/max-stale-shared-security");
+}
+
 function writePatched(file, patcher) {
   const original = fs.readFileSync(file, "utf8");
   const result = patcher(original);
@@ -97,6 +109,8 @@ function writePatched(file, patcher) {
 function applyBackports() {
   const imageRoot = optionalPackageRoot("image-size", EXPECTED.imageSize);
   const nanoidRoot = optionalPackageRoot("nanoid", EXPECTED.nanoid);
+  const bracesRoot = optionalPackageRoot("braces", EXPECTED.braces);
+  const httpCacheRoot = optionalPackageRoot("http-cache-semantics", EXPECTED.httpCacheSemantics);
 
   if (imageRoot) {
     writePatched(path.join(imageRoot, "dist", "types", "icns.js"), patchImageSizeIcns);
@@ -114,6 +128,9 @@ function applyBackports() {
     for (const relative of asyncNode) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncNode(text, `nanoid/${relative}`));
   }
 
+  if (bracesRoot) writePatched(path.join(bracesRoot, "lib", "parse.js"), patchBracesDepth);
+  if (httpCacheRoot) writePatched(path.join(httpCacheRoot, "index.js"), patchHttpCacheMaxStale);
+
   return verifyBackports();
 }
 
@@ -121,8 +138,12 @@ function verifyBackports() {
   const findings = [];
   let imageRoot;
   let nanoidRoot;
+  let bracesRoot;
+  let httpCacheRoot;
   try { imageRoot = optionalPackageRoot("image-size", EXPECTED.imageSize); } catch (error) { findings.push(String(error.message)); }
   try { nanoidRoot = optionalPackageRoot("nanoid", EXPECTED.nanoid); } catch (error) { findings.push(String(error.message)); }
+  try { bracesRoot = optionalPackageRoot("braces", EXPECTED.braces); } catch (error) { findings.push(String(error.message)); }
+  try { httpCacheRoot = optionalPackageRoot("http-cache-semantics", EXPECTED.httpCacheSemantics); } catch (error) { findings.push(String(error.message)); }
 
   if (imageRoot) {
     const icns = fs.readFileSync(path.join(imageRoot, "dist", "types", "icns.js"), "utf8");
@@ -146,16 +167,21 @@ function verifyBackports() {
     }
   }
 
+  if (bracesRoot) { const x = fs.readFileSync(path.join(bracesRoot, "lib", "parse.js"), "utf8"); if (!x.includes("if (depth > 100) throw new SyntaxError(`Brace nesting depth exceeds security limit (100)`);")) findings.push("BRACES_NESTING_DEPTH_GUARD_MISSING"); }
+  if (httpCacheRoot) { const x = fs.readFileSync(path.join(httpCacheRoot, "index.js"), "utf8"); if (!x.includes("const securityProhibitsSharedStale = this._isShared")) findings.push("HTTP_CACHE_SHARED_STALE_GUARD_MISSING"); }
+
   return {
     status: findings.length === 0 ? "PASS" : "FAIL",
     findings,
-    packages: { "image-size": EXPECTED.imageSize, nanoid: EXPECTED.nanoid },
+    packages: { "image-size": EXPECTED.imageSize, nanoid: EXPECTED.nanoid, braces: EXPECTED.braces, "http-cache-semantics": EXPECTED.httpCacheSemantics },
     controls: {
       "GHSA-w3rx-r6r6-pgpr": !imageRoot || findings.every((item) => !item.startsWith("IMAGE_SIZE_ICNS")),
       "GHSA-5p2g-fcmc-qvqq": !imageRoot || findings.every((item) => !item.startsWith("IMAGE_SIZE_BOX") && !item.startsWith("IMAGE_SIZE_JXL")),
-      "GHSA-2v37-7h3g-55p8": !nanoidRoot || findings.every((item) => !item.startsWith("NANOID"))
+      "GHSA-2v37-7h3g-55p8": !nanoidRoot || findings.every((item) => !item.startsWith("NANOID")),
+      "GHSA-vfj7-8cjw-p6xm": !bracesRoot || findings.every((item) => !item.startsWith("BRACES_")),
+      "GHSA-ch52-4w7c-c8xp": !httpCacheRoot || findings.every((item) => !item.startsWith("HTTP_CACHE_"))
     }
   };
 }
 
-module.exports = { EXPECTED, resolvePackageRoots, packageRoot, optionalPackageRoot, patchExact, patchImageSizeIcns, patchImageSizeJxlPartialStreams, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };
+module.exports = { EXPECTED, resolvePackageRoots, packageRoot, optionalPackageRoot, patchExact, patchImageSizeIcns, patchImageSizeJxlPartialStreams, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, patchBracesDepth, patchHttpCacheMaxStale, applyBackports, verifyBackports };
