@@ -23,39 +23,29 @@ export const OWNER_BASELINE_CANDIDATE_ID = "owner-baseline-sma-5-20";
 export const OWNER_BASELINE_REASON = "OWNER_BASELINE_PAPER_NOT_QUALIFIED";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const SHA40 = /^[a-f0-9]{40}$/;
 const sha256 = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
-export function ownerBaselineStrategyEnabled(env: NodeJS.ProcessEnv): boolean {
-  const mode = env.NUSA_MODE;
-  if (mode !== undefined && mode !== "PAPER") return false;
-  const value = env[OWNER_BASELINE_STRATEGY_ENV];
-  return value === undefined || value === "ENABLED";
+export function isOwnerBaselineSourceCommitSha(value: string): boolean {
+  return SHA40.test(value.trim().toLowerCase());
 }
 
-export function ownerBaselineStrategySpec(sourceCommitSha: string): PaperCandidateStrategySpec {
-  const codeSha = sourceCommitSha.trim().toLowerCase();
-  if (!SHA40.test(codeSha)) throw new Error("owner baseline strategy requires the exact 40-hex source commit");
-  const parameters = Object.freeze({ shortPeriod: 5, longPeriod: 20 });
-  const identity = { candidateId: OWNER_BASELINE_CANDIDATE_ID, familyId: "sma-crossover", lineageId: "owner-baseline", parameters, costModelVersion: "nusa-paper-cost-v1" };
-  return Object.freeze({ ...identity, specificationHash: sha256(identity), codeSha });
-}
-
-/** Deterministic baseline binding for one market and UTC day, so a restart keeps the same binding. */
-export function ownerBaselineBinding(market: string, decisionAt: number, sourceCommitSha: string): PaperCandidateExecutionBinding {
-  if (!Number.isSafeInteger(decisionAt) || decisionAt < DAY_MS) throw new Error("owner baseline decision time is invalid");
+export function ownerBaselineAdvisory(market: string, periodStartAt: number): LeagueCapitalAllocationAdvisory {
+  if (!Number.isSafeInteger(periodStartAt) || periodStartAt < DAY_MS) throw new Error("owner baseline period start is invalid");
   const normalizedMarket = market.trim().toUpperCase();
-  const strategy = ownerBaselineStrategySpec(sourceCommitSha);
-  const periodStartAt = Math.floor(decisionAt / DAY_MS) * DAY_MS;
+  if (!/^KRW-[A-Z0-9-]+$/.test(normalizedMarket)) throw new Error("owner baseline market is invalid");
   const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
-  const datasetContentSha256 = sha256({ datasetId, specificationHash: strategy.specificationHash });
-  const advisory: LeagueCapitalAllocationAdvisory = Object.freeze({
+  const kstShifted = periodStartAt + KST_OFFSET_MS;
+  const kstDayStart = Math.floor(kstShifted / DAY_MS) * DAY_MS - KST_OFFSET_MS;
+  const generatedAt = kstDayStart - 1;
+  return Object.freeze({
     schemaVersion: 1,
-    generatedAt: new Date(periodStartAt - 1).toISOString(),
+    generatedAt: new Date(generatedAt).toISOString(),
     policy: Object.freeze({ maximumCandidateWeight: 1, minimumEvidenceBreadth: 0, maximumCandidateCount: 1, maximumFamilyWeight: 1 }),
     entries: Object.freeze([Object.freeze({
       id: OWNER_BASELINE_CANDIDATE_ID,
-      familyId: strategy.familyId,
+      familyId: "sma-crossover",
       rank: 1,
       leagueScore: 0,
       evidenceBreadth: 0,
@@ -67,9 +57,44 @@ export function ownerBaselineBinding(market: string, decisionAt: number, sourceC
     reasons: Object.freeze([OWNER_BASELINE_REASON]),
     provenance: Object.freeze({ sourceDatasetIds: Object.freeze([datasetId]) }),
   });
+}
+
+export function ownerBaselineCandidateProvenance(market: string, specificationHash: string): Readonly<{ candidateId: string; datasetId: string; datasetContentSha256: string }> {
+  const normalizedMarket = market.trim().toUpperCase();
+  const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
+  return Object.freeze({
+    candidateId: OWNER_BASELINE_CANDIDATE_ID,
+    datasetId,
+    datasetContentSha256: sha256({ datasetId, specificationHash }),
+  });
+}
+
+export function ownerBaselineStrategyEnabled(env: NodeJS.ProcessEnv): boolean {
+  const mode = env.NUSA_MODE;
+  if (mode !== undefined && mode !== "PAPER") return false;
+  const value = env[OWNER_BASELINE_STRATEGY_ENV];
+  return value === undefined || value === "ENABLED";
+}
+
+export function ownerBaselineStrategySpec(sourceCommitSha: string): PaperCandidateStrategySpec {
+  const codeSha = sourceCommitSha.trim().toLowerCase();
+  if (!isOwnerBaselineSourceCommitSha(codeSha)) throw new Error("owner baseline strategy requires the exact 40-hex source commit");
+  const parameters = Object.freeze({ shortPeriod: 5, longPeriod: 20 });
+  const identity = { candidateId: OWNER_BASELINE_CANDIDATE_ID, familyId: "sma-crossover", lineageId: "owner-baseline", parameters, costModelVersion: "nusa-paper-cost-v1" };
+  return Object.freeze({ ...identity, specificationHash: sha256(identity), codeSha });
+}
+
+/** Deterministic baseline binding for one market and UTC day, so a restart keeps the same binding. */
+export function ownerBaselineBinding(market: string, decisionAt: number, sourceCommitSha: string): PaperCandidateExecutionBinding {
+  if (!Number.isSafeInteger(decisionAt) || decisionAt < DAY_MS) throw new Error("owner baseline decision time is invalid");
+  const normalizedMarket = market.trim().toUpperCase();
+  const strategy = ownerBaselineStrategySpec(sourceCommitSha);
+  const kstShifted = decisionAt + KST_OFFSET_MS;
+  const periodStartAt = Math.floor(kstShifted / DAY_MS) * DAY_MS - KST_OFFSET_MS;
+  const advisory = ownerBaselineAdvisory(normalizedMarket, periodStartAt);
   return bindPaperCandidateForExecution(
     advisory,
-    [{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId, datasetContentSha256 }],
+    [ownerBaselineCandidateProvenance(normalizedMarket, strategy.specificationHash)],
     OWNER_BASELINE_CANDIDATE_ID,
     periodStartAt,
     strategy,
@@ -81,13 +106,17 @@ export class OwnerBaselinePaperBindingProvider implements PaperCandidateBindingP
     challenger?: PaperCandidateBindingProvider;
     sourceCommitSha: string;
     enabled: boolean;
+    baselineMarket?: string;
   }>) {}
 
   public read(market: string, decisionAt: number): PaperCandidateExecutionBinding | undefined {
     const challenger = this.options.challenger?.read(market, decisionAt);
     if (challenger != null || !this.options.enabled) return challenger;
+    const normalizedMarket = market.trim().toUpperCase();
+    const baselineMarket = this.options.baselineMarket?.trim().toUpperCase();
+    if (!baselineMarket || normalizedMarket !== baselineMarket) return undefined;
     try {
-      return ownerBaselineBinding(market, decisionAt, this.options.sourceCommitSha);
+      return ownerBaselineBinding(normalizedMarket, decisionAt, this.options.sourceCommitSha);
     } catch {
       return undefined; // fail closed: no baseline means no automatic PAPER action
     }

@@ -5,6 +5,7 @@ import type { QualifiedPaperChallengerArtifactWriter } from "./qualifiedPaperCha
 import { isGovernanceApprovalUnavailable, type PaperChallengerDeploymentAdapter, type ClosedLearningPaperDeploymentReceipt } from "./closedLearningLoopCoordinator";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
+import { isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 
 const STALE_SNAPSHOT_MESSAGE = "research replay snapshot provenance drift";
 
@@ -79,19 +80,25 @@ export class ClosedLearningInitialPaperBootstrap {
     this.now = options.now ?? Date.now;
   }
 
-  private hasExistingPaperState(): boolean {
-    return this.options.listOpenPeriods().length > 0 || this.options.listRealizedPeriods().length > 0;
+  private hasBlockingPaperState(): boolean {
+    const openPeriods = this.options.listOpenPeriods();
+    // The owner baseline is deliberately temporary. A newly refreshed, replayable Research
+    // challenger must still be evaluated while that fallback period is open; deployment owns the
+    // canonical baseline retirement before opening the challenger period. Every other PAPER state
+    // remains protected from bootstrap replacement.
+    if (openPeriods.length === 1 && isOwnerBaselinePeriodInput(openPeriods[0]!)) return false;
+    return openPeriods.length > 0 || this.options.listRealizedPeriods().length > 0;
   }
 
   private eligibleFingerprint(): { readonly early?: ClosedLearningInitialPaperBootstrapResult; readonly fingerprint?: string } {
-    if (this.hasExistingPaperState()) return Object.freeze({ early: Object.freeze({ status: "EXISTING_PAPER_STATE" }) });
+    if (this.hasBlockingPaperState()) return Object.freeze({ early: Object.freeze({ status: "EXISTING_PAPER_STATE" }) });
     const snapshot = this.options.snapshots.latest();
     if (snapshot == null) return Object.freeze({ early: Object.freeze({ status: "WAITING_RESEARCH_SNAPSHOT" }) });
     return Object.freeze({ fingerprint: snapshot.originalRunFingerprintSha256 });
   }
 
   private async eligibleFingerprintAsync(): Promise<{ readonly early?: ClosedLearningInitialPaperBootstrapResult; readonly fingerprint?: string }> {
-    if (this.hasExistingPaperState()) return Object.freeze({ early: Object.freeze({ status: "EXISTING_PAPER_STATE" }) });
+    if (this.hasBlockingPaperState()) return Object.freeze({ early: Object.freeze({ status: "EXISTING_PAPER_STATE" }) });
     if (this.options.snapshots.latestIdentityAsync != null) {
       const identity = await this.options.snapshots.latestIdentityAsync();
       if (identity == null) return Object.freeze({ early: Object.freeze({ status: "WAITING_RESEARCH_SNAPSHOT" }) });
