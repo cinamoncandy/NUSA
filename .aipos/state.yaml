@@ -2347,3 +2347,9 @@ current_paper_observation_cap:
   branch: claude/nusa-repository-j93sd8-observation-cap
   authority_impact: execution_exposure_paper_only
   deploy: not_deployed_server_deploy_required
+current_autopilot_reconverge:
+  work_order: WO-AUTOPILOT-20261003-RECONVERGE
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-productivity
+  authority_impact: autopilot_pr_branch_maintenance_only
+  deploy: none_needed
