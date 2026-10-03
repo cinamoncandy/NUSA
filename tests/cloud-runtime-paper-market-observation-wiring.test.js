@@ -38,6 +38,8 @@ test("production Cloud runtime persists public PAPER ticker evidence and exposes
     try {
       const repository = new SqlitePaperMarketObservationRepository(db);
       assert.equal(repository.count(), 2);
+      const persisted = repository.list();
+      assert.equal(persisted.every((observation) => /^[a-f0-9]{64}$/.test(observation.sourceFingerprint ?? "")), true);
       const benchmark = readCanonicalPaperTickerBenchmark(repository, "KRW-BTC", firstObservedAt - 1, firstObservedAt + 101);
       assert.equal(benchmark?.startPrice, 100);
       assert.equal(benchmark?.endPrice, 110);
@@ -156,6 +158,43 @@ test("a stale-only market still fails closed without widening the 30s freshness 
     assert.equal(snapshot.dashboard.decisions.length, 1);
     assert.equal(snapshot.dashboard.decisions[0].symbol, "NO_MARKET_DATA");
     assert.equal(snapshot.orders.length, 0);
+  } finally {
+    if (handle) await handle.stop();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+
+test("rejected future and foreign tickers never become durable PAPER evidence", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-paper-market-rejection-persistence-"));
+  const database = join(directory, "state.sqlite");
+  const token = ["paper", "market", "rejection", "persistence", "fixture"].join("-");
+  const port = 42_987;
+  let onTicker;
+  let handle;
+  try {
+    const marketFactory = (_markets, tickerCallback) => { onTicker = tickerCallback; return { subscribe() {}, start() {}, stop() {} }; };
+    handle = startCloudRuntime({
+      NUSA_CLOUD_STATE_DB_PATH: database,
+      NUSA_CLOUD_DASHBOARD_PORT: String(port),
+      NUSA_CLOUD_DASHBOARD_TOKEN: token,
+      NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true",
+      NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC",
+    }, undefined, undefined, marketFactory);
+    const now = Date.now();
+    onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, trade_timestamp: now - 1_000, signed_change_rate: 0, acc_trade_volume: 1, acc_trade_price_24h: 1_000 });
+    onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 101, trade_timestamp: now + 60_000, signed_change_rate: 0, acc_trade_volume: 1, acc_trade_price_24h: 1_000 });
+    onTicker({ type: "ticker", code: "USDT-BTC", trade_price: 102, trade_timestamp: now - 500, signed_change_rate: 0, acc_trade_volume: 1, acc_trade_price_24h: 1_000 });
+    await handle.stop();
+    handle = undefined;
+    const db = new SqliteDatabase(database);
+    try {
+      const repository = new SqlitePaperMarketObservationRepository(db);
+      assert.equal(repository.count(), 1);
+      const observation = repository.list()[0];
+      assert.equal(observation.market, "KRW-BTC");
+      assert.match(observation.sourceFingerprint ?? "", /^[a-f0-9]{64}$/);
+    } finally { db.close(); }
   } finally {
     if (handle) await handle.stop();
     rmSync(directory, { recursive: true, force: true });
