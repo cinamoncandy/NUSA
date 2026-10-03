@@ -10,12 +10,31 @@ const session = fs.readFileSync(path.join(root, "apps/mobile/src/mobileApprovedS
 
 test("silent DeviceKey inspection exceptions preserve registration and emit safe transient evidence", () => {
   const method = native.slice(native.indexOf("void getSilentDeviceStatus"), native.indexOf("void createSilentDeviceCredential"));
+  const metadataValidation = method.indexOf("credentialId = requireCredentialId(credentialId)");
+  const keystoreInspection = method.indexOf("KeyStore store = keyStore()");
+  assert.ok(metadataValidation >= 0 && metadataValidation < keystoreInspection);
+  assert.match(method.slice(metadataValidation, keystoreInspection), /catch \(IllegalArgumentException error\)[\s\S]*SILENT_DEVICE_KEY_METADATA_INVALID/);
+  assert.doesNotMatch(method.slice(metadataValidation, keystoreInspection), /SILENT_STATUS_TRANSIENT|correlationId/);
   assert.match(method, /try \{[\s\S]*containsAlias/);
   assert.match(method, /catch \(Exception error\)[\s\S]*SILENT_STATUS_TRANSIENT/);
   assert.match(method, /reasonCode.*SILENT_STATUS_INSPECTION_FAILED/);
   assert.match(method, /correlationId.*UUID\.randomUUID/);
   assert.match(method, /putString\("credentialId", credentialId\)/);
   assert.doesNotMatch(method, /deleteSilentAlias|createSilentDeviceCredential|preferences\.edit/);
+});
+
+test("invalid silent DeviceKey metadata fails closed instead of entering transient retry", () => {
+  const method = native.slice(native.indexOf("void getSilentDeviceStatus"), native.indexOf("void createSilentDeviceCredential"));
+  const invalidMetadata = method.slice(
+    method.indexOf("catch (IllegalArgumentException error)"),
+    method.indexOf("KeyStore store = keyStore()"),
+  );
+  assert.match(invalidMetadata, /available", false/);
+  assert.match(invalidMetadata, /canCreate", false/);
+  assert.match(invalidMetadata, /hardwareBacked", false/);
+  assert.match(invalidMetadata, /SILENT_DEVICE_KEY_METADATA_INVALID/);
+  assert.match(invalidMetadata, /putNull\("credentialId"\)/);
+  assert.doesNotMatch(invalidMetadata, /preferences\.edit|deleteSilentAlias|createSilentDeviceCredential/);
 });
 
 test("only transient inspection status arms retry; definitive missing key stays fail-closed", () => {
