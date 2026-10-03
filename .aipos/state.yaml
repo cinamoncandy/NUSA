@@ -2289,3 +2289,9 @@ current_paper_baseline_multi_market:
   branch: claude/nusa-repository-j93sd8-baseline-markets
   authority_impact: execution_exposure_paper_only
   deploy: not_deployed_server_deploy_required
+current_ui_research_progress:
+  work_order: WO-UI-20261003-RESEARCH-PROGRESS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-progress
+  authority_impact: none
+  deploy: not_deployed_server_and_app_build_required

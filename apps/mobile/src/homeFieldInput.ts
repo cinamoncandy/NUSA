@@ -12,7 +12,7 @@ export interface HomeFieldSnapshot {
   readonly operations: {
     readonly runtimeState: string;
     readonly pipelineStage?: unknown;
-    readonly heartbeat?: { readonly decisionCount: number; readonly paperOrderCount: number; readonly buySignalCount?: number; readonly buyBlockedCount?: number; readonly buyCountsSince?: number; readonly windowDecisionCount?: number; readonly windowOrderCount?: number; readonly feedDisconnectCount?: number; readonly feedStaleGapCount?: number; readonly feedMaxGapMs?: number; readonly feedCountsSince?: number; readonly lastDecisionDetail?: unknown; readonly lastError?: unknown };
+    readonly heartbeat?: { readonly decisionCount: number; readonly paperOrderCount: number; readonly buySignalCount?: number; readonly buyBlockedCount?: number; readonly buyCountsSince?: number; readonly windowDecisionCount?: number; readonly windowOrderCount?: number; readonly feedDisconnectCount?: number; readonly feedStaleGapCount?: number; readonly feedMaxGapMs?: number; readonly feedCountsSince?: number; readonly lastDecisionDetail?: unknown; readonly researchCollection?: unknown; readonly lastError?: unknown };
   };
 }
 
