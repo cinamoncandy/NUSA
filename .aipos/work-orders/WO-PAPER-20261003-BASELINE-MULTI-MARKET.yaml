@@ -1,0 +1,28 @@
+id: WO-PAPER-20261003-BASELINE-MULTI-MARKET
+title: "Bind the owner-approved PAPER baseline to every configured market (1-5) instead of only a single-market configuration"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-baseline-markets
+authority_impact: execution_exposure_paper_only
+objective: "With two or more configured markets the baseline admission returned no binding for any market, so the runtime fell back to the generic CIO score rule and placed no PAPER order (live evidence 2026-10-03: 22,000+ decisions, 0 orders). The owner asked to trade XRP first and then add ADA and SUI. Bind the same deterministic SMA 5/20 baseline to each configured market."
+owner_approval: "Owner, 2026-10-03: all Upbit coins allowed, start with XRP, add ADA and SUI after XRP is stable; approved proceeding with the multi-market change after the single-market fail-closed origin (WO-PAPER-20261001-OWNER-BASELINE-PERIOD review remediation) was explained."
+scope:
+  - "apps/cloud/src/ownerBaselinePaperStrategy.ts: OwnerBaselinePaperBindingProvider takes baselineMarkets (replaces baselineMarket); a market gets a binding only if it is in the list; a qualified challenger still wins; disabled, non-PAPER or malformed source identity still yields no binding."
+  - "apps/cloud/src/closedLearningProductionRuntime.ts: passes the configured markets (already limited to 1-5 KRW markets by readCloudRuntimeConfig)."
+  - "Tests: ownerBaselinePaperStrategy.test.ts (market-specific, deterministic, unconfigured markets unbound, empty list and disabled yield none)."
+unchanged:
+  - "Initial PAPER capital, KRW minimum order, risk limits, strategy parameters (SMA 5/20, confidence >= 0.5), decision thresholds, cost model."
+  - "The execution boundary already keys working orders per market and rejects an order that exceeds cash or is below the Upbit minimum, so a second coin cannot be bought while the first holds the capital."
+  - "The owner-baseline evidence period still opens for the first configured market only (periods are market-bound); fills in other markets run through the same boundary but are not attributed to that period. This only affects learning evidence, not safety."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Unconfigured markets, disabled baseline, non-PAPER mode and missing source identity yield no binding."
+rollback: "Revert the change, or set NUSA_PAPER_OWNER_BASELINE_STRATEGY=DISABLED, or configure a single market."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test dist/apps/cloud/src/ownerBaselinePaperStrategy.test.jsdist/apps/cloud/src/closedLearningRolloverScheduler.test.js
+residual: "Evidence period covers the first market only. Needs a server deploy and the host setting NUSA_CLOUD_UPBIT_MARKETS to list the markets; the owner adds ADA and SUI only after XRP is stable and this is deployed."
