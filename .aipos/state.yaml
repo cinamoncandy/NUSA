@@ -2371,3 +2371,9 @@ current_autopilot_codex_on_close:
   branch: claude/autopilot-codex-on-close
   authority_impact: autopilot_schedule_only
   deploy: none_needed
+current_paper_owner_markets:
+  work_order: WO-PAPER-20261003-OWNER-MARKETS
+  status: READY_FOR_REVIEW
+  branch: claude/paper-markets-config
+  authority_impact: execution_exposure_paper_only
+  deploy: not_deployed_server_deploy_required

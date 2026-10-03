@@ -87,8 +87,27 @@ function readOwnerPaperAccount(file = OWNER_PAPER_ACCOUNT_FILE) {
   return Object.freeze({ initialCapitalKrw: capital, retiredAccountIds: Object.freeze([...retired]) });
 }
 
+const OWNER_PAPER_MARKETS_FILE = path.join(__dirname, "..", "deploy", "oracle", "paper-markets.json");
+const MARKET_PATTERN = /^KRW-[A-Z0-9-]+$/;
+
+/**
+ * Owner-decided markets for the PAPER feed and the research collection, versioned with the release and applied
+ * over the host environment (same mechanism as the PAPER account), so the decision reaches the host through a
+ * normal reviewed release. 1-5 distinct KRW markets; a malformed file fails closed. Absent file: nothing applied.
+ */
+function readOwnerPaperMarkets(file = OWNER_PAPER_MARKETS_FILE) {
+  if (!existsSync(file)) return null;
+  const parsed = JSON.parse(readFileSync(file, "utf8"));
+  const markets = parsed?.markets;
+  if (parsed?.schemaVersion !== 1 || !Array.isArray(markets) || markets.length < 1 || markets.length > 5
+    || markets.some((m) => typeof m !== "string" || !MARKET_PATTERN.test(m)) || new Set(markets).size !== markets.length) {
+    throw new Error(`owner PAPER markets file is invalid: ${file}`);
+  }
+  return Object.freeze({ markets: Object.freeze([...markets]) });
+}
+
 /** Fills in operational defaults without overriding anything the caller set explicitly. */
-function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccount()) {
+function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccount(), ownerPaperMarkets = readOwnerPaperMarkets()) {
   const { env, stripped } = stripPrivateExchangeCredentials(baseEnv);
   const defaults = {
     NUSA_MODE: "PAPER",
@@ -120,6 +139,15 @@ function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccou
     if (retired && env.NUSA_PAPER_RETIRED_ACCOUNT_IDS !== retired) {
       env.NUSA_PAPER_RETIRED_ACCOUNT_IDS = retired;
       applied.push("NUSA_PAPER_RETIRED_ACCOUNT_IDS");
+    }
+  }
+  if (ownerPaperMarkets != null) {
+    const value = ownerPaperMarkets.markets.join(",");
+    for (const key of ["NUSA_CLOUD_UPBIT_MARKETS", "NUSA_RESEARCH_MARKETS"]) {
+      if (env[key] !== value) {
+        env[key] = value;
+        if (!applied.includes(key)) applied.push(key);
+      }
     }
   }
   return { env, applied: Object.freeze(applied), stripped };
@@ -245,6 +273,8 @@ module.exports = {
   buildRuntimeEnv,
   OWNER_PAPER_ACCOUNT_FILE,
   readOwnerPaperAccount,
+  OWNER_PAPER_MARKETS_FILE,
+  readOwnerPaperMarkets,
   launcherExitCode,
   PRODUCTION_RUNTIME_ENTRYPOINT,
   resolveDashboardToken,
