@@ -3,12 +3,12 @@ current_issue_2260_mobile_devicekey_inspection:
   work_order: WO-ISSUE-2260-MOBILE-DEVICEKEY-INSPECTION
   issue: 2260
   parent_issue: 2218
-  status: IMPLEMENTED_PENDING_DELEGATED_VALIDATION
+  status: DELEGATED_VALIDATION_COMPLETE_PENDING_EXACT_HEAD_ACCEPTANCE
   authority_impact: mobile-paper-session-trust-classification
   first_broken_transition: "AndroidKeyStore inspection exception -> false SILENT_DEVICE_KEY_NOT_REGISTERED projection"
   scope: "Preserve registered silent DeviceKey metadata on transient AndroidKeyStore inspection failure; emit stable non-secret reason/correlation evidence; retry only through the existing single-flight bounded PAPER recovery path; definitive missing/invalid key remains fail-closed."
-  validation: "NOT_RUN_BY_CONTRACT on the shared 1 GB PAPER runner; workflow must run focused tests, build, validate:full and the work-order index on separate hardware."
-  remaining: "Delegated workflow validation and publication, exact-head CI, independent Audit, Release, then HUMAN_ENVIRONMENT_ONLY Galaxy acceptance under #2218."
+  validation: "Delegated workflow completed build, typecheck, repository validation, work-order index and recorded test suites; exact-head CI passed on f5183987d870702f9c917e4fea15caf8ea435a21 before this repository-truth correction."
+  remaining: "Fresh exact-head CI and independent Audit/Release after repository-truth correction; then HUMAN_ENVIRONMENT_ONLY Galaxy acceptance under #2218."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_runtime_proof_cron_propagation:
   work_order: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY

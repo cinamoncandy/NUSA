@@ -1,6 +1,6 @@
 id: WO-ISSUE-2260-MOBILE-DEVICEKEY-INSPECTION
 title: "Preserve silent DeviceKey trust on transient Android Keystore inspection failure"
-status: IMPLEMENTED_PENDING_DELEGATED_VALIDATION
+status: DELEGATED_VALIDATION_COMPLETE_PENDING_EXACT_HEAD_ACCEPTANCE
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -28,13 +28,13 @@ verification_commands:
   - "pnpm run validate:full"
   - "pnpm run aipos:index"
 evidence:
-  implementation_status: "Uncommitted delegated-validation patch prepared; workflow validation is required on separate hardware."
-  local_validation: "NOT_RUN_BY_CONTRACT: shared 1 GB PAPER runner prohibits build, typecheck, tests, and validation."
-  external_validation: "PENDING: workflow exact-head CI, independent Audit, Release, then HUMAN_ENVIRONMENT_ONLY Galaxy acceptance under #2218."
+  implementation_status: "Delegated workflow committed and published the implementation on canonical PR #2479 head f5183987d870702f9c917e4fea15caf8ea435a21."
+  local_validation: "Delegated workflow completed build, typecheck, repository validation, work-order index, and recorded test suites before PR publication."
+  external_validation: "Exact-head CI passed on f5183987d870702f9c917e4fea15caf8ea435a21; Audit passed. Release authorization was correctly withdrawn because this review thread remained unresolved. Fresh exact-head acceptance is required after this evidence correction; HUMAN_ENVIRONMENT_ONLY Galaxy acceptance remains under #2218."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Workflow runs the recorded verification commands and publishes the uncommitted patch; exact-head CI/Audit/Release and Galaxy acceptance remain external."
+next_permitted_action: "Run fresh exact-head CI and independent Audit/Release after this repository-truth correction; Galaxy acceptance remains HUMAN_ENVIRONMENT_ONLY under #2218."
