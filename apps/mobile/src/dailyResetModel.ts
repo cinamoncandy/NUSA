@@ -41,3 +41,21 @@ export function parseDailyBaseline(raw: string | null): DailyBaseline | null {
   } catch { /* fall through */ }
   return null;
 }
+
+const wholeCount = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : null);
+
+/**
+ * Prefer the server's own 09:00 KST window counts: they cover the whole window even when the app is opened
+ * late, whereas the client baseline only counts from the app's first look at a run. Both server values must
+ * be usable, otherwise the client-baseline counts are used unchanged (older servers, no PAPER boundary).
+ */
+export function chooseDailyCounts(
+  serverDecisions: unknown,
+  serverOrders: unknown,
+  baselineCounts: { readonly decisionCount: number | null; readonly paperOrderCount: number | null },
+): { readonly decisionCount: number | null; readonly paperOrderCount: number | null } {
+  const decisions = wholeCount(serverDecisions);
+  const orders = wholeCount(serverOrders);
+  if (decisions == null || orders == null) return baselineCounts;
+  return Object.freeze({ decisionCount: decisions, paperOrderCount: orders });
+}

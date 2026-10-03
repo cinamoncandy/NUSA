@@ -22,6 +22,7 @@ import { visualSystem } from "./visualSystem";
 import { buildHomeFieldInput } from "./homeFieldInput";
 import { buildAiTrustLine, buildLearningLine } from "./learningLineModel";
 import { useDailyCounts } from "./useDailyCounts";
+import { chooseDailyCounts } from "./dailyResetModel";
 import { buildBuySignalLine } from "./buySignalModel";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
@@ -164,7 +165,8 @@ export function HomeView({
 
   const fieldInput = buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
   // The rings show history; a current fault (halt, degraded runtime, lost connection) stays on top of them.
-  const dailyCounts = useDailyCounts(snapshot?.operations.heartbeat?.startedAt ?? null, fieldInput.decisionCount, fieldInput.paperOrderCount);
+  const baselineCounts = useDailyCounts(snapshot?.operations.heartbeat?.startedAt ?? null, fieldInput.decisionCount, fieldInput.paperOrderCount);
+  const dailyCounts = chooseDailyCounts(snapshot?.operations.heartbeat?.windowDecisionCount, snapshot?.operations.heartbeat?.windowOrderCount, baselineCounts);
   const field = buildIntelligenceField({ ...fieldInput, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount });
   const buyHeartbeat = fieldInput.disconnected || readOnlyError != null ? null : snapshot?.operations.heartbeat ?? null;
   const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
