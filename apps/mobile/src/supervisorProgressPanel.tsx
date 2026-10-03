@@ -4,6 +4,7 @@ import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession
 import { loadOperationalProgress, type OperationalProgressLoadResult } from "./operationalProgressClient";
 import { getConfiguredPaperEndpoint } from "./paperConnectionSession";
 import { useTheme } from "./ThemeProvider";
+import { labelFont, readableFont } from "./designSystem";
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -103,24 +104,24 @@ export function SupervisorProgressPanel({ refreshing }: Readonly<{ refreshing: b
 const styles = StyleSheet.create({
   panel: { borderWidth: 1, padding: 14, gap: 10 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  kicker: { fontSize: 9, lineHeight: 12, fontWeight: "600", letterSpacing: 1.5 },
-  authority: { fontSize: 8, lineHeight: 11, fontWeight: "500", letterSpacing: 1 },
+  kicker: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.5 },
+  authority: { fontSize: labelFont(8), lineHeight: 15, fontWeight: "500", letterSpacing: 1 },
   attention: { borderTopWidth: 1, paddingTop: 10, gap: 5 },
   attentionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  attentionLabel: { fontSize: 10, lineHeight: 13, fontWeight: "600", letterSpacing: 1.3 },
-  blockedCount: { fontSize: 9, lineHeight: 12, fontWeight: "600", letterSpacing: 1 },
+  attentionLabel: { fontSize: labelFont(10), lineHeight: 15, fontWeight: "600", letterSpacing: 1.3 },
+  blockedCount: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1 },
   attentionValue: { fontSize: 14, lineHeight: 20, fontWeight: "500" },
   progressRail: { borderTopWidth: 1, paddingTop: 10, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16 },
-  level: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 1.1 },
+  level: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.1 },
   progressValue: { marginTop: 2, fontSize: 30, lineHeight: 34, fontWeight: "600", fontVariant: ["tabular-nums"] },
   counts: { alignItems: "flex-end", gap: 4 },
-  count: { fontSize: 9, lineHeight: 12, fontWeight: "600", letterSpacing: 1 },
+  count: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1 },
   toggle: { minHeight: 40, borderTopWidth: 1, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  toggleLabel: { fontSize: 9, lineHeight: 12, fontWeight: "600", letterSpacing: 1 },
+  toggleLabel: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1 },
   evidence: { borderTopWidth: 1, paddingTop: 10, gap: 8 },
   domainRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  domain: { flex: 1, fontSize: 9, lineHeight: 13, fontWeight: "500" },
-  domainValue: { fontSize: 10, lineHeight: 13, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  domain: { flex: 1, fontSize: readableFont(9), lineHeight: 17, fontWeight: "500" },
+  domainValue: { fontSize: readableFont(10), lineHeight: 17, fontWeight: "600", fontVariant: ["tabular-nums"] },
   reasonList: { gap: 4 },
-  meta: { fontSize: 9, lineHeight: 14, fontWeight: "700" },
+  meta: { fontSize: readableFont(9), lineHeight: 17, fontWeight: "700" },
 });

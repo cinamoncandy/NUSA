@@ -60,6 +60,7 @@ test("the runtime and contract treat the progress as optional display data", () 
   assert.match(runtime, /researchAutomation\?\.collectionProgress\?\.\(\) \?\? null/);
   assert.match(runtime, /try \{ researchProgress = /, "a failing provider cannot break the heartbeat");
   assert.match(contract, /isValidResearchCollection/);
-  assert.match(view, /home-research-progress-line/);
+  assert.match(view, /VITAL_TEST_IDS\[vital\.id\]/, "the key tiles carry the earlier row ids");
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeVitalsModel.ts"), "utf8"), /learning: "home-research-progress-line"/);
   assert.match(view, /buildResearchProgressLine\(buyHeartbeat\?\.researchCollection/);
 });

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { fieldFonts } from "./fieldFonts";
 import { advanceBanner, type Banner, type BannerCursor, type BannerEvent } from "./eventBannerModel";
+import { readableFont } from "./designSystem";
 
 const SHOW_MS = 6000;
 
@@ -51,5 +52,5 @@ const styles = StyleSheet.create({
   bar: { width: 4, alignSelf: "stretch" },
   text: { flex: 1, gap: 2 },
   title: { fontSize: 13 },
-  detail: { fontSize: 11 },
+  detail: { fontSize: readableFont(11) },
 });

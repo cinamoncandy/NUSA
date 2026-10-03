@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { NusaButton, StatusChip, WaveMark } from "./components";
 import { useTheme } from "./ThemeProvider";
+import { labelFont } from "./designSystem";
 
 export type ApprovalGatewayStatus = "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
 
@@ -99,11 +100,11 @@ const styles = StyleSheet.create({
   content: { width: "100%", maxWidth: 560, alignSelf: "center", gap: 24 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   brand: { fontSize: 22, lineHeight: 28, fontWeight: "500", letterSpacing: 1.8 },
-  brandCaption: { marginTop: 2, fontSize: 9, lineHeight: 13, fontWeight: "700", letterSpacing: 1.7 },
+  brandCaption: { marginTop: 2, fontSize: labelFont(9), lineHeight: 15, fontWeight: "700", letterSpacing: 1.7 },
   horizon: { height: 1, overflow: "visible", position: "relative" },
   horizonGlow: { position: "absolute", left: 0, top: -1, width: 72, height: 3, borderRadius: 999 },
   copyBlock: { gap: 11 },
-  eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "500", letterSpacing: 1.5 },
+  eyebrow: { fontSize: labelFont(10), lineHeight: 15, fontWeight: "500", letterSpacing: 1.5 },
   title: { marginTop: 4, fontSize: 34, lineHeight: 42, fontWeight: "500", letterSpacing: -1.3, maxWidth: 500 },
   name: { fontSize: 15, lineHeight: 22, fontWeight: "700" },
   detail: { fontSize: 15, lineHeight: 24, maxWidth: 520 },

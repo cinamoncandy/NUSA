@@ -34,8 +34,10 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.match(home, />PORTFOLIO</);
   assert.match(home, />LEARN</);
   assert.match(home, /DECISION BASIS/);
-  assert.match(home, />RISK</);
-  assert.match(home, />RESULT</);
+  assert.match(home, /HOME_DETAIL_LABELS\.risk/);
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeDetailCopy.ts"), "utf8"), /risk: "위험"/);
+  assert.match(home, /HOME_DETAIL_LABELS\.result/);
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeDetailCopy.ts"), "utf8"), /result: "결과"/);
   assert.match(home, /paddingBottom: 32/);
   assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
   assert.match(home, /testID="home-now"/);

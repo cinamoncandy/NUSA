@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusChip, type StatusTone } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { metricTone } from "./uxLayout";
+import { labelFont, readableFont } from "./designSystem";
 
 export function ScreenHeader({ eyebrow, title, description, statusLabel, statusTone = "neutral", actionLabel, onAction }: Readonly<{ eyebrow?: string; title: string; description?: string; statusLabel?: string; statusTone?: StatusTone; actionLabel?: string; onAction?: () => void }>) {
   const { theme } = useTheme();
@@ -106,7 +107,7 @@ export function OperationalNotice({ title, detail, tone = "info", actionLabel, o
 const styles = StyleSheet.create({
   screenHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16, paddingBottom: 4 },
   screenHeaderCopy: { flex: 1, gap: 5, minWidth: 0 },
-  eyebrow: { fontSize: 10, fontWeight: "500", letterSpacing: 2.1 },
+  eyebrow: { fontSize: labelFont(10), fontWeight: "500", letterSpacing: 2.1 },
   title: { fontSize: 32, lineHeight: 38, fontWeight: "500", letterSpacing: -1.35 },
   description: { maxWidth: 620, fontSize: 14, lineHeight: 21 },
   headerActions: { alignItems: "flex-end", gap: 8 },
@@ -114,26 +115,26 @@ const styles = StyleSheet.create({
   headerActionLabel: { fontSize: 13, fontWeight: "700" },
   metric: { minHeight: 104, flex: 1, minWidth: 138, borderWidth: 1, borderRadius: 12, padding: 15, overflow: "hidden" },
   metricAccent: { position: "absolute", left: 14, right: 14, top: 0, height: 2, borderRadius: 2 },
-  metricLabel: { fontSize: 10, lineHeight: 16, fontWeight: "500", letterSpacing: 1.1 },
+  metricLabel: { fontSize: labelFont(10), lineHeight: 16, fontWeight: "500", letterSpacing: 1.1 },
   metricValue: { marginTop: 8, fontSize: 25, lineHeight: 30, fontWeight: "500", letterSpacing: -0.8, fontVariant: ["tabular-nums"] },
   metricDetail: { marginTop: 5, fontSize: 12, lineHeight: 17 },
   compactMetric: { minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10 },
   compactMetricCopy: { flex: 1, minWidth: 0, gap: 2 },
   compactMetricLabel: { fontSize: 12, lineHeight: 17, fontWeight: "700", letterSpacing: 0.1 },
-  compactMetricDetail: { fontSize: 10, lineHeight: 15 },
+  compactMetricDetail: { fontSize: readableFont(10), lineHeight: 17 },
   compactMetricValue: { minWidth: 0, maxWidth: "48%", flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 18, fontWeight: "700", fontVariant: ["tabular-nums"] },
   quietStatus: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 7 },
   quietStatusDot: { width: 6, height: 6, borderRadius: 3 },
-  quietStatusLabel: { fontSize: 10, lineHeight: 15, fontWeight: "700", letterSpacing: 1.05 },
+  quietStatusLabel: { fontSize: labelFont(10), lineHeight: 15, fontWeight: "700", letterSpacing: 1.05 },
   insightPanel: { gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16 },
   insightTopline: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
   insightTitleGroup: { flex: 1, minWidth: 0, gap: 5 },
-  insightEyebrow: { fontSize: 9, lineHeight: 14, fontWeight: "500", letterSpacing: 1.7 },
+  insightEyebrow: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "500", letterSpacing: 1.7 },
   insightTitle: { fontSize: 18, lineHeight: 24, fontWeight: "700", letterSpacing: -0.35 },
   insightConfidence: { fontSize: 12, lineHeight: 18, fontWeight: "500", fontVariant: ["tabular-nums"] },
   insightThesis: { fontSize: 14, lineHeight: 22 },
   insightFooter: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  insightMeta: { flex: 1, fontSize: 11, lineHeight: 16 },
+  insightMeta: { flex: 1, fontSize: readableFont(11), lineHeight: 17 },
   insightAction: { minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
   insightActionLabel: { fontSize: 12, lineHeight: 17, fontWeight: "700" },
   segmented: { flexDirection: "row", minHeight: 50, padding: 3, borderRadius: 999, borderWidth: 1, gap: 3 },
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
   operationalNoticeDot: { width: 7, height: 7, borderRadius: 4 },
   operationalNoticeCopy: { flex: 1, minWidth: 0, gap: 2 },
   operationalNoticeTitle: { fontSize: 12, lineHeight: 17, fontWeight: "700" },
-  operationalNoticeDetail: { fontSize: 11, lineHeight: 16 },
+  operationalNoticeDetail: { fontSize: readableFont(11), lineHeight: 17 },
   operationalNoticeAction: { minHeight: 44, minWidth: 44, paddingHorizontal: 10, borderWidth: 1, borderRadius: 6, alignItems: "center", justifyContent: "center" },
-  operationalNoticeActionLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" },
+  operationalNoticeActionLabel: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "700" },
 });

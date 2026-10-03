@@ -8,6 +8,8 @@ import { parseWatchlistMarkets, type WatchlistRepository } from "./watchlist";
 import { uxLayout } from "./uxLayout";
 import { loadUpbitPublicCandles, UpbitPublicQuotationError, type PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
 import { AuthorityRail, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
+import { labelFont, readableFont } from "./designSystem";
+import { monitorLabel } from "./monitorCopy";
 
 interface MarketsViewProps {
   readonly repository: WatchlistRepository;
@@ -107,7 +109,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   const chart = <View style={styles.detailWorkspace} testID="market-detail-workspace">
     <ChartView changeRate={changeRate} diagnostic={displayedChartError ? displayedDiagnostic : null} error={displayedChartError ?? error} currentPrice={selectedCurrentPrice} market={selectedMarket} marketConnectionState={marketConnectionState} onRefresh={refreshMarketView} rawCandles={displayedCandles === null ? null : [...displayedCandles]} refreshing={refreshing || selectedChartLoading} stale={displayedStale} />
     <Pressable accessibilityRole="button" onPress={onOpenPaperEvidence} style={[styles.paperContext, { borderTopColor: theme.colors.border }]} testID="market-observation-context">
-      <View style={styles.paperContextCopy}><Text style={[styles.paperKicker, { color: theme.colors.primary }]}>PAPER CONTEXT</Text><Text style={[styles.paperTitle, { color: theme.colors.text }]}>시장 관측과 PAPER 판단은 분리됩니다</Text><Text style={[styles.paperDetail, { color: theme.colors.textMuted }]}>공개 시세는 읽기 전용입니다. 이 데이터만으로 전략 신호나 주문 권한이 생기지 않습니다.</Text></View>
+      <View style={styles.paperContextCopy}><Text style={[styles.paperKicker, { color: theme.colors.primary }]}>{monitorLabel("PAPER CONTEXT")}</Text><Text style={[styles.paperTitle, { color: theme.colors.text }]}>시장 관측과 PAPER 판단은 분리됩니다</Text><Text style={[styles.paperDetail, { color: theme.colors.textMuted }]}>공개 시세는 읽기 전용입니다. 이 데이터만으로 전략 신호나 주문 권한이 생기지 않습니다.</Text></View>
       <Text style={[styles.chevron, { color: theme.colors.textMuted }]}>›</Text>
     </Pressable>
   </View>;
@@ -117,7 +119,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
       <AuthorityRail detail="PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY" status={sourceState} tone={sourceState === "ACTIVE" ? "success" : sourceState === "ERROR" ? "danger" : "warning"} testID="markets-authority-rail" />
       <ScreenLead eyebrow="MARKETS" title={selectedMarket} detail="NUSA가 관측하는 공개 가격 흐름과 데이터 신선도입니다." badge="MARKETS" badgeTone="info" />
       <MetricStrip items={[{ label: "PRICE", value: money(selectedCurrentPrice) }, { label: "CHANGE", value: rate(changeRate), tone: changeRate == null ? "neutral" : changeRate >= 0 ? "success" : "danger" }, { label: "DATA", value: sourceState, tone: sourceState === "ACTIVE" ? "success" : "warning" }]} testID="markets-summary-strip" />
-      {error ? <StateNotice title="PUBLIC FEED ERROR" detail={error} tone="danger" /> : displayedStale ? <StateNotice title="STALE DATA" detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
+      {error ? <StateNotice title={monitorLabel("PUBLIC FEED ERROR")} detail={error} tone="danger" /> : displayedStale ? <StateNotice title={monitorLabel("STALE DATA")} detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
     </View>
 
     {tabletWorkspace ? <View style={styles.tabletWorkspace} testID="markets-tablet-workspace"><View style={styles.tabletPanel} testID="markets-tablet-watchlist">{watchlist}</View><View style={styles.tabletPanel} testID="markets-tablet-chart">{chart}</View></View> : null}
@@ -139,8 +141,8 @@ const styles = StyleSheet.create({
   detailWorkspace: { flex: 1, minWidth: 0 },
   paperContext: { minHeight: 72, borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 20, marginVertical: 10, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 },
   paperContextCopy: { flex: 1, gap: 3 },
-  paperKicker: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 1.1 },
+  paperKicker: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.1 },
   paperTitle: { fontSize: 15, lineHeight: 20, fontWeight: "500" },
-  paperDetail: { fontSize: 11, lineHeight: 17 },
+  paperDetail: { fontSize: readableFont(11), lineHeight: 17 },
   chevron: { fontSize: 24, fontWeight: "700" },
 });

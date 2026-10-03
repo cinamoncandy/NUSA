@@ -1,0 +1,33 @@
+id: WO-UI-20261003-HOME-POLISH
+title: "UI polish app-wide: HOME key tiles up front, readable text floor on every screen, Korean labels on the monitors"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-design-polish
+authority_impact: none
+objective: "The owner asked to improve the current design instead of replacing it. On HOME the four things looked at first (traded coin, BUY signals, feed steadiness, learning progress) sat behind a '+' disclosure among 9-10 plain rows with 9 px labels and 11 px values and English uppercase labels."
+scope:
+  - "App-wide readability floor: designSystem readableFont (12 px) and labelFont (11 px) applied to every presenter (about 30 files incl. App.tsx and the owner connection screens); scripts/lint-mobile.js rejects any literal font size below 11 px outside chart/canvas files."
+  - "apps/mobile/src/monitorCopy.ts: Korean labels for the PAPER learning monitor, markets and LIVE readiness screens (an unknown term is shown as given; safety values are not translated)."
+  - "Review fixes: the feed tile is never healthy while the app sees the feed as stale; no tile is healthy while the session is recovering or the snapshot is cached (uses a re-verifying note); the learning warning comes first and tile details are not truncated."
+  - "apps/mobile/src/homeVitalsModel.ts: pure arrangement of the lines the other screen models already computed into four tiles in a fixed order; an unknown tone or a not-reported value is muted, never healthy."
+  - "apps/mobile/src/homeView.tsx: a 2x2 tile grid directly under the order-reason card, hidden only while setup is needed; the four rows are removed from the collapsed details (no duplicates) and the tiles keep the earlier test ids; detail typography 9/11 px to 12/14 px, row height 48."
+  - "apps/mobile/src/homeDetailCopy.ts: Korean labels (위험, 결과, 출처, 학습, AI 신뢰, 권한). The DECISION BASIS eyebrow and the English safety footer are unchanged by design."
+  - "tests/mobile-home-vitals.test.js (5); source-pinned tests migrated to the models (label pins in mobile-uiux-v3-canonical, mobile-uiux-visual-redesign, mobile-uiux-phase1-state-architecture; test-id pins in mobile-buy-signal-line, mobile-feed-diagnostics, mobile-research-progress, mobile-traded-coin)."
+named_exceptions:
+  - "Chart and canvas drawing (intelligenceField, holoSphere, chartView, equityChart, decisionRings) keep their own text scale; they are not body text."
+  - "Eyebrow kickers (NOW, AUTHORITY, DECISION BASIS) and the English safety wording (PAPER ONLY, LIVE NONE, AI ZERO AUTHORITY) stay as designed."
+exclusions:
+  - "No change to data, what is computed, navigation, authority, risk, execution, accounting, credentials, LIVE or AI. Presentation of existing lines only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Absent, malformed or unknown values render as not reported (muted)."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-home-vitals.test.js
+residual: "Raising 9-11 px text to 11-12 px can wrap text that used to fit (pills, tracked labels); nothing was looked at on a device, so the layout is reasoned from the style tokens. Not looked at on a device: layout was reasoned from the style tokens, so the tile height and wrapping need an owner screenshot. Depends on the traded-coin row (PR 2493)."

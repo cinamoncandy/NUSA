@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { fieldMotion, fieldPalette } from "./designSystem";
+import { fieldMotion, fieldPalette, labelFont } from "./designSystem";
 import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
 import { HoloSphere } from "./holoSphere";
 import { fieldHeaderPose, type FieldHeaderModel } from "./fieldScreensModel";
@@ -79,9 +79,9 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
 const styles = StyleSheet.create({
   shell: { backgroundColor: fieldPalette.void, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  eyebrow: { color: fieldPalette.text, fontSize: 11, letterSpacing: 2.4, marginRight: "auto", ...fieldFonts.monoMedium },
+  eyebrow: { color: fieldPalette.text, fontSize: labelFont(11), letterSpacing: 2.4, marginRight: "auto", ...fieldFonts.monoMedium },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  status: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
+  status: { fontSize: labelFont(11), letterSpacing: 2, ...fieldFonts.monoMedium },
   field: { height: HEIGHT, overflow: "hidden" },
   seal: { position: "absolute", width: SEAL_RADIUS * 2, height: SEAL_RADIUS * 2, borderRadius: SEAL_RADIUS, borderWidth: 1, borderStyle: "dashed", borderColor: fieldPalette.dim },
   figure: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
@@ -89,6 +89,6 @@ const styles = StyleSheet.create({
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   facts: { flexDirection: "row", marginTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim, paddingTop: 10 },
   fact: { flex: 1, gap: 2 },
-  factLabel: { color: fieldPalette.dim, fontSize: 9, letterSpacing: 1.6, ...fieldFonts.mono },
+  factLabel: { color: fieldPalette.dim, fontSize: labelFont(9), letterSpacing: 1.6, ...fieldFonts.mono },
   factValue: { color: fieldPalette.label, fontSize: 13, fontVariant: ["tabular-nums"], ...fieldFonts.mono },
 });

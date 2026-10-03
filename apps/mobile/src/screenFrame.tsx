@@ -2,6 +2,7 @@ import React from "react";
 import { ScrollView, StyleSheet, Text, View, type ScrollViewProps } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { visualSystem } from "./visualSystem";
+import { readableFont } from "./designSystem";
 
 export function ScreenFrame({ children, testID, refreshControl }: Readonly<{
   children: React.ReactNode;
@@ -42,6 +43,6 @@ const styles = StyleSheet.create({
   screen: { paddingTop: 16, paddingBottom: 120 },
   titleBlock: { gap: 3 },
   title: { fontSize: 30, lineHeight: 38, fontWeight: "700", letterSpacing: -0.6 },
-  detail: { fontSize: 11, lineHeight: 16 },
+  detail: { fontSize: readableFont(11), lineHeight: 17 },
   surface: { borderWidth: 1 },
 });

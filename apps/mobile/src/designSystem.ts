@@ -244,3 +244,14 @@ export const fieldMotion = Object.freeze({
   poseMs: 1100,
   orbitStepDeg: 18,
 });
+
+/**
+ * Readability floors shared by every screen (owner rule: UI changes apply to the whole app). Body, value and detail
+ * text is never smaller than 12 px; tracked uppercase labels and eyebrows are never smaller than 11 px. Presenters
+ * wrap their font sizes in these instead of hard-coding a smaller number.
+ */
+export const MIN_BODY_FONT = 12;
+export const MIN_LABEL_FONT = 11;
+export const readableFont = (size: number): number => Math.max(size, MIN_BODY_FONT);
+export const labelFont = (size: number): number => Math.max(size, MIN_LABEL_FONT);
+export const readableLineHeight = (size: number, lineHeight: number): number => Math.max(lineHeight, Math.round(size * 1.4));
