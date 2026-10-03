@@ -2353,6 +2353,12 @@ current_autopilot_reconverge:
   branch: claude/autopilot-productivity
   authority_impact: autopilot_pr_branch_maintenance_only
   deploy: none_needed
+current_autopilot_codex_hourly:
+  work_order: WO-AUTOPILOT-20261003-CODEX-HOURLY
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-codex-hourly
+  authority_impact: autopilot_schedule_only
+  deploy: none_needed
 current_ui_motion_reveal:
   work_order: WO-UI-20261003-MOTION-REVEAL
   status: READY_FOR_REVIEW
