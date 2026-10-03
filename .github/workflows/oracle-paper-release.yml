@@ -101,20 +101,34 @@ jobs:
       BUNDLE_SHA: ${{ needs.prepare.outputs.bundle_sha }}
     steps:
       - name: Recheck exact protected main before host mutation
+        id: source_fresh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          [ "$MAIN_SHA" = "$SOURCE_SHA" ] || { echo "::error::Protected main moved after build; refusing stale release"; exit 1; }
+          if [ "$MAIN_SHA" != "$SOURCE_SHA" ]; then
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SUPERSEDED: protected main moved after build; stale Oracle release is a non-terminal no-op"
+            exit 0
+          fi
+          echo "fresh=true" >> "$GITHUB_OUTPUT"
+
+      - name: Free disk by pruning superseded releases (bounded)
+        # The helper keeps the active release, the rollback release and the newest few, validates every
+        # candidate before deleting, and never touches state or backups. Without this, old releases pile
+        # up until the host fills and the backup step fails before any release change (runs 88 and 89).
+        run: sudo "$STEP" prune
 
       - name: Download built release
+        if: steps.source_fresh.outputs.fresh == 'true'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nusa-paper-release
           path: ${{ runner.temp }}
 
       - name: Verify and unpack the exact built release
+        if: steps.source_fresh.outputs.fresh == 'true'
         run: |
           set -euo pipefail
           [[ "$BUNDLE_SHA" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Missing bundle digest"; exit 1; }
@@ -126,15 +140,19 @@ jobs:
           echo "RELEASE_TREE=$RELEASE_TREE" >> "$GITHUB_ENV"
 
       - name: Back up persistent state before touching the release
+        if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" backup
 
       - name: Stage the immutable release directory
+        if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" stage "$SOURCE_SHA" "$RELEASE_TREE"
 
       - name: Preflight host and security contract
+        if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" preflight "$SOURCE_SHA"
 
       - name: Atomically activate exact release and prove both runtimes
+        if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" activate "$SOURCE_SHA"
 
       - name: Record deployed identity and fail-closed authority

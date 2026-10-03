@@ -344,7 +344,27 @@ jobs:
             exit 1
           done
 
+      - name: Preflight protected-branch mergeability
+        id: merge_preflight
+        env:
+          GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
+        run: |
+          set -euo pipefail
+          unresolved="$(gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved}}}}}' -f owner="$GITHUB_REPOSITORY_OWNER" -f name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
+          if ! [[ "$unresolved" =~ ^[0-9]+$ ]]; then
+            echo "::error::Release preflight could not establish review-thread state."
+            exit 1
+          fi
+          if [ "$unresolved" -gt 0 ]; then
+            echo "merge_ready=false" >> "$GITHUB_OUTPUT"
+            echo "BLOCKED Release preflight: unresolved_review_threads=$unresolved pr=$PR_NUMBER head=$EXPECTED_HEAD"
+            exit 0
+          fi
+          echo "merge_ready=true" >> "$GITHUB_OUTPUT"
+          echo "Release preflight CLEAR: pr=$PR_NUMBER head=$EXPECTED_HEAD unresolved_review_threads=0"
+
       - name: Canonical expected-head merge
+        if: ${{ steps.merge_preflight.outputs.merge_ready == 'true' }}
         id: merge
         env:
           GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
@@ -389,6 +409,15 @@ jobs:
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'
 
+      - name: Revoke authorization if merge preflight blocks activation
+        if: ${{ steps.merge_preflight.outputs.merge_ready == 'false' && steps.authorize.outputs.published == 'true' }}
+        env:
+          AUTH_GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
+          AUTH_CONTEXT: nusa/release-authorized
+        run: |
+          set -euo pipefail
+          GH_TOKEN="$AUTH_GH_TOKEN" gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" -f state=failure -f context="$AUTH_CONTEXT" -f description="canonical Release blocked before merge preflight" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+
       - name: Revoke authorization if exact-head merge did not complete
         if: ${{ failure() && steps.authorize.outputs.published == 'true' }}
         env:
@@ -400,6 +429,7 @@ jobs:
           echo "Invalidated $AUTH_CONTEXT on $EXPECTED_HEAD after release-path failure."
 
       - name: Start canonical post-merge main CI
+        if: ${{ steps.merge_preflight.outputs.merge_ready == 'true' && steps.merge.outcome == 'success' }}
         id: ci
         env:
           MERGED_MAIN: ${{ steps.merge.outputs.merged_main }}
@@ -442,6 +472,7 @@ jobs:
           echo "Dispatched canonical main CI for merged revision $MERGED_MAIN"
 
       - name: Recover post-merge CI retries and dispatch Cloudflare Deploy
+        if: ${{ steps.merge_preflight.outputs.merge_ready == 'true' && steps.merge.outcome == 'success' }}
         env:
           MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
         run: |
@@ -497,6 +528,7 @@ jobs:
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
 
       - name: Dispatch exact-main runtime evidence and CI-gated downstream workflows directly
+        if: ${{ steps.merge_preflight.outputs.merge_ready == 'true' && steps.merge.outcome == 'success' }}
         env:
           MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
         run: |
