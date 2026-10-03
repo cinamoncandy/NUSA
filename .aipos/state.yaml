@@ -2301,3 +2301,9 @@ current_ui_research_progress:
   branch: claude/nusa-repository-j93sd8-research-progress
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
+current_research_candle_backfill:
+  work_order: WO-RESEARCH-20261003-CANDLE-BACKFILL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-candle-backfill
+  authority_impact: research_evidence_only
+  deploy: not_deployed_server_deploy_required
