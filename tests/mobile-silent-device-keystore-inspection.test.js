@@ -42,8 +42,15 @@ test("only transient inspection status arms retry; definitive missing key stays 
   const transient = method.indexOf('status.status === "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR"');
   const missing = method.indexOf("status.available !== true", transient);
   assert.ok(transient >= 0 && missing > transient);
-  assert.match(method.slice(transient, missing), /restoreRetryable = true/);
+  assert.match(method.slice(transient, missing), /restoreRetryable = transientError != null/);
   assert.match(method.slice(missing), /restoreRetryable = false/);
   assert.doesNotMatch(method.slice(missing), /restoreBearer\(/);
   assert.doesNotMatch(method, /deleteSilentDeviceCredential|createSilentDeviceCredential/);
+});
+
+test("transient retry requires the canonical non-secret reason and UUID correlation evidence", () => {
+  assert.match(session, /status\.reasonCode !== "ANDROID_KEYSTORE_INSPECTION_FAILED"/);
+  assert.match(session, /\^\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}-4\[0-9a-f\]\{3\}-\[89ab\]\[0-9a-f\]\{3\}-\[0-9a-f\]\{12\}\$/);
+  assert.match(session, /this\.restoreRetryable = transientError != null/);
+  assert.match(session, /silent DeviceKey status evidence is invalid/);
 });
