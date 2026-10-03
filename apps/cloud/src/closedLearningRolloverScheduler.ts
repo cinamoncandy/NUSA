@@ -118,19 +118,6 @@ export class ClosedLearningRolloverScheduler {
     }
 
     const closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
-    if (plan.candidateProvenance[0]?.candidateId === OWNER_BASELINE_CANDIDATE_ID) {
-      const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
-      const periodIndex = nextPeriodIndex(realizedPeriods);
-      this.port.openPeriodFromCanonicalAccount({
-        periodId: "owner-baseline-rollover:" + periodIndex + ":" + account.updatedAt,
-        periodIndex,
-        advisory: plan.advisory,
-        candidateProvenance: plan.candidateProvenance,
-        ...(plan.market == null ? {} : { market: plan.market }),
-        periodStartAt: account.updatedAt,
-      });
-      return Object.freeze({ status: "CLOSED_AND_EVALUATED", periodId: plan.periodId });
-    }
     const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
     if (!realizedPeriods.some((item) => item.record.recordId === closed.record.recordId)) {
       throw new Error("closed PAPER period is missing from the durable realized denominator");
