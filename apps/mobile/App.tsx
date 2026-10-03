@@ -162,7 +162,7 @@ function AuthenticatedApp() {
   // Inside the resume grace the transient not-configured projection that RECOVERING leaves behind
   // stays quiet (see graceNotConfigured); genuine read failures are never hidden.
   const launchedAt = useRef(Date.now());
-  const launchQuiet = launchSettling(paperSessionState, Date.now() - launchedAt.current);
+  const launchQuiet = launchSettling(Date.now() - launchedAt.current);
   useEffect(() => {
     if (!launchQuiet) return;
     const remaining = Math.max(0, LAUNCH_GRACE_MS - (Date.now() - launchedAt.current)) + 50;
