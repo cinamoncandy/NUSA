@@ -2306,4 +2306,9 @@ current_paper_orderbook_renew:
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-orderbook-renew
   authority_impact: market_data_health_paper_only
+current_research_candle_backfill:
+  work_order: WO-RESEARCH-20261003-CANDLE-BACKFILL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-candle-backfill
+  authority_impact: research_evidence_only
   deploy: not_deployed_server_deploy_required

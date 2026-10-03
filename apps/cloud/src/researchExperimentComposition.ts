@@ -5,6 +5,7 @@ import { ResearchExperimentOrchestrator, type ResearchVariant, type TickReport }
 import { ResearchRecoveryCoordinator } from "./researchRecoveryCoordinator";
 import { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
 import { collectClosedCandles } from "./researchCandleCollector";
+import { backfillMarket, createUpbitMinuteCandleFetcher, type BackfillResult } from "./researchCandleBackfill";
 
 /**
  * Composition of the continuous research experiments. DISABLED unless NUSA_CLOUD_RESEARCH_EXPERIMENTS is exactly
@@ -27,6 +28,8 @@ export interface ResearchExperimentSettings {
   readonly tickMs: number;
   readonly dailyBudgetPerVariant: number;
   readonly sourceCommitSha: string;
+  /** Fill history from Upbit's public 1-minute candles at start. On unless NUSA_RESEARCH_BACKFILL is set to anything but ENABLED. */
+  readonly backfill: boolean;
 }
 
 export type ResearchExperimentSettingsResult =
@@ -60,6 +63,7 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
       tickMs: tickMinutes * M,
       dailyBudgetPerVariant: budget,
       sourceCommitSha: commit,
+      backfill: env.NUSA_RESEARCH_BACKFILL === undefined || env.NUSA_RESEARCH_BACKFILL === "ENABLED",
     }),
   });
 }
@@ -67,6 +71,7 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
 export interface ResearchExperimentComposition {
   readonly orchestrator: ResearchExperimentOrchestrator;
   readonly tickOnce: () => TickReport;
+  readonly backfill: () => Promise<readonly BackfillResult[]>;
   readonly start: () => void;
   readonly stop: () => void;
 }
@@ -76,6 +81,8 @@ export function composeResearchExperiments(input: {
   readonly database: SqliteDatabase;
   readonly now?: () => number;
   readonly log?: (line: string) => void;
+  readonly fetchImpl?: typeof fetch;
+  readonly sleep?: (ms: number) => Promise<void>;
 }): ResearchExperimentComposition | undefined {
   const log = input.log ?? (() => undefined);
   const parsed = readResearchExperimentSettings(input.env);
@@ -122,6 +129,41 @@ export function composeResearchExperiments(input: {
     experimentFamilyPrefix: "sma-research",
   });
 
+  const fetchPage = createUpbitMinuteCandleFetcher(input.fetchImpl ?? fetch);
+  const sleep = input.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  let backfillTimer: ReturnType<typeof setTimeout> | undefined;
+  let backfilling = false;
+  const w = settings.windows;
+  const targetSpanMs = w.trainMs + w.validationMs + w.holdoutMs + DAY_MS; // one day of margin
+  const backfill = async (): Promise<readonly BackfillResult[]> => {
+    if (backfilling || stopped) return Object.freeze([]);
+    backfilling = true;
+    const results: BackfillResult[] = [];
+    try {
+      for (const market of settings.markets) {
+        if (stopped) break;
+        const result = await backfillMarket({ market, targetSpanMs, nowMs: now(), store, fetchPage, sleep });
+        results.push(result);
+        log(`[research-backfill] ${market} ${result.status} recorded=${result.recorded} rejected=${result.rejected} pages=${result.pages}${result.errorCode === undefined ? "" : ` error=${result.errorCode}`}`);
+      }
+    } catch (error) {
+      log(`[research-backfill] failed: ${error instanceof Error ? error.message : "unknown"}`);
+    } finally {
+      backfilling = false;
+    }
+    return Object.freeze(results);
+  };
+  const scheduleBackfill = (attempt: number, delayMs: number): void => {
+    if (stopped || !settings.backfill) return;
+    backfillTimer = setTimeout(() => {
+      void backfill().then((results) => {
+        const done = results.length === settings.markets.length && results.every((r) => r.status === "COMPLETE");
+        if (!done && attempt < 3) scheduleBackfill(attempt + 1, 10 * M);
+      });
+    }, delayMs);
+    backfillTimer.unref?.();
+  };
+
   let timer: ReturnType<typeof setInterval> | undefined;
   let first: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
@@ -134,14 +176,16 @@ export function composeResearchExperiments(input: {
   return Object.freeze({
     orchestrator,
     tickOnce,
+    backfill,
     start: () => {
       if (stopped || timer != null) return;
+      scheduleBackfill(1, 20_000);
       first = setTimeout(() => { try { tickOnce(); } catch { /* isolated */ } }, 60_000);
       first.unref?.();
       timer = setInterval(() => { try { tickOnce(); } catch { /* isolated */ } }, settings.tickMs);
       timer.unref?.();
-      log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variants.length} tickMinutes=${settings.tickMs / M}`);
+      log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variants.length} tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
-    stop: () => { stopped = true; if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
+    stop: () => { stopped = true; if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });
 }
