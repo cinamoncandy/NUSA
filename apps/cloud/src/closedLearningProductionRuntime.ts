@@ -1,3 +1,4 @@
+import { composeResearchExperiments } from "./researchExperimentComposition";
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
 import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
 import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
@@ -97,6 +98,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
 
+  // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
+  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line) });
   const baseHandle = startCloudRuntime(
     env,
     undefined,
@@ -107,7 +110,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     paperLoop,
     undefined,
     undefined,
-    undefined,
+    researchExperiments?.orchestrator,
     createCloudAiRuntime(env),
   );
 
@@ -289,6 +292,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       if (stopPromise != null) return stopPromise;
       stopping = true;
       researchRefresh.stop();
+      researchExperiments?.stop();
       if (initialTimer != null) clearTimeout(initialTimer);
       if (rolloverTimer != null) clearInterval(rolloverTimer);
       const pending = closedLearningTick;
@@ -317,6 +321,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   initialTimer.unref?.();
   rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
   rolloverTimer.unref?.();
+  researchExperiments?.start();
 
   return Object.freeze({
     handle,
