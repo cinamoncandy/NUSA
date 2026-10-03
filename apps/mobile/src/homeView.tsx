@@ -36,6 +36,7 @@ import { buildHomeVitals, VITAL_TEST_IDS } from "./homeVitalsModel";
 import { HOME_DETAIL_LABELS } from "./homeDetailCopy";
 import { labelFont, readableFont } from "./designSystem";
 
+
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
 
@@ -222,14 +223,14 @@ export function HomeView({
       </View>}
 
       {disconnected ? null : <View style={styles.vitals} testID="home-vitals">
-        {vitals.map((vital) => <View key={vital.id} style={[styles.vital, { backgroundColor: theme.colors.surface, borderColor: vital.tone === "warn" ? theme.colors.warning : theme.colors.border }]} testID={VITAL_TEST_IDS[vital.id]}>
+        {vitals.map((vital, vitalIndex) => <MotionReveal key={vital.id} index={vitalIndex + 1} style={styles.vitalCell}><View style={[styles.vital, { backgroundColor: theme.colors.surface, borderColor: vital.tone === "warn" ? theme.colors.warning : theme.colors.border }]} testID={VITAL_TEST_IDS[vital.id]}>
           <View style={styles.vitalHead}>
             <View style={[styles.vitalDot, { backgroundColor: vital.tone === "ok" ? theme.colors.success : vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]} />
             <Text style={[styles.vitalLabel, { color: theme.colors.textMuted }]}>{vital.label}</Text>
           </View>
           <Text style={[styles.vitalValue, { color: theme.colors.text }]} numberOfLines={2}>{vital.value}</Text>
           {vital.detail == null ? null : <Text style={[styles.vitalDetail, { color: vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]}>{vital.detail}</Text>}
-        </View>)}
+        </View></MotionReveal>)}
       </View>}
 
       {/* While a recovery/degraded banner is shown the rail would only repeat it; on a halt it stays, because it names the cause (e.g. the kill switch). */}
@@ -374,7 +375,8 @@ const styles = StyleSheet.create({
   journalTitle: { fontSize: 14, lineHeight: 20 },
   journalDetail: { fontSize: 12.5, lineHeight: 18 },
   vitals: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  vital: { flexBasis: "47%", flexGrow: 1, minHeight: 96, borderWidth: 1, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, gap: 6 },
+  vitalCell: { flexBasis: "47%", flexGrow: 1 },
+  vital: { flex: 1, minHeight: 96, borderWidth: 1, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, gap: 6 },
   vitalHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   vitalDot: { width: 8, height: 8, borderRadius: 4 },
   vitalLabel: { fontSize: 12, lineHeight: 16, fontWeight: "600" },

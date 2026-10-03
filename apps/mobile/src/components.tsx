@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
-import { buttonTokens, cardTokens, fieldTokens, type ButtonTone, labelFont, readableFont } from "./designSystem";
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
+import { buttonTokens, cardTokens, fieldMotion, fieldTokens, type ButtonTone, labelFont, readableFont } from "./designSystem";
+import { revealDelayMs } from "./revealStagger";
 import { useTheme } from "./ThemeProvider";
 
 export interface NusaButtonProps {
@@ -108,10 +109,10 @@ export function StatusChip({ label, tone = "neutral", testID }: Readonly<{ label
   return <View testID={testID} style={[styles.chip, { backgroundColor: background, borderColor: tone === "neutral" ? theme.colors.border : foreground }]}><Text style={[styles.chipLabel, { color: foreground }]}>{label}</Text></View>;
 }
 
-export function MotionReveal({ children, testID }: Readonly<{ children: React.ReactNode; testID?: string }>) {
+export function MotionReveal({ children, testID, index = 0, style }: Readonly<{ children: React.ReactNode; testID?: string; index?: number; style?: StyleProp<ViewStyle> }>) {
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(8)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
 
   useEffect(() => {
     let active = true;
@@ -124,12 +125,12 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
     if (reducedMotion === null) return;
     if (reducedMotion) { opacity.setValue(1); translateY.setValue(0); return; }
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: fieldMotion.revealMs, delay: revealDelayMs(index, fieldMotion.revealStaggerMs, fieldMotion.revealMaxIndex), easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: fieldMotion.revealMs, delay: revealDelayMs(index, fieldMotion.revealStaggerMs, fieldMotion.revealMaxIndex), easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
-  }, [opacity, reducedMotion, translateY]);
+  }, [opacity, reducedMotion, translateY, index]);
 
-  return <Animated.View testID={testID} style={{ opacity: reducedMotion === null ? 1 : opacity, transform: [{ translateY: reducedMotion === null ? 0 : translateY }] }}>{children}</Animated.View>;
+  return <Animated.View testID={testID} style={[style, { opacity: reducedMotion === null ? 1 : opacity, transform: [{ translateY: reducedMotion === null ? 0 : translateY }] }]}>{children}</Animated.View>;
 }
 
 

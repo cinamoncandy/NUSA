@@ -243,6 +243,9 @@ export const fieldMotion = Object.freeze({
   tabTransitionMs: 320,
   poseMs: 1100,
   orbitStepDeg: 18,
+  revealMs: 320,
+  revealStaggerMs: 55,
+  revealMaxIndex: 6,
 });
 
 /**
