@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { fieldFonts } from "./fieldFonts";
 import type { SafetyLine as SafetyLineModel } from "./safetyLineModel";
+import { readableFont } from "./designSystem";
 
 /** One quiet line at the top of every tab: the safety state, then the fixed PAPER/LIVE boundary. */
 export function SafetyLine({ line }: Readonly<{ line: SafetyLineModel }>) {
@@ -19,5 +20,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   dot: { width: 7, height: 7, borderRadius: 4 },
   word: { fontSize: 12 },
-  detail: { fontSize: 11, flexShrink: 1 },
+  detail: { fontSize: readableFont(11), flexShrink: 1 },
 });

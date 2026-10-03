@@ -23,7 +23,7 @@ test("product v5 uses flatter secondary sections and Android-sized actions", () 
   assert.match(intelligence, /section: { borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0/);
   assert.match(intelligence, /sectionAction: { minHeight: 48/);
   assert.match(intelligence, /leadTitle: { fontSize: 24, lineHeight: 30/);
-  assert.match(intelligence, /leadDetail: { maxWidth: 720, fontSize: 11, lineHeight: 17/);
+  assert.match(intelligence, /leadDetail: { maxWidth: 720, fontSize: readableFont\(11\)/, "secondary copy goes through the shared readability floor");
 });
 
 test("Cloud PAPER setup communicates server-verified owner device session without changing authority", () => {

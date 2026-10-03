@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { themes } from "./designSystem";
+import { themes, labelFont } from "./designSystem";
 
 interface AppErrorBoundaryProps { readonly children: React.ReactNode; }
 interface AppErrorBoundaryState { readonly hasError: boolean; readonly retryKey: number; }
@@ -40,7 +40,7 @@ export class AppErrorBoundary extends React.Component<AppErrorBoundaryProps, App
 const styles = StyleSheet.create({
   screen: { flex: 1, justifyContent: "center", backgroundColor: recoveryTheme.colors.background, paddingHorizontal: 24, paddingTop: 48, paddingBottom: 32 },
   panel: { width: "100%", maxWidth: 640, alignSelf: "center", gap: 14, padding: 22, borderRadius: recoveryTheme.radii.lg, borderWidth: 1, borderColor: recoveryTheme.colors.border, backgroundColor: recoveryTheme.colors.surface },
-  eyebrow: { color: recoveryTheme.colors.primary, fontSize: 10, fontWeight: "500", letterSpacing: 1.4 },
+  eyebrow: { color: recoveryTheme.colors.primary, fontSize: labelFont(10), fontWeight: "500", letterSpacing: 1.4 },
   title: { color: recoveryTheme.colors.text, fontSize: 24, lineHeight: 30, fontWeight: "500", letterSpacing: -0.7 },
   message: { color: recoveryTheme.colors.textMuted, fontSize: 14, lineHeight: 21 },
   button: { minHeight: 48, borderRadius: recoveryTheme.radii.md, backgroundColor: recoveryTheme.colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },

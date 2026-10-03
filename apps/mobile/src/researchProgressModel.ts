@@ -41,6 +41,8 @@ export function buildResearchProgressLine(input: ResearchProgressInput | null | 
   const first = int(input.firstCloseMs);
   const lastAgo = last == null || !Number.isFinite(nowMs) ? null : Math.max(0, nowMs - last);
   const parts: string[] = [];
+  const stale = lastAgo != null && lastAgo > STALE_COLLECTION_MS;
+  if (stale) parts.push("수집이 멈췄을 수 있음");
   if (lastAgo != null) parts.push(`마지막 수집 ${ago(lastAgo)}`);
   else parts.push("수집 시각 미확인");
   if (count >= required) parts.push("필요량 충족");
@@ -50,7 +52,5 @@ export function buildResearchProgressLine(input: ResearchProgressInput | null | 
     const missing = expected > 0 ? Math.max(0, Math.round((1 - count / expected) * 100)) : 0;
     if (missing >= 1) parts.push(`빈 구간 ${missing}%`);
   }
-  const stale = lastAgo != null && lastAgo > STALE_COLLECTION_MS;
-  if (stale) parts.push("수집이 멈췄을 수 있음");
   return { value: head, detail: parts.join(" · "), tone: stale ? "warn" : "ok" };
 }

@@ -34,6 +34,7 @@ import { buildResearchProgressLine } from "./researchProgressModel";
 import { buildTradedCoinLine } from "./tradedCoinModel";
 import { buildHomeVitals, VITAL_TEST_IDS } from "./homeVitalsModel";
 import { HOME_DETAIL_LABELS } from "./homeDetailCopy";
+import { labelFont, readableFont } from "./designSystem";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
@@ -190,7 +191,7 @@ export function HomeView({
   const tradedCoinLine = buildTradedCoinLine({ tradedMarkets: buyHeartbeat?.tradedMarkets, researchMarket: (buyHeartbeat?.researchCollection as { market?: unknown } | undefined)?.market, positionMarket: position?.market, positionQuantity: position?.quantity });
   const researchLine = buildResearchProgressLine(buyHeartbeat?.researchCollection as never, Date.now());
   const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
-  const vitals = buildHomeVitals({ coin: tradedCoinLine, buy: buySignalLine, feed: feedLine, learning: { value: researchLine.value, detail: researchLine.detail, tone: researchLine.tone } });
+  const vitals = buildHomeVitals({ coin: tradedCoinLine, buy: buySignalLine, feed: feedLine, learning: { value: researchLine.value, detail: researchLine.detail, tone: researchLine.tone }, unverified: stale || Boolean(sessionRecovering), feedStale: publicMarketStale });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
     ? { title: field.headline, detail: field.detail, tone: field.phase === "HALTED" ? "halt" as const : "warning" as const }
     : null;
@@ -212,7 +213,7 @@ export function HomeView({
 
       <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.paperOrderCount} /></View>
       {stale && cachedSnapshot != null ? <Text style={{ color: theme.colors.warning, fontSize: 12, textAlign: "center" }} testID="home-stale-note">{staleLabel(cachedSnapshot.savedAt, Date.now())} · 서버 재확인 중 (아래 값은 이전 값)</Text> : null}
-      {windowNote != null ? <Text style={{ color: theme.colors.textMuted, fontSize: 11, textAlign: "center" }} testID="home-window-note">{windowNote}</Text> : null}
+      {windowNote != null ? <Text style={{ color: theme.colors.textMuted, fontSize: readableFont(11), textAlign: "center" }} testID="home-window-note">{windowNote}</Text> : null}
 
       {orderReason == null ? null : <View style={[styles.reasonCard, { borderColor: orderReason.category === "FILLED" || orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.border : theme.colors.warning }]} testID="home-order-reason-card">
         <Text style={[styles.eyebrow, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]}>{orderReason.category === "FILLED" ? "최근 체결" : orderReason.category === "UNKNOWN" ? "최근 판단 결과" : "주문하지 않은 이유"}</Text>
@@ -227,7 +228,7 @@ export function HomeView({
             <Text style={[styles.vitalLabel, { color: theme.colors.textMuted }]}>{vital.label}</Text>
           </View>
           <Text style={[styles.vitalValue, { color: theme.colors.text }]} numberOfLines={2}>{vital.value}</Text>
-          {vital.detail == null ? null : <Text style={[styles.vitalDetail, { color: vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]} numberOfLines={3}>{vital.detail}</Text>}
+          {vital.detail == null ? null : <Text style={[styles.vitalDetail, { color: vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]}>{vital.detail}</Text>}
         </View>)}
       </View>}
 
@@ -367,7 +368,7 @@ const styles = StyleSheet.create({
   journalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 },
   journalHint: { fontSize: 12 },
   journalRow: { flexDirection: "row", gap: 10, paddingVertical: 11 },
-  journalTime: { width: 42, fontSize: 11.5, paddingTop: 2 },
+  journalTime: { width: 42, fontSize: readableFont(11.5), paddingTop: 2 },
   journalDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, marginTop: 6 },
   journalBody: { flex: 1, minWidth: 0, gap: 2 },
   journalTitle: { fontSize: 14, lineHeight: 20 },
@@ -388,11 +389,11 @@ const styles = StyleSheet.create({
   liveDot: { width: 8, height: 8, borderRadius: 999 },
   brand: { fontSize: 15, lineHeight: 20, letterSpacing: 4, ...fieldFonts.display },
   statusCapsule: { minHeight: 30, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
-  statusCapsuleText: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 0.8 },
+  statusCapsuleText: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 0.8 },
   glanceRail: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: -8 },
-  glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
-  glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "600", letterSpacing: 0.45 },
-  glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "500", fontVariant: ["tabular-nums"] },
+  glancePrimary: { flex: 1, minWidth: 180, fontSize: readableFont(10), lineHeight: 17, fontWeight: "700" },
+  glanceRisk: { fontSize: readableFont(10), lineHeight: 17, fontWeight: "600", letterSpacing: 0.45 },
+  glanceBuild: { fontSize: readableFont(9), lineHeight: 17, fontWeight: "500", fontVariant: ["tabular-nums"] },
 
   capitalRail: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
   capitalPrimary: { flex: 1, minWidth: 210, gap: 3 },
@@ -407,44 +408,44 @@ const styles = StyleSheet.create({
   canvasAction: { minHeight: 44, alignItems: "flex-end", justifyContent: "center" },
   loopHeader: { paddingTop: 4, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" },
 
-  eyebrow: { fontSize: 9, lineHeight: 13, letterSpacing: 2, ...fieldFonts.monoMedium },
+  eyebrow: { fontSize: labelFont(9), lineHeight: 15, letterSpacing: 2, ...fieldFonts.monoMedium },
 
   marketPrice: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
   marketEmpty: { minHeight: 100, paddingVertical: 32, fontSize: 13, lineHeight: 20 },
 
   pnlValue: { fontSize: 13, lineHeight: 18, fontWeight: "600", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
 
-  factLabel: { fontSize: 8, lineHeight: 12, fontWeight: "500", letterSpacing: 0.7 },
+  factLabel: { fontSize: labelFont(8), lineHeight: 15, fontWeight: "500", letterSpacing: 0.7 },
   factValue: { fontSize: 13, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] },
 
   sectionTitle: { marginTop: 3, fontSize: 22, lineHeight: 28, letterSpacing: -0.3, ...fieldFonts.displayLight },
-  sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: 9, lineHeight: 14, fontWeight: "700" },
+  sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: readableFont(9), lineHeight: 17, fontWeight: "700" },
   commandStack: { gap: 10 },
   commandStackTablet: { flexDirection: "row", alignItems: "stretch" },
   command: { flex: 1, minHeight: 132, borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingHorizontal: 2, paddingVertical: 16, gap: 7 },
   commandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  commandCode: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 1.1 },
+  commandCode: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.1 },
   commandArrow: { fontSize: 16, lineHeight: 18, fontWeight: "700" },
   commandTitle: { fontSize: 20, lineHeight: 26, letterSpacing: -0.3, ...fieldFonts.displayLight },
-  commandSummary: { fontSize: 11, lineHeight: 17, fontWeight: "600" },
+  commandSummary: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "600" },
   commandPreview: { marginTop: "auto", gap: 3, paddingTop: 5 },
   previewRow: { minHeight: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  previewLabel: { fontSize: 9, lineHeight: 14, fontWeight: "500" },
-  previewValue: { fontSize: 10, lineHeight: 15, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  learningResult: { marginTop: "auto", fontSize: 10, lineHeight: 15, fontWeight: "600" },
+  previewLabel: { fontSize: readableFont(9), lineHeight: 17, fontWeight: "500" },
+  previewValue: { fontSize: readableFont(10), lineHeight: 17, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  learningResult: { marginTop: "auto", fontSize: readableFont(10), lineHeight: 17, fontWeight: "600" },
   disclosure: { minHeight: 68, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14, paddingVertical: 12 },
   disclosureTitle: { marginTop: 3, fontSize: 19, lineHeight: 24, fontWeight: "600", letterSpacing: -0.35 },
   disclosureIcon: { fontSize: 27, lineHeight: 30, fontWeight: "300" },
   details: { gap: 16 },
   detailNarrative: { gap: 8 },
   detailCopy: { maxWidth: 780, fontSize: 13, lineHeight: 21, fontWeight: "600" },
-  inlineLink: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
+  inlineLink: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "600" },
   detailFacts: { borderTopWidth: StyleSheet.hairlineWidth },
   detailRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
   detailLabel: { flexShrink: 0, fontSize: 12, lineHeight: 17, fontWeight: "600", letterSpacing: 0.2 },
   detailValue: { flex: 1, textAlign: "right", fontSize: 14, lineHeight: 20, fontWeight: "500" },
   hiddenAcceptanceHooks: { position: "absolute", width: 1, height: 1, opacity: 0 },
-  disclaimer: { fontSize: 9, lineHeight: 15, fontWeight: "600" },
+  disclaimer: { fontSize: readableFont(9), lineHeight: 17, fontWeight: "600" },
   safetyFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, alignItems: "center" },
-  safetyText: { fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 1.1 },
+  safetyText: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.1 },
 });
