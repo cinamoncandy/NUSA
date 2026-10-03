@@ -54,7 +54,7 @@ test("the age label is plain Korean and never claims freshness", () => {
 test("HOME shows cached values only without a live snapshot or setup request, and never as a live reading", () => {
   assert.match(view, /const stale = liveSnapshot == null && cachedSnapshot != null && notConfigured == null/);
   assert.match(view, /home-stale-note/);
-  for (const guarded of [/decisionWhy = stale \|\|/, /orderReason = stale \|\|/, /buyHeartbeat = stale \|\|/, /windowNote = !stale/, /health: stale \? undefined/, /readyForPaperOperations: stale \? false/, /killSwitchActive: stale \? null/, /connectionLabel = stale \? "CACHED"/, /snapshot: stale \? null : snapshot/, /useDailyCounts\(stale \? null/]) assert.match(view, guarded);
+  for (const guarded of [/decisionWhy = stale \|\|/, /orderReason = stale \|\|/, /buyHeartbeat = stale \|\|/, /windowNote = !stale/, /health: stale \? undefined/, /readyForPaperOperations: stale \? false/, /killSwitchActive: stale \? null/, /connectionLabel\(\{ recovering, stale, disconnected/, /snapshot: stale \? null : snapshot/, /useDailyCounts\(stale \? null/]) assert.match(view, guarded);
 });
 
 test("the app loads the cache per endpoint, stores only fresh READY snapshots, and clears it on sign-out", () => {

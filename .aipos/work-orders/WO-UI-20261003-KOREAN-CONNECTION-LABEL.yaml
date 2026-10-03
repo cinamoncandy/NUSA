@@ -1,0 +1,28 @@
+id: WO-UI-20261003-KOREAN-CONNECTION-LABEL
+title: "HOME status capsule: plain-Korean connection state instead of English state words"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-ui-labels
+authority_impact: none
+objective: "The top status capsule on HOME showed ACTIVE, OBSERVING, SETUP, DEGRADED, RECOVERING and CACHED, which the owner cannot read at a glance. Name the same states in plain Korean."
+scope:
+  - "apps/mobile/src/connectionLabelModel.ts: pure mapping of the already computed state to 재연결 중 / 이전 값 / 연결 필요 / 연결 불안정 / 작동 중 / 확인 중. Precedence is unchanged and never softens a problem (recovery, cached and setup win over active; an error wins over ready)."
+  - "apps/mobile/src/homeView.tsx: the capsule renders from the model."
+  - "tests/mobile-connection-label.test.js (3); three source-pinned tests updated to the model (mobile-cached-snapshot, mobile-paper-session-projection-invariant, mobile-uiux-visual-redesign)."
+named_exceptions:
+  - "PAPER, LIVE readiness, portfolio, markets and the learning monitor are not changed in this PR: no English state word is hard-coded as a status string in them (checked by search); their diagnostic terms come from server reason codes and are shown as reported."
+exclusions:
+  - "No change to what state is computed, to authority, risk, execution, accounting, credentials, LIVE or AI. Copy only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The mapping is total; an unknown combination falls to the least confident label (확인 중)."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-connection-label.test.js
+residual: "Needs the automatic app build after merge and an on-device look."
