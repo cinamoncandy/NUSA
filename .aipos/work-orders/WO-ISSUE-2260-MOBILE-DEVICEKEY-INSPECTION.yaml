@@ -1,6 +1,6 @@
 id: WO-ISSUE-2260-MOBILE-DEVICEKEY-INSPECTION
 title: "Preserve silent DeviceKey trust on transient Android Keystore inspection failure"
-status: DELEGATED_INCREMENT_READY_FOR_WORKFLOW_VALIDATION
+status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
