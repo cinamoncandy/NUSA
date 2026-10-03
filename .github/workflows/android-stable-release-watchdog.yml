@@ -13,9 +13,6 @@ permissions:
   actions: write
   issues: write
 
-concurrency:
-  group: android-stable-release-dispatch-controller
-  cancel-in-progress: false
 
 jobs:
   reconcile:
