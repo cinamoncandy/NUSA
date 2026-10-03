@@ -1,0 +1,37 @@
+id: WO-GOVERNANCE-20260930-STALE-DATA-PROMOTION
+title: "Bind stale-data identity into canonical Strategy promotion"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P0
+owner: strategy-governance
+repository: cinamoncandy/NUSA
+pull_request: 2344
+base_branch: main
+base_commit: 3c635defe7483088b8b7b1b1ebdaa6ca4314e540
+objective: "Reject owner promotion when the evaluation dataset fingerprint no longer matches the canonical current dataset identity."
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds a read-only dataset-identity port to the existing CandidatePromotionRuntime; no second governance engine or promotion authority is introduced."
+scope:
+  - validate-current-fingerprint-before-helper-early-returns
+  - canonical-promotion-current-dataset-binding
+  - fail-closed-on-missing-current-identity
+  - deterministic-stale-data-reason
+prohibited:
+  - live_authority
+  - autonomous_owner_approval
+  - production_mutation_authority
+  - duplicate_promotion_engine
+acceptance:
+  - missing current dataset identity fails closed
+  - dataset fingerprint drift blocks CandidatePromotionRuntime eligibility and promote
+  - unchanged current dataset preserves existing owner-authenticated promotion behavior
+  - helper evaluator validates required current fingerprint before decision returns
+validation:
+  status: LOCAL_PASS_PENDING_EXACT_HEAD_CI
+  commands: "Synced to 3c635defe7483088b8b7b1b1ebdaa6ca4314e540; pnpm run build; focused Strategy Governance, CandidatePromotionRuntime, and ResearchRecoveryCoordinator tests 42/42 PASS; pnpm run validate; pnpm run security:gate; AIPOS/architecture/safety validation; diff check PASS; fresh exact-head CI required"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "focused validation -> exact-head CI -> Independent Audit -> canonical Release"

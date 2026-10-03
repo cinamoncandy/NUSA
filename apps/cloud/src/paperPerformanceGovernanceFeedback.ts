@@ -11,6 +11,8 @@ export interface PaperPerformanceGovernanceFeedbackInput {
   readonly validation?: StrategyValidationSummary;
   readonly paper?: PaperPerformanceSummary;
   readonly votes: readonly CommitteeVote[];
+  /** Canonical current dataset fingerprint supplied by the dataset owner. */
+  readonly currentDataFingerprint: string;
   readonly ledgerPerformance: PaperPerformanceFromLedgerResult;
 }
 
@@ -62,6 +64,7 @@ export function evaluatePaperPerformanceGovernanceFeedback(
     validation: input.validation,
     paper: input.paper,
     votes: input.votes,
+    currentDataFingerprint: input.currentDataFingerprint,
   });
 
   const body = Object.freeze({

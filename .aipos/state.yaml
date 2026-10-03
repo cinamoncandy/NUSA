@@ -59,6 +59,17 @@ current_paper_cancelled_fill_risk:
   validation: "34 focused/adversarial/production-path and exact-source qualification tests PASS; typecheck, build, preflight, validate:full, lint (0 errors, 14 unrelated warnings), security gate PASS (0 secrets, 0 high/critical). Fresh CI/Audit/Release and deployed automatic fill proof remain unverified."
   remaining: exact_head_CI_Audit_Release_and_runtime_proof
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_strategy_governance_stale_data_promotion:
+  work_order: WO-GOVERNANCE-20260930-STALE-DATA-PROMOTION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: fix/governance-stale-evidence-binding
+  pull_request: 2344
+  base_sha: 3c635defe7483088b8b7b1b1ebdaa6ca4314e540
+  first_broken_transition: canonical_evaluation_dataset_identity_to_owner_promotion
+  authority_impact: none
+  validation: "Synced onto 3c635defe7483088b8b7b1b1ebdaa6ca4314e540; canonical dataset-owner identity now crosses the Closed Learning feedback boundary; CI repair supplies the canonical dataset identity to the valid ResearchRecoveryCoordinator fixture. pnpm build, 42 focused tests, validate, security gate, and diff check PASS."
+  remaining: exact_head_CI_then_independent_Audit_then_Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_release_target_settle:
   work_order: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI

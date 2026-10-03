@@ -15,15 +15,16 @@ const now = 1_800_000_000_000;
 const identity = (overrides = {}) => ({ candidateId: "candidate-1", strategyId: "strategy-1", strategyVersion: "1.0.0", familyId: "test.mean-reversion", artifactHash: "a".repeat(64), configHash: "b".repeat(64), createdAt: now - 1000, originatingEvaluationId: "evaluation-1", originatingInputHash: "c".repeat(64), authority: "PAPER_ONLY", paperOnly: true, ...overrides });
 const evidence = (overrides = {}) => ({ schemaVersion: 1, researchRunId: "run-1", evaluationId: "evaluation-1", strategyId: "strategy-1", strategyVersion: "1.0.0", marketDataTimestamp: now - 2000, evaluationTimestamp: now - 1000, canonicalInputHash: "c".repeat(64), modelVersion: "model-1", fillModelVersion: "fill-1", feeModelVersion: "fee-1", slippageModelVersion: "slip-1", costEvidence: { schemaVersion: 1, evaluationId: "evaluation-1", datasetId: "dataset-1", datasetContentSha256: "a".repeat(64), feeRate: 0.001, spreadRate: 0.0005, slippageRate: 0.0005, turnoverRate: 2, grossReturn: 2.004, netReturn: 2, costModelVersion: "cost-v1", observedAt: now - 2000 }, champion: { strategyId: "strategy-1", strategyVersion: "0.9.0", authority: "PAPER_ONLY", evaluatorVersion: "champion-1", canonicalInputHash: "c".repeat(64), metrics: { netReturn: 1, costAdjustedReturn: 1 }, signal: "HOLD" }, challenger: { strategyId: "strategy-1", strategyVersion: "1.0.0", authority: "ZERO_AUTHORITY", evaluatorVersion: "challenger-1", canonicalInputHash: "c".repeat(64), metrics: { netReturn: 2, costAdjustedReturn: 2 }, signal: "HOLD" }, result: "CHALLENGER_BETTER", reason: "NET_RETURN_COMPARISON", productionMutationAllowed: false, promotionAllowed: false, ...overrides });
 const ownerAuthorization = { authorize(command) { return command.ownerActorRef === "owner-1" ? { actorRef: "owner-1", authenticated: true } : null; } };
+const currentDatasetIdentity = { currentDataFingerprint() { return "a".repeat(64); } };
 const familyMembership = () => { const r = new StrategyFamilyRegistry(); r.registerFamily({ familyId: "test.mean-reversion", name: "Test Mean Reversion", category: "MEAN_REVERSION", thesis: "Test-only canonical family.", lifecycle: "RESEARCHING" }); r.registerMember({ strategyId: "strategy-1", version: "1.0.0", familyId: "test.mean-reversion", role: "RESEARCH_CANDIDATE" }); return r; };
-const setup = () => { const db = new SqliteDatabase(); const repository = new SqliteCandidatePromotionRepository(db); const ledger = new InMemoryResearchEvaluationLedger(); const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership: familyMembership(), ownerAuthorization, now: () => now }); return { db, repository, ledger, runtime }; };
+const setup = () => { const db = new SqliteDatabase(); const repository = new SqliteCandidatePromotionRepository(db); const ledger = new InMemoryResearchEvaluationLedger(); const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership: familyMembership(), currentDatasetIdentity, ownerAuthorization, now: () => now }); return { db, repository, ledger, runtime }; };
 
 test("candidate registration is persistent and conflicting identity hashes are rejected", () => { const { db, repository, runtime } = setup(); try { runtime.registerCandidate(identity()); assert.equal(repository.getCandidate("candidate-1").lifecycle, "PAPER_CANDIDATE"); assert.throws(() => runtime.registerCandidate(identity({ artifactHash: "d".repeat(64) })), /conflict/); } finally { db.close(); } });
 test("illegal lifecycle transitions and direct Champion writes fail closed", () => { const { db, repository, runtime } = setup(); try { runtime.registerCandidate(identity()); assert.throws(() => runtime.transitionCandidate("candidate-1", "CHAMPION"), /boundary/); assert.throws(() => repository.saveCandidate({ identity: identity(), lifecycle: "CHAMPION" }), /atomic promotion boundary/); assert.throws(() => repository.saveCandidate({ identity: identity(), lifecycle: "CHALLENGER" }), /atomic promotion boundary/); runtime.transitionCandidate("candidate-1", "PROMOTION_PENDING"); assert.throws(() => runtime.transitionCandidate("candidate-1", "CHAMPION"), /boundary/); } finally { db.close(); } });
 test("a string owner allow-list alone never authorizes promotion", () => { const db = new SqliteDatabase(); const repository = new SqliteCandidatePromotionRepository(db); const ledger = new InMemoryResearchEvaluationLedger(); const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership: familyMembership(), ownerActorRefs: ["owner-1"], now: () => now }); try { runtime.registerCandidate(identity()); const record = evidence(); ledger.append(record); const command = { promotionCommandId: "promotion-legacy-owner-list", expectedCurrentChampionCandidateId: null, candidateId: "candidate-1", evidenceEvaluationId: "evaluation-1", evidenceHash: digest(record), ownerActorRef: "owner-1", reason: "review", requestedAt: now }; assert.equal(runtime.promote(command).reason, "OWNER_AUTHORIZATION_REQUIRED"); assert.equal(runtime.currentChampion(), null); } finally { db.close(); } });
 test("challenger-better is eligibility evidence only until authenticated owner promotion", () => { const { db, ledger, runtime } = setup(); try { runtime.registerCandidate(identity()); const record = evidence(); ledger.append(record); assert.equal(runtime.evaluatePromotionEligibility("candidate-1", "evaluation-1").eligible, true); const command = { promotionCommandId: "promotion-1", expectedCurrentChampionCandidateId: null, candidateId: "candidate-1", evidenceEvaluationId: "evaluation-1", evidenceHash: digest(record), ownerActorRef: "not-owner", reason: "review", requestedAt: now }; assert.equal(runtime.promote(command).status, "REJECTED"); assert.equal(runtime.promote(command).status, "DUPLICATE"); assert.equal(runtime.currentChampion(), null); } finally { db.close(); } });
 test("valid authenticated owner promotion is PAPER_ONLY and persists across restart", () => { const { db, ledger, runtime } = setup(); ledger.append(evidence()); runtime.registerCandidate(identity()); const command = { promotionCommandId: "promotion-1", expectedCurrentChampionCandidateId: null, candidateId: "candidate-1", evidenceEvaluationId: "evaluation-1", evidenceHash: digest(evidence()), ownerActorRef: "owner-1", reason: "owner review", requestedAt: now }; try { assert.equal(runtime.promote(command).status, "PROMOTED"); assert.equal(runtime.currentChampion().lifecycle, "CHAMPION"); assert.equal(runtime.currentChampion().identity.authority, "PAPER_ONLY"); assert.equal(runtime.promote(command).status, "DUPLICATE"); } finally { db.close(); } });
-test("restart restores candidate lifecycle, champion pointer, idempotency, and audit chain", () => { const filename = join(mkdtempSync(join(tmpdir(), "nusa-promotion-")), "research.db"); const db = new SqliteDatabase(filename); const repository = new SqliteCandidatePromotionRepository(db); const ledger = new InMemoryResearchEvaluationLedger(); const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership: familyMembership(), ownerAuthorization, now: () => now }); const record = evidence(); ledger.append(record); runtime.registerCandidate(identity()); const command = { promotionCommandId: "promotion-restart", expectedCurrentChampionCandidateId: null, candidateId: "candidate-1", evidenceEvaluationId: "evaluation-1", evidenceHash: digest(record), ownerActorRef: "owner-1", reason: "owner review", requestedAt: now }; assert.equal(runtime.promote(command).status, "PROMOTED"); db.close(); const reopened = new SqliteDatabase(filename); try { const restored = new CandidatePromotionRuntime({ repository: new SqliteCandidatePromotionRepository(reopened), evaluationLedger: ledger, familyMembership: familyMembership(), ownerAuthorization, now: () => now }); assert.equal(restored.currentChampion().identity.candidateId, "candidate-1"); assert.equal(restored.currentChampion().lifecycle, "CHAMPION"); assert.equal(restored.listAudit().length, 1); assert.equal(restored.promote(command).status, "DUPLICATE"); } finally { reopened.close(); } });
+test("restart restores candidate lifecycle, champion pointer, idempotency, and audit chain", () => { const filename = join(mkdtempSync(join(tmpdir(), "nusa-promotion-")), "research.db"); const db = new SqliteDatabase(filename); const repository = new SqliteCandidatePromotionRepository(db); const ledger = new InMemoryResearchEvaluationLedger(); const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership: familyMembership(), currentDatasetIdentity, ownerAuthorization, now: () => now }); const record = evidence(); ledger.append(record); runtime.registerCandidate(identity()); const command = { promotionCommandId: "promotion-restart", expectedCurrentChampionCandidateId: null, candidateId: "candidate-1", evidenceEvaluationId: "evaluation-1", evidenceHash: digest(record), ownerActorRef: "owner-1", reason: "owner review", requestedAt: now }; assert.equal(runtime.promote(command).status, "PROMOTED"); db.close(); const reopened = new SqliteDatabase(filename); try { const restored = new CandidatePromotionRuntime({ repository: new SqliteCandidatePromotionRepository(reopened), evaluationLedger: ledger, familyMembership: familyMembership(), currentDatasetIdentity, ownerAuthorization, now: () => now }); assert.equal(restored.currentChampion().identity.candidateId, "candidate-1"); assert.equal(restored.currentChampion().lifecycle, "CHAMPION"); assert.equal(restored.listAudit().length, 1); assert.equal(restored.promote(command).status, "DUPLICATE"); } finally { reopened.close(); } });
 test("owner promotion rejects missing or invalid explicit cost evidence", () => {
   for (const costEvidence of [undefined, { ...evidence().costEvidence, observedAt: now }]) {
     const { db, ledger, runtime } = setup();
@@ -54,8 +55,43 @@ test("promotion fails closed when persisted candidate family binding is absent",
   const { db, repository, ledger } = setup();
   try {
     repository.saveCandidate({ identity: identity({ familyId: undefined }), lifecycle: "PAPER_CANDIDATE" });
-    const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership: familyMembership(), ownerAuthorization, now: () => now });
+    const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership: familyMembership(), currentDatasetIdentity, ownerAuthorization, now: () => now });
     ledger.append(evidence());
     assert.deepEqual(runtime.evaluatePromotionEligibility("candidate-1", "evaluation-1"), { eligible: false, reason: "FAMILY_BINDING_REQUIRED" });
+  } finally { db.close(); }
+});
+
+test("canonical promotion rejects evidence after the dataset owner fingerprint changes", () => {
+  const db = new SqliteDatabase();
+  const repository = new SqliteCandidatePromotionRepository(db);
+  const ledger = new InMemoryResearchEvaluationLedger();
+  const runtime = new CandidatePromotionRuntime({
+    repository,
+    evaluationLedger: ledger,
+    familyMembership: familyMembership(),
+    currentDatasetIdentity: { currentDataFingerprint() { return "f".repeat(64); } },
+    ownerAuthorization,
+    now: () => now,
+  });
+  try {
+    runtime.registerCandidate(identity());
+    const record = evidence();
+    ledger.append(record);
+    assert.deepEqual(runtime.evaluatePromotionEligibility("candidate-1", "evaluation-1"), { eligible: false, reason: "STALE_DATA_FINGERPRINT_MISMATCH" });
+    const command = { promotionCommandId: "promotion-stale-dataset", expectedCurrentChampionCandidateId: null, candidateId: "candidate-1", evidenceEvaluationId: "evaluation-1", evidenceHash: digest(record), ownerActorRef: "owner-1", reason: "review", requestedAt: now };
+    assert.equal(runtime.promote(command).reason, "STALE_DATA_FINGERPRINT_MISMATCH");
+    assert.equal(runtime.currentChampion(), null);
+  } finally { db.close(); }
+});
+
+test("canonical promotion fails closed when current dataset identity is unavailable", () => {
+  const db = new SqliteDatabase();
+  const repository = new SqliteCandidatePromotionRepository(db);
+  const ledger = new InMemoryResearchEvaluationLedger();
+  const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership: familyMembership(), ownerAuthorization, now: () => now });
+  try {
+    runtime.registerCandidate(identity());
+    ledger.append(evidence());
+    assert.deepEqual(runtime.evaluatePromotionEligibility("candidate-1", "evaluation-1"), { eligible: false, reason: "CURRENT_DATA_FINGERPRINT_UNAVAILABLE" });
   } finally { db.close(); }
 });
