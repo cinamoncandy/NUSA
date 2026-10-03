@@ -2359,3 +2359,9 @@ current_autopilot_codex_hourly:
   branch: claude/autopilot-codex-hourly
   authority_impact: autopilot_schedule_only
   deploy: none_needed
+current_ui_motion_reveal:
+  work_order: WO-UI-20261003-MOTION-REVEAL
+  status: READY_FOR_REVIEW
+  branch: claude/ui-motion-polish
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required
