@@ -19,8 +19,8 @@ const COMPENSATED = Object.freeze({
   "1138808": { package: "image-size", ghsa: "GHSA-w3rx-r6r6-pgpr" },
   "1138809": { package: "image-size", ghsa: "GHSA-5p2g-fcmc-qvqq" },
   "1138813": { package: "nanoid", ghsa: "GHSA-2v37-7h3g-55p8" },
-  "1240992": { package: "braces", ghsa: "GHSA-vfj7-8cjw-p6xm" },
-  "1240991": { package: "http-cache-semantics", ghsa: "GHSA-ch52-4w7c-c8xp" }
+  "1240991": { package: "http-cache-semantics", ghsa: "GHSA-ch52-4w7c-c8xp" },
+  "1240992": { package: "braces", ghsa: "GHSA-vfj7-8cjw-p6xm" }
 });
 
 function parseJsonObject(output) {

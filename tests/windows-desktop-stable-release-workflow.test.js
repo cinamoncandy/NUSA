@@ -15,7 +15,7 @@ test('Windows desktop stable release is exact-main and CI gated', () => {
   assert.ok(workflow.includes('Skipping stale Windows workflow_run'));
   assert.ok(workflow.includes('Refusing stale Windows release'));
   assert.ok(workflow.includes('canonical CI run'));
-  assert.ok(workflow.includes('Refusing stale Windows publication'));
+  assert.ok(workflow.includes('SUPERSEDED: built $EXPECTED_SHA but current main is $CURRENT_MAIN; stale Windows publication is a non-terminal no-op.'));
 });
 
 test('Windows desktop stable release packages the canonical Electron renderer', () => {
