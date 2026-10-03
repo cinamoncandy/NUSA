@@ -28,12 +28,15 @@ import { buildFeedDiagnosticsLine } from "./feedDiagnosticsModel";
 import { explainDecision } from "./whyNoTradeModel";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
+import { staleLabel } from "./cachedSnapshotModel";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
 
 interface HomeViewProps {
   readonly snapshot: Snapshot | null;
+  /** Last-known snapshot from a previous run; shown only as old values until a live one arrives. */
+  readonly cachedSnapshot?: { readonly snapshot: Snapshot; readonly savedAt: number } | null;
   readonly investmentPercent: number;
   readonly readOnlyError: string | null;
   readonly notConfigured: string | null;
@@ -77,7 +80,8 @@ function cloudExposure(account: Snapshot["portfolio"] extends null ? never : Non
 }
 
 export function HomeView({
-  snapshot,
+  snapshot: liveSnapshot,
+  cachedSnapshot = null,
   investmentPercent,
   readOnlyError,
   notConfigured,
@@ -97,6 +101,9 @@ export function HomeView({
   const { theme } = useTheme();
   const ui = visualSystem(theme);
   const { width } = useWindowDimensions();
+  // A cached snapshot fills the launch screen only while no live one exists and the app is not asking for setup.
+  const stale = liveSnapshot == null && cachedSnapshot != null && notConfigured == null;
+  const snapshot = stale ? cachedSnapshot.snapshot : liveSnapshot;
   const tablet = width >= 768;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -124,9 +131,9 @@ export function HomeView({
   const journal = buildJournal(snapshot?.paperLearning?.events ?? []);
   const disconnected = notConfigured != null;
   const decisionSurface = buildHomeDecisionSurface({
-    runtimeState: snapshot?.operations.runtimeState,
-    health: snapshot?.health,
-    readyForPaperOperations: snapshot?.readyForPaperOperations ?? false,
+    runtimeState: stale ? undefined : snapshot?.operations.runtimeState,
+    health: stale ? undefined : snapshot?.health,
+    readyForPaperOperations: stale ? false : snapshot?.readyForPaperOperations ?? false,
     disconnected,
     readOnlyError: readOnlyError != null,
     accountSource,
@@ -138,12 +145,12 @@ export function HomeView({
     aiConfidence: ai?.confidence,
   });
   // Kept outside buildHomeDecisionSurface so that module stays dependency-free (it is tested by transpiling the single file).
-  const decisionWhy = disconnected || readOnlyError != null || sessionRecovering ? [] : explainDecision(snapshot?.operations.heartbeat?.lastDecisionDetail);
-  const orderReason = disconnected || readOnlyError != null || sessionRecovering ? null : describePaperOrderReason(snapshot?.operations.heartbeat?.lastPaperDecisionOutcome);
+  const decisionWhy = stale || disconnected || readOnlyError != null || sessionRecovering ? [] : explainDecision(snapshot?.operations.heartbeat?.lastDecisionDetail);
+  const orderReason = stale || disconnected || readOnlyError != null || sessionRecovering ? null : describePaperOrderReason(snapshot?.operations.heartbeat?.lastPaperDecisionOutcome);
   const rail = buildHomeStatusRail({
-    paperState: snapshot == null ? (notConfigured ? "NOT_CONFIGURED" : "UNAVAILABLE") : snapshot.health === "HEALTHY" ? "READY" : snapshot.health === "DEGRADED" ? "DEGRADED" : "DOWN",
+    paperState: snapshot == null || stale ? (notConfigured ? "NOT_CONFIGURED" : "UNAVAILABLE") : snapshot.health === "HEALTHY" ? "READY" : snapshot.health === "DEGRADED" ? "DEGRADED" : "DOWN",
     paperMode: snapshot?.mode ?? null,
-    killSwitchActive: snapshot?.dashboard.killSwitchActive ?? null,
+    killSwitchActive: stale ? null : snapshot?.dashboard.killSwitchActive ?? null,
     snapshotGeneratedAtMs: snapshot?.generatedAt ?? null,
     feedStale: publicMarketStale,
     feedObservedAtMs: freshestObservedAtMs(marketRows),
@@ -161,19 +168,19 @@ export function HomeView({
   const hasPosition = Boolean(position && Number(position.quantity) > 0);
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
-  const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
+  const connectionLabel = stale ? "CACHED" : disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
   // A trusted device whose session is being recovered is not a setup problem: project it as
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
   const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
 
-  const fieldInput = buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
+  const fieldInput = buildHomeFieldInput({ snapshot: stale ? null : snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
   // The rings show history; a current fault (halt, degraded runtime, lost connection) stays on top of them.
-  const baselineCounts = useDailyCounts(snapshot?.operations.heartbeat?.startedAt ?? null, fieldInput.decisionCount, fieldInput.paperOrderCount);
-  const dailyCounts = chooseDailyCounts(snapshot?.operations.heartbeat?.windowDecisionCount, snapshot?.operations.heartbeat?.windowOrderCount, baselineCounts);
+  const baselineCounts = useDailyCounts(stale ? null : snapshot?.operations.heartbeat?.startedAt ?? null, stale ? null : fieldInput.decisionCount, stale ? null : fieldInput.paperOrderCount);
+  const dailyCounts = stale ? Object.freeze({ decisionCount: null, paperOrderCount: null }) : chooseDailyCounts(snapshot?.operations.heartbeat?.windowDecisionCount, snapshot?.operations.heartbeat?.windowOrderCount, baselineCounts);
   const field = buildIntelligenceField({ ...fieldInput, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount });
   const usingServerWindow = snapshot?.operations.heartbeat?.windowDecisionCount != null && snapshot?.operations.heartbeat?.windowOrderCount != null;
-  const windowNote = !fieldInput.disconnected && readOnlyError == null && usingServerWindow ? partialWindowNote(snapshot?.operations.heartbeat?.buyCountsSince, Date.now()) : null;
-  const buyHeartbeat = fieldInput.disconnected || readOnlyError != null ? null : snapshot?.operations.heartbeat ?? null;
+  const windowNote = !stale && !fieldInput.disconnected && readOnlyError == null && usingServerWindow ? partialWindowNote(snapshot?.operations.heartbeat?.buyCountsSince, Date.now()) : null;
+  const buyHeartbeat = stale || fieldInput.disconnected || readOnlyError != null ? null : snapshot?.operations.heartbeat ?? null;
   const feedLine = buildFeedDiagnosticsLine({ disconnects: buyHeartbeat?.feedDisconnectCount, staleGaps: buyHeartbeat?.feedStaleGapCount, maxGapMs: buyHeartbeat?.feedMaxGapMs, since: buyHeartbeat?.feedCountsSince });
   const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
@@ -196,6 +203,7 @@ export function HomeView({
       </View>
 
       <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.paperOrderCount} /></View>
+      {stale && cachedSnapshot != null ? <Text style={{ color: theme.colors.warning, fontSize: 12, textAlign: "center" }} testID="home-stale-note">{staleLabel(cachedSnapshot.savedAt, Date.now())} · 서버 재확인 중 (아래 값은 이전 값)</Text> : null}
       {windowNote != null ? <Text style={{ color: theme.colors.textMuted, fontSize: 11, textAlign: "center" }} testID="home-window-note">{windowNote}</Text> : null}
 
       {orderReason == null ? null : <View style={[styles.reasonCard, { borderColor: orderReason.category === "FILLED" || orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.border : theme.colors.warning }]} testID="home-order-reason-card">

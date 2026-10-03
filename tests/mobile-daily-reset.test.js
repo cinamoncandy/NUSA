@@ -47,7 +47,7 @@ test("server window counts win over the client baseline, and only when both are 
 test("HOME uses the server window counts for the rings and field, keeping the baseline hook as the fallback", () => {
   const view = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/homeView.tsx"), "utf8");
   assert.match(view, /const baselineCounts = useDailyCounts\(/);
-  assert.match(view, /const dailyCounts = chooseDailyCounts\(snapshot\?\.operations\.heartbeat\?\.windowDecisionCount, snapshot\?\.operations\.heartbeat\?\.windowOrderCount, baselineCounts\)/);
+  assert.match(view, /const dailyCounts = stale \? Object\.freeze\(\{ decisionCount: null, paperOrderCount: null \}\) : chooseDailyCounts\(snapshot\?\.operations\.heartbeat\?\.windowDecisionCount, snapshot\?\.operations\.heartbeat\?\.windowOrderCount, baselineCounts\)/);
 });
 
 test("the runtime counts decisions and orders in the same 09:00 KST window and reports them only with the PAPER boundary", () => {
