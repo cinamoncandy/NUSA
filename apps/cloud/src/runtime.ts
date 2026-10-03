@@ -221,7 +221,7 @@ export function startCloudRuntime(
     const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
     // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
     const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
-    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }) };
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]) };
     // Display only; a failing provider must never affect the heartbeat.
     let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }

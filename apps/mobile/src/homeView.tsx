@@ -31,6 +31,7 @@ import { DecisionRings } from "./decisionRings";
 import { staleLabel } from "./cachedSnapshotModel";
 import { connectionLabel } from "./connectionLabelModel";
 import { buildResearchProgressLine } from "./researchProgressModel";
+import { buildTradedCoinLine } from "./tradedCoinModel";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
@@ -184,6 +185,7 @@ export function HomeView({
   const windowNote = !stale && !fieldInput.disconnected && readOnlyError == null && usingServerWindow ? partialWindowNote(snapshot?.operations.heartbeat?.buyCountsSince, Date.now()) : null;
   const buyHeartbeat = stale || fieldInput.disconnected || readOnlyError != null ? null : snapshot?.operations.heartbeat ?? null;
   const feedLine = buildFeedDiagnosticsLine({ disconnects: buyHeartbeat?.feedDisconnectCount, staleGaps: buyHeartbeat?.feedStaleGapCount, maxGapMs: buyHeartbeat?.feedMaxGapMs, since: buyHeartbeat?.feedCountsSince });
+  const tradedCoinLine = buildTradedCoinLine({ tradedMarkets: buyHeartbeat?.tradedMarkets, researchMarket: (buyHeartbeat?.researchCollection as { market?: unknown } | undefined)?.market, positionMarket: position?.market, positionQuantity: position?.quantity });
   const researchLine = buildResearchProgressLine(buyHeartbeat?.researchCollection as never, Date.now());
   const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
@@ -331,6 +333,7 @@ export function HomeView({
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RESULT</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{decisionSurface.result}</Text></View>
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>SOURCE</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text></View>
           <View style={styles.detailRow} testID="home-learning-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>LEARNING</Text><Text style={[styles.detailValue, { color: learningLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{learningLine.value}</Text></View>
+          <View style={styles.detailRow} testID="home-traded-coin-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>거래 코인</Text><Text style={[styles.detailValue, { color: tradedCoinLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{tradedCoinLine.value}{tradedCoinLine.detail == null ? "" : `\n${tradedCoinLine.detail}`}</Text></View>
           <View style={styles.detailRow} testID="home-research-progress-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>학습 데이터</Text><Text style={[styles.detailValue, { color: researchLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{researchLine.value}{researchLine.detail == null ? "" : `\n${researchLine.detail}`}</Text></View>
           <View style={styles.detailRow} testID="home-feed-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>시세 연결</Text><Text style={[styles.detailValue, { color: feedLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{feedLine.value}</Text></View>
           <View style={styles.detailRow} testID="home-buy-signal-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>BUY 신호</Text><Text style={[styles.detailValue, { color: buySignalLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{buySignalLine.value}</Text></View>
