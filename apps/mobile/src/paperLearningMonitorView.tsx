@@ -8,6 +8,8 @@ import { buildPaperFieldHeader, paperRiskWord, paperSourceWord } from "./fieldSc
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
 import { FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
+import { labelFont, readableFont } from "./designSystem";
+import { monitorLabel } from "./monitorCopy";
 
 export interface PaperLearningMonitorViewProps {
   readonly state: PaperLearningScreenState;
@@ -152,7 +154,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       <View style={[styles.sourcePill, { borderColor: sourceColor }]}><Text style={[styles.sourcePillText, { color: sourceColor }]}>{state.dataSource === "SERVER_STREAM" ? "SERVER" : state.dataSource === "LOCAL_FALLBACK" ? "LOCAL" : "CHECK"}</Text></View>
     </View>
     {state.dataSource === "LOCAL_FALLBACK" ? <StateNotice
-      title="LOCAL FALLBACK"
+      title={monitorLabel("LOCAL FALLBACK")}
       detail="서버 PAPER 학습 이벤트가 비어 있어 기기 내 공개 시세 기반 관측을 대신 표시합니다. 서버 런타임의 학습 결과가 아닙니다."
       tone="warning"
       testID="paper-learning-local-fallback-note"
@@ -165,54 +167,54 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
 
     <View style={tablet ? styles.columns : undefined}>
       <IntelligenceSection title="현재 사이클" kicker="NOW" tone="primary" style={tablet ? styles.column : undefined} testID="paper-learning-current-cycle">
-        <FactRow label="MARKET" value={state.latestMarket ?? "—"} />
-        <FactRow label="CYCLE" value={state.currentCycle ?? "—"} />
-        <FactRow label="DATA" value={latestMarketEvent == null ? "NO DATA" : `${latestMarketEvent.status} · ${formatTimestamp(latestMarketEvent.occurredAt)}`} />
-        <FactRow label="SIGNAL" value={state.latestSignal == null ? "—" : `${state.latestSignal.action}${state.latestSignal.confidence == null ? "" : ` · ${Math.round(state.latestSignal.confidence * 100)}%`}`} />
-        <FactRow label="DECISION" value={state.latestDecision == null ? "—" : `${state.latestDecision.action} · ${formatNumber(state.latestDecision.allocation * 100, 1)}%`} />
+        <FactRow label={monitorLabel("MARKET")} value={state.latestMarket ?? "—"} />
+        <FactRow label={monitorLabel("CYCLE")} value={state.currentCycle ?? "—"} />
+        <FactRow label={monitorLabel("DATA")} value={latestMarketEvent == null ? "NO DATA" : `${latestMarketEvent.status} · ${formatTimestamp(latestMarketEvent.occurredAt)}`} />
+        <FactRow label={monitorLabel("SIGNAL")} value={state.latestSignal == null ? "—" : `${state.latestSignal.action}${state.latestSignal.confidence == null ? "" : ` · ${Math.round(state.latestSignal.confidence * 100)}%`}`} />
+        <FactRow label={monitorLabel("DECISION")} value={state.latestDecision == null ? "—" : `${state.latestDecision.action} · ${formatNumber(state.latestDecision.allocation * 100, 1)}%`} />
         {latestMarketEvent?.reason ? <Text style={[styles.note, { color: theme.colors.textMuted }]} testID="paper-learning-freshness-reason">{latestMarketEvent.reason}</Text> : null}
       </IntelligenceSection>
       <IntelligenceSection title="권한 / 위험" kicker="AUTHORITY" tone={state.latestRisk == null ? "neutral" : riskTone(state.latestRisk.status)} style={tablet ? styles.column : undefined} testID="paper-learning-authority">
-        <FactRow label="MODE" value="PAPER ONLY" tone="success" />
-        <FactRow label="LIVE" value="NONE" tone="success" />
+        <FactRow label={monitorLabel("MODE")} value="PAPER ONLY" tone="success" />
+        <FactRow label={monitorLabel("LIVE")} value="NONE" tone="success" />
         <FactRow label="AI" value="ZERO AUTHORITY" tone="info" />
-        {state.latestGates.length === 0 ? <StateNotice title="PERMISSION GATES" detail="최근 permission gate 관측값이 없습니다." tone="info" /> : state.latestGates.map((gate) => <FactRow key={gate.name} label={gate.name} value={`${gate.status} · ${gate.reason}`} tone={riskTone(gate.status)} testID={`paper-learning-gate-${gate.name}`} />)}
-        <FactRow label="RISK" value={state.latestRisk == null ? "—" : `${state.latestRisk.status} · ${state.latestRisk.reason}`} tone={riskTone(state.latestRisk?.status)} />
+        {state.latestGates.length === 0 ? <StateNotice title={monitorLabel("PERMISSION GATES")} detail="최근 permission gate 관측값이 없습니다." tone="info" /> : state.latestGates.map((gate) => <FactRow key={gate.name} label={gate.name} value={`${gate.status} · ${gate.reason}`} tone={riskTone(gate.status)} testID={`paper-learning-gate-${gate.name}`} />)}
+        <FactRow label={monitorLabel("RISK")} value={state.latestRisk == null ? "—" : `${state.latestRisk.status} · ${state.latestRisk.reason}`} tone={riskTone(state.latestRisk?.status)} />
         {state.latestRisk?.limits ? <Text style={[styles.note, { color: theme.colors.textMuted }]}>{Object.entries(state.latestRisk.limits).map(([key, value]) => `${key}=${formatNumber(value, 6)}`).join(" · ")}</Text> : null}
       </IntelligenceSection>
     </View>
 
     <View style={tablet ? styles.columns : undefined}>
       <IntelligenceSection title="가상 실행 / 계정" kicker="PAPER ACCOUNTING" tone="success" style={tablet ? styles.column : undefined} testID="paper-learning-execution">
-        <FactRow label="ORDER" value={latestOrderEvent == null ? "—" : `${latestOrderEvent.status}${latestOrderEvent.reason ? ` · ${latestOrderEvent.reason}` : ""}`} />
-        <FactRow label="FILL" value={state.latestFill == null ? "—" : `${state.latestFill.side} ${formatNumber(state.latestFill.quantity, 8)} @ ${formatNumber(state.latestFill.price)}`} />
-        <FactRow label="CASH" value={money(state.latestAccount?.cash)} />
-        <FactRow label="EQUITY" value={money(state.latestAccount?.equity)} />
-        <FactRow label="REALIZED PNL" value={signedMoney(state.latestAccount?.realizedPnL)} tone={state.latestAccount?.realizedPnL == null ? "neutral" : state.latestAccount.realizedPnL >= 0 ? "success" : "danger"} />
-        <FactRow label="UNREALIZED PNL" value={signedMoney(state.latestAccount?.unrealizedPnL)} tone={state.latestAccount?.unrealizedPnL == null ? "neutral" : state.latestAccount.unrealizedPnL >= 0 ? "success" : "danger"} />
-        <FactRow label="FEE / SLIPPAGE" value={state.latestFill == null ? "—" : `${formatNumber(state.latestFill.fee)} / ${formatNumber(state.latestFill.slippage, 6)}`} />
+        <FactRow label={monitorLabel("ORDER")} value={latestOrderEvent == null ? "—" : `${latestOrderEvent.status}${latestOrderEvent.reason ? ` · ${latestOrderEvent.reason}` : ""}`} />
+        <FactRow label={monitorLabel("FILL")} value={state.latestFill == null ? "—" : `${state.latestFill.side} ${formatNumber(state.latestFill.quantity, 8)} @ ${formatNumber(state.latestFill.price)}`} />
+        <FactRow label={monitorLabel("CASH")} value={money(state.latestAccount?.cash)} />
+        <FactRow label={monitorLabel("EQUITY")} value={money(state.latestAccount?.equity)} />
+        <FactRow label={monitorLabel("REALIZED PNL")} value={signedMoney(state.latestAccount?.realizedPnL)} tone={state.latestAccount?.realizedPnL == null ? "neutral" : state.latestAccount.realizedPnL >= 0 ? "success" : "danger"} />
+        <FactRow label={monitorLabel("UNREALIZED PNL")} value={signedMoney(state.latestAccount?.unrealizedPnL)} tone={state.latestAccount?.unrealizedPnL == null ? "neutral" : state.latestAccount.unrealizedPnL >= 0 ? "success" : "danger"} />
+        <FactRow label={monitorLabel("FEE / SLIPPAGE")} value={state.latestFill == null ? "—" : `${formatNumber(state.latestFill.fee)} / ${formatNumber(state.latestFill.slippage, 6)}`} />
       </IntelligenceSection>
       <IntelligenceSection title="학습 / 평가" kicker="LEARNING" tone={learningTone} style={tablet ? styles.column : undefined} testID="paper-learning-evaluation-card">
         <Text style={[styles.learningSummary, { color: theme.colors.textMuted }]} testID="paper-learning-outcome-summary">{learningOutcomeSummary(state.latestEvidence)}</Text>
-        <FactRow label="OUTCOME" value={state.latestEvidence?.outcome ?? "—"} tone={learningTone} />
-        <FactRow label="SCORE" value={formatNumber(state.latestEvidence?.score, 4)} />
-        <FactRow label="EVIDENCE" value={state.latestEvidence?.evidenceId ?? "—"} />
-        <FactRow label="INPUT HASH" value={state.latestEvidence?.inputHash ?? "—"} />
+        <FactRow label={monitorLabel("OUTCOME")} value={state.latestEvidence?.outcome ?? "—"} tone={learningTone} />
+        <FactRow label={monitorLabel("SCORE")} value={formatNumber(state.latestEvidence?.score, 4)} />
+        <FactRow label={monitorLabel("EVIDENCE")} value={state.latestEvidence?.evidenceId ?? "—"} />
+        <FactRow label={monitorLabel("INPUT HASH")} value={state.latestEvidence?.inputHash ?? "—"} />
         {latestTerminalEvent ? <Text style={[styles.note, { color: theme.colors.textMuted }]} testID="paper-learning-terminal-event">{latestTerminalEvent.stage} · {latestTerminalEvent.status} · {latestTerminalEvent.reason ?? "—"}</Text> : null}
       </IntelligenceSection>
     </View>
 
     <IntelligenceSection title="누적 PAPER 성과" kicker="RESULT" tone={pnlTone} testID="paper-learning-performance">
       <View style={styles.performanceGrid}>
-        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>REALIZED</Text><Text style={[styles.performanceValue, { color: state.performance.realizedPnL >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(state.performance.realizedPnL)}</Text></View>
-        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>UNREALIZED</Text><Text style={[styles.performanceValue, { color: state.performance.unrealizedPnL >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(state.performance.unrealizedPnL)}</Text></View>
-        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>WIN RATE</Text><Text style={[styles.performanceValue, { color: theme.colors.text }]}>{state.performance.winRate == null ? "—" : `${formatNumber(state.performance.winRate * 100, 1)}%`}</Text></View>
-        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>MAX DD</Text><Text style={[styles.performanceValue, { color: theme.colors.text }]}>{`${formatNumber(state.performance.maxDrawdown * 100, 2)}%`}</Text></View>
+        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>{monitorLabel("REALIZED")}</Text><Text style={[styles.performanceValue, { color: state.performance.realizedPnL >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(state.performance.realizedPnL)}</Text></View>
+        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>{monitorLabel("UNREALIZED")}</Text><Text style={[styles.performanceValue, { color: state.performance.unrealizedPnL >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(state.performance.unrealizedPnL)}</Text></View>
+        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>{monitorLabel("WIN RATE")}</Text><Text style={[styles.performanceValue, { color: theme.colors.text }]}>{state.performance.winRate == null ? "—" : `${formatNumber(state.performance.winRate * 100, 1)}%`}</Text></View>
+        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>{monitorLabel("MAX DD")}</Text><Text style={[styles.performanceValue, { color: theme.colors.text }]}>{`${formatNumber(state.performance.maxDrawdown * 100, 2)}%`}</Text></View>
       </View>
-      <FactRow label="CYCLES / FILLED" value={`${state.performance.completedCycles} / ${state.performance.filledCycles}`} />
-      <FactRow label="FEES" value={money(state.performance.fees)} />
-      <FactRow label="TURNOVER" value={formatNumber(state.performance.turnover)} />
-      <FactRow label="EXPECTANCY" value={formatNumber(state.performance.expectancy)} />
+      <FactRow label={monitorLabel("CYCLES / FILLED")} value={`${state.performance.completedCycles} / ${state.performance.filledCycles}`} />
+      <FactRow label={monitorLabel("FEES")} value={money(state.performance.fees)} />
+      <FactRow label={monitorLabel("TURNOVER")} value={formatNumber(state.performance.turnover)} />
+      <FactRow label={monitorLabel("EXPECTANCY")} value={formatNumber(state.performance.expectancy)} />
       <Text style={[styles.disclaimer, { color: theme.colors.textMuted }]}>PAPER 성과는 실제 LIVE 성과를 보장하지 않습니다.</Text>
     </IntelligenceSection>
 
@@ -224,7 +226,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       testID="paper-learning-detail-toggle"
     >
       <View style={styles.disclosureCopy}>
-        <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>EVIDENCE DETAIL</Text>
+        <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>{monitorLabel("EVIDENCE DETAIL")}</Text>
         <Text style={[styles.disclosureTitle, { color: theme.colors.text }]}>최근 사이클과 이벤트 타임라인</Text>
       </View>
       <Text style={[styles.disclosureIcon, { color: theme.colors.textMuted }]}>{detailsOpen ? "−" : "+"}</Text>
@@ -232,14 +234,14 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
 
     {detailsOpen ? <View style={styles.detailStack}>
       <IntelligenceSection title="최근 사이클" kicker="COMPLETED CYCLES" tone="neutral" testID="paper-learning-recent-cycles">
-        {state.recentCycles.length === 0 ? <StateNotice title="NO COMPLETED CYCLE" detail="아직 완료된 학습 사이클이 없습니다." tone="info" /> : state.recentCycles.map((cycle) => <View key={cycle.cycleId} style={[styles.cycleRow, { borderTopColor: theme.colors.border }]}>
+        {state.recentCycles.length === 0 ? <StateNotice title={monitorLabel("NO COMPLETED CYCLE")} detail="아직 완료된 학습 사이클이 없습니다." tone="info" /> : state.recentCycles.map((cycle) => <View key={cycle.cycleId} style={[styles.cycleRow, { borderTopColor: theme.colors.border }]}>
           <View style={styles.cycleCopy}><Text style={[styles.cycleTitle, { color: theme.colors.text }]}>{cycle.market} · {cycle.status}</Text><Text style={[styles.cycleDetail, { color: theme.colors.textMuted }]}>{cycle.reason ?? "관측 사유 없음"}</Text></View>
           <Text style={[styles.cycleDecision, { color: theme.colors.textMuted }]}>{cycle.decision?.action ?? "NO DECISION"}</Text>
         </View>)}
       </IntelligenceSection>
 
       <IntelligenceSection title="Cycle Timeline" kicker="AUDIT TRAIL" tone="info" testID="paper-learning-timeline">
-        {state.timeline.length === 0 ? <StateNotice title="NO EVENTS" detail="관측 이벤트가 없습니다." tone="info" /> : state.timeline.map((event) => <View key={event.id} style={[styles.timelineItem, { borderLeftColor: theme.colors.border }]} testID={`paper-learning-event-${event.stage}`}>
+        {state.timeline.length === 0 ? <StateNotice title={monitorLabel("NO EVENTS")} detail="관측 이벤트가 없습니다." tone="info" /> : state.timeline.map((event) => <View key={event.id} style={[styles.timelineItem, { borderLeftColor: theme.colors.border }]} testID={`paper-learning-event-${event.stage}`}>
           <View style={styles.timelineHeader}><Text style={[styles.timelineStage, { color: theme.colors.text }]}>{event.stage}</Text><Text style={[styles.timelineStatus, { color: theme.colors.textMuted }]}>{event.status} · {formatTimestamp(event.occurredAt)}</Text></View>
           <Text style={[styles.timelineBody, { color: theme.colors.textMuted }]}>{eventSummary(event)}</Text>
         </View>)}
@@ -258,21 +260,21 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14 },
   fieldBleed: { marginHorizontal: -20, marginTop: -10 },
-  eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 1.15 },
+  eyebrow: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.15 },
   sourceRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
   sourceCopy: { flex: 1, minWidth: 0, gap: 3 },
   sourceValue: { fontSize: 13, lineHeight: 18, fontWeight: "500" },
   sourcePill: { minHeight: 28, minWidth: 62, borderWidth: 1, borderRadius: 999, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
-  sourcePillText: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 0.7 },
+  sourcePillText: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 0.7 },
   columns: { flexDirection: "row", alignItems: "stretch", gap: 14 },
   column: { flex: 1, minWidth: 0 },
-  note: { fontSize: 10, lineHeight: 16 },
+  note: { fontSize: readableFont(10), lineHeight: 17 },
   learningSummary: { fontSize: 12, lineHeight: 18 },
   performanceGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   performanceCell: { minWidth: 132, flex: 1, flexBasis: "44%", gap: 3, paddingVertical: 4 },
-  performanceLabel: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 0.75 },
+  performanceLabel: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 0.75 },
   performanceValue: { fontSize: 18, lineHeight: 23, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  disclaimer: { fontSize: 10, lineHeight: 15 },
+  disclaimer: { fontSize: readableFont(10), lineHeight: 17 },
   disclosure: { minHeight: 68, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 14 },
   disclosureCopy: { flex: 1, minWidth: 0, gap: 3 },
   disclosureTitle: { fontSize: 15, lineHeight: 20, fontWeight: "500" },
@@ -281,14 +283,14 @@ const styles = StyleSheet.create({
   cycleRow: { minHeight: 56, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   cycleCopy: { flex: 1, minWidth: 0, gap: 3 },
   cycleTitle: { fontSize: 12, lineHeight: 17, fontWeight: "500" },
-  cycleDetail: { fontSize: 10, lineHeight: 15 },
-  cycleDecision: { maxWidth: "36%", textAlign: "right", fontSize: 10, lineHeight: 15, fontWeight: "500" },
+  cycleDetail: { fontSize: readableFont(10), lineHeight: 17 },
+  cycleDecision: { maxWidth: "36%", textAlign: "right", fontSize: readableFont(10), lineHeight: 17, fontWeight: "500" },
   timelineItem: { borderLeftWidth: 2, paddingLeft: 11, paddingVertical: 8, gap: 4 },
   timelineHeader: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-  timelineStage: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
-  timelineStatus: { flexShrink: 1, textAlign: "right", fontSize: 9, lineHeight: 14 },
-  timelineBody: { fontSize: 10, lineHeight: 16 },
+  timelineStage: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "600" },
+  timelineStatus: { flexShrink: 1, textAlign: "right", fontSize: readableFont(9), lineHeight: 17 },
+  timelineBody: { fontSize: readableFont(10), lineHeight: 17 },
   actions: { gap: 8 },
-  footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 1.05, paddingTop: 4 },
+  footer: { textAlign: "center", fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.05, paddingTop: 4 },
   hiddenAcceptanceText: { position: "absolute", width: 1, height: 1, opacity: 0 },
 });

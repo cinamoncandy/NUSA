@@ -25,8 +25,8 @@ test("Home uses the content-first command center hierarchy without weakening aut
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
-  assert.match(home, /"ACTIVE" : "OBSERVING"/);
+  assert.match(home, /connectionLabel\(\{ recovering, stale, disconnected, readOnlyError: Boolean\(readOnlyError\)/);
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/connectionLabelModel.ts"), "utf8"), /"ACTIVE" : "OBSERVING"/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /총 손익/);
   assert.match(home, /QUICK ACCESS/);
@@ -34,8 +34,10 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.match(home, />PORTFOLIO</);
   assert.match(home, />LEARN</);
   assert.match(home, /DECISION BASIS/);
-  assert.match(home, />RISK</);
-  assert.match(home, />RESULT</);
+  assert.match(home, /HOME_DETAIL_LABELS\.risk/);
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeDetailCopy.ts"), "utf8"), /risk: "위험"/);
+  assert.match(home, /HOME_DETAIL_LABELS\.result/);
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeDetailCopy.ts"), "utf8"), /result: "결과"/);
   assert.match(home, /paddingBottom: 32/);
   assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
   assert.match(home, /testID="home-now"/);

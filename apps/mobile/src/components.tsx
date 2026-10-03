@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
-import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
+import { buttonTokens, cardTokens, fieldTokens, type ButtonTone, labelFont, readableFont } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
 export interface NusaButtonProps {
@@ -173,9 +173,9 @@ const styles = StyleSheet.create({
   fieldGroup: { gap: 7 },
   fieldLabel: { fontWeight: "600", letterSpacing: 0.15 },
   chip: { borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start" },
-  chipLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.35 },
+  chipLabel: { fontSize: readableFont(10), fontWeight: "700", letterSpacing: 0.35 },
   sectionHeading: { gap: 6, marginBottom: 4 },
-  eyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1.8 },
+  eyebrow: { fontSize: labelFont(10), fontWeight: "700", letterSpacing: 1.8 },
   sectionTitle: { fontSize: 27, lineHeight: 33, fontWeight: "700", letterSpacing: -1 },
   sectionDescription: { fontSize: 14, lineHeight: 21, maxWidth: 560 },
   authority: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 10 },

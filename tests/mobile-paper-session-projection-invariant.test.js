@@ -73,7 +73,9 @@ test("home projection renders a recovering session as reconnecting, never as SET
   const app = fs.readFileSync("apps/mobile/App.tsx", "utf8");
   assert.match(app, /sessionRecovering=\{shownSessionState === "RECOVERING"\}/);
   assert.match(app, /const sessionState = getPaperSessionState\(\);[\s\S]*setPaperSessionState\(sessionState\)/);
-  assert.match(home, /const shownConnectionLabel = recovering \? "RECOVERING" : connectionLabel/);
+  assert.match(home, /connectionLabel\(\{ recovering, stale, disconnected/);
+  const model = require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/connectionLabelModel.ts"), "utf8");
+  assert.ok(model.indexOf('return "RECOVERING"') < model.indexOf('return "SETUP"'), "a recovering session is decided before any setup label");
   assert.match(home, /\{shownConnectionLabel\}/);
   assert.match(home, /recovering \? "PAPER 재연결 중" : disconnected \? "PAPER 연결 필요"/);
 });

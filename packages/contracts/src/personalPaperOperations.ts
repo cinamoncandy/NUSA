@@ -7,6 +7,30 @@ export type PersonalPaperOperationsHealth = "HEALTHY" | "DEGRADED" | "FAIL_CLOSE
 export type PersonalPaperRuntimeState = "HALTED" | "READY_OFFLINE" | "READY" | "RUNNING" | "DEGRADED" | "ERROR" | "STOPPING" | "STOPPED";
 export type PersonalPaperSchedulerMode = "OFF" | "OBSERVE" | "ACTIVE";
 
+/** Display only: why the latest canonical decision was what it was. Untrusted by the client; malformed values are dropped. */
+export interface PersonalPaperResearchCollection {
+  readonly market: string;
+  /** Stored closed 1-minute candles for the market. */
+  readonly candleCount: number;
+  /** Candles needed before the first experiment (train + validation + holdout windows). */
+  readonly requiredCandles: number;
+  readonly firstCloseMs?: number;
+  readonly lastCloseMs?: number;
+  readonly observedAt: number;
+}
+
+export interface PersonalPaperDecisionDetail {
+  readonly action: string;
+  readonly score: number;
+  readonly confidence: number;
+  readonly risk: string;
+  readonly hasPosition: boolean;
+  readonly strategyAction?: string;
+  /** Bare code charset only, at most 160 characters. */
+  readonly reason?: string;
+  readonly observedAt: number;
+}
+
 export interface PersonalPaperRuntimeHeartbeat {
   readonly startedAt: number;
   readonly lastHeartbeatAt: number;
@@ -29,6 +53,12 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly feedStaleGapCount?: number;
   readonly feedMaxGapMs?: number;
   readonly feedCountsSince?: number;
+  /** Display only: the numbers and strategy reason behind the latest decision. Absent without a canonical PAPER boundary. */
+  readonly lastDecisionDetail?: PersonalPaperDecisionDetail;
+  /** Display only: the markets this PAPER runtime watches and trades (the configured list, 1-5). Absent without a canonical PAPER boundary. */
+  readonly tradedMarkets?: readonly string[];
+  /** Display only: how much 1-minute candle history the research experiments have collected. Absent when research is off. */
+  readonly researchCollection?: PersonalPaperResearchCollection;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -320,6 +350,39 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
     const value = record[name];
     if (value !== undefined && !(typeof value === "number" && Number.isSafeInteger(value) && value >= 0)) delete record[name];
   }
+  if (record.lastDecisionDetail !== undefined && !isValidDecisionDetail(record.lastDecisionDetail)) delete record.lastDecisionDetail;
+  if (record.researchCollection !== undefined && !isValidResearchCollection(record.researchCollection)) delete record.researchCollection;
+  if (record.tradedMarkets !== undefined && !isValidMarketList(record.tradedMarkets)) delete record.tradedMarkets;
+}
+
+function isValidMarketList(value: unknown): boolean {
+  return Array.isArray(value) && value.length >= 1 && value.length <= 5 && new Set(value).size === value.length
+    && value.every((item) => typeof item === "string" && /^KRW-[A-Z0-9-]{1,16}$/.test(item));
+}
+const isCount = (value: unknown, min = 0): boolean => typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= 100_000_000;
+function isValidResearchCollection(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.market === "string" && /^KRW-[A-Z0-9-]{1,16}$/.test(v.market)
+    && isCount(v.candleCount) && isCount(v.requiredCandles, 1)
+    && (v.firstCloseMs === undefined || isCount(v.firstCloseMs))
+    && (v.lastCloseMs === undefined || isCount(v.lastCloseMs))
+    && isCount(v.observedAt);
+}
+
+const DECISION_CODE = /^[A-Z_]{2,16}$/;
+const DECISION_REASON = /^[A-Za-z0-9_.:/=+-]{1,160}$/;
+function isValidDecisionDetail(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.action === "string" && DECISION_CODE.test(v.action)
+    && typeof v.risk === "string" && DECISION_CODE.test(v.risk)
+    && typeof v.score === "number" && Number.isFinite(v.score) && Math.abs(v.score) <= 1
+    && typeof v.confidence === "number" && Number.isFinite(v.confidence) && v.confidence >= 0 && v.confidence <= 1
+    && typeof v.hasPosition === "boolean"
+    && (v.strategyAction === undefined || (typeof v.strategyAction === "string" && DECISION_CODE.test(v.strategyAction)))
+    && (v.reason === undefined || (typeof v.reason === "string" && DECISION_REASON.test(v.reason)))
+    && typeof v.observedAt === "number" && Number.isSafeInteger(v.observedAt) && v.observedAt >= 0;
 }
 
 export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperOperationsSnapshot, now = Date.now(), maximumAgeMs = 15_000): PersonalPaperOperationsSnapshot {

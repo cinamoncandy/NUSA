@@ -62,6 +62,8 @@ import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRe
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { codePaperDecisionOutcome } from "./paperDecisionOutcome";
+import { describeCanonicalDecision } from "./paperDecisionDetail";
+import type { PersonalPaperDecisionDetail } from "../../../packages/contracts/src/personalPaperOperations";
 import { PaperMarketObservationStoreError, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
 import { UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
@@ -78,7 +80,7 @@ export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDash
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
 export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRuntimeMarketDataTick): void; }
 export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryResult; }
-export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; }
+export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; }
 export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void, onOrderBook?: (orderBook: UpbitOrderBook) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
 export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
@@ -211,14 +213,20 @@ export function startCloudRuntime(
     const key = Math.floor(nowMs / BUY_WINDOW_MS);
     if (key !== buyWindow.key) { buyWindow.key = key; buyWindow.signals = 0; buyWindow.blocked = 0; buyWindow.decisions = 0; buyWindow.orders = 0; buyWindow.feedDisconnects = 0; buyWindow.feedStaleGaps = 0; buyWindow.feedMaxGapMs = 0; }
   };
+  // Display-only: the numbers and the strategy reason behind the latest canonical decision, so the app can say why nothing was traded.
+  let lastDecisionDetail: PersonalPaperDecisionDetail | undefined;
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
     const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
     // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
     const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
-    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince };
-    return Object.freeze({ ...heartbeat, ...paper, ...feed });
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]) };
+    // Display only; a failing provider must never affect the heartbeat.
+    let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
+    try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }
+    const research = researchProgress == null ? {} : { researchCollection: researchProgress };
+    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
@@ -421,6 +429,7 @@ export function startCloudRuntime(
           }
         const cycleId = paperLearningCycleId(ticker.code, ticker.trade_timestamp);
         const canonicalDecision = state.decisions.find((decision) => decision.symbol === ticker.code) ?? state.decisions[0];
+        if (canonicalDecision != null) lastDecisionDetail = describeCanonicalDecision(canonicalDecision, now);
         paperLearningRecorder.record({ cycleId, stage: "MARKET_DATA", occurredAt: ticker.trade_timestamp, market: ticker.code, status: "PASS", reason: `source=UPBIT_PUBLIC_TICKER;observedAt=${ticker.trade_timestamp}` });
         const decisionSupported = canonicalDecision != null && ["BUY", "SELL", "HOLD", "REDUCE", "INCREASE"].includes(canonicalDecision.action);
         paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
@@ -486,6 +495,10 @@ export function startCloudRuntime(
         }
         return;
       }
+      // Renew the REST snapshot before it expires (it is only valid for 30 s) so a steady feed never reaches the failure path
+      // below. A failed renewal is silent here: the old snapshot keeps working until it expires, and only then does the
+      // unreconciled path above record the failure exactly as before.
+      if (marketConnectionState === "CONNECTED" && orderBookReconciler.needsRefresh(orderBook.code, receivedAt)) void orderBookReconciler.refreshSnapshot(orderBook.code).catch(() => undefined);
       const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
       // Only observed, validated quotes recover this diagnostic; never clear other failures

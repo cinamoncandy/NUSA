@@ -2288,3 +2288,56 @@ current_ui_feed_diagnostics:
   branch: claude/nusa-repository-j93sd8-feed-diagnostics
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
+current_ui_why_no_trade:
+  work_order: WO-UI-20261003-WHY-NO-TRADE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-why-no-trade
+  authority_impact: none
+  deploy: not_deployed_server_and_app_build_required
+current_ui_cached_launch:
+  work_order: WO-UI-20261003-CACHED-LAUNCH
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-cached-launch
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required
+current_paper_baseline_multi_market:
+  work_order: WO-PAPER-20261003-BASELINE-MULTI-MARKET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-baseline-markets
+  authority_impact: execution_exposure_paper_only
+  deploy: not_deployed_server_deploy_required
+current_ui_research_progress:
+  work_order: WO-UI-20261003-RESEARCH-PROGRESS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-progress
+  authority_impact: none
+  deploy: not_deployed_server_and_app_build_required
+current_ui_korean_connection_label:
+  work_order: WO-UI-20261003-KOREAN-CONNECTION-LABEL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ui-labels
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required
+current_paper_orderbook_renew:
+  work_order: WO-PAPER-20261003-ORDERBOOK-RENEW
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-orderbook-renew
+  authority_impact: market_data_health_paper_only
+current_research_candle_backfill:
+  work_order: WO-RESEARCH-20261003-CANDLE-BACKFILL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-candle-backfill
+  authority_impact: research_evidence_only
+  deploy: not_deployed_server_deploy_required
+current_ui_traded_coin:
+  work_order: WO-UI-20261003-TRADED-COIN
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-traded-coin
+  authority_impact: none
+  deploy: not_deployed_server_and_app_build_required
+current_ui_home_polish:
+  work_order: WO-UI-20261003-HOME-POLISH
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-design-polish
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required

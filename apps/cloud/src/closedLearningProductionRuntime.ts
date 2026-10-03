@@ -85,7 +85,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     challenger: challengerBindings,
     sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "",
     enabled: ownerBaselineStrategyEnabled(env),
-    baselineMarket: config.upbitMarkets.length === 1 ? config.upbitMarkets[0] : undefined,
+    baselineMarkets: config.upbitMarkets,
   });
   const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider });
 

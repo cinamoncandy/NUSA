@@ -33,9 +33,10 @@ test("drops and long gaps are flagged", () => {
 });
 
 test("HOME shows the feed row from the server window counts and hides them when disconnected", () => {
-  assert.match(view, /testID="home-feed-line"/);
+  assert.match(view, /VITAL_TEST_IDS\[vital\.id\]/, "the key tiles carry the earlier row ids");
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeVitalsModel.ts"), "utf8"), /feed: "home-feed-line"/);
   assert.match(view, /feedDisconnectCount/);
-  assert.match(view, /buyHeartbeat = fieldInput\.disconnected \|\| readOnlyError != null \? null/);
+  assert.match(view, /buyHeartbeat = stale \|\| fieldInput\.disconnected \|\| readOnlyError != null \? null/);
 });
 
 test("the runtime counts feed drops and long ticker gaps on arrival time, in the same window, display only", () => {
