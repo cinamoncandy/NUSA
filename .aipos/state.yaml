@@ -2301,3 +2301,9 @@ current_ui_research_progress:
   branch: claude/nusa-repository-j93sd8-research-progress
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
+current_ui_korean_connection_label:
+  work_order: WO-UI-20261003-KOREAN-CONNECTION-LABEL
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ui-labels
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required
