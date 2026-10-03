@@ -1,0 +1,28 @@
+id: WO-UI-20261003-FEED-DIAGNOSTICS
+title: "HOME row: how steady the public market feed was today (drops, long gaps)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-feed-diagnostics
+authority_impact: none
+objective: "On 2026-10-03 the PAPER runtime flapped between HEALTHY and DEGRADED with ticker gaps of 31-53 s (stale window 30 s) and PAPER_ORDERBOOK_UNRECONCILED, and the cause could not be told apart from outside. Count feed drops and long gaps so the next episode is diagnosable from the app."
+scope:
+  - "apps/cloud/src/runtime.ts: display-only counters in the existing 09:00 KST window (rolled with the time of counting): feedDisconnects (CONNECTED to not CONNECTED), feedStaleGaps (gap between consecutive ticker arrivals longer than DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS) and feedMaxGapMs, measured on arrival time. Reported as feedDisconnectCount, feedStaleGapCount, feedMaxGapMs and feedCountsSince only when the public feed is enabled; the BUY, decision and order counters still need the canonical PAPER boundary."
+  - "packages/contracts/src/personalPaperOperations.ts: optional fields; malformed values are dropped from the validated snapshot (the same display-only rule), never reject it."
+  - "apps/mobile/src/feedDiagnosticsModel.ts, homeView.tsx: one HOME detail row '시세 연결'; missing or unusable values read as not reported, never as a clean feed."
+  - "tests/mobile-feed-diagnostics.test.js (6)."
+exclusions:
+  - "No change to market-data handling, staleness thresholds, the execution gate, decisions, risk, orders, accounting, /health, LIVE, credentials or AI authority. Counters only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Absent or malformed values render as not reported."
+rollback: "Revert the change; every field is optional."
+verification_commands:
+  - npx tsc -p tsconfig.json --noEmit
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-feed-diagnostics.test.js tests/mobile-daily-reset.test.js tests/mobile-buy-signal-line.test.js
+residual: "In-memory, so a runtime restart restarts the counts (the row states the start time). A gap is only recorded when the next ticker arrives, so a feed that is still silent shows no new gap until it recovers (lastMarketEventAt shows the live age). Needs a server deploy and a new app build; both need owner approval."

@@ -92,6 +92,8 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   /** Canonical account-boundary path; no caller-supplied outcome metrics are accepted. */
   readonly openPaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly closePaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodCanonicalCloseInput) => PersistedPaperPeriodEnvelope;
+  /** Retires only an owner-baseline period at qualified-challenger handoff. */
+  readonly retirePaperRealizedPeriodForReplacement: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForAccountChange: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
@@ -200,18 +202,23 @@ export function startCloudRuntime(
   // Why the previous process stopped, kept apart from lastError so market start-up cannot overwrite it
   // and a supervisor restart loop stays diagnosable from /health.
   const previousStop = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readPreviousRuntimeFailure(config.cloudStateDbPath);
-  // Display-only BUY counters for the current 09:00 KST window (= 00:00 UTC), kept in memory. They are reported only when the
+  // Display-only counters (BUY signals, decisions, orders) for the current 09:00 KST window (= 00:00 UTC), kept in memory. They are reported only when the
   // canonical PAPER boundary is active; without it nothing measures BUY outcomes and 0/0 would be a false statement.
   const BUY_WINDOW_MS = 86_400_000;
-  const buyWindow = { key: Math.floor(runtimeStartedAt / BUY_WINDOW_MS), signals: 0, blocked: 0 };
+  const buyWindow = { key: Math.floor(runtimeStartedAt / BUY_WINDOW_MS), signals: 0, blocked: 0, decisions: 0, orders: 0, feedDisconnects: 0, feedStaleGaps: 0, feedMaxGapMs: 0 };
+  let lastTickerArrivalMs: number | null = null;
   const rollBuyWindow = (nowMs: number): void => {
     const key = Math.floor(nowMs / BUY_WINDOW_MS);
-    if (key !== buyWindow.key) { buyWindow.key = key; buyWindow.signals = 0; buyWindow.blocked = 0; }
+    if (key !== buyWindow.key) { buyWindow.key = key; buyWindow.signals = 0; buyWindow.blocked = 0; buyWindow.decisions = 0; buyWindow.orders = 0; buyWindow.feedDisconnects = 0; buyWindow.feedStaleGaps = 0; buyWindow.feedMaxGapMs = 0; }
   };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
-    if (productionPaperBoundary == null) return Object.freeze({ ...heartbeat });
+    if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
-    return Object.freeze({ ...heartbeat, buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, buyCountsSince: Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS) });
+    const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
+    // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
+    const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince };
+    return Object.freeze({ ...heartbeat, ...paper, ...feed });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
@@ -348,6 +355,17 @@ export function startCloudRuntime(
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
     heartbeat.eventCount += 1;
+    // Display-only feed diagnostics: the gap between consecutive ticker arrivals, measured on arrival time so a late trade timestamp cannot hide it.
+    {
+      const arrivedAt = Date.now();
+      rollBuyWindow(arrivedAt);
+      if (lastTickerArrivalMs != null && arrivedAt >= lastTickerArrivalMs) {
+        const gap = arrivedAt - lastTickerArrivalMs;
+        if (gap > DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS) buyWindow.feedStaleGaps += 1;
+        if (gap > buyWindow.feedMaxGapMs) buyWindow.feedMaxGapMs = gap;
+      }
+      lastTickerArrivalMs = arrivedAt;
+    }
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
     if (!observation) {
@@ -392,6 +410,8 @@ export function startCloudRuntime(
         const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: paperExecutionObservedAt(ticker.trade_timestamp, executionNow), mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, portfolio: state.portfolio, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
+        rollBuyWindow(Date.now());
+        buyWindow.decisions += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
         // canonical Cloud PAPER risk boundary. Never let dependency injection create a
         // second mutation path for strategy ticks.
@@ -410,9 +430,11 @@ export function startCloudRuntime(
           if (result.orders.length > 0) heartbeat.lastPaperOrderAt = now;
           if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
           heartbeat.paperOrderCount += result.orders.length;
+          rollBuyWindow(Date.now());
+          buyWindow.orders += result.orders.length;
           heartbeat.paperFillCount += result.fills.length;
           // Display-only: a BUY decision, and a BUY the boundary explicitly refused (BLOCKED or REJECTED). WAIT, DUPLICATE and FAILED are not counted as refusals.
-          if (canonicalDecision?.action === "BUY") { rollBuyWindow(now); buyWindow.signals += 1; if (result.status === "BLOCKED" || result.status === "REJECTED") buyWindow.blocked += 1; }
+          if (canonicalDecision?.action === "BUY") { rollBuyWindow(Date.now()); buyWindow.signals += 1; if (result.status === "BLOCKED" || result.status === "REJECTED") buyWindow.blocked += 1; }
           if (result.status === "FAILED") recordFailure(result.reason ?? "PAPER_EXECUTION_FAILED");
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
@@ -429,6 +451,7 @@ export function startCloudRuntime(
     } else if (effectivePaperLoop != null) clearPaperProjection();
   }, (state) => {
     heartbeat.lastHeartbeatAt = Date.now();
+    if (state !== "CONNECTED" && marketConnectionState === "CONNECTED") { rollBuyWindow(Date.now()); buyWindow.feedDisconnects += 1; }
     marketConnectionState = state;
     if (state === "CONNECTED") heartbeat.lastError = null; else recordFailure(`PUBLIC_MARKET_${state}`);
     marketConnectionGeneration += 1;
@@ -603,6 +626,7 @@ export function startCloudRuntime(
     closePaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().closePeriod(input),
     openPaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().openPeriodFromCanonicalAccount(input),
     closePaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().closePeriodFromCanonicalAccount(input),
+    retirePaperRealizedPeriodForReplacement: (periodId, reason) => requirePaperRealizedPeriodProducer().retireOpenPeriodForReplacement(periodId, reason),
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
     stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }

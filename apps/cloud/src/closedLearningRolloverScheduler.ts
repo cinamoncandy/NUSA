@@ -33,6 +33,7 @@ export interface ClosedLearningRolloverPort {
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   /** Retires an open period whose canonical PAPER account was replaced (different initial capital). */
   readonly retireOpenPeriodForAccountChange?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
+  readonly retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
