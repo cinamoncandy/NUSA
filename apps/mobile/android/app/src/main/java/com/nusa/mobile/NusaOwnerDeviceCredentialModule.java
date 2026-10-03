@@ -160,6 +160,19 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
       return;
     }
     try {
+      // Corrupt registration metadata is a definitive local trust failure, not an
+      // AndroidKeyStore/provider inspection failure. Validate it before the transient catch.
+      credentialId = requireCredentialId(credentialId);
+    } catch (IllegalArgumentException error) {
+      result.putBoolean("available", false);
+      result.putBoolean("canCreate", false);
+      result.putBoolean("hardwareBacked", false);
+      result.putString("status", "SILENT_DEVICE_KEY_METADATA_INVALID");
+      result.putNull("credentialId");
+      promise.resolve(result);
+      return;
+    }
+    try {
       KeyStore store = keyStore();
       boolean keyPresent = store.containsAlias(silentAlias(credentialId));
       boolean hardwareBacked = keyPresent && isSilentHardwareBackedOrThrow(credentialId);
