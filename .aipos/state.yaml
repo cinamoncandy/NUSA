@@ -2247,3 +2247,9 @@ current_ops_release_prune:
   authority_impact: release-pipeline-hygiene
   finding: "Release runs 88/89 failed in the host backup step: No space left on device. No workflow pruned old releases."
   deploy: not_deployed_owner_approval_required
+current_ui_buy_signal_line:
+  work_order: WO-UI-20261002-BUY-SIGNAL-LINE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-buy-signal-line
+  authority_impact: none
+  deploy: not_deployed_owner_approval_required

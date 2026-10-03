@@ -18,6 +18,11 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly decisionCount: number;
   readonly paperOrderCount: number;
   readonly paperFillCount: number;
+  /** Display only, for the current 09:00 KST window: BUY decisions and BUY decisions the PAPER boundary refused (BLOCKED or REJECTED). Absent on older runtimes and when no canonical PAPER boundary measures them. */
+  readonly buySignalCount?: number;
+  readonly buyBlockedCount?: number;
+  /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
+  readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
   readonly lastPaperDecisionOutcome?: string | null;
   readonly lastError: string | null;
@@ -188,6 +193,7 @@ function validateOperations(operations: PersonalPaperRuntimeProjection): void {
     for (const [name, value] of [["startedAt", heartbeat.startedAt], ["lastHeartbeatAt", heartbeat.lastHeartbeatAt]] as const) finite(value, `operations.heartbeat.${name}`);
     for (const [name, value] of [["lastMarketEventAt", heartbeat.lastMarketEventAt], ["lastPaperDecisionAt", heartbeat.lastPaperDecisionAt], ["lastPaperOrderAt", heartbeat.lastPaperOrderAt], ["lastPaperFillAt", heartbeat.lastPaperFillAt]] as const) if (value != null) finite(value, `operations.heartbeat.${name}`);
     for (const [name, value] of [["eventCount", heartbeat.eventCount], ["decisionCount", heartbeat.decisionCount], ["paperOrderCount", heartbeat.paperOrderCount], ["paperFillCount", heartbeat.paperFillCount]] as const) nonNegativeInteger(value, `operations.heartbeat.${name}`);
+    for (const [name, value] of [["buySignalCount", heartbeat.buySignalCount], ["buyBlockedCount", heartbeat.buyBlockedCount], ["buyCountsSince", heartbeat.buyCountsSince]] as const) if (value !== undefined) nonNegativeInteger(value, `operations.heartbeat.${name}`);
     if (heartbeat.lastError != null && !heartbeat.lastError.trim()) throw new Error("operations.heartbeat.lastError must be non-empty when present");
     if (heartbeat.lastPaperDecisionOutcome != null && (typeof heartbeat.lastPaperDecisionOutcome !== "string" || !/^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/.test(heartbeat.lastPaperDecisionOutcome))) throw new Error("operations.heartbeat.lastPaperDecisionOutcome must be a coded STATUS:REASON when present");
     if (heartbeat.lastHeartbeatAt < heartbeat.startedAt) throw new Error("operations.heartbeat clock regressed");
