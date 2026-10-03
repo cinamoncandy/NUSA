@@ -24,5 +24,5 @@ safety:
 rollback: "Revert the change, or set NUSA_PAPER_OWNER_BASELINE_STRATEGY=DISABLED, or configure a single market."
 verification_commands:
   - npx tsc -p tsconfig.json
-  - node --test dist/apps/cloud/src/ownerBaselinePaperStrategy.test.jsdist/apps/cloud/src/closedLearningRolloverScheduler.test.js
+  - node --test dist/apps/cloud/src/ownerBaselinePaperStrategy.test.js dist/apps/cloud/src/closedLearningRolloverScheduler.test.js
 residual: "Evidence period covers the first market only. Needs a server deploy and the host setting NUSA_CLOUD_UPBIT_MARKETS to list the markets; the owner adds ADA and SUI only after XRP is stable and this is deployed."
