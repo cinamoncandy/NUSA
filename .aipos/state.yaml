@@ -2301,3 +2301,9 @@ current_ui_research_progress:
   branch: claude/nusa-repository-j93sd8-research-progress
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
+current_paper_orderbook_renew:
+  work_order: WO-PAPER-20261003-ORDERBOOK-RENEW
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-orderbook-renew
+  authority_impact: market_data_health_paper_only
+  deploy: not_deployed_server_deploy_required
