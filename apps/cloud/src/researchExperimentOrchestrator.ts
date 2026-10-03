@@ -42,7 +42,7 @@ export interface OrchestratorOptions {
   readonly dailyBudgetPerVariant: number;
   /** Pull ticks into closed candles; must not throw for ordinary data problems. */
   readonly collect: (nowMs: number) => void;
-  readonly candles: ResearchCandleSource & { latestCloseTime(market: string, intervalMs: number): number | undefined };
+  readonly candles: ResearchCandleSource & { latestCloseTime(market: string, intervalMs: number): number | undefined; earliestCloseTime?(market: string, intervalMs: number): number | undefined; count?(market: string, intervalMs: number): number };
   readonly holdout: ExperimentRunnerPorts["holdout"];
   readonly now: () => number;
   readonly sourceCommitSha: string;
@@ -50,6 +50,15 @@ export interface OrchestratorOptions {
   readonly evaluator: ExperimentSpec["evaluator"];
   readonly featurePipeline: ExperimentSpec["featurePipeline"];
   readonly experimentFamilyPrefix: string;
+}
+
+export interface ResearchCollectionProgress {
+  readonly market: string;
+  readonly candleCount: number;
+  readonly requiredCandles: number;
+  readonly firstCloseMs?: number;
+  readonly lastCloseMs?: number;
+  readonly observedAt: number;
 }
 
 export interface TickReport {
@@ -86,6 +95,33 @@ export class ResearchExperimentOrchestrator {
 
   /** Experiments run on closed-candle windows (design D1); ticks are intentionally ignored. */
   public onMarketData(): void { /* no-op by design */ }
+
+  /** Display only: how much candle history exists for the first research market versus what the first experiment needs. */
+  public collectionProgress(): ResearchCollectionProgress | null {
+    const market = this.options.markets[0];
+    const count = this.options.candles.count;
+    if (market == null || count == null) return null;
+    const nowMs = this.options.now();
+    if (this.progressCache != null && nowMs - this.progressCache.at < 30_000) return this.progressCache.value;
+    let value: ResearchCollectionProgress | null = null;
+    try {
+      const w = this.options.windows;
+      const first = this.options.candles.earliestCloseTime?.(market, this.options.intervalMs);
+      const last = this.options.candles.latestCloseTime(market, this.options.intervalMs);
+      value = Object.freeze({
+        market,
+        candleCount: count.call(this.options.candles, market, this.options.intervalMs),
+        requiredCandles: Math.ceil((w.trainMs + w.validationMs + w.holdoutMs) / this.options.intervalMs),
+        ...(first === undefined ? {} : { firstCloseMs: first }),
+        ...(last === undefined ? {} : { lastCloseMs: last }),
+        observedAt: nowMs,
+      });
+    } catch { value = null; }
+    this.progressCache = { at: nowMs, value };
+    return value;
+  }
+
+  private progressCache: { readonly at: number; readonly value: ResearchCollectionProgress | null } | undefined;
 
   public statusProjection(): ResearchStatusProjection | null {
     const nowMs = this.options.now();
