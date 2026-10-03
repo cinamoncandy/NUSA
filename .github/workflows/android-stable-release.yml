@@ -448,15 +448,22 @@ jobs:
         run: npm install --global firebase-tools
 
       - name: Verify source is still current main before Firebase distribution
+        id: source_fresh
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_SHA: ${{ steps.release.outputs.sha }}
         run: |
           set -euo pipefail
           CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          test "$CURRENT_MAIN" = "$EXPECTED_SHA" || { echo "::error::Refusing stale Android Firebase distribution"; exit 1; }
+          if [ "$CURRENT_MAIN" != "$EXPECTED_SHA" ]; then
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SUPERSEDED: protected main moved; stale Android distribution is a non-terminal no-op"
+            exit 0
+          fi
+          echo "fresh=true" >> "$GITHUB_OUTPUT"
 
       - name: Distribute stable APK to Firebase App Distribution
+        if: steps.source_fresh.outputs.fresh == 'true'
         id: firebase
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
@@ -472,6 +479,7 @@ jobs:
           done
 
       - name: Record Firebase success evidence
+        if: steps.source_fresh.outputs.fresh == 'true'
         env:
           SOURCE_SHA: ${{ steps.release.outputs.sha }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
@@ -488,6 +496,7 @@ jobs:
           rm -f "$RUNNER_TEMP/firebase-service-account.json" "$RUNNER_TEMP/nusa-android-release.jks"
 
       - name: Verify source is still current main before stable finalization
+        if: steps.source_fresh.outputs.fresh == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_SHA: ${{ steps.release.outputs.sha }}
@@ -497,6 +506,7 @@ jobs:
           test "$CURRENT_MAIN" = "$EXPECTED_SHA" || { echo "::error::Refusing stale Android stable finalization"; exit 1; }
 
       - name: Create or update stable GitHub release after Firebase success
+        if: steps.source_fresh.outputs.fresh == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ steps.release.outputs.sha }}
@@ -514,6 +524,7 @@ jobs:
           fi
 
       - name: Verify stable GitHub asset download integrity
+        if: steps.source_fresh.outputs.fresh == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_SHA256_FILE: NUSA-Android.apk.sha256
@@ -572,8 +583,10 @@ jobs:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
           FIREBASE_OUTCOME: ${{ steps.firebase.outcome }}
           JOB_STATUS: ${{ job.status }}
+          SOURCE_FRESH: ${{ steps.source_fresh.outputs.fresh }}
         run: |
           set -u
+          if [ "${SOURCE_FRESH:-}" = "false" ]; then JOB_STATUS="superseded"; fi
           APK_SHA="unavailable"
           VERSION_NAME="unavailable"
           CERT_SHA="unavailable"
