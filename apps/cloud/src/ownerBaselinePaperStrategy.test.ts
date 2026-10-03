@@ -6,6 +6,7 @@ import {
   OWNER_BASELINE_CANDIDATE_ID,
   OwnerBaselinePaperBindingProvider,
   ownerBaselineBinding,
+  isOwnerBaselineSourceCommitSha,
   ownerBaselineStrategyEnabled,
 } from "./ownerBaselinePaperStrategy";
 
@@ -45,10 +46,13 @@ test("a bound challenger always takes precedence, and the baseline is off outsid
   const challengerBinding = { candidateId: "qualified-challenger" } as never;
   const withChallenger = new OwnerBaselinePaperBindingProvider({ challenger: { read: () => challengerBinding }, sourceCommitSha: COMMIT, enabled: true });
   assert.equal(withChallenger.read("KRW-BTC", NOW), challengerBinding);
-  const idle = new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: true });
+  const idle = new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: true, baselineMarket: "KRW-BTC" });
   assert.equal(idle.read("KRW-BTC", NOW)?.candidateId, OWNER_BASELINE_CANDIDATE_ID);
   assert.equal(new OwnerBaselinePaperBindingProvider({ sourceCommitSha: COMMIT, enabled: false }).read("KRW-BTC", NOW), undefined);
   assert.equal(new OwnerBaselinePaperBindingProvider({ sourceCommitSha: "not-a-commit", enabled: true }).read("KRW-BTC", NOW), undefined, "fails closed without an exact source identity");
+  assert.equal(idle.read("KRW-ETH", NOW), undefined, "baseline never crosses its configured market boundary");
+  assert.equal(isOwnerBaselineSourceCommitSha(COMMIT), true);
+  assert.equal(isOwnerBaselineSourceCommitSha("not-a-commit"), false);
   assert.equal(ownerBaselineStrategyEnabled({ NUSA_MODE: "PAPER" }), true);
   assert.equal(ownerBaselineStrategyEnabled({ NUSA_MODE: "PAPER", NUSA_PAPER_OWNER_BASELINE_STRATEGY: "DISABLED" }), false);
   assert.equal(ownerBaselineStrategyEnabled({ NUSA_MODE: "PAPER", NUSA_PAPER_OWNER_BASELINE_STRATEGY: "enabled" }), false, "a typo fails closed");

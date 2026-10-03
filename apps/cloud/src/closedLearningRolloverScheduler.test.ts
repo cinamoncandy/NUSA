@@ -5,6 +5,7 @@ import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverPort } from "./closedLearningRolloverScheduler";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 const START = Date.parse("2026-09-04T14:59:00.000Z"); // 23:59 KST
 const SAME_KST_DAY = Date.parse("2026-09-04T14:59:30.000Z");
@@ -158,6 +159,19 @@ describe("ClosedLearningRolloverScheduler", () => {
     assert.equal(result.status, "CLOSED_AND_EVALUATED");
     assert.deepEqual(events.slice(0, 3), [`close:period-0:${NEXT_KST_DAY}`, "identity:record-prior,record-0", "cycle"]);
     assert.equal(events[3], `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${NEXT_KST_DAY}:1`);
+  });
+
+  it("routes a realized owner-baseline period through the canonical learning cycle before continuing the baseline", () => {
+    const baseline = Object.freeze({
+      ...plan("FILLED", "owner-baseline:KRW-BTC:" + START),
+      candidateProvenance: Object.freeze([{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId: "owner-baseline:upbit-public-ticker:KRW-BTC", datasetContentSha256: HASH }]),
+    });
+    const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "INSUFFICIENT", openPeriods: [baseline] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "CLOSED_AND_EVALUATED");
+    assert.deepEqual(events.slice(0, 3), [`close:${baseline.periodId}:${NEXT_KST_DAY}`, "identity:record-0", "cycle"]);
+    assert.equal(events[3], `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${NEXT_KST_DAY}:1`);
+    assert.equal(result.cycle?.record.evidenceFingerprintSha256, HASH);
   });
 
   it("does not open a duplicate period when a qualified cycle deploys its replacement challenger", () => {
