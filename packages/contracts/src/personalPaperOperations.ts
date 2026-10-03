@@ -8,6 +8,17 @@ export type PersonalPaperRuntimeState = "HALTED" | "READY_OFFLINE" | "READY" | "
 export type PersonalPaperSchedulerMode = "OFF" | "OBSERVE" | "ACTIVE";
 
 /** Display only: why the latest canonical decision was what it was. Untrusted by the client; malformed values are dropped. */
+export interface PersonalPaperResearchCollection {
+  readonly market: string;
+  /** Stored closed 1-minute candles for the market. */
+  readonly candleCount: number;
+  /** Candles needed before the first experiment (train + validation + holdout windows). */
+  readonly requiredCandles: number;
+  readonly firstCloseMs?: number;
+  readonly lastCloseMs?: number;
+  readonly observedAt: number;
+}
+
 export interface PersonalPaperDecisionDetail {
   readonly action: string;
   readonly score: number;
@@ -44,6 +55,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly feedCountsSince?: number;
   /** Display only: the numbers and strategy reason behind the latest decision. Absent without a canonical PAPER boundary. */
   readonly lastDecisionDetail?: PersonalPaperDecisionDetail;
+  /** Display only: how much 1-minute candle history the research experiments have collected. Absent when research is off. */
+  readonly researchCollection?: PersonalPaperResearchCollection;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -336,6 +349,18 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
     if (value !== undefined && !(typeof value === "number" && Number.isSafeInteger(value) && value >= 0)) delete record[name];
   }
   if (record.lastDecisionDetail !== undefined && !isValidDecisionDetail(record.lastDecisionDetail)) delete record.lastDecisionDetail;
+  if (record.researchCollection !== undefined && !isValidResearchCollection(record.researchCollection)) delete record.researchCollection;
+}
+
+const isCount = (value: unknown, min = 0): boolean => typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= 100_000_000;
+function isValidResearchCollection(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.market === "string" && /^KRW-[A-Z0-9-]{1,16}$/.test(v.market)
+    && isCount(v.candleCount) && isCount(v.requiredCandles, 1)
+    && (v.firstCloseMs === undefined || isCount(v.firstCloseMs))
+    && (v.lastCloseMs === undefined || isCount(v.lastCloseMs))
+    && isCount(v.observedAt);
 }
 
 const DECISION_CODE = /^[A-Z_]{2,16}$/;
