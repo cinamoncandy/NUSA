@@ -59,3 +59,21 @@ export function chooseDailyCounts(
   if (decisions == null || orders == null) return baselineCounts;
   return Object.freeze({ decisionCount: decisions, paperOrderCount: orders });
 }
+
+const KST_OFFSET_MS = 9 * 3_600_000;
+const kstClock = (ms: number): string => {
+  const d = new Date(ms + KST_OFFSET_MS);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+};
+
+/**
+ * The server counts in memory, so a restart inside the window leaves its counts covering only the time since
+ * the restart. Say so instead of presenting them as the whole window. Null when the counts cover the window
+ * (or the start is unknown), so a normal day shows nothing extra.
+ */
+export function partialWindowNote(serverSince: unknown, nowMs: number): string | null {
+  const since = wholeCount(serverSince);
+  if (since == null || !Number.isFinite(nowMs)) return null;
+  const windowStart = resetDayKey(nowMs) * DAY_MS;
+  return since > windowStart + 60_000 ? `${kstClock(since)} 이후 집계 (서버 재시작)` : null;
+}

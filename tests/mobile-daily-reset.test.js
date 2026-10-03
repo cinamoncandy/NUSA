@@ -6,7 +6,7 @@ const ts = require("typescript");
 const source = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/dailyResetModel.ts"), "utf8");
 const shim = { exports: {} };
 new Function("module", "exports", ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(shim, shim.exports);
-const { applyDailyBaseline, nextDailyBaseline, resetDayKey, msUntilNextReset, chooseDailyCounts } = shim.exports;
+const { applyDailyBaseline, nextDailyBaseline, resetDayKey, msUntilNextReset, chooseDailyCounts, partialWindowNote } = shim.exports;
 const kst = (d, h, m = 0) => Date.UTC(2026, 9, d, h - 9, m);
 
 test("window flips exactly at 09:00 KST, not at midnight KST", () => {
@@ -69,6 +69,32 @@ test("the operations contract accepts the window counts and rejects bad values",
   const attempt = (extra) => validatePersonalPaperOperationsSnapshot(buildPersonalPaperOperationsSnapshot({ dashboard, research: null, operations: { ...operations, heartbeat: heartbeat(extra) }, paperLearning: null }, 1_000), 1_100, 500);
   assert.equal(attempt({ windowDecisionCount: 10, windowOrderCount: 2 }).operations.heartbeat.windowDecisionCount, 10);
   assert.equal(attempt({}).operations.heartbeat.windowDecisionCount, undefined);
-  assert.throws(() => attempt({ windowDecisionCount: -1, windowOrderCount: 0 }), /windowDecisionCount/);
-  assert.throws(() => attempt({ windowDecisionCount: 1, windowOrderCount: 0.5 }), /windowOrderCount/);
+  // Malformed display-only counters are omitted, never reject the snapshot and hide valid state.
+  const bad = attempt({ windowDecisionCount: -1, windowOrderCount: 0.5, buySignalCount: "3", buyBlockedCount: null, buyCountsSince: -5 }).operations.heartbeat;
+  for (const name of ["windowDecisionCount", "windowOrderCount", "buySignalCount", "buyBlockedCount", "buyCountsSince"]) assert.equal(bad[name], undefined, `${name} is dropped`);
+  assert.equal(bad.decisionCount, 0, "the validated cumulative fields are kept");
+  const mixed = attempt({ windowDecisionCount: 7, windowOrderCount: -1 }).operations.heartbeat;
+  assert.equal(mixed.windowDecisionCount, 7);
+  assert.equal(mixed.windowOrderCount, undefined, "only the malformed one is dropped");
+});
+
+test("a restart inside the window is disclosed; a full window and unknown starts show nothing", () => {
+  const now = kst(3, 12, 24);
+  const windowStart = Date.UTC(2026, 9, 3, 0, 0, 0);
+  assert.equal(partialWindowNote(windowStart, now), null, "counts cover the whole window");
+  assert.equal(partialWindowNote(windowStart + 30_000, now), null, "within a minute of the window start is not a restart");
+  assert.equal(partialWindowNote(Date.UTC(2026, 9, 3, 2, 45, 0), now), "11:45 이후 집계 (서버 재시작)");
+  assert.equal(partialWindowNote(undefined, now), null);
+  assert.equal(partialWindowNote(-1, now), null);
+  assert.equal(partialWindowNote(Date.UTC(2026, 9, 2, 20, 0, 0), now), null, "a start before the current window is not partial");
+  const view = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/homeView.tsx"), "utf8");
+  assert.match(view, /testID="home-window-note"/);
+  assert.match(view, /partialWindowNote\(snapshot\?\.operations\.heartbeat\?\.buyCountsSince, Date\.now\(\)\)/);
+});
+
+test("window counters are attributed with the time of counting, not the start of the tick", () => {
+  const runtime = fs.readFileSync(path.resolve(__dirname, "../apps/cloud/src/runtime.ts"), "utf8");
+  assert.match(runtime, /rollBuyWindow\(Date\.now\(\)\);\s*\n\s*buyWindow\.decisions \+= state\.decisions\.length/);
+  assert.match(runtime, /rollBuyWindow\(Date\.now\(\)\);\s*\n\s*buyWindow\.orders \+= result\.orders\.length/);
+  assert.match(runtime, /canonicalDecision\?\.action === "BUY"\) \{ rollBuyWindow\(Date\.now\(\)\)/);
 });

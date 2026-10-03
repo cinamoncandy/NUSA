@@ -196,7 +196,6 @@ function validateOperations(operations: PersonalPaperRuntimeProjection): void {
     for (const [name, value] of [["startedAt", heartbeat.startedAt], ["lastHeartbeatAt", heartbeat.lastHeartbeatAt]] as const) finite(value, `operations.heartbeat.${name}`);
     for (const [name, value] of [["lastMarketEventAt", heartbeat.lastMarketEventAt], ["lastPaperDecisionAt", heartbeat.lastPaperDecisionAt], ["lastPaperOrderAt", heartbeat.lastPaperOrderAt], ["lastPaperFillAt", heartbeat.lastPaperFillAt]] as const) if (value != null) finite(value, `operations.heartbeat.${name}`);
     for (const [name, value] of [["eventCount", heartbeat.eventCount], ["decisionCount", heartbeat.decisionCount], ["paperOrderCount", heartbeat.paperOrderCount], ["paperFillCount", heartbeat.paperFillCount]] as const) nonNegativeInteger(value, `operations.heartbeat.${name}`);
-    for (const [name, value] of [["buySignalCount", heartbeat.buySignalCount], ["buyBlockedCount", heartbeat.buyBlockedCount], ["buyCountsSince", heartbeat.buyCountsSince], ["windowDecisionCount", heartbeat.windowDecisionCount], ["windowOrderCount", heartbeat.windowOrderCount]] as const) if (value !== undefined) nonNegativeInteger(value, `operations.heartbeat.${name}`);
     if (heartbeat.lastError != null && !heartbeat.lastError.trim()) throw new Error("operations.heartbeat.lastError must be non-empty when present");
     if (heartbeat.lastPaperDecisionOutcome != null && (typeof heartbeat.lastPaperDecisionOutcome !== "string" || !/^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/.test(heartbeat.lastPaperDecisionOutcome))) throw new Error("operations.heartbeat.lastPaperDecisionOutcome must be a coded STATUS:REASON when present");
     if (heartbeat.lastHeartbeatAt < heartbeat.startedAt) throw new Error("operations.heartbeat clock regressed");
@@ -304,6 +303,20 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
   return deepFreeze(cloneJsonProjection(snapshot));
 }
 
+const DISPLAY_ONLY_COUNTERS = ["buySignalCount", "buyBlockedCount", "buyCountsSince", "windowDecisionCount", "windowOrderCount"] as const;
+/**
+ * The display-only counters are optional and untrusted: a malformed value is omitted (so the client falls back)
+ * instead of rejecting the whole snapshot and hiding valid health, portfolio and operational state.
+ */
+function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat | undefined): void {
+  if (heartbeat == null) return;
+  const record = heartbeat as unknown as Record<string, unknown>;
+  for (const name of DISPLAY_ONLY_COUNTERS) {
+    const value = record[name];
+    if (value !== undefined && !(typeof value === "number" && Number.isSafeInteger(value) && value >= 0)) delete record[name];
+  }
+}
+
 export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperOperationsSnapshot, now = Date.now(), maximumAgeMs = 15_000): PersonalPaperOperationsSnapshot {
   if (snapshot.schemaVersion !== 1) throw new Error("unsupported personal PAPER operations schemaVersion");
   if (snapshot.liveAuthority !== "NONE" || snapshot.productionMutationAllowed !== false) throw new Error("personal PAPER operations authority invariant violated");
@@ -323,7 +336,9 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   const expectedHealth = deriveHealth(snapshot);
   if (snapshot.health !== expectedHealth) throw new Error("personal PAPER operations health mismatch");
   if (snapshot.mode !== snapshot.dashboard.mode) throw new Error("personal PAPER operations mode mismatch");
-  return deepFreeze(cloneJsonProjection(snapshot));
+  const validated = cloneJsonProjection(snapshot);
+  dropMalformedDisplayCounters(validated.operations.heartbeat);
+  return deepFreeze(validated);
 }
 
 export function dashboardHealthToOperationsHealth(health: DashboardHealth): PersonalPaperOperationsHealth {
