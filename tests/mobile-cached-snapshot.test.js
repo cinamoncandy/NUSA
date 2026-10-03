@@ -58,7 +58,7 @@ test("HOME shows cached values only without a live snapshot or setup request, an
 });
 
 test("the app loads the cache per endpoint, stores only fresh READY snapshots, and clears it on sign-out", () => {
-  assert.match(app, /useCachedSnapshot\(getConfiguredPaperEndpoint\(\) \?\? null, snapshot\)/);
+  assert.match(app, /useCachedSnapshot\(getConfiguredPaperEndpoint\(\) \?\? null, operations\.status === "READY" \? operations\.snapshot : null\)/);
   assert.match(app, /void clearCachedSnapshot\(\); signOut\(\)/);
   assert.match(app, /cachedSnapshot=\{cachedSnapshot\}/);
 });
@@ -72,4 +72,13 @@ test("a stored snapshot is judged for structure against its own timestamp, not r
   let structural;
   try { validatePersonalPaperOperationsSnapshot(old, old.generatedAt); } catch (error) { structural = error; }
   assert.ok(structural instanceof Error && !/stale|future/.test(structural.message), "judged by its own time it fails only on structure");
+});
+
+// The Android touch-visual job caught this: a hook placed after the CHECKING / not-signed-in early returns changes the
+// hook count between renders, and React then drops the whole app into the recovery screen.
+test("every hook added for the cache is called before the App early returns (rules of hooks)", () => {
+  const firstEarlyReturn = app.search(/^  if \(authStatus === "CHECKING"\) return /m);
+  assert.ok(firstEarlyReturn > 0, "the early return still exists");
+  const hookAt = app.indexOf("useCachedSnapshot(getConfiguredPaperEndpoint()");
+  assert.ok(hookAt > 0 && hookAt < firstEarlyReturn, "useCachedSnapshot must run before the first early return");
 });

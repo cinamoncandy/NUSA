@@ -177,6 +177,8 @@ function AuthenticatedApp() {
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
+  // Last-known values for the launch screen only; never a live reading. Called before any early return so the hook order never changes.
+  const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, operations.status === "READY" ? operations.snapshot : null);
   const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());
   const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
@@ -476,8 +478,6 @@ function AuthenticatedApp() {
   const paperProjectionPending = !initialPaperProjectionResolved;
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
-  // Last-known values for the launch screen only; they are never treated as a live reading.
-  const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, snapshot);
   const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;
   // Applied once at the source so HOME, PAPER and every screen agree during the resume grace.
   const notConfigured = graceNotConfigured(!paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null, resumingQuietly);
