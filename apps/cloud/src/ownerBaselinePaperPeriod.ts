@@ -35,7 +35,9 @@ export function buildOwnerBaselinePaperPeriodInput(context: OwnerBaselinePaperPe
 }
 
 export function isOwnerBaselinePeriodInput(input: PaperRealizedPeriodOpenInput): boolean {
-  return input.candidateProvenance.length === 1
+  return Array.isArray(input.candidateProvenance)
+    && input.candidateProvenance.length === 1
     && input.candidateProvenance[0]?.candidateId === OWNER_BASELINE_CANDIDATE_ID
+    && typeof input.periodId === "string"
     && input.periodId.startsWith("owner-baseline:");
 }
