@@ -10,12 +10,12 @@ test("real-market research run consumes the canonical factory qualification gate
     source,
     /const \{ qualifyResearchFactoryRun \} = require\("\.\.\/dist\/apps\/desktop\/src\/cloud\/researchFactoryQualification\.js"\);/
   );
-  assert.match(source, /const factoryQualification = qualifyResearchFactoryRun\(league\);/);
+  assert.match(source, /const factoryQualification = qualifyResearchFactoryRun\(league, primaryDataset\.currentDatasetIdentity\);/);
   assert.match(source, /researchFactoryQualification: factoryQualification,/);
   assert.match(source, /researchRunProvenance: league\.provenance,/);
 
   const buildIndex = source.indexOf("const league = buildResearchRunLeague(");
-  const qualificationIndex = source.indexOf("const factoryQualification = qualifyResearchFactoryRun(league);");
+  const qualificationIndex = source.indexOf("const factoryQualification = qualifyResearchFactoryRun(league, primaryDataset.currentDatasetIdentity);");
   const outputIndex = source.indexOf("researchFactoryQualification: factoryQualification,");
   const provenanceOutputIndex = source.indexOf("researchRunProvenance: league.provenance,");
   assert.ok(
@@ -50,4 +50,9 @@ test("PBO insufficiency is projected as an explicit unavailable state without sw
     assert.equal(isResearchRunPboEvidenceUnavailable({ code }), false, code);
   }
   assert.equal(isResearchRunPboEvidenceUnavailable(undefined), false);
+});
+
+test("real-market dataset requires canonical current identity before qualification", () => {
+  assert.match(source, /requireCurrentResearchDatasetIdentity\(\{ manifest, freshness, observedAt: dataAsOf \}\)/);
+  assert.match(source, /qualifyResearchFactoryRun\(league, primaryDataset\.currentDatasetIdentity\)/);
 });
