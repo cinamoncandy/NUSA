@@ -11,7 +11,7 @@
  */
 export type SessionState = "NOT_CONFIGURED" | "VERIFIED" | "RECOVERING" | "RECOVERY_REQUIRED";
 export const RESUME_GRACE_MS = 5_000;
-/** Time after app launch during which an unverified session is still settling (the shell opens before the restore starts). */
+/** Time after app launch during which the first PAPER projection is still settling. */
 export const LAUNCH_GRACE_MS = 3_000;
 
 export function displaySessionState(state: SessionState, verifiedBeforeResume: boolean, recoveringForMs: number): SessionState {
@@ -30,11 +30,13 @@ export function graceNotConfigured(notConfigured: string | null, resuming: boole
 }
 
 /**
- * Whether the app is still inside its launch window with a session that is not verified yet. The shell
- * opens as soon as an endpoint is configured, which can be a moment before the restore flags itself as
- * running, so the first projection can briefly read as not configured. Presentation only: past the window
- * the real state shows, so an unpaired device still gets its setup notice.
+ * Whether the app is still inside its launch window. The shell opens as soon as an endpoint is configured,
+ * and the first PAPER projection can read as not configured both before the restore starts and, for about a
+ * second, after the session has already verified but before the refresh that follows it returns. So the
+ * window applies whatever the session state is: it only ever hides the not-configured notice, which is
+ * itself gated on that projection. Presentation only: past the window the real state shows, so an unpaired
+ * device still gets its setup notice.
  */
-export function launchSettling(state: SessionState, sinceLaunchMs: number): boolean {
-  return state !== "VERIFIED" && Number.isFinite(sinceLaunchMs) && sinceLaunchMs >= 0 && sinceLaunchMs < LAUNCH_GRACE_MS;
+export function launchSettling(sinceLaunchMs: number): boolean {
+  return Number.isFinite(sinceLaunchMs) && sinceLaunchMs >= 0 && sinceLaunchMs < LAUNCH_GRACE_MS;
 }

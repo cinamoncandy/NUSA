@@ -1,0 +1,27 @@
+id: WO-UI-20261003-LAUNCH-GRACE-VERIFIED
+title: "Apply the 3 s launch window to the not-configured notice whatever the session state"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-launch-verified
+authority_impact: none
+objective: "App 1.0.463 (WO-UI-20261002-LAUNCH-GRACE) still shows 'PAPER 서버 연결 필요' for about 1 second after a cold start. The launch window only covered sessions that were not yet VERIFIED, but the notice also appears for about a second after the session verified, while the refresh that follows it has not returned and the projection still reads NOT_CONFIGURED."
+finding: "Owner report on 1.0.463: about 1 s after killing and reopening the app. Cause inferred from reading App.tsx (subscribePaperSessionVerified refresh) and the previous guard; not reproduced on a device."
+scope:
+  - "apps/mobile/src/sessionDisplayModel.ts: launchSettling(sinceLaunchMs) no longer depends on the session state; it is true for 3 s after launch, and never for a negative or non-finite elapsed time."
+  - "apps/mobile/App.tsx: pass only the elapsed time."
+  - "tests/mobile-session-display.test.js: the launch-window test now asserts the state-independent window."
+exclusions:
+  - "No change to authentication, session restore, retry, credentials, endpoint handling, runtime recovery or any trading behavior. The window only hides the not-configured notice, which is already gated on the NOT_CONFIGURED projection, and only for 3 s after launch; genuine read failures are never hidden and an unpaired device still gets its setup notice after 3 s."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The notice is delayed by at most 3 s after launch and then shown from the real state."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-session-display.test.js
+residual: "Cause not reproduced on a device; needs a new app build (owner installs). If the notice still shows past 3 s the restore itself is slower than the window."
