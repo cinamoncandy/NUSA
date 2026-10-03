@@ -11,7 +11,7 @@ name: Autopilot Codex Coding
 
 on:
   schedule:
-    - cron: "23 */2 * * *"
+    - cron: "23 * * * *"
   workflow_dispatch: {}
 
 permissions:
