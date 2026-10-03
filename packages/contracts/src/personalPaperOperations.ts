@@ -55,6 +55,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly feedCountsSince?: number;
   /** Display only: the numbers and strategy reason behind the latest decision. Absent without a canonical PAPER boundary. */
   readonly lastDecisionDetail?: PersonalPaperDecisionDetail;
+  /** Display only: the markets this PAPER runtime watches and trades (the configured list, 1-5). Absent without a canonical PAPER boundary. */
+  readonly tradedMarkets?: readonly string[];
   /** Display only: how much 1-minute candle history the research experiments have collected. Absent when research is off. */
   readonly researchCollection?: PersonalPaperResearchCollection;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
@@ -350,8 +352,13 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   }
   if (record.lastDecisionDetail !== undefined && !isValidDecisionDetail(record.lastDecisionDetail)) delete record.lastDecisionDetail;
   if (record.researchCollection !== undefined && !isValidResearchCollection(record.researchCollection)) delete record.researchCollection;
+  if (record.tradedMarkets !== undefined && !isValidMarketList(record.tradedMarkets)) delete record.tradedMarkets;
 }
 
+function isValidMarketList(value: unknown): boolean {
+  return Array.isArray(value) && value.length >= 1 && value.length <= 5 && new Set(value).size === value.length
+    && value.every((item) => typeof item === "string" && /^KRW-[A-Z0-9-]{1,16}$/.test(item));
+}
 const isCount = (value: unknown, min = 0): boolean => typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= 100_000_000;
 function isValidResearchCollection(value: unknown): boolean {
   if (value == null || typeof value !== "object" || Array.isArray(value)) return false;

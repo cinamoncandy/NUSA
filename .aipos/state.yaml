@@ -2307,3 +2307,9 @@ current_research_candle_backfill:
   branch: claude/nusa-repository-j93sd8-candle-backfill
   authority_impact: research_evidence_only
   deploy: not_deployed_server_deploy_required
+current_ui_traded_coin:
+  work_order: WO-UI-20261003-TRADED-COIN
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-traded-coin
+  authority_impact: none
+  deploy: not_deployed_server_and_app_build_required
