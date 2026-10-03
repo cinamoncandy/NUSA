@@ -106,15 +106,16 @@ export class OwnerBaselinePaperBindingProvider implements PaperCandidateBindingP
     challenger?: PaperCandidateBindingProvider;
     sourceCommitSha: string;
     enabled: boolean;
-    baselineMarket?: string;
+    /** Markets the baseline may trade (the configured list, 1-5). Empty or absent means none. */
+    baselineMarkets?: readonly string[];
   }>) {}
 
   public read(market: string, decisionAt: number): PaperCandidateExecutionBinding | undefined {
     const challenger = this.options.challenger?.read(market, decisionAt);
     if (challenger != null || !this.options.enabled) return challenger;
     const normalizedMarket = market.trim().toUpperCase();
-    const baselineMarket = this.options.baselineMarket?.trim().toUpperCase();
-    if (!baselineMarket || normalizedMarket !== baselineMarket) return undefined;
+    const allowed = (this.options.baselineMarkets ?? []).map((item) => item.trim().toUpperCase());
+    if (!allowed.includes(normalizedMarket)) return undefined;
     try {
       return ownerBaselineBinding(normalizedMarket, decisionAt, this.options.sourceCommitSha);
     } catch {

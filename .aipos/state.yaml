@@ -2289,3 +2289,9 @@ current_ui_cached_launch:
   branch: claude/nusa-repository-j93sd8-cached-launch
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+current_paper_baseline_multi_market:
+  work_order: WO-PAPER-20261003-BASELINE-MULTI-MARKET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-baseline-markets
+  authority_impact: execution_exposure_paper_only
+  deploy: not_deployed_server_deploy_required
