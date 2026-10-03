@@ -121,7 +121,9 @@ test("the Codex contract makes AIPOS state true on the published commit so the r
   const prompt = buildPrompt({ issueNumber: 1, capability: "test", title: "t", body: "b" });
   assert.match(prompt, /TRUE ON THE PUBLISHED COMMIT/);
   assert.match(prompt, /Never write \\?"uncommitted\\?"/);
-  assert.match(prompt, /exact-head CI, independent Audit, Release/);
+  assert.match(prompt, /exact-head CI, independent Audit and Release PLUS every task-specific post-Release action/);
+  assert.match(prompt, /exact-main deployment, runtime proof, dogfood/);
+  assert.match(prompt, /never imply that Release ends the work when it does not/);
   assert.match(prompt, /Do not commit, push, open a PR/, "the no-commit authority rule is unchanged");
   assert.match(prompt, /liveAuthority=NONE/);
 });
