@@ -25,6 +25,7 @@ import { useDailyCounts } from "./useDailyCounts";
 import { chooseDailyCounts, partialWindowNote } from "./dailyResetModel";
 import { buildBuySignalLine } from "./buySignalModel";
 import { buildFeedDiagnosticsLine } from "./feedDiagnosticsModel";
+import { explainDecision } from "./whyNoTradeModel";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
 
@@ -137,6 +138,7 @@ export function HomeView({
     aiConfidence: ai?.confidence,
   });
   // Kept outside buildHomeDecisionSurface so that module stays dependency-free (it is tested by transpiling the single file).
+  const decisionWhy = disconnected || readOnlyError != null || sessionRecovering ? [] : explainDecision(snapshot?.operations.heartbeat?.lastDecisionDetail);
   const orderReason = disconnected || readOnlyError != null || sessionRecovering ? null : describePaperOrderReason(snapshot?.operations.heartbeat?.lastPaperDecisionOutcome);
   const rail = buildHomeStatusRail({
     paperState: snapshot == null ? (notConfigured ? "NOT_CONFIGURED" : "UNAVAILABLE") : snapshot.health === "HEALTHY" ? "READY" : snapshot.health === "DEGRADED" ? "DEGRADED" : "DOWN",
@@ -199,6 +201,7 @@ export function HomeView({
       {orderReason == null ? null : <View style={[styles.reasonCard, { borderColor: orderReason.category === "FILLED" || orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.border : theme.colors.warning }]} testID="home-order-reason-card">
         <Text style={[styles.eyebrow, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]}>{orderReason.category === "FILLED" ? "최근 체결" : orderReason.category === "UNKNOWN" ? "최근 판단 결과" : "주문하지 않은 이유"}</Text>
         <Text style={[styles.reasonText, { color: theme.colors.text }]} numberOfLines={3} testID="home-no-order-reason">{orderReason.text}</Text>
+        {decisionWhy.map((line, index) => <Text key={index} style={[styles.reasonText, { color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }]} testID={`home-decision-why-${index}`}>{line}</Text>)}
       </View>}
 
       {/* While a recovery/degraded banner is shown the rail would only repeat it; on a halt it stays, because it names the cause (e.g. the kill switch). */}

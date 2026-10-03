@@ -1,0 +1,29 @@
+id: WO-UI-20261003-WHY-NO-TRADE
+title: "HOME lines: why the latest PAPER decision did not buy or sell"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-why-no-trade
+authority_impact: none
+objective: "The app showed 'no order' without saying why. Report a compact, sanitized summary of the latest canonical decision (action, score, confidence, risk, strategy reason with indicator values) and word it in plain Korean under the no-order reason."
+scope:
+  - "apps/cloud/src/paperDecisionDetail.ts: describeCanonicalDecision builds a frozen, sanitized, bounded summary of an already computed decision."
+  - "apps/cloud/src/runtime.ts: remembers the last summary in memory and reports it as lastDecisionDetail only inside the canonical PAPER boundary block."
+  - "packages/contracts/src/personalPaperOperations.ts: optional lastDecisionDetail; a malformed value is dropped from the validated snapshot (display-only rule), never rejects it."
+  - "apps/mobile/src/whyNoTradeModel.ts, homeView.tsx, homeFieldInput.ts: up to two explanation lines; nothing is shown when the detail is missing or malformed."
+  - "tests/mobile-why-no-trade.test.js (6)."
+exclusions:
+  - "No change to the decision engine, thresholds, risk, execution, orders, accounting, /health, LIVE, credentials or AI authority. The summary is read-only output of a decision that already happened."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Absent or malformed detail renders no explanation."
+rollback: "Revert the change; the field is optional."
+verification_commands:
+  - npx tsc -p tsconfig.json --noEmit
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-why-no-trade.test.js
+residual: "The fallback thresholds 0.35 / 0.55 are mirrored in the mobile wording only. Needs a server deploy and a new app build; both need owner approval."
