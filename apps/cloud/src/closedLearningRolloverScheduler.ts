@@ -3,7 +3,6 @@ import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integ
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
-import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 export type ClosedLearningRolloverStatus =
   | "NO_OPEN_PERIOD"
