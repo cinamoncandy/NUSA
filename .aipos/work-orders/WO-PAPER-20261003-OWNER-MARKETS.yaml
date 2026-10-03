@@ -1,0 +1,25 @@
+id: WO-PAPER-20261003-OWNER-MARKETS
+title: "Owner-decided PAPER markets (XRP first) versioned with the release and applied over the host environment"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/paper-markets-config
+authority_impact: execution_exposure_paper_only
+objective: "The owner decided to trade and learn KRW-XRP only, but the host environment still lists five markets (BTC, ETH, XRP, SOL, DOGE) and the owner has no computer or host access to change it. With five markets one quiet market degrades the feed health and the execution gate then blocks every BUY (376 of 376 blocked in the owner's screenshots). The decision must reach the host through a normal reviewed release, the same way the owner-decided PAPER account already does."
+scope:
+  - "deploy/oracle/paper-markets.json: schemaVersion 1, markets [KRW-XRP]."
+  - "scripts/start-cloud-runtime.js: readOwnerPaperMarkets (1-5 distinct KRW markets, fail closed when malformed, absent file applies nothing) and buildRuntimeEnv applies it over NUSA_CLOUD_UPBIT_MARKETS and NUSA_RESEARCH_MARKETS, mirroring readOwnerPaperAccount."
+  - "tests/cloud-runtime-launcher.test.js: committed decision, override of a five-market host env, no-file no-op, six malformed shapes."
+exclusions:
+  - "No change to capital, minimum order, risk limits, thresholds, the strategy, the execution gate, LIVE, credentials or AI authority. Does not edit /etc/nusa env files. Other services that read the env file directly (research timer, autopilot) are not changed here."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "A malformed markets file stops the launcher from starting instead of falling back to the host list."
+rollback: "Delete deploy/oracle/paper-markets.json (or revert) and redeploy; the host environment list applies again."
+verification_commands:
+  - node --test tests/cloud-runtime-launcher.test.js
+  - npx tsc -p tsconfig.json
+residual: "Takes effect only after the server is deployed and restarted (owner standing deploy approval); a restart clears the in-memory observations so the SMA 20 warm-up restarts (about 20 minutes for XRP). Whether one-market operation removes the FEED_STALE degradation is a hypothesis to confirm on the phone afterwards."

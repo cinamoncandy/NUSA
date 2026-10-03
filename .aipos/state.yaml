@@ -2365,3 +2365,9 @@ current_ui_motion_reveal:
   branch: claude/ui-motion-polish
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+current_paper_owner_markets:
+  work_order: WO-PAPER-20261003-OWNER-MARKETS
+  status: READY_FOR_REVIEW
+  branch: claude/paper-markets-config
+  authority_impact: execution_exposure_paper_only
+  deploy: not_deployed_server_deploy_required
