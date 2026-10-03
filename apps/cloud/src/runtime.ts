@@ -205,15 +205,20 @@ export function startCloudRuntime(
   // Display-only counters (BUY signals, decisions, orders) for the current 09:00 KST window (= 00:00 UTC), kept in memory. They are reported only when the
   // canonical PAPER boundary is active; without it nothing measures BUY outcomes and 0/0 would be a false statement.
   const BUY_WINDOW_MS = 86_400_000;
-  const buyWindow = { key: Math.floor(runtimeStartedAt / BUY_WINDOW_MS), signals: 0, blocked: 0, decisions: 0, orders: 0 };
+  const buyWindow = { key: Math.floor(runtimeStartedAt / BUY_WINDOW_MS), signals: 0, blocked: 0, decisions: 0, orders: 0, feedDisconnects: 0, feedStaleGaps: 0, feedMaxGapMs: 0 };
+  let lastTickerArrivalMs: number | null = null;
   const rollBuyWindow = (nowMs: number): void => {
     const key = Math.floor(nowMs / BUY_WINDOW_MS);
-    if (key !== buyWindow.key) { buyWindow.key = key; buyWindow.signals = 0; buyWindow.blocked = 0; buyWindow.decisions = 0; buyWindow.orders = 0; }
+    if (key !== buyWindow.key) { buyWindow.key = key; buyWindow.signals = 0; buyWindow.blocked = 0; buyWindow.decisions = 0; buyWindow.orders = 0; buyWindow.feedDisconnects = 0; buyWindow.feedStaleGaps = 0; buyWindow.feedMaxGapMs = 0; }
   };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
-    if (productionPaperBoundary == null) return Object.freeze({ ...heartbeat });
+    if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
-    return Object.freeze({ ...heartbeat, buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS) });
+    const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
+    // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
+    const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince };
+    return Object.freeze({ ...heartbeat, ...paper, ...feed });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
@@ -350,6 +355,17 @@ export function startCloudRuntime(
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
     heartbeat.eventCount += 1;
+    // Display-only feed diagnostics: the gap between consecutive ticker arrivals, measured on arrival time so a late trade timestamp cannot hide it.
+    {
+      const arrivedAt = Date.now();
+      rollBuyWindow(arrivedAt);
+      if (lastTickerArrivalMs != null && arrivedAt >= lastTickerArrivalMs) {
+        const gap = arrivedAt - lastTickerArrivalMs;
+        if (gap > DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS) buyWindow.feedStaleGaps += 1;
+        if (gap > buyWindow.feedMaxGapMs) buyWindow.feedMaxGapMs = gap;
+      }
+      lastTickerArrivalMs = arrivedAt;
+    }
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
     if (!observation) {
@@ -435,6 +451,7 @@ export function startCloudRuntime(
     } else if (effectivePaperLoop != null) clearPaperProjection();
   }, (state) => {
     heartbeat.lastHeartbeatAt = Date.now();
+    if (state !== "CONNECTED" && marketConnectionState === "CONNECTED") { rollBuyWindow(Date.now()); buyWindow.feedDisconnects += 1; }
     marketConnectionState = state;
     if (state === "CONNECTED") heartbeat.lastError = null; else recordFailure(`PUBLIC_MARKET_${state}`);
     marketConnectionGeneration += 1;
