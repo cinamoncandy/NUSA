@@ -52,12 +52,12 @@ test("HOME uses the server window counts for the rings and field, keeping the ba
 
 test("the runtime counts decisions and orders in the same 09:00 KST window and reports them only with the PAPER boundary", () => {
   const runtime = fs.readFileSync(path.resolve(__dirname, "../apps/cloud/src/runtime.ts"), "utf8");
-  assert.match(runtime, /buyWindow = \{ key: Math\.floor\(runtimeStartedAt \/ BUY_WINDOW_MS\), signals: 0, blocked: 0, decisions: 0, orders: 0 \}/);
+  assert.match(runtime, /buyWindow = \{ key: Math\.floor\(runtimeStartedAt \/ BUY_WINDOW_MS\), signals: 0, blocked: 0, decisions: 0, orders: 0, feedDisconnects: 0, feedStaleGaps: 0, feedMaxGapMs: 0 \}/);
   assert.match(runtime, /buyWindow\.decisions \+= state\.decisions\.length/);
   assert.match(runtime, /buyWindow\.orders \+= result\.orders\.length/);
   const start = runtime.indexOf("const readHeartbeat = ");
-  const body = runtime.slice(start, runtime.indexOf("};", start));
-  assert.match(body, /if \(productionPaperBoundary == null\) return Object\.freeze\(\{ \.\.\.heartbeat \}\)/);
+  const body = runtime.slice(start, runtime.indexOf("\n  };\n", start));
+  assert.match(body, /productionPaperBoundary == null \? \{\} : \{ buySignalCount/, "the window counts need the PAPER boundary");
   assert.match(body, /windowDecisionCount: buyWindow\.decisions, windowOrderCount: buyWindow\.orders/);
 });
 
