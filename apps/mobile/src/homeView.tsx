@@ -29,6 +29,7 @@ import { explainDecision } from "./whyNoTradeModel";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
 import { staleLabel } from "./cachedSnapshotModel";
+import { connectionLabel } from "./connectionLabelModel";
 import { buildResearchProgressLine } from "./researchProgressModel";
 import { buildTradedCoinLine } from "./tradedCoinModel";
 
@@ -170,10 +171,10 @@ export function HomeView({
   const hasPosition = Boolean(position && Number(position.quantity) > 0);
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
-  const connectionLabel = stale ? "CACHED" : disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
+  const connectionLabelText = connectionLabel({ recovering, stale, disconnected, readOnlyError: Boolean(readOnlyError), readyForPaperOperations: Boolean(snapshot?.readyForPaperOperations) });
   // A trusted device whose session is being recovered is not a setup problem: project it as
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
-  const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
+  const shownConnectionLabel = connectionLabelText;
 
   const fieldInput = buildHomeFieldInput({ snapshot: stale ? null : snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
   // The rings show history; a current fault (halt, degraded runtime, lost connection) stays on top of them.

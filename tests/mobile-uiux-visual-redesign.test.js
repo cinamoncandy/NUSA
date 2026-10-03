@@ -25,8 +25,8 @@ test("Home uses the content-first command center hierarchy without weakening aut
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /connectionLabel = stale \? "CACHED" : disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
-  assert.match(home, /"ACTIVE" : "OBSERVING"/);
+  assert.match(home, /connectionLabel\(\{ recovering, stale, disconnected, readOnlyError: Boolean\(readOnlyError\)/);
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/connectionLabelModel.ts"), "utf8"), /"ACTIVE" : "OBSERVING"/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /총 손익/);
   assert.match(home, /QUICK ACCESS/);
