@@ -1,0 +1,24 @@
+id: WO-AUTOPILOT-20261003-CODEX-ON-CLOSE
+title: "Start the next Autopilot Codex increment as soon as an autopilot Codex PR merges or closes"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/autopilot-codex-on-close
+authority_impact: autopilot_schedule_only
+objective: "Even with ChatGPT quota available, Autopilot produced about two PRs per day: the shortest PR lifetime was 1 h 42 min and after a merge Codex waited for the next scheduled slot (observed 4-6 h gaps on a 2 h cron, hourly since WO-AUTOPILOT-20261003-CODEX-HOURLY). The owner asked for autonomous throughput that does not idle between PRs and approved this change."
+scope:
+  - ".github/workflows/autopilot-codex-coding.yml: adds a pull_request_target [closed] trigger; the select job runs for it only when the closed PR targets main and its head branch starts with autopilot/codex/. Schedule and manual dispatch behave as before."
+exclusions:
+  - "No change to eligibility, the one-open-PR rule, usage-limit wait (never another account), host guard, validation, protected-path boundary, Audit, Release or any authority. No new AI account or paid usage. pull_request_target checks out only main (the select job pins ref: main); PR contents are never checked out or executed."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The job-level condition skips every other PR close; the concurrency group keeps a single run; an open autopilot Codex PR still skips issue selection; a usage limit remains a wait."
+rollback: "Remove the pull_request_target trigger and the job condition."
+verification_commands:
+  - node scripts/validate-workflow-authority-map.js
+  - node scripts/validate-workflow-action-pins.js
+  - node --test tests/*autopilot*.test.js
+residual: "Not exercised against a live merge before this lands; the first autopilot Codex PR that merges after this proves it. If Release merges with a token that does not emit pull_request events the hourly schedule still covers it."
