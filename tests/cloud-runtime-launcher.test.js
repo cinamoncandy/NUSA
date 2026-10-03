@@ -157,3 +157,23 @@ test("the owner-retired PAPER accounts reach the runtime from the committed owne
   const { env } = buildRuntimeEnv({}, "t".repeat(64), owner);
   assert.equal(env.NUSA_PAPER_RETIRED_ACCOUNT_IDS, "paper-default");
 });
+
+test("the owner PAPER markets file sets the trading and research markets over the host environment and fails closed when malformed", () => {
+  const { readOwnerPaperMarkets, OWNER_PAPER_MARKETS_FILE, buildRuntimeEnv: build } = require("../scripts/start-cloud-runtime.js");
+  const owner = readOwnerPaperMarkets();
+  assert.deepEqual([...owner.markets], ["KRW-XRP"], "owner decision 2026-10-03: XRP first");
+  assert.ok(OWNER_PAPER_MARKETS_FILE.endsWith(path.join("deploy", "oracle", "paper-markets.json")));
+  const host = { NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL,KRW-DOGE", NUSA_RESEARCH_MARKETS: "KRW-BTC" };
+  const { env, applied } = build(host, TOKEN, null, owner);
+  assert.equal(env.NUSA_CLOUD_UPBIT_MARKETS, "KRW-XRP");
+  assert.equal(env.NUSA_RESEARCH_MARKETS, "KRW-XRP");
+  assert.ok(applied.includes("NUSA_CLOUD_UPBIT_MARKETS") && applied.includes("NUSA_RESEARCH_MARKETS"));
+  assert.equal(build({}, TOKEN, null, null).env.NUSA_CLOUD_UPBIT_MARKETS, undefined, "no file, nothing applied");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "owner-markets-"));
+  const write = (value) => { const f = path.join(dir, "m.json"); fs.writeFileSync(f, JSON.stringify(value)); return f; };
+  for (const bad of [{ schemaVersion: 1, markets: [] }, { schemaVersion: 1, markets: ["BTC-KRW"] }, { schemaVersion: 1, markets: ["KRW-XRP", "KRW-XRP"] },
+    { schemaVersion: 1, markets: ["KRW-A", "KRW-B", "KRW-C", "KRW-D", "KRW-E", "KRW-F"] }, { schemaVersion: 2, markets: ["KRW-XRP"] }, { schemaVersion: 1, markets: "KRW-XRP" }]) {
+    assert.throws(() => readOwnerPaperMarkets(write(bad)), /owner PAPER markets file is invalid/);
+  }
+  assert.equal(readOwnerPaperMarkets(path.join(dir, "missing.json")), null);
+});
