@@ -495,6 +495,10 @@ export function startCloudRuntime(
         }
         return;
       }
+      // Renew the REST snapshot before it expires (it is only valid for 30 s) so a steady feed never reaches the failure path
+      // below. A failed renewal is silent here: the old snapshot keeps working until it expires, and only then does the
+      // unreconciled path above record the failure exactly as before.
+      if (marketConnectionState === "CONNECTED" && orderBookReconciler.needsRefresh(orderBook.code, receivedAt)) void orderBookReconciler.refreshSnapshot(orderBook.code).catch(() => undefined);
       const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
       // Only observed, validated quotes recover this diagnostic; never clear other failures
