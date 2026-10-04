@@ -153,10 +153,13 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     })();
     const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => { timeoutFired = true; controller.abort(); reject(new Error("PAPER operations request timed out.")); }, timeoutMs); });
     const response = await Promise.race([operation, timeout]);
-    const currentToken = await options.credentialProvider();
-    const endpointStillCurrent = getConfiguredPaperEndpoint() === configured;
-    const verificationStillCurrent = options.allowUnverifiedEndpoint === true || isPaperConnectionVerified(configured);
-    if (!endpointStillCurrent || !verificationStillCurrent || currentToken == null || currentToken.trim() !== requestToken) {
+    const connectionStillCurrent = async () => {
+      const currentToken = await options.credentialProvider();
+      const endpointStillCurrent = getConfiguredPaperEndpoint() === configured;
+      const verificationStillCurrent = options.allowUnverifiedEndpoint === true || isPaperConnectionVerified(configured);
+      return endpointStillCurrent && verificationStillCurrent && currentToken != null && currentToken.trim() === requestToken;
+    };
+    if (!(await connectionStillCurrent())) {
       noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
       return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the request was in flight.", failure: failureEvidence("CONNECTION_REPLACED") });
     }
@@ -166,6 +169,10 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     }
     try {
       const payload: unknown = await response.json();
+      if (!(await connectionStillCurrent())) {
+        noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
+        return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the request was in flight.", failure: failureEvidence("CONNECTION_REPLACED") });
+      }
       const snapshot = validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot);
       noteProjectionResult(options.credentialProvider, "READY");
       return Object.freeze({ status: "READY", snapshot });
