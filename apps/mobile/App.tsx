@@ -479,7 +479,11 @@ function AuthenticatedApp() {
   const paperProjectionPending = !initialPaperProjectionResolved;
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
-  const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;
+  const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE"
+    ? operations.failure == null
+      ? operations.reason
+      : `${operations.reason} [${operations.failure.category} ${operations.failure.route}${operations.failure.httpStatus == null ? "" : ` HTTP ${operations.failure.httpStatus}`} @ ${new Date(operations.failure.observedAt).toISOString()}]`
+    : null;
   // Applied once at the source so HOME, PAPER and every screen agree during the resume grace.
   const notConfigured = graceNotConfigured(!paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null, resumingQuietly);
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
