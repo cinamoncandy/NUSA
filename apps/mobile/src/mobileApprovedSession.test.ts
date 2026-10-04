@@ -139,6 +139,27 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal(session.shouldRetryRestore(), false);
   });
 
+  it("fails closed when native transient status omits retained credential metadata or contradicts transient flags", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const request = (async () => { throw new Error("must not reach the network for malformed inspection evidence"); }) as unknown as typeof fetch;
+    for (const status of [
+      { available: false, canCreate: false, hardwareBacked: false, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: null, reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" },
+      { available: true, canCreate: false, hardwareBacked: false, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: "silent-credential-0123456789", reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" },
+      { available: false, canCreate: true, hardwareBacked: false, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: "silent-credential-0123456789", reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" },
+      { available: false, canCreate: false, hardwareBacked: true, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: "silent-credential-0123456789", reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" },
+    ]) {
+      const native = {
+        getSilentDeviceStatus: async () => status,
+        signSilentChallenge: async () => { throw new Error("must not be called"); },
+        deleteSilentDeviceCredential: async () => { throw new Error("must not be called"); },
+      } as unknown as OwnerDeviceCredentialNative;
+      const session = new MobileApprovedSession(storage, request);
+      await assert.rejects(() => session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0005", native), /silent DeviceKey status evidence is invalid/);
+      assert.equal(session.shouldRetryRestore(), false);
+    }
+  });
+
   it("a silent connect started during a bearer restore keeps its tokens when the bearer path fails late", async () => {
     // Galaxy report: the PAPER connect button had to be pressed several times. Saving Settings
     // starts a bearer restore; the connect button starts a silent DeviceKey restore. The bearer
