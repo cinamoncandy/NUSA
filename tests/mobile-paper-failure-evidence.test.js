@@ -51,3 +51,28 @@ test("schema mismatch is fail-closed and classified", async () => {
   assert.equal(result.status, "UNAVAILABLE");
   assert.equal(result.failure.category, "SCHEMA_MISMATCH");
 });
+
+test("malformed JSON is schema mismatch, not transport failure", async () => {
+  const result = await load(async () => new Response("{", {
+    status: 200, headers: { "content-type": "application/json" }
+  }));
+  assert.equal(result.status, "UNAVAILABLE");
+  assert.equal(result.failure.category, "SCHEMA_MISMATCH");
+});
+
+test("connection replacement wins over a stale HTTP error response", async () => {
+  clearConfiguredPaperEndpoint();
+  setConfiguredPaperEndpoint(ENDPOINT);
+  let calls = 0;
+  const rotatingProvider = Object.assign(async () => (++calls === 1 ? TOKEN : `${TOKEN}-rotated`), { noteProjectionResult() {} });
+  try {
+    const result = await loadPersonalPaperOperations({
+      baseUrl: ENDPOINT,
+      credentialProvider: rotatingProvider,
+      allowUnverifiedEndpoint: true,
+      request: async () => new Response("rejected", { status: 401 })
+    });
+    assert.equal(result.status, "UNAVAILABLE");
+    assert.equal(result.failure.category, "CONNECTION_REPLACED");
+  } finally { clearConfiguredPaperEndpoint(); }
+});
