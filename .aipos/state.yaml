@@ -1,4 +1,13 @@
 version: 1
+current_android_paper_runtime_truth_p0:
+  work_order: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
+  status: CANONICAL_BRANCH_RECOVERED_PENDING_EXACT_HEAD_CI
+  branch: fix/android-paper-runtime-truth-p0
+  base_sha: dc8bb65bf90f662199a2d32ed34d053efb8dbd8c
+  first_broken_transition: "Android authenticated PAPER read -> actionable first-failure evidence"
+  scope: "Preserve stable non-secret failure category, route, observation time and HTTP status where applicable; no aggregate fabrication or authority change."
+  remaining: "Exact-head CI, Independent Audit, canonical Release/merge, exact-main Oracle deployment, authenticated runtime evidence, provenance/recovery/Galaxy acceptance."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_issue_2260_mobile_devicekey_inspection:
   work_order: WO-ISSUE-2260-MOBILE-DEVICEKEY-INSPECTION
   issue: 2260
