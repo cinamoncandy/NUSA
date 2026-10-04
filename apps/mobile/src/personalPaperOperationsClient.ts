@@ -86,7 +86,8 @@ function classifyHttpFailure(status: number): PersonalPaperOperationsFailureCate
   return "BACKEND_FAILURE";
 }
 
-function transportFailureCategory(error: unknown): PersonalPaperOperationsFailureCategory {
+function transportFailureCategory(error: unknown, timeoutFired: boolean): PersonalPaperOperationsFailureCategory {
+  if (timeoutFired) return "TIMEOUT";
   const message = error instanceof Error ? error.message : "";
   if (/timed out/i.test(message)) return "TIMEOUT";
   return "TRANSPORT_FAILURE";
@@ -137,6 +138,7 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
   const endpoint = new URL(`${configured}/api/paper-operations`).href;
   const controller = new AbortController();
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  let timeoutFired = false;
   try {
     const operation = (async () => {
       const response = await (options.request ?? fetch)(endpoint, {
@@ -149,13 +151,8 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
       if (typeof response.url === "string" && response.url && new URL(response.url).href !== endpoint) throw new Error("PAPER operations final endpoint changed.");
       return response;
     })();
-    const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => { controller.abort(); reject(new Error("PAPER operations request timed out.")); }, timeoutMs); });
+    const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => { timeoutFired = true; controller.abort(); reject(new Error("PAPER operations request timed out.")); }, timeoutMs); });
     const response = await Promise.race([operation, timeout]);
-    if (!response.ok) {
-      noteProjectionResult(options.credentialProvider, response.status === 401 || response.status === 403 ? "AUTH_REJECTED" : "PROJECTION_UNAVAILABLE");
-      return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).`, failure: failureEvidence(classifyHttpFailure(response.status), response.status) });
-    }
-    const payload: unknown = await response.json();
     const currentToken = await options.credentialProvider();
     const endpointStillCurrent = getConfiguredPaperEndpoint() === configured;
     const verificationStillCurrent = options.allowUnverifiedEndpoint === true || isPaperConnectionVerified(configured);
@@ -163,7 +160,12 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
       noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
       return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the request was in flight.", failure: failureEvidence("CONNECTION_REPLACED") });
     }
+    if (!response.ok) {
+      noteProjectionResult(options.credentialProvider, response.status === 401 || response.status === 403 ? "AUTH_REJECTED" : "PROJECTION_UNAVAILABLE");
+      return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).`, failure: failureEvidence(classifyHttpFailure(response.status), response.status) });
+    }
     try {
+      const payload: unknown = await response.json();
       const snapshot = validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot);
       noteProjectionResult(options.credentialProvider, "READY");
       return Object.freeze({ status: "READY", snapshot });
@@ -177,7 +179,7 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     }
   } catch (error) {
     noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
-    return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations connection is unavailable.", failure: failureEvidence(transportFailureCategory(error)) });
+    return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations connection is unavailable.", failure: failureEvidence(transportFailureCategory(error, timeoutFired)) });
   } finally {
     if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
   }
