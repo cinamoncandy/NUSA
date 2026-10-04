@@ -12,10 +12,28 @@ export interface DashboardCredentialProvider {
   noteProjectionResult?: (outcome: DashboardProjectionOutcome) => void;
 }
 
+export type PersonalPaperOperationsFailureCategory =
+  | "AUTH_REJECTED"
+  | "ROUTE_MISSING"
+  | "RATE_LIMITED"
+  | "BACKEND_FAILURE"
+  | "SCHEMA_MISMATCH"
+  | "TIMEOUT"
+  | "TRANSPORT_FAILURE"
+  | "CONNECTION_REPLACED"
+  | "INSECURE_ENDPOINT";
+
+export interface PersonalPaperOperationsFailureEvidence {
+  readonly category: PersonalPaperOperationsFailureCategory;
+  readonly route: "/api/paper-operations";
+  readonly observedAt: number;
+  readonly httpStatus?: number;
+}
+
 export type PersonalPaperOperationsLoadResult =
   | { readonly status: "READY"; readonly snapshot: PersonalPaperOperationsSnapshot }
   | { readonly status: "NOT_CONFIGURED"; readonly reason: string }
-  | { readonly status: "UNAVAILABLE"; readonly reason: string };
+  | { readonly status: "UNAVAILABLE"; readonly reason: string; readonly failure?: PersonalPaperOperationsFailureEvidence };
 
 export interface PersonalPaperOperationsClientOptions {
   readonly baseUrl: string;
@@ -50,6 +68,29 @@ function readTimeoutMs(value: number | undefined): number {
 }
 
 const MAX_PROJECTION_REASON_LENGTH = 300;
+const PAPER_OPERATIONS_ROUTE = "/api/paper-operations" as const;
+
+function failureEvidence(category: PersonalPaperOperationsFailureCategory, httpStatus?: number): PersonalPaperOperationsFailureEvidence {
+  return Object.freeze({
+    category,
+    route: PAPER_OPERATIONS_ROUTE,
+    observedAt: Date.now(),
+    ...(httpStatus === undefined ? {} : { httpStatus })
+  });
+}
+
+function classifyHttpFailure(status: number): PersonalPaperOperationsFailureCategory {
+  if (status === 401 || status === 403) return "AUTH_REJECTED";
+  if (status === 404) return "ROUTE_MISSING";
+  if (status === 429) return "RATE_LIMITED";
+  return "BACKEND_FAILURE";
+}
+
+function transportFailureCategory(error: unknown): PersonalPaperOperationsFailureCategory {
+  const message = error instanceof Error ? error.message : "";
+  if (/timed out/i.test(message)) return "TIMEOUT";
+  return "TRANSPORT_FAILURE";
+}
 
 /**
  * Turns a projection validation failure into something the operator can act on. The staleness
@@ -76,7 +117,7 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
   const requested = normalizeEndpoint(options.baseUrl);
   if (options.allowUnverifiedEndpoint === true && requested !== configured) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint does not match the configured connection." });
   if (options.allowUnverifiedEndpoint !== true && !isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before credentials can be used." });
-  if (!isSecureDashboardEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "Dashboard credential will not be sent over insecure remote HTTP." });
+  if (!isSecureDashboardEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "Dashboard credential will not be sent over insecure remote HTTP.", failure: failureEvidence("INSECURE_ENDPOINT") });
 
   let timeoutMs: number;
   try { timeoutMs = readTimeoutMs(options.timeoutMs); }
@@ -112,7 +153,7 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     const response = await Promise.race([operation, timeout]);
     if (!response.ok) {
       noteProjectionResult(options.credentialProvider, response.status === 401 || response.status === 403 ? "AUTH_REJECTED" : "PROJECTION_UNAVAILABLE");
-      return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).` });
+      return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).`, failure: failureEvidence(classifyHttpFailure(response.status), response.status) });
     }
     const payload: unknown = await response.json();
     const currentToken = await options.credentialProvider();
@@ -120,7 +161,7 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     const verificationStillCurrent = options.allowUnverifiedEndpoint === true || isPaperConnectionVerified(configured);
     if (!endpointStillCurrent || !verificationStillCurrent || currentToken == null || currentToken.trim() !== requestToken) {
       noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
-      return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the request was in flight." });
+      return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the request was in flight.", failure: failureEvidence("CONNECTION_REPLACED") });
     }
     try {
       const snapshot = validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot);
@@ -132,11 +173,11 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
       // mismatch and a malformed projection, and each points somewhere different -- a snapshot
       // judged stale or future-dated usually means the device and server clocks disagree, not
       // that anything is wrong with the data. Collapsing them into one sentence hid that.
-      return Object.freeze({ status: "UNAVAILABLE", reason: describeProjectionRejection(error) });
+      return Object.freeze({ status: "UNAVAILABLE", reason: describeProjectionRejection(error), failure: failureEvidence("SCHEMA_MISMATCH") });
     }
   } catch (error) {
     noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
-    return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations connection is unavailable." });
+    return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations connection is unavailable.", failure: failureEvidence(transportFailureCategory(error)) });
   } finally {
     if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
   }
