@@ -28,10 +28,10 @@ verification_commands:
   - "pnpm run validate:full"
   - "pnpm run aipos:index"
 evidence:
-  implementation_status: "The delegated workflow committed and published the current increment."
-  delegated_validation: "The publish workflow completed build, typecheck, repository validation, work-order index, tests/*.test.js and the isolated tests before publication."
-  external_validation: "The current increment is committed and the delegated publish workflow validated build, typecheck, validate, the work-order index check, tests/*.test.js and the isolated tests before publishing it. Fresh exact-head CI, independent Audit and Release remain required; HUMAN_ENVIRONMENT_ONLY Galaxy acceptance remains under #2218."
-  current_increment: "Require the canonical fixed reason and UUIDv4 correlation envelope before a native transient status may arm bounded retry; malformed or unknown bridge evidence remains fail-closed. Focused behavior and source-contract coverage are included."
+  implementation_status: "Canonical PR #2503 review correction is published at implementation/test commits 14b9f7c1310b7aef0d3ca05536c14d7d7fd3e2b5 and e9cbbe71b4c3961f1bf62305b9b019cafd4dc49b."
+  delegated_validation: "Prior exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks; corrected head requires fresh exact-head validation."
+  external_validation: "PR #2503 binds the prior validated head e950f2b70dd16c65216458cf704b895f7e0910d4 to CI run 37173255593. Review correction commits are explicitly recorded above; fresh exact-head CI, independent Audit and Release remain required; HUMAN_ENVIRONMENT_ONLY Galaxy acceptance remains under #2218."
+  current_increment: "Require retained credentialId, canonical transient false availability/canCreate/hardwareBacked fields, fixed reason, and UUIDv4 correlation before retry; malformed or contradictory bridge evidence remains fail-closed with focused coverage."
 safety:
   paper_only: true
   liveAuthority: NONE
