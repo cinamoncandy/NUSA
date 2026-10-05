@@ -2446,3 +2446,9 @@ current_ui_liquid_rings:
   supersedes: crystal hero (WO-UI-20261005-CRYSTAL-GLASS figure)
   depends_on: PR 2513
   deploy: not_deployed_new_app_build_required
+current_ui_startup_timing:
+  work_order: WO-UI-20261005-STARTUP-TIMING
+  status: READY_FOR_REVIEW
+  branch: claude/startup-timing
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required
