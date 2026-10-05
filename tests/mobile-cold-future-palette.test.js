@@ -43,11 +43,11 @@ test("the sphere blooms from the core: eased, once, then quiet", () => {
 test("a status tint fades in and out smoothly instead of snapping", () => {
   let s = { ...initialHoloState(), birth: 1 };
   const seen = [];
-  for (let i = 0; i < 120; i += 1) { s = tickHolo(s, "halt", 42, 1000 + i * 42); seen.push(s.tintMix); }
+  for (let i = 0; i < 200; i += 1) { s = tickHolo(s, "halt", 42, 1000 + i * 42); seen.push(s.tintMix); }
   assert.ok(seen[0] > 0 && seen[0] < 0.2, "starts gently");
   assert.ok(seen.every((v, i) => i === 0 || v >= seen[i - 1]), "monotonic");
   assert.equal(seen[seen.length - 1], 1);
-  for (let i = 0; i < 160; i += 1) s = tickHolo(s, "normal", 42, 9000 + i * 42);
+  for (let i = 0; i < 240; i += 1) s = tickHolo(s, "normal", 42, 9000 + i * 42);
   assert.equal(s.tintMix, 0);
 });
 
@@ -60,4 +60,43 @@ test("halt and hold keep their unmistakable colour at full tint, and normal neve
   const hold = mix("hold", 1);
   assert.ok(hold[0] > 220 && hold[1] > 160 && hold[2] < 170, "hold reads amber at full tint");
   assert.deepEqual(holoColor(0, 1, 0, "halt", 0, HOLO_COLORS.cyan).map(Math.round), full.map(Math.round), "default keeps the old fully tinted behaviour");
+});
+
+test("orbit rings, scan sweep and overshoot bloom are deterministic and bounded", () => {
+  const { easeOutBack, scanBoost: scan, ringPoint, HOLO_RING_POINTS } = require("../dist/apps/mobile/src/holoModel.js");
+  const { fieldMotion } = require("../dist/apps/mobile/src/designSystem.js");
+  const HOLO_SCAN_MS = fieldMotion.holoScanMs, scanBoost = (py, t) => scan(py, t, HOLO_SCAN_MS);
+  assert.ok(Math.abs(easeOutBack(0)) < 1e-9);
+  assert.ok(Math.abs(easeOutBack(1) - 1) < 1e-9);
+  assert.ok(Math.max(...[0.5, 0.6, 0.7, 0.8].map(easeOutBack)) > 1, "springs past full size before settling");
+  for (let t = 0; t < HOLO_SCAN_MS; t += 100) for (const py of [-1, 0, 1]) { const v = scanBoost(py, t); assert.ok(v >= 0 && v <= 1); }
+  const peak = Math.max(...Array.from({ length: 34 }, (_, i) => scanBoost(0, i * 100)));
+  assert.ok(peak > 0.9, "the band crosses the equator");
+  assert.ok(scanBoost(1, 0) < 0.01 && scanBoost(0, 0) > 0.9, "band starts at the equator and is narrow");
+  for (let r = 0; r < 2; r += 1) for (let k = 0; k < HOLO_RING_POINTS; k += 7) {
+    const p = ringPoint(r, k, 1.3);
+    assert.ok(Math.abs(Math.hypot(p.x, p.y, p.z) - (1.18 + 0.12 * r)) < 1e-9, "points stay on the ring radius");
+  }
+  assert.notDeepEqual(ringPoint(0, 3, 0), ringPoint(0, 3, 1), "rings move with the spin");
+});
+
+test("holo state advances by elapsed time, not by how often it is drawn", () => {
+  const { initialHoloState, tickHolo, holoFrameBudgetMs, HOLO_QUIET_FRAME_MS, HOLO_ACTIVE_FRAME_MS } = require("../dist/apps/mobile/src/holoModel.js");
+  assert.equal(holoFrameBudgetMs(true), HOLO_QUIET_FRAME_MS);
+  assert.equal(holoFrameBudgetMs(false), HOLO_ACTIVE_FRAME_MS);
+  assert.ok(HOLO_QUIET_FRAME_MS > HOLO_ACTIVE_FRAME_MS, "quiet frames are the cheaper ones");
+  const run = (dt, tone) => { let s = { ...initialHoloState(), birth: 1 }; for (let t = 0; t < 4200; t += dt) s = tickHolo(s, tone, dt, 1000 + t); return s; };
+  for (const [a, b] of [[42, 56], [42, 84]]) {
+    assert.ok(Math.abs(run(a, "normal").spin - run(b, "normal").spin) / run(a, "normal").spin < 0.02, `spin matches at ${a} and ${b} ms`);
+    assert.ok(Math.abs(run(a, "halt").tintMix - run(b, "halt").tintMix) < 0.03, `tint matches at ${a} and ${b} ms`);
+  }
+  assert.ok(run(56, "halt").spin < run(56, "normal").spin * 0.2, "halt nearly stops the spin");
+});
+
+test("the scan band moves geometry and brightness only, never the status colour", () => {
+  const fs = require("node:fs");
+  const src = fs.readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
+  assert.ok(!/HOLO_COLORS\.mint/.test(src), "no mint flash injected into the tone tint");
+  assert.match(src, /holoColor\(px, py, pz, tone, s\.flash, s\.flashColor, s\.tintMix\)/);
+  assert.match(src, /fieldMotion\.holoScanMs/);
 });

@@ -2411,3 +2411,10 @@ current_ui_cold_future:
   authority_impact: none
   supersedes: WO-UI-20261005-HANJI-INK
   deploy: not_deployed_new_app_build_required
+current_ui_motion_orbit:
+  work_order: WO-UI-20261005-MOTION-ORBIT
+  status: READY_FOR_REVIEW
+  branch: claude/ui-motion-orbit
+  authority_impact: none
+  depends_on: PR 2509 (cold-future skin)
+  deploy: not_deployed_new_app_build_required
