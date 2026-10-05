@@ -35,7 +35,7 @@ import { buildResearchProgressLine } from "./researchProgressModel";
 import { buildTradedCoinLine } from "./tradedCoinModel";
 import { buildHomeVitals, VITAL_TEST_IDS } from "./homeVitalsModel";
 import { HOME_DETAIL_LABELS } from "./homeDetailCopy";
-import { labelFont, readableFont } from "./designSystem";
+import { fieldRadii, labelFont, readableFont } from "./designSystem";
 
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
@@ -365,7 +365,7 @@ export function HomeView({
 }
 
 const styles = StyleSheet.create({
-  detailsToggle: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, minHeight: 48, alignItems: "center", justifyContent: "center" },
+  detailsToggle: { borderWidth: StyleSheet.hairlineWidth, borderRadius: fieldRadii.md, minHeight: 48, alignItems: "center", justifyContent: "center" },
   moreBlock: { gap: 18 },
   detailsToggleText: { fontSize: 14, fontWeight: "500" },
   journal: { gap: 2 },
@@ -379,13 +379,13 @@ const styles = StyleSheet.create({
   journalDetail: { fontSize: 12.5, lineHeight: 18 },
   vitals: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   vitalCell: { flexBasis: "47%", flexGrow: 1 },
-  vital: { flex: 1, minHeight: 96, borderWidth: 1, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, gap: 6 },
+  vital: { flex: 1, minHeight: 96, borderWidth: 1, borderRadius: fieldRadii.lg, paddingVertical: 14, paddingHorizontal: 14, gap: 6 },
   vitalHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   vitalDot: { width: 8, height: 8, borderRadius: 4 },
   vitalLabel: { fontSize: 12, lineHeight: 16, fontWeight: "600" },
   vitalValue: { fontSize: 17, lineHeight: 22, fontWeight: "700" },
   vitalDetail: { fontSize: 12, lineHeight: 17 },
-  reasonCard: { borderWidth: 1, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, gap: 6 },
+  reasonCard: { borderWidth: 1, borderRadius: fieldRadii.lg, paddingVertical: 14, paddingHorizontal: 16, gap: 6 },
   reasonText: { fontSize: 15, lineHeight: 22, fontWeight: "500" },
   shell: { flex: 1 },
   content: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 32, gap: 16 },

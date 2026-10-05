@@ -3,7 +3,7 @@
  *
  * Driven by runtime facts:
  * - each new decision sends one wave across the sphere surface;
- * - each new PAPER order flattens the sphere into a ring, tints it green, then lets it reform;
+ * - each new PAPER order pushes the crystal outward (HOLO_FILL_EXPANSION), tints it green, then lets it settle back;
  * - a held / halted runtime tints the sphere amber / red (halted also slows the spin).
  * The slow spin is ambient; it stops entirely under reduce-motion.
  */
@@ -164,6 +164,8 @@ export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.m
 export const HOLO_ACTIVE_FRAME_MS = 42;
 export const HOLO_QUIET_FRAME_MS = 56;
 export const holoFrameBudgetMs = (quiet: boolean): number => (quiet ? HOLO_QUIET_FRAME_MS : HOLO_ACTIVE_FRAME_MS);
+/** Extra radius at the fill peak; small enough that the crystal and its rings stay inside the canvas. */
+export const HOLO_FILL_EXPANSION = 0.1;
 export const HOLO_RING_COUNT = 2;
 export const HOLO_RING_POINTS = 72;
 

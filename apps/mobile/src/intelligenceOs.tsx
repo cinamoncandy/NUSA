@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useTheme } from "./ThemeProvider";
-import { labelFont, readableFont } from "./designSystem";
+import { fieldRadii, labelFont, readableFont } from "./designSystem";
 
 export type IntelligenceTone = "neutral" | "primary" | "success" | "warning" | "danger" | "info";
 
@@ -112,14 +112,14 @@ const styles = StyleSheet.create({
   sectionTitleWrap: { flex: 1, gap: 3 },
   sectionKicker: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.1 },
   sectionTitle: { fontSize: 19, lineHeight: 24, fontWeight: "500" },
-  sectionAction: { minHeight: 48, minWidth: 84, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
+  sectionAction: { minHeight: 48, minWidth: 84, borderWidth: 1, borderRadius: fieldRadii.md, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   sectionActionText: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "500" },
   factRow: { minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 14 },
   factCopy: { flex: 1, minWidth: 0, gap: 2 },
   factLabel: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "500" },
   factNote: { fontSize: readableFont(10), lineHeight: 17 },
   factValue: { maxWidth: "52%", textAlign: "right", fontSize: 13, lineHeight: 18, fontWeight: "500", fontVariant: ["tabular-nums"] },
-  notice: { borderWidth: 1, borderRadius: 12, padding: 13, gap: 4 },
+  notice: { borderWidth: 1, borderRadius: fieldRadii.md, padding: 13, gap: 4 },
   noticeTitle: { fontSize: 12, lineHeight: 17, fontWeight: "600" },
   noticeDetail: { fontSize: readableFont(11), lineHeight: 17 },
 });
