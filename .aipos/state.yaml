@@ -2502,6 +2502,13 @@ current_ledger_reconciliation_detail:
   authority_impact: diagnostics_only
   finding: "PAPER halt cause read from the owner's screen 2026-10-05: persistence failed with PAPER_LEDGER_RECONCILIATION_REQUIRED (account state vs fill ledger)"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ledger_rounding_tolerance:
+  work_order: WO-PAPER-20261006-LEDGER-ROUNDING-TOLERANCE
+  status: READY_FOR_REVIEW
+  branch: claude/ledger-rounding-tolerance
+  authority_impact: accounting_integrity_tolerance
+  owner_approval: "2026-10-05 in chat"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_diagnose_health_probe:
   work_order: WO-OPS-20261006-DIAGNOSE-HEALTH-PROBE
   status: READY_FOR_REVIEW

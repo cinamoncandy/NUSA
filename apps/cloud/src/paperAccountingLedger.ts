@@ -254,10 +254,47 @@ export function assertPaperAccountingReconciled(input: {
   const marks = Object.fromEntries(input.positions.map((position) => [position.market, position.markPrice]));
   const projection = projectPaperAccounting(input.initialCapital, input.fills, marks);
   const actual = [...input.positions].sort((a, b) => a.market.localeCompare(b.market));
-  if (round8(input.cash) !== round8(projection.cash) || round8(input.realizedPnL) !== round8(projection.realizedPnL) || JSON.stringify(actual) !== JSON.stringify(projection.positions)) {
+  if (!reconcilesWithinRounding(input, actual, projection)) {
     throw new PaperLedgerReconciliationError(describeReconciliationMismatch(input, projection));
   }
   return projection;
+}
+
+/**
+ * The account state accumulates PnL with decimal arithmetic rounded to 8 places at every fill, while this projection replays the
+ * same fills in exact fixed point. After a few dozen fills the two can differ in the last (8th) decimal place. That is rounding,
+ * not an accounting error, and an exact comparison turned it into a permanent halt (owner screen 2026-10-05: realized state
+ * -154.31476926 vs ledger -154.31476925 over 38 fills). Money fields may therefore differ by a few units of the 8th decimal place
+ * per fill; quantity and mark price must still match exactly, the markets must be the same, and any real discrepancy (a missing
+ * or duplicated fill, a wrong fee) is many orders of magnitude larger and is still refused. Owner approved this tolerance in chat.
+ */
+export const RECONCILIATION_BASE_TOLERANCE = 1e-7;
+export const RECONCILIATION_TOLERANCE_PER_FILL = 2e-8;
+export const reconciliationTolerance = (fillCount: number): number => RECONCILIATION_BASE_TOLERANCE + RECONCILIATION_TOLERANCE_PER_FILL * Math.max(0, fillCount);
+
+function within(a: number, b: number, tolerance: number): boolean {
+  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(round8(a) - round8(b)) <= tolerance + 1e-12;
+}
+
+function reconcilesWithinRounding(
+  input: { readonly fills: readonly PaperFillRecord[]; readonly cash: number; readonly realizedPnL: number },
+  actual: readonly PaperAccountPosition[],
+  projection: PaperAccountingProjection,
+): boolean {
+  const tolerance = reconciliationTolerance(input.fills.length);
+  if (!within(input.cash, projection.cash, tolerance) || !within(input.realizedPnL, projection.realizedPnL, tolerance)) return false;
+  if (actual.length !== projection.positions.length) return false;
+  return projection.positions.every((expected, index) => {
+    const state = actual[index]!;
+    // Per position the average entry price and the PnL derived from it scale with the quantity.
+    const scaled = tolerance * (1 + Math.max(1, expected.quantity));
+    return state.market === expected.market
+      && round8(state.quantity) === round8(expected.quantity)
+      && round8(state.markPrice) === round8(expected.markPrice)
+      && within(state.averageEntryPrice, expected.averageEntryPrice, scaled)
+      && within(state.realizedPnL, expected.realizedPnL, scaled)
+      && within(state.unrealizedPnL, expected.unrealizedPnL, scaled);
+  });
 }
 
 /**
