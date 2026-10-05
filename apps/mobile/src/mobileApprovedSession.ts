@@ -81,10 +81,13 @@ export class SilentDeviceStatusInspectionError extends Error {
   }
 }
 
-function transientSilentStatusError(status: Awaited<ReturnType<OwnerDeviceCredentialNative["getSilentDeviceStatus"]>>): SilentDeviceStatusInspectionError {
-  const correlationId = typeof status.correlationId === "string" && /^[0-9a-f-]{36}$/i.test(status.correlationId)
+function transientSilentStatusError(status: Awaited<ReturnType<OwnerDeviceCredentialNative["getSilentDeviceStatus"]>>): SilentDeviceStatusInspectionError | null {
+  const correlationId = typeof status.correlationId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(status.correlationId)
     ? status.correlationId
-    : undefined;
+    : null;
+  const retainedCredentialId = typeof status.credentialId === "string" && status.credentialId.trim().length >= 16 && status.credentialId.trim().length <= MAX_TOKEN_LENGTH && !/\\s/.test(status.credentialId);
+  const canonicalTransientState = status.available === false && status.canCreate === false && status.hardwareBacked === false;
+  if (status.reasonCode !== "ANDROID_KEYSTORE_INSPECTION_FAILED" || correlationId == null || !retainedCredentialId || !canonicalTransientState) return null;
   return new SilentDeviceStatusInspectionError(correlationId);
 }
 
@@ -426,8 +429,10 @@ export class MobileApprovedSession {
       // can become temporarily unavailable between the coordinator's first check and this call
       // after foreground resume. Preserve device trust and let the existing bounded retry repeat the
       // silent proof instead of turning the transient status into a terminal-looking auth failure.
-      this.restoreRetryable = true;
-      throw transientSilentStatusError(status);
+      const transientError = transientSilentStatusError(status);
+      this.restoreRetryable = transientError != null;
+      if (transientError == null) throw new Error("silent DeviceKey status evidence is invalid.");
+      throw transientError;
     }
     const id = readToken(credentialId ?? status.credentialId ?? "", "owner device credential id");
     if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
@@ -567,8 +572,10 @@ export class MobileApprovedSession {
         // Native retained the registered credential id but could not inspect AndroidKeyStore.
         // Do not downgrade device trust or fall back to a bearer-only proof; retry the same silent
         // DeviceKey recovery through paperConnectionSession's bounded single-flight coordinator.
-        this.restoreRetryable = true;
-        throw transientSilentStatusError(status);
+        const transientError = transientSilentStatusError(status);
+        this.restoreRetryable = transientError != null;
+        if (transientError == null) throw new Error("silent DeviceKey status evidence is invalid.");
+        throw transientError;
       }
       if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) {
         // Native inspection completed: missing metadata/alias or invalid hardware backing is a

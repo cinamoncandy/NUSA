@@ -28,10 +28,10 @@ verification_commands:
   - "pnpm run validate:full"
   - "pnpm run aipos:index"
 evidence:
-  implementation_status: "Delegated workflow committed and published the implementation on canonical PR #2479 head f5183987d870702f9c917e4fea15caf8ea435a21."
-  local_validation: "Delegated workflow completed build, typecheck, repository validation, work-order index, and recorded test suites before PR publication."
-  external_validation: "Exact-head CI passed on f5183987d870702f9c917e4fea15caf8ea435a21; Audit passed. Release authorization was correctly withdrawn because this review thread remained unresolved. Fresh exact-head acceptance is required after this evidence correction; HUMAN_ENVIRONMENT_ONLY Galaxy acceptance remains under #2218."
-  current_increment: "Validated persisted credential metadata before the Keystore inspection catch so malformed metadata remains a definitive fail-closed state rather than receiving transient retry classification; added focused source-contract coverage. Heavy validation is delegated to the workflow by OWNER contract."
+  implementation_status: "Canonical PR #2503 review correction is published at implementation/test commits 14b9f7c1310b7aef0d3ca05536c14d7d7fd3e2b5 and e9cbbe71b4c3961f1bf62305b9b019cafd4dc49b."
+  delegated_validation: "Prior exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks; corrected head requires fresh exact-head validation."
+  external_validation: "PR #2503 binds the prior validated head e950f2b70dd16c65216458cf704b895f7e0910d4 to CI run 37173255593. Review correction commits are explicitly recorded above; fresh exact-head CI, independent Audit and Release remain required; HUMAN_ENVIRONMENT_ONLY Galaxy acceptance remains under #2218."
+  current_increment: "Require retained credentialId, canonical transient false availability/canCreate/hardwareBacked fields, fixed reason, and UUIDv4 correlation before retry; malformed or contradictory bridge evidence remains fail-closed with focused coverage."
 safety:
   paper_only: true
   liveAuthority: NONE
