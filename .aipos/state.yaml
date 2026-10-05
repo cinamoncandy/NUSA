@@ -2398,3 +2398,9 @@ current_ui_halt_reason:
   branch: claude/paper-halt-reason
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+current_ops_host_diagnose:
+  work_order: WO-OPS-20261005-HOST-DIAGNOSE
+  status: READY_FOR_REVIEW
+  branch: claude/oracle-host-diagnose
+  authority_impact: production_host_read_only
+  deploy: none_needed
