@@ -2404,3 +2404,9 @@ current_ops_host_diagnose:
   branch: claude/oracle-host-diagnose
   authority_impact: production_host_read_only
   deploy: none_needed
+current_ui_hanji_ink:
+  work_order: WO-UI-20261005-HANJI-INK
+  status: READY_FOR_REVIEW
+  branch: claude/ui-hanji-ink
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required

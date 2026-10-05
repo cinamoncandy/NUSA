@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { BlendMode, Canvas, PaintStyle, Picture, Skia, createPicture, type SkPicture } from "@shopify/react-native-skia";
-import { holoColor, initialHoloState, isHoloQuiet, observeHolo, spherePoints, tickHolo, waveDisplacement, type HoloTone } from "./holoModel";
+import { easeOutCubic, holoColor, initialHoloState, isHoloQuiet, observeHolo, spherePoints, tickHolo, waveDisplacement, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends one wave across the sphere. Null draws it still. */
@@ -30,12 +30,16 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
   const state = useRef(initialHoloState());
   const sphere = useMemo(() => spherePoints(points), [points]);
   const paint = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true); return p; }, []);
-  const glass = useMemo(() => { const p = Skia.Paint(); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); p.setStrokeWidth(1); p.setColor(Skia.Color("rgba(255,255,255,0.10)")); return p; }, []);
+  const glass = useMemo(() => { const p = Skia.Paint(); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); p.setStrokeWidth(1); p.setColor(Skia.Color("rgba(241,234,219,0.14)")); return p; }, []);
   const rgba = useMemo(() => new Float32Array(4), []);
   const [picture, setPicture] = useState<SkPicture | null>(null);
 
   const render = (nowMs: number) => {
-    const s = state.current, R = size * 0.34, cx = size / 2, cy = size / 2;
+    const s = state.current, cx = size / 2, cy = size / 2;
+    // Ink bloom on first appearance, then a slow breath while the runtime is normal. Both are still under reduce-motion.
+    const bloom = easeOutCubic(s.birth);
+    const breath = tone === "normal" && !reducedMotion ? 1 + 0.015 * Math.sin(nowMs / 950) : 1;
+    const R = size * 0.34 * (0.35 + 0.65 * bloom) * breath;
     const ca = Math.cos(s.spin), sa = Math.sin(s.spin), ct = Math.cos(VIEW_TILT), st = Math.sin(VIEW_TILT);
     const order: { x: number; y: number; z: number; r: number; c: readonly [number, number, number]; a: number }[] = [];
     for (let i = 0; i < points; i += 1) {
@@ -49,7 +53,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
       const Y = Y0 * ct - Z * st, Z2 = Y0 * st + Z * ct;
       const depth = (Z2 + 1.3) / 2.6, persp = 1 / (1 + Z2 * 0.25);
       order.push({ x: cx + X * R * persp, y: cy - Y * R * persp, z: Z2, r: (0.5 + 1.1 * depth + disp * 6) * persp * (size / 300),
-        c: holoColor(px, py, pz, tone, s.flash, s.flashColor), a: Math.min(1, 0.12 + 0.8 * depth + disp * 4 + 0.3 * s.flash) });
+        c: holoColor(px, py, pz, tone, s.flash, s.flashColor, s.tintMix), a: bloom * Math.min(1, 0.12 + 0.8 * depth + disp * 4 + 0.3 * s.flash) });
     }
     order.sort((p, q) => p.z - q.z);
     setPicture(createPicture((canvas) => {
@@ -68,7 +72,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     state.current = observeHolo(state.current, decisionCount, fillCount, now);
     if (reducedMotion || decisionCount == null) {
       // Still figure: no waves or burst in flight, tone colour applied.
-      state.current = Object.freeze({ ...state.current, waves: Object.freeze([]), burst: 0, burstTarget: 0, flash: 0 });
+      state.current = Object.freeze({ ...state.current, waves: Object.freeze([]), burst: 0, burstTarget: 0, flash: 0, birth: 1, tintMix: 1 });
       render(now);
       return undefined;
     }

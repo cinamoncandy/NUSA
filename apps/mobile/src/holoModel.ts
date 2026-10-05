@@ -18,23 +18,34 @@ export interface HoloState {
   readonly flash: number;
   readonly flashColor: Rgb;
   readonly waves: readonly HoloWave[];
+  /** 0..1 progress of the ink-bloom entrance; 1 once open. */
+  readonly birth: number;
+  /** 0..1 how far the tone tint (hold / halt) has faded in; eased so a status change never snaps. */
+  readonly tintMix: number;
   readonly decisionCount: number | null;
   readonly fillCount: number | null;
 }
 
 export const HOLO_WAVE_MS = 2600;
 export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "fill" | "hold" | "halt", Rgb>> = Object.freeze({
-  cyan: [124, 214, 255] as const,
-  violet: [170, 130, 255] as const,
-  pink: [255, 130, 200] as const,
-  mint: [110, 240, 220] as const,
+  // 먹과 한지: celadon, hanji ochre, warm rose and pale jade. Names are kept for the ramp order; the
+  // status tints (fill / hold / halt) stay the unmistakable green / amber / red.
+  cyan: [164, 208, 204] as const,
+  violet: [222, 204, 168] as const,
+  pink: [226, 170, 150] as const,
+  mint: [142, 214, 190] as const,
   fill: [110, 240, 176] as const,
   hold: [255, 194, 102] as const,
   halt: [255, 122, 122] as const,
 });
 
+/** Ink-bloom entrance: how long the sphere takes to open from the core on first appearance. */
+export const HOLO_BIRTH_MS = 1700;
+/** Eases 0..1 (cubic out), so the bloom starts fast like ink meeting paper and settles softly. */
+export const easeOutCubic = (t: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+
 export function initialHoloState(): HoloState {
-  return Object.freeze({ spin: 0, burst: 0, burstTarget: 0, flash: 0, flashColor: HOLO_COLORS.cyan, waves: Object.freeze([]), decisionCount: null, fillCount: null });
+  return Object.freeze({ spin: 0, burst: 0, burstTarget: 0, flash: 0, flashColor: HOLO_COLORS.cyan, waves: Object.freeze([]), birth: 0, tintMix: 0, decisionCount: null, fillCount: null });
 }
 
 /** Fibonacci sphere: evenly spread unit vectors. */
@@ -83,8 +94,11 @@ export function tickHolo(state: HoloState, tone: HoloTone, dtMs: number, nowMs: 
   if (burstTarget > 0 && burst > 0.95) burstTarget = 0;
   if (burstTarget === 0 && burst < 0.001) burst = 0;
   const flash = state.flash * Math.pow(0.975, k);
+  const birth = Math.min(1, state.birth + dtMs / HOLO_BIRTH_MS);
+  const tintTarget = tone === "normal" ? 0 : 1;
+  const tintMix = Math.abs(tintTarget - state.tintMix) < 0.002 ? tintTarget : state.tintMix + (tintTarget - state.tintMix) * 0.08 * k;
   const waves = state.waves.filter((wave) => nowMs - wave.bornMs < HOLO_WAVE_MS);
-  return Object.freeze({ ...state, spin, burst, burstTarget, flash, waves: waves.length === state.waves.length ? state.waves : Object.freeze(waves) });
+  return Object.freeze({ ...state, spin, burst, burstTarget, flash, birth, tintMix, waves: waves.length === state.waves.length ? state.waves : Object.freeze(waves) });
 }
 
 /** Wave displacement at a unit point. */
@@ -101,18 +115,18 @@ export function waveDisplacement(waves: readonly HoloWave[], px: number, py: num
 }
 
 /** Iridescent colour by surface direction, then tinted by tone and flash. */
-export function holoColor(px: number, py: number, pz: number, tone: HoloTone, flash: number, flashColor: Rgb): Rgb {
+export function holoColor(px: number, py: number, pz: number, tone: HoloTone, flash: number, flashColor: Rgb, tintMix = 1): Rgb {
   const ramp = [HOLO_COLORS.cyan, HOLO_COLORS.violet, HOLO_COLORS.pink, HOLO_COLORS.mint, HOLO_COLORS.cyan];
   const h = ((Math.atan2(pz, px) / (Math.PI * 2) + 0.5 + py * 0.25) % 1 + 1) % 1 * 4;
   const i = Math.floor(h), f = h - i, a = ramp[i], b = ramp[i + 1];
   let c: [number, number, number] = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
   const toneColor = tone === "halt" ? HOLO_COLORS.halt : tone === "hold" ? HOLO_COLORS.hold : null;
-  if (toneColor) c = [c[0] + (toneColor[0] - c[0]) * 0.8, c[1] + (toneColor[1] - c[1]) * 0.8, c[2] + (toneColor[2] - c[2]) * 0.8];
+  if (toneColor) { const m = 0.8 * Math.min(1, Math.max(0, tintMix)); c = [c[0] + (toneColor[0] - c[0]) * m, c[1] + (toneColor[1] - c[1]) * m, c[2] + (toneColor[2] - c[2]) * m]; }
   if (flash > 0.05 && flashColor !== HOLO_COLORS.cyan) { const m = Math.min(1, flash); c = [c[0] + (flashColor[0] - c[0]) * m, c[1] + (flashColor[1] - c[1]) * m, c[2] + (flashColor[2] - c[2]) * m]; }
   return c;
 }
 
 /** True when nothing but the ambient spin is moving. */
 export function isHoloQuiet(state: HoloState): boolean {
-  return state.waves.length === 0 && state.burst === 0 && state.burstTarget === 0 && state.flash < 0.02;
+  return state.waves.length === 0 && state.burst === 0 && state.burstTarget === 0 && state.flash < 0.02 && state.birth >= 1;
 }
