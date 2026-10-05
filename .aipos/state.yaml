@@ -2418,3 +2418,10 @@ current_ui_motion_orbit:
   authority_impact: none
   depends_on: PR 2509 (cold-future skin)
   deploy: not_deployed_new_app_build_required
+current_ui_crystal_glass:
+  work_order: WO-UI-20261005-CRYSTAL-GLASS
+  status: READY_FOR_REVIEW
+  branch: claude/ui-crystal-glass
+  authority_impact: none
+  depends_on: PR 2510 (motion)
+  deploy: not_deployed_new_app_build_required

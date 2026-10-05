@@ -125,6 +125,37 @@ export function holoColor(px: number, py: number, pz: number, tone: HoloTone, fl
   return c;
 }
 
+export interface CrystalGeometry { readonly vertices: readonly (readonly [number, number, number])[]; readonly edges: readonly (readonly [number, number])[]; }
+let crystalCache: CrystalGeometry | null = null;
+
+/** Once-subdivided icosahedron on the unit sphere: 42 vertices, 120 edges. Deterministic. */
+export function crystalGeometry(): CrystalGeometry {
+  if (crystalCache) return crystalCache;
+  const t = (1 + Math.sqrt(5)) / 2;
+  const base: [number, number, number][] = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
+  const faces = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
+  const norm = (v: readonly number[]): [number, number, number] => { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; };
+  const vertices: [number, number, number][] = base.map(norm);
+  const mid = new Map<string, number>();
+  const midpoint = (a: number, b: number): number => {
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    const hit = mid.get(key);
+    if (hit !== undefined) return hit;
+    vertices.push(norm([(vertices[a][0] + vertices[b][0]) / 2, (vertices[a][1] + vertices[b][1]) / 2, (vertices[a][2] + vertices[b][2]) / 2]));
+    mid.set(key, vertices.length - 1);
+    return vertices.length - 1;
+  };
+  const edgeSet = new Set<string>();
+  const edges: [number, number][] = [];
+  const addEdge = (a: number, b: number) => { const key = a < b ? `${a}:${b}` : `${b}:${a}`; if (!edgeSet.has(key)) { edgeSet.add(key); edges.push([a, b]); } };
+  for (const [a, b, c] of faces) {
+    const ab = midpoint(a, b), bc = midpoint(b, c), ca = midpoint(c, a);
+    for (const tri of [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]) { addEdge(tri[0], tri[1]); addEdge(tri[1], tri[2]); addEdge(tri[2], tri[0]); }
+  }
+  crystalCache = Object.freeze({ vertices: Object.freeze(vertices), edges: Object.freeze(edges) });
+  return crystalCache;
+}
+
 /** Overshooting ease (back out): the sphere springs slightly past full size, then settles. */
 export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.max(0, t)) - 1; return 1 + 2.70158 * x * x * x + 1.70158 * x * x; };
 

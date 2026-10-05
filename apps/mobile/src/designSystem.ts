@@ -107,7 +107,7 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
     light: fieldSurface,
     typography: Object.freeze({ micro: 10, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 44 }),
     layout: Object.freeze({ screenPadding: 20, sectionGap: 18, cardPadding: 16, heroRadius: 6 }),
-    radii: Object.freeze({ sm: 4, md: 8, lg: 12, xl: 16, full: 9999 as const }),
+    radii: Object.freeze({ sm: 6, md: 12, lg: 18, xl: 24, full: 9999 as const }),
   }),
 });
 

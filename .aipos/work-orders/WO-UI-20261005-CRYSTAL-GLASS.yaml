@@ -1,0 +1,27 @@
+id: WO-UI-20261005-CRYSTAL-GLASS
+title: "Crystal hero graphic and rounder glass-style corners app-wide"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-crystal-glass
+authority_impact: none
+objective: "Owner asked for a different, more striking design for both the central graphic and the overall screen style. Replace the particle sphere with a faceted glass crystal and round every control and card more, via tokens."
+scope:
+  - "apps/mobile/src/holoModel.ts: crystalGeometry (once-subdivided icosahedron, 42 vertices / 120 edges, cached)."
+  - "apps/mobile/src/holoSphere.tsx: draws the crystal (glowing edges and vertices, pulsing inner core) instead of 1600 points. Runtime facts keep their meaning: each decision sends a light wave across the lattice, each PAPER fill pushes the crystal outward then it reforms; hold/halt tints unchanged. Component name, props, testIDs and the reduce-motion still figure are unchanged. Orbit rings and scan band from WO-UI-20261005-MOTION-ORBIT stay."
+  - "apps/mobile/src/designSystem.ts: radii sm/md/lg/xl 4/8/12/16 to 6/12/18/24, so every screen follows from one token block."
+  - "Tests: crystal geometry determinism; radius pins updated."
+exclusions:
+  - "No data, copy, layout structure, safety, risk, execution, LIVE, credential or AI-authority change. Card shadows stay flat (a glow needs elevation on Android and the contract pins flat shadows). Native launcher icon and splash keep the owner-chosen lime N."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Reduce-motion draws the still crystal; status tint logic untouched."
+rollback: "Revert the change; radii are one token line, the crystal is one component."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "Not seen on a device. Larger radii may slightly change text wrapping inside tight pills; CI touch-visual is the only visual check here."

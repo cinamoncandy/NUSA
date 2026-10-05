@@ -11,7 +11,7 @@ test("the field theme (which replaced porcelain/cobalt) preserves semantic autho
   assert.equal(createTheme("light").colors.primary, "#5CE1FF");
   for (const mode of ["light", "dark"]) {
     const t = createTheme(mode);
-    assert.equal(t.radii.lg, 12);
+    assert.equal(t.radii.lg, 18);
     assert.ok(t.interaction.touchTarget >= 48);
     assert.notEqual(t.colors.danger, t.colors.primary);
     assert.notEqual(t.colors.success, t.colors.primary);
