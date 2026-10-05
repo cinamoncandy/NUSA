@@ -2452,3 +2452,9 @@ current_ui_startup_timing:
   branch: claude/startup-timing
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+current_research_refresh_memory:
+  work_order: WO-PAPER-20261005-RESEARCH-REFRESH-MEMORY
+  status: READY_FOR_REVIEW
+  branch: claude/research-refresh-memory
+  authority_impact: resource_guard_threshold_only
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
