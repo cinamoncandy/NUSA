@@ -9,7 +9,7 @@ const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y 
 const dist = (a, b) => Math.hypot(...rgb(a).map((v, i) => v - rgb(b)[i]));
 const colors = createTheme("dark").colors;
 
-test("먹과 한지 text and controls stay readable on the ink ground", () => {
+test("Cold-future text and controls stay readable on the dark ground", () => {
   assert.ok(contrast(colors.text, colors.background) >= 12, "primary text");
   assert.ok(contrast(colors.textMuted, colors.background) >= 7, "secondary text");
   assert.ok(contrast(colors.textMuted, colors.surface) >= 6, "secondary text on cards");
@@ -27,7 +27,7 @@ test("decorative colours can never be mistaken for a status colour", () => {
   assert.ok(dist(colors.success, colors.danger) >= 150);
 });
 
-test("the sphere opens like ink on paper: eased, once, then quiet", () => {
+test("the sphere blooms from the core: eased, once, then quiet", () => {
   assert.equal(easeOutCubic(0), 0);
   assert.equal(easeOutCubic(1), 1);
   assert.ok(easeOutCubic(0.2) > 0.4, "fast start");

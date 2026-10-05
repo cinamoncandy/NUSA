@@ -29,8 +29,8 @@ test("Phase 2 theme follows the field preset identity and restrained accent", ()
   const { themes } = loadDesign();
   for (const theme of [themes.dark, themes.light]) {
     assert.equal(theme.preset, "field");
-    assert.equal(theme.colors.background, "#0B0A09");
-    assert.equal(theme.colors.primary, "#E9DFC8");
+    assert.equal(theme.colors.background, "#02050A");
+    assert.equal(theme.colors.primary, "#5CE1FF");
   }
 });
 

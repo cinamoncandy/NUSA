@@ -30,7 +30,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
   const state = useRef(initialHoloState());
   const sphere = useMemo(() => spherePoints(points), [points]);
   const paint = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true); return p; }, []);
-  const glass = useMemo(() => { const p = Skia.Paint(); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); p.setStrokeWidth(1); p.setColor(Skia.Color("rgba(241,234,219,0.14)")); return p; }, []);
+  const glass = useMemo(() => { const p = Skia.Paint(); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); p.setStrokeWidth(1); p.setColor(Skia.Color("rgba(232,241,250,0.14)")); return p; }, []);
   const rgba = useMemo(() => new Float32Array(4), []);
   const [picture, setPicture] = useState<SkPicture | null>(null);
 
