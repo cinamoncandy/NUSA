@@ -31,7 +31,7 @@ evidence:
   implementation_status: "Canonical PR #2503 review correction is published at implementation/test commits 14b9f7c1310b7aef0d3ca05536c14d7d7fd3e2b5 and e9cbbe71b4c3961f1bf62305b9b019cafd4dc49b."
   delegated_validation: "Prior exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks. The published increment is committed and workflow-validated; its exact published commit still requires exact-head CI."
   external_validation: "PR #2503 binds the prior validated head e950f2b70dd16c65216458cf704b895f7e0910d4 to CI run 37173255593. Review correction commits are explicitly recorded above; fresh exact-head CI, independent Audit and Release remain required; HUMAN_ENVIRONMENT_ONLY Galaxy acceptance remains under #2218."
-  current_increment: "Require a whitespace-free retained credentialId, canonical transient false availability/canCreate/hardwareBacked fields, fixed reason, and UUIDv4 correlation before retry; malformed or contradictory bridge evidence remains fail-closed with focused coverage. The increment is committed and workflow-validated on its published commit."
+  current_increment: "Require a whitespace-free retained credentialId, canonical transient false availability/canCreate/hardwareBacked fields, fixed reason, and UUIDv4 correlation before retry; malformed or contradictory bridge evidence remains fail-closed. Focused acceptance coverage proves the next attempt uses the retained silent DeviceKey, signs once with user input=0, and performs no create/delete operation. The increment is committed and workflow-validated on its published commit."
 safety:
   paper_only: true
   liveAuthority: NONE
