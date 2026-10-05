@@ -2392,3 +2392,9 @@ current_autopilot_codex_state_wording:
   branch: claude/autopilot-contract-state-wording
   authority_impact: autopilot_prompt_only
   deploy: none_needed
+current_ui_halt_reason:
+  work_order: WO-UI-20261005-HALT-REASON
+  status: READY_FOR_REVIEW
+  branch: claude/paper-halt-reason
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required

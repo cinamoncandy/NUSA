@@ -7,6 +7,7 @@ import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperation
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { describePaperOrderReason } from "./paperOrderReason";
 import { buildHomeStatusRail } from "./homeStatusRail";
+import { haltCauseFromSnapshot } from "./haltReasonModel";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { isLocalPaperLedgerDisplayable } from "./localPaperLedger";
@@ -154,6 +155,8 @@ export function HomeView({
   // Kept outside buildHomeDecisionSurface so that module stays dependency-free (it is tested by transpiling the single file).
   const decisionWhy = stale || disconnected || readOnlyError != null || sessionRecovering ? [] : explainDecision(snapshot?.operations.heartbeat?.lastDecisionDetail);
   const orderReason = stale || disconnected || readOnlyError != null || sessionRecovering ? null : describePaperOrderReason(snapshot?.operations.heartbeat?.lastPaperDecisionOutcome);
+  const fieldInput = buildHomeFieldInput({ snapshot: stale ? null : snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
+  const haltCause = haltCauseFromSnapshot(stale ? null : snapshot);
   const rail = buildHomeStatusRail({
     paperState: snapshot == null || stale ? (notConfigured ? "NOT_CONFIGURED" : "UNAVAILABLE") : snapshot.health === "HEALTHY" ? "READY" : snapshot.health === "DEGRADED" ? "DEGRADED" : "DOWN",
     paperMode: snapshot?.mode ?? null,
@@ -163,6 +166,7 @@ export function HomeView({
     feedObservedAtMs: freshestObservedAtMs(marketRows),
     nowMs: Date.now(),
     hasDailyPnlBasis: false,
+    haltCause,
   });
   const aiInsightAvailable = decisionSurface.aiInsightAvailable && !disconnected && readOnlyError == null;
   const recovering = disconnected && sessionRecovering;
@@ -180,11 +184,10 @@ export function HomeView({
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
   const shownConnectionLabel = connectionLabelText;
 
-  const fieldInput = buildHomeFieldInput({ snapshot: stale ? null : snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
   // The rings show history; a current fault (halt, degraded runtime, lost connection) stays on top of them.
   const baselineCounts = useDailyCounts(stale ? null : snapshot?.operations.heartbeat?.startedAt ?? null, stale ? null : fieldInput.decisionCount, stale ? null : fieldInput.paperOrderCount);
   const dailyCounts = stale ? Object.freeze({ decisionCount: null, paperOrderCount: null }) : chooseDailyCounts(snapshot?.operations.heartbeat?.windowDecisionCount, snapshot?.operations.heartbeat?.windowOrderCount, baselineCounts);
-  const field = buildIntelligenceField({ ...fieldInput, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount });
+  const field = buildIntelligenceField({ ...fieldInput, haltCause, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount });
   const usingServerWindow = snapshot?.operations.heartbeat?.windowDecisionCount != null && snapshot?.operations.heartbeat?.windowOrderCount != null;
   const windowNote = !stale && !fieldInput.disconnected && readOnlyError == null && usingServerWindow ? partialWindowNote(snapshot?.operations.heartbeat?.buyCountsSince, Date.now()) : null;
   const buyHeartbeat = stale || fieldInput.disconnected || readOnlyError != null ? null : snapshot?.operations.heartbeat ?? null;
