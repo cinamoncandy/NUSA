@@ -2431,3 +2431,18 @@ current_ui_crystal_glass:
   authority_impact: none
   depends_on: PR 2510 (motion)
   deploy: not_deployed_new_app_build_required
+current_ui_crystal_followup:
+  work_order: WO-UI-20261005-CRYSTAL-FOLLOWUP
+  status: READY_FOR_REVIEW
+  branch: claude/ui-crystal-followup
+  authority_impact: none
+  follows: PR 2512
+  deploy: not_deployed_new_app_build_required
+current_ui_liquid_rings:
+  work_order: WO-UI-20261005-LIQUID-RINGS
+  status: READY_FOR_REVIEW
+  branch: claude/ui-liquid-rings
+  authority_impact: none
+  supersedes: crystal hero (WO-UI-20261005-CRYSTAL-GLASS figure)
+  depends_on: PR 2513
+  deploy: not_deployed_new_app_build_required

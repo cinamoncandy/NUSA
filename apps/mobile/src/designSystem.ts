@@ -228,9 +228,12 @@ export function designSystemSnapshot(theme: Theme): string {
  * Field motion tokens. Every field animation reads its timing from here so a redesign can retune
  * or replace motion in one place. Motion always runs only on a semantic state change.
  */
+/** Card / control corner radii for presenters that style in a static StyleSheet. Same values as the active theme's radii. */
+export const fieldRadii = Object.freeze({ md: 12, lg: 18, xl: 24 } as const);
+
 export const fieldMotion = Object.freeze({
   settleMs: 900,
-  holoScanMs: 3400,
+  holoFlowMs: 9000,
   settleStaggerMs: 90,
   coreTurnMs: 700,
   signalMs: 950,

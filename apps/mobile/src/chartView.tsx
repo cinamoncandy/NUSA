@@ -5,6 +5,7 @@ import { useTheme } from "./ThemeProvider";
 import { buildChartViewModel, formatChartMove, formatChartPrice, latestCandleCloseMs, type ChartInterval, type ChartViewModel } from "./chartViewModel";
 import { formatFeedAgeMs } from "./watchlist";
 import type { PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
+import { fieldRadii } from "./designSystem";
 
 interface ChartViewProps {
   readonly market: string;
@@ -138,7 +139,7 @@ const styles = StyleSheet.create({
   summaryDetails: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   dataSource: { fontSize: 11, fontWeight: "600" },
   plotEyebrow: { fontSize: 10, fontWeight: "500", letterSpacing: 1.4, marginBottom: 8 },
-  plot: { height: 260, position: "relative", overflow: "hidden", borderRadius: 14, padding: 8, borderWidth: 1 },
+  plot: { height: 260, position: "relative", overflow: "hidden", borderRadius: fieldRadii.lg, padding: 8, borderWidth: 1 },
   candleRow: { flex: 1, flexDirection: "row", alignItems: "stretch", gap: 2, paddingBottom: 32 },
   candleColumn: { flex: 1, position: "relative", minWidth: 3 },
   wick: { position: "absolute", width: 1, left: "50%" },
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   volumeBar: { width: "100%", opacity: 0.55 },
   priceLine: { position: "absolute", left: 0, right: 0, height: 1, zIndex: 2 },
   legend: { fontSize: 12, marginTop: 10 },
-  diagnosticsPanel: { marginHorizontal: 20, marginTop: 4, borderWidth: 1, borderRadius: 12, padding: 14, gap: 8 },
+  diagnosticsPanel: { marginHorizontal: 20, marginTop: 4, borderWidth: 1, borderRadius: fieldRadii.md, padding: 14, gap: 8 },
   diagnosticsEyebrow: { fontSize: 10, fontWeight: "500", letterSpacing: 1.1, marginBottom: 2 },
   diagnosticRow: { gap: 2 },
   diagnosticLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8 },
