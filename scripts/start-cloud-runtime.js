@@ -106,8 +106,24 @@ function readOwnerPaperMarkets(file = OWNER_PAPER_MARKETS_FILE) {
   return Object.freeze({ markets: Object.freeze([...markets]) });
 }
 
+const OWNER_RESEARCH_FILE = path.join(__dirname, "..", "deploy", "oracle", "research-experiments.json");
+
+/**
+ * Owner decision whether the continuous research experiments (public 1-minute candle collection and
+ * backtest experiments; research evidence only, no orders) run on this server. Versioned with the
+ * release and applied over the host environment, like the PAPER account and markets. The runtime keeps
+ * its own fail-closed checks (valid build commit, valid settings). A malformed file fails closed at start.
+ * Absent file: nothing applied (the host environment decides, default off).
+ */
+function readOwnerResearch(file = OWNER_RESEARCH_FILE) {
+  if (!existsSync(file)) return null;
+  const parsed = JSON.parse(readFileSync(file, "utf8"));
+  if (parsed?.schemaVersion !== 1 || typeof parsed.experiments !== "boolean") throw new Error(`owner research file is invalid: ${file}`);
+  return Object.freeze({ experiments: parsed.experiments });
+}
+
 /** Fills in operational defaults without overriding anything the caller set explicitly. */
-function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccount(), ownerPaperMarkets = readOwnerPaperMarkets()) {
+function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccount(), ownerPaperMarkets = readOwnerPaperMarkets(), ownerResearch = readOwnerResearch()) {
   const { env, stripped } = stripPrivateExchangeCredentials(baseEnv);
   const defaults = {
     NUSA_MODE: "PAPER",
@@ -148,6 +164,13 @@ function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccou
         env[key] = value;
         if (!applied.includes(key)) applied.push(key);
       }
+    }
+  }
+  if (ownerResearch != null) {
+    const value = ownerResearch.experiments ? "1" : "0";
+    if (env.NUSA_CLOUD_RESEARCH_EXPERIMENTS !== value) {
+      env.NUSA_CLOUD_RESEARCH_EXPERIMENTS = value;
+      applied.push("NUSA_CLOUD_RESEARCH_EXPERIMENTS");
     }
   }
   return { env, applied: Object.freeze(applied), stripped };
@@ -275,6 +298,8 @@ module.exports = {
   readOwnerPaperAccount,
   OWNER_PAPER_MARKETS_FILE,
   readOwnerPaperMarkets,
+  OWNER_RESEARCH_FILE,
+  readOwnerResearch,
   launcherExitCode,
   PRODUCTION_RUNTIME_ENTRYPOINT,
   resolveDashboardToken,
