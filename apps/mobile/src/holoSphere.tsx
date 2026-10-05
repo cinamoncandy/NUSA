@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { BlendMode, Canvas, PaintStyle, Picture, Skia, createPicture, type SkPicture } from "@shopify/react-native-skia";
-import { HOLO_COLORS, HOLO_RING_COUNT, HOLO_RING_POINTS, easeOutBack, easeOutCubic, holoColor, ringPoint, scanBoost, initialHoloState, isHoloQuiet, observeHolo, spherePoints, tickHolo, waveDisplacement, type HoloTone } from "./holoModel";
+import { fieldMotion } from "./designSystem";
+import { HOLO_RING_COUNT, holoFrameBudgetMs, HOLO_RING_POINTS, easeOutBack, easeOutCubic, holoColor, ringPoint, scanBoost, initialHoloState, isHoloQuiet, observeHolo, spherePoints, tickHolo, waveDisplacement, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends one wave across the sphere. Null draws it still. */
@@ -16,10 +17,7 @@ export interface HoloSphereProps {
   readonly testID?: string;
 }
 
-// The spin is ambient, so the loop never runs faster than it must: 24 fps while a wave or burst
-// is moving, 12 fps when only the slow spin remains.
-const ACTIVE_FRAME_MS = 42;
-const QUIET_FRAME_MS = 56;
+// The spin is ambient, so the loop never runs faster than it must (budgets live in holoModel; state advances by elapsed time).
 const VIEW_TILT = 0.35;
 
 /**
@@ -28,6 +26,7 @@ const VIEW_TILT = 0.35;
  */
 export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size, points = 1600, testID = "holo-sphere" }: HoloSphereProps) {
   const state = useRef(initialHoloState());
+  const stillDrawn = useRef(false);
   const sphere = useMemo(() => spherePoints(points), [points]);
   const paint = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true); return p; }, []);
   const glass = useMemo(() => { const p = Skia.Paint(); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); p.setStrokeWidth(1); p.setColor(Skia.Color("rgba(232,241,250,0.14)")); return p; }, []);
@@ -53,9 +52,9 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
       [X, Z] = [X * ca + Z * sa, -X * sa + Z * ca];
       const Y = Y0 * ct - Z * st, Z2 = Y0 * st + Z * ct;
       const depth = (Z2 + 1.3) / 2.6, persp = 1 / (1 + Z2 * 0.25);
-      const scan = live ? scanBoost(py, nowMs) : 0;
+      const scan = live ? scanBoost(py, nowMs, fieldMotion.holoScanMs) : 0;
       order.push({ x: cx + X * R * persp, y: cy - Y * R * persp, z: Z2, r: (0.5 + 1.1 * depth + disp * 6 + scan * 1.4) * persp * (size / 300),
-        c: holoColor(px, py, pz, tone, Math.max(s.flash, scan * 0.5), scan > 0.3 && s.flash < 0.05 ? HOLO_COLORS.mint : s.flashColor, s.tintMix), a: bloom * Math.min(1, 0.12 + 0.8 * depth + disp * 4 + 0.3 * s.flash + scan * 0.7) });
+        c: holoColor(px, py, pz, tone, s.flash, s.flashColor, s.tintMix), a: bloom * Math.min(1, 0.12 + 0.8 * depth + disp * 4 + 0.3 * s.flash + scan * 0.7) });
     }
     // Two tilted orbit rings circling the sphere in opposite directions.
     for (let ring = 0; ring < HOLO_RING_COUNT; ring += 1) {
@@ -84,13 +83,16 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     if (reducedMotion || decisionCount == null) {
       // Still figure: no waves or burst in flight, tone colour applied.
       state.current = Object.freeze({ ...state.current, waves: Object.freeze([]), burst: 0, burstTarget: 0, flash: 0, birth: 1, tintMix: 1 });
+      stillDrawn.current = true;
       render(now);
       return undefined;
     }
+    // HOME starts with reduced motion assumed until the OS preference resolves; replay the bloom once when live motion begins.
+    if (stillDrawn.current) { stillDrawn.current = false; state.current = Object.freeze({ ...state.current, birth: 0 }); }
     let alive = true, last = 0, frame = 0;
     const loop = (t: number) => {
       if (!alive) return;
-      const budget = isHoloQuiet(state.current) ? QUIET_FRAME_MS : ACTIVE_FRAME_MS;
+      const budget = holoFrameBudgetMs(isHoloQuiet(state.current));
       if (t - last >= budget) {
         const dt = last === 0 ? budget : t - last;
         last = t;

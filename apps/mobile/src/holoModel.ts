@@ -87,7 +87,7 @@ export function observeHolo(state: HoloState, decisionCount: number | null, fill
 /** One animation tick (dtMs since the last). */
 export function tickHolo(state: HoloState, tone: HoloTone, dtMs: number, nowMs: number): HoloState {
   const k = Math.min(1, dtMs / 16.7);
-  const spin = state.spin + 0.006 * k * (tone === "halt" ? 0.1 : 1);
+  const spin = state.spin + 0.0000714 * dtMs * (tone === "halt" ? 0.1 : 1);
   let burst = state.burst + (state.burstTarget - state.burst) * 0.06 * k;
   let burstTarget = state.burstTarget;
   if (burstTarget > 0 && burst > 0.95) burstTarget = 0;
@@ -95,7 +95,8 @@ export function tickHolo(state: HoloState, tone: HoloTone, dtMs: number, nowMs: 
   const flash = state.flash * Math.pow(0.975, k);
   const birth = Math.min(1, state.birth + dtMs / HOLO_BIRTH_MS);
   const tintTarget = tone === "normal" ? 0 : 1;
-  const tintMix = Math.abs(tintTarget - state.tintMix) < 0.002 ? tintTarget : state.tintMix + (tintTarget - state.tintMix) * 0.08 * k;
+  const tintStep = 1 - Math.pow(0.92, dtMs / 84);
+  const tintMix = Math.abs(tintTarget - state.tintMix) < 0.002 ? tintTarget : state.tintMix + (tintTarget - state.tintMix) * tintStep;
   const waves = state.waves.filter((wave) => nowMs - wave.bornMs < HOLO_WAVE_MS);
   return Object.freeze({ ...state, spin, burst, burstTarget, flash, birth, tintMix, waves: waves.length === state.waves.length ? state.waves : Object.freeze(waves) });
 }
@@ -128,13 +129,16 @@ export function holoColor(px: number, py: number, pz: number, tone: HoloTone, fl
 /** Overshooting ease (back out): the sphere springs slightly past full size, then settles. */
 export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.max(0, t)) - 1; return 1 + 2.70158 * x * x * x + 1.70158 * x * x; };
 
-export const HOLO_SCAN_MS = 3400;
+/** Render budgets. State advances by elapsed time, so changing a budget never changes how fast things move. */
+export const HOLO_ACTIVE_FRAME_MS = 42;
+export const HOLO_QUIET_FRAME_MS = 56;
+export const holoFrameBudgetMs = (quiet: boolean): number => (quiet ? HOLO_QUIET_FRAME_MS : HOLO_ACTIVE_FRAME_MS);
 export const HOLO_RING_COUNT = 2;
 export const HOLO_RING_POINTS = 72;
 
 /** 0..1 brightness boost for a point at height py (-1..1) while a scan band sweeps down the sphere and back. */
-export function scanBoost(py: number, nowMs: number): number {
-  const phase = (nowMs % HOLO_SCAN_MS) / HOLO_SCAN_MS;
+export function scanBoost(py: number, nowMs: number, periodMs: number): number {
+  const phase = (nowMs % periodMs) / periodMs;
   const centre = Math.sin(phase * Math.PI * 2) * 0.9;
   const d = py - centre;
   return Math.exp(-d * d * 60);
