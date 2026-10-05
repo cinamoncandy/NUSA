@@ -80,6 +80,17 @@ test("orbit rings, scan sweep and overshoot bloom are deterministic and bounded"
   assert.notDeepEqual(ringPoint(0, 3, 0), ringPoint(0, 3, 1), "rings move with the spin");
 });
 
+test("the crystal is a deterministic once-subdivided icosahedron", () => {
+  const { crystalGeometry } = require("../dist/apps/mobile/src/holoModel.js");
+  const g = crystalGeometry();
+  assert.equal(g.vertices.length, 42);
+  assert.equal(g.edges.length, 120);
+  for (const v of g.vertices) assert.ok(Math.abs(Math.hypot(...v) - 1) < 1e-9, "unit length");
+  assert.ok(g.edges.every(([a, b]) => a !== b && a < 42 && b < 42));
+  assert.equal(new Set(g.edges.map(([a, b]) => `${Math.min(a, b)}:${Math.max(a, b)}`)).size, 120, "no duplicate edges");
+  assert.equal(crystalGeometry(), g, "cached");
+});
+
 test("holo state advances by elapsed time, not by how often it is drawn", () => {
   const { initialHoloState, tickHolo, holoFrameBudgetMs, HOLO_QUIET_FRAME_MS, HOLO_ACTIVE_FRAME_MS } = require("../dist/apps/mobile/src/holoModel.js");
   assert.equal(holoFrameBudgetMs(true), HOLO_QUIET_FRAME_MS);
