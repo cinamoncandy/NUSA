@@ -49,7 +49,7 @@ test("a latched server error is translated; the raw value is kept only as a boun
     assert.equal(e.summary, "서버 오류");
   }
   const long = buildHaltExplanation("HALTED", { lastError: `X${"y".repeat(500)}` });
-  assert.ok(long.diagnostic.length <= 160);
+  assert.ok(long.diagnostic.length <= 260);
 });
 
 test("per-tick market rejections are diagnostics, not a halt cause; a missing cause is stated as unknown", () => {
@@ -107,4 +107,13 @@ test("a PAPER account save failure is explained in Korean, with a cause hint onl
   assert.match(of("paper account persistence failed: paper fill ledger does not reconcile").lines[0], /장부가/);
   assert.equal(of("paper account persistence failed: something unheard of").lines[0], "서버가 기록한 마지막 오류: 모의 계좌 상태를 서버가 저장하지 못했습니다", "an unknown cause is not guessed");
   assert.equal(of("paper account persistence failed: SQLITE_READONLY attempt to write a readonly database").diagnostic, "paper account persistence failed: SQLITE_READONLY attempt to write a readonly database", "the raw text stays in the advanced line");
+});
+
+test("a long persistence cause is kept whole in the advanced line and a ledger reconciliation reads as a ledger problem", () => {
+  const { buildHaltExplanation } = require("../dist/apps/mobile/src/haltReasonModel.js");
+  const cause = "paper account persistence failed: PAPER_LEDGER_RECONCILIATION_REQUIRED cash state 4857.12 ledger 4900 KRW-XRP quantity state 12.5 ledger 12.4 37 fills";
+  const e = buildHaltExplanation("HALTED", { lastError: cause });
+  assert.equal(e.diagnostic, cause, "not cut short");
+  assert.match(e.lines[0], /장부가 체결 기록과 맞지 않/);
+  assert.ok(buildHaltExplanation("HALTED", { lastError: "x".repeat(400) }).diagnostic.length <= 260);
 });

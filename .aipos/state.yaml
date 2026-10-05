@@ -2495,3 +2495,10 @@ current_ui_hero_emerald:
   branch: claude/ui-hero-emerald
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+current_ledger_reconciliation_detail:
+  work_order: WO-PAPER-20261006-LEDGER-RECONCILIATION-DETAIL
+  status: READY_FOR_REVIEW
+  branch: claude/ledger-reconciliation
+  authority_impact: diagnostics_only
+  finding: "PAPER halt cause read from the owner's screen 2026-10-05: persistence failed with PAPER_LEDGER_RECONCILIATION_REQUIRED (account state vs fill ledger)"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
