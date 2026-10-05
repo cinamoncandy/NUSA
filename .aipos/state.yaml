@@ -2515,3 +2515,10 @@ current_diagnose_health_probe:
   branch: claude/diagnose-health-probe
   authority_impact: none
   deploy: no_runtime_change
+current_fill_remainder_tolerance:
+  work_order: WO-PAPER-20261006-FILL-REMAINDER-TOLERANCE
+  status: READY_FOR_REVIEW
+  branch: claude/order-fill-remainder-tolerance
+  authority_impact: execution_order_lifecycle_tolerance
+  owner_approval: "2026-10-05 in chat"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval

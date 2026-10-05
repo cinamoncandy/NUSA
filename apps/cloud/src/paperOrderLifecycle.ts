@@ -16,6 +16,14 @@ export interface PaperOrderLifecycleState {
   readonly lastTransitionAt: number;
 }
 
+/**
+ * The execution loop decides "this fill finishes the order" when the fill is within 1e-8 of the remaining quantity, but float
+ * subtraction can leave a last-digit remainder (owner screen 2026-10-05: a SELL refused with "filled transition must consume
+ * remaining quantity"). A fill that finishes the order within this tolerance is settled as exactly filled. Anything larger is
+ * still refused, and partial fills are unchanged. Owner approved in chat.
+ */
+export const PAPER_FILL_REMAINDER_TOLERANCE = 1e-8;
+
 const TERMINAL = new Set<PaperOrderStatus>(["FILLED", "CANCELLED", "REJECTED"]);
 
 const ALLOWED: Readonly<Record<PaperOrderStatus, readonly PaperOrderStatus[]>> = {
@@ -59,10 +67,12 @@ export function transitionPaperOrderLifecycle(
   const isFillTransition = nextStatus === "PARTIALLY_FILLED" || nextStatus === "FILLED";
   if (!isFillTransition && fillQuantity !== 0) throw new Error("non-fill transition cannot carry fill quantity");
   if (isFillTransition && fillQuantity <= 0) throw new Error("fill transition requires positive fill quantity");
-  if (fillQuantity > current.remainingQuantity) throw new Error("fill quantity exceeds remaining quantity");
+  const overshoot = fillQuantity - current.remainingQuantity;
+  const settlesOrder = nextStatus === "FILLED" && Math.abs(overshoot) <= PAPER_FILL_REMAINDER_TOLERANCE;
+  if (overshoot > 0 && !settlesOrder) throw new Error("fill quantity exceeds remaining quantity");
 
-  const filledQuantity = current.filledQuantity + fillQuantity;
-  const remainingQuantity = current.requestedQuantity - filledQuantity;
+  const filledQuantity = settlesOrder ? current.requestedQuantity : current.filledQuantity + fillQuantity;
+  const remainingQuantity = settlesOrder ? 0 : current.requestedQuantity - filledQuantity;
   if (nextStatus === "PARTIALLY_FILLED" && remainingQuantity <= 0) throw new Error("partial fill must leave remaining quantity");
   if (nextStatus === "FILLED" && remainingQuantity !== 0) throw new Error("filled transition must consume remaining quantity");
 
