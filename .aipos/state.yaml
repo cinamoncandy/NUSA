@@ -2458,3 +2458,10 @@ current_research_refresh_memory:
   branch: claude/research-refresh-memory
   authority_impact: resource_guard_threshold_only
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ui_core_burst:
+  work_order: WO-UI-20261005-CORE-BURST
+  status: READY_FOR_REVIEW
+  branch: claude/ui-core-burst
+  authority_impact: none
+  supersedes: liquid rings hero (WO-UI-20261005-LIQUID-RINGS figure)
+  deploy: not_deployed_new_app_build_required
