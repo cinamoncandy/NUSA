@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
-const text = fs.readFileSync(".github/workflows/oracle-host-diagnose.yml", "utf8");
+const text = fs.readFileSync(".github/workflows/oracle-host-diagnose.yml", "utf8").replace(/\r\n/g, "\n");
 
 test("the host diagnosis is dispatch-only, read-only and secret-free", () => {
   assert.match(text, /^on:\n  workflow_dispatch: \{\}\n/m);
