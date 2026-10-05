@@ -11,9 +11,9 @@ test("the field theme is the only preset, frozen and semantic", () => {
   for (const theme of [dark, light]) {
     assert.equal(theme.preset, "field");
     assert.equal(theme.mode, "dark");
-    assert.equal(theme.colors.background, "#0B0A09");
-    assert.equal(theme.colors.primary, "#E9DFC8");
-    assert.equal(theme.radii.md, 8);
+    assert.equal(theme.colors.background, "#02050A");
+    assert.equal(theme.colors.primary, "#5CE1FF");
+    assert.equal(theme.radii.md, 12);
     assert.equal(theme.shadows.sm.opacity, 0);
     assert.equal(theme.icons.lg, 24);
   }
@@ -87,11 +87,11 @@ test("success stays visually distinct from the AI signal tone", () => {
   assert.notEqual(theme.colors.success.toLowerCase(), theme.colors.aiSignalEnd.toLowerCase());
 });
 
-test("field selection highlights use the hanji accent while amber stays a warning-only tone", () => {
+test("field selection highlights use the cyan accent while amber stays a warning-only tone", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const read = (name) => fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", name), "utf8");
-  assert.match(read("designSystem.ts"), /accent: "#E9DFC8"/);
+  assert.match(read("designSystem.ts"), /accent: "#5CE1FF"/);
   assert.match(read("intelligenceField.tsx"), /const FOCUS_COLOR = fieldPalette\.accent;/);
   assert.match(read("paperShadowMonitorView.tsx"), /mode === item \? fieldPalette\.accent : "transparent"/);
   assert.equal(createTheme("dark").colors.warning, "#FFB547");

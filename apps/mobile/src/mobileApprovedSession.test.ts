@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { MobileApprovedSession, MobileSessionRequestError, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } from "./mobileApprovedSession";
+import { MobileApprovedSession, MobileSessionRequestError, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY, SilentDeviceStatusInspectionError } from "./mobileApprovedSession";
 import type { SecureStoragePort } from "./mobileSecurity";
 import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 
@@ -120,6 +120,50 @@ describe("mobile approved session persistence boundary", () => {
       (error: unknown) => error instanceof Error && error.name === "SilentDeviceStatusInspectionError" && error.message.includes(correlationId),
     );
     assert.equal(session.shouldRetryRestore(), true);
+  });
+
+  it("retries transient inspection with silent proof only and preserves the registered DeviceKey", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    let statusInspections = 0;
+    let signatures = 0;
+    let creations = 0;
+    let deletions = 0;
+    const credentialId = "silent-credential-0123456789";
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) return new Response(JSON.stringify({ challengeId: "challenge-id-0123456789", challenge: "Y2Fub25pY2FsLWNoYWxsZW5nZQ==", purpose: "AUTHENTICATION", expiresAt: now + 60_000 }), { status: 201 });
+      if (value.endsWith("/v1/mobile/owner-device/authentication/complete")) return new Response(JSON.stringify({ accessToken: "silent-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "silent-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read", "paper:trade"], deviceId: "nusa-device-silent-0007" }), { status: 200 });
+      if (value.endsWith("/v1/mobile/me")) return new Response(JSON.stringify({ userId: "owner", email: "owner@example.com", scopes: ["dashboard:read", "paper:trade"] }), { status: 200 });
+      throw new Error(`unexpected request: ${value}`);
+    }) as unknown as typeof fetch;
+    const native = {
+      getSilentDeviceStatus: async () => {
+        statusInspections += 1;
+        return statusInspections === 1
+          ? { available: false, canCreate: false, hardwareBacked: false, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId, reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" }
+          : { available: true, canCreate: true, hardwareBacked: true, status: "SILENT_DEVICE_KEY_PRESENT", credentialId };
+      },
+      createSilentDeviceCredential: async () => { creations += 1; throw new Error("must not create a replacement DeviceKey"); },
+      signSilentChallenge: async () => { signatures += 1; return "c2lnbmF0dXJl"; },
+      deleteSilentDeviceCredential: async () => { deletions += 1; },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+
+    await assert.rejects(
+      () => session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0007", native),
+      (error: unknown) => error instanceof SilentDeviceStatusInspectionError,
+    );
+    assert.equal(session.shouldRetryRestore(), true);
+
+    const identity = await session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0007", native);
+    assert.equal(identity?.userId, "owner");
+    assert.equal(session.shouldRetryRestore(), false);
+    assert.equal(statusInspections, 3, "retry and pre-challenge proof must inspect the retained key");
+    assert.equal(signatures, 1);
+    assert.equal(creations, 0);
+    assert.equal(deletions, 0);
   });
 
   it("fails closed when native transient status evidence is malformed", async () => {

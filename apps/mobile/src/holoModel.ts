@@ -18,7 +18,7 @@ export interface HoloState {
   readonly flash: number;
   readonly flashColor: Rgb;
   readonly waves: readonly HoloWave[];
-  /** 0..1 progress of the ink-bloom entrance; 1 once open. */
+  /** 0..1 progress of the bloom entrance; 1 once open. */
   readonly birth: number;
   /** 0..1 how far the tone tint (hold / halt) has faded in; eased so a status change never snaps. */
   readonly tintMix: number;
@@ -28,12 +28,11 @@ export interface HoloState {
 
 export const HOLO_WAVE_MS = 2600;
 export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "fill" | "hold" | "halt", Rgb>> = Object.freeze({
-  // 먹과 한지: celadon, hanji ochre, warm rose and pale jade. Names are kept for the ramp order; the
-  // status tints (fill / hold / halt) stay the unmistakable green / amber / red.
-  cyan: [164, 208, 204] as const,
-  violet: [222, 204, 168] as const,
-  pink: [226, 170, 150] as const,
-  mint: [142, 214, 190] as const,
+  // Cold future: ice cyan, violet, magenta, mint. Status tints (fill / hold / halt) stay the unmistakable green / amber / red.
+  cyan: [124, 214, 255] as const,
+  violet: [170, 130, 255] as const,
+  pink: [255, 130, 200] as const,
+  mint: [110, 240, 220] as const,
   fill: [110, 240, 176] as const,
   hold: [255, 194, 102] as const,
   halt: [255, 122, 122] as const,
@@ -88,7 +87,7 @@ export function observeHolo(state: HoloState, decisionCount: number | null, fill
 /** One animation tick (dtMs since the last). */
 export function tickHolo(state: HoloState, tone: HoloTone, dtMs: number, nowMs: number): HoloState {
   const k = Math.min(1, dtMs / 16.7);
-  const spin = state.spin + 0.0025 * k * (tone === "halt" ? 0.1 : 1);
+  const spin = state.spin + 0.0000714 * dtMs * (tone === "halt" ? 0.1 : 1);
   let burst = state.burst + (state.burstTarget - state.burst) * 0.06 * k;
   let burstTarget = state.burstTarget;
   if (burstTarget > 0 && burst > 0.95) burstTarget = 0;
@@ -96,7 +95,8 @@ export function tickHolo(state: HoloState, tone: HoloTone, dtMs: number, nowMs: 
   const flash = state.flash * Math.pow(0.975, k);
   const birth = Math.min(1, state.birth + dtMs / HOLO_BIRTH_MS);
   const tintTarget = tone === "normal" ? 0 : 1;
-  const tintMix = Math.abs(tintTarget - state.tintMix) < 0.002 ? tintTarget : state.tintMix + (tintTarget - state.tintMix) * 0.08 * k;
+  const tintStep = 1 - Math.pow(0.92, dtMs / 84);
+  const tintMix = Math.abs(tintTarget - state.tintMix) < 0.002 ? tintTarget : state.tintMix + (tintTarget - state.tintMix) * tintStep;
   const waves = state.waves.filter((wave) => nowMs - wave.bornMs < HOLO_WAVE_MS);
   return Object.freeze({ ...state, spin, burst, burstTarget, flash, birth, tintMix, waves: waves.length === state.waves.length ? state.waves : Object.freeze(waves) });
 }
@@ -124,6 +124,62 @@ export function holoColor(px: number, py: number, pz: number, tone: HoloTone, fl
   if (toneColor) { const m = 0.8 * Math.min(1, Math.max(0, tintMix)); c = [c[0] + (toneColor[0] - c[0]) * m, c[1] + (toneColor[1] - c[1]) * m, c[2] + (toneColor[2] - c[2]) * m]; }
   if (flash > 0.05 && flashColor !== HOLO_COLORS.cyan) { const m = Math.min(1, flash); c = [c[0] + (flashColor[0] - c[0]) * m, c[1] + (flashColor[1] - c[1]) * m, c[2] + (flashColor[2] - c[2]) * m]; }
   return c;
+}
+
+export interface CrystalGeometry { readonly vertices: readonly (readonly [number, number, number])[]; readonly edges: readonly (readonly [number, number])[]; }
+let crystalCache: CrystalGeometry | null = null;
+
+/** Once-subdivided icosahedron on the unit sphere: 42 vertices, 120 edges. Deterministic. */
+export function crystalGeometry(): CrystalGeometry {
+  if (crystalCache) return crystalCache;
+  const t = (1 + Math.sqrt(5)) / 2;
+  const base: [number, number, number][] = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
+  const faces = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
+  const norm = (v: readonly number[]): [number, number, number] => { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; };
+  const vertices: [number, number, number][] = base.map(norm);
+  const mid = new Map<string, number>();
+  const midpoint = (a: number, b: number): number => {
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    const hit = mid.get(key);
+    if (hit !== undefined) return hit;
+    vertices.push(norm([(vertices[a][0] + vertices[b][0]) / 2, (vertices[a][1] + vertices[b][1]) / 2, (vertices[a][2] + vertices[b][2]) / 2]));
+    mid.set(key, vertices.length - 1);
+    return vertices.length - 1;
+  };
+  const edgeSet = new Set<string>();
+  const edges: [number, number][] = [];
+  const addEdge = (a: number, b: number) => { const key = a < b ? `${a}:${b}` : `${b}:${a}`; if (!edgeSet.has(key)) { edgeSet.add(key); edges.push([a, b]); } };
+  for (const [a, b, c] of faces) {
+    const ab = midpoint(a, b), bc = midpoint(b, c), ca = midpoint(c, a);
+    for (const tri of [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]) { addEdge(tri[0], tri[1]); addEdge(tri[1], tri[2]); addEdge(tri[2], tri[0]); }
+  }
+  crystalCache = Object.freeze({ vertices: Object.freeze(vertices), edges: Object.freeze(edges) });
+  return crystalCache;
+}
+
+/** Overshooting ease (back out): the sphere springs slightly past full size, then settles. */
+export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.max(0, t)) - 1; return 1 + 2.70158 * x * x * x + 1.70158 * x * x; };
+
+/** Render budgets. State advances by elapsed time, so changing a budget never changes how fast things move. */
+export const HOLO_ACTIVE_FRAME_MS = 42;
+export const HOLO_QUIET_FRAME_MS = 56;
+export const holoFrameBudgetMs = (quiet: boolean): number => (quiet ? HOLO_QUIET_FRAME_MS : HOLO_ACTIVE_FRAME_MS);
+export const HOLO_RING_COUNT = 2;
+export const HOLO_RING_POINTS = 72;
+
+/** 0..1 brightness boost for a point at height py (-1..1) while a scan band sweeps down the sphere and back. */
+export function scanBoost(py: number, nowMs: number, periodMs: number): number {
+  const phase = (nowMs % periodMs) / periodMs;
+  const centre = Math.sin(phase * Math.PI * 2) * 0.9;
+  const d = py - centre;
+  return Math.exp(-d * d * 60);
+}
+
+/** Position of point k of orbit ring r at angle `spin`: a tilted circle of radius 1.18 + 0.12 r. */
+export function ringPoint(r: number, k: number, spin: number): { x: number; y: number; z: number } {
+  const a = (k / HOLO_RING_POINTS) * Math.PI * 2 + spin * (r === 0 ? 1 : -1.4);
+  const rad = 1.18 + 0.12 * r, tilt = r === 0 ? 0.9 : -0.5, c = Math.cos(a) * rad, s = Math.sin(a) * rad;
+  return { x: c, y: s * Math.sin(tilt), z: s * Math.cos(tilt) };
 }
 
 /** True when nothing but the ambient spin is moving. */

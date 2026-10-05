@@ -16,7 +16,7 @@ current_issue_2260_mobile_devicekey_inspection:
   authority_impact: mobile-paper-session-trust-classification
   first_broken_transition: "AndroidKeyStore inspection exception -> false SILENT_DEVICE_KEY_NOT_REGISTERED projection"
   scope: "Preserve registered silent DeviceKey metadata on transient AndroidKeyStore inspection failure; emit stable non-secret reason/correlation evidence; retry only through the existing single-flight bounded PAPER recovery path; definitive missing/invalid key remains fail-closed."
-  validation: "PR #2503 exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks. The published increment is committed and workflow-validated; it requires a whitespace-free retained credentialId plus canonical false availability/canCreate/hardwareBacked fields, fixed ANDROID_KEYSTORE_INSPECTION_FAILED reason, and UUIDv4 correlation before transient retry. Fresh exact-head CI is required for the published commit."
+  validation: "PR #2503 exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks. The published increment is committed and workflow-validated; it requires a whitespace-free retained credentialId plus canonical false availability/canCreate/hardwareBacked fields, fixed ANDROID_KEYSTORE_INSPECTION_FAILED reason, and UUIDv4 correlation before transient retry. Focused acceptance coverage proves the retry retains the DeviceKey, performs one silent signature with user input=0, and never creates or deletes key material. Fresh exact-head CI is required for the published commit."
   remaining: "Exact-head CI on the published commit, independent Audit and Release; then HUMAN_ENVIRONMENT_ONLY Galaxy background-to-foreground acceptance under #2218."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_runtime_proof_cron_propagation:
@@ -2406,7 +2406,28 @@ current_ops_host_diagnose:
   deploy: none_needed
 current_ui_hanji_ink:
   work_order: WO-UI-20261005-HANJI-INK
-  status: READY_FOR_REVIEW
+  status: SUPERSEDED_BY_WO-UI-20261005-COLD-FUTURE
   branch: claude/ui-hanji-ink
   authority_impact: none
+  deploy: not_deployed_new_app_build_required
+current_ui_cold_future:
+  work_order: WO-UI-20261005-COLD-FUTURE
+  status: READY_FOR_REVIEW
+  branch: claude/ui-cold-future
+  authority_impact: none
+  supersedes: WO-UI-20261005-HANJI-INK
+  deploy: not_deployed_new_app_build_required
+current_ui_motion_orbit:
+  work_order: WO-UI-20261005-MOTION-ORBIT
+  status: READY_FOR_REVIEW
+  branch: claude/ui-motion-orbit
+  authority_impact: none
+  depends_on: PR 2509 (cold-future skin)
+  deploy: not_deployed_new_app_build_required
+current_ui_crystal_glass:
+  work_order: WO-UI-20261005-CRYSTAL-GLASS
+  status: READY_FOR_REVIEW
+  branch: claude/ui-crystal-glass
+  authority_impact: none
+  depends_on: PR 2510 (motion)
   deploy: not_deployed_new_app_build_required
