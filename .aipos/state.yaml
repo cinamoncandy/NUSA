@@ -16,8 +16,8 @@ current_issue_2260_mobile_devicekey_inspection:
   authority_impact: mobile-paper-session-trust-classification
   first_broken_transition: "AndroidKeyStore inspection exception -> false SILENT_DEVICE_KEY_NOT_REGISTERED projection"
   scope: "Preserve registered silent DeviceKey metadata on transient AndroidKeyStore inspection failure; emit stable non-secret reason/correlation evidence; retry only through the existing single-flight bounded PAPER recovery path; definitive missing/invalid key remains fail-closed."
-  validation: "PR #2503 exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks. Review correction commits 14b9f7c1310b7aef0d3ca05536c14d7d7fd3e2b5 and e9cbbe71b4c3961f1bf62305b9b019cafd4dc49b now require retained credentialId plus canonical false availability/canCreate/hardwareBacked fields, fixed ANDROID_KEYSTORE_INSPECTION_FAILED reason, and UUIDv4 correlation before transient retry; fresh exact-head CI is required for the corrected head."
-  remaining: "Exact-head CI on the current PR head, independent Audit and Release; then HUMAN_ENVIRONMENT_ONLY Galaxy acceptance under #2218."
+  validation: "PR #2503 exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks. The published increment is committed and workflow-validated; it requires a whitespace-free retained credentialId plus canonical false availability/canCreate/hardwareBacked fields, fixed ANDROID_KEYSTORE_INSPECTION_FAILED reason, and UUIDv4 correlation before transient retry. Fresh exact-head CI is required for the published commit."
+  remaining: "Exact-head CI on the published commit, independent Audit and Release; then HUMAN_ENVIRONMENT_ONLY Galaxy background-to-foreground acceptance under #2218."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_runtime_proof_cron_propagation:
   work_order: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY

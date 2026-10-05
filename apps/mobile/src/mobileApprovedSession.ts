@@ -85,7 +85,7 @@ function transientSilentStatusError(status: Awaited<ReturnType<OwnerDeviceCreden
   const correlationId = typeof status.correlationId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(status.correlationId)
     ? status.correlationId
     : null;
-  const retainedCredentialId = typeof status.credentialId === "string" && status.credentialId.trim().length >= 16 && status.credentialId.trim().length <= MAX_TOKEN_LENGTH && !/\\s/.test(status.credentialId);
+  const retainedCredentialId = typeof status.credentialId === "string" && status.credentialId.trim().length >= 16 && status.credentialId.trim().length <= MAX_TOKEN_LENGTH && !/\s/.test(status.credentialId);
   const canonicalTransientState = status.available === false && status.canCreate === false && status.hardwareBacked === false;
   if (status.reasonCode !== "ANDROID_KEYSTORE_INSPECTION_FAILED" || correlationId == null || !retainedCredentialId || !canonicalTransientState) return null;
   return new SilentDeviceStatusInspectionError(correlationId);
