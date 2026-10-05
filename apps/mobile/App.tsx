@@ -16,6 +16,7 @@ import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { buildSafetyLine } from "./src/safetyLineModel";
 import { clearCachedSnapshot, useCachedSnapshot } from "./src/useCachedSnapshot";
+import { markStartup } from "./src/startupTiming";
 import { displaySessionState, graceNotConfigured, LAUNCH_GRACE_MS, launchSettling, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
 import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
@@ -43,6 +44,9 @@ import { ownerDeviceCredential } from "./src/ownerDeviceCredential";
 import { getOrCreateInstallationId } from "./src/installationIdentity";
 import { type MoreDestination, type PrimaryDestination } from "./src/navigationContract";
 import { labelFont, readableFont } from "./src/designSystem";
+
+/** Start of the cold-start timing shown in Settings (advanced); first call wins. */
+markStartup("appStart");
 
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
 type DetailSurface = "Strategies" | "Portfolio" | "Order" | TruthfulMoreDetail | null;
@@ -179,6 +183,7 @@ function AuthenticatedApp() {
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
   // Last-known values for the launch screen only; never a live reading. Called before any early return so the hook order never changes.
+  useEffect(() => { if (operations.status === "READY") markStartup("firstData"); }, [operations.status]);
   const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, operations.status === "READY" ? operations.snapshot : null);
   const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());
   const [publicRefreshing, setPublicRefreshing] = useState(false);
