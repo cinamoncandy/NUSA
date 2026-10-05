@@ -193,7 +193,8 @@ export interface PaperWriterLeaseOptions {
 export function describePersistenceFailure(error: unknown): string {
   const code = typeof (error as { code?: unknown } | null)?.code === "string" ? (error as { code: string }).code : "";
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-  const clean = `${code} ${message}`.replace(/[^A-Za-z0-9 _.-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 90);
+  const detail = typeof (error as { detail?: unknown } | null)?.detail === "string" ? (error as { detail: string }).detail : "";
+  const clean = `${code} ${message} ${detail}`.replace(/[^A-Za-z0-9 _.-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 170);
   return clean === "" ? "UNKNOWN" : clean;
 }
 

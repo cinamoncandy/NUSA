@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { PaperTradingExecutionLoop, describePersistenceFailure } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
+const { assertPaperAccountingReconciled, PaperLedgerReconciliationError } = require("../dist/apps/cloud/src/paperAccountingLedger.js");
 
 const command = (overrides = {}) => ({ schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, idempotencyKey: "paper-detail-0000001", market: "KRW-BTC", side: "BUY", orderType: "MARKET", quantity: 0.001, ...overrides });
 const context = () => ({ now: 1_700_000_000_100, marketPrice: 50_000_000, observedAt: 1_700_000_000_090, mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY" });
@@ -22,7 +23,7 @@ test("the description is short, printable and cannot carry a path, payload or se
   assert.equal(describePersistenceFailure("disk I/O error"), "disk I/O error".replace("/", " "));
   assert.equal(describePersistenceFailure(null), "UNKNOWN");
   assert.equal(describePersistenceFailure({}), "UNKNOWN");
-  assert.equal(describePersistenceFailure(new Error("x".repeat(500))).length, 90);
+  assert.equal(describePersistenceFailure(new Error("x".repeat(500))).length, 170);
   assert.ok(!/[\/\\{}"'<>;=]/.test(describePersistenceFailure(new Error("a/b\\c{d}\"e'f<g>h;i=j"))));
 });
 
@@ -32,4 +33,25 @@ test("the runtime appends the cause to the heartbeat error and still uses the st
   assert.match(src, /result\.reason === "paper account persistence failed" \? effectivePaperLoop\?\.persistenceFailureDetail\(\)/);
   assert.match(src, /`\$\{result\.reason\}: \$\{detail\}`/);
   assert.match(src, /recordFailure\(detail == null \? \(result\.reason \?\? "PAPER_EXECUTION_FAILED"\)/);
+});
+
+const fill = (overrides = {}) => ({ id: "f1", orderId: "o1", market: "KRW-XRP", side: "BUY", quantity: 2, price: 1000, fee: 1, filledAt: 1_700_000_000_000, ...overrides });
+const position = (overrides = {}) => ({ market: "KRW-XRP", quantity: 2, averageEntryPrice: 1000.5, realizedPnL: 0, unrealizedPnL: 0, markPrice: 1000.5, ...overrides });
+
+test("a ledger reconciliation failure keeps its exact code and names what disagrees and by how much", () => {
+  const good = { initialCapital: 10_000, fills: [fill()], cash: 7_999, realizedPnL: 0, positions: [position()] };
+  assert.equal(assertPaperAccountingReconciled(good).cash, 7_999, "a consistent account still reconciles");
+  const catchError = (input) => { try { assertPaperAccountingReconciled(input); } catch (error) { return error; } assert.fail("expected a reconciliation failure"); };
+  const cash = catchError({ ...good, cash: 8_100 });
+  assert.ok(cash instanceof Error && cash instanceof PaperLedgerReconciliationError);
+  assert.equal(cash.message, "PAPER_LEDGER_RECONCILIATION_REQUIRED", "callers compare this code exactly");
+  assert.match(cash.detail, /cash state 8100 ledger 7999/);
+  assert.match(cash.detail, /1 fills/);
+  assert.match(catchError({ ...good, realizedPnL: 5 }).detail, /realized state 5 ledger 0/);
+  assert.match(catchError({ ...good, positions: [position({ quantity: 3 })] }).detail, /KRW-XRP quantity state 3 ledger 2/);
+  assert.match(catchError({ ...good, positions: [] }).detail, /KRW-XRP missing in state/);
+  assert.match(catchError({ ...good, positions: [position(), position({ market: "KRW-BTC" })] }).detail, /KRW-BTC not in ledger/);
+  const line = describePersistenceFailure(cash);
+  assert.match(line, /^PAPER_LEDGER_RECONCILIATION_REQUIRED cash state 8100 ledger 7999 1 fills$/);
+  assert.ok(!/[\/\\{}"'<>;=:]/.test(line), "still no path, payload or separators");
 });

@@ -255,9 +255,40 @@ export function assertPaperAccountingReconciled(input: {
   const projection = projectPaperAccounting(input.initialCapital, input.fills, marks);
   const actual = [...input.positions].sort((a, b) => a.market.localeCompare(b.market));
   if (round8(input.cash) !== round8(projection.cash) || round8(input.realizedPnL) !== round8(projection.realizedPnL) || JSON.stringify(actual) !== JSON.stringify(projection.positions)) {
-    throw new Error("PAPER_LEDGER_RECONCILIATION_REQUIRED");
+    throw new PaperLedgerReconciliationError(describeReconciliationMismatch(input, projection));
   }
   return projection;
+}
+
+/**
+ * The stable failure code stays the message (callers compare it exactly). The detail says which part of the account state
+ * disagrees with the fill ledger and by how much, for the owner's advanced diagnostic line. Numbers and market codes only.
+ */
+export class PaperLedgerReconciliationError extends Error {
+  public constructor(public readonly detail: string) {
+    super("PAPER_LEDGER_RECONCILIATION_REQUIRED");
+    this.name = "PaperLedgerReconciliationError";
+  }
+}
+
+function describeReconciliationMismatch(
+  input: { readonly fills: readonly PaperFillRecord[]; readonly cash: number; readonly realizedPnL: number; readonly positions: readonly PaperAccountPosition[] },
+  projection: PaperAccountingProjection,
+): string {
+  const parts: string[] = [];
+  if (round8(input.cash) !== round8(projection.cash)) parts.push(`cash state ${round8(input.cash)} ledger ${round8(projection.cash)}`);
+  if (round8(input.realizedPnL) !== round8(projection.realizedPnL)) parts.push(`realized state ${round8(input.realizedPnL)} ledger ${round8(projection.realizedPnL)}`);
+  const stateByMarket = new Map(input.positions.map((position) => [position.market, position]));
+  for (const expected of projection.positions) {
+    const actual = stateByMarket.get(expected.market);
+    if (actual == null) { parts.push(`${expected.market} missing in state`); continue; }
+    for (const key of ["quantity", "averageEntryPrice", "realizedPnL", "unrealizedPnL", "markPrice"] as const) {
+      if (actual[key] !== expected[key]) { parts.push(`${expected.market} ${key} state ${actual[key]} ledger ${expected[key]}`); break; }
+    }
+  }
+  for (const actual of input.positions) if (!projection.positions.some((expected) => expected.market === actual.market)) parts.push(`${actual.market} not in ledger`);
+  parts.push(`${input.fills.length} fills`);
+  return parts.join(" ");
 }
 
 
