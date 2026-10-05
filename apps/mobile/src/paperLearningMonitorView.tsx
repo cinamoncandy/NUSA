@@ -153,6 +153,12 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       </View>
       <View style={[styles.sourcePill, { borderColor: sourceColor }]}><Text style={[styles.sourcePillText, { color: sourceColor }]}>{state.dataSource === "SERVER_STREAM" ? "SERVER" : state.dataSource === "LOCAL_FALLBACK" ? "LOCAL" : "CHECK"}</Text></View>
     </View>
+    {state.halt == null ? null : <StateNotice
+      title={state.halt.title}
+      detail={state.halt.lines.join("\n")}
+      tone="danger"
+      testID="paper-learning-halt-reason"
+    />}
     {state.dataSource === "LOCAL_FALLBACK" ? <StateNotice
       title={monitorLabel("LOCAL FALLBACK")}
       detail="서버 PAPER 학습 이벤트가 비어 있어 기기 내 공개 시세 기반 관측을 대신 표시합니다. 서버 런타임의 학습 결과가 아닙니다."
