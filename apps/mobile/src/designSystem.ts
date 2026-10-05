@@ -233,7 +233,7 @@ export const fieldRadii = Object.freeze({ md: 12, lg: 18, xl: 24 } as const);
 
 export const fieldMotion = Object.freeze({
   settleMs: 900,
-  holoScanMs: 3400,
+  holoFlowMs: 9000,
   settleStaggerMs: 90,
   coreTurnMs: 700,
   signalMs: 950,

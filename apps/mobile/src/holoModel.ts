@@ -3,7 +3,7 @@
  *
  * Driven by runtime facts:
  * - each new decision sends one wave across the sphere surface;
- * - each new PAPER order pushes the crystal outward (HOLO_FILL_EXPANSION), tints it green, then lets it settle back;
+ * - each new PAPER order pushes the liquid rings outward (HOLO_FILL_EXPANSION), tints them green, then lets them settle back;
  * - a held / halted runtime tints the sphere amber / red (halted also slows the spin).
  * The slow spin is ambient; it stops entirely under reduce-motion.
  */
@@ -126,37 +126,6 @@ export function holoColor(px: number, py: number, pz: number, tone: HoloTone, fl
   return c;
 }
 
-export interface CrystalGeometry { readonly vertices: readonly (readonly [number, number, number])[]; readonly edges: readonly (readonly [number, number])[]; }
-let crystalCache: CrystalGeometry | null = null;
-
-/** Once-subdivided icosahedron on the unit sphere: 42 vertices, 120 edges. Deterministic. */
-export function crystalGeometry(): CrystalGeometry {
-  if (crystalCache) return crystalCache;
-  const t = (1 + Math.sqrt(5)) / 2;
-  const base: [number, number, number][] = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
-  const faces = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
-  const norm = (v: readonly number[]): [number, number, number] => { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; };
-  const vertices: [number, number, number][] = base.map(norm);
-  const mid = new Map<string, number>();
-  const midpoint = (a: number, b: number): number => {
-    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
-    const hit = mid.get(key);
-    if (hit !== undefined) return hit;
-    vertices.push(norm([(vertices[a][0] + vertices[b][0]) / 2, (vertices[a][1] + vertices[b][1]) / 2, (vertices[a][2] + vertices[b][2]) / 2]));
-    mid.set(key, vertices.length - 1);
-    return vertices.length - 1;
-  };
-  const edgeSet = new Set<string>();
-  const edges: [number, number][] = [];
-  const addEdge = (a: number, b: number) => { const key = a < b ? `${a}:${b}` : `${b}:${a}`; if (!edgeSet.has(key)) { edgeSet.add(key); edges.push([a, b]); } };
-  for (const [a, b, c] of faces) {
-    const ab = midpoint(a, b), bc = midpoint(b, c), ca = midpoint(c, a);
-    for (const tri of [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]) { addEdge(tri[0], tri[1]); addEdge(tri[1], tri[2]); addEdge(tri[2], tri[0]); }
-  }
-  crystalCache = Object.freeze({ vertices: Object.freeze(vertices), edges: Object.freeze(edges) });
-  return crystalCache;
-}
-
 /** Overshooting ease (back out): the sphere springs slightly past full size, then settles. */
 export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.max(0, t)) - 1; return 1 + 2.70158 * x * x * x + 1.70158 * x * x; };
 
@@ -164,24 +133,31 @@ export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.m
 export const HOLO_ACTIVE_FRAME_MS = 42;
 export const HOLO_QUIET_FRAME_MS = 56;
 export const holoFrameBudgetMs = (quiet: boolean): number => (quiet ? HOLO_QUIET_FRAME_MS : HOLO_ACTIVE_FRAME_MS);
-/** Extra radius at the fill peak; small enough that the crystal and its rings stay inside the canvas. */
+/** Extra radius at the fill peak; small enough that the rings stay inside the canvas. */
 export const HOLO_FILL_EXPANSION = 0.1;
-export const HOLO_RING_COUNT = 2;
-export const HOLO_RING_POINTS = 72;
+export const LIQUID_LAYERS = 4;
+export const LIQUID_SEGMENTS = 96;
 
-/** 0..1 brightness boost for a point at height py (-1..1) while a scan band sweeps down the sphere and back. */
-export function scanBoost(py: number, nowMs: number, periodMs: number): number {
-  const phase = (nowMs % periodMs) / periodMs;
-  const centre = Math.sin(phase * Math.PI * 2) * 0.9;
-  const d = py - centre;
-  return Math.exp(-d * d * 60);
-}
-
-/** Position of point k of orbit ring r at angle `spin`: a tilted circle of radius 1.18 + 0.12 r. */
-export function ringPoint(r: number, k: number, spin: number): { x: number; y: number; z: number } {
-  const a = (k / HOLO_RING_POINTS) * Math.PI * 2 + spin * (r === 0 ? 1 : -1.4);
-  const rad = 1.18 + 0.12 * r, tilt = r === 0 ? 0.9 : -0.5, c = Math.cos(a) * rad, s = Math.sin(a) * rad;
-  return { x: c, y: s * Math.sin(tilt), z: s * Math.cos(tilt) };
+/**
+ * Radius (about 0.78..1.25 of the base ring) of liquid-light ring `layer` at angle `theta`, `tSec` seconds in.
+ * Each layer is two travelling sine lobes at its own speed; runtime waves add a bump that travels round the ring.
+ * `flowSec` is the period of the slowest layer (fieldMotion.holoFlowMs / 1000).
+ */
+export function liquidRadius(theta: number, layer: number, tSec: number, flowSec: number, waves: readonly HoloWave[], nowMs: number): number {
+  const w = (Math.PI * 2) / flowSec, k = 2 + (layer % 3), dir = layer % 2 === 0 ? 1 : -1;
+  const lobes = 0.5 * Math.sin(k * theta + dir * w * (1 + 0.35 * layer) * tSec + layer * 1.7) + 0.5 * Math.sin((k + 3) * theta - dir * w * 0.6 * tSec + layer * 0.9);
+  // Each wave starts at the point of the ring that faces its origin and travels round both ways to the far side.
+  let bump = 0;
+  for (const wave of waves) {
+    const age = (nowMs - wave.bornMs) / HOLO_WAVE_MS;
+    if (age < 0 || age > 1) continue;
+    const origin = Math.atan2(wave.az, wave.ax);
+    let d = Math.abs(theta - origin) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    const front = d - age * Math.PI;
+    bump += 2.2 * wave.amp * Math.exp(-front * front * 30) * (1 - age);
+  }
+  return Math.min(1.25, Math.max(0.78, 1 + 0.085 * lobes * (1 + 0.18 * layer) + bump));
 }
 
 /** True when nothing but the ambient spin is moving. */
