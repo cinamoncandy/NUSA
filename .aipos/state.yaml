@@ -2465,6 +2465,12 @@ current_ui_core_burst:
   authority_impact: none
   supersedes: liquid rings hero (WO-UI-20261005-LIQUID-RINGS figure)
   deploy: not_deployed_new_app_build_required
+current_ui_hero_harmony:
+  work_order: WO-UI-20261005-HERO-HARMONY
+  status: READY_FOR_REVIEW
+  branch: claude/ui-hero-harmony
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required
 current_enable_research_collection:
   work_order: WO-PAPER-20261005-ENABLE-RESEARCH-COLLECTION
   status: READY_FOR_REVIEW
