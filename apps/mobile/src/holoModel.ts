@@ -130,6 +130,22 @@ export function holoColor(px: number, py: number, pz: number, tone: HoloTone, fl
 /** Overshooting ease (back out): the sphere springs slightly past full size, then settles. */
 export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.max(0, t)) - 1; return 1 + 2.70158 * x * x * x + 1.70158 * x * x; };
 
+/** The figure radius as a fraction of the canvas size. */
+export const HOLO_RADIUS_FRACTION = 0.44;
+
+/** Where the PAPER fill line ends (the marker), in canvas pixels, for a square canvas of `size`. */
+export function holoFillMarker(size: number): { x: number; y: number } {
+  const r = size * HOLO_RADIUS_FRACTION * BURST_FILL_REACH;
+  return { x: size / 2 + Math.cos(BURST_FILL_ANGLE) * r, y: size / 2 + Math.sin(BURST_FILL_ANGLE) * r };
+}
+
+/** Placement of the market chip beside the fill marker inside a square canvas: right of the marker, clamped so it never leaves the canvas. */
+export function holoChipPlacement(size: number, label: string): { left: number; top: number; width: number } {
+  const marker = holoFillMarker(size);
+  const width = Math.round(label.length * 6.7 + 16);
+  return { left: Math.max(0, Math.min(Math.round(marker.x + 6), size - width)), top: Math.round(marker.y - 11), width };
+}
+
 /** Render budgets. State advances by elapsed time, so changing a budget never changes how fast things move. */
 export const HOLO_ACTIVE_FRAME_MS = 42;
 export const HOLO_QUIET_FRAME_MS = 56;

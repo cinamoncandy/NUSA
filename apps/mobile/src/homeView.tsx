@@ -33,9 +33,9 @@ import { staleLabel } from "./cachedSnapshotModel";
 import { connectionLabel } from "./connectionLabelModel";
 import { buildResearchProgressLine } from "./researchProgressModel";
 import { buildTradedCoinLine } from "./tradedCoinModel";
-import { buildHomeVitals, VITAL_TEST_IDS } from "./homeVitalsModel";
+import { buildHomeVitals, vitalUsesHeroAccent, VITAL_TEST_IDS } from "./homeVitalsModel";
 import { HOME_DETAIL_LABELS } from "./homeDetailCopy";
-import { fieldRadii, labelFont, readableFont } from "./designSystem";
+import { fieldHero, fieldRadii, labelFont, readableFont } from "./designSystem";
 
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
@@ -195,6 +195,7 @@ export function HomeView({
   const tradedCoinLine = buildTradedCoinLine({ tradedMarkets: buyHeartbeat?.tradedMarkets, researchMarket: (buyHeartbeat?.researchCollection as { market?: unknown } | undefined)?.market, positionMarket: position?.market, positionQuantity: position?.quantity });
   const researchLine = buildResearchProgressLine(buyHeartbeat?.researchCollection as never, Date.now());
   const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
+  const heroMarket = (Array.isArray(buyHeartbeat?.tradedMarkets) && typeof buyHeartbeat?.tradedMarkets[0] === "string" ? buyHeartbeat.tradedMarkets[0] : null) as string | null;
   const vitals = buildHomeVitals({ coin: tradedCoinLine, buy: buySignalLine, feed: feedLine, learning: { value: researchLine.value, detail: researchLine.detail, tone: researchLine.tone }, unverified: stale || Boolean(sessionRecovering), feedStale: publicMarketStale });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
     ? { title: field.headline, detail: field.detail, tone: field.phase === "HALTED" ? "halt" as const : "warning" as const }
@@ -215,7 +216,7 @@ export function HomeView({
         </Pressable>
       </View>
 
-      <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.paperOrderCount} /></View>
+      <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.paperOrderCount} marketLabel={heroMarket} /></View>
       {stale && cachedSnapshot != null ? <Text style={{ color: theme.colors.warning, fontSize: 12, textAlign: "center" }} testID="home-stale-note">{staleLabel(cachedSnapshot.savedAt, Date.now())} · 서버 재확인 중 (아래 값은 이전 값)</Text> : null}
       {windowNote != null ? <Text style={{ color: theme.colors.textMuted, fontSize: readableFont(11), textAlign: "center" }} testID="home-window-note">{windowNote}</Text> : null}
 
@@ -226,10 +227,10 @@ export function HomeView({
       </View>}
 
       {disconnected ? null : <View style={styles.vitals} testID="home-vitals">
-        {vitals.map((vital, vitalIndex) => <MotionReveal key={vital.id} index={vitalIndex + 1} style={styles.vitalCell}><View style={[styles.vital, { backgroundColor: theme.colors.surface, borderColor: vital.tone === "warn" ? theme.colors.warning : theme.colors.border }]} testID={VITAL_TEST_IDS[vital.id]}>
+        {vitals.map((vital, vitalIndex) => <MotionReveal key={vital.id} index={vitalIndex + 1} style={styles.vitalCell}><View style={[styles.vital, { backgroundColor: theme.colors.surface, borderColor: vital.tone === "warn" ? theme.colors.warning : vitalUsesHeroAccent(vital) ? fieldHero.limeBorder : theme.colors.border }]} testID={VITAL_TEST_IDS[vital.id]}>
           <View style={styles.vitalHead}>
-            <View style={[styles.vitalDot, { backgroundColor: vital.tone === "ok" ? theme.colors.success : vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]} />
-            <Text style={[styles.vitalLabel, { color: theme.colors.textMuted }]}>{vital.label}</Text>
+            <View style={[styles.vitalDot, { backgroundColor: vitalUsesHeroAccent(vital) ? fieldHero.lime : vital.tone === "ok" ? theme.colors.success : vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]} />
+            <Text style={[styles.vitalLabel, { color: vitalUsesHeroAccent(vital) ? fieldHero.lime : theme.colors.textMuted }]}>{vital.label}</Text>
           </View>
           <Text style={[styles.vitalValue, { color: theme.colors.text }]} numberOfLines={2}>{vital.value}</Text>
           {vital.detail == null ? null : <Text style={[styles.vitalDetail, { color: vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]}>{vital.detail}</Text>}
