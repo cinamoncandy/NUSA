@@ -100,12 +100,12 @@ test("the core-burst hero is deterministic: streaks, dust and pulses stay within
   for (let ms = 0; ms <= HOLO_WAVE_MS; ms += 200) { const p = pulseFor(wave, 1000 + ms); assert.ok(p.ringRadius >= previous && p.ringRadius <= 1.0 + 1e-9 && p.ringAlpha >= 0 && p.streakLength <= 1.15 + 1e-9, "the ring only grows and fades"); previous = p.ringRadius; }
 });
 
-test("the hero is drawn as a lime core with streaks, dust and pulses and keeps its tone and still-figure contract", () => {
+test("the hero is drawn as an emerald core with streaks, dust and pulses and keeps its tone and still-figure contract", () => {
   const fs = require("node:fs");
   const { holoColor, HOLO_COLORS, BURST_FILL_REACH } = require("../dist/apps/mobile/src/holoModel.js");
   const src = fs.readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
   for (const needle of [/burstStreaks\(\)/, /dustField\(\)/, /pulseFor\(wave, nowMs\)/, /fieldMotion\.holoFlowMs/, /BURST_FILL_ANGLE/]) assert.match(src, needle);
-  assert.match(src, /holoColor\(-1, 0, 0, tone, s\.flash, s\.flashColor, s\.tintMix\)/, "lime follows the status tone");
+  assert.match(src, /holoColor\(-1, 0, 0, tone, s\.flash \* 0\.3, s\.flashColor, s\.tintMix\)/, "the figure follows the status tone, and a fill flares it only a little (the accent line carries the flare)");
   assert.ok(!/liquidRadius|crystalGeometry|scanBoost|ringPoint/.test(src), "old figures are gone");
   assert.ok(BURST_FILL_REACH <= 1.0, "the fill marker stays inside the canvas radius");
   const normal = holoColor(-1, 0, 0, "normal", 0, HOLO_COLORS.cyan, 1);
@@ -114,4 +114,29 @@ test("the hero is drawn as a lime core with streaks, dust and pulses and keeps i
   assert.ok(hold[0] > 230 && hold[1] > 170 && hold[2] < 130, "hold reads amber on a lime base");
   assert.ok(halt[0] > 230 && halt[1] < 150 && halt[2] > 100, "halt reads red on a lime base");
   assert.ok(Math.abs(hold[1] - halt[1]) > 50, "hold and halt stay clearly different");
+});
+
+test("the figure is emerald like the reference, dense and fine, with lime reserved for the active line", () => {
+  const { HOLO_COLORS, BURST_DUST_COUNT, burstStreaks, dustField, holoColor } = require("../dist/apps/mobile/src/holoModel.js");
+  for (const key of ["cyan", "violet", "pink", "mint"]) { const [r, g, b] = HOLO_COLORS[key]; assert.ok(g > 200 && r < 170 && g - r > 60 && b > 100, `${key} is emerald or teal, not yellow`); }
+  const [lr, lg, lb] = HOLO_COLORS.lime; assert.ok(lr > 180 && lg > 230 && lb < 100, "lime stays a true lime");
+  assert.ok(BURST_DUST_COUNT >= 2000, "dust is dense like the reference");
+  const dust = dustField();
+  assert.ok(dust.every((d) => d.size <= 0.8 && d.size >= 0.35), "specks stay fine");
+  const density = (lo, hi) => dust.filter((d) => d.radius >= lo && d.radius < hi).length / (hi * hi - lo * lo);
+  assert.ok(density(0.12, 0.4) > density(0.6, 1.01) * 2, "dust per unit area is concentrated toward the core");
+  const alphaNear = dust.filter((d) => d.radius < 0.4).reduce((a, d) => a + d.alpha, 0) / dust.filter((d) => d.radius < 0.4).length;
+  const alphaFar = dust.filter((d) => d.radius >= 0.8).reduce((a, d) => a + d.alpha, 0) / dust.filter((d) => d.radius >= 0.8).length;
+  assert.ok(alphaNear > alphaFar * 1.5, "and brighter there");
+  assert.ok(burstStreaks().every((k) => k.width <= 0.8 && k.alpha <= 0.37), "streaks are thin and faint");
+  const hold = holoColor(-1, 0, 0, "hold", 0, HOLO_COLORS.lime, 1), halt = holoColor(-1, 0, 0, "halt", 0, HOLO_COLORS.lime, 1);
+  assert.ok(hold[0] > 230 && hold[1] > 170 && hold[2] < 130 && halt[0] > 230 && halt[1] < 150, "hold and halt still read amber and red on an emerald base");
+});
+test("the renderer batches the dust, blooms the core and keeps lime for the active line", () => {
+  const src = require("node:fs").readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
+  assert.match(src, /canvas\.drawPoints\(PointMode\.Points, batch\.pts/);
+  assert.match(src, /MakeBlur\(BlurStyle\.Normal, blur, true\)/);
+  assert.match(src, /catch \{ \/\* no blur \*\/ \}/, "an unsupported blur must not break the figure");
+  assert.match(src, /const accent = tone === "normal" \? HOLO_COLORS\.lime : emerald/);
+  assert.ok(!/HOLO_COLORS\.lime/.test(src.replace(/const accent[^\n]*\n/, "")), "lime is used only for the accent");
 });

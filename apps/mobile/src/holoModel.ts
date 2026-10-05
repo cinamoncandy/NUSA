@@ -27,13 +27,14 @@ export interface HoloState {
 }
 
 export const HOLO_WAVE_MS = 2600;
-export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "fill" | "hold" | "halt", Rgb>> = Object.freeze({
-  // Core burst (matches the owner's reference): lime core and streaks, mint dust. Names are kept for the ramp order.
-  // Status tints (fill / hold / halt) stay unmistakable: bright lime flash / amber / red.
-  cyan: [198, 245, 74] as const,
-  violet: [140, 236, 130] as const,
-  pink: [110, 240, 176] as const,
-  mint: [170, 242, 110] as const,
+export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "lime" | "fill" | "hold" | "halt", Rgb>> = Object.freeze({
+  // Core burst, after the owner's reference: emerald and teal for the figure (white core), lime only for the active line and marker.
+  // Names are kept for the ramp order. Status tints (fill / hold / halt) stay unmistakable: bright lime flash / amber / red.
+  cyan: [104, 232, 166] as const,
+  violet: [78, 208, 176] as const,
+  pink: [150, 238, 170] as const,
+  mint: [120, 232, 200] as const,
+  lime: [198, 245, 74] as const,
   fill: [222, 255, 150] as const,
   hold: [255, 194, 102] as const,
   halt: [255, 122, 122] as const,
@@ -153,8 +154,8 @@ export const holoFrameBudgetMs = (quiet: boolean): number => (quiet ? HOLO_QUIET
 /** Tilt (squash) and rotation of the dust disc and its rings, as seen from the viewer. */
 export const BURST_TILT = 0.38;
 export const BURST_ROTATION = -0.18;
-export const BURST_STREAK_COUNT = 56;
-export const BURST_DUST_COUNT = 700;
+export const BURST_STREAK_COUNT = 70;
+export const BURST_DUST_COUNT = 2600;
 
 function lcg(seed: number): () => number {
   let state = seed % 2147483647;
@@ -163,15 +164,15 @@ function lcg(seed: number): () => number {
 }
 
 export interface BurstStreak { readonly angle: number; readonly inner: number; readonly length: number; readonly alpha: number; readonly width: number; readonly phase: number }
-export interface DustSpeck { readonly radius: number; readonly angle: number; readonly size: number; readonly alpha: number; readonly lime: boolean }
+export interface DustSpeck { readonly radius: number; readonly angle: number; readonly size: number; readonly alpha: number; readonly bright: boolean }
 
 let streakCache: readonly BurstStreak[] | null = null;
-/** Fine light streaks radiating from the core (lengths are fractions of the figure radius, 0.2..1.0). Deterministic. */
+/** Fine, faint light streaks radiating from the core (lengths are fractions of the figure radius, 0.2..1.0). Deterministic. */
 export function burstStreaks(): readonly BurstStreak[] {
   if (streakCache) return streakCache;
   const r = lcg(11), out: BurstStreak[] = [];
   for (let i = 0; i < BURST_STREAK_COUNT; i += 1) {
-    out.push(Object.freeze({ angle: r() * Math.PI * 2, inner: 0.02 + r() * 0.05, length: 0.2 + Math.pow(r(), 1.6) * 0.8, alpha: 0.1 + r() * 0.45, width: 0.4 + r() * 0.8, phase: r() * Math.PI * 2 }));
+    out.push(Object.freeze({ angle: r() * Math.PI * 2, inner: 0.02 + r() * 0.05, length: 0.2 + Math.pow(r(), 1.5) * 0.8, alpha: 0.07 + r() * 0.3, width: 0.35 + r() * 0.45, phase: r() * Math.PI * 2 }));
   }
   streakCache = Object.freeze(out);
   return streakCache;
@@ -181,13 +182,13 @@ export function burstStreaks(): readonly BurstStreak[] {
 export const streakLength = (streak: BurstStreak, tSec: number): number => streak.length * (0.94 + 0.06 * Math.sin(tSec * 1.1 + streak.phase));
 
 let dustCache: readonly DustSpeck[] | null = null;
-/** Fine dust on a disc, denser toward the core (radius fractions 0.2..1.0). Deterministic. */
+/** Fine dust on a disc, denser and brighter toward the core (radius fractions 0.2..1.0). Deterministic. */
 export function dustField(): readonly DustSpeck[] {
   if (dustCache) return dustCache;
   const r = lcg(7), out: DustSpeck[] = [];
   for (let i = 0; i < BURST_DUST_COUNT; i += 1) {
-    const radius = 0.2 + Math.pow(r(), 0.7) * 0.8;
-    out.push(Object.freeze({ radius, angle: r() * Math.PI * 2, size: 0.35 + r() * 0.7, alpha: (0.15 + 0.6 * (1 - radius) * r()) + 0.05, lime: r() > 0.8 }));
+    const radius = 0.2 + r() * 0.8, d = 1 - radius;
+    out.push(Object.freeze({ radius, angle: r() * Math.PI * 2, size: 0.35 + r() * 0.45, alpha: Math.min(0.9, 0.12 + 0.62 * d * d * (0.4 + r())), bright: r() < 0.35 }));
   }
   dustCache = Object.freeze(out);
   return dustCache;
