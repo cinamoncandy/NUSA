@@ -21,10 +21,15 @@ export const RESEARCH_REFRESH_RECORD_FILE = "research-refresh-last-attempt.json"
 export const RESEARCH_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 /**
  * The Oracle PAPER host has 1 GB of RAM shared with the PAPER runtime, the autopilot service and
- * the GitHub runners. A refresh starts only with this much free memory, its whole process tree is
- * capped by NODE_OPTIONS, and it runs at the lowest CPU priority, so it cannot starve the host.
+ * the GitHub runners. A refresh starts only with this much AVAILABLE memory (free plus reclaimable
+ * page cache, Linux MemAvailable), its whole process tree is capped by NODE_OPTIONS (256 MB heap),
+ * and it runs at the lowest CPU priority, so it cannot starve the host.
+ *
+ * It was 600 MB of os.freemem(), which counts only completely unused memory. On the 954 MB host
+ * that reads about 60 MB while roughly 400 MB is available, so the refresh could never start.
+ * 350 MB leaves about 100 MB above the heap cap; swap is configured on the host.
  */
-export const RESEARCH_REFRESH_MIN_FREE_MEMORY_BYTES = 600 * 1024 * 1024;
+export const RESEARCH_REFRESH_MIN_AVAILABLE_MEMORY_BYTES = 350 * 1024 * 1024;
 export const RESEARCH_REFRESH_HEAP_LIMIT_MB = 256;
 
 export interface ResearchSnapshotRefresherOptions {
@@ -36,11 +41,24 @@ export interface ResearchSnapshotRefresherOptions {
   readonly minIntervalMs?: number;
   readonly spawn?: (command: string, args: readonly string[], options: { cwd: string; env: NodeJS.ProcessEnv; stdio: "ignore" }) => Pick<ChildProcess, "on" | "kill">;
   readonly log?: (line: string) => void;
-  readonly freeMemoryBytes?: () => number;
+  readonly availableMemoryBytes?: () => number;
   readonly lowerPriority?: (pid: number) => void;
 }
 
 export type ResearchRefreshRequestOutcome = "STARTED" | "RUNNING" | "NOT_DUE" | "LOW_MEMORY" | "UNAVAILABLE";
+
+/** Parses MemAvailable (kB) from /proc/meminfo text; undefined when absent or malformed. */
+export function parseMemAvailableBytes(meminfo: string): number | undefined {
+  const match = /^MemAvailable:\s+(\d+)\s+kB\s*$/m.exec(meminfo);
+  if (match == null) return undefined;
+  const bytes = Number(match[1]) * 1024;
+  return Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : undefined;
+}
+
+/** Available memory in bytes: MemAvailable on Linux, otherwise (or if unreadable) the stricter os.freemem(). */
+export function availableMemoryBytes(): number {
+  try { return parseMemAvailableBytes(readFileSync("/proc/meminfo", "utf8")) ?? freemem(); } catch { return freemem(); }
+}
 
 function withHeapLimit(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const existing = (env.NODE_OPTIONS ?? "").replace(/--max-old-space-size=\S+/g, "").trim();
@@ -69,7 +87,7 @@ export class ResearchSnapshotRefresher {
     const last = this.lastAttemptAt();
     if (last != null && now >= last && now - last < this.minIntervalMs) return "NOT_DUE";
     // Not recorded as an attempt: the next poll retries once memory is available again.
-    if ((this.options.freeMemoryBytes ?? freemem)() < RESEARCH_REFRESH_MIN_FREE_MEMORY_BYTES) return "LOW_MEMORY";
+    if ((this.options.availableMemoryBytes ?? availableMemoryBytes)() < RESEARCH_REFRESH_MIN_AVAILABLE_MEMORY_BYTES) return "LOW_MEMORY";
     try {
       this.writeRecord({ schemaVersion: 1, attemptedAt: now, status: "STARTED" });
       const cwd = this.options.cwd ?? process.cwd();
