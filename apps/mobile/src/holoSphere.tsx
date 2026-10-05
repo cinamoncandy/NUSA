@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { BlendMode, Canvas, PaintStyle, Picture, Skia, StrokeCap, createPicture, type SkPicture } from "@shopify/react-native-skia";
+import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, PointMode, Skia, StrokeCap, createPicture, type SkPicture } from "@shopify/react-native-skia";
 import { fieldMotion } from "./designSystem";
-import { BURST_FILL_ANGLE, BURST_FILL_REACH, BURST_ROTATION, BURST_TILT, HOLO_RADIUS_FRACTION, burstStreaks, dustField, dustPosition, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, observeHolo, pulseFor, streakLength, tickHolo, type HoloTone } from "./holoModel";
+import { HOLO_COLORS, BURST_FILL_ANGLE, BURST_FILL_REACH, BURST_ROTATION, BURST_TILT, HOLO_RADIUS_FRACTION, burstStreaks, dustField, dustPosition, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, observeHolo, pulseFor, streakLength, tickHolo, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends a pulse ring and a bright streak out from the core. Null draws it still. */
@@ -30,55 +30,87 @@ const FOG_STEPS = 16;
 export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size, points = 1600, testID = "holo-sphere" }: HoloSphereProps) {
   const state = useRef(initialHoloState());
   const stillDrawn = useRef(false);
-  const paint = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true); return p; }, []);
-  const line = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); p.setStrokeCap(StrokeCap.Round); return p; }, []);
+  const paints = useMemo(() => {
+    const make = (stroke: boolean, blur = 0) => {
+      const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true);
+      if (stroke) { p.setStyle(PaintStyle.Stroke); p.setStrokeCap(StrokeCap.Round); }
+      // A soft glow when the renderer supports a blur mask; without it the crisp passes still draw the figure.
+      if (blur > 0) { try { p.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, blur, true)); } catch { /* no blur */ } }
+      return p;
+    };
+    return { fill: make(false), line: make(true), glowLine: make(true, 1.6), bloom: make(false, 9), bloomSmall: make(false, 3) };
+  }, []);
   const rgba = useMemo(() => new Float32Array(4), []);
   const [picture, setPicture] = useState<SkPicture | null>(null);
   const streaks = useMemo(() => burstStreaks(), []);
-  const dust = useMemo(() => (points >= 600 ? dustField() : []), [points]);
+  // Dust is drawn in a handful of batched point calls (by brightness and by how faint), with preallocated points so a frame allocates nothing.
+  const dustBatches = useMemo(() => {
+    if (points < 600) return [];
+    const field = dustField(), batches: { idx: number[]; pts: { x: number; y: number }[]; bright: boolean; alpha: number; width: number }[] = [];
+    for (const bright of [true, false]) for (const [lo, hi] of [[0, 0.25], [0.25, 0.45], [0.45, 1.01]] as const) {
+      const idx = field.map((d, i) => (d.bright === bright && d.alpha >= lo && d.alpha < hi ? i : -1)).filter((i) => i >= 0);
+      if (idx.length === 0) continue;
+      batches.push({ idx, pts: idx.map(() => ({ x: 0, y: 0 })), bright, alpha: idx.reduce((sum, i) => sum + field[i]!.alpha, 0) / idx.length, width: idx.reduce((sum, i) => sum + field[i]!.size, 0) / idx.length });
+    }
+    return batches;
+  }, [points]);
 
   const render = (nowMs: number) => {
     const s = state.current, cx = size / 2, cy = size / 2, u = size / 300;
     const bloom = easeOutCubic(s.birth);
     const R = size * HOLO_RADIUS_FRACTION * (0.12 + 0.88 * easeOutBack(s.birth));
     const tSec = reducedMotion ? 0 : nowMs / 1000, flowSec = fieldMotion.holoFlowMs / 1000;
-    // Lime and mint come from the ramp so hold / halt tint them amber / red and a fill flares them pale.
-    const lime = holoColor(-1, 0, 0, tone, s.flash, s.flashColor, s.tintMix), mint = holoColor(1, 0, 0, tone, s.flash, s.flashColor, s.tintMix);
+    // Emerald comes from the ramp so hold / halt tint it amber / red and a fill flares it; lime is only the active line and marker.
+    const emerald = holoColor(-1, 0, 0, tone, s.flash * 0.3, s.flashColor, s.tintMix);
+    const accent = tone === "normal" ? HOLO_COLORS.lime : emerald;
+    const tintW = tone === "normal" ? 0 : 0.85 * s.tintMix, toneRgb = tone === "halt" ? HOLO_COLORS.halt : HOLO_COLORS.hold;
+    const white: readonly [number, number, number] = [236 + (toneRgb[0] - 236) * tintW, 255 + (toneRgb[1] - 255) * tintW, 244 + (toneRgb[2] - 244) * tintW];
     const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(nowMs / 640);
-    const set = (p: typeof paint, c: readonly [number, number, number], a: number) => { rgba[0] = c[0] / 255; rgba[1] = c[1] / 255; rgba[2] = c[2] / 255; rgba[3] = Math.max(0, Math.min(1, a)); p.setColor(rgba); };
-    const boost = 1 + 0.6 * s.flash;
+    const set = (p: typeof paints.fill, c: readonly [number, number, number], a: number) => { rgba[0] = c[0] / 255; rgba[1] = c[1] / 255; rgba[2] = c[2] / 255; rgba[3] = Math.max(0, Math.min(1, a)); p.setColor(rgba); };
+    const boost = 1 + 0.4 * s.flash;
     setPicture(createPicture((canvas) => {
-      // Atmosphere: stacked soft discs under the core.
-      for (let i = 0; i < FOG_STEPS; i += 1) { const t = i / (FOG_STEPS - 1); set(paint, lime, bloom * 0.011 * boost); canvas.drawCircle(cx, cy, R * (1.02 - 0.92 * t), paint); }
+      // Atmosphere: stacked, very faint discs read as a smooth glow.
+      for (let i = 0; i < FOG_STEPS; i += 1) { const t = i / (FOG_STEPS - 1); set(paints.fill, emerald, bloom * 0.012 * boost); canvas.drawCircle(cx, cy, R * (1.02 - 0.92 * t), paints.fill); }
       // Two thin ellipse rings on the tilted disc.
       canvas.save(); canvas.translate(cx, cy); canvas.rotate((BURST_ROTATION * 180) / Math.PI, 0, 0);
-      for (const [rr, al] of [[0.95, 0.28], [0.76, 0.14]] as const) { set(line, lime, bloom * al); line.setStrokeWidth(Math.max(0.6, u)); canvas.drawOval(Skia.XYWHRect(-R * rr, -R * rr * BURST_TILT, R * rr * 2, R * rr * 2 * BURST_TILT), line); }
+      for (const [rr, al] of [[0.95, 0.2], [0.74, 0.1]] as const) { set(paints.line, emerald, bloom * al); paints.line.setStrokeWidth(Math.max(0.5, 0.8 * u)); canvas.drawOval(Skia.XYWHRect(-R * rr, -R * rr * BURST_TILT, R * rr * 2, R * rr * 2 * BURST_TILT), paints.line); }
       canvas.restore();
-      // Dust disc.
-      for (const d of dust) { const q = dustPosition(d, tSec, flowSec); set(paint, d.lime ? lime : mint, bloom * d.alpha * boost); canvas.drawCircle(cx + q.x * R, cy + q.y * R, Math.max(0.4, d.size * u * 1.1), paint); }
-      // Fine streaks.
-      for (const k of streaks) {
-        const len = R * streakLength(k, tSec), c = Math.cos(k.angle), sn = Math.sin(k.angle);
-        set(line, lime, bloom * k.alpha * boost); line.setStrokeWidth(Math.max(0.4, k.width * u));
-        canvas.drawLine(cx + c * R * k.inner, cy + sn * R * k.inner, cx + c * len, cy + sn * len, line);
+      // Dense, fine dust (batched).
+      if (dustBatches.length > 0) {
+        const field = dustField();
+        for (const batch of dustBatches) {
+          for (let k = 0; k < batch.idx.length; k += 1) { const q = dustPosition(field[batch.idx[k]!]!, tSec, flowSec), pt = batch.pts[k]!; pt.x = cx + q.x * R; pt.y = cy + q.y * R; }
+          set(paints.line, batch.bright ? white : emerald, bloom * batch.alpha * boost); paints.line.setStrokeWidth(Math.max(0.5, batch.width * 2 * u));
+          canvas.drawPoints(PointMode.Points, batch.pts, paints.line);
+        }
+      }
+      // Thin streaks: a soft glow pass, then the crisp pass.
+      for (let pass = 0; pass < 2; pass += 1) {
+        const p = pass === 0 ? paints.glowLine : paints.line;
+        for (let n = 0; n < streaks.length; n += 1) {
+          const k = streaks[n]!, len = R * streakLength(k, tSec), c = Math.cos(k.angle), sn = Math.sin(k.angle);
+          set(p, n % 9 === 0 ? white : emerald, bloom * k.alpha * boost * (pass === 0 ? 0.7 : 1)); p.setStrokeWidth(Math.max(0.4, k.width * u));
+          canvas.drawLine(cx + c * R * k.inner, cy + sn * R * k.inner, cx + c * len, cy + sn * len, p);
+        }
       }
       // Decisions: a pulse ring and a bright streak from the core.
       for (const wave of s.waves) {
         const pl = pulseFor(wave, nowMs); if (pl == null) continue;
-        set(line, lime, bloom * pl.ringAlpha); line.setStrokeWidth(Math.max(0.8, 1.4 * u)); canvas.drawCircle(cx, cy, R * pl.ringRadius, line);
-        set(line, mint, bloom * pl.streakAlpha); line.setStrokeWidth(Math.max(0.9, 2 * u));
-        canvas.drawLine(cx, cy, cx + Math.cos(pl.angle) * R * pl.streakLength, cy + Math.sin(pl.angle) * R * pl.streakLength, line);
+        set(paints.line, emerald, bloom * pl.ringAlpha); paints.line.setStrokeWidth(Math.max(0.8, 1.4 * u)); canvas.drawCircle(cx, cy, R * pl.ringRadius, paints.line);
+        set(paints.line, white, bloom * pl.streakAlpha); paints.line.setStrokeWidth(Math.max(0.9, 1.8 * u));
+        canvas.drawLine(cx, cy, cx + Math.cos(pl.angle) * R * pl.streakLength, cy + Math.sin(pl.angle) * R * pl.streakLength, paints.line);
       }
-      // PAPER fill: a line from the core to a marker that flares.
+      // PAPER fill: an accent line from the core to a marker that flares.
       if (s.burst > 0.02) {
         const ex = cx + Math.cos(BURST_FILL_ANGLE) * R * BURST_FILL_REACH * s.burst, ey = cy + Math.sin(BURST_FILL_ANGLE) * R * BURST_FILL_REACH * s.burst;
-        set(line, lime, bloom * 0.95); line.setStrokeWidth(Math.max(1, 1.8 * u)); canvas.drawLine(cx, cy, ex, ey, line);
-        set(paint, lime, bloom * 0.35 * s.burst); canvas.drawCircle(ex, ey, 9 * u, paint);
-        set(paint, lime, bloom * 0.95 * s.burst); canvas.drawRect(Skia.XYWHRect(ex - 4 * u, ey - 3 * u, 8 * u, 6 * u), paint);
+        set(paints.line, accent, bloom * 0.95); paints.line.setStrokeWidth(Math.max(1, 1.5 * u)); canvas.drawLine(cx, cy, ex, ey, paints.line);
+        set(paints.bloomSmall, accent, bloom * 0.45 * s.burst); canvas.drawCircle(ex, ey, 9 * u, paints.bloomSmall);
+        set(paints.fill, accent, bloom * 0.95 * s.burst); canvas.drawRect(Skia.XYWHRect(ex - 5 * u, ey - 3.5 * u, 10 * u, 7 * u), paints.fill);
       }
-      // Core.
-      for (const [rad, al] of [[0.3, 0.08], [0.16, 0.16 + 0.08 * pulse], [0.075, 0.55]] as const) { set(paint, lime, bloom * al * boost); canvas.drawCircle(cx, cy, R * rad, paint); }
-      set(paint, [255, 255, 255], bloom * 0.95); canvas.drawCircle(cx, cy, Math.max(1, 3.2 * u), paint);
+      // Core: soft emerald bloom, a white glow and a white point.
+      set(paints.bloom, emerald, bloom * (0.2 + 0.06 * pulse) * boost); canvas.drawCircle(cx, cy, R * 0.26, paints.bloom);
+      set(paints.bloomSmall, white, bloom * 0.45 * boost); canvas.drawCircle(cx, cy, R * 0.06, paints.bloomSmall);
+      set(paints.fill, white, bloom * 0.95); canvas.drawCircle(cx, cy, Math.max(1, 2.6 * u), paints.fill);
     }, { width: size, height: size }));
   };
 

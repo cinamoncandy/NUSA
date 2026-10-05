@@ -23,8 +23,8 @@ test("the fill marker and the market chip sit inside the hero canvas for every p
 });
 
 test("the hero accent is the figure's own lime and is never a status colour", () => {
-  const [r, g, b] = HOLO_COLORS.cyan;
-  assert.equal(fieldHero.lime.toLowerCase(), `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`, "same lime as the figure");
+  const [r, g, b] = HOLO_COLORS.lime;
+  assert.equal(fieldHero.lime.toLowerCase(), `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`, "same lime as the figure's active line and marker");
   const colors = createTheme("dark").colors;
   const dist = (a, c) => Math.hypot(...[1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16) - parseInt(c.slice(i, i + 2), 16)));
   for (const status of [colors.success, colors.warning, colors.danger]) assert.ok(dist(fieldHero.lime, status) >= 60, `lime stays distinct from ${status}`);

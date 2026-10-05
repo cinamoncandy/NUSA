@@ -2489,3 +2489,9 @@ current_enable_research_collection:
   authority_impact: research_collection_enablement
   owner_approval: "2026-10-05 in chat"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ui_hero_emerald:
+  work_order: WO-UI-20261005-HERO-EMERALD
+  status: READY_FOR_REVIEW
+  branch: claude/ui-hero-emerald
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required
