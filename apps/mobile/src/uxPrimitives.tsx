@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusChip, type StatusTone } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { metricTone } from "./uxLayout";
-import { labelFont, readableFont } from "./designSystem";
+import { fieldRadii, labelFont, readableFont } from "./designSystem";
 
 export function ScreenHeader({ eyebrow, title, description, statusLabel, statusTone = "neutral", actionLabel, onAction }: Readonly<{ eyebrow?: string; title: string; description?: string; statusLabel?: string; statusTone?: StatusTone; actionLabel?: string; onAction?: () => void }>) {
   const { theme } = useTheme();
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   headerActions: { alignItems: "flex-end", gap: 8 },
   headerAction: { minHeight: 48, minWidth: 48, paddingHorizontal: 14, borderWidth: 1, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   headerActionLabel: { fontSize: 13, fontWeight: "700" },
-  metric: { minHeight: 104, flex: 1, minWidth: 138, borderWidth: 1, borderRadius: 12, padding: 15, overflow: "hidden" },
+  metric: { minHeight: 104, flex: 1, minWidth: 138, borderWidth: 1, borderRadius: fieldRadii.md, padding: 15, overflow: "hidden" },
   metricAccent: { position: "absolute", left: 14, right: 14, top: 0, height: 2, borderRadius: 2 },
   metricLabel: { fontSize: labelFont(10), lineHeight: 16, fontWeight: "500", letterSpacing: 1.1 },
   metricValue: { marginTop: 8, fontSize: 25, lineHeight: 30, fontWeight: "500", letterSpacing: -0.8, fontVariant: ["tabular-nums"] },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   segmented: { flexDirection: "row", minHeight: 50, padding: 3, borderRadius: 999, borderWidth: 1, gap: 3 },
   segment: { flex: 1, minHeight: 44, borderRadius: 999, borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   segmentLabel: { fontSize: 13 },
-  notice: { minHeight: 56, flexDirection: "row", gap: 11, alignItems: "flex-start", borderWidth: 1, borderRadius: 12, padding: 13 },
+  notice: { minHeight: 56, flexDirection: "row", gap: 11, alignItems: "flex-start", borderWidth: 1, borderRadius: fieldRadii.md, padding: 13 },
   noticeDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
   noticeCopy: { flex: 1, gap: 3 },
   noticeTitle: { fontSize: 13, lineHeight: 19, fontWeight: "700" },

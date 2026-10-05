@@ -111,3 +111,21 @@ test("the scan band moves geometry and brightness only, never the status colour"
   assert.match(src, /holoColor\(px, py, pz, tone, s\.flash, s\.flashColor, s\.tintMix\)/);
   assert.match(src, /fieldMotion\.holoScanMs/);
 });
+
+test("fill expansion keeps the crystal inside the canvas, the core follows the status tone, and presenters share the radius tokens", () => {
+  const fs = require("node:fs");
+  const { HOLO_FILL_EXPANSION, holoColor, HOLO_COLORS } = require("../dist/apps/mobile/src/holoModel.js");
+  const { fieldRadii, createTheme } = require("../dist/apps/mobile/src/designSystem.js");
+  // Worst case: ripple 0.045 and one wave 0.09 (both x1.8), full fill, a mild perspective gain, on R = 0.34 of the canvas.
+  assert.ok((1 + 0.045 * 1.8 + 0.09 * 1.8) * (1 + HOLO_FILL_EXPANSION) * 0.34 * 1.05 < 0.5, "extent below the canvas half-width");
+  const core = (tone) => holoColor(0, 0, 1, tone, 0, HOLO_COLORS.cyan, 1);
+  assert.ok(core("halt")[0] > core("halt")[2] + 60, "halt core reads red, not cyan");
+  assert.ok(core("hold")[0] > core("hold")[2] + 60, "hold core reads amber, not cyan");
+  assert.ok(core("normal")[2] >= core("normal")[0], "normal core is cool");
+  const radii = createTheme("dark").radii;
+  assert.deepEqual({ md: radii.md, lg: radii.lg, xl: radii.xl }, fieldRadii, "static radii match the theme");
+  const dir = "apps/mobile/src";
+  const offenders = fs.readdirSync(dir).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f)).filter((f) => /borderRadius: (10|12|14|16|18|20)\b/.test(fs.readFileSync(`${dir}/${f}`, "utf8")));
+  assert.deepEqual(offenders, [], "card and control radii come from fieldRadii");
+  assert.ok(!/고리로/.test(fs.readFileSync(`${dir}/decisionRings.tsx`, "utf8")), "legend no longer promises a ring");
+});

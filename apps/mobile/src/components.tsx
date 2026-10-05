@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
-import { buttonTokens, cardTokens, fieldMotion, fieldTokens, type ButtonTone, labelFont, readableFont } from "./designSystem";
+import { fieldRadii, buttonTokens, cardTokens, fieldMotion, fieldTokens, type ButtonTone, labelFont, readableFont } from "./designSystem";
 import { revealDelayMs } from "./revealStagger";
 import { useTheme } from "./ThemeProvider";
 
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: labelFont(10), fontWeight: "700", letterSpacing: 1.8 },
   sectionTitle: { fontSize: 27, lineHeight: 33, fontWeight: "700", letterSpacing: -1 },
   sectionDescription: { fontSize: 14, lineHeight: 21, maxWidth: 560 },
-  authority: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 10 },
+  authority: { borderWidth: 1, borderRadius: fieldRadii.xl, padding: 16, gap: 10 },
   authorityTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
   authorityTitle: { fontSize: 12, fontWeight: "500", letterSpacing: 1.2 },
   authorityDetail: { fontSize: 13, lineHeight: 20 },

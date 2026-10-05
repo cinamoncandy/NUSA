@@ -6,7 +6,7 @@ import { FieldHeader } from "./fieldHeader";
 import { buildLiveFieldHeader, liveUnavailableMessage, type LiveUnavailableKind } from "./fieldScreensModel";
 import { buildLiveGates, type LiveGateState } from "./liveGateModel";
 import type { LiveReadinessObservabilitySnapshot } from "../../../packages/contracts/src/liveReadinessObservability";
-import { labelFont, readableFont } from "./designSystem";
+import { fieldRadii, labelFont, readableFont } from "./designSystem";
 import { monitorLabel } from "./monitorCopy";
 
 export interface LiveReadinessMonitorViewProps {
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   gateDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5 },
   gateTitle: { fontSize: 14, fontWeight: "500" },
   gateState: { fontSize: readableFont(11), fontWeight: "600" },
-  toggle: { minHeight: 44, borderWidth: 1, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  toggle: { minHeight: 44, borderWidth: 1, borderRadius: fieldRadii.md, alignItems: "center", justifyContent: "center" },
   toggleText: { fontSize: 13, fontWeight: "500" },
   screen: { flex: 1 }, fieldBleed: { marginHorizontal: -20, marginTop: -20 }, content: { padding: 20, gap: 14, paddingBottom: 36 }, sectionTitle: { fontSize: 16, fontWeight: "500", marginBottom: 10 }, body: { fontSize: 13, lineHeight: 20 }, grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 }, metric: { minWidth: "30%", flexGrow: 1 }, metricLabel: { fontSize: labelFont(10), fontWeight: "700", letterSpacing: 1 }, metricValue: { fontSize: 14, fontWeight: "700", marginTop: 4 }, reason: { fontSize: 12, lineHeight: 18, marginTop: 12 }, row: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", justifyContent: "space-between", gap: 8 }, rowMain: { flex: 1, gap: 4 }, rowLabel: { fontSize: 12, fontWeight: "700", flexShrink: 1 }, rowMeta: { fontSize: readableFont(11) }, rowValue: { fontSize: readableFont(11), fontWeight: "700" },
 });

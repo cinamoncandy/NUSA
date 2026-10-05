@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { ScreenFrame, ScreenTitle, Surface } from "./screenFrame";
 import { useTheme } from "./ThemeProvider";
 import { visualSystem } from "./visualSystem";
+import { fieldRadii } from "./designSystem";
 
 const copy: Readonly<Record<"Risk" | "Performance" | "SystemStatus" | "Help", { title: string; detail: string }>> = {
   Risk: { title: "Risk", detail: "검증된 Risk evidence가 이 화면 계약에 연결되기 전에는 값을 추정하거나 합성하지 않습니다." },
@@ -32,6 +33,6 @@ export function MoreDetailView({ destination, onClose }: Readonly<{ destination:
 const styles = StyleSheet.create({
   status: { fontSize: 12, fontWeight: "500", letterSpacing: 0.8 },
   detail: { fontSize: 14, lineHeight: 21 },
-  button: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 12, paddingHorizontal: 16 },
+  button: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: fieldRadii.md, paddingHorizontal: 16 },
   buttonText: { fontSize: 14, fontWeight: "700" },
 });

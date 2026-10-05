@@ -4,6 +4,7 @@ import { HoloSphere } from "./holoSphere";
 import { useTheme } from "./ThemeProvider";
 import { fieldFonts } from "./fieldFonts";
 import { buildDecisionRings, type DecisionRingsInput } from "./decisionRingsModel";
+import { fieldRadii } from "./designSystem";
 
 // Home hero: the reported PAPER decision count over the NUSA holo sphere: a wave per new decision,
 // a ring burst on each new PAPER order. Motion stops entirely when the OS reduce-motion setting is on.
@@ -35,7 +36,7 @@ export function DecisionRings({ status = null, ...props }: DecisionRingsInput & 
     </>}
     <HoloSphere decisionCount={model.decisionCount} fillCount={model.paperOrderCount} tone={status?.tone === "halt" ? "halt" : status ? "hold" : "normal"} reducedMotion={reducedMotion} size={300} testID="home-holo" />
     <View style={styles.legend}>
-      <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단할 때마다 물결이 지나가고, 주문이 나가면 고리로 펼쳐집니다</Text>
+      <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단할 때마다 물결이 지나가고, 주문이 나가면 바깥으로 퍼졌다 모입니다</Text>
       <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.primary }]} testID="home-decision-rings-orders">PAPER 주문 {model.paperOrderCount == null ? "—" : model.paperOrderCount.toLocaleString("ko-KR")}건</Text>
     </View>
   </View>;
@@ -43,7 +44,7 @@ export function DecisionRings({ status = null, ...props }: DecisionRingsInput & 
 
 const styles = StyleSheet.create({
   wrap: { alignItems: "center", paddingVertical: 8, gap: 6 },
-  status: { alignSelf: "stretch", borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, gap: 4, marginBottom: 6 },
+  status: { alignSelf: "stretch", borderWidth: 1, borderRadius: fieldRadii.md, paddingVertical: 10, paddingHorizontal: 14, gap: 4, marginBottom: 6 },
   statusTitle: { fontSize: 15, fontWeight: "600" },
   pending: { fontSize: 14, textAlign: "center" },
   count: { fontSize: 34, fontWeight: "600", letterSpacing: -0.8 },

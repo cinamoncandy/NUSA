@@ -2425,3 +2425,10 @@ current_ui_crystal_glass:
   authority_impact: none
   depends_on: PR 2510 (motion)
   deploy: not_deployed_new_app_build_required
+current_ui_crystal_followup:
+  work_order: WO-UI-20261005-CRYSTAL-FOLLOWUP
+  status: READY_FOR_REVIEW
+  branch: claude/ui-crystal-followup
+  authority_impact: none
+  follows: PR 2512
+  deploy: not_deployed_new_app_build_required

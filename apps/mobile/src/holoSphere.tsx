@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { BlendMode, Canvas, PaintStyle, Picture, Skia, createPicture, type SkPicture } from "@shopify/react-native-skia";
 import { fieldMotion } from "./designSystem";
-import { HOLO_RING_COUNT, HOLO_RING_POINTS, crystalGeometry, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, observeHolo, ringPoint, scanBoost, tickHolo, waveDisplacement, type HoloTone } from "./holoModel";
+import { HOLO_FILL_EXPANSION, HOLO_RING_COUNT, HOLO_RING_POINTS, crystalGeometry, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, observeHolo, ringPoint, scanBoost, tickHolo, waveDisplacement, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends one wave across the sphere. Null draws it still. */
   readonly decisionCount: number | null;
-  /** Real PAPER order count; each increase flattens the sphere into a ring and reforms it green. */
+  /** Real PAPER order count; each increase pushes the crystal outward in green, then it settles. */
   readonly fillCount: number | null;
   readonly tone: HoloTone;
   /** Still figure: reduce-motion, or a secondary-tab mark. */
@@ -44,7 +44,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     const ca = Math.cos(s.spin), sa = Math.sin(s.spin), ct = Math.cos(VIEW_TILT), st = Math.sin(VIEW_TILT);
     const proj = geo.vertices.map(([px, py, pz]) => {
       const disp = waveDisplacement(s.waves, px, py, pz, nowMs) + 0.05 * Math.sin(px * 5 + nowMs * 0.0021) * Math.cos(py * 4 - nowMs * 0.0017);
-      const rr = (1 + disp * 1.8) * (1 + 0.7 * s.burst);
+      const rr = (1 + disp * 1.8) * (1 + HOLO_FILL_EXPANSION * s.burst);
       let X = px * rr, Z = pz * rr;
       [X, Z] = [X * ca + Z * sa, -X * sa + Z * ca];
       const Y0 = py * rr, Y = Y0 * ct - Z * st, Z2 = Y0 * st + Z * ct;
@@ -69,10 +69,12 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     }
     order.sort((p, q) => p.z - q.z);
     const core = 0.5 + 0.5 * Math.sin(nowMs / 520);
+    // Core glow follows the status tone (cyan when normal, amber on hold, red on halt) through the same tint as the lattice.
+    const coreRgb = holoColor(0, 0, 1, tone, 0, s.flashColor, s.tintMix);
     setPicture(createPicture((canvas) => {
       canvas.drawOval(Skia.XYWHRect(cx - R * 1.32, cy - R * 0.37, R * 2.64, R * 0.74), glass);
       // Soft inner core glow, two layers, pulsing slowly.
-      for (const [rad, al] of [[0.55, 0.07], [0.3, 0.1 + 0.08 * core]] as const) { rgba[0] = 0.36; rgba[1] = 0.88; rgba[2] = 1; rgba[3] = bloom * al; paint.setColor(rgba); canvas.drawCircle(cx, cy, R * rad, paint); }
+      for (const [rad, al] of [[0.55, 0.07], [0.3, 0.1 + 0.08 * core]] as const) { rgba[0] = coreRgb[0] / 255; rgba[1] = coreRgb[1] / 255; rgba[2] = coreRgb[2] / 255; rgba[3] = bloom * al; paint.setColor(rgba); canvas.drawCircle(cx, cy, R * rad, paint); }
       for (const e of edgeList) {
         rgba[0] = (e.p.c[0] + e.q.c[0]) / 510; rgba[1] = (e.p.c[1] + e.q.c[1]) / 510; rgba[2] = (e.p.c[2] + e.q.c[2]) / 510; rgba[3] = e.a;
         edge.setColor(rgba); edge.setStrokeWidth(Math.max(0.5, e.w));

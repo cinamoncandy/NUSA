@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { NusaButton, StatusChip, WaveMark } from "./components";
 import { useTheme } from "./ThemeProvider";
-import { labelFont } from "./designSystem";
+import { fieldRadii, labelFont } from "./designSystem";
 
 export type ApprovalGatewayStatus = "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
 
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   title: { marginTop: 4, fontSize: 34, lineHeight: 42, fontWeight: "500", letterSpacing: -1.3, maxWidth: 500 },
   name: { fontSize: 15, lineHeight: 22, fontWeight: "700" },
   detail: { fontSize: 15, lineHeight: 24, maxWidth: 520 },
-  safetyCard: { borderWidth: 1, borderRadius: 20, padding: 18, gap: 10 },
+  safetyCard: { borderWidth: 1, borderRadius: fieldRadii.xl, padding: 18, gap: 10 },
   safetyTitle: { fontSize: 13, lineHeight: 19, fontWeight: "500" },
   safetyCopy: { fontSize: 13, lineHeight: 20 },
   badges: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
