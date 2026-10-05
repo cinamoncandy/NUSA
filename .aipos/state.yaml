@@ -2404,3 +2404,10 @@ current_ui_hanji_ink:
   branch: claude/ui-hanji-ink
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+current_ui_cold_future:
+  work_order: WO-UI-20261005-COLD-FUTURE
+  status: READY_FOR_REVIEW
+  branch: claude/ui-cold-future
+  authority_impact: none
+  supersedes: WO-UI-20261005-HANJI-INK
+  deploy: not_deployed_new_app_build_required

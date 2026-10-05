@@ -18,7 +18,7 @@ export interface HoloState {
   readonly flash: number;
   readonly flashColor: Rgb;
   readonly waves: readonly HoloWave[];
-  /** 0..1 progress of the ink-bloom entrance; 1 once open. */
+  /** 0..1 progress of the bloom entrance; 1 once open. */
   readonly birth: number;
   /** 0..1 how far the tone tint (hold / halt) has faded in; eased so a status change never snaps. */
   readonly tintMix: number;
@@ -28,12 +28,11 @@ export interface HoloState {
 
 export const HOLO_WAVE_MS = 2600;
 export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "fill" | "hold" | "halt", Rgb>> = Object.freeze({
-  // 먹과 한지: celadon, hanji ochre, warm rose and pale jade. Names are kept for the ramp order; the
-  // status tints (fill / hold / halt) stay the unmistakable green / amber / red.
-  cyan: [164, 208, 204] as const,
-  violet: [222, 204, 168] as const,
-  pink: [226, 170, 150] as const,
-  mint: [142, 214, 190] as const,
+  // Cold future: ice cyan, violet, magenta, mint. Status tints (fill / hold / halt) stay the unmistakable green / amber / red.
+  cyan: [124, 214, 255] as const,
+  violet: [170, 130, 255] as const,
+  pink: [255, 130, 200] as const,
+  mint: [110, 240, 220] as const,
   fill: [110, 240, 176] as const,
   hold: [255, 194, 102] as const,
   halt: [255, 122, 122] as const,

@@ -66,21 +66,21 @@ export interface Theme {
 
 /** Intelligence Field palette: subsystem hues, amber focus and the near-black void. */
 export const fieldPalette = Object.freeze({
-  void: "#0B0A09",
+  void: "#02050A",
   paper: "#3DDC97",
-  market: "#7FB8C9",
-  dim: "#6B6358",
-  governance: "#8FA3E0",
-  muted: "#A59C8D",
-  axiom: "#B79AD9",
-  label: "#D2C9B8",
-  text: "#F1EADB",
-  heart: "#FBF6EA",
+  market: "#8AA2FF",
+  dim: "#566676",
+  governance: "#7C8CFF",
+  muted: "#93A8BE",
+  axiom: "#9B7BFF",
+  label: "#C9D2D8",
+  text: "#E8F1FA",
+  heart: "#F4F8FA",
   halt: "#FF5C5C",
   risk: "#FFA94D",
   focus: "#FFB547",
   /** Selection/focus highlight for field visuals (focused subsystem, selected tab). Amber `focus` is kept for warning tones only. */
-  accent: "#E9DFC8",
+  accent: "#5CE1FF",
 });
 
 const interaction = Object.freeze({
@@ -92,12 +92,12 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
-/** 먹과 한지: warm ink-black ground, hanji-ivory text and primary, celadon focus ring. Identical in light and dark. Green stays the healthy tone, amber a warning-only tone and red a halt/danger-only tone, so no decorative colour can be mistaken for a status. */
+/** Cold future: deep blue-black ground, ice-white text, cyan primary, periwinkle focus ring. Identical in light and dark. Green stays the healthy tone, amber a warning-only tone and red a halt/danger-only tone, so no decorative colour can be mistaken for a status. */
 const fieldSurface = Object.freeze({
-  background: "#0B0A09", surface: "#12100E", surfaceRaised: "#1A1714", surfaceSunken: "#0E0C0A",
-  text: "#F1EADB", textMuted: "#A59C8D", primary: "#E9DFC8", primarySoft: "#1B1810", onPrimary: "#0B0A09",
-  navSurface: "#0B0A09", border: "#2A2520", borderStrong: "#4A4339", info: "#7FB8C9", focus: "#7FB8C9",
-  neonGlow: "rgba(233, 223, 200, 0.08)",
+  background: "#02050A", surface: "#070C14", surfaceRaised: "#0D1520", surfaceSunken: "#03060B",
+  text: "#E8F1FA", textMuted: "#93A8BE", primary: "#5CE1FF", primarySoft: "#06161C", onPrimary: "#02050A",
+  navSurface: "#02050A", border: "#16212D", borderStrong: "#354A5F", info: "#8AA2FF", focus: "#8AA2FF",
+  neonGlow: "rgba(92, 225, 255, 0.10)",
 });
 
 export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({
