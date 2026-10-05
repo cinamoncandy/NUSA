@@ -71,14 +71,18 @@ export function transitionPaperOrderLifecycle(
   const settlesOrder = nextStatus === "FILLED" && Math.abs(overshoot) <= PAPER_FILL_REMAINDER_TOLERANCE;
   if (overshoot > 0 && !settlesOrder) throw new Error("fill quantity exceeds remaining quantity");
 
-  const filledQuantity = settlesOrder ? current.requestedQuantity : current.filledQuantity + fillQuantity;
-  const remainingQuantity = settlesOrder ? 0 : current.requestedQuantity - filledQuantity;
+  // The saved order record carries the real total of its fills, and saving requires the lifecycle to match it exactly, so a
+  // settling fill closes the order at what was actually filled (rounded like the record) instead of at the requested size.
+  const filledQuantity = settlesOrder ? Math.round((current.filledQuantity + fillQuantity) * 1e8) / 1e8 : current.filledQuantity + fillQuantity;
+  const requestedQuantity = settlesOrder ? filledQuantity : current.requestedQuantity;
+  const remainingQuantity = settlesOrder ? 0 : requestedQuantity - filledQuantity;
   if (nextStatus === "PARTIALLY_FILLED" && remainingQuantity <= 0) throw new Error("partial fill must leave remaining quantity");
   if (nextStatus === "FILLED" && remainingQuantity !== 0) throw new Error("filled transition must consume remaining quantity");
 
   return Object.freeze({
     ...current,
     status: nextStatus,
+    requestedQuantity,
     filledQuantity,
     remainingQuantity,
     transitionSequence: current.transitionSequence + 1,

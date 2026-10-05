@@ -20,6 +20,24 @@ test("a fill that finishes the order within float rounding settles as exactly fi
   assert.doesNotThrow(() => validatePaperOrderLifecycle(under));
 });
 
+test("a settled order matches the saved order record exactly (the check that refused the save in production)", () => {
+  const round8 = (value) => Math.round(value * 1e8) / 1e8;
+  for (const [requested, parts] of [[0.3, [0.1, 0.2 + 1e-12]], [0.3, [0.1, 0.2 - 1e-12]], [12.34567891, [4.1, 8.24567891 + 3e-9]], [2, [2 - 4e-9]]]) {
+    let state = open(requested);
+    const fills = [];
+    parts.forEach((quantity, index) => {
+      fills.push(quantity);
+      state = transitionPaperOrderLifecycle(state, index === parts.length - 1 ? "FILLED" : "PARTIALLY_FILLED", 1001 + index, quantity);
+    });
+    const recordQuantity = round8(fills.reduce((sum, item) => sum + item, 0));
+    // The same comparisons as validateState in paperTradingExecutionLoop.ts (lifecycle vs order record).
+    assert.equal(state.filledQuantity, recordQuantity);
+    assert.equal(state.requestedQuantity, recordQuantity);
+    assert.equal(state.remainingQuantity, 0);
+    assert.doesNotThrow(() => validatePaperOrderLifecycle(state));
+  }
+});
+
 test("exact fills behave as before and real shortfalls or overshoots are still refused", () => {
   assert.equal(transitionPaperOrderLifecycle(open(2), "FILLED", 1001, 2).remainingQuantity, 0);
   assert.throws(() => transitionPaperOrderLifecycle(open(2), "FILLED", 1001, 1.9), /filled transition must consume remaining quantity/);

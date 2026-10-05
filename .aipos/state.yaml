@@ -2522,3 +2522,10 @@ current_fill_remainder_tolerance:
   authority_impact: execution_order_lifecycle_tolerance
   owner_approval: "2026-10-05 in chat"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_fill_lifecycle_match:
+  work_order: WO-PAPER-20261006-FILL-LIFECYCLE-MATCH
+  status: READY_FOR_REVIEW
+  branch: claude/order-fill-lifecycle-match
+  authority_impact: execution_order_lifecycle_tolerance
+  finding: "#2526 caused a new halt (paper order lifecycle reconciliation mismatch) because the settled lifecycle did not equal the saved order record; corrected here"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
