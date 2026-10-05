@@ -95,3 +95,16 @@ test("HOME says nothing extra when not halted, and keeps the old wording when no
   assert.equal(haltCauseFromSnapshot(killed), "비상 정지 스위치");
   assert.ok(buildIntelligenceField({ ...buildHomeFieldInput({ snapshot: killed, readOnlyError: null, notConfigured: null, sessionRecovering: false, publicMarketStale: false }), haltCause: haltCauseFromSnapshot(killed) }).detail.includes("사유: 비상 정지 스위치"));
 });
+
+test("a PAPER account save failure is explained in Korean, with a cause hint only when the server names one", () => {
+  const { buildHaltExplanation } = require("../dist/apps/mobile/src/haltReasonModel.js");
+  const of = (lastError) => buildHaltExplanation("HALTED", { lastError });
+  assert.equal(of("paper account persistence failed").lines[0], "서버가 기록한 마지막 오류: 모의 계좌 상태를 서버가 저장하지 못했습니다");
+  assert.match(of("paper account persistence failed: SQLITE_READONLY attempt to write a readonly database").lines[0], /저장소가 읽기 전용입니다/);
+  assert.match(of("paper account persistence failed: paper writer lease lost").lines[0], /쓰기 권한/);
+  assert.match(of("paper account persistence failed: ENOSPC no space left on device").lines[0], /저장 공간이 부족/);
+  assert.match(of("paper account persistence failed: SQLITE_BUSY database is locked").lines[0], /잠겨 있습니다/);
+  assert.match(of("paper account persistence failed: paper fill ledger does not reconcile").lines[0], /장부가/);
+  assert.equal(of("paper account persistence failed: something unheard of").lines[0], "서버가 기록한 마지막 오류: 모의 계좌 상태를 서버가 저장하지 못했습니다", "an unknown cause is not guessed");
+  assert.equal(of("paper account persistence failed: SQLITE_READONLY attempt to write a readonly database").diagnostic, "paper account persistence failed: SQLITE_READONLY attempt to write a readonly database", "the raw text stays in the advanced line");
+});
