@@ -66,21 +66,21 @@ export interface Theme {
 
 /** Intelligence Field palette: subsystem hues, amber focus and the near-black void. */
 export const fieldPalette = Object.freeze({
-  void: "#010204",
+  void: "#0B0A09",
   paper: "#3DDC97",
-  market: "#4FC3F7",
-  dim: "#5B6670",
-  governance: "#7C8CFF",
-  muted: "#8A96A0",
-  axiom: "#9B7BFF",
-  label: "#C9D2D8",
-  text: "#EEF3F6",
-  heart: "#F4F8FA",
+  market: "#7FB8C9",
+  dim: "#6B6358",
+  governance: "#8FA3E0",
+  muted: "#A59C8D",
+  axiom: "#B79AD9",
+  label: "#D2C9B8",
+  text: "#F1EADB",
+  heart: "#FBF6EA",
   halt: "#FF5C5C",
   risk: "#FFA94D",
   focus: "#FFB547",
   /** Selection/focus highlight for field visuals (focused subsystem, selected tab). Amber `focus` is kept for warning tones only. */
-  accent: "#B6F04B",
+  accent: "#E9DFC8",
 });
 
 const interaction = Object.freeze({
@@ -92,12 +92,12 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
-/** Near-black void, hairline structure, one lime accent with a cyan focus ring. Identical in light and dark. Amber stays a warning-only tone; red stays a halt/danger-only tone. */
+/** 먹과 한지: warm ink-black ground, hanji-ivory text and primary, celadon focus ring. Identical in light and dark. Green stays the healthy tone, amber a warning-only tone and red a halt/danger-only tone, so no decorative colour can be mistaken for a status. */
 const fieldSurface = Object.freeze({
-  background: "#010204", surface: "#06090D", surfaceRaised: "#0B1016", surfaceSunken: "#030507",
-  text: "#EEF3F6", textMuted: "#8A96A0", primary: "#B6F04B", primarySoft: "#0C1606", onPrimary: "#010204",
-  navSurface: "#010204", border: "#1A2129", borderStrong: "#39434D", info: "#4FC3F7", focus: "#4FC3F7",
-  neonGlow: "rgba(182, 240, 75, 0.10)",
+  background: "#0B0A09", surface: "#12100E", surfaceRaised: "#1A1714", surfaceSunken: "#0E0C0A",
+  text: "#F1EADB", textMuted: "#A59C8D", primary: "#E9DFC8", primarySoft: "#1B1810", onPrimary: "#0B0A09",
+  navSurface: "#0B0A09", border: "#2A2520", borderStrong: "#4A4339", info: "#7FB8C9", focus: "#7FB8C9",
+  neonGlow: "rgba(233, 223, 200, 0.08)",
 });
 
 export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({

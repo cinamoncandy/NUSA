@@ -2398,3 +2398,9 @@ current_ui_halt_reason:
   branch: claude/paper-halt-reason
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+current_ui_hanji_ink:
+  work_order: WO-UI-20261005-HANJI-INK
+  status: READY_FOR_REVIEW
+  branch: claude/ui-hanji-ink
+  authority_impact: none
+  deploy: not_deployed_new_app_build_required

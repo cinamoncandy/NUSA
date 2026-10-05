@@ -11,7 +11,7 @@ const withoutComments = (source) => source
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
-  assert.match(design, /background: "#010204"/);
+  assert.match(design, /background: "#0B0A09"/);
   assert.doesNotMatch(design, /classic:|master:/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
