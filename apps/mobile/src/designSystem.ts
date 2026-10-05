@@ -230,6 +230,7 @@ export function designSystemSnapshot(theme: Theme): string {
  */
 export const fieldMotion = Object.freeze({
   settleMs: 900,
+  holoScanMs: 3400,
   settleStaggerMs: 90,
   coreTurnMs: 700,
   signalMs: 950,

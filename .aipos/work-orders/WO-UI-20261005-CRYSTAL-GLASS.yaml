@@ -13,6 +13,7 @@ scope:
   - "apps/mobile/src/designSystem.ts: radii sm/md/lg/xl 4/8/12/16 to 6/12/18/24, so every screen follows from one token block."
   - "Tests: crystal geometry determinism; radius pins updated."
 exclusions:
+  - "Named app-wide exceptions: the header mark and the More-menu mark are static marks by design (tiny, decorative, drawn once); they show the new crystal and colours but do not animate. Only the HOME hero animates."
   - "No data, copy, layout structure, safety, risk, execution, LIVE, credential or AI-authority change. Card shadows stay flat (a glow needs elevation on Android and the contract pins flat shadows). Native launcher icon and splash keep the owner-chosen lime N."
 safety:
   liveAuthority: NONE
