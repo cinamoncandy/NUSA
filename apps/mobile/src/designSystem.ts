@@ -228,6 +228,17 @@ export function designSystemSnapshot(theme: Theme): string {
  * Field motion tokens. Every field animation reads its timing from here so a redesign can retune
  * or replace motion in one place. Motion always runs only on a semantic state change.
  */
+/**
+ * The HOME hero's own accent family (lime from the owner's reference). Used only for the elements that sit directly with the
+ * hero (order count, market chip, the learning tile); the rest of the app keeps the theme colours. Status colours are never lime.
+ */
+export const fieldHero = Object.freeze({
+  lime: "#C6F54A",
+  limeBorder: "rgba(198, 245, 74, 0.28)",
+  limeChipBorder: "rgba(198, 245, 74, 0.5)",
+  chipGround: "#050C08",
+} as const);
+
 /** Card / control corner radii for presenters that style in a static StyleSheet. Same values as the active theme's radii. */
 export const fieldRadii = Object.freeze({ md: 12, lg: 18, xl: 24 } as const);
 

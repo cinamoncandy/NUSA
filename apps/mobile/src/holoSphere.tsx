@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { BlendMode, Canvas, PaintStyle, Picture, Skia, StrokeCap, createPicture, type SkPicture } from "@shopify/react-native-skia";
 import { fieldMotion } from "./designSystem";
-import { BURST_FILL_ANGLE, BURST_FILL_REACH, BURST_ROTATION, BURST_TILT, burstStreaks, dustField, dustPosition, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, observeHolo, pulseFor, streakLength, tickHolo, type HoloTone } from "./holoModel";
+import { BURST_FILL_ANGLE, BURST_FILL_REACH, BURST_ROTATION, BURST_TILT, HOLO_RADIUS_FRACTION, burstStreaks, dustField, dustPosition, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, observeHolo, pulseFor, streakLength, tickHolo, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends a pulse ring and a bright streak out from the core. Null draws it still. */
@@ -40,7 +40,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
   const render = (nowMs: number) => {
     const s = state.current, cx = size / 2, cy = size / 2, u = size / 300;
     const bloom = easeOutCubic(s.birth);
-    const R = size * 0.44 * (0.12 + 0.88 * easeOutBack(s.birth));
+    const R = size * HOLO_RADIUS_FRACTION * (0.12 + 0.88 * easeOutBack(s.birth));
     const tSec = reducedMotion ? 0 : nowMs / 1000, flowSec = fieldMotion.holoFlowMs / 1000;
     // Lime and mint come from the ramp so hold / halt tint them amber / red and a fill flares them pale.
     const lime = holoColor(-1, 0, 0, tone, s.flash, s.flashColor, s.tintMix), mint = holoColor(1, 0, 0, tone, s.flash, s.flashColor, s.tintMix);

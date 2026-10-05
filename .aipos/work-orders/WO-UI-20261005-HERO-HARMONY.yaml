@@ -1,0 +1,29 @@
+id: WO-UI-20261005-HERO-HARMONY
+title: "Make the HOME hero block and the app read as one: accurate legend, hero lime on the elements beside it, market chip"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-hero-harmony
+authority_impact: none
+owner_direction: "Owner, 2026-10-05: keep the app's overall colours, polish the app to fit the new hero; approved the before/after still ('이대로 만들어줘')."
+objective: "After the core-burst hero (WO-UI-20261005-CORE-BURST) the HOME block was inconsistent: the legend described the old figure, the order count and learning tile were cyan beside a lime hero, and the reference's market label was missing."
+scope:
+  - "apps/mobile/src/decisionRings.tsx: the legend now says 'every decision spreads light from the core, an order draws a line to the market'; the PAPER order count uses the hero lime; a market chip (KRW-xxx) sits where the fill line lands, shown only while the runtime is neither held nor halted."
+  - "apps/mobile/src/holoModel.ts: HOLO_RADIUS_FRACTION, holoFillMarker and holoChipPlacement (the chip is clamped inside the canvas for any label)."
+  - "apps/mobile/src/designSystem.ts: fieldHero tokens (lime #C6F54A equal to the figure's lime, border and chip tints)."
+  - "apps/mobile/src/homeVitalsModel.ts + homeView.tsx: only a healthy learning tile takes the lime label, dot and border; warnings, unverified and not-reported states keep their status colours; the chip market is the first traded market from the heartbeat."
+  - "tests/mobile-hero-harmony.test.js (4): placement bounds for several sizes and labels, the lime is the figure's lime and distinct from every status colour, accent rules, copy and wiring pins."
+exclusions:
+  - "The theme (cyan primary, ground, radii) and every other tile and screen keep their current colours. Status colours are never lime. No data, safety, risk, execution, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The accent never replaces a status colour (tested); the chip is hidden when the runtime is held or halted."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "Judged from a rendered before/after still (same geometry and tokens), not on a device. The learning tile is a small tile on HOME, not the wide card drawn in the still; only its label, dot and border take the accent."
