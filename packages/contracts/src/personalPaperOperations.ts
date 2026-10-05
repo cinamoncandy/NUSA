@@ -59,6 +59,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly tradedMarkets?: readonly string[];
   /** Display only: how much 1-minute candle history the research experiments have collected. Absent when research is off. */
   readonly researchCollection?: PersonalPaperResearchCollection;
+  /** Display only: why researchCollection is absent. DISABLED: the continuous research experiments are off on this server; INVALID: their settings are rejected; UNAVAILABLE: they are on but the candle store could not be read. Never present together with researchCollection. */
+  readonly researchCollectionState?: "DISABLED" | "INVALID" | "UNAVAILABLE";
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -352,6 +354,7 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   }
   if (record.lastDecisionDetail !== undefined && !isValidDecisionDetail(record.lastDecisionDetail)) delete record.lastDecisionDetail;
   if (record.researchCollection !== undefined && !isValidResearchCollection(record.researchCollection)) delete record.researchCollection;
+  if (record.researchCollectionState !== undefined && (record.researchCollection !== undefined || !["DISABLED", "INVALID", "UNAVAILABLE"].includes(record.researchCollectionState as string))) delete record.researchCollectionState;
   if (record.tradedMarkets !== undefined && !isValidMarketList(record.tradedMarkets)) delete record.tradedMarkets;
 }
 

@@ -2458,3 +2458,9 @@ current_research_refresh_memory:
   branch: claude/research-refresh-memory
   authority_impact: resource_guard_threshold_only
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_learning_collection_reason:
+  work_order: WO-PAPER-20261005-LEARNING-COLLECTION-REASON
+  status: READY_FOR_REVIEW
+  branch: claude/learning-collection-reason
+  authority_impact: diagnostics_only
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval

@@ -4,6 +4,7 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
+import { readResearchExperimentSettings } from "./researchExperimentComposition";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
@@ -226,7 +227,11 @@ export function startCloudRuntime(
     // Display only; a failing provider must never affect the heartbeat.
     let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }
-    const research = researchProgress == null ? {} : { researchCollection: researchProgress };
+    // When there is no progress, say why (display only): off, rejected settings, or enabled but unreadable.
+    const researchSettings = researchProgress == null ? readResearchExperimentSettings(env) : undefined;
+    const research = researchProgress != null
+      ? { researchCollection: researchProgress }
+      : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
     return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);

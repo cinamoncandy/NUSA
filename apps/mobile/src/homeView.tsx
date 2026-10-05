@@ -193,7 +193,7 @@ export function HomeView({
   const buyHeartbeat = stale || fieldInput.disconnected || readOnlyError != null ? null : snapshot?.operations.heartbeat ?? null;
   const feedLine = buildFeedDiagnosticsLine({ disconnects: buyHeartbeat?.feedDisconnectCount, staleGaps: buyHeartbeat?.feedStaleGapCount, maxGapMs: buyHeartbeat?.feedMaxGapMs, since: buyHeartbeat?.feedCountsSince });
   const tradedCoinLine = buildTradedCoinLine({ tradedMarkets: buyHeartbeat?.tradedMarkets, researchMarket: (buyHeartbeat?.researchCollection as { market?: unknown } | undefined)?.market, positionMarket: position?.market, positionQuantity: position?.quantity });
-  const researchLine = buildResearchProgressLine(buyHeartbeat?.researchCollection as never, Date.now());
+  const researchLine = buildResearchProgressLine(buyHeartbeat?.researchCollection as never, Date.now(), (buyHeartbeat as { researchCollectionState?: unknown } | null)?.researchCollectionState);
   const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
   const vitals = buildHomeVitals({ coin: tradedCoinLine, buy: buySignalLine, feed: feedLine, learning: { value: researchLine.value, detail: researchLine.detail, tone: researchLine.tone }, unverified: stale || Boolean(sessionRecovering), feedStale: publicMarketStale });
   const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"

@@ -30,11 +30,19 @@ function ago(ms: number): string {
   return `${Math.floor(ms / 86_400_000)}일 전`;
 }
 
-export function buildResearchProgressLine(input: ResearchProgressInput | null | undefined, nowMs: number): ResearchProgressLine {
+/** Why the server sent no collection progress (heartbeat.researchCollectionState); anything else reads as not reported. */
+function unavailableLine(state: unknown): ResearchProgressLine {
+  if (state === "DISABLED") return { value: "리서치 꺼짐", detail: "서버에서 연속 리서치 실험이 켜져 있지 않아 학습 데이터를 모으지 않습니다", tone: "warn" };
+  if (state === "INVALID") return { value: "리서치 설정 오류", detail: "서버의 리서치 설정 값이 올바르지 않아 꺼져 있습니다", tone: "warn" };
+  if (state === "UNAVAILABLE") return { value: "수집 현황 읽기 실패", detail: "리서치는 켜져 있으나 수집된 캔들 저장소를 읽지 못했습니다", tone: "warn" };
+  return { value: "집계 미수신", detail: null, tone: "muted" };
+}
+
+export function buildResearchProgressLine(input: ResearchProgressInput | null | undefined, nowMs: number, unavailableState?: unknown): ResearchProgressLine {
   const market = typeof input?.market === "string" && /^KRW-[A-Z0-9-]{1,16}$/.test(input.market) ? input.market : null;
   const count = int(input?.candleCount);
   const required = int(input?.requiredCandles);
-  if (input == null || market == null || count == null || required == null || required < 1) return { value: "집계 미수신", detail: null, tone: "muted" };
+  if (input == null || market == null || count == null || required == null || required < 1) return unavailableLine(input == null ? unavailableState : undefined);
   const pct = Math.min(100, Math.floor((count / required) * 100));
   const head = `${market} ${days(count)}/${days(required)}일치 (${pct}%)`;
   const last = int(input.lastCloseMs);
