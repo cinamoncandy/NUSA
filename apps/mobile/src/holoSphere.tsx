@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { BlendMode, Canvas, PaintStyle, Picture, Skia, createPicture, type SkPicture } from "@shopify/react-native-skia";
+import { BlendMode, Canvas, PaintStyle, Picture, Skia, StrokeCap, createPicture, type SkPicture } from "@shopify/react-native-skia";
 import { fieldMotion } from "./designSystem";
-import { HOLO_FILL_EXPANSION, HOLO_RING_COUNT, HOLO_RING_POINTS, crystalGeometry, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, observeHolo, ringPoint, scanBoost, tickHolo, waveDisplacement, type HoloTone } from "./holoModel";
+import { HOLO_FILL_EXPANSION, LIQUID_LAYERS, LIQUID_SEGMENTS, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, liquidRadius, observeHolo, tickHolo, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends one wave across the sphere. Null draws it still. */
   readonly decisionCount: number | null;
-  /** Real PAPER order count; each increase pushes the crystal outward in green, then it settles. */
+  /** Real PAPER order count; each increase pushes the rings outward in green, then they settle. */
   readonly fillCount: number | null;
   readonly tone: HoloTone;
   /** Still figure: reduce-motion, or a secondary-tab mark. */
@@ -17,74 +17,50 @@ export interface HoloSphereProps {
   readonly testID?: string;
 }
 
-// The spin is ambient, so the loop never runs faster than it must (budgets live in holoModel; state advances by elapsed time).
-const VIEW_TILT = 0.35;
 
 /**
- * NUSA holo sphere: an iridescent particle sphere drawn with Skia (Behance trend: AI orb + 3D
- * particles + holographic glass). See holoModel.ts for how runtime facts drive it.
+ * NUSA holo mark: four layers of liquid light drawn with Skia. Each layer is a closed ring whose radius
+ * flows like water; a runtime decision sends a bump round the rings and a PAPER fill pushes them outward
+ * in green. See holoModel.ts for how runtime facts drive it. The component name is kept for its callers.
  */
 export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size, points = 1600, testID = "holo-sphere" }: HoloSphereProps) {
   const state = useRef(initialHoloState());
   const stillDrawn = useRef(false);
   const paint = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true); return p; }, []);
-  const glass = useMemo(() => { const p = Skia.Paint(); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); p.setStrokeWidth(1); p.setColor(Skia.Color("rgba(232,241,250,0.14)")); return p; }, []);
-  const edge = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); return p; }, []);
+  const line = useMemo(() => { const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true); p.setStyle(PaintStyle.Stroke); p.setStrokeCap(StrokeCap.Butt); return p; }, []);
   const rgba = useMemo(() => new Float32Array(4), []);
   const [picture, setPicture] = useState<SkPicture | null>(null);
+  const layers = points >= 600 ? LIQUID_LAYERS : 2, segments = points >= 600 ? LIQUID_SEGMENTS : 48;
 
   const render = (nowMs: number) => {
     const s = state.current, cx = size / 2, cy = size / 2;
-    // Spring bloom on first appearance, then a slow breath while the runtime is normal. Both are still under reduce-motion.
     const bloom = easeOutCubic(s.birth);
-    const breath = tone === "normal" && !reducedMotion ? 1 + 0.03 * Math.sin(nowMs / 700) : 1;
-    const R = size * 0.34 * (0.08 + 0.92 * easeOutBack(s.birth)) * breath;
-    // Glass crystal: a faceted lattice whose vertices carry the runtime waves; fills push it outward.
-    const geo = crystalGeometry(), live = !reducedMotion && s.birth >= 1;
-    const ca = Math.cos(s.spin), sa = Math.sin(s.spin), ct = Math.cos(VIEW_TILT), st = Math.sin(VIEW_TILT);
-    const proj = geo.vertices.map(([px, py, pz]) => {
-      const disp = waveDisplacement(s.waves, px, py, pz, nowMs) + 0.05 * Math.sin(px * 5 + nowMs * 0.0021) * Math.cos(py * 4 - nowMs * 0.0017);
-      const rr = (1 + disp * 1.8) * (1 + HOLO_FILL_EXPANSION * s.burst);
-      let X = px * rr, Z = pz * rr;
-      [X, Z] = [X * ca + Z * sa, -X * sa + Z * ca];
-      const Y0 = py * rr, Y = Y0 * ct - Z * st, Z2 = Y0 * st + Z * ct;
-      const persp = 1 / (1 + Z2 * 0.25), depth = (Z2 + 1.3) / 2.6;
-      const scan = live ? scanBoost(py, nowMs, fieldMotion.holoScanMs) : 0;
-      return { x: cx + X * R * persp, y: cy - Y * R * persp, z: Z2, depth, persp, disp, scan, c: holoColor(px, py, pz, tone, s.flash, s.flashColor, s.tintMix) };
-    });
-    const edgeList = geo.edges.map(([i, j]) => {
-      const p = proj[i], q = proj[j], depth = (p.depth + q.depth) / 2, hot = Math.max(p.scan, q.scan) + (p.disp + q.disp) * 3;
-      return { p, q, z: (p.z + q.z) / 2, a: bloom * Math.min(1, 0.1 + 0.55 * depth + 0.5 * hot + 0.25 * s.flash), w: (0.7 + 0.9 * depth + hot) * (size / 300) };
-    }).sort((m, n) => m.z - n.z);
-    const order: { x: number; y: number; z: number; r: number; c: readonly [number, number, number]; a: number }[] = [];
-    for (const p of proj) order.push({ x: p.x, y: p.y, z: p.z, r: (1.1 + 1.8 * p.depth + p.scan * 2.2 + p.disp * 8) * p.persp * (size / 300), c: p.c, a: bloom * Math.min(1, 0.3 + 0.7 * p.depth + p.scan) });
-    // Two tilted orbit rings circling the crystal in opposite directions.
-    if (points >= 600) for (let ring = 0; ring < HOLO_RING_COUNT; ring += 1) {
-      for (let k = 0; k < HOLO_RING_POINTS; k += 1) {
-        const q = ringPoint(ring, k, s.spin * 3);
-        const Zr = q.z, persp = 1 / (1 + Zr * 0.25), depth = (Zr + 1.4) / 2.8;
-        order.push({ x: cx + q.x * R * persp, y: cy - q.y * R * persp, z: Zr, r: (0.6 + 0.9 * depth) * persp * (size / 300),
-          c: holoColor(q.x, q.y, q.z, tone, 0, s.flashColor, s.tintMix), a: bloom * (0.2 + 0.7 * depth) * (k % 9 === 0 ? 1 : 0.55) });
-      }
-    }
-    order.sort((p, q) => p.z - q.z);
-    const core = 0.5 + 0.5 * Math.sin(nowMs / 520);
-    // Core glow follows the status tone (cyan when normal, amber on hold, red on halt) through the same tint as the lattice.
+    const breath = tone === "normal" && !reducedMotion ? 1 + 0.025 * Math.sin(nowMs / 800) : 1;
+    const R = size * 0.33 * (0.1 + 0.9 * easeOutBack(s.birth)) * breath * (1 + HOLO_FILL_EXPANSION * s.burst);
+    const tSec = reducedMotion ? 0 : nowMs / 1000, flowSec = fieldMotion.holoFlowMs / 1000;
     const coreRgb = holoColor(0, 0, 1, tone, 0, s.flashColor, s.tintMix);
+    const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(nowMs / 640);
+    const strokeW = Math.max(0.8, 1.7 * (size / 300));
     setPicture(createPicture((canvas) => {
-      canvas.drawOval(Skia.XYWHRect(cx - R * 1.32, cy - R * 0.37, R * 2.64, R * 0.74), glass);
-      // Soft inner core glow, two layers, pulsing slowly.
-      for (const [rad, al] of [[0.55, 0.07], [0.3, 0.1 + 0.08 * core]] as const) { rgba[0] = coreRgb[0] / 255; rgba[1] = coreRgb[1] / 255; rgba[2] = coreRgb[2] / 255; rgba[3] = bloom * al; paint.setColor(rgba); canvas.drawCircle(cx, cy, R * rad, paint); }
-      for (const e of edgeList) {
-        rgba[0] = (e.p.c[0] + e.q.c[0]) / 510; rgba[1] = (e.p.c[1] + e.q.c[1]) / 510; rgba[2] = (e.p.c[2] + e.q.c[2]) / 510; rgba[3] = e.a;
-        edge.setColor(rgba); edge.setStrokeWidth(Math.max(0.5, e.w));
-        canvas.drawLine(e.p.x, e.p.y, e.q.x, e.q.y, edge);
-      }
-      for (const p of order) {
-        // SkColor is a Float32Array; filling one in place avoids parsing a CSS string per point.
-        rgba[0] = p.c[0] / 255; rgba[1] = p.c[1] / 255; rgba[2] = p.c[2] / 255; rgba[3] = p.a;
-        paint.setColor(rgba);
-        canvas.drawCircle(p.x, p.y, Math.max(0.4, p.r), paint);
+      // Soft core glow in the status tone, two layers.
+      for (const [rad, al] of [[0.62, 0.06], [0.34, 0.1 + 0.08 * pulse]] as const) { rgba[0] = coreRgb[0] / 255; rgba[1] = coreRgb[1] / 255; rgba[2] = coreRgb[2] / 255; rgba[3] = bloom * al; paint.setColor(rgba); canvas.drawCircle(cx, cy, R * rad, paint); }
+      for (let layer = 0; layer < layers; layer += 1) {
+        const scale = 0.62 + 0.14 * layer, depth = (layer + 1) / layers;
+        let px = 0, py = 0;
+        for (let i = 0; i <= segments; i += 1) {
+          const theta = (i / segments) * Math.PI * 2;
+          const r = R * scale * liquidRadius(theta, layer, tSec, flowSec, s.waves, nowMs);
+          const x = cx + Math.cos(theta) * r, y = cy + Math.sin(theta) * r;
+          if (i > 0) {
+            const c = holoColor(Math.cos(theta), 0.3 * layer - 0.4, Math.sin(theta), tone, s.flash, s.flashColor, s.tintMix);
+            rgba[0] = c[0] / 255; rgba[1] = c[1] / 255; rgba[2] = c[2] / 255; rgba[3] = bloom * (0.3 + 0.5 * depth);
+            // Soft glow first (wide, faint), then the crisp line. Butt caps: round caps would double up at every joint under additive blending.
+            const a = rgba[3];
+            rgba[3] = a * 0.22; line.setColor(rgba); line.setStrokeWidth(strokeW * 4.2 * (0.7 + 0.5 * depth)); canvas.drawLine(px, py, x, y, line);
+            rgba[3] = a; line.setColor(rgba); line.setStrokeWidth(strokeW * (0.7 + 0.5 * depth)); canvas.drawLine(px, py, x, y, line);
+          }
+          px = x; py = y;
+        }
       }
     }, { width: size, height: size }));
   };
