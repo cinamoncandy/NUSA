@@ -87,7 +87,7 @@ export function observeHolo(state: HoloState, decisionCount: number | null, fill
 /** One animation tick (dtMs since the last). */
 export function tickHolo(state: HoloState, tone: HoloTone, dtMs: number, nowMs: number): HoloState {
   const k = Math.min(1, dtMs / 16.7);
-  const spin = state.spin + 0.0025 * k * (tone === "halt" ? 0.1 : 1);
+  const spin = state.spin + 0.006 * k * (tone === "halt" ? 0.1 : 1);
   let burst = state.burst + (state.burstTarget - state.burst) * 0.06 * k;
   let burstTarget = state.burstTarget;
   if (burstTarget > 0 && burst > 0.95) burstTarget = 0;
@@ -123,6 +123,28 @@ export function holoColor(px: number, py: number, pz: number, tone: HoloTone, fl
   if (toneColor) { const m = 0.8 * Math.min(1, Math.max(0, tintMix)); c = [c[0] + (toneColor[0] - c[0]) * m, c[1] + (toneColor[1] - c[1]) * m, c[2] + (toneColor[2] - c[2]) * m]; }
   if (flash > 0.05 && flashColor !== HOLO_COLORS.cyan) { const m = Math.min(1, flash); c = [c[0] + (flashColor[0] - c[0]) * m, c[1] + (flashColor[1] - c[1]) * m, c[2] + (flashColor[2] - c[2]) * m]; }
   return c;
+}
+
+/** Overshooting ease (back out): the sphere springs slightly past full size, then settles. */
+export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.max(0, t)) - 1; return 1 + 2.70158 * x * x * x + 1.70158 * x * x; };
+
+export const HOLO_SCAN_MS = 3400;
+export const HOLO_RING_COUNT = 2;
+export const HOLO_RING_POINTS = 72;
+
+/** 0..1 brightness boost for a point at height py (-1..1) while a scan band sweeps down the sphere and back. */
+export function scanBoost(py: number, nowMs: number): number {
+  const phase = (nowMs % HOLO_SCAN_MS) / HOLO_SCAN_MS;
+  const centre = Math.sin(phase * Math.PI * 2) * 0.9;
+  const d = py - centre;
+  return Math.exp(-d * d * 60);
+}
+
+/** Position of point k of orbit ring r at angle `spin`: a tilted circle of radius 1.18 + 0.12 r. */
+export function ringPoint(r: number, k: number, spin: number): { x: number; y: number; z: number } {
+  const a = (k / HOLO_RING_POINTS) * Math.PI * 2 + spin * (r === 0 ? 1 : -1.4);
+  const rad = 1.18 + 0.12 * r, tilt = r === 0 ? 0.9 : -0.5, c = Math.cos(a) * rad, s = Math.sin(a) * rad;
+  return { x: c, y: s * Math.sin(tilt), z: s * Math.cos(tilt) };
 }
 
 /** True when nothing but the ambient spin is moving. */

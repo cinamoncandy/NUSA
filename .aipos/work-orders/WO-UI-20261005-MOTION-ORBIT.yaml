@@ -1,0 +1,26 @@
+id: WO-UI-20261005-MOTION-ORBIT
+title: "Visible HOME sphere motion: orbit rings, scan sweep, spring-in bloom"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-motion-orbit
+authority_impact: none
+objective: "Owner reported the motion graphic did not visibly change after the skin PRs (ambient spin was ~100 s per turn, surface ripple 2%). Make the motion clearly new while staying cheap."
+scope:
+  - "apps/mobile/src/holoModel.ts: spin 2.4x faster; easeOutBack, scanBoost (a band sweeping the sphere every 3.4 s), ringPoint (two counter-rotating tilted orbit rings, 72 points each)."
+  - "apps/mobile/src/holoSphere.tsx: spring-in bloom with overshoot, stronger breath (3%) and surface ripple (4.5%), scan band brightens points, orbit rings drawn; quiet frame budget 84 ms to 56 ms (about 18 fps). Under reduce-motion the figure is still: no scan, no rings movement beyond the static draw."
+  - "tests/mobile-cold-future-palette.test.js: deterministic bounds for the new helpers; tests/mobile-holo-sphere.test.js pin updated to the 56 ms budget."
+exclusions:
+  - "No data, copy, layout, safety, risk, execution, LIVE, credential or AI-authority change. Halt/hold tints and status colours are unchanged."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Reduce-motion draws the still figure; status tint logic untouched."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "Not seen on a device; battery/CPU cost of 144 extra ring points and 18 fps is small but unmeasured on hardware."
