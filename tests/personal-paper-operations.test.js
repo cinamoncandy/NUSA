@@ -220,3 +220,22 @@ test("mobile reads only the authenticated PAPER operations route after exact end
   assert.equal(observedAuthorization, "Bearer secret");
   assert.equal(result.snapshot.liveAuthority, "NONE");
 });
+
+const heartbeat = (overrides = {}) => ({ startedAt: 500, lastHeartbeatAt: 900, lastMarketEventAt: 900, lastPaperDecisionAt: 900, lastPaperOrderAt: null, lastPaperFillAt: null, eventCount: 10, decisionCount: 953, paperOrderCount: 0, paperFillCount: 0, lastError: null, ...overrides });
+
+test("the snapshot a halted server sends is accepted by the app after a JSON round trip: long persistence cause, research state, long error", () => {
+  const cause = "paper account persistence failed: PAPER_LEDGER_RECONCILIATION_REQUIRED cash state 4857.12345678 ledger 4900.87654321 KRW-XRP quantity state 12.50000001 ledger 12.4 realized state -95 ledger -94.5 37 fills";
+  for (const hb of [
+    heartbeat({ lastError: cause }),
+    heartbeat({ lastError: cause, researchCollectionState: "DISABLED" }),
+    heartbeat({ researchCollectionState: "UNAVAILABLE" }),
+    heartbeat({ researchCollectionState: "INVALID", lastError: "paper account persistence failed" }),
+    heartbeat({ researchCollection: { market: "KRW-XRP", candleCount: 120, requiredCandles: 15840, firstCloseMs: 1, lastCloseMs: 900, observedAt: 900 } }),
+  ]) {
+    const built = snapshot({ operations: { runtimeState: "HALTED", accountHalted: true, runtimeHaltReasons: [], heartbeat: hb } });
+    const wire = JSON.parse(JSON.stringify(built));
+    const accepted = validatePersonalPaperOperationsSnapshot(wire, 1_100, 500);
+    assert.equal(accepted.schemaVersion, 1);
+    assert.equal(accepted.operations.heartbeat.lastError, hb.lastError ?? null);
+  }
+});
