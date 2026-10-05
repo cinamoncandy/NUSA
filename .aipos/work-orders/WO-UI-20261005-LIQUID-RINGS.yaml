@@ -1,0 +1,27 @@
+id: WO-UI-20261005-LIQUID-RINGS
+title: "Liquid-light rings replace the rejected crystal hero graphic"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-liquid-rings
+authority_impact: none
+objective: "The owner rejected the crystal shape itself and asked for a different design. Replace it with four layers of smooth, flowing neon rings."
+scope:
+  - "apps/mobile/src/holoModel.ts: liquidRadius (pure, deterministic; two travelling sine lobes per layer, bounded 0.78..1.25; a runtime decision wave starts at the ring point facing its origin and travels round both ways), LIQUID_LAYERS/SEGMENTS. Removed crystalGeometry, scanBoost, ringPoint and the orbit-ring constants."
+  - "apps/mobile/src/holoSphere.tsx: draws the rings (soft glow line plus crisp line per segment, butt caps), tone-tinted core, spring-in bloom, breath. Component name, props, testIDs, reduce-motion still figure, frame budgets, fill expansion and status tinting are unchanged."
+  - "apps/mobile/src/designSystem.ts: fieldMotion.holoScanMs replaced by holoFlowMs (9000)."
+  - "tests/mobile-cold-future-palette.test.js: liquid-ring determinism, bounds, time flow, wave response; extent bound updated; source pin for the ring renderer."
+exclusions:
+  - "No data, copy, layout, safety, risk, execution, LIVE, credential or AI-authority change. Header and More-menu marks stay static (two layers, 48 segments)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Hold and halt tint the rings and the core amber and red; reduce-motion draws the still figure."
+rollback: "Revert the change; the figure is one component."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "The look was checked by rendering the same geometry and colours in Chromium (normal, hold, halt, with and without a wave), not in Skia on a device. Skia stroke and blend behaviour and frame cost (about 770 short lines per frame at about 18 fps) are unmeasured on hardware."
