@@ -177,3 +177,28 @@ test("the owner PAPER markets file sets the trading and research markets over th
   }
   assert.equal(readOwnerPaperMarkets(path.join(dir, "missing.json")), null);
 });
+
+test("the owner research file turns the research experiments on over the host environment and fails closed when malformed", () => {
+  const { readOwnerResearch, OWNER_RESEARCH_FILE, buildRuntimeEnv: build } = require("../scripts/start-cloud-runtime.js");
+  const owner = readOwnerResearch();
+  assert.equal(owner.experiments, true, "owner decision 2026-10-05: collect learning data");
+  assert.ok(OWNER_RESEARCH_FILE.endsWith(path.join("deploy", "oracle", "research-experiments.json")));
+  const off = build({ NUSA_CLOUD_RESEARCH_EXPERIMENTS: "0" }, TOKEN, null, null, owner);
+  assert.equal(off.env.NUSA_CLOUD_RESEARCH_EXPERIMENTS, "1", "the owner decision overrides a host that left it off");
+  assert.ok(off.applied.includes("NUSA_CLOUD_RESEARCH_EXPERIMENTS"));
+  const already = build({ NUSA_CLOUD_RESEARCH_EXPERIMENTS: "1" }, TOKEN, null, null, owner);
+  assert.ok(!already.applied.includes("NUSA_CLOUD_RESEARCH_EXPERIMENTS"), "nothing to apply when the host agrees");
+  assert.equal(build({}, TOKEN, null, null, { experiments: false }).env.NUSA_CLOUD_RESEARCH_EXPERIMENTS, "0", "false switches it off");
+  assert.equal(build({}, TOKEN, null, null, null).env.NUSA_CLOUD_RESEARCH_EXPERIMENTS, undefined, "no file, nothing applied");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "owner-research-"));
+  const write = (value) => { const f = path.join(dir, "r.json"); fs.writeFileSync(f, JSON.stringify(value)); return f; };
+  for (const bad of [{ schemaVersion: 1 }, { schemaVersion: 1, experiments: "yes" }, { schemaVersion: 2, experiments: true }, { experiments: true }, []]) {
+    assert.throws(() => readOwnerResearch(write(bad)), /owner research file is invalid/);
+  }
+  assert.equal(readOwnerResearch(path.join(dir, "missing.json")), null);
+  // The runtime still needs a valid build commit, so the switch alone cannot enable it on a malformed deploy.
+  const { readResearchExperimentSettings } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+  assert.equal(readResearchExperimentSettings(off.env).status, "INVALID");
+  assert.equal(readResearchExperimentSettings({ ...off.env, NUSA_SOURCE_COMMIT_SHA: "a".repeat(40) }).status, "ENABLED");
+  assert.deepEqual([...readResearchExperimentSettings({ ...off.env, NUSA_SOURCE_COMMIT_SHA: "a".repeat(40), NUSA_RESEARCH_MARKETS: "KRW-XRP" }).settings.markets], ["KRW-XRP"]);
+});
