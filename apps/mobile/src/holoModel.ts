@@ -2,10 +2,10 @@
  * Pure state for the NUSA holo sphere. No imports, so tests can transpile it alone.
  *
  * Driven by runtime facts:
- * - each new decision sends one wave across the sphere surface;
- * - each new PAPER order pushes the liquid rings outward (HOLO_FILL_EXPANSION), tints them green, then lets them settle back;
- * - a held / halted runtime tints the sphere amber / red (halted also slows the spin).
- * The slow spin is ambient; it stops entirely under reduce-motion.
+ * - each new decision sends a pulse ring and a bright streak out from the core;
+ * - each new PAPER order draws a line from the core to a marker and flares it (burst / flash), then lets it settle back;
+ * - a held / halted runtime tints the figure amber / red (halted also slows the spin).
+ * The dust disc orbits slowly; it stops entirely under reduce-motion.
  */
 export type HoloTone = "normal" | "hold" | "halt";
 export type Rgb = readonly [number, number, number];
@@ -28,12 +28,13 @@ export interface HoloState {
 
 export const HOLO_WAVE_MS = 2600;
 export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "fill" | "hold" | "halt", Rgb>> = Object.freeze({
-  // Cold future: ice cyan, violet, magenta, mint. Status tints (fill / hold / halt) stay the unmistakable green / amber / red.
-  cyan: [124, 214, 255] as const,
-  violet: [170, 130, 255] as const,
-  pink: [255, 130, 200] as const,
-  mint: [110, 240, 220] as const,
-  fill: [110, 240, 176] as const,
+  // Core burst (matches the owner's reference): lime core and streaks, mint dust. Names are kept for the ramp order.
+  // Status tints (fill / hold / halt) stay unmistakable: bright lime flash / amber / red.
+  cyan: [198, 245, 74] as const,
+  violet: [140, 236, 130] as const,
+  pink: [110, 240, 176] as const,
+  mint: [170, 242, 110] as const,
+  fill: [222, 255, 150] as const,
   hold: [255, 194, 102] as const,
   halt: [255, 122, 122] as const,
 });
@@ -121,7 +122,7 @@ export function holoColor(px: number, py: number, pz: number, tone: HoloTone, fl
   const i = Math.floor(h), f = h - i, a = ramp[i], b = ramp[i + 1];
   let c: [number, number, number] = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
   const toneColor = tone === "halt" ? HOLO_COLORS.halt : tone === "hold" ? HOLO_COLORS.hold : null;
-  if (toneColor) { const m = 0.8 * Math.min(1, Math.max(0, tintMix)); c = [c[0] + (toneColor[0] - c[0]) * m, c[1] + (toneColor[1] - c[1]) * m, c[2] + (toneColor[2] - c[2]) * m]; }
+  if (toneColor) { const m = 0.95 * Math.min(1, Math.max(0, tintMix)); c = [c[0] + (toneColor[0] - c[0]) * m, c[1] + (toneColor[1] - c[1]) * m, c[2] + (toneColor[2] - c[2]) * m]; }
   if (flash > 0.05 && flashColor !== HOLO_COLORS.cyan) { const m = Math.min(1, flash); c = [c[0] + (flashColor[0] - c[0]) * m, c[1] + (flashColor[1] - c[1]) * m, c[2] + (flashColor[2] - c[2]) * m]; }
   return c;
 }
@@ -133,32 +134,69 @@ export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.m
 export const HOLO_ACTIVE_FRAME_MS = 42;
 export const HOLO_QUIET_FRAME_MS = 56;
 export const holoFrameBudgetMs = (quiet: boolean): number => (quiet ? HOLO_QUIET_FRAME_MS : HOLO_ACTIVE_FRAME_MS);
-/** Extra radius at the fill peak; small enough that the rings stay inside the canvas. */
-export const HOLO_FILL_EXPANSION = 0.1;
-export const LIQUID_LAYERS = 4;
-export const LIQUID_SEGMENTS = 96;
+/** Tilt (squash) and rotation of the dust disc and its rings, as seen from the viewer. */
+export const BURST_TILT = 0.38;
+export const BURST_ROTATION = -0.18;
+export const BURST_STREAK_COUNT = 56;
+export const BURST_DUST_COUNT = 700;
 
-/**
- * Radius (about 0.78..1.25 of the base ring) of liquid-light ring `layer` at angle `theta`, `tSec` seconds in.
- * Each layer is two travelling sine lobes at its own speed; runtime waves add a bump that travels round the ring.
- * `flowSec` is the period of the slowest layer (fieldMotion.holoFlowMs / 1000).
- */
-export function liquidRadius(theta: number, layer: number, tSec: number, flowSec: number, waves: readonly HoloWave[], nowMs: number): number {
-  const w = (Math.PI * 2) / flowSec, k = 2 + (layer % 3), dir = layer % 2 === 0 ? 1 : -1;
-  const lobes = 0.5 * Math.sin(k * theta + dir * w * (1 + 0.35 * layer) * tSec + layer * 1.7) + 0.5 * Math.sin((k + 3) * theta - dir * w * 0.6 * tSec + layer * 0.9);
-  // Each wave starts at the point of the ring that faces its origin and travels round both ways to the far side.
-  let bump = 0;
-  for (const wave of waves) {
-    const age = (nowMs - wave.bornMs) / HOLO_WAVE_MS;
-    if (age < 0 || age > 1) continue;
-    const origin = Math.atan2(wave.az, wave.ax);
-    let d = Math.abs(theta - origin) % (Math.PI * 2);
-    if (d > Math.PI) d = Math.PI * 2 - d;
-    const front = d - age * Math.PI;
-    bump += 2.2 * wave.amp * Math.exp(-front * front * 30) * (1 - age);
-  }
-  return Math.min(1.25, Math.max(0.78, 1 + 0.085 * lobes * (1 + 0.18 * layer) + bump));
+function lcg(seed: number): () => number {
+  let state = seed % 2147483647;
+  if (state <= 0) state += 2147483646;
+  return () => (state = (state * 16807) % 2147483647) / 2147483647;
 }
+
+export interface BurstStreak { readonly angle: number; readonly inner: number; readonly length: number; readonly alpha: number; readonly width: number; readonly phase: number }
+export interface DustSpeck { readonly radius: number; readonly angle: number; readonly size: number; readonly alpha: number; readonly lime: boolean }
+
+let streakCache: readonly BurstStreak[] | null = null;
+/** Fine light streaks radiating from the core (lengths are fractions of the figure radius, 0.2..1.0). Deterministic. */
+export function burstStreaks(): readonly BurstStreak[] {
+  if (streakCache) return streakCache;
+  const r = lcg(11), out: BurstStreak[] = [];
+  for (let i = 0; i < BURST_STREAK_COUNT; i += 1) {
+    out.push(Object.freeze({ angle: r() * Math.PI * 2, inner: 0.02 + r() * 0.05, length: 0.2 + Math.pow(r(), 1.6) * 0.8, alpha: 0.1 + r() * 0.45, width: 0.4 + r() * 0.8, phase: r() * Math.PI * 2 }));
+  }
+  streakCache = Object.freeze(out);
+  return streakCache;
+}
+
+/** A streak breathes between 88% and 100% of its length. */
+export const streakLength = (streak: BurstStreak, tSec: number): number => streak.length * (0.94 + 0.06 * Math.sin(tSec * 1.1 + streak.phase));
+
+let dustCache: readonly DustSpeck[] | null = null;
+/** Fine dust on a disc, denser toward the core (radius fractions 0.2..1.0). Deterministic. */
+export function dustField(): readonly DustSpeck[] {
+  if (dustCache) return dustCache;
+  const r = lcg(7), out: DustSpeck[] = [];
+  for (let i = 0; i < BURST_DUST_COUNT; i += 1) {
+    const radius = 0.2 + Math.pow(r(), 0.7) * 0.8;
+    out.push(Object.freeze({ radius, angle: r() * Math.PI * 2, size: 0.35 + r() * 0.7, alpha: (0.15 + 0.6 * (1 - radius) * r()) + 0.05, lime: r() > 0.8 }));
+  }
+  dustCache = Object.freeze(out);
+  return dustCache;
+}
+
+/** Position of a speck on the tilted, rotated disc as offsets in units of the figure radius. Inner specks orbit faster. */
+export function dustPosition(speck: DustSpeck, tSec: number, flowSec: number): { x: number; y: number } {
+  const a = speck.angle + ((Math.PI * 2) / flowSec) * tSec * (1.5 - speck.radius);
+  const px = Math.cos(a) * speck.radius, py = Math.sin(a) * speck.radius * BURST_TILT;
+  return { x: px * Math.cos(BURST_ROTATION) - py * Math.sin(BURST_ROTATION), y: px * Math.sin(BURST_ROTATION) + py * Math.cos(BURST_ROTATION) };
+}
+
+export interface HoloPulse { readonly angle: number; readonly ringRadius: number; readonly ringAlpha: number; readonly streakLength: number; readonly streakAlpha: number }
+/** One decision wave as a ring that grows from the core plus a bright streak that shoots out along the wave's angle; null outside its life. */
+export function pulseFor(wave: HoloWave, nowMs: number): HoloPulse | null {
+  const age = (nowMs - wave.bornMs) / HOLO_WAVE_MS;
+  if (age < 0 || age > 1) return null;
+  const angle = Math.atan2(wave.az, wave.ax);
+  const out = 1 - Math.pow(1 - age, 3);
+  return Object.freeze({ angle, ringRadius: 0.1 + 0.9 * out, ringAlpha: 0.5 * (1 - age), streakLength: 1.15 * out, streakAlpha: 0.9 * (1 - age) });
+}
+
+/** Where the PAPER fill line points (radians, lower right like the reference) and how far out its marker sits (fraction of the radius). */
+export const BURST_FILL_ANGLE = 1.05;
+export const BURST_FILL_REACH = 1.0;
 
 /** True when nothing but the ambient spin is moving. */
 export function isHoloQuiet(state: HoloState): boolean {

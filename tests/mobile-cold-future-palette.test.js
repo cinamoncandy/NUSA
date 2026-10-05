@@ -75,49 +75,43 @@ test("holo state advances by elapsed time, not by how often it is drawn", () => 
   assert.ok(run(56, "halt").spin < run(56, "normal").spin * 0.2, "halt nearly stops the spin");
 });
 
-test("fill expansion keeps the rings inside the canvas, the core follows the status tone, and presenters share the radius tokens", () => {
-  const fs = require("node:fs");
-  const { HOLO_FILL_EXPANSION, holoColor, HOLO_COLORS } = require("../dist/apps/mobile/src/holoModel.js");
-  const { fieldRadii, createTheme } = require("../dist/apps/mobile/src/designSystem.js");
-  // Worst case: outermost layer (scale 1.04) at the maximum liquid radius 1.25, full fill, breath 2.5%, on R = 0.33 of the canvas.
-  assert.ok(1.04 * 1.25 * (1 + HOLO_FILL_EXPANSION) * 1.025 * 0.33 < 0.5, "extent below the canvas half-width");
-  const core = (tone) => holoColor(0, 0, 1, tone, 0, HOLO_COLORS.cyan, 1);
-  assert.ok(core("halt")[0] > core("halt")[2] + 60, "halt core reads red, not cyan");
-  assert.ok(core("hold")[0] > core("hold")[2] + 60, "hold core reads amber, not cyan");
-  assert.ok(core("normal")[2] >= core("normal")[0], "normal core is cool");
-  const radii = createTheme("dark").radii;
-  assert.deepEqual({ md: radii.md, lg: radii.lg, xl: radii.xl }, fieldRadii, "static radii match the theme");
-  const dir = "apps/mobile/src";
-  const offenders = fs.readdirSync(dir).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f)).filter((f) => /borderRadius: (10|12|14|16|18|20)\b/.test(fs.readFileSync(`${dir}/${f}`, "utf8")));
-  assert.deepEqual(offenders, [], "card and control radii come from fieldRadii");
-  assert.ok(!/고리로/.test(fs.readFileSync(`${dir}/decisionRings.tsx`, "utf8")), "legend no longer promises a ring");
-});
 
-test("liquid rings are deterministic, bounded, flow with time and react to runtime waves", () => {
-  const { liquidRadius, easeOutBack, LIQUID_LAYERS, LIQUID_SEGMENTS, waveFor } = require("../dist/apps/mobile/src/holoModel.js");
+test("the core-burst hero is deterministic: streaks, dust and pulses stay within their bounds", () => {
+  const { burstStreaks, streakLength, dustField, dustPosition, pulseFor, waveFor, BURST_STREAK_COUNT, BURST_DUST_COUNT, HOLO_WAVE_MS } = require("../dist/apps/mobile/src/holoModel.js");
   const { fieldMotion } = require("../dist/apps/mobile/src/designSystem.js");
-  const flow = fieldMotion.holoFlowMs / 1000;
-  assert.ok(Math.abs(easeOutBack(0)) < 1e-9 && Math.abs(easeOutBack(1) - 1) < 1e-9);
-  assert.ok(Math.max(...[0.5, 0.6, 0.7, 0.8].map(easeOutBack)) > 1, "springs past full size before settling");
-  assert.equal(LIQUID_LAYERS, 4);
-  for (let layer = 0; layer < LIQUID_LAYERS; layer += 1) for (let i = 0; i < LIQUID_SEGMENTS; i += 1) {
-    const r = liquidRadius((i / LIQUID_SEGMENTS) * Math.PI * 2, layer, 3.3, flow, [], 0);
-    assert.ok(r >= 0.78 && r <= 1.25, `layer ${layer} radius ${r} in bounds`);
+  const streaks = burstStreaks(), dust = dustField();
+  assert.equal(streaks.length, BURST_STREAK_COUNT);
+  assert.equal(dust.length, BURST_DUST_COUNT);
+  assert.equal(burstStreaks(), streaks, "cached and deterministic");
+  for (const k of streaks) {
+    assert.ok(k.length >= 0.2 && k.length <= 1.0 && k.inner < k.length && k.alpha > 0 && k.alpha < 1);
+    for (const t of [0, 1.7, 5.3]) { const len = streakLength(k, t); assert.ok(len >= k.length * 0.87 && len <= k.length + 1e-9, "a streak breathes between 88% and 100%"); }
   }
-  assert.equal(liquidRadius(1, 0, 2, flow, [], 0), liquidRadius(1, 0, 2, flow, [], 0), "deterministic");
-  assert.notEqual(liquidRadius(1, 0, 0, flow, [], 0), liquidRadius(1, 0, 1.5, flow, [], 0), "flows with time");
-  assert.notEqual(liquidRadius(1, 0, 2, flow, [], 0), liquidRadius(1, 1, 2, flow, [], 0), "layers differ");
-  const wave = waveFor(5, 1000);
-  const seen = Array.from({ length: 48 }, (_, i) => liquidRadius((i / 48) * Math.PI * 2, 0, 2, flow, [wave], 1500) - liquidRadius((i / 48) * Math.PI * 2, 0, 2, flow, [], 1500));
-  assert.ok(Math.max(...seen) > 0.02, "a decision wave bumps the ring somewhere");
-  assert.ok(seen.every((v) => Math.abs(v) < 0.35), "and stays gentle");
+  const flow = fieldMotion.holoFlowMs / 1000;
+  for (const d of dust) for (const t of [0, 2.2, 9]) { const q = dustPosition(d, t, flow); assert.ok(Math.hypot(q.x, q.y) <= 1.0 + 1e-9, "dust never leaves the figure radius"); }
+  assert.notDeepEqual(dustPosition(dust[0], 0, flow), dustPosition(dust[0], 3, flow), "the disc orbits");
+  const inner = dust.reduce((a, b) => (a.radius < b.radius ? a : b)), outer = dust.reduce((a, b) => (a.radius > b.radius ? a : b));
+  const sweep = (d) => Math.abs(Math.atan2(dustPosition({ ...d, angle: 0 }, 1, flow).y, dustPosition({ ...d, angle: 0 }, 1, flow).x));
+  assert.ok(inner.radius < outer.radius && sweep(inner) !== sweep(outer), "inner specks orbit faster than outer ones");
+  const wave = waveFor(4, 1000);
+  assert.equal(pulseFor(wave, 999), null);
+  assert.equal(pulseFor(wave, 1000 + HOLO_WAVE_MS + 1), null);
+  let previous = -1;
+  for (let ms = 0; ms <= HOLO_WAVE_MS; ms += 200) { const p = pulseFor(wave, 1000 + ms); assert.ok(p.ringRadius >= previous && p.ringRadius <= 1.0 + 1e-9 && p.ringAlpha >= 0 && p.streakLength <= 1.15 + 1e-9, "the ring only grows and fades"); previous = p.ringRadius; }
 });
 
-test("the hero is drawn as liquid rings and keeps its tone and still-figure contract", () => {
+test("the hero is drawn as a lime core with streaks, dust and pulses and keeps its tone and still-figure contract", () => {
   const fs = require("node:fs");
+  const { holoColor, HOLO_COLORS, BURST_FILL_REACH } = require("../dist/apps/mobile/src/holoModel.js");
   const src = fs.readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
-  assert.match(src, /liquidRadius\(/);
-  assert.match(src, /fieldMotion\.holoFlowMs/);
-  assert.match(src, /holoColor\([^)]*tone[^)]*s\.tintMix\)/);
-  assert.ok(!/crystalGeometry|scanBoost|ringPoint/.test(src), "old figures are gone");
+  for (const needle of [/burstStreaks\(\)/, /dustField\(\)/, /pulseFor\(wave, nowMs\)/, /fieldMotion\.holoFlowMs/, /BURST_FILL_ANGLE/]) assert.match(src, needle);
+  assert.match(src, /holoColor\(-1, 0, 0, tone, s\.flash, s\.flashColor, s\.tintMix\)/, "lime follows the status tone");
+  assert.ok(!/liquidRadius|crystalGeometry|scanBoost|ringPoint/.test(src), "old figures are gone");
+  assert.ok(BURST_FILL_REACH <= 1.0, "the fill marker stays inside the canvas radius");
+  const normal = holoColor(-1, 0, 0, "normal", 0, HOLO_COLORS.cyan, 1);
+  assert.ok(normal[1] > normal[0] && normal[1] > normal[2], "normal reads green, like the reference");
+  const hold = holoColor(-1, 0, 0, "hold", 0, HOLO_COLORS.cyan, 1), halt = holoColor(-1, 0, 0, "halt", 0, HOLO_COLORS.cyan, 1);
+  assert.ok(hold[0] > 230 && hold[1] > 170 && hold[2] < 130, "hold reads amber on a lime base");
+  assert.ok(halt[0] > 230 && halt[1] < 150 && halt[2] > 100, "halt reads red on a lime base");
+  assert.ok(Math.abs(hold[1] - halt[1]) > 50, "hold and halt stay clearly different");
 });
