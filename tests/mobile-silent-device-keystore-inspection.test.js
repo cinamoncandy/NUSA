@@ -51,6 +51,7 @@ test("only transient inspection status arms retry; definitive missing key stays 
 test("transient retry requires the canonical non-secret reason and UUID correlation evidence", () => {
   assert.match(session, /status\.reasonCode !== "ANDROID_KEYSTORE_INSPECTION_FAILED"/);
   assert.match(session, /\^\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}-4\[0-9a-f\]\{3\}-\[89ab\]\[0-9a-f\]\{3\}-\[0-9a-f\]\{12\}\$/);
+  assert.match(session, /!\/\\s\/\.test\(status\.credentialId\)/);
   assert.match(session, /this\.restoreRetryable = transientError != null/);
   assert.match(session, /silent DeviceKey status evidence is invalid/);
 });

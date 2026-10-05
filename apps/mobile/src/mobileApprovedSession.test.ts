@@ -148,6 +148,7 @@ describe("mobile approved session persistence boundary", () => {
       { available: true, canCreate: false, hardwareBacked: false, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: "silent-credential-0123456789", reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" },
       { available: false, canCreate: true, hardwareBacked: false, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: "silent-credential-0123456789", reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" },
       { available: false, canCreate: false, hardwareBacked: true, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: "silent-credential-0123456789", reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" },
+      { available: false, canCreate: false, hardwareBacked: false, status: "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR", credentialId: "silent credential 0123456789", reasonCode: "ANDROID_KEYSTORE_INSPECTION_FAILED", correlationId: "123e4567-e89b-42d3-a456-426614174000" },
     ]) {
       const native = {
         getSilentDeviceStatus: async () => status,
