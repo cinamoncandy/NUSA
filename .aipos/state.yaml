@@ -2471,3 +2471,10 @@ current_ui_core_burst:
   authority_impact: none
   supersedes: liquid rings hero (WO-UI-20261005-LIQUID-RINGS figure)
   deploy: not_deployed_new_app_build_required
+current_enable_research_collection:
+  work_order: WO-PAPER-20261005-ENABLE-RESEARCH-COLLECTION
+  status: READY_FOR_REVIEW
+  branch: claude/enable-research-collection
+  authority_impact: research_collection_enablement
+  owner_approval: "2026-10-05 in chat"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
