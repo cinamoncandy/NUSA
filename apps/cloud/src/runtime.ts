@@ -450,7 +450,11 @@ export function startCloudRuntime(
           heartbeat.paperFillCount += result.fills.length;
           // Display-only: a BUY decision, and a BUY the boundary explicitly refused (BLOCKED or REJECTED). WAIT, DUPLICATE and FAILED are not counted as refusals.
           if (canonicalDecision?.action === "BUY") { rollBuyWindow(Date.now()); buyWindow.signals += 1; if (result.status === "BLOCKED" || result.status === "REJECTED") buyWindow.blocked += 1; }
-          if (result.status === "FAILED") recordFailure(result.reason ?? "PAPER_EXECUTION_FAILED");
+          if (result.status === "FAILED") {
+            // The reason stays the stable code; the underlying cause (lease lost, ledger mismatch, read-only database ...) is appended for the advanced diagnostic line.
+            const detail = result.reason === "paper account persistence failed" ? effectivePaperLoop?.persistenceFailureDetail() ?? null : null;
+            recordFailure(detail == null ? (result.reason ?? "PAPER_EXECUTION_FAILED") : `${result.reason}: ${detail}`);
+          }
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
           paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });

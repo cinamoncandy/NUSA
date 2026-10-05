@@ -2464,6 +2464,11 @@ current_learning_collection_reason:
   branch: claude/learning-collection-reason
   authority_impact: diagnostics_only
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_persistence_failure_detail:
+  work_order: WO-PAPER-20261005-PERSISTENCE-FAILURE-DETAIL
+  status: READY_FOR_REVIEW
+  branch: claude/persistence-failure-detail
+  authority_impact: diagnostics_only
 current_ui_core_burst:
   work_order: WO-UI-20261005-CORE-BURST
   status: READY_FOR_REVIEW
