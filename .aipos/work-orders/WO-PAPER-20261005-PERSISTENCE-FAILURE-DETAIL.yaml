@@ -12,6 +12,7 @@ scope:
   - "apps/cloud/src/runtime.ts: the heartbeat lastError for a persistence failure becomes 'paper account persistence failed: <cause>'; other failures are unchanged."
   - "apps/mobile/src/haltReasonModel.ts: the halt explanation says in Korean that the account state could not be saved and adds a hint (write lease lost, read-only store, no space, locked, no permission, ledger mismatch) only when the cause text matches a known pattern; an unknown cause is not guessed; the raw text stays in the advanced diagnostic line."
   - "tests/paper-persistence-failure-detail.test.js (3) and a new case in tests/mobile-halt-reason.test.js."
+  - "apps/cloud/src/moduleQualificationV1.ts and paperTradingExecutionLoop.requalification.test.ts: the PAPER_ADAPTER source blob pin is re-bound to the changed source (same procedure as the earlier per-capital account change); qualification stays TARGET_ONLY and no criterion is claimed verified."
 exclusions:
   - "No change to when PAPER halts, to whether it resumes, to the ledger, risk, execution, LIVE, credentials or AI authority. The halt is not cleared or hidden; the owner decides about resuming only after the cause is known."
 safety:
