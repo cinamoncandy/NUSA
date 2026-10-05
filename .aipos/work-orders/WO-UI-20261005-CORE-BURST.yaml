@@ -1,0 +1,27 @@
+id: WO-UI-20261005-CORE-BURST
+title: "Core-burst hero graphic after the owner's reference video, replacing the liquid rings"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-core-burst
+authority_impact: none
+owner_direction: "Owner rejected the crystal and liquid-ring heroes, pointed out the earlier reference video was not followed, and approved this concept in chat on 2026-10-05 ('일단 해보자 이렇게') after seeing a still of it. The reference frames were re-read from scratchpad/vid (lime core with fine streaks, tilted dust disc, thin ellipse rings, lime line to a glowing marker, dark green atmosphere)."
+objective: "Draw the HOME hero the way the reference does, with runtime facts driving it, and keep status colours unmistakable."
+scope:
+  - "apps/mobile/src/holoModel.ts: deterministic burstStreaks, dustField, dustPosition (inner specks orbit faster), pulseFor (a decision becomes a growing ring plus a bright streak), streakLength (breathes 94 to 100 percent), BURST_* constants; ramp colours become lime and mint (fill flash a brighter lime); the hold and halt tint now covers 95 percent (was 80) so a lime base still reads amber and red and the two stay clearly different. Removed liquidRadius, LIQUID_*, HOLO_FILL_EXPANSION."
+  - "apps/mobile/src/holoSphere.tsx: smooth atmosphere (16 faint discs), two thin ellipse rings, dust disc (700 specks, large instance only), 56 streaks, decision pulses, PAPER fill line with a flaring marker, lime core. Component name, props, testIDs, reduce-motion still figure, frame budgets and the bloom replay are unchanged. Header and More-menu marks stay static and skip the dust."
+  - "tests/mobile-cold-future-palette.test.js: bounds and determinism of streaks, dust and pulses; tone separation on the lime base; renderer pins. Liquid-ring tests removed."
+exclusions:
+  - "The rest of the app keeps its current palette and radii; whether to bring lime back app-wide is an open owner decision. Launcher icon and splash keep the owner's lime N. No data, copy, layout, safety, risk, execution, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Hold and halt tint the whole figure amber and red; reduce-motion draws the still figure."
+rollback: "Revert the change; the figure is one component."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "The look was checked by rendering the same geometry and colours in Chromium (normal, decision pulse, fill, hold, halt), not in Skia on a device. About 800 small draws per frame at about 18 fps are unmeasured on hardware. The lime hero sits on a cyan app theme until the palette decision is made."
