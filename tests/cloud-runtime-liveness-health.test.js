@@ -128,6 +128,28 @@ test("/health publishes only the allowlisted liveness fields, whatever the sourc
   }, 41887);
 });
 
+test("/health names the class of the runtime's own paper failures but never the detail after the colon", async () => {
+  const cases = [
+    ["paper account persistence failed: PAPER_LEDGER_RECONCILIATION_REQUIRED realized state -154.31476926 ledger -154.31476925 38 fills", "PAPER_ACCOUNT_PERSISTENCE_FAILED"],
+    ["paper account persistence failed", "PAPER_ACCOUNT_PERSISTENCE_FAILED"],
+    ["paper order lifecycle reconciliation mismatch", "PAPER_ORDER_LIFECYCLE_RECONCILIATION_MISMATCH"],
+    // Not the runtime's own plain-words phrase: still replaced, never published.
+    ["Upbit said: invalid key abc123 for account acct-123", "LIVENESS_ERROR_UNCLASSIFIED"],
+    ["paper account 1234 failed: x", "LIVENESS_ERROR_UNCLASSIFIED"],
+    ["paper key abc-123 leaked", "LIVENESS_ERROR_UNCLASSIFIED"],
+    ["Paper account persistence failed: x", "LIVENESS_ERROR_UNCLASSIFIED"],
+    ["paper " + "x".repeat(80) + ": y", "LIVENESS_ERROR_UNCLASSIFIED"],
+  ];
+  for (const [index, [lastError, expected]] of cases.entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, lastError }) }, async (handle) => {
+      const res = await request(handle.port, "/health");
+      const body = JSON.parse(res.body);
+      assert.equal(body.runtime.lastError, expected, lastError);
+      assert.doesNotMatch(res.body, /-154\.3|38 fills|abc123|acct-123|1234|abc-123|ledger/);
+    }, 41890 + index);
+  }
+});
+
 test("/health strips extra component-health fields from an alternate callback", async () => {
   const measuredAt = 2_000;
   const health = (componentId, provenance, evidenceId) => evaluateComponentHealth({
