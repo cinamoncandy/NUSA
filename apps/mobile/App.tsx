@@ -17,6 +17,7 @@ import { resumePaperConnection } from "./src/paperConnectionSession";
 import { buildSafetyLine } from "./src/safetyLineModel";
 import { clearCachedSnapshot, useCachedSnapshot } from "./src/useCachedSnapshot";
 import { markStartup } from "./src/startupTiming";
+import { registerConnectionWarmup } from "./src/connectionWarmup";
 import { displaySessionState, graceNotConfigured, LAUNCH_GRACE_MS, launchSettling, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
 import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
@@ -48,6 +49,8 @@ import { labelFont, readableFont } from "./src/designSystem";
 
 /** Start of the cold-start timing shown in Settings (advanced); first call wins. */
 markStartup("appStart");
+/** Lets the first server request reuse a connection that was opened while the saved session was being read. */
+registerConnectionWarmup((url, init) => fetch(url, init as RequestInit));
 
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
 type DetailSurface = "Strategies" | "Portfolio" | "Order" | TruthfulMoreDetail | null;

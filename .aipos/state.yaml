@@ -2586,3 +2586,63 @@ current_ui_hero_flow_field:
   owner_approval: "2026-10-06 in chat (second reference video, option 1: replace only the hero)"
   note: "The hero component is shared: HOME hero, field header mark and More-menu mark all change; no screen keeps the old figure. Only the hero figure changes; the rest of the app's colours and layout are untouched by the owner's choice."
   deploy: not_deployed_new_app_build_required
+current_ui_startup_warmup:
+  work_order: WO-UI-20261006-STARTUP-WARMUP
+  status: READY_FOR_REVIEW
+  branch: claude/startup-warmup
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
+  finding: "Cold start 3.3 s from abroad, sign-in 2.4 s: warm the connection during the saved-session read (a credential-free GET of /health) and show the sign-in split in Settings; the authentication flow itself is untouched"
+current_decision_funnel:
+  work_order: WO-PAPER-20261006-DECISION-FUNNEL
+  status: READY_FOR_REVIEW
+  branch: claude/decision-funnel
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive: PAPER performance and closed-loop convergence, P0-B/P0-C)"
+  finding: "No stage or reason totals existed: the stage recorder keeps 250 events. Cumulative funnel counters over its events are published on /health; the first reading after deploy names FIRST_BROKEN_TRANSITION. #2357 is a different task (risk sizing and a mobile display) and is not duplicated"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ui_hero_batched_drawing:
+  work_order: WO-UI-20261006-HERO-BATCHED-DRAWING
+  status: READY_FOR_REVIEW
+  branch: claude/hero-batched-drawing
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
+  finding: "The flow-field hero made about 550 draw calls per frame; batching by look reduces it to about 25 without changing the picture. Not measured on a device"
+  deploy: not_deployed_new_app_build_required
+current_ui_calm_redesign:
+  work_order: WO-UI-20261006-CALM-REDESIGN
+  status: IN_PROGRESS
+  branch: claude/ux-redesign-plan
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('그냥 다 새로 다시 해줘 개선하지말고', '니가 새롭게 디자인해봐', '진행해')"
+  finding: "Four primary tabs replaced by calm-v1 presenters (지금/학습/안전/기록) over existing screen models; detail screens still field-v1 and named in the work order"
+current_ui_hero_ridge:
+  work_order: WO-UI-20261006-HERO-RIDGE
+  status: READY_FOR_REVIEW
+  branch: claude/hero-ridge
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('이거로 할게' on the ridge prototype)"
+  finding: "Hero replaced by a ridge landscape; decisions roll a wave from the horizon, a PAPER order raises a lime peak and beam"
+current_paper_loss_session_counts:
+  work_order: WO-PAPER-20261006-LOSS-SESSION-COUNTS
+  status: READY_FOR_REVIEW
+  branch: claude/risk-loss-session
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive step 6, '알아서해줘')"
+  finding: "FIRST_BROKEN_TRANSITION = DECISION(BUY) -> ORDER_INTENT (0/29; 18 CONSECUTIVE_LOSS_LIMIT, 11 STRATEGY_APPROVAL_REJECTED). Publishes today's completed/losing sell counts behind the loss limit; no limit changed"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_paper_loss_attribution:
+  work_order: WO-PAPER-20261006-LOSS-ATTRIBUTION
+  status: READY_FOR_REVIEW
+  branch: claude/loss-attribution
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive step 6, '계속해')"
+  finding: "10:53 UTC: todayCompletedSells=3, todayLosingSells=3, streak=limit 3. Publishes today's completed/losing sells per opening strategy family (fixed codes) from the fill ledger; risk gate untouched"
+current_paper_wait_reason_codes:
+  work_order: WO-PAPER-20261006-WAIT-REASON-CODES
+  status: READY_FOR_REVIEW
+  branch: claude/wait-reason-codes
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive step 5, '계속해')"
+  finding: "WAIT ~96% of decisions under one code; each WAIT now carries one fixed reason code (RISK_REGIME, TRADING_DISABLED, INSUFFICIENT_HISTORY, LOW_CONFIDENCE, NO_SIGNAL, ALREADY_IN_POSITION, NO_POSITION_TO_SELL); no threshold changed"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval

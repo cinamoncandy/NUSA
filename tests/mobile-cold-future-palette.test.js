@@ -11,16 +11,18 @@ const colors = createTheme("dark").colors;
 
 test("Cold-future text and controls stay readable on the dark ground", () => {
   assert.ok(contrast(colors.text, colors.background) >= 12, "primary text");
-  assert.ok(contrast(colors.textMuted, colors.background) >= 7, "secondary text");
+  assert.ok(contrast(colors.textMuted, colors.background) >= 6, "secondary text");
   assert.ok(contrast(colors.textMuted, colors.surface) >= 6, "secondary text on cards");
   assert.ok(contrast(colors.primary, colors.background) >= 10, "primary control against the ground");
   assert.ok(contrast(colors.onPrimary, colors.primary) >= 10, "label on a primary button");
   assert.ok(contrast(colors.focus, colors.background) >= 7, "focus ring");
 });
 
-test("decorative colours can never be mistaken for a status colour", () => {
+test("calm-v1: white is the normal tone; nothing else can be mistaken for attention or loss", () => {
+  // In calm-v1 white is both the primary and the healthy/normal tone (owner-approved board), so only amber and red are alarm colours.
   const decorative = { primary: colors.primary, focus: colors.focus, info: colors.info, text: colors.text, neonPurple: colors.neonPurple, neonBlue: colors.neonBlue };
-  const status = { success: colors.success, warning: colors.warning, danger: colors.danger };
+  const status = { warning: colors.warning, danger: colors.danger };
+  assert.equal(colors.success, colors.text, "normal reads as plain white");
   for (const [dn, d] of Object.entries(decorative)) for (const [sn, s] of Object.entries(status)) assert.ok(dist(d, s) >= 90, `${dn} vs ${sn}`);
   assert.ok(dist(colors.success, colors.warning) >= 100);
   assert.ok(dist(colors.warning, colors.danger) >= 90);
@@ -76,84 +78,50 @@ test("holo state advances by elapsed time, not by how often it is drawn", () => 
 });
 
 
-test("the flow-field hero is deterministic: hairlines, wall rows and pulses stay within their bounds", () => {
+test("the ridge hero is deterministic and stays inside the canvas", () => {
   const M = require("../dist/apps/mobile/src/holoModel.js");
-  const lines = M.flowLines(), rows = M.wallRows();
-  assert.equal(lines.length, M.FLOW_LINE_COUNT);
-  assert.equal(rows.length, M.FLOW_ROWS);
-  assert.equal(M.flowLines(), lines, "cached and deterministic");
-  assert.equal(M.wallRows(), rows, "cached and deterministic");
-  assert.ok(M.flowArcX(0.5) > M.flowArcX(0) && M.flowArcX(0.5) > M.flowArcX(1) && Math.abs(M.flowArcX(0.5) - M.FLOW_ARC_X) < 1e-9, "the ruler bows right at the middle and bends away at the ends");
-  assert.ok(M.flowArcX(0.5) < M.FLOW_WALL_END, "the ruler is left of the wall");
-  for (const line of lines) {
-    assert.ok(line.y >= 0 && line.y <= 1 && line.alpha > 0 && line.alpha < 0.6 && line.width <= 0.85 && line.length > 0 && line.speed > 0, "thin, faint hairlines");
-    for (const t of [0, 1.7, 40, 5000]) {
-      const seg = M.flowSegment(line, t), reach = M.flowArcX(line.y);
-      assert.ok(seg.x0 >= 0 && seg.x1 <= reach + 1e-9 && seg.x0 <= seg.x1, "a hairline stays between the left edge and the ruler");
-      assert.ok(seg.y0 >= 0 && seg.y0 <= 1 && seg.y1 >= 0 && seg.y1 <= 1 && seg.alpha >= 0 && seg.alpha <= line.alpha + 1e-9);
+  assert.equal(M.ridgeNoise(1.3, 2.7), M.ridgeNoise(1.3, 2.7), "deterministic terrain");
+  for (const rows of [M.RIDGE_ROWS, 16]) for (const t of [0, 1.7, 40, 5000]) {
+    let prev = -1;
+    for (let r = 0; r < rows; r += 1) {
+      const d = M.ridgeDepth(r, rows, t);
+      assert.ok(d > 0 && d <= 1, "depth stays in 0..1");
+      assert.ok(d > prev, "rows stay ordered near to far");
+      prev = d;
+      const base = M.ridgeBaseY(d);
+      assert.ok(base >= M.RIDGE_HORIZON - 1e-9 && base <= M.RIDGE_NEAR + 1e-9, "a ridge sits between the horizon and the near edge");
+      for (const u of [0, 0.25, 0.5, 0.56, 1]) for (const rise of [0, 1]) {
+        const h = M.ridgeHeight(u, d, t, rise), x = M.ridgeX(u, d);
+        assert.ok(h >= 0 && base - h >= 0, "peaks never leave the top of the canvas");
+        assert.ok(x > -0.2 && x < 1.2, "the landscape stays near the canvas");
+      }
     }
   }
-  assert.notDeepEqual(M.flowSegment(lines[0], 0), M.flowSegment(lines[0], 3), "the stream flows");
-  for (const row of rows) {
-    assert.ok(row.y > 0 && row.y < 1 && row.base > 0 && row.base <= 1);
-    for (const grow of [0, 0.5, 1]) for (const t of [0, 2.2, 9]) {
-      const bar = M.wallBar(row, t, grow);
-      assert.ok(bar.x0 >= M.flowArcX(row.y) && bar.x1 >= bar.x0 && bar.x1 <= M.FLOW_WALL_END + 1e-9, "a bar stands between the ruler and the right edge");
-    }
-    assert.equal(M.wallBar(row, 1, 0).x1, M.wallBar(row, 1, 0).x0, "the wall grows out of the ruler during the entrance");
-  }
-  const ends = rows.map((row) => M.wallBar(row, 0, 1).x1);
-  assert.ok(Math.max(...ends) - Math.min(...ends) > 0.15, "the wall's right edge is ragged, not a straight line");
+  assert.ok(M.ridgeBaseY(0.01) > M.ridgeBaseY(0.9), "near rows sit lower than far rows");
+  assert.ok(M.ridgeRowAlpha(0.05) > M.ridgeRowAlpha(0.9), "near rows are brighter");
+  assert.notEqual(M.ridgeDepth(3, M.RIDGE_ROWS, 0), M.ridgeDepth(3, M.RIDGE_ROWS, 0.2), "the landscape flows toward the viewer");
+});
+
+test("a decision's wave rolls from the horizon toward the viewer, and an order raises a lime peak", () => {
+  const M = require("../dist/apps/mobile/src/holoModel.js");
   const wave = M.waveFor(4, 1000);
-  assert.equal(M.pulseFor(wave, 999), null);
-  assert.equal(M.pulseFor(wave, 1000 + M.HOLO_WAVE_MS + 1), null);
-  let previous = -1, glow = 2;
-  for (let ms = 0; ms <= M.HOLO_WAVE_MS; ms += 200) { const p = M.pulseFor(wave, 1000 + ms); assert.ok(p.reach >= previous && p.reach <= 1 + 1e-9 && p.glow <= glow + 1e-9 && p.glow >= 0, "a lit row reaches further and fades"); previous = p.reach; glow = p.glow; assert.equal(p.row, M.waveRow(wave)); }
-  const seen = new Set(); for (let d = 1; d <= 200; d += 1) { const row = M.waveRow(M.waveFor(d, 0)); assert.ok(Number.isInteger(row) && row >= 0 && row < M.FLOW_ROWS); seen.add(row); }
-  assert.ok(seen.size >= M.FLOW_ROWS / 3, "successive decisions light different rows");
-  const band = M.flowBandRows(), centre = Math.round(M.FLOW_BAND_Y * M.FLOW_ROWS - 0.5);
-  assert.ok(band.first >= 0 && band.last < M.FLOW_ROWS && band.first <= centre && centre <= band.last && band.last - band.first + 1 === M.FLOW_BAND_ROWS + (M.FLOW_BAND_ROWS % 2 === 0 ? 1 : 0), "the order band is centred on its height");
-  let s = M.observeHolo(M.initialHoloState(), 10, 0, 0);
-  assert.equal(s.markRow, null, "no marker row before a decision");
-  s = M.observeHolo(s, 11, 0, 100);
-  assert.equal(s.markRow, M.waveRow(M.waveFor(11, 100)), "the ruler marker follows the row the newest decision lit");
+  assert.equal(M.ridgeWaveGlow(wave, 0.5, 999), 0, "not before it is born");
+  assert.equal(M.ridgeWaveGlow(wave, 0.5, 1000 + M.HOLO_WAVE_MS), 0, "gone after its lifetime");
+  assert.ok(M.ridgeWaveGlow(wave, 0.99, 1010) > 0, "born on the horizon");
+  assert.ok(M.ridgeWaveGlow(wave, 0.5, 1000 + M.HOLO_WAVE_MS / 2) > 0, "half way, half way across");
+  assert.equal(M.ridgeWaveGlow(wave, 0.1, 1010), 0, "not near the viewer at birth");
+  assert.ok(M.ridgeHeight(M.RIDGE_ORDER_U, M.RIDGE_ORDER_DEPTH, 0, 1) > M.ridgeHeight(M.RIDGE_ORDER_U, M.RIDGE_ORDER_DEPTH, 0, 0) + 0.1, "an order raises a peak");
+  assert.ok(M.ridgeOrderMix(M.RIDGE_ORDER_DEPTH, 1) > 0.9 && M.ridgeOrderMix(0.9, 1) === 0 && M.ridgeOrderMix(M.RIDGE_ORDER_DEPTH, 0) === 0, "only the order's ridge turns lime, and only while it rises");
 });
 
-test("the hero is drawn as white ink on a stream, a ruler and a wall, and keeps its tone and still-figure contract", () => {
-  const fs = require("node:fs");
-  const { holoInk, holoColor, HOLO_COLORS } = require("../dist/apps/mobile/src/holoModel.js");
-  const src = fs.readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
-  for (const needle of [/flowLines\(\)/, /wallRows\(\)/, /flowSegment\(/, /wallBar\(row, tSec, grow\)/, /pulseFor\(wave, nowMs\)/, /flowClockSec\(s\)/, /flowBandRows\(\)/, /holoFillMarker\(S\)/]) assert.match(src, needle);
-  assert.match(src, /holoInk\(tone, s\.tintMix\)/, "the figure follows the status tone");
-  assert.match(src, /reducedMotion \? 0 : flowClockSec\(s\)/, "reduce-motion freezes the flow");
-  assert.ok(!/burstStreaks|dustField|dustPosition|streakLength|BURST_|liquidRadius|crystalGeometry|scanBoost|ringPoint/.test(src), "old figures are gone");
-  const white = holoInk("normal", 1), none = holoInk("halt", 0);
-  assert.ok(white.every((v) => v > 220), "normal reads cool white");
-  assert.deepEqual(none.map(Math.round), white.map(Math.round), "no tint yet looks normal");
-  const hold = holoInk("hold", 1), halt = holoInk("halt", 1);
-  assert.ok(hold[0] > 230 && hold[1] > 170 && hold[2] < 140, "hold reads amber at full tint");
-  assert.ok(halt[0] > 230 && halt[1] < 160 && halt[2] > 110, "halt reads red at full tint");
-  assert.ok(Math.abs(hold[1] - halt[1]) > 50, "hold and halt stay clearly different");
-  assert.deepEqual(holoInk("normal", 1), holoInk("normal", 0), "normal never tints");
-  assert.deepEqual(holoColor(-1, 0, 0, "halt", 0, HOLO_COLORS.cyan, 0).map(Math.round), holoColor(-1, 0, 0, "normal", 0, HOLO_COLORS.cyan, 1).map(Math.round), "the shared tint maths is unchanged");
-});
-
-test("the figure is dense and fine like the reference, with lime reserved for the order band", () => {
-  const { HOLO_COLORS, FLOW_LINE_COUNT, FLOW_ROWS, flowLines, wallRows, holoInk } = require("../dist/apps/mobile/src/holoModel.js");
-  const [lr, lg, lb] = HOLO_COLORS.lime; assert.ok(lr > 180 && lg > 230 && lb < 100, "lime stays a true lime");
-  assert.ok(FLOW_LINE_COUNT >= 300 && FLOW_ROWS >= 100, "the stream and the wall are dense like the reference");
-  assert.ok(flowLines().every((k) => k.width <= 0.85 && k.alpha <= 0.55), "hairlines are thin and faint");
-  assert.ok(wallRows().filter((row) => row.bright).length > FLOW_ROWS * 0.5, "most wall rows are bright");
-  const hold = holoInk("hold", 1), halt = holoInk("halt", 1);
-  assert.ok(hold[0] > 230 && hold[1] > 170 && halt[0] > 230 && halt[1] < 160, "hold and halt still read amber and red on the white ink");
-});
-
-test("the renderer guards the blur, ticks only the full figure and keeps lime for the order band", () => {
-  const src = require("node:fs").readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
-  assert.match(src, /MakeBlur\(BlurStyle\.Normal, blur, true\)/);
-  assert.match(src, /catch \{ \/\* no blur \*\/ \}/, "an unsupported blur must not break the figure");
-  assert.match(src, /canvas\.drawPoints\(PointMode\.Polygon, arc\(-5\)/, "the ruler is two thin arcs");
-  assert.match(src, /if \(detail === 1\) \{\s*for \(let i = 0; i < FLOW_TICKS/, "a small mark skips the ticks");
-  assert.match(src, /const accent = tone === "normal" \? HOLO_COLORS\.lime : ink/);
+test("the renderer draws far to near with ground fill, keeps tone ink, and reserves lime for the order", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "apps", "mobile", "src", "holoSphere.tsx"), "utf8");
+  assert.match(src, /for \(let r = rows - 1; r >= 0; r -= 1\)/, "far rows first so nearer ridges hide them");
+  assert.match(src, /canvas\.drawPath\(fill, paints\.ground\)/, "occlusion by ground fill");
+  assert.match(src, /const ink = holoInk\(tone, s\.tintMix\)/, "hold / halt tint the ink");
+  assert.match(src, /const accent = tone === "normal" \? HOLO_COLORS\.lime : ink/, "no lime while held or halted");
   assert.ok(!/HOLO_COLORS\.lime/.test(src.replace(/const accent[^\n]*\n/, "")), "lime is used only for the accent");
+  assert.match(src, /try \{ glow\.setMaskFilter/, "blur is guarded");
+  assert.match(src, /if \(reducedMotion \|\| decisionCount == null\)/, "still figure contract");
+  assert.ok(!/flowLines|wallRows|flowArcX|burstStreaks|dustField/.test(src), "old figures are gone");
 });

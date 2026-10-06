@@ -98,6 +98,12 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly researchCollectionStatus?: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE";
   readonly researchCandleCount?: number;
   readonly researchRequiredCandles?: number;
+  /** Cumulative PAPER decision-funnel counts since the runtime started: fixed codes and integer counts only. */
+  readonly paperFunnel?: { readonly since: number; readonly counts: Readonly<Record<string, number>> };
+  /** Counts behind the consecutive-loss limit as of the latest risk evaluation: integers and one timestamp only. */
+  /** Today's completed and losing sells per strategy family code (fixed codes, integers only). */
+  readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
 }
 
 export interface CloudReadinessSnapshot {
@@ -298,6 +304,39 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     ...(lastStallAt === undefined ? {} : { lastEventLoopStallAt: lastStallAt }),
   };
   // Research collection status: one of four fixed codes plus two counts, nothing else (no market, time or detail).
+  // Decision funnel: keys are fixed stage/status/reason codes and values are integers, at most 80 keys; anything else is dropped.
+  const FUNNEL_KEY = /^(OTHER|[A-Z][A-Z_]{1,23}:(PASS|SKIP|FAIL)(:[A-Z][A-Z0-9_]{1,47})?)$/;
+  const rawFunnel = source.paperFunnel as { since?: unknown; counts?: unknown } | null | undefined;
+  let funnel: { paperFunnel?: { since: number; counts: Record<string, number> } } = {};
+  if (rawFunnel != null && typeof rawFunnel === "object" && typeof rawFunnel.since === "number" && Number.isFinite(rawFunnel.since) && rawFunnel.since >= 0 && rawFunnel.counts != null && typeof rawFunnel.counts === "object" && !Array.isArray(rawFunnel.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawFunnel.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 80) break;
+      if (FUNNEL_KEY.test(key) && typeof value === "number" && Number.isSafeInteger(value) && value >= 0) counts[key] = value;
+    }
+    funnel = { paperFunnel: { since: rawFunnel.since, counts } };
+  }
+  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing.
+  const rawLoss = source.paperLossSession as Record<string, unknown> | null | undefined;
+  const LOSS_KEYS = ["evaluatedAt", "consecutiveLossCount", "maxConsecutiveLosses", "todayCompletedSells", "todayLosingSells"] as const;
+  const lossSession = rawLoss != null && typeof rawLoss === "object" && LOSS_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
+    ? { paperLossSession: Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])) }
+    : {};
+  // Loss attribution: at most 8 fixed family codes, each with two non-negative integers.
+  const FAMILY_CODE = /^(SMA_CROSSOVER|RSI_MEAN_REVERSION|DONCHIAN_BREAKOUT|OTHER_FAMILY|UNATTRIBUTED)$/;
+  const rawAttribution = source.paperLossAttribution as { evaluatedAt?: unknown; byFamily?: unknown } | null | undefined;
+  let lossAttribution: { paperLossAttribution?: { evaluatedAt: number; byFamily: Record<string, { completedSells: number; losingSells: number }> } } = {};
+  if (rawAttribution != null && typeof rawAttribution === "object" && Number.isSafeInteger(rawAttribution.evaluatedAt) && Number(rawAttribution.evaluatedAt) >= 0 && rawAttribution.byFamily != null && typeof rawAttribution.byFamily === "object" && !Array.isArray(rawAttribution.byFamily)) {
+    const byFamily: Record<string, { completedSells: number; losingSells: number }> = {};
+    for (const [key, value] of Object.entries(rawAttribution.byFamily as Record<string, unknown>)) {
+      if (Object.keys(byFamily).length >= 8) break;
+      const entry = value as { completedSells?: unknown; losingSells?: unknown } | null;
+      if (FAMILY_CODE.test(key) && entry != null && typeof entry === "object" && Number.isSafeInteger(entry.completedSells) && Number.isSafeInteger(entry.losingSells) && Number(entry.losingSells) >= 0 && Number(entry.completedSells) >= Number(entry.losingSells)) {
+        byFamily[key] = { completedSells: Number(entry.completedSells), losingSells: Number(entry.losingSells) };
+      }
+    }
+    lossAttribution = { paperLossAttribution: { evaluatedAt: Number(rawAttribution.evaluatedAt), byFamily } };
+  }
   const rawResearch = source.researchCollectionStatus;
   const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
     ? {
@@ -306,7 +345,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
       ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
     }
     : {};
-  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

@@ -4,6 +4,7 @@ import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitRea
 import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 import type { MobileApprovedSessionIdentity } from "./mobileApprovedSession";
 import { markStartup } from "./startupTiming";
+import { warmConnection } from "./connectionWarmup";
 
 type SilentContext = Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>;
 
@@ -192,7 +193,7 @@ export function setConfiguredPaperEndpoint(value: string): void {
     clearCredentialMemory();
   }
   configuredEndpoint = next;
-  if (next != null) markStartup("endpointReady");
+  if (next != null) { markStartup("endpointReady"); warmConnection(next); }
   setDashboardCredentialEndpoint(next);
   if (next != null && (changed || (!isPaperConnectionVerified(next) && restoreInFlight == null))) restoreApprovedSession(next);
 }

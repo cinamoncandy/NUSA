@@ -194,6 +194,32 @@ test("/health publishes the research collection status as a fixed code plus two 
   }, 41876);
 });
 
+test("/health publishes the PAPER decision funnel as fixed stage codes and integer counts, and drops everything else", async () => {
+  const funnel = { since: 1_791_259_000_000, counts: { "MARKET_DATA:PASS": 9000, "DECISION:PASS": 80, "DECISION:PASS:BUY": 60, "RISK:FAIL:CONSECUTIVE_LOSS_LIMIT": 57, OTHER: 3, "RISK:FAIL": 57 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: funnel }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperFunnel, funnel);
+  }, 41861);
+  const dirty = { since: 5, counts: { "RISK:FAIL": 4.5, "risk:fail": 1, "RISK:MAYBE": 2, "RISK:FAIL:lower": 3, "DECISION:PASS:KRW-XRP": 4, "balance is 9,999 KRW": 5, "RISK:FAIL:OK_CODE": 6, "FILL:PASS": -1, "PNL:PASS": "7", "DECISION:SKIP": 8 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(body.runtime.paperFunnel.counts, { "RISK:FAIL:OK_CODE": 6, "DECISION:SKIP": 8 }, "only well-formed keys with non-negative integer counts survive");
+    assert.doesNotMatch(res.body, /9,999|KRW-XRP|lower/);
+  }, 41862);
+  const many = { since: 1, counts: Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`RISK:FAIL:CODE_${i}`, i])) };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: many }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(Object.keys(body.runtime.paperFunnel.counts).length, 80, "at most 80 keys are published");
+  }, 41863);
+  for (const [index, bad] of [null, "text", { since: -1, counts: {} }, { since: 1, counts: [1, 2] }, { since: 1 }, { counts: {} }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: bad }) }, async (handle) => {
+      const body = JSON.parse((await request(handle.port, "/health")).body);
+      assert.equal(body.runtime.paperFunnel, undefined, JSON.stringify(bad));
+    }, 41864 + index);
+  }
+});
+
 test("/health strips extra component-health fields from an alternate callback", async () => {
   const measuredAt = 2_000;
   const health = (componentId, provenance, evidenceId) => evaluateComponentHealth({
@@ -238,4 +264,41 @@ test("the previous stop reason is published only as a coded value and never as f
     assert.equal(JSON.parse(res.body).runtime.previousStop, undefined);
     assert.doesNotMatch(res.body, /acct-123/);
   }, 41889);
+});
+
+test("/health publishes the loss-limit counts as five non-negative integers, and nothing when any is malformed", async () => {
+  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 5, todayLosingSells: 4 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: session }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperLossSession, session);
+  }, 42301);
+  for (const [index, bad] of [null, "text", { ...session, todayLosingSells: -1 }, { ...session, consecutiveLossCount: 1.5 }, { ...session, todayCompletedSells: undefined }, { ...session, market: "KRW-XRP", pnl: -219 }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: bad }) }, async (handle) => {
+      const res = await request(handle.port, "/health");
+      const body = JSON.parse(res.body);
+      if (index === 5) {
+        assert.deepEqual(Object.keys(body.runtime.paperLossSession).sort(), Object.keys(session).sort(), "extra fields are dropped");
+        assert.doesNotMatch(res.body, /KRW-XRP|-219/);
+      } else assert.equal(body.runtime.paperLossSession, undefined, JSON.stringify(bad));
+    }, 42302 + index);
+  }
+});
+
+test("/health publishes loss attribution only as fixed family codes with two integers each", async () => {
+  const good = { evaluatedAt: 1_791_284_000_000, byFamily: { SMA_CROSSOVER: { completedSells: 3, losingSells: 3 }, UNATTRIBUTED: { completedSells: 1, losingSells: 0 } } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: good }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperLossAttribution, good);
+  }, 42311);
+  const dirty = { evaluatedAt: 5, byFamily: { "sma-crossover": { completedSells: 1, losingSells: 1 }, "KRW-XRP": { completedSells: 1, losingSells: 1 }, RSI_MEAN_REVERSION: { completedSells: 1, losingSells: 2 }, DONCHIAN_BREAKOUT: { completedSells: 2, losingSells: 1, pnl: -219 } } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.paperLossAttribution.byFamily, { DONCHIAN_BREAKOUT: { completedSells: 2, losingSells: 1 } }, "raw ids, markets, impossible counts and extra fields are dropped");
+    assert.doesNotMatch(res.body, /KRW-XRP|sma-crossover|-219/);
+  }, 42312);
+  for (const [index, bad] of [null, "text", { evaluatedAt: -1, byFamily: {} }, { evaluatedAt: 1, byFamily: [] }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossAttribution, undefined, JSON.stringify(bad));
+    }, 42313 + index);
+  }
 });

@@ -8,6 +8,8 @@ import { readResearchExperimentSettings } from "./researchExperimentComposition"
 import { createEventLoopStallMonitor } from "./eventLoopStallMonitor";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { attributeTodayLosses, type PaperLossAttribution } from "./paperLossAttribution";
+import { classifyPaperWait } from "./paperWaitReason";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
@@ -439,7 +441,7 @@ export function startCloudRuntime(
         if (canonicalDecision != null) lastDecisionDetail = describeCanonicalDecision(canonicalDecision, now);
         paperLearningRecorder.record({ cycleId, stage: "MARKET_DATA", occurredAt: ticker.trade_timestamp, market: ticker.code, status: "PASS", reason: `source=UPBIT_PUBLIC_TICKER;observedAt=${ticker.trade_timestamp}` });
         const decisionSupported = canonicalDecision != null && ["BUY", "SELL", "HOLD", "REDUCE", "INCREASE"].includes(canonicalDecision.action);
-        paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
+        paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : canonicalDecision.action === "WAIT" ? `NO_ACTIONABLE_PAPER_DECISION:WAIT:${classifyPaperWait(canonicalDecision) ?? "NO_SIGNAL"}` : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
         paperLearningRecorder.record({ cycleId, stage: "PERMISSION", occurredAt: now, market: ticker.code, status: "SKIP", reason: "NO_CANONICAL_TRADE_PERMISSION_EVIDENCE" });
         if (result != null) {
           heartbeat.lastPaperDecisionOutcome = codePaperDecisionOutcome(result);
@@ -548,6 +550,16 @@ export function startCloudRuntime(
   const stallMonitor = createEventLoopStallMonitor();
   stallMonitor.start();
   // Display only: the same research collection status the app reads, as a code and two counts for /health.
+  // Today's losing sells per strategy family, recomputed at most every 30 s so /health stays cheap. Display only.
+  let lossAttributionCache: PaperLossAttribution | null = null;
+  const lossAttributionLiveness = () => {
+    const now = Date.now();
+    if (lossAttributionCache == null || now - lossAttributionCache.evaluatedAt >= 30_000) {
+      try { lossAttributionCache = effectivePaperLoop == null ? null : attributeTodayLosses(effectivePaperLoop.snapshot().fills, now); } catch { lossAttributionCache = null; }
+    }
+    return lossAttributionCache == null ? {} : { paperLossAttribution: lossAttributionCache };
+  };
+  const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
   const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
     let progress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { progress = researchAutomation?.collectionProgress?.() ?? null; } catch { progress = null; }
@@ -624,7 +636,10 @@ export function startCloudRuntime(
       lastError: heartbeat.lastError,
       ...(previousStop === undefined ? {} : { previousStop }),
       ...stallMonitor.snapshot(),
-      ...researchLiveness()
+      ...researchLiveness(),
+      paperFunnel: paperLearningRecorder.funnelSnapshot(),
+      ...lossSessionLiveness(),
+      ...lossAttributionLiveness()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
       Object.freeze({ ...heartbeat }),

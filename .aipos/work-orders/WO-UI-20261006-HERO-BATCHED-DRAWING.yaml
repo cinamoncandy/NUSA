@@ -1,0 +1,28 @@
+id: WO-UI-20261006-HERO-BATCHED-DRAWING
+title: "Draw the flow-field hero in batches so it makes about two dozen draw calls per frame instead of several hundred"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/hero-batched-drawing
+authority_impact: none
+owner_approval: "2026-10-06 in chat: after installing build 1.0.495 the owner said everything looks normal but the performance is not satisfying, and chose all of app stutter, slow connection/loading and trading results to be worked on"
+objective: "The new flow-field hero (#2536) drew every hairline, bar, tick and arc point with its own call: about 380 hairlines, 110 bars and 49 ticks plus the ruler arcs, rebuilt as new point lists every frame, roughly 550 JavaScript-to-native draw calls per frame at up to 24 frames per second. Group what looks the same and draw it together so the stutter the owner reports on the device is reduced without changing the picture."
+scope:
+  - "apps/mobile/src/holoModel.ts: a pure grouping rule for hairlines (flowLineBucket, flowBucketAlpha, flowBucketThick, FLOW_ALPHA_LEVELS / STEP, FLOW_THICK_WIDTH): alpha is quantised into six steps of 0.1 and width into thin or thick."
+  - "apps/mobile/src/holoSphere.tsx: unlit hairlines are drawn as line lists per bucket (at most 12 calls), unlit wall bars as two line lists by brightness, the ruler's arcs and ticks are built once per size, and point pairs are preallocated and reused so the stream allocates no points per frame. Lit rows, boosted hairlines, the marker and the order band are still drawn individually because they are few and animated."
+  - "tests/mobile-cold-future-palette.test.js: the renderer pins follow the batched code; a new test checks the grouping rule for every hairline at several times (each fits a bucket, the batch alpha stays within one step of the line's own, thickness splits at the threshold) and that only a boosted hairline is drawn on its own."
+exclusions:
+  - "The picture is intended to stay the same (alphas are quantised to six levels). No change to runtime data, trading, risk, accounting, LIVE, credentials or AI authority. The connection/loading time and the trading results are separate work."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-cold-future-palette.test.js
+  - node scripts/lint-mobile.js
+residual: "The call-count reduction (about 550 to about 25 per frame) is counted from the code, not measured on a device: Skia cannot run in this environment. The owner should compare smoothness and battery on the next Android build. If it still stutters, the next steps are a lower frame rate while no decision is lit or caching the static ruler as an image."

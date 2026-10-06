@@ -64,23 +64,23 @@ export interface Theme {
   }>;
 }
 
-/** Intelligence Field palette: subsystem hues, amber focus and the near-black void. */
+/** Intelligence Field palette, retuned for calm-v1: subsystems read as quiet greys, healthy is white, amber is attention and red is halt. */
 export const fieldPalette = Object.freeze({
-  void: "#02050A",
-  paper: "#3DDC97",
-  market: "#8AA2FF",
+  void: "#05080D",
+  paper: "#E8F0F2",
+  market: "#B8C4CC",
   dim: "#566676",
-  governance: "#7C8CFF",
-  muted: "#93A8BE",
-  axiom: "#9B7BFF",
+  governance: "#B8C4CC",
+  muted: "#8794A0",
+  axiom: "#B8C4CC",
   label: "#C9D2D8",
   text: "#E8F1FA",
   heart: "#F4F8FA",
   halt: "#FF5C5C",
   risk: "#FFA94D",
-  focus: "#FFB547",
+  focus: "#FFC266",
   /** Selection/focus highlight for field visuals (focused subsystem, selected tab). Amber `focus` is kept for warning tones only. */
-  accent: "#5CE1FF",
+  accent: "#E8F0F2",
 });
 
 const interaction = Object.freeze({
@@ -92,12 +92,23 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
-/** Cold future: deep blue-black ground, ice-white text, cyan primary, periwinkle focus ring. Identical in light and dark. Green stays the healthy tone, amber a warning-only tone and red a halt/danger-only tone, so no decorative colour can be mistaken for a status. */
+/** Calm redesign (calm-v1) palette. Colour carries meaning only: text = normal, order = my PAPER order (lime), attention = amber, loss = red/halt. */
+export const calmPalette = Object.freeze({
+  ground: "#05080D",
+  line: "#18212B",
+  text: "#E8F0F2",
+  muted: "#8794A0",
+  order: "#C6F54A",
+  attention: "#FFC266",
+  loss: "#FF5C5C",
+} as const);
+
+/** calm-v1: the whole app shares the calm palette. Cards blend into the ground (no boxes), white is the normal and primary tone, amber is attention only and red is loss/halt only. Identical in light and dark. */
 const fieldSurface = Object.freeze({
-  background: "#02050A", surface: "#070C14", surfaceRaised: "#0D1520", surfaceSunken: "#03060B",
-  text: "#E8F1FA", textMuted: "#93A8BE", primary: "#5CE1FF", primarySoft: "#06161C", onPrimary: "#02050A",
-  navSurface: "#02050A", border: "#16212D", borderStrong: "#354A5F", info: "#8AA2FF", focus: "#8AA2FF",
-  neonGlow: "rgba(92, 225, 255, 0.10)",
+  background: calmPalette.ground, surface: calmPalette.ground, surfaceRaised: "#0A1017", surfaceSunken: calmPalette.ground,
+  text: calmPalette.text, textMuted: calmPalette.muted, primary: calmPalette.text, primarySoft: "#0A1017", onPrimary: calmPalette.ground,
+  navSurface: calmPalette.ground, border: calmPalette.line, borderStrong: "#2A3440", info: calmPalette.muted, focus: calmPalette.text,
+  neonGlow: "rgba(232, 240, 242, 0.06)",
 });
 
 export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({
@@ -147,14 +158,14 @@ export function createTheme(_mode: ThemeMode = "dark", presetName: DesignPresetN
       aiSignalEnd: fieldPalette.label,
       aiSignalSoft: "#0B0A14",
       terrain: fieldPalette.label,
-      chartUp: fieldPalette.paper,
-      chartDown: fieldPalette.halt,
+      chartUp: calmPalette.text,
+      chartDown: calmPalette.loss,
       navSurface: palette.navSurface,
       border: palette.border,
       borderStrong: palette.borderStrong,
-      success: fieldPalette.paper,
-      warning: fieldPalette.focus,
-      danger: fieldPalette.halt,
+      success: calmPalette.text,
+      warning: calmPalette.attention,
+      danger: calmPalette.loss,
       info: palette.info,
       onDanger: fieldPalette.void,
       focus: palette.focus,
@@ -238,6 +249,7 @@ export const fieldHero = Object.freeze({
   limeChipBorder: "rgba(198, 245, 74, 0.5)",
   chipGround: "#050C08",
 } as const);
+
 
 /** Card / control corner radii for presenters that style in a static StyleSheet. Same values as the active theme's radii. */
 export const fieldRadii = Object.freeze({ md: 12, lg: 18, xl: 24 } as const);
