@@ -302,3 +302,39 @@ test("/health publishes loss attribution only as fixed family codes with two int
     }, 42313 + index);
   }
 });
+
+test("/health publishes research experiment ticks only as a fixed status, integers and code-keyed counts", async () => {
+  const good = { lastTickAt: 1_791_290_000_000, lastStatus: "OK", ticks: 12, sessionsStarted: 2, counts: { COMPLETED: 4, NOT_DUE: 20, VALIDATION_CHAMPION_BETTER: 3, VALIDATION_CHALLENGER_BETTER: 1, HOLDOUT_INCONCLUSIVE: 1 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicks: good }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.researchExperimentTicks, good);
+  }, 42321);
+  const dirty = { ...good, counts: { COMPLETED: 1, "KRW-XRP": 2, "skipped reason": 3, ERROR_X: -1, OK_CODE: 1.5 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicks: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.researchExperimentTicks.counts, { COMPLETED: 1 });
+    assert.doesNotMatch(res.body, /KRW-XRP|skipped reason/);
+  }, 42322);
+  for (const [index, bad] of [null, { ...good, lastStatus: "free text" }, { ...good, ticks: -1 }, { ...good, counts: [] }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicks: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.researchExperimentTicks, undefined, JSON.stringify(bad));
+    }, 42323 + index);
+  }
+});
+
+test("/health publishes the closed-learning loop status as fixed codes and integers only", async () => {
+  const good = { lastTickAt: 1_791_290_000_000, ticks: 9, bootstrap: "WAITING_RESEARCH_SNAPSHOT", rollover: "WAITING_FOR_REALIZED_FILL", cyclesEvaluated: 0, deployments: 0 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: good }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop, good);
+  }, 42341);
+  const dirty = { ...good, rolloverReason: "retired:paper-period-1", lastCycleOutcome: "QUALIFIED_FOR_LEAGUE", periodId: "secret", extra: 5 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.closedLearningLoop, { ...good, lastCycleOutcome: "QUALIFIED_FOR_LEAGUE" });
+    assert.doesNotMatch(res.body, /secret|paper-period/);
+  }, 42342);
+  for (const [index, bad] of [null, { ...good, ticks: -1 }, { ...good, bootstrap: "free text" }, { ...good, rollover: undefined }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop, undefined, JSON.stringify(bad));
+    }, 42343 + index);
+  }
+});
