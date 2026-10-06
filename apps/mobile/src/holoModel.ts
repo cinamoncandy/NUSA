@@ -1,10 +1,9 @@
 /**
  * Pure state for the NUSA flow-field hero. No imports, so tests can transpile it alone.
  *
- * The figure, after the owner's reference: fine hairlines stream in from the left toward a curved ruler, a white marker rides the ruler,
- * and on the right a wall of thin bars stands against it. Driven by runtime facts:
- * - each new decision lights one row of the wall (and the hairlines beside it) and moves the marker to that row;
- * - each new PAPER order sends a lime band across the whole field to a marker on the right edge, then lets it settle back;
+ * The figure ("능선", owner-chosen 2026-10-06): a receding landscape of hairline ridges flowing toward the viewer. Driven by runtime facts:
+ * - each new decision sends a bright wave from the horizon rolling forward through the ridges;
+ * - each new PAPER order raises a peak in the landscape with a lime light beam, and its ridge glows lime, then it settles;
  * - a held / halted runtime tints the white figure amber / red (halted also slows the flow to a near stop).
  * Everything moves with elapsed time; it stops entirely under reduce-motion.
  */
@@ -71,10 +70,10 @@ export function waveFor(decision: number, nowMs: number): HoloWave {
   return Object.freeze({ bornMs: nowMs, ax: Math.sin(ph) * Math.cos(th), ay: Math.cos(ph), az: Math.sin(ph) * Math.sin(th), amp: 0.09 });
 }
 
-/** The wall row (0..FLOW_ROWS-1) a decision's wave lights: the wave's direction mapped onto the rows, so successive decisions land on different rows. */
+/** The ridge row (0..RIDGE_ROWS-1) a decision is associated with, so successive decisions land on different rows. */
 export function waveRow(wave: HoloWave): number {
   const turn = ((Math.atan2(wave.az, wave.ax) / (Math.PI * 2) + 0.5) % 1 + 1) % 1;
-  return Math.min(FLOW_ROWS - 1, Math.floor(turn * FLOW_ROWS));
+  return Math.min(RIDGE_ROWS - 1, Math.floor(turn * RIDGE_ROWS));
 }
 
 /**
@@ -165,116 +164,77 @@ export const holoFrameBudgetMs = (quiet: boolean): number => (quiet ? HOLO_QUIET
 // The flow field. All geometry is in fractions of the (square) canvas: x to the right, y downward, both 0..1.
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/** Rows in the wall of bars, and hairlines in the stream. */
-export const FLOW_ROWS = 110;
-export const FLOW_LINE_COUNT = 380;
-/** Where the ruler sits at the vertical centre, and the radius of its curve (in canvas sizes): it bows right at the middle and bends away at the ends. */
-export const FLOW_ARC_X = 0.5;
-export const FLOW_ARC_RADIUS = 1.1;
-/** Vertical position of the order band and how many rows it covers. */
-export const FLOW_BAND_Y = 0.62;
-export const FLOW_BAND_ROWS = 8;
-/** Right end of the wall and of the order band, as a fraction of the canvas width. */
-export const FLOW_WALL_END = 0.965;
+// ---- Ridge landscape (owner-chosen 2026-10-06, "능선") -------------------------------------------------------------------
+// A receding landscape of hairline ridges flowing toward the viewer. All coordinates are 0..1 of a square canvas.
+export const RIDGE_ROWS = 48;
+export const RIDGE_COLS = 72;
+export const RIDGE_HORIZON = 0.2;
+export const RIDGE_NEAR = 0.97;
+/** Where a PAPER order rises: a depth on the landscape and a column just right of centre. */
+export const RIDGE_ORDER_DEPTH = 0.42;
+export const RIDGE_ORDER_U = 0.56;
+/** How fast the landscape slides toward the viewer, in rows per second of the flow clock. */
+export const RIDGE_SLIDE = 1.7;
 
-function lcg(seed: number): () => number {
-  let state = seed % 2147483647;
-  if (state <= 0) state += 2147483646;
-  return () => (state = (state * 16807) % 2147483647) / 2147483647;
+const hash1 = (k: number): number => { const s = Math.sin(k * 127.1) * 43758.5453; return s - Math.floor(s); };
+function valueNoise(x: number): number { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash1(i) * (1 - u) + hash1(i + 1) * u; }
+/** Smooth deterministic terrain noise in 0..~1. */
+export function ridgeNoise(x: number, y: number): number {
+  let v = 0, a = 0.5, f = 1;
+  for (let o = 0; o < 3; o += 1) { v += a * valueNoise(x * f + y * f * 1.7 + o * 31.3); a *= 0.5; f *= 2.1; }
+  return v;
 }
 
-/** x of the ruler at height y (both fractions). It is the arc of a circle whose centre lies to the left of the canvas. */
-export function flowArcX(y: number): number {
-  const dy = y - 0.5, cx = FLOW_ARC_X - FLOW_ARC_RADIUS;
-  return cx + Math.sqrt(Math.max(0, FLOW_ARC_RADIUS * FLOW_ARC_RADIUS - dy * dy));
+/** Depth (0 near .. 1 far) of ridge row r at flow time tSec; rows slide toward the viewer and wrap. */
+export function ridgeDepth(row: number, rows: number, tSec: number): number {
+  // Each row advances by a fraction of one row spacing; depths stay strictly ordered in (0, 1].
+  const frac = ((tSec * RIDGE_SLIDE) % 1 + 1) % 1;
+  return (row + 1 - frac) / rows;
 }
 
-export interface FlowLine { readonly y: number; readonly slope: number; readonly length: number; readonly alpha: number; readonly width: number; readonly speed: number; readonly phase: number }
-let lineCache: readonly FlowLine[] | null = null;
-/** The hairlines of the stream: thin, faint, slightly slanted, each with its own speed. Deterministic. */
-export function flowLines(): readonly FlowLine[] {
-  if (lineCache) return lineCache;
-  const r = lcg(23), out: FlowLine[] = [];
-  for (let i = 0; i < FLOW_LINE_COUNT; i += 1) {
-    out.push(Object.freeze({ y: r(), slope: (r() - 0.5) * 0.8, length: 0.1 + Math.pow(r(), 1.3) * 0.55, alpha: 0.14 + r() * 0.4, width: 0.35 + r() * 0.5, speed: 0.025 + r() * 0.06, phase: r() }));
-  }
-  lineCache = Object.freeze(out);
-  return lineCache;
+/** Screen baseline y (0..1) for a depth: far rows bunch near the horizon. */
+export const ridgeBaseY = (depth: number): number => RIDGE_HORIZON + (RIDGE_NEAR - RIDGE_HORIZON) * Math.pow(1 - depth, 2.2);
+/** Screen x (0..1) for column u at a depth: the landscape narrows toward the horizon. */
+export const ridgeX = (u: number, depth: number): number => 0.5 + (u - 0.5) * (0.35 + 0.65 * (1 - depth)) * 1.25;
+
+/** Height (0..1 of the canvas, upward) of the terrain at column u, depth, flow time, plus an order's rise (0..1). */
+export function ridgeHeight(u: number, depth: number, tSec: number, orderRise: number): number {
+  const xw = (u - 0.5) * (0.35 + 0.65 * (1 - depth));
+  const centre = Math.exp(-Math.pow(xw / 0.22, 2));
+  const amp = 0.17 * (1 - depth * 0.75);
+  let h = ridgeNoise(u * 6 + 3, depth * 9 + tSec * 0.32) * centre * amp;
+  if (orderRise > 0) h += Math.exp(-Math.pow((u - RIDGE_ORDER_U) / 0.025, 2)) * Math.exp(-Math.pow((depth - RIDGE_ORDER_DEPTH) / 0.03, 2)) * 0.13 * orderRise;
+  return h;
 }
 
-export interface FlowSegment { readonly x0: number; readonly y0: number; readonly x1: number; readonly y1: number; readonly alpha: number }
-/** One hairline at time tSec: its head travels from the left edge to the ruler, and it brightens as it nears it. Never leaves 0..ruler. */
-export function flowSegment(line: FlowLine, tSec: number): FlowSegment {
-  const head = ((line.phase + tSec * line.speed) % 1 + 1) % 1;
-  const reach = flowArcX(line.y);
-  const hx = head * reach, tx = Math.max(0, hx - line.length * reach);
-  const at = (x: number): number => Math.min(1, Math.max(0, line.y + line.slope * (x - reach * 0.5)));
-  return Object.freeze({ x0: tx, y0: at(tx), x1: hx, y1: at(hx), alpha: line.alpha * (0.3 + 0.7 * head) });
-}
-
-export interface WallRow { readonly y: number; readonly base: number; readonly phase: number; readonly bright: boolean }
-let wallCache: readonly WallRow[] | null = null;
-/** The wall of bars: each row's resting length is a fraction of the room between the ruler and the right edge. Long toward the top and bottom, ragged, deterministic. */
-export function wallRows(): readonly WallRow[] {
-  if (wallCache) return wallCache;
-  const r = lcg(41), out: WallRow[] = [];
-  for (let i = 0; i < FLOW_ROWS; i += 1) {
-    const y = (i + 0.5) / FLOW_ROWS, edge = Math.abs(y - 0.55) * 2; // 0 at the middle band, 1 at the ends
-    out.push(Object.freeze({ y, base: Math.min(1, 0.16 + 0.5 * edge + 0.42 * r() * r() + 0.2 * r()), phase: r() * Math.PI * 2, bright: r() < 0.68 }));
-  }
-  wallCache = Object.freeze(out);
-  return wallCache;
-}
-
-export interface WallBar { readonly x0: number; readonly x1: number; readonly y: number; readonly alpha: number }
-/** One bar at time tSec; it breathes by up to 8% of its length. `grow` (0..1) is the entrance. */
-export function wallBar(row: WallRow, tSec: number, grow: number): WallBar {
-  const x0 = flowArcX(row.y) + 0.018, room = FLOW_WALL_END - x0;
-  const length = row.base * (0.92 + 0.08 * Math.sin(tSec * 0.9 + row.phase)) * Math.min(1, Math.max(0, grow));
-  return Object.freeze({ x0, x1: x0 + room * length, y: row.y, alpha: row.bright ? 0.86 : 0.5 });
-}
-
-/**
- * Batching. Drawing every hairline and bar with its own call cost about 550 calls per frame; segments that share a look are drawn together
- * instead. A hairline's alpha is quantised into FLOW_ALPHA_LEVELS steps of FLOW_ALPHA_STEP (the figure's alphas stay below 0.6), and its width
- * into thin or thick, so a frame needs at most FLOW_ALPHA_LEVELS * 2 hairline calls.
- */
-export const FLOW_ALPHA_LEVELS = 6;
-export const FLOW_ALPHA_STEP = 0.1;
-export const FLOW_THICK_WIDTH = 0.6;
-export const flowLineBucket = (alpha: number, width: number): number => Math.min(FLOW_ALPHA_LEVELS - 1, Math.max(0, Math.floor(alpha / FLOW_ALPHA_STEP))) * 2 + (width >= FLOW_THICK_WIDTH ? 1 : 0);
-export const flowBucketAlpha = (bucket: number): number => (Math.floor(bucket / 2) + 0.5) * FLOW_ALPHA_STEP;
-export const flowBucketThick = (bucket: number): boolean => bucket % 2 === 1;
-
-/** The ruler's ticks: heights along it, every fifth one long. */
-export const FLOW_TICKS = 49;
-export const flowTick = (i: number): { y: number; long: boolean } => ({ y: 0.02 + (0.96 * i) / (FLOW_TICKS - 1), long: i % 5 === 0 });
-
-export interface FlowPulse { readonly row: number; readonly glow: number; readonly reach: number }
-/** One decision wave as a lit wall row: its glow fades over the wave's life; null outside it. */
-export function pulseFor(wave: HoloWave, nowMs: number): FlowPulse | null {
+/** How brightly a decision's wave lights a row at this depth: the wave is born on the horizon and rolls toward the viewer. */
+export function ridgeWaveGlow(wave: HoloWave, depth: number, nowMs: number): number {
   const age = (nowMs - wave.bornMs) / HOLO_WAVE_MS;
-  if (age < 0 || age > 1) return null;
-  const out = 1 - Math.pow(1 - Math.min(1, age * 3), 3);
-  return Object.freeze({ row: waveRow(wave), glow: 1 - age, reach: 0.55 + 0.45 * out });
+  if (age < 0 || age >= 1) return 0;
+  const front = 1 - age;
+  const d = Math.abs(depth - front);
+  return d < 0.06 ? (1 - d / 0.06) * (1 - age) : 0;
 }
 
-/** The rows the order band covers (centred on FLOW_BAND_Y). */
-export function flowBandRows(): { first: number; last: number } {
-  const center = Math.round(FLOW_BAND_Y * FLOW_ROWS - 0.5), half = Math.floor(FLOW_BAND_ROWS / 2);
-  return { first: center - half, last: center + half };
-}
+/** How much a row is lime because a PAPER order is rising beside it (0..1). */
+export const ridgeOrderMix = (depth: number, burst: number): number => {
+  const d = Math.abs(depth - RIDGE_ORDER_DEPTH);
+  return burst > 0.02 && d < 0.03 ? (1 - d / 0.03) * burst : 0;
+};
 
-/** Where the order band ends (the marker), in canvas pixels for a square canvas of `size`: the right end of the wall, at the band's height. */
+/** Base brightness of a row: near rows are brighter. */
+export const ridgeRowAlpha = (depth: number): number => 0.1 + 0.55 * Math.pow(1 - depth, 1.3);
+
+/** Where the order's light beam stands (its foot), in canvas pixels for a square canvas of `size`. */
 export function holoFillMarker(size: number): { x: number; y: number } {
-  return { x: size * FLOW_WALL_END, y: size * FLOW_BAND_Y };
+  return { x: size * ridgeX(RIDGE_ORDER_U, RIDGE_ORDER_DEPTH), y: size * (ridgeBaseY(RIDGE_ORDER_DEPTH) - 0.15) };
 }
 
-/** Placement of the market chip above the band's end inside a square canvas: right-aligned, clamped so it never leaves the canvas. */
+/** Placement of the market chip beside the beam inside a square canvas: clamped so it never leaves the canvas. */
 export function holoChipPlacement(size: number, label: string): { left: number; top: number; width: number } {
   const marker = holoFillMarker(size);
   const width = Math.round(label.length * 6.7 + 16);
-  return { left: Math.max(0, Math.min(Math.round(marker.x - width), size - width)), top: Math.max(0, Math.round(marker.y - 34)), width };
+  return { left: Math.max(0, Math.min(Math.round(marker.x + 8), size - width)), top: Math.max(0, Math.round(marker.y - 34)), width };
 }
 
 /** True when nothing but the ambient flow is moving. */

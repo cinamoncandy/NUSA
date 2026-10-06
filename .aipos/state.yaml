@@ -2616,3 +2616,10 @@ current_ui_calm_redesign:
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('그냥 다 새로 다시 해줘 개선하지말고', '니가 새롭게 디자인해봐', '진행해')"
   finding: "Four primary tabs replaced by calm-v1 presenters (지금/학습/안전/기록) over existing screen models; detail screens still field-v1 and named in the work order"
+current_ui_hero_ridge:
+  work_order: WO-UI-20261006-HERO-RIDGE
+  status: READY_FOR_REVIEW
+  branch: claude/hero-ridge
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('이거로 할게' on the ridge prototype)"
+  finding: "Hero replaced by a ridge landscape; decisions roll a wave from the horizon, a PAPER order raises a lime peak and beam"

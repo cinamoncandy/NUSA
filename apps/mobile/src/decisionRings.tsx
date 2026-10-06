@@ -45,7 +45,7 @@ export function DecisionRings({ status = null, marketLabel = null, ...props }: D
       </View> : null}
     </View>
     <View style={styles.legend}>
-      <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단마다 벽의 한 줄이 밝아지고, 주문이 나가면 라임 띠가 가로지릅니다</Text>
+      <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단마다 지평선에서 빛이 밀려오고, 주문이 나가면 라임 빛기둥이 솟습니다</Text>
       <Text style={[fieldFonts.mono, styles.legendText, { color: fieldHero.lime }]} testID="home-decision-rings-orders">PAPER 주문 {model.paperOrderCount == null ? "—" : model.paperOrderCount.toLocaleString("ko-KR")}건</Text>
     </View>
   </View>;
