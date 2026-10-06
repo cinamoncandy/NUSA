@@ -1,3 +1,5 @@
+import { calmPalette } from "./designSystem";
+
 /**
  * "Calm" design language (presentation only): one status sentence, a big number, hairline rows.
  * Colour carries meaning only: white = normal, lime = my PAPER order, amber = needs attention, red = loss/halt.
@@ -5,15 +7,7 @@
  */
 export type CalmTone = "NORMAL" | "ORDER" | "ATTENTION" | "LOSS" | "MUTED";
 
-export const calmColors = Object.freeze({
-  ground: "#05080D",
-  line: "#18212B",
-  text: "#E8F0F2",
-  muted: "#8794A0",
-  order: "#C6F54A",
-  attention: "#FFC266",
-  loss: "#FF7A7A",
-} as const);
+export const calmColors = calmPalette;
 
 export function calmToneColor(tone: CalmTone): string {
   switch (tone) {

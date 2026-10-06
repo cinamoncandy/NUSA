@@ -9,7 +9,7 @@ function load(file) {
   const src = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", file), "utf8");
   const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const mod = { exports: {} };
-  new Function("module", "exports", out)(mod, mod.exports);
+  new Function("module", "exports", "require", out)(mod, mod.exports, (id) => load(`${id.replace(/^\.\//, "")}.ts`));
   return mod.exports;
 }
 const kit = load("uiKitModel.ts");

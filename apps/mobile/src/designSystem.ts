@@ -239,6 +239,17 @@ export const fieldHero = Object.freeze({
   chipGround: "#050C08",
 } as const);
 
+/** Calm redesign (calm-v1) palette. Colour carries meaning only: text = normal, order = my PAPER order (lime), attention = amber, loss = red/halt. */
+export const calmPalette = Object.freeze({
+  ground: "#05080D",
+  line: "#18212B",
+  text: "#E8F0F2",
+  muted: "#8794A0",
+  order: "#C6F54A",
+  attention: "#FFC266",
+  loss: "#FF7A7A",
+} as const);
+
 /** Card / control corner radii for presenters that style in a static StyleSheet. Same values as the active theme's radii. */
 export const fieldRadii = Object.freeze({ md: 12, lg: 18, xl: 24 } as const);
 
