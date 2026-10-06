@@ -1,0 +1,29 @@
+id: WO-PAPER-20261006-DECISION-FUNNEL
+title: "Measure the PAPER decision funnel from the canonical stage recorder (P0-B)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/decision-funnel
+authority_impact: none
+owner_approval: "2026-10-06 in chat: the owner's master directive 'PAPER investment performance improvement and closed-loop convergence' (sections 3, 4, 5, 24, 26 P0-B/P0-C): measure the whole funnel from real runtime evidence and name one FIRST_BROKEN_TRANSITION before changing anything"
+objective: "The owner's directive asks first for the real PAPER funnel: market observation, strategy evaluation, decision, BUY/SELL, risk, order intent, order, fill, ledger, with conversion rates and a reason for every non-actionable decision, so that the earliest broken transition can be named and the one canonical owner fixed, with no loosening of thresholds to raise trade counts. Inventory: the canonical per-cycle stage recorder (PaperLearningEventRecorder, stages MARKET_DATA, SIGNAL, CANDIDATE, DECISION, PERMISSION, RISK, ORDER_INTENT, FILL, PNL, ... with a status and a coded reason) already exists but keeps only the latest 250 events, a few minutes, and nothing exposes totals. #2357 (open since 2026-09-28) is a different task (a risk-sizing contract and a mobile FIRST_BROKEN_TRANSITION display) and is not duplicated here; the existing /health runtime counters (decisionCount, paperOrderCount, paperFillCount, lastPaperDecisionOutcome) have no stage or reason breakdown."
+scope:
+  - "apps/cloud/src/paperFunnelCounters.ts: cumulative per-process counters fed by the recorder. Each event accepted for the first time adds one count to STAGE:STATUS and one count per fixed reason code to STAGE:STATUS:CODE (a decision also counts its action: BUY, SELL, HOLD, ...). A reason is accepted only when the whole string is upper-case code pieces joined by comma, semicolon or colon; a sentence, a key=value pair, a number or an identifier yields no code. Detail keys are bounded at 64 with the overflow counted under OTHER. funnelConversions derives the stage-to-stage rates."
+  - "apps/cloud/src/paperLearningObservability.ts: the recorder observes each new event once (a repeated id is not recounted; events loaded from earlier runs are not counted) and exposes funnelSnapshot(). The recorder's storage and what it persists are unchanged."
+  - "apps/cloud/src/runtime.ts adds paperFunnel to the liveness source; apps/cloud/src/server.ts publishes it on /health only as keys of the form STAGE:STATUS[:CODE] (or OTHER) with non-negative integer counts, at most 80 keys, and its start time; everything else is dropped."
+  - ".github/workflows/oracle-host-diagnose.yml: the /health output limit is raised from 1500 to 9000 characters so the funnel is not cut; read-only as before."
+  - "tests: reason-code extraction (no values, ids, free text), counting, the bound and OTHER, the conversion rates, once-only counting through the recorder, the display-only dependency boundary, and the /health allowlist (valid funnel published; dirty keys and non-integer counts dropped; over-long maps cut at 80; malformed objects omitted)."
+exclusions:
+  - "Measurement only. No strategy, risk, threshold, order, fill, ledger or learning behaviour changes. No trade is created and no value is invented. The recorder's per-event synchronous SQLite write (synchronous=FULL, a prune after each insert) is noted as a candidate cause of event-loop stalls but is not changed here; the stall measurements already on /health will show whether it matters."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The counters read sanitized events and never feed Decision, Risk, Order or Ledger; unreadable input is ignored; the public output keeps only fixed codes and integers."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/paper-funnel-counters.test.js tests/cloud-runtime-liveness-health.test.js tests/oracle-host-diagnose-workflow.test.js
+  - node --test dist/apps/cloud/src/module10XS.test.js dist/apps/cloud/src/moduleReplacementPolicy10XS.test.js
+residual: "Counts restart with the runtime (they carry their start time), and the funnel stages that the recorder does not emit yet (an explicit WAIT reason on every cycle, PAPER order working/rejected/expired, ledger posting) will appear as gaps in the data; the first reading after deploy names the first broken transition and the next work order fixes only that owner. Missed-opportunity classification, Performance/Governance feedback and the learning-loop proof (P0-E to P0-I) are separate work."

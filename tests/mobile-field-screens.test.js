@@ -62,7 +62,7 @@ test("the app-wide default theme is the field preset in both modes", () => {
   const design = read("designSystem.ts");
   assert.match(design, /export type DesignPresetName = "field";/);
   assert.match(design, /dark: fieldSurface,\s*light: fieldSurface,/);
-  assert.match(design, /background: "#02050A"/);
+  assert.match(design, /background: calmPalette\.ground/);
 });
 
 test("field typography is bundled with its OFL licence and only requested on Android", () => {

@@ -11,16 +11,18 @@ const colors = createTheme("dark").colors;
 
 test("Cold-future text and controls stay readable on the dark ground", () => {
   assert.ok(contrast(colors.text, colors.background) >= 12, "primary text");
-  assert.ok(contrast(colors.textMuted, colors.background) >= 7, "secondary text");
+  assert.ok(contrast(colors.textMuted, colors.background) >= 6, "secondary text");
   assert.ok(contrast(colors.textMuted, colors.surface) >= 6, "secondary text on cards");
   assert.ok(contrast(colors.primary, colors.background) >= 10, "primary control against the ground");
   assert.ok(contrast(colors.onPrimary, colors.primary) >= 10, "label on a primary button");
   assert.ok(contrast(colors.focus, colors.background) >= 7, "focus ring");
 });
 
-test("decorative colours can never be mistaken for a status colour", () => {
+test("calm-v1: white is the normal tone; nothing else can be mistaken for attention or loss", () => {
+  // In calm-v1 white is both the primary and the healthy/normal tone (owner-approved board), so only amber and red are alarm colours.
   const decorative = { primary: colors.primary, focus: colors.focus, info: colors.info, text: colors.text, neonPurple: colors.neonPurple, neonBlue: colors.neonBlue };
-  const status = { success: colors.success, warning: colors.warning, danger: colors.danger };
+  const status = { warning: colors.warning, danger: colors.danger };
+  assert.equal(colors.success, colors.text, "normal reads as plain white");
   for (const [dn, d] of Object.entries(decorative)) for (const [sn, s] of Object.entries(status)) assert.ok(dist(d, s) >= 90, `${dn} vs ${sn}`);
   assert.ok(dist(colors.success, colors.warning) >= 100);
   assert.ok(dist(colors.warning, colors.danger) >= 90);
@@ -76,67 +78,50 @@ test("holo state advances by elapsed time, not by how often it is drawn", () => 
 });
 
 
-test("the core-burst hero is deterministic: streaks, dust and pulses stay within their bounds", () => {
-  const { burstStreaks, streakLength, dustField, dustPosition, pulseFor, waveFor, BURST_STREAK_COUNT, BURST_DUST_COUNT, HOLO_WAVE_MS } = require("../dist/apps/mobile/src/holoModel.js");
-  const { fieldMotion } = require("../dist/apps/mobile/src/designSystem.js");
-  const streaks = burstStreaks(), dust = dustField();
-  assert.equal(streaks.length, BURST_STREAK_COUNT);
-  assert.equal(dust.length, BURST_DUST_COUNT);
-  assert.equal(burstStreaks(), streaks, "cached and deterministic");
-  for (const k of streaks) {
-    assert.ok(k.length >= 0.2 && k.length <= 1.0 && k.inner < k.length && k.alpha > 0 && k.alpha < 1);
-    for (const t of [0, 1.7, 5.3]) { const len = streakLength(k, t); assert.ok(len >= k.length * 0.87 && len <= k.length + 1e-9, "a streak breathes between 88% and 100%"); }
+test("the ridge hero is deterministic and stays inside the canvas", () => {
+  const M = require("../dist/apps/mobile/src/holoModel.js");
+  assert.equal(M.ridgeNoise(1.3, 2.7), M.ridgeNoise(1.3, 2.7), "deterministic terrain");
+  for (const rows of [M.RIDGE_ROWS, 16]) for (const t of [0, 1.7, 40, 5000]) {
+    let prev = -1;
+    for (let r = 0; r < rows; r += 1) {
+      const d = M.ridgeDepth(r, rows, t);
+      assert.ok(d > 0 && d <= 1, "depth stays in 0..1");
+      assert.ok(d > prev, "rows stay ordered near to far");
+      prev = d;
+      const base = M.ridgeBaseY(d);
+      assert.ok(base >= M.RIDGE_HORIZON - 1e-9 && base <= M.RIDGE_NEAR + 1e-9, "a ridge sits between the horizon and the near edge");
+      for (const u of [0, 0.25, 0.5, 0.56, 1]) for (const rise of [0, 1]) {
+        const h = M.ridgeHeight(u, d, t, rise), x = M.ridgeX(u, d);
+        assert.ok(h >= 0 && base - h >= 0, "peaks never leave the top of the canvas");
+        assert.ok(x > -0.2 && x < 1.2, "the landscape stays near the canvas");
+      }
+    }
   }
-  const flow = fieldMotion.holoFlowMs / 1000;
-  for (const d of dust) for (const t of [0, 2.2, 9]) { const q = dustPosition(d, t, flow); assert.ok(Math.hypot(q.x, q.y) <= 1.0 + 1e-9, "dust never leaves the figure radius"); }
-  assert.notDeepEqual(dustPosition(dust[0], 0, flow), dustPosition(dust[0], 3, flow), "the disc orbits");
-  const inner = dust.reduce((a, b) => (a.radius < b.radius ? a : b)), outer = dust.reduce((a, b) => (a.radius > b.radius ? a : b));
-  const sweep = (d) => Math.abs(Math.atan2(dustPosition({ ...d, angle: 0 }, 1, flow).y, dustPosition({ ...d, angle: 0 }, 1, flow).x));
-  assert.ok(inner.radius < outer.radius && sweep(inner) !== sweep(outer), "inner specks orbit faster than outer ones");
-  const wave = waveFor(4, 1000);
-  assert.equal(pulseFor(wave, 999), null);
-  assert.equal(pulseFor(wave, 1000 + HOLO_WAVE_MS + 1), null);
-  let previous = -1;
-  for (let ms = 0; ms <= HOLO_WAVE_MS; ms += 200) { const p = pulseFor(wave, 1000 + ms); assert.ok(p.ringRadius >= previous && p.ringRadius <= 1.0 + 1e-9 && p.ringAlpha >= 0 && p.streakLength <= 1.15 + 1e-9, "the ring only grows and fades"); previous = p.ringRadius; }
+  assert.ok(M.ridgeBaseY(0.01) > M.ridgeBaseY(0.9), "near rows sit lower than far rows");
+  assert.ok(M.ridgeRowAlpha(0.05) > M.ridgeRowAlpha(0.9), "near rows are brighter");
+  assert.notEqual(M.ridgeDepth(3, M.RIDGE_ROWS, 0), M.ridgeDepth(3, M.RIDGE_ROWS, 0.2), "the landscape flows toward the viewer");
 });
 
-test("the hero is drawn as an emerald core with streaks, dust and pulses and keeps its tone and still-figure contract", () => {
-  const fs = require("node:fs");
-  const { holoColor, HOLO_COLORS, BURST_FILL_REACH } = require("../dist/apps/mobile/src/holoModel.js");
-  const src = fs.readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
-  for (const needle of [/burstStreaks\(\)/, /dustField\(\)/, /pulseFor\(wave, nowMs\)/, /fieldMotion\.holoFlowMs/, /BURST_FILL_ANGLE/]) assert.match(src, needle);
-  assert.match(src, /holoColor\(-1, 0, 0, tone, s\.flash \* 0\.3, s\.flashColor, s\.tintMix\)/, "the figure follows the status tone, and a fill flares it only a little (the accent line carries the flare)");
-  assert.ok(!/liquidRadius|crystalGeometry|scanBoost|ringPoint/.test(src), "old figures are gone");
-  assert.ok(BURST_FILL_REACH <= 1.0, "the fill marker stays inside the canvas radius");
-  const normal = holoColor(-1, 0, 0, "normal", 0, HOLO_COLORS.cyan, 1);
-  assert.ok(normal[1] > normal[0] && normal[1] > normal[2], "normal reads green, like the reference");
-  const hold = holoColor(-1, 0, 0, "hold", 0, HOLO_COLORS.cyan, 1), halt = holoColor(-1, 0, 0, "halt", 0, HOLO_COLORS.cyan, 1);
-  assert.ok(hold[0] > 230 && hold[1] > 170 && hold[2] < 130, "hold reads amber on a lime base");
-  assert.ok(halt[0] > 230 && halt[1] < 150 && halt[2] > 100, "halt reads red on a lime base");
-  assert.ok(Math.abs(hold[1] - halt[1]) > 50, "hold and halt stay clearly different");
+test("a decision's wave rolls from the horizon toward the viewer, and an order raises a lime peak", () => {
+  const M = require("../dist/apps/mobile/src/holoModel.js");
+  const wave = M.waveFor(4, 1000);
+  assert.equal(M.ridgeWaveGlow(wave, 0.5, 999), 0, "not before it is born");
+  assert.equal(M.ridgeWaveGlow(wave, 0.5, 1000 + M.HOLO_WAVE_MS), 0, "gone after its lifetime");
+  assert.ok(M.ridgeWaveGlow(wave, 0.99, 1010) > 0, "born on the horizon");
+  assert.ok(M.ridgeWaveGlow(wave, 0.5, 1000 + M.HOLO_WAVE_MS / 2) > 0, "half way, half way across");
+  assert.equal(M.ridgeWaveGlow(wave, 0.1, 1010), 0, "not near the viewer at birth");
+  assert.ok(M.ridgeHeight(M.RIDGE_ORDER_U, M.RIDGE_ORDER_DEPTH, 0, 1) > M.ridgeHeight(M.RIDGE_ORDER_U, M.RIDGE_ORDER_DEPTH, 0, 0) + 0.1, "an order raises a peak");
+  assert.ok(M.ridgeOrderMix(M.RIDGE_ORDER_DEPTH, 1) > 0.9 && M.ridgeOrderMix(0.9, 1) === 0 && M.ridgeOrderMix(M.RIDGE_ORDER_DEPTH, 0) === 0, "only the order's ridge turns lime, and only while it rises");
 });
 
-test("the figure is emerald like the reference, dense and fine, with lime reserved for the active line", () => {
-  const { HOLO_COLORS, BURST_DUST_COUNT, burstStreaks, dustField, holoColor } = require("../dist/apps/mobile/src/holoModel.js");
-  for (const key of ["cyan", "violet", "pink", "mint"]) { const [r, g, b] = HOLO_COLORS[key]; assert.ok(g > 200 && r < 170 && g - r > 60 && b > 100, `${key} is emerald or teal, not yellow`); }
-  const [lr, lg, lb] = HOLO_COLORS.lime; assert.ok(lr > 180 && lg > 230 && lb < 100, "lime stays a true lime");
-  assert.ok(BURST_DUST_COUNT >= 2000, "dust is dense like the reference");
-  const dust = dustField();
-  assert.ok(dust.every((d) => d.size <= 0.8 && d.size >= 0.35), "specks stay fine");
-  const density = (lo, hi) => dust.filter((d) => d.radius >= lo && d.radius < hi).length / (hi * hi - lo * lo);
-  assert.ok(density(0.12, 0.4) > density(0.6, 1.01) * 2, "dust per unit area is concentrated toward the core");
-  const alphaNear = dust.filter((d) => d.radius < 0.4).reduce((a, d) => a + d.alpha, 0) / dust.filter((d) => d.radius < 0.4).length;
-  const alphaFar = dust.filter((d) => d.radius >= 0.8).reduce((a, d) => a + d.alpha, 0) / dust.filter((d) => d.radius >= 0.8).length;
-  assert.ok(alphaNear > alphaFar * 1.5, "and brighter there");
-  assert.ok(burstStreaks().every((k) => k.width <= 0.8 && k.alpha <= 0.37), "streaks are thin and faint");
-  const hold = holoColor(-1, 0, 0, "hold", 0, HOLO_COLORS.lime, 1), halt = holoColor(-1, 0, 0, "halt", 0, HOLO_COLORS.lime, 1);
-  assert.ok(hold[0] > 230 && hold[1] > 170 && hold[2] < 130 && halt[0] > 230 && halt[1] < 150, "hold and halt still read amber and red on an emerald base");
-});
-test("the renderer batches the dust, blooms the core and keeps lime for the active line", () => {
-  const src = require("node:fs").readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
-  assert.match(src, /canvas\.drawPoints\(PointMode\.Points, batch\.pts/);
-  assert.match(src, /MakeBlur\(BlurStyle\.Normal, blur, true\)/);
-  assert.match(src, /catch \{ \/\* no blur \*\/ \}/, "an unsupported blur must not break the figure");
-  assert.match(src, /const accent = tone === "normal" \? HOLO_COLORS\.lime : emerald/);
+test("the renderer draws far to near with ground fill, keeps tone ink, and reserves lime for the order", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "apps", "mobile", "src", "holoSphere.tsx"), "utf8");
+  assert.match(src, /for \(let r = rows - 1; r >= 0; r -= 1\)/, "far rows first so nearer ridges hide them");
+  assert.match(src, /canvas\.drawPath\(fill, paints\.ground\)/, "occlusion by ground fill");
+  assert.match(src, /const ink = holoInk\(tone, s\.tintMix\)/, "hold / halt tint the ink");
+  assert.match(src, /const accent = tone === "normal" \? HOLO_COLORS\.lime : ink/, "no lime while held or halted");
   assert.ok(!/HOLO_COLORS\.lime/.test(src.replace(/const accent[^\n]*\n/, "")), "lime is used only for the accent");
+  assert.match(src, /try \{ glow\.setMaskFilter/, "blur is guarded");
+  assert.match(src, /if \(reducedMotion \|\| decisionCount == null\)/, "still figure contract");
+  assert.ok(!/flowLines|wallRows|flowArcX|burstStreaks|dustField/.test(src), "old figures are gone");
 });

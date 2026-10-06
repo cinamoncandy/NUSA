@@ -1,0 +1,27 @@
+id: WO-PAPER-20261006-LOSS-ATTRIBUTION
+title: "Attribute today's losing sells to the strategy family that opened each position"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/loss-attribution
+authority_impact: none
+owner_approval: "2026-10-06 in chat: master directive step 6 (trace which strategy/family caused the consecutive losses via ledger evidence, without loosening risk limits) and '계속해'"
+objective: "The 10:53 UTC /health read showed todayCompletedSells=3, todayLosingSells=3, streak 3 = limit: every completed sell today lost, so CONSECUTIVE_LOSS_LIMIT blocks new buys until 00:00 UTC. Fills carry the CIO candidate binding; this attributes each of today's completed sells to the strategy family bound to the BUY that opened the position, and publishes the counts per family."
+scope:
+  - "apps/cloud/src/paperLossAttribution.ts (new): pure attributeTodayLosses over the fill ledger; families published only as fixed codes (SMA_CROSSOVER, RSI_MEAN_REVERSION, DONCHIAN_BREAKOUT, OTHER_FAMILY, UNATTRIBUTED) with completed and losing sell counts."
+  - "apps/cloud/src/runtime.ts: /health liveness includes paperLossAttribution, recomputed at most every 30 s from the canonical PAPER loop's fills; failures publish nothing."
+  - "apps/cloud/src/server.ts: allowlist publishes at most 8 fixed family codes with two consistent non-negative integers each."
+  - "tests: attribution by opening family, today-only, multi-fill orders counted once, no market/raw id leaves the module; /health allowlist."
+exclusions:
+  - "No change to the risk gate (its source blob is untouched), limits, thresholds, strategies, orders, accounting or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; any error publishes nothing rather than zeros."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/paper-loss-attribution.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "Requires a PAPER deploy. The attribution uses the same average-cost realized PnL as the risk gate's streak, so the totals should match paperLossSession; a mismatch would itself be a finding."

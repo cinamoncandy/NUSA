@@ -54,6 +54,18 @@ export interface CloudPaperRiskGate {
   evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>;
 }
 
+/**
+ * Display-only counts behind the consecutive-loss limit, as of the latest risk evaluation: today's (UTC) completed sell
+ * orders, how many of them lost, the current losing streak and the configured limit. Integers only (no money, market or id).
+ */
+export interface CloudPaperLossSessionSnapshot {
+  readonly evaluatedAt: number;
+  readonly consecutiveLossCount: number;
+  readonly maxConsecutiveLosses: number;
+  readonly todayCompletedSells: number;
+  readonly todayLosingSells: number;
+}
+
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 const dayOf = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
 
@@ -139,7 +151,7 @@ function dailyNotional(state: PaperAccountState, now: number): Readonly<{ dailyB
   return Object.freeze({ dailyBuyNotional, dailySellNotional });
 }
 
-function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number }> {
+function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number; todayCompletedSells: number; todayLosingSells: number }> {
   const positions = new Map<string, { quantity: number; averageEntryPrice: number }>();
   const sells: Array<{ pnl: number; filledAt: number }> = [];
   const sellOrders = new Map<string, { pnl: number; filledAt: number }>();
@@ -151,7 +163,7 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
       positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextAverage });
       continue;
     }
-    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER });
+    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER, todayCompletedSells: 0, todayLosingSells: 0 });
     const pnl = (order.price - prior.averageEntryPrice) * order.quantity - order.fee;
     const nextQuantity = Math.max(0, prior.quantity - order.quantity);
     positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : prior.averageEntryPrice });
@@ -170,7 +182,7 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
     if (completed[index]!.pnl >= 0) break;
     consecutiveLossCount += 1;
   }
-  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount });
+  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount, todayCompletedSells: completed.length, todayLosingSells: completed.filter((sell) => sell.pnl < 0).length });
 }
 
 export interface CloudPaperCanonicalRiskGatewayOptions {
@@ -191,6 +203,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   private readonly limits: IndependentRiskLimits;
   private readonly fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
   private peakEquity: number;
+  private lastLossSession: CloudPaperLossSessionSnapshot | null = null;
 
   public constructor(private readonly options: CloudPaperCanonicalRiskGatewayOptions) {
     if (!Number.isFinite(options.initialCapital) || options.initialCapital <= 0) throw new Error("cloud PAPER initial capital is invalid");
@@ -206,6 +219,11 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       runtime: hash(options.sourceCommitSha.trim()),
       riskPolicy: hash(this.limits)
     });
+  }
+
+  /** The loss-limit counts from the latest evaluation, or null before any. Display only; never used for a decision. */
+  public lossSession(): CloudPaperLossSessionSnapshot | null {
+    return this.lastLossSession;
   }
 
   public evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
@@ -236,6 +254,9 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const portfolioExposureNotional = input.state.positions.reduce((sum, item) => sum + item.quantity * item.markPrice, 0);
     const notionals = dailyNotional(input.state, input.now);
     const lossState = realizedLossState(input.state, input.now);
+    if (Number.isFinite(lossState.dailyRealizedPnL)) {
+      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells });
+    }
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);
     const identity: RiskIdentityState = Object.freeze({

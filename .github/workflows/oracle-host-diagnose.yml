@@ -33,7 +33,9 @@ jobs:
           echo "== memory"; free -m 2>&1
           echo "== state directory (names, owner, mode, size, mtime only)"
           ls -la /var/lib/nusa 2>&1 | head -40
-          echo "== state sizes"; du -sh /var/lib/nusa /var/backups/nusa /opt/nusa/releases 2>&1 | head -10
+          # No size walk of /opt/nusa/releases: du over its 11 GB took over a minute of disk I/O on the 1-vCPU host this job shares with the runtime.
+          echo "== state sizes"; du -sh /var/lib/nusa /var/backups/nusa 2>&1 | head -10
+          echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
       - name: Service state and redacted recent errors
         shell: bash
@@ -52,6 +54,6 @@ jobs:
         run: |
           set +e
           echo "== listening sockets (local, no process names)"; ss -ltn 2>&1 | head -15
-          echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 1500 characters)"
+          echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 9000 characters)"
           curl -sS -m 6 -o /tmp/nusa-health-probe.txt -w "http=%{http_code} connect=%{time_connect}s total=%{time_total}s size=%{size_download}B\n" http://127.0.0.1:41731/health 2>&1
-          head -c 1500 /tmp/nusa-health-probe.txt 2>/dev/null; echo
+          head -c 9000 /tmp/nusa-health-probe.txt 2>/dev/null; echo

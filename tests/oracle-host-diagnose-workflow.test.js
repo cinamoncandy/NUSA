@@ -28,7 +28,7 @@ test("the only network request is a bounded GET of the runtime's own /health on 
   assert.match(curls[0], /curl -sS -m 6 -o \/tmp\/nusa-health-probe\.txt /, "silent, 6 s timeout, response to a probe file");
   assert.match(curls[0], /http:\/\/127\.0\.0\.1:41731\/health 2>&1$/, "local /health only");
   assert.doesNotMatch(curls[0], /\s-(X|d|H|T|u|F|K|b|c)\s|--(data|header|upload|user|form|request|config|cookie)|Authorization|Bearer/, "a plain GET with no body, header, cookie or credential");
-  assert.match(commands, /head -c 1500 \/tmp\/nusa-health-probe\.txt/, "output bounded");
+  assert.match(commands, /head -c 9000 \/tmp\/nusa-health-probe\.txt/, "output bounded");
   assert.doesNotMatch(commands, /https?:\/\/(?!127\.0\.0\.1)/, "no other address");
 });
 
@@ -38,4 +38,10 @@ test("log output is bounded and redacted, and a separate concurrency group avoid
   assert.match(text, /\[hex\]/);
   assert.match(text, /group: oracle-host-diagnose/);
   assert.doesNotMatch(text, /group: oracle-paper-release/);
+});
+
+test("the diagnosis does not walk the release directory, so it cannot load the host it measures", () => {
+  const commands = text.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  assert.doesNotMatch(commands, /du\b[^\n]*\/opt\/nusa\/releases/, "no size walk of the 11 GB release directory");
+  assert.match(commands, /ls -1 \/opt\/nusa\/releases[^\n]*wc -l/, "the release directories are only counted");
 });

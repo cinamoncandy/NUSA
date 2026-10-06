@@ -1,116 +1,89 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, PointMode, Skia, StrokeCap, createPicture, type SkPicture } from "@shopify/react-native-skia";
-import { fieldMotion } from "./designSystem";
-import { HOLO_COLORS, BURST_FILL_ANGLE, BURST_FILL_REACH, BURST_ROTATION, BURST_TILT, HOLO_RADIUS_FRACTION, burstStreaks, dustField, dustPosition, easeOutBack, easeOutCubic, holoColor, holoFrameBudgetMs, initialHoloState, isHoloQuiet, observeHolo, pulseFor, streakLength, tickHolo, type HoloTone } from "./holoModel";
+import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, createPicture, type SkPicture } from "@shopify/react-native-skia";
+import { calmPalette } from "./designSystem";
+import { HOLO_COLORS, RIDGE_COLS, RIDGE_ROWS, easeOutCubic, flowClockSec, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, ridgeBaseY, ridgeDepth, ridgeHeight, ridgeOrderMix, ridgeRowAlpha, ridgeWaveGlow, ridgeX, tickHolo, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
-  /** Real runtime decision count; each increase sends a pulse ring and a bright streak out from the core. Null draws it still. */
+  /** Real runtime decision count; each increase sends a bright wave from the horizon through the ridges. Null draws it still. */
   readonly decisionCount: number | null;
-  /** Real PAPER order count; each increase draws a line from the core to a marker and flares it, then it settles. */
+  /** Real PAPER order count; each increase raises a peak with a lime light beam, then it settles. */
   readonly fillCount: number | null;
   readonly tone: HoloTone;
   /** Still figure: reduce-motion, or a secondary-tab mark. */
   readonly reducedMotion: boolean;
   readonly size: number;
+  /** Detail level: below 600 the landscape is drawn as a small mark (fewer ridges and columns). */
   readonly points?: number;
   readonly testID?: string;
 }
 
-
 /**
- * NUSA holo mark, after the owner's reference: a lime core with fine light streaks, a tilted disc of dust and
- * thin ellipse rings. A runtime decision sends a pulse ring and a bright streak out from the core; a PAPER fill
- * draws a line from the core to a marker that flares. See holoModel.ts for how runtime facts drive it. The
- * component name is kept for its callers.
+ * NUSA "능선" (Ridge) hero, chosen by the owner on 2026-10-06: a receding landscape of hairline ridges flowing toward the viewer.
+ * A runtime decision sends a bright wave rolling forward from the horizon; a PAPER order raises a peak with a lime beam and its
+ * ridge glows lime. A held / halted runtime tints the white ink amber / red and the halt nearly stops the flow (holoModel.ts).
+ * Rows are drawn far to near; each row first fills the ground below its line, so nearer ridges hide farther ones.
+ * The component name is kept for its callers.
  */
-/** Soft atmosphere: this many stacked, very faint discs from the figure radius down to the core read as a smooth glow, not rings. */
-const FOG_STEPS = 16;
-
 export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size, points = 1600, testID = "holo-sphere" }: HoloSphereProps) {
   const state = useRef(initialHoloState());
   const stillDrawn = useRef(false);
+  const detail = points >= 600 ? 1 : 0;
+  const rows = detail === 1 ? RIDGE_ROWS : 16;
+  const cols = detail === 1 ? RIDGE_COLS : 28;
   const paints = useMemo(() => {
-    const make = (stroke: boolean, blur = 0) => {
-      const p = Skia.Paint(); p.setBlendMode(BlendMode.Plus); p.setAntiAlias(true);
-      if (stroke) { p.setStyle(PaintStyle.Stroke); p.setStrokeCap(StrokeCap.Round); }
-      // A soft glow when the renderer supports a blur mask; without it the crisp passes still draw the figure.
-      if (blur > 0) { try { p.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, blur, true)); } catch { /* no blur */ } }
-      return p;
-    };
-    return { fill: make(false), line: make(true), glowLine: make(true, 1.6), bloom: make(false, 9), bloomSmall: make(false, 3) };
+    const line = Skia.Paint(); line.setAntiAlias(true); line.setStyle(PaintStyle.Stroke); line.setStrokeCap(StrokeCap.Round); line.setStrokeJoin(StrokeJoin.Round);
+    const ground = Skia.Paint(); ground.setAntiAlias(true); ground.setColor(Skia.Color(calmPalette.ground));
+    const glow = Skia.Paint(); glow.setAntiAlias(true); glow.setBlendMode(BlendMode.Plus);
+    // A soft bloom when the renderer supports a blur mask; without it the beam still draws crisply.
+    try { glow.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, 10, true)); } catch { /* no blur */ }
+    return { line, ground, glow };
   }, []);
   const rgba = useMemo(() => new Float32Array(4), []);
+  const edges = useMemo(() => [[0, size * 0.16], [size, size * 0.84]].map(([x0, x1]) => {
+    const paint = Skia.Paint();
+    paint.setShader(Skia.Shader.MakeLinearGradient({ x: x0!, y: 0 }, { x: x1!, y: 0 }, [Skia.Color(calmPalette.ground), Skia.Color("transparent")], null, 0));
+    return { paint, rect: Skia.XYWHRect(Math.min(x0!, x1!), 0, Math.abs(x1! - x0!), size) };
+  }), [size]);
   const [picture, setPicture] = useState<SkPicture | null>(null);
-  const streaks = useMemo(() => burstStreaks(), []);
-  // Dust is drawn in a handful of batched point calls (by brightness and by how faint), with preallocated points so a frame allocates nothing.
-  const dustBatches = useMemo(() => {
-    if (points < 600) return [];
-    const field = dustField(), batches: { idx: number[]; pts: { x: number; y: number }[]; bright: boolean; alpha: number; width: number }[] = [];
-    for (const bright of [true, false]) for (const [lo, hi] of [[0, 0.25], [0.25, 0.45], [0.45, 1.01]] as const) {
-      const idx = field.map((d, i) => (d.bright === bright && d.alpha >= lo && d.alpha < hi ? i : -1)).filter((i) => i >= 0);
-      if (idx.length === 0) continue;
-      batches.push({ idx, pts: idx.map(() => ({ x: 0, y: 0 })), bright, alpha: idx.reduce((sum, i) => sum + field[i]!.alpha, 0) / idx.length, width: idx.reduce((sum, i) => sum + field[i]!.size, 0) / idx.length });
-    }
-    return batches;
-  }, [points]);
 
   const render = (nowMs: number) => {
-    const s = state.current, cx = size / 2, cy = size / 2, u = size / 300;
-    const bloom = easeOutCubic(s.birth);
-    const R = size * HOLO_RADIUS_FRACTION * (0.12 + 0.88 * easeOutBack(s.birth));
-    const tSec = reducedMotion ? 0 : nowMs / 1000, flowSec = fieldMotion.holoFlowMs / 1000;
-    // Emerald comes from the ramp so hold / halt tint it amber / red and a fill flares it; lime is only the active line and marker.
-    const emerald = holoColor(-1, 0, 0, tone, s.flash * 0.3, s.flashColor, s.tintMix);
-    const accent = tone === "normal" ? HOLO_COLORS.lime : emerald;
-    const tintW = tone === "normal" ? 0 : 0.85 * s.tintMix, toneRgb = tone === "halt" ? HOLO_COLORS.halt : HOLO_COLORS.hold;
-    const white: readonly [number, number, number] = [236 + (toneRgb[0] - 236) * tintW, 255 + (toneRgb[1] - 255) * tintW, 244 + (toneRgb[2] - 244) * tintW];
-    const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(nowMs / 640);
-    const set = (p: typeof paints.fill, c: readonly [number, number, number], a: number) => { rgba[0] = c[0] / 255; rgba[1] = c[1] / 255; rgba[2] = c[2] / 255; rgba[3] = Math.max(0, Math.min(1, a)); p.setColor(rgba); };
-    const boost = 1 + 0.4 * s.flash;
+    const s = state.current, S = size;
+    const grow = easeOutCubic(s.birth), tSec = reducedMotion ? 0 : flowClockSec(s);
+    const ink = holoInk(tone, s.tintMix);
+    const accent = tone === "normal" ? HOLO_COLORS.lime : ink;
+    const set = (p: typeof paints.line, c: readonly [number, number, number], a: number) => { rgba[0] = c[0] / 255; rgba[1] = c[1] / 255; rgba[2] = c[2] / 255; rgba[3] = Math.max(0, Math.min(1, a)); p.setColor(rgba); };
+    const waves = reducedMotion ? [] : s.waves;
+    const burst = reducedMotion ? 0 : s.burst;
     setPicture(createPicture((canvas) => {
-      // Atmosphere: stacked, very faint discs read as a smooth glow.
-      for (let i = 0; i < FOG_STEPS; i += 1) { const t = i / (FOG_STEPS - 1); set(paints.fill, emerald, bloom * 0.012 * boost); canvas.drawCircle(cx, cy, R * (1.02 - 0.92 * t), paints.fill); }
-      // Two thin ellipse rings on the tilted disc.
-      canvas.save(); canvas.translate(cx, cy); canvas.rotate((BURST_ROTATION * 180) / Math.PI, 0, 0);
-      for (const [rr, al] of [[0.95, 0.2], [0.74, 0.1]] as const) { set(paints.line, emerald, bloom * al); paints.line.setStrokeWidth(Math.max(0.5, 0.8 * u)); canvas.drawOval(Skia.XYWHRect(-R * rr, -R * rr * BURST_TILT, R * rr * 2, R * rr * 2 * BURST_TILT), paints.line); }
-      canvas.restore();
-      // Dense, fine dust (batched).
-      if (dustBatches.length > 0) {
-        const field = dustField();
-        for (const batch of dustBatches) {
-          for (let k = 0; k < batch.idx.length; k += 1) { const q = dustPosition(field[batch.idx[k]!]!, tSec, flowSec), pt = batch.pts[k]!; pt.x = cx + q.x * R; pt.y = cy + q.y * R; }
-          set(paints.line, batch.bright ? white : emerald, bloom * batch.alpha * boost); paints.line.setStrokeWidth(Math.max(0.5, batch.width * 2 * u));
-          canvas.drawPoints(PointMode.Points, batch.pts, paints.line);
+      for (let r = rows - 1; r >= 0; r -= 1) {
+        const depth = ridgeDepth(r, rows, tSec);
+        const base = ridgeBaseY(depth);
+        const path = Skia.Path.Make();
+        for (let c = 0; c <= cols; c += 1) {
+          const u = c / cols, x = ridgeX(u, depth) * S, y = (base - ridgeHeight(u, depth, tSec, burst) * grow) * S;
+          if (c === 0) path.moveTo(x, y); else path.lineTo(x, y);
         }
+        // Ground below the line hides the farther ridges.
+        const fill = path.copy(); fill.lineTo(ridgeX(1, depth) * S, S); fill.lineTo(ridgeX(0, depth) * S, S); fill.close();
+        canvas.drawPath(fill, paints.ground);
+        let glowA = 0;
+        for (const w of waves) glowA = Math.max(glowA, ridgeWaveGlow(w, depth, nowMs));
+        const lime = ridgeOrderMix(depth, burst);
+        const alpha = grow * Math.min(1, ridgeRowAlpha(depth) + (lime > 0.02 ? lime : glowA * 0.8));
+        set(paints.line, lime > 0.02 ? accent : ink, alpha);
+        paints.line.setStrokeWidth(Math.max(0.5, (0.6 + 0.9 * (1 - depth)) * (S / 720) * 2));
+        canvas.drawPath(path, paints.line);
       }
-      // Thin streaks: a soft glow pass, then the crisp pass.
-      for (let pass = 0; pass < 2; pass += 1) {
-        const p = pass === 0 ? paints.glowLine : paints.line;
-        for (let n = 0; n < streaks.length; n += 1) {
-          const k = streaks[n]!, len = R * streakLength(k, tSec), c = Math.cos(k.angle), sn = Math.sin(k.angle);
-          set(p, n % 9 === 0 ? white : emerald, bloom * k.alpha * boost * (pass === 0 ? 0.7 : 1)); p.setStrokeWidth(Math.max(0.4, k.width * u));
-          canvas.drawLine(cx + c * R * k.inner, cy + sn * R * k.inner, cx + c * len, cy + sn * len, p);
-        }
+      // Fade the landscape's left and right ends into the ground (paints built once per size).
+      for (const edge of edges) canvas.drawRect(edge.rect, edge.paint);
+      // A PAPER order: a lime beam rising from the peak, with a soft bloom at its foot.
+      if (burst > 0.02) {
+        const foot = holoFillMarker(S);
+        set(paints.line, accent, grow * 0.55 * burst); paints.line.setStrokeWidth(Math.max(1, S / 240));
+        canvas.drawLine(foot.x, foot.y, foot.x, 0, paints.line);
+        set(paints.glow, accent, grow * 0.5 * burst); canvas.drawCircle(foot.x, foot.y, S * 0.06, paints.glow);
       }
-      // Decisions: a pulse ring and a bright streak from the core.
-      for (const wave of s.waves) {
-        const pl = pulseFor(wave, nowMs); if (pl == null) continue;
-        set(paints.line, emerald, bloom * pl.ringAlpha); paints.line.setStrokeWidth(Math.max(0.8, 1.4 * u)); canvas.drawCircle(cx, cy, R * pl.ringRadius, paints.line);
-        set(paints.line, white, bloom * pl.streakAlpha); paints.line.setStrokeWidth(Math.max(0.9, 1.8 * u));
-        canvas.drawLine(cx, cy, cx + Math.cos(pl.angle) * R * pl.streakLength, cy + Math.sin(pl.angle) * R * pl.streakLength, paints.line);
-      }
-      // PAPER fill: an accent line from the core to a marker that flares.
-      if (s.burst > 0.02) {
-        const ex = cx + Math.cos(BURST_FILL_ANGLE) * R * BURST_FILL_REACH * s.burst, ey = cy + Math.sin(BURST_FILL_ANGLE) * R * BURST_FILL_REACH * s.burst;
-        set(paints.line, accent, bloom * 0.95); paints.line.setStrokeWidth(Math.max(1, 1.5 * u)); canvas.drawLine(cx, cy, ex, ey, paints.line);
-        set(paints.bloomSmall, accent, bloom * 0.45 * s.burst); canvas.drawCircle(ex, ey, 9 * u, paints.bloomSmall);
-        set(paints.fill, accent, bloom * 0.95 * s.burst); canvas.drawRect(Skia.XYWHRect(ex - 5 * u, ey - 3.5 * u, 10 * u, 7 * u), paints.fill);
-      }
-      // Core: soft emerald bloom, a white glow and a white point.
-      set(paints.bloom, emerald, bloom * (0.2 + 0.06 * pulse) * boost); canvas.drawCircle(cx, cy, R * 0.26, paints.bloom);
-      set(paints.bloomSmall, white, bloom * 0.45 * boost); canvas.drawCircle(cx, cy, R * 0.06, paints.bloomSmall);
-      set(paints.fill, white, bloom * 0.95); canvas.drawCircle(cx, cy, Math.max(1, 2.6 * u), paints.fill);
     }, { width: size, height: size }));
   };
 
@@ -118,13 +91,13 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     const now = Date.now();
     state.current = observeHolo(state.current, decisionCount, fillCount, now);
     if (reducedMotion || decisionCount == null) {
-      // Still figure: no waves or burst in flight, tone colour applied.
+      // Still figure: no waves or beam in flight, tone colour applied.
       state.current = Object.freeze({ ...state.current, waves: Object.freeze([]), burst: 0, burstTarget: 0, flash: 0, birth: 1, tintMix: 1 });
       stillDrawn.current = true;
       render(now);
       return undefined;
     }
-    // HOME starts with reduced motion assumed until the OS preference resolves; replay the bloom once when live motion begins.
+    // HOME starts with reduced motion assumed until the OS preference resolves; replay the entrance once when live motion begins.
     if (stillDrawn.current) { stillDrawn.current = false; state.current = Object.freeze({ ...state.current, birth: 0 }); }
     let alive = true, last = 0, frame = 0;
     const loop = (t: number) => {
