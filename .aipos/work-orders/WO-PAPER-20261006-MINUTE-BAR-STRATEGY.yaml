@@ -1,0 +1,28 @@
+id: WO-PAPER-20261006-MINUTE-BAR-STRATEGY
+title: "Evaluate the PAPER candidate strategy on completed 1-minute closes instead of every ticker event"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/minute-bar-strategy
+authority_impact: none
+owner_approval: "2026-10-06 in chat: '2번으로 진행해' (option 2: align the strategy horizon with research minute bars; new candidates still need OOS evidence before PAPER promotion)"
+objective: "FIRST_BROKEN_TRANSITION is BUY -> ORDER_INTENT; the loss-limit share traces to SMA_CROSSOVER (today 3/3 losing sells). The owner baseline SMA 5/20 was applied to every ticker event, a horizon of seconds. Offline replay on 20,000 real KRW-XRP ticks (2026-10-06, 6.4 h, 0.05% fee per side): 634 trades, 0.5% wins, -51% net, 12 s median hold, both halves alike; the same rule on 1-minute candles: 53 trades, 11% wins, -7% net. The strategy now reads completed 1-minute closes so its periods mean minutes, like research."
+scope:
+  - "apps/cloud/src/paperMinuteBars.ts (new): completedMinuteCloses (completed minutes only, last price per minute, no forward fill, no look-ahead, bounded lookback 60) and PaperMinuteBarSource (reads the persisted public-ticker store at most once per market per minute; a read failure yields no bars so the strategy waits)."
+  - "apps/cloud/src/paperCandidateStrategy.ts: evaluatePaperCandidateStrategy accepts optional minute closes that replace the per-ticker series for every family (SMA, RSI, Donchian)."
+  - "apps/cloud/src/cloudRuntimeDashboardHydrator.ts: optional paperCandidateMinuteCloses source passed to the strategy."
+  - "apps/cloud/src/closedLearningProductionRuntime.ts: production wires the source to SqlitePaperMarketObservationRepository.readWindow on the same database."
+  - "tests/paper-minute-bars.test.js."
+exclusions:
+  - "No change to parameters (5/20), thresholds, the confidence contract (#2391 owns it), risk limits, order path, accounting or LIVE. This is not a strategy promotion: the 1-minute replay also showed no edge in this window, so a profitable outcome is not claimed; the change removes a horizon mismatch that guaranteed fee losses."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Store unavailable or too few completed minutes -> no bars -> WAIT (INSUFFICIENT_HISTORY); never a fallback to the per-ticker series in production."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/paper-minute-bars.test.js dist/apps/cloud/src/paperCandidateStrategy.test.js dist/apps/cloud/src/cloudRuntimeDashboardHydratorCandidateBinding.test.js
+residual: "Requires a PAPER deploy. Expect far fewer BUY/SELL decisions (minutes, not seconds); 0 trades is a valid result. Because the persisted store survives restarts, the warm-up after a deploy also shortens. Follow-up for the research owner: a validated candidate (OOS/walk-forward with costs) to replace the baseline."

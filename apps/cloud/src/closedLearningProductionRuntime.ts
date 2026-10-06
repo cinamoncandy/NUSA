@@ -4,7 +4,8 @@ import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from 
 import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
 import { buildCanonicalPaperCandidatePerformance } from "./canonicalPaperCandidatePerformance";
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
-import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
+import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
+import { PaperMinuteBarSource } from "./paperMinuteBars";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
@@ -87,7 +88,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     enabled: ownerBaselineStrategyEnabled(env),
     baselineMarkets: config.upbitMarkets,
   });
-  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider });
+  // The candidate strategy reads completed 1-minute closes from the persisted public-ticker store (owner decision 2026-10-06).
+  const minuteObservationReader = new SqlitePaperMarketObservationRepository(database);
+  const minuteBars = new PaperMinuteBarSource((market, startAt, endAt) => minuteObservationReader.readWindow(market, startAt, endAt));
+  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider, paperCandidateMinuteCloses: (market, now) => minuteBars.read(market, now) });
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
