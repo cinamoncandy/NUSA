@@ -6,6 +6,9 @@ const MOBILE_ROOT = path.join("apps", "mobile");
 const DESIGN_TOKEN_FILE = path.join(MOBILE_ROOT, "src", "designSystem.ts").replaceAll("\\", "/");
 const RAW_HEX = /^#[0-9a-fA-F]{3,8}$/;
 const CONSOLE_METHODS = new Set(["log", "debug", "info", "warn", "error"]);
+const MIN_LITERAL_FONT_SIZE = 11;
+// Canvas/chart drawing sizes are not body text and keep their own scale.
+const FONT_FLOOR_EXEMPT = /(?:intelligenceField|holoSphere|chartView|equityChart|decisionRings)\.tsx$/;
 
 function collectMobileFiles(repositoryRoot) {
   const mobileRoot = path.join(repositoryRoot, MOBILE_ROOT);
@@ -57,6 +60,11 @@ function lintSource(fileName, sourceText) {
       if (ts.isIdentifier(target) && target.text === "console" && CONSOLE_METHODS.has(method)) {
         violations.push(makeViolation(sourceFile, node.getStart(sourceFile), "no-console", `Remove console.${method} from mobile production code.`));
       }
+    }
+    // Readability floor shared by every screen: no literal font size below 11 px (use readableFont / labelFont).
+    if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && node.name.text === "fontSize" && ts.isNumericLiteral(node.initializer)
+      && Number(node.initializer.text) < MIN_LITERAL_FONT_SIZE && !FONT_FLOOR_EXEMPT.test(normalizedFile)) {
+      violations.push(makeViolation(sourceFile, node.getStart(sourceFile), "readable-font", `Font size ${node.initializer.text} is below the shared readability floor; wrap it in readableFont() or labelFont() from designSystem.`));
     }
     if (ts.isStringLiteralLike(node) && RAW_HEX.test(node.text) && !normalizedFile.endsWith(DESIGN_TOKEN_FILE)) {
       violations.push(makeViolation(sourceFile, node.getStart(sourceFile), "design-token-color", "Use the mobile design-system color tokens instead of a raw hex literal."));

@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "experiments": true,
+  "decidedBy": "owner",
+  "decidedAt": "2026-10-05",
+  "note": "PAPER only, research evidence only: collects Upbit public 1-minute candles for the owner markets and runs backtest experiments; places no orders and changes no capital, risk or execution setting. Applied over the host NUSA_CLOUD_RESEARCH_EXPERIMENTS at start. Set to false in a reviewed release to turn it off."
+}

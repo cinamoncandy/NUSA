@@ -1,0 +1,26 @@
+id: WO-UI-20261005-HANJI-INK
+title: "먹과 한지 (ink and hanji) skin and an ink-bloom motion for the HOME sphere"
+status: SUPERSEDED_BY_WO-UI-20261005-COLD-FUTURE
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-hanji-ink
+authority_impact: none
+objective: "The owner asked for a Korean-traditional UI/UX and a new, more striking motion. Direction agreed in chat: a restrained skin (colours and motion), not a layout overhaul, because the previous from-scratch prototype was judged worse than the current app. Status colours must stay unmistakable."
+scope:
+  - "apps/mobile/src/designSystem.ts: one token change, so every screen follows. Ground 먹 #0B0A09, text 한지 #F1EADB, primary and selection accent hanji ivory #E9DFC8, celadon focus/info #7FB8C9, warm hairlines and muted text. Green (healthy), amber (warning only) and red (halt/danger only) are unchanged."
+  - "apps/mobile/src/holoModel.ts + holoSphere.tsx: ink-wash sphere palette (celadon, ochre, rose, jade); an ink-bloom entrance (the sphere opens from its core with an ease-out, once); a slow breath while the runtime is normal; hold/halt tints now fade in and out smoothly instead of snapping. All still under reduce-motion (the sphere is drawn open and still)."
+  - "tests/mobile-hanji-ink-palette.test.js (5): contrast floors for text, muted text, primary and focus; decorative colours stay far from every status colour; bloom and tint behave and settle; halt/hold keep their colour at full tint. Existing token pins updated to the new values."
+exclusions:
+  - "No layout, copy, data, safety, risk, execution, LIVE, credential or AI-authority change. Named exceptions: the native launcher icon and splash keep the owner-chosen lime N monogram (an owner brand decision made 2026-09-30); no new font was added (a serif headline face needs a bundled licensed font and device verification)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Status meaning is unchanged and tested to remain visually separate from decoration; reduce-motion shows the final state immediately."
+rollback: "Revert the change; the old palette is one token block."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "Not seen on a device here (no emulator in this environment); CI touch-visual is the only visual check. Subjective taste is the owner's call on the phone after the new build; the palette is one token block so it is cheap to adjust. Decorative Korean motifs (dancheong lines, hanji texture) are not added in this slice."

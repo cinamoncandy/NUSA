@@ -4,6 +4,8 @@ import type { UpbitOrderBook } from "../../../packages/core/src/upbitWebSocket";
 const UPBIT_ORDERBOOK_URL = "https://api.upbit.com/v1/orderbook";
 const MARKET = /^KRW-[A-Z0-9-]+$/;
 const MAX_SNAPSHOT_AGE_MS = 30_000;
+/** A snapshot is renewed once it is this old, well before MAX_SNAPSHOT_AGE_MS, so steady state never reaches expiry. */
+export const SNAPSHOT_RENEW_AFTER_MS = 15_000;
 
 export type OrderBookReconciliationState = "UNRECONCILED" | "SNAPSHOT_READY" | "RECONCILED";
 
@@ -82,6 +84,14 @@ export class UpbitOrderBookReconciler {
     return refresh;
   }
   installSnapshot(snapshot: UpbitOrderBookSnapshotEvidence): void { this.snapshots.set(snapshot.market, snapshot); }
+  /**
+   * True when there is no snapshot or the installed one is old enough to renew. It never extends validity: reconcile()
+   * still rejects a snapshot older than MAX_SNAPSHOT_AGE_MS. The old snapshot stays in use until a new one installs.
+   */
+  needsRefresh(market: string, nowMs: number, renewAfterMs: number = SNAPSHOT_RENEW_AFTER_MS): boolean {
+    const snapshot = this.snapshots.get(normalizeMarket(market));
+    return snapshot == null || !Number.isFinite(nowMs) || nowMs - snapshot.receivedAt >= renewAfterMs;
+  }
   state(market: string): OrderBookReconciliationState { return this.snapshots.has(normalizeMarket(market)) ? "SNAPSHOT_READY" : "UNRECONCILED"; }
 
   reconcile(orderBook: UpbitOrderBook, streamReceivedAt: number): ReconciledUpbitOrderBook | null {

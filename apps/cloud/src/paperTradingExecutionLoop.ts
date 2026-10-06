@@ -185,6 +185,19 @@ export interface PaperWriterLeaseOptions {
   readonly maxTakeoverAgeMs?: number;
 }
 
+/**
+ * Short, secret-free description of why saving the PAPER account failed (error code and message, characters
+ * limited to letters, digits and a few separators, so no path or payload can ride along). The reason string of the
+ * result stays exactly "paper account persistence failed"; this is only for the owner's advanced diagnostic line.
+ */
+export function describePersistenceFailure(error: unknown): string {
+  const code = typeof (error as { code?: unknown } | null)?.code === "string" ? (error as { code: string }).code : "";
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const detail = typeof (error as { detail?: unknown } | null)?.detail === "string" ? (error as { detail: string }).detail : "";
+  const clean = `${code} ${message} ${detail}`.replace(/[^A-Za-z0-9 _.-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 170);
+  return clean === "" ? "UNKNOWN" : clean;
+}
+
 export class SqliteCloudPaperAccountRepository implements PaperAccountRepository {
   private readonly ownerId: string;
   private readonly now: () => number;
@@ -915,6 +928,11 @@ export interface PaperTradingExecutionLoopOptions {
 
 export class PaperTradingExecutionLoop {
   private state: PaperAccountState;
+  private lastPersistenceFailure: string | null = null;
+
+  /** Why the most recent PAPER account save failed (see describePersistenceFailure), or null when none has failed. Diagnostic only. */
+  public persistenceFailureDetail(): string | null { return this.lastPersistenceFailure; }
+
   private readonly feeRate: number;
   private readonly executionProfile: PaperExecutionProfile;
   private readonly staleWindowMs: number;
@@ -961,7 +979,7 @@ export class PaperTradingExecutionLoop {
       createdAt: context.now, requestFingerprint: fingerprint, lifecycle, executionProfile: this.executionProfile, observedTicks: 0,
     });
     const working = Object.freeze({ ...this.state, workingOrders: Object.freeze([order, ...(this.state.workingOrders ?? [])].slice(0, 1_000)), processedIdempotencyKeys: Object.freeze([validated.idempotencyKey, ...this.state.processedIdempotencyKeys]), updatedAt: context.now });
-    try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    try { this.repository?.save(working); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
     this.state = working;
     return Object.freeze({ status: "WAIT", reason: "PAPER_LIMIT_OPEN", orders: Object.freeze([]), fills: Object.freeze([]), state: this.state });
   }
@@ -985,7 +1003,7 @@ export class PaperTradingExecutionLoop {
       current = Object.freeze({ ...current, observedTicks });
       workingOrders[index] = current;
       const next = Object.freeze({ ...this.state, workingOrders: Object.freeze(workingOrders), updatedAt: context.now });
-      try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+      try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
       this.state = next;
       return this.result("WAIT", `PAPER_EXECUTION_LATENCY:${observedTicks}/${current.executionProfile.latencyTicks}`);
     }
@@ -1053,7 +1071,7 @@ export class PaperTradingExecutionLoop {
     }
     let next: PaperAccountState = Object.freeze({ ...this.state, cash, realizedPnL, positions: Object.freeze(positions), orders, fills, workingOrders: Object.freeze(workingOrders), updatedAt: context.now });
     next = markToMarket(next, current.market, context.marketPrice, context.now);
-    try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
     this.state = next;
     return Object.freeze({ status: terminal ? "FILLED" : "WAIT", reason: terminal ? "PAPER_LIMIT_FILLED" : "PAPER_LIMIT_PARTIALLY_FILLED", orders: terminal ? Object.freeze([orders[0]!]) : Object.freeze([]), fills: Object.freeze([fill]), state: this.state });
   }
@@ -1087,7 +1105,7 @@ export class PaperTradingExecutionLoop {
       current = Object.freeze({ ...current, observedTicks });
       workingOrders[index] = current;
       const next = markToMarket(Object.freeze({ ...this.state, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
-      try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+      try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
       this.state = next;
       return this.result("WAIT", `PAPER_STRATEGY_EXECUTION_LATENCY:${observedTicks}/${current.executionProfile.latencyTicks}`);
     }
@@ -1120,7 +1138,7 @@ export class PaperTradingExecutionLoop {
         const cancelled: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "CANCELLED", createdAt: current.createdAt, filledAt: tick.now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
         const orders = Object.freeze([cancelled, ...this.state.orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
         const next = markToMarket(Object.freeze({ ...this.state, orders, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
-        try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+        try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
         this.state = next;
         return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_BUDGET_EXHAUSTED", orders: Object.freeze([cancelled]), fills: Object.freeze([]), state: this.state });
       }
@@ -1137,7 +1155,7 @@ export class PaperTradingExecutionLoop {
         if (error instanceof PaperOrderBookExecutionError && error.code === "PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT") {
           workingOrders[index] = Object.freeze({ ...current, observedTicks, lastOrderBookObservedAt: canonicalObservedQuote.observedAt });
           const next = markToMarket(Object.freeze({ ...this.state, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
-          try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+          try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
           this.state = next;
           return this.result("WAIT", "PAPER_STRATEGY_LIQUIDITY_WAIT");
         }
@@ -1152,7 +1170,7 @@ export class PaperTradingExecutionLoop {
           const cancelled: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "CANCELLED", createdAt: current.createdAt, filledAt: tick.now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
           const orders = Object.freeze([cancelled, ...this.state.orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
           const next = markToMarket(Object.freeze({ ...this.state, orders, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
-          try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+          try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
           this.state = next;
           return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_BUDGET_UNEXECUTABLE", orders: Object.freeze([cancelled]), fills: Object.freeze([]), state: this.state });
         }
@@ -1178,7 +1196,7 @@ export class PaperTradingExecutionLoop {
           const cancelled: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "CANCELLED", createdAt: current.createdAt, filledAt: tick.now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
           const orders = Object.freeze([cancelled, ...this.state.orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
           const next = markToMarket(Object.freeze({ ...this.state, orders, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
-          try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+          try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
           this.state = next;
           return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_BUDGET_UNEXECUTABLE", orders: Object.freeze([cancelled]), fills: Object.freeze([]), state: this.state });
         }
@@ -1269,7 +1287,7 @@ export class PaperTradingExecutionLoop {
     }
     let next: PaperAccountState = Object.freeze({ ...this.state, cash, realizedPnL, positions: Object.freeze(positions), orders, fills, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now });
     next = markToMarket(next, current.market, tick.price, tick.now);
-    try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
     this.state = next;
     if (budgetExhausted) return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_BUDGET_EXHAUSTED", orders: Object.freeze([orders[0]!]), fills: Object.freeze([fill]), state: this.state });
     if (!terminalFill) return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_PARTIALLY_FILLED", orders: Object.freeze([]), fills: Object.freeze([fill]), state: this.state });
@@ -1293,7 +1311,7 @@ export class PaperTradingExecutionLoop {
     const cancelled: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "CANCELLED", createdAt: current.createdAt, filledAt: now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
     const orders = Object.freeze([cancelled, ...this.state.orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
     const next = Object.freeze({ ...this.state, orders, workingOrders: Object.freeze(workingOrders), updatedAt: now });
-    try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    try { this.repository?.save(next); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
     this.state = next;
     return Object.freeze({ status: "WAIT", reason: `PAPER_ORDER_CANCELLED:${lifecycle.transitionSequence}`, orders: Object.freeze([cancelled]), fills: Object.freeze(priorFills), state: this.state });
   }
@@ -1323,7 +1341,7 @@ export class PaperTradingExecutionLoop {
     try { executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.executionProfile, requestFingerprint); }
     catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
     const working = markToMarket(executed.state, market, context.marketPrice, context.now);
-    try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    try { this.repository?.save(working); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
     this.state = working;
     return Object.freeze({ status: "FILLED", orders: Object.freeze([executed.order]), fills: Object.freeze([executed.fill]), state: this.state });
   }
@@ -1437,7 +1455,7 @@ export class PaperTradingExecutionLoop {
       working = order.state; nextOrders.push(order.order); nextFills.push(order.fill); existingKeys.add(key);
     }
     working = markToMarket(working, tick.market, tick.price, tick.now);
-    try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    try { this.repository?.save(working); } catch (error) { this.lastPersistenceFailure = describePersistenceFailure(error); return this.result("FAILED", "paper account persistence failed"); }
     this.state = working;
     return Object.freeze({ status: "FILLED", orders: Object.freeze(nextOrders), fills: Object.freeze(nextFills), state: this.state });
   }

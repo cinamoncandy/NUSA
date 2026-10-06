@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { fieldFonts } from "./fieldFonts";
 import { advanceBanner, type Banner, type BannerCursor, type BannerEvent } from "./eventBannerModel";
+import { fieldRadii, readableFont } from "./designSystem";
 
 const SHOW_MS = 6000;
 
@@ -47,9 +48,9 @@ export function EventBanner({ ready, sourceKey, events, halted }: Readonly<Props
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 16, marginTop: 8, paddingVertical: 10, paddingRight: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, overflow: "hidden" },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 16, marginTop: 8, paddingVertical: 10, paddingRight: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: fieldRadii.md, overflow: "hidden" },
   bar: { width: 4, alignSelf: "stretch" },
   text: { flex: 1, gap: 2 },
   title: { fontSize: 13 },
-  detail: { fontSize: 11 },
+  detail: { fontSize: readableFont(11) },
 });

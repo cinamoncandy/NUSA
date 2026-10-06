@@ -9,7 +9,7 @@ import { getConfiguredPaperEndpoint } from "./paperConnectionSession";
 import type { PaperLearningScreenState } from "./paperLearningScreen";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import type { RealReadOnlyObservabilitySnapshot } from "../../../packages/contracts/src/realReadOnlyObservability";
-import { fieldPalette } from "./designSystem";
+import { fieldPalette, readableFont } from "./designSystem";
 
 /**
  * Unified read-only cockpit. PAPER trading learning and SYSTEM evolution learning remain
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
   // One thin row: short labels, underline emphasis, read-only tag inline instead of an extra band.
   switcher: { flexDirection: "row", alignItems: "stretch", paddingHorizontal: 12, backgroundColor: fieldPalette.void, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim },
   switch: { minHeight: 44, borderBottomWidth: 2, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
-  readOnly: { marginLeft: "auto", alignSelf: "center", color: fieldPalette.muted, fontSize: 10, letterSpacing: 0.4 },
+  readOnly: { marginLeft: "auto", alignSelf: "center", color: fieldPalette.muted, fontSize: readableFont(10), letterSpacing: 0.4 },
   hint: { color: fieldPalette.muted, fontSize: 12, paddingHorizontal: 24, paddingTop: 8, paddingBottom: 2, backgroundColor: fieldPalette.void },
   switchText: { fontSize: 13, fontWeight: "600", textAlign: "center" }
 });

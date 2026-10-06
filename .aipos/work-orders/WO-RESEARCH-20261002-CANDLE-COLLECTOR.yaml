@@ -1,0 +1,26 @@
+id: WO-RESEARCH-20261002-CANDLE-COLLECTOR
+title: "One-pass collector: stored ticker observations to closed candles in the durable store (Stage 2b-3; not wired)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-candle-collector
+authority_impact: none
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "Connect the existing building blocks (observation repository, closed-candle aggregator, candle store) in one deterministic collection pass with injected ports, so a later composition stage only has to schedule it."
+scope:
+  - "apps/cloud/src/researchCandleCollector.ts: collectClosedCandles. Per market it resumes exactly at the last stored close time while the retained observations still reach back to it; with no stored history, or when the retained observations start later (downtime or pruning), it skips the oldest retained, possibly truncated bucket. Uses the aggregator coverage rules, appends only candles newer than the stored latest, reports COLLECTED / NO_OBSERVATIONS / ERROR per market and never lets one market stop the others. Misconfiguration (clock, empty or duplicate markets) throws."
+  - "packages/storage researchCandleStore.ts: add latestCloseTime (read-only helper)."
+  - "tests/research-candle-collector.test.js: first-pass skip rule, resume without re-appending, per-market isolation, misconfiguration, and an end-to-end run on the real SQLite observation repository and candle store including an idempotent second pass."
+exclusions:
+  - "Not wired: no timer, no runtime composition, no reads or writes in production. No deploy. Migration 026 (already merged) still only runs when a build containing it is deployed with owner approval."
+  - "No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-candle-collector.test.js tests/research-candle-store.test.js tests/closed-candle-aggregator.test.js
+  - pnpm run validate
+residual: "Scheduling and production composition, input builder with provenance, champion/challenger evaluators and owner-approved deploy not started. Not run: pnpm run validate (sandbox Node 22)."

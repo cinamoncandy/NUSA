@@ -6,6 +6,7 @@ import {
   OWNER_BASELINE_CANDIDATE_ID,
   OwnerBaselinePaperBindingProvider,
   ownerBaselineBinding,
+  isOwnerBaselineSourceCommitSha,
   ownerBaselineStrategyEnabled,
 } from "./ownerBaselinePaperStrategy";
 
@@ -45,12 +46,29 @@ test("a bound challenger always takes precedence, and the baseline is off outsid
   const challengerBinding = { candidateId: "qualified-challenger" } as never;
   const withChallenger = new OwnerBaselinePaperBindingProvider({ challenger: { read: () => challengerBinding }, sourceCommitSha: COMMIT, enabled: true });
   assert.equal(withChallenger.read("KRW-BTC", NOW), challengerBinding);
-  const idle = new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: true });
+  const idle = new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: true, baselineMarkets: ["KRW-BTC"] });
   assert.equal(idle.read("KRW-BTC", NOW)?.candidateId, OWNER_BASELINE_CANDIDATE_ID);
   assert.equal(new OwnerBaselinePaperBindingProvider({ sourceCommitSha: COMMIT, enabled: false }).read("KRW-BTC", NOW), undefined);
   assert.equal(new OwnerBaselinePaperBindingProvider({ sourceCommitSha: "not-a-commit", enabled: true }).read("KRW-BTC", NOW), undefined, "fails closed without an exact source identity");
+  assert.equal(idle.read("KRW-ETH", NOW), undefined, "baseline never crosses its configured market boundary");
+  assert.equal(isOwnerBaselineSourceCommitSha(COMMIT), true);
+  assert.equal(isOwnerBaselineSourceCommitSha("not-a-commit"), false);
   assert.equal(ownerBaselineStrategyEnabled({ NUSA_MODE: "PAPER" }), true);
   assert.equal(ownerBaselineStrategyEnabled({ NUSA_MODE: "PAPER", NUSA_PAPER_OWNER_BASELINE_STRATEGY: "DISABLED" }), false);
   assert.equal(ownerBaselineStrategyEnabled({ NUSA_MODE: "PAPER", NUSA_PAPER_OWNER_BASELINE_STRATEGY: "enabled" }), false, "a typo fails closed");
   assert.equal(ownerBaselineStrategyEnabled({ NUSA_MODE: "LIVE" }), false);
+});
+
+test("the baseline binds every configured market, each with its own deterministic binding, and nothing else", () => {
+  const multi = new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: true, baselineMarkets: ["KRW-XRP", "KRW-ADA", "krw-sui"] });
+  const xrp = multi.read("KRW-XRP", NOW);
+  const ada = multi.read("KRW-ADA", NOW);
+  const sui = multi.read("KRW-SUI", NOW);
+  assert.equal(xrp?.candidateId, OWNER_BASELINE_CANDIDATE_ID);
+  assert.ok(xrp != null && ada != null && sui != null);
+  assert.notEqual(xrp.bindingFingerprintSha256, ada.bindingFingerprintSha256, "bindings are market-specific");
+  assert.equal(multi.read("KRW-XRP", NOW)?.bindingFingerprintSha256, xrp.bindingFingerprintSha256, "deterministic across calls");
+  assert.equal(multi.read("KRW-BTC", NOW), undefined, "unconfigured markets stay unbound");
+  assert.equal(new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: true, baselineMarkets: [] }).read("KRW-XRP", NOW), undefined);
+  assert.equal(new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: false, baselineMarkets: ["KRW-XRP"] }).read("KRW-XRP", NOW), undefined);
 });

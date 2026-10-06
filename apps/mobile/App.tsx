@@ -15,7 +15,10 @@ import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/se
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { buildSafetyLine } from "./src/safetyLineModel";
-import { displaySessionState, graceNotConfigured, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
+import { clearCachedSnapshot, useCachedSnapshot } from "./src/useCachedSnapshot";
+import { markStartup } from "./src/startupTiming";
+import { registerConnectionWarmup } from "./src/connectionWarmup";
+import { displaySessionState, graceNotConfigured, LAUNCH_GRACE_MS, launchSettling, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
 import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
@@ -41,6 +44,12 @@ import { resolveAndroidBackNavigation } from "./src/androidBackNavigation";
 import { ownerDeviceCredential } from "./src/ownerDeviceCredential";
 import { getOrCreateInstallationId } from "./src/installationIdentity";
 import { type MoreDestination, type PrimaryDestination } from "./src/navigationContract";
+import { labelFont, readableFont } from "./src/designSystem";
+
+/** Start of the cold-start timing shown in Settings (advanced); first call wins. */
+markStartup("appStart");
+/** Lets the first server request reuse a connection that was opened while the saved session was being read. */
+registerConnectionWarmup((url, init) => fetch(url, init as RequestInit));
 
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
 type DetailSurface = "Strategies" | "Portfolio" | "Order" | TruthfulMoreDetail | null;
@@ -161,13 +170,24 @@ function AuthenticatedApp() {
   const shownSessionState = displaySessionState(paperSessionState, resumeGrace.current?.verified === true, resumeGrace.current == null ? 0 : Date.now() - resumeGrace.current.since);
   // Inside the resume grace the transient not-configured projection that RECOVERING leaves behind
   // stays quiet (see graceNotConfigured); genuine read failures are never hidden.
-  const resumingQuietly = shownSessionState !== paperSessionState;
+  const launchedAt = useRef(Date.now());
+  const launchQuiet = launchSettling(Date.now() - launchedAt.current);
+  useEffect(() => {
+    if (!launchQuiet) return;
+    const remaining = Math.max(0, LAUNCH_GRACE_MS - (Date.now() - launchedAt.current)) + 50;
+    const timer = setTimeout(() => setGraceTick((tick) => tick + 1), remaining);
+    return () => clearTimeout(timer);
+  }, [launchQuiet]);
+  const resumingQuietly = shownSessionState !== paperSessionState || launchQuiet;
   const [shadowOperations, setShadowOperations] = useState<ShadowOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." });
   const [realReadOnlyOperations, setRealReadOnlyOperations] = useState<RealReadOnlyOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." });
   const [liveReadinessOperations, setLiveReadinessOperations] = useState<LiveReadinessOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." });
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
+  // Last-known values for the launch screen only; never a live reading. Called before any early return so the hook order never changes.
+  useEffect(() => { if (operations.status === "READY") markStartup("firstData"); }, [operations.status]);
+  const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, operations.status === "READY" ? operations.snapshot : null);
   const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());
   const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
@@ -336,7 +356,7 @@ function AuthenticatedApp() {
   const handleSignOut = useCallback(() => {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
-    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setShadowOperations({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." }); setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." }); setLiveReadinessOperations({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(false); setActiveTab("Home"); signOut();
+    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setShadowOperations({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." }); setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." }); setLiveReadinessOperations({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(false); setActiveTab("Home"); void clearCachedSnapshot(); signOut();
   }, [credentialSession, signOut]);
 
   useEffect(() => {
@@ -467,7 +487,11 @@ function AuthenticatedApp() {
   const paperProjectionPending = !initialPaperProjectionResolved;
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
-  const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE" ? operations.reason : null;
+  const readOnlyError = !paperProjectionPending && operations.status === "UNAVAILABLE"
+    ? operations.failure == null
+      ? operations.reason
+      : `${operations.reason} [${operations.failure.category} ${operations.failure.route}${operations.failure.httpStatus == null ? "" : ` HTTP ${operations.failure.httpStatus}`} @ ${new Date(operations.failure.observedAt).toISOString()}]`
+    : null;
   // Applied once at the source so HOME, PAPER and every screen agree during the resume grace.
   const notConfigured = graceNotConfigured(!paperProjectionPending && operations.status === "NOT_CONFIGURED" ? operations.reason : null, resumingQuietly);
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
@@ -480,7 +504,7 @@ function AuthenticatedApp() {
   const localPaperReadiness = getLocalPaperLearningReadiness();
   const paperLearningRuntimeStatus = snapshot?.paperLearning?.events?.length ? snapshot.paperLearning.runtimeStatus : snapshot?.paperLearning?.runtimeStatus === "HALTED" || snapshot?.paperLearning?.runtimeStatus === "ERROR" ? snapshot.paperLearning.runtimeStatus : localPaperReadiness.status;
   const paperLearningServerSource = paperProjectionPending ? "PROJECTION_ABSENT" as const : operations.status === "NOT_CONFIGURED" ? "NOT_CONFIGURED" as const : operations.status === "UNAVAILABLE" ? "UNAVAILABLE" as const : snapshot?.paperLearning == null ? "PROJECTION_ABSENT" as const : (snapshot.paperLearning.events?.length ?? 0) > 0 ? "SERVER_STREAM" as const : "PROJECTION_EMPTY" as const;
-  const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus, paperLearningServerSource);
+  const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus, paperLearningServerSource, snapshot == null ? null : { runtimeHaltReasons: snapshot.operations.runtimeHaltReasons, killSwitchActive: snapshot.operations.killSwitchActive, lastError: snapshot.operations.heartbeat?.lastError });
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     {!homeShellActive ? <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : "transparent", backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : "transparent" }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View> : null}
@@ -509,7 +533,7 @@ function AuthenticatedApp() {
           else if (destination === "Settings") setUtilityView("SETTINGS");
           else if (destination === "Risk" || destination === "Performance" || destination === "SystemStatus" || destination === "Help") setDetailSurface(destination);
         }} />
-      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} sessionRecovering={shownSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}</TabTransition>
+      : <HomeView snapshot={snapshot} cachedSnapshot={cachedSnapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} sessionRecovering={shownSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}</TabTransition>
 
     <PrimaryNavigation activeDestination={activeTab} obscured={paperLearningOpen || utilityView !== null || detailSurface !== null} onNavigate={(destination) => { setUtilityMenuOpen(false); setUtilityView(null); setDetailSurface(null); setPaperLearningOpen(false); setActiveTab(destination); }} />
   </SafeAreaView>;
@@ -518,8 +542,8 @@ function AuthenticatedApp() {
 const styles = StyleSheet.create({
   container: theme.container,
   authContent: { flex: 1, justifyContent: "center", padding: 24, alignItems: "center" }, authPanel: { width: "100%", maxWidth: 640, gap: 16 }, authBrand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }, authHeading: { fontSize: 29, fontWeight: "700", letterSpacing: -0.8 }, subtitle: { fontSize: 14, lineHeight: 21 }, entryBadges: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  header: { minHeight: 50, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "center" }, headerInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 18, paddingVertical: 3, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headerBrand: { flexDirection: "row", alignItems: "center", gap: 8 }, brand: { fontSize: 18, fontWeight: "600", letterSpacing: 1.8 }, eyebrow: { fontSize: 8, fontWeight: "500", letterSpacing: 1.35, marginTop: -1 },
-  utilityButton: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" }, utilityText: { fontSize: 11, fontWeight: "500" }, utilityMenu: { minHeight: 52, borderBottomWidth: 1, alignItems: "center" }, utilityMenuInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 6, flexDirection: "row", gap: 8, alignItems: "center" }, utilityMenuButton: { flex: 1, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityNavigation: { minHeight: 48, borderBottomWidth: 1, alignItems: "center" }, utilityNavigationInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, utilityTitle: { fontSize: 14, fontWeight: "700" }, utilityClose: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  connectionState: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" }, connectionStateInner: { width: "100%", maxWidth: 720 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }, cardEyebrow: { fontSize: 10, fontWeight: "500", letterSpacing: 1.2, marginBottom: 4 }, cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20 }, meta: { fontSize: 12, lineHeight: 18 },
-  navigationFrame: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, alignItems: "center" }, navigation: { width: "100%", maxWidth: 720, borderTopWidth: StyleSheet.hairlineWidth, borderWidth: 0, borderRadius: 0, alignItems: "center", shadowOpacity: 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, elevation: 0 }, navigationInner: { width: "100%", flexDirection: "row", padding: 0, gap: 0 }, navItem: { flex: 1, minHeight: 50, borderRadius: 0, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 4 }, navIndicator: { height: 2, width: 20, borderRadius: 999 }, navLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0 }, navLabelActive: { fontWeight: "600", letterSpacing: 0 },
+  header: { minHeight: 50, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "center" }, headerInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 18, paddingVertical: 3, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headerBrand: { flexDirection: "row", alignItems: "center", gap: 8 }, brand: { fontSize: 18, fontWeight: "600", letterSpacing: 1.8 }, eyebrow: { fontSize: labelFont(8), fontWeight: "500", letterSpacing: 1.35, marginTop: -1 },
+  utilityButton: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" }, utilityText: { fontSize: readableFont(11), fontWeight: "500" }, utilityMenu: { minHeight: 52, borderBottomWidth: 1, alignItems: "center" }, utilityMenuInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 6, flexDirection: "row", gap: 8, alignItems: "center" }, utilityMenuButton: { flex: 1, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityNavigation: { minHeight: 48, borderBottomWidth: 1, alignItems: "center" }, utilityNavigationInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, utilityTitle: { fontSize: 14, fontWeight: "700" }, utilityClose: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  connectionState: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" }, connectionStateInner: { width: "100%", maxWidth: 720 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }, cardEyebrow: { fontSize: labelFont(10), fontWeight: "500", letterSpacing: 1.2, marginBottom: 4 }, cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20 }, meta: { fontSize: 12, lineHeight: 18 },
+  navigationFrame: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, alignItems: "center" }, navigation: { width: "100%", maxWidth: 720, borderTopWidth: StyleSheet.hairlineWidth, borderWidth: 0, borderRadius: 0, alignItems: "center", shadowOpacity: 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, elevation: 0 }, navigationInner: { width: "100%", flexDirection: "row", padding: 0, gap: 0 }, navItem: { flex: 1, minHeight: 50, borderRadius: 0, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 4 }, navIndicator: { height: 2, width: 20, borderRadius: 999 }, navLabel: { fontSize: readableFont(11), fontWeight: "700", letterSpacing: 0 }, navLabelActive: { fontWeight: "600", letterSpacing: 0 },
 });

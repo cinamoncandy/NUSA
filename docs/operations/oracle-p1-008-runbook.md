@@ -97,6 +97,18 @@ sudo node scripts/oracle-validate.js
 
 `oracle-validate` fails closed if the environment file, backup directory, service unit, localhost binding, token strength, persistent database location, or current symlink contract is invalid.
 
+## When to dispatch the release workflow
+The workflow verifies that the requested source is the current protected main at two points only: when the build job
+starts, and once more at the start of the host job, before the download. Nothing re-checks main after that, so a merge
+that lands after the host job's recheck is not detected and the already-built source is still activated. A merge that
+lands earlier is caught: the build job or the host recheck stops with "Protected main moved after build" and the host is
+unchanged (seen in run 87). Do not rely on the gate to cover the rest of the roughly 5-minute run. To avoid wasted or
+stale releases:
+1. Dispatch only when no merge is queued or in flight, and take `source_sha` from the current main tip.
+2. Wait for the post-merge `CI` push run on that exact SHA to be green; the workflow requires it and fails otherwise.
+3. If main moved before the host recheck, nothing was changed on the host; repeat steps 1-2 with the new tip. If main may
+   have moved after it, check which commit is active before assuming the release matches the latest main.
+
 ## Atomic release switch
 
 Stage and verify the complete release at `/opt/nusa/releases/<full-sha>` first. The canonical `activate` helper then installs the four unit files from that exact immutable release, enables them, atomically switches the symlink, restarts PAPER and Autopilot, and proves readiness. If any step fails, it restores the prior symlink and unit set before returning failure:

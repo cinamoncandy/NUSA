@@ -5,6 +5,7 @@ import { useTheme } from "./ThemeProvider";
 import { visualSystem } from "./visualSystem";
 import { fieldFonts } from "./fieldFonts";
 import type { PerformanceScreen } from "./performanceModel";
+import { fieldRadii } from "./designSystem";
 
 /** More → 성과: read-only PAPER performance rows, or one honest line when no server record is connected. */
 export function PerformanceView({ screen, onClose }: Readonly<{ screen: PerformanceScreen; onClose: () => void }>) {
@@ -30,6 +31,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 12, gap: 12 },
   label: { fontSize: 14 },
   value: { fontSize: 14, fontVariant: ["tabular-nums"] },
-  button: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, marginTop: 10 },
+  button: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: fieldRadii.md, paddingHorizontal: 16, marginTop: 10 },
   buttonText: { fontSize: 14, fontWeight: "700" },
 });

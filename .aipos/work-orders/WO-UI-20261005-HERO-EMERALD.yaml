@@ -1,0 +1,27 @@
+id: WO-UI-20261005-HERO-EMERALD
+title: "Hero graphic quality: emerald palette, dense fine dust, soft bloom, thin streaks (matching the owner's reference)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-hero-emerald
+authority_impact: none
+owner_direction: "Owner, 2026-10-05: the motion graphic quality is low. The reference frames (scratchpad/vid) were compared side by side with the merged hero: the reference is emerald and teal with a pinpoint white core and soft bloom, a disc of thousands of fine specks, very thin faint streaks, lime only for the active line and marker; the merged hero was flat yellow-lime with sparse large dots, thick hard streaks and a flat disc."
+objective: "Close that gap in colour, density, light and line weight."
+scope:
+  - "apps/mobile/src/holoModel.ts: figure ramp becomes emerald and teal; new HOLO_COLORS.lime reserved for the active line, marker, market chip and learning tile; 2,600 fine specks (0.35 to 0.8 px, density and brightness concentrated toward the core, 35 percent bright), 70 thin faint streaks (width 0.35 to 0.8, alpha 0.07 to 0.37); deterministic as before."
+  - "apps/mobile/src/holoSphere.tsx: dust is drawn in six batched drawPoints calls with preallocated points (no per-frame allocation); soft glow through blur mask filters on the streak glow pass, the core bloom and the marker, each guarded so an unsupported blur only loses the glow; pinpoint white core with a soft emerald bloom; a fill flares the accent line and marker, not the whole figure (flash weight 0.3); hold and halt tint the white and the emerald (0.85 on the white) so they read amber and red."
+  - "tests/mobile-cold-future-palette.test.js and mobile-hero-harmony.test.js: emerald not yellow, true lime, dust count and size, areal density and brightness toward the core, thin faint streaks, tone separation on the new base, renderer pins (batched points, guarded blur, lime only as the accent)."
+exclusions:
+  - "Frame budgets, props, testIDs, the reduce-motion still figure, bloom replay, header and More-menu marks (static, no dust) and the app theme are unchanged. No data, safety, risk, execution, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Hold and halt tint the whole figure amber and red (tested); a missing blur mask filter degrades only the glow."
+rollback: "Revert the change; the figure is one component."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "Checked by rendering the real model values and the renderer's layering in Chromium next to the reference crop (normal, decision pulse, fill, hold, halt), not in Skia on a device. Blur mask filters, the batched points and about 2,700 specks per frame at about 18 fps are unmeasured on hardware; if it stutters, reduce BURST_DUST_COUNT."

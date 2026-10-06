@@ -1,0 +1,25 @@
+id: WO-OPS-20261006-HEALTH-ERROR-CLASS
+title: "Publish the class of the runtime's own PAPER failure on /health, never its detail"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/health-error-class
+authority_impact: none
+owner_approval: "2026-10-06 in chat ('A로 진행해'): option A, a coarse error class code on the public /health"
+objective: "The public /health replaces every error that is not a bare uppercase code with LIVENESS_ERROR_UNCLASSIFIED. The runtime records its own PAPER failures as lowercase phrases ('paper account persistence failed: <detail>'), so after the 2026-10-05 fixes /health reported lastError LIVENESS_ERROR_UNCLASSIFIED with DEGRADED health and the cause could not be read from outside, while the authenticated app route was timing out. Make the failure class visible without publishing any value."
+scope:
+  - "apps/cloud/src/server.ts publicRuntimeLiveness: an error string that is not already a bare code is reduced to the phrase before its first colon; only when that phrase is plain lowercase words starting with 'paper' (letters and spaces, 3-72 chars, no digits) it is published as an uppercase code (PAPER_ACCOUNT_PERSISTENCE_FAILED). Everything else, including anything after the colon, stays LIVENESS_ERROR_UNCLASSIFIED."
+  - "tests/cloud-runtime-liveness-health.test.js: eight cases (class published for two paper phrases; Upbit text, digits in the phrase, key-like text, wrong case and over-long phrase stay unclassified; no value, id or detail appears in the body). The existing 'free-text error is replaced, never published' test is unchanged and still passes."
+exclusions:
+  - "No new public field, no value, account identifier, price or detail is published. The authenticated heartbeat is unchanged. No risk, execution, accounting, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Anything that is not the runtime's own plain-words 'paper ...' phrase is still replaced by the fixed code."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/cloud-runtime-liveness-health.test.js
+residual: "After deploy the host diagnosis will show the failure class. The detail of the failure and the cause of the app's /api/paper-operations timeouts are still unknown. The earlier mismatch between zero runtime order counters and a flat position is unexplained."
