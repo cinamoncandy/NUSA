@@ -370,6 +370,8 @@ export function startCloudRuntime(
   const orderBookReconciler = new UpbitOrderBookReconciler();
   let marketConnectionGeneration = 0;
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
+  // Market whose rejected tick set the current PUBLIC_MARKET_EVENT_REJECTED diagnostic, if any.
+  let rejectedTickerMarket: string | undefined;
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
@@ -392,6 +394,7 @@ export function startCloudRuntime(
       // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
       // malformed tick. Acceptance thresholds are unchanged; a rejected tick never enters trusted observations.
       recordFailure(`PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`);
+      rejectedTickerMarket = ticker.code;
       // Reject only the untrusted tick. Previously one stale/invalid market event cleared every
       // already-accepted market observation, so a quiet market (for example a >30s DOGE last-trade
       // timestamp) could latch the whole multi-market PAPER dashboard into NO_MARKET_DATA even while
@@ -402,6 +405,13 @@ export function startCloudRuntime(
       return;
     }
     heartbeat.lastAcceptedMarketReceiptAt = now;
+    // A per-tick rejection is a diagnostic about that market's feed. Once the same market delivers an accepted
+    // tick again the condition has recovered, so it must not keep /health DEGRADED forever. Any other error
+    // (durable evidence, connection, reconciliation) is left untouched.
+    if (rejectedTickerMarket === ticker.code && heartbeat.lastError?.startsWith("PUBLIC_MARKET_EVENT_REJECTED:")) {
+      heartbeat.lastError = null;
+      rejectedTickerMarket = undefined;
+    }
     // Only accepted public-market events may become durable PAPER evidence.
     // This keeps stale/future/malformed transport input out of the canonical observation store.
     latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });

@@ -2705,4 +2705,11 @@ current_research_timeframe_comparison:
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('제안서 구현 승인')"
   finding: "Research experiments now also run on 15m/60m bars aggregated from stored 1m candles (research evidence only)"
+current_ops_clear_recovered_market_reject:
+  work_order: WO-OPS-20261006-CLEAR-RECOVERED-MARKET-REJECT
+  status: READY_FOR_REVIEW
+  branch: claude/clear-recovered-market-reject
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
+  finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
