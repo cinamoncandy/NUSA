@@ -2557,3 +2557,10 @@ current_diagnose_light:
   authority_impact: none
   finding: "Host diagnosis walked the 11 GB release directory (over a minute of disk I/O) on the host it measures; removed so stall readings are not inflated by the probe"
   deploy: no_runtime_change
+current_health_research_status:
+  work_order: WO-OPS-20261006-HEALTH-RESEARCH-STATUS
+  status: READY_FOR_REVIEW
+  branch: claude/health-research-status
+  authority_impact: none
+  finding: "Learning tile still shows no reason; the server's own research collection status is not readable from outside; publish a fixed code plus two counts on /health"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
