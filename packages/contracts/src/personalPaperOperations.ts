@@ -370,10 +370,14 @@ function isValidResearchCollection(value: unknown): boolean {
   const v = value as Record<string, unknown>;
   return typeof v.market === "string" && /^KRW-[A-Z0-9-]{1,16}$/.test(v.market)
     && isCount(v.candleCount) && isCount(v.requiredCandles, 1)
-    && (v.firstCloseMs === undefined || isCount(v.firstCloseMs))
-    && (v.lastCloseMs === undefined || isCount(v.lastCloseMs))
-    && isCount(v.observedAt);
+    && (v.firstCloseMs === undefined || isTimeMs(v.firstCloseMs))
+    && (v.lastCloseMs === undefined || isTimeMs(v.lastCloseMs))
+    && isTimeMs(v.observedAt);
 }
+
+// Epoch milliseconds (about 1.8e12 today) are times, not counts: they must not be held to the 100,000,000 count limit, which rejected every real time
+// and made the app show "집계 미수신". The upper bound is the largest time a JavaScript Date can hold.
+const isTimeMs = (value: unknown): boolean => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 8_640_000_000_000_000;
 
 const DECISION_CODE = /^[A-Z_]{2,16}$/;
 const DECISION_REASON = /^[A-Za-z0-9_.:/=+-]{1,160}$/;
