@@ -10,7 +10,7 @@ test("cloud server wires anonymous observation without weakening protected route
   assert.match(source, /anonymousObservationEnabled/);
   assert.match(source, /createAnonymousObservationScope/);
   assert.match(source, /isAnonymousObservationRoute/);
-  assert.match(source, /!hasBearerToken\(dashboardRequest\.headers\)/);
+  assert.match(source, /!hasAuthorizationHeader\(dashboardRequest\.headers\)/, "any presented credential, even a malformed one, disables the anonymous path");
   assert.match(source, /req\.url === "\/api\/paper-operations"[^\n]+observationRequest[^\n]+observationTokenVerifier/);
   assert.match(source, /req\.url === "\/api\/paper-orders"[\s\S]{0,900}tokenVerifier: requestTokenVerifier/);
   assert.match(source, /req\.url === "\/api\/real-readonly-operations"[^\n]+dashboardRequest[^\n]+requestTokenVerifier/);

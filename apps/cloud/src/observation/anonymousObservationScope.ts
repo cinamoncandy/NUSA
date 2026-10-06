@@ -52,3 +52,12 @@ export function hasBearerToken(headers: Readonly<Record<string, string | undefin
   const value = headers.authorization ?? headers.Authorization;
   return typeof value === "string" && /^Bearer\s+[^\s]+$/i.test(value.trim());
 }
+
+/**
+ * Any Authorization header at all, well-formed or not. A request that presents a credential is never downgraded to
+ * anonymous observation: a malformed or wrong credential must fail authentication, not fall back.
+ */
+export function hasAuthorizationHeader(headers: Readonly<Record<string, string | undefined>>): boolean {
+  const value = headers.authorization ?? headers.Authorization;
+  return typeof value === "string" && value.length > 0;
+}

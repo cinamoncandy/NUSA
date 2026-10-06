@@ -54,7 +54,7 @@ import {
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
 import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./publicUpbitQuotationHttp";
-import { anonymousObservationEnabled, createAnonymousObservationScope, hasBearerToken, isAnonymousObservationRoute, type AnonymousObservationScope } from "./observation/anonymousObservationScope";
+import { anonymousObservationEnabled, createAnonymousObservationScope, hasAuthorizationHeader, isAnonymousObservationRoute, type AnonymousObservationScope } from "./observation/anonymousObservationScope";
 import { handleLiveReadinessHttp, type LiveReadinessHttpDependencies } from "./liveReadinessHttp";
 import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependencies } from "./engineeringOperationsHttp";
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
@@ -548,7 +548,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       const body = req.method === "POST" || req.method === "PUT" ? await readRequestBody(req) : undefined;
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
 
-      const servedAnonymously = anonymousObservation != null && isAnonymousObservationRoute(req.url) && !hasBearerToken(dashboardRequest.headers);
+      const servedAnonymously = anonymousObservation != null && isAnonymousObservationRoute(req.url) && !hasAuthorizationHeader(dashboardRequest.headers);
       const observationRequest: DashboardHttpRequest = servedAnonymously && anonymousObservation != null
         ? Object.freeze({ ...dashboardRequest, headers: Object.freeze({ ...dashboardRequest.headers, authorization: `Bearer ${anonymousObservation.sentinel}` }) })
         : dashboardRequest;
