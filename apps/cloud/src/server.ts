@@ -89,6 +89,10 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly lastError: string | null;
   /** Why the previous runtime process stopped, when a failure record exists. */
   readonly previousStop?: string;
+  /** Display-only event-loop stall measurement (milliseconds, a count and a timestamp), present when the runtime measures it. */
+  readonly eventLoopMaxStallMs?: number;
+  readonly eventLoopStallCount?: number;
+  readonly lastEventLoopStallAt?: number | null;
 }
 
 export interface CloudReadinessSnapshot {
@@ -265,7 +269,20 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const previousStop = typeof rawPreviousStop === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawPreviousStop) ? rawPreviousStop : undefined;
   const rawOutcome = source.lastPaperDecisionOutcome;
   const lastPaperDecisionOutcome = typeof rawOutcome === "string" && PUBLIC_DECISION_OUTCOME_CODE.test(rawOutcome) ? rawOutcome : undefined;
-  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }) }) as unknown as CloudRuntimeLivenessSnapshot;
+  // Optional stall measurement: published only as finite non-negative numbers, and only when the source supplies them.
+  const optionalNumber = (key: string): number | undefined => {
+    const raw = source[key];
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : undefined;
+  };
+  const maxStall = optionalNumber("eventLoopMaxStallMs");
+  const stallCount = optionalNumber("eventLoopStallCount");
+  const lastStallAt = source.lastEventLoopStallAt === null ? null : optionalNumber("lastEventLoopStallAt");
+  const stall = {
+    ...(maxStall === undefined ? {} : { eventLoopMaxStallMs: maxStall }),
+    ...(stallCount === undefined ? {} : { eventLoopStallCount: Math.trunc(stallCount) }),
+    ...(lastStallAt === undefined ? {} : { lastEventLoopStallAt: lastStallAt }),
+  };
+  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

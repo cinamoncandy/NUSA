@@ -128,6 +128,25 @@ test("/health publishes only the allowlisted liveness fields, whatever the sourc
   }, 41887);
 });
 
+test("/health publishes the event-loop stall numbers only as finite non-negative numbers, and only when supplied", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, eventLoopMaxStallMs: 6_100, eventLoopStallCount: 3.9, lastEventLoopStallAt: 1_950 }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.eventLoopMaxStallMs, 6_100);
+    assert.equal(body.runtime.eventLoopStallCount, 3);
+    assert.equal(body.runtime.lastEventLoopStallAt, 1_950);
+  }, 41901);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, eventLoopMaxStallMs: -1, eventLoopStallCount: "7 leak-sentinel-9", lastEventLoopStallAt: Number.NaN }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(Object.keys(body.runtime).sort(), Object.keys(LIVENESS).sort(), "invalid stall values are dropped, not published");
+    assert.doesNotMatch(res.body, /leak-sentinel-9/);
+  }, 41902);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, lastEventLoopStallAt: null }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.lastEventLoopStallAt, null);
+  }, 41903);
+});
+
 test("/health strips extra component-health fields from an alternate callback", async () => {
   const measuredAt = 2_000;
   const health = (componentId, provenance, evidenceId) => evaluateComponentHealth({
