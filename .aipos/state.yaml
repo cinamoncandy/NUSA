@@ -2564,4 +2564,10 @@ current_research_health_not_paper:
   authority_impact: health_classification_display
   owner_approval: "2026-10-06 in chat"
   finding: "Research DEGRADED/STALE (still gathering data) made the whole PAPER snapshot DEGRADED, a permanent amber banner after #2520; only research FAIL_CLOSED may affect PAPER health"
+current_health_research_status:
+  work_order: WO-OPS-20261006-HEALTH-RESEARCH-STATUS
+  status: READY_FOR_REVIEW
+  branch: claude/health-research-status
+  authority_impact: none
+  finding: "Learning tile still shows no reason; the server's own research collection status is not readable from outside; publish a fixed code plus two counts on /health"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
