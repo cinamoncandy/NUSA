@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Enable package manager
+        run: corepack enable
       - name: Apply deterministic wiring
         run: node scripts/wire-anonymous-paper-observation.mjs
       - name: Verify wiring contract
