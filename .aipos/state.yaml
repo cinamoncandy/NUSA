@@ -2593,4 +2593,11 @@ current_ui_startup_warmup:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
   finding: "Cold start 3.3 s from abroad, sign-in 2.4 s: warm the connection during the saved-session read (a credential-free GET of /health) and show the sign-in split in Settings; the authentication flow itself is untouched"
+current_ui_hero_batched_drawing:
+  work_order: WO-UI-20261006-HERO-BATCHED-DRAWING
+  status: READY_FOR_REVIEW
+  branch: claude/hero-batched-drawing
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
+  finding: "The flow-field hero made about 550 draw calls per frame; batching by look reduces it to about 25 without changing the picture. Not measured on a device"
   deploy: not_deployed_new_app_build_required

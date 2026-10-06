@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, PointMode, Skia, StrokeCap, createPicture, type SkPicture } from "@shopify/react-native-skia";
-import { HOLO_COLORS, FLOW_BAND_Y, FLOW_ROWS, FLOW_TICKS, FLOW_WALL_END, easeOutCubic, flowArcX, flowBandRows, flowClockSec, flowLines, flowSegment, flowTick, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, pulseFor, tickHolo, wallBar, wallRows, type HoloTone } from "./holoModel";
+import { HOLO_COLORS, FLOW_ALPHA_LEVELS, FLOW_BAND_Y, FLOW_ROWS, FLOW_TICKS, FLOW_WALL_END, easeOutCubic, flowArcX, flowBandRows, flowBucketAlpha, flowBucketThick, flowClockSec, flowLineBucket, flowLines, flowSegment, flowTick, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, pulseFor, tickHolo, wallBar, wallRows, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase lights one row of the wall and moves the ruler marker to it. Null draws it still. */
@@ -17,11 +17,16 @@ export interface HoloSphereProps {
   readonly testID?: string;
 }
 
+type Pt = { x: number; y: number };
+
 /**
  * NUSA flow-field mark, after the owner's reference: fine hairlines stream in from the left toward a curved ruler, a white marker
  * rides the ruler, and a wall of thin bars stands on its right. A runtime decision lights one wall row and the hairlines beside
  * it; a PAPER order sends a lime band across the whole field. See holoModel.ts for the geometry and how runtime facts drive it.
  * The component name is kept for its callers.
+ *
+ * Drawing is batched: hairlines are grouped by quantised alpha and width and drawn as line lists, the unlit bars as two line lists,
+ * and the ruler's arcs and ticks are built once per size, so a frame makes about two dozen draw calls instead of several hundred.
  */
 export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size, points = 1600, testID = "holo-sphere" }: HoloSphereProps) {
   const state = useRef(initialHoloState());
@@ -43,6 +48,25 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
   const detail = points >= 600 ? 1 : 0;
   const lines = useMemo(() => flowLines().filter((_, i) => detail === 1 || i % 6 === 0), [detail]);
   const rows = useMemo(() => wallRows().map((row, index) => ({ row, index })).filter(({ index }) => detail === 1 || index % 3 === 0), [detail]);
+  // Per-size geometry built once: the ruler's arcs and ticks never change.
+  const fixed = useMemo(() => {
+    const u = size / 300;
+    const arc = (offset: number): Pt[] => { const pts: Pt[] = []; for (let i = 0; i <= 40; i += 1) { const y = i / 40; pts.push({ x: flowArcX(y) * size + offset * u, y: y * size }); } return pts; };
+    const longTicks: Pt[] = [], shortTicks: Pt[] = [];
+    if (detail === 1) for (let i = 0; i < FLOW_TICKS; i += 1) {
+      const t = flowTick(i), x = flowArcX(t.y) * size, half = (t.long ? 9 : 5) * u, into = t.long ? longTicks : shortTicks;
+      into.push({ x: x - half, y: t.y * size }, { x: x + half, y: t.y * size });
+    }
+    return { arcOuter: arc(-5), arcInner: arc(5), arcBand: arc(0), longTicks, shortTicks };
+  }, [size, detail]);
+  // Reused every frame so drawing allocates no points: one point pair per hairline and per bar, grouped into buckets by look.
+  const scratch = useMemo(() => ({
+    linePool: lines.map(() => [{ x: 0, y: 0 }, { x: 0, y: 0 }] as [Pt, Pt]),
+    lineBuckets: Array.from({ length: FLOW_ALPHA_LEVELS * 2 }, () => [] as Pt[]),
+    barPool: rows.map(() => [{ x: 0, y: 0 }, { x: 0, y: 0 }] as [Pt, Pt]),
+    barBright: [] as Pt[],
+    barDim: [] as Pt[],
+  }), [lines, rows]);
 
   const render = (nowMs: number, dtMs: number) => {
     const s = state.current, S = size, u = S / 300;
@@ -58,36 +82,50 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     markY.current = markY.current == null || reducedMotion ? targetY : markY.current + (targetY - markY.current) * Math.min(1, 1 - Math.pow(0.9, dtMs / 16.7));
     const my = markY.current;
     const band = flowBandRows();
+    const { lineBuckets, linePool, barPool, barBright, barDim } = scratch;
     setPicture(createPicture((canvas) => {
-      // 1. The stream: fine hairlines flowing toward the ruler; lines near a lit row brighten.
+      // 1. The stream: hairlines flowing toward the ruler, grouped by look; a line near a lit row brightens and is drawn on its own.
+      for (const bucket of lineBuckets) bucket.length = 0;
       for (let n = 0; n < lines.length; n += 1) {
-        const seg = flowSegment(lines[n]!, tSec);
-        let a = seg.alpha * grow, w = Math.max(0.4, lines[n]!.width * u);
-        for (const [row, l] of lit) { const dy = Math.abs((row + 0.5) / FLOW_ROWS - lines[n]!.y); if (dy < 0.05) { a += l.glow * (1 - dy / 0.05) * 0.5; w *= 1 + l.glow * 0.8; } }
-        set(paints.line, ink, a); paints.line.setStrokeWidth(w);
-        canvas.drawLine(seg.x0 * S, seg.y0 * S, seg.x1 * S, seg.y1 * S, paints.line);
+        const line = lines[n]!, seg = flowSegment(line, tSec);
+        let a = seg.alpha * grow, w = Math.max(0.4, line.width * u), boosted = false;
+        for (const [row, l] of lit) { const dy = Math.abs((row + 0.5) / FLOW_ROWS - line.y); if (dy < 0.05) { a += l.glow * (1 - dy / 0.05) * 0.5; w *= 1 + l.glow * 0.8; boosted = true; } }
+        if (boosted) { set(paints.line, ink, a); paints.line.setStrokeWidth(w); canvas.drawLine(seg.x0 * S, seg.y0 * S, seg.x1 * S, seg.y1 * S, paints.line); continue; }
+        const pair = linePool[n]!; pair[0].x = seg.x0 * S; pair[0].y = seg.y0 * S; pair[1].x = seg.x1 * S; pair[1].y = seg.y1 * S;
+        lineBuckets[flowLineBucket(a, line.width)]!.push(pair[0], pair[1]);
       }
-      // 2. The ruler: two thin arcs with a faint band between them, and ticks.
-      const arc = (offset: number): { x: number; y: number }[] => { const pts: { x: number; y: number }[] = []; for (let i = 0; i <= 40; i += 1) { const y = i / 40; pts.push({ x: flowArcX(y) * S + offset * u, y: y * S }); } return pts; };
+      for (let b = 0; b < lineBuckets.length; b += 1) {
+        if (lineBuckets[b]!.length === 0) continue;
+        set(paints.line, ink, flowBucketAlpha(b)); paints.line.setStrokeWidth(Math.max(0.4, (flowBucketThick(b) ? 0.78 : 0.45) * u));
+        canvas.drawPoints(PointMode.Lines, lineBuckets[b]!, paints.line);
+      }
+      // 2. The ruler: two thin arcs with a faint band between them, and ticks (built once per size).
       set(paints.line, ink, grow * 0.5); paints.line.setStrokeWidth(Math.max(0.5, 0.9 * u));
-      canvas.drawPoints(PointMode.Polygon, arc(-5), paints.line); canvas.drawPoints(PointMode.Polygon, arc(5), paints.line);
-      set(paints.line, ink, grow * 0.07); paints.line.setStrokeWidth(10 * u); canvas.drawPoints(PointMode.Polygon, arc(0), paints.line);
-      if (detail === 1) {
-        for (let i = 0; i < FLOW_TICKS; i += 1) {
-          const t = flowTick(i), x = flowArcX(t.y) * S;
-          set(paints.line, ink, grow * (t.long ? 0.9 : 0.5)); paints.line.setStrokeWidth(Math.max(0.5, 0.9 * u));
-          canvas.drawLine(x - (t.long ? 9 : 5) * u, t.y * S, x + (t.long ? 9 : 5) * u, t.y * S, paints.line);
-        }
+      canvas.drawPoints(PointMode.Polygon, fixed.arcOuter, paints.line); canvas.drawPoints(PointMode.Polygon, fixed.arcInner, paints.line);
+      set(paints.line, ink, grow * 0.07); paints.line.setStrokeWidth(10 * u); canvas.drawPoints(PointMode.Polygon, fixed.arcBand, paints.line);
+      if (fixed.longTicks.length > 0) {
+        paints.line.setStrokeWidth(Math.max(0.5, 0.9 * u));
+        set(paints.line, ink, grow * 0.9); canvas.drawPoints(PointMode.Lines, fixed.longTicks, paints.line);
+        set(paints.line, ink, grow * 0.5); canvas.drawPoints(PointMode.Lines, fixed.shortTicks, paints.line);
       }
-      // 3. The wall: thin bars from the ruler toward the right edge; a lit row grows to full length and flares.
+      // 3. The wall: thin bars from the ruler toward the right edge, the unlit ones in two batches by brightness; a lit row grows to full length and flares on its own.
       const rowH = (S / FLOW_ROWS) * (detail === 1 ? 0.95 : 2.6);
-      for (const { row, index } of rows) {
-        const bar = wallBar(row, tSec, grow), l = lit.get(index);
-        const x1 = l == null ? bar.x1 : bar.x1 + (FLOW_WALL_END - bar.x1) * l.reach * l.glow;
-        set(paints.line, ink, Math.min(1, bar.alpha + (l == null ? 0 : l.glow * 0.5))); paints.line.setStrokeWidth(rowH * (l == null ? 1 : 1 + l.glow));
+      barBright.length = 0; barDim.length = 0;
+      for (let n = 0; n < rows.length; n += 1) {
+        const { row, index } = rows[n]!, bar = wallBar(row, tSec, grow), l = lit.get(index);
+        if (l == null) {
+          const pair = barPool[n]!; pair[0].x = bar.x0 * S; pair[0].y = bar.y * S; pair[1].x = bar.x1 * S; pair[1].y = bar.y * S;
+          (row.bright ? barBright : barDim).push(pair[0], pair[1]);
+          continue;
+        }
+        const x1 = bar.x1 + (FLOW_WALL_END - bar.x1) * l.reach * l.glow;
+        set(paints.line, ink, Math.min(1, bar.alpha + l.glow * 0.5)); paints.line.setStrokeWidth(rowH * (1 + l.glow));
         canvas.drawLine(bar.x0 * S, bar.y * S, x1 * S, bar.y * S, paints.line);
-        if (l != null && l.glow > 0.05) { set(paints.glowLine, ink, l.glow * 0.6); paints.glowLine.setStrokeWidth(rowH * 2.4); canvas.drawLine(bar.x0 * S, bar.y * S, x1 * S, bar.y * S, paints.glowLine); }
+        if (l.glow > 0.05) { set(paints.glowLine, ink, l.glow * 0.6); paints.glowLine.setStrokeWidth(rowH * 2.4); canvas.drawLine(bar.x0 * S, bar.y * S, x1 * S, bar.y * S, paints.glowLine); }
       }
+      paints.line.setStrokeWidth(rowH);
+      if (barDim.length > 0) { set(paints.line, ink, 0.5); canvas.drawPoints(PointMode.Lines, barDim, paints.line); }
+      if (barBright.length > 0) { set(paints.line, ink, 0.86); canvas.drawPoints(PointMode.Lines, barBright, paints.line); }
       // 4. The ruler marker: a short white bar riding the ruler at the lit row.
       set(paints.line, ink, grow * 0.95); paints.line.setStrokeWidth(Math.max(1.2, 2.4 * u));
       canvas.drawLine(flowArcX(my) * S, (my - 0.035) * S, flowArcX(my) * S, (my + 0.035) * S, paints.line);
