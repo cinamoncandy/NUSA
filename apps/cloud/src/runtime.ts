@@ -8,6 +8,7 @@ import { readResearchExperimentSettings } from "./researchExperimentComposition"
 import { createEventLoopStallMonitor } from "./eventLoopStallMonitor";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { classifyPaperWait } from "./paperWaitReason";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
@@ -439,7 +440,7 @@ export function startCloudRuntime(
         if (canonicalDecision != null) lastDecisionDetail = describeCanonicalDecision(canonicalDecision, now);
         paperLearningRecorder.record({ cycleId, stage: "MARKET_DATA", occurredAt: ticker.trade_timestamp, market: ticker.code, status: "PASS", reason: `source=UPBIT_PUBLIC_TICKER;observedAt=${ticker.trade_timestamp}` });
         const decisionSupported = canonicalDecision != null && ["BUY", "SELL", "HOLD", "REDUCE", "INCREASE"].includes(canonicalDecision.action);
-        paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
+        paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : canonicalDecision.action === "WAIT" ? `NO_ACTIONABLE_PAPER_DECISION:WAIT:${classifyPaperWait(canonicalDecision) ?? "NO_SIGNAL"}` : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
         paperLearningRecorder.record({ cycleId, stage: "PERMISSION", occurredAt: now, market: ticker.code, status: "SKIP", reason: "NO_CANONICAL_TRADE_PERMISSION_EVIDENCE" });
         if (result != null) {
           heartbeat.lastPaperDecisionOutcome = codePaperDecisionOutcome(result);
