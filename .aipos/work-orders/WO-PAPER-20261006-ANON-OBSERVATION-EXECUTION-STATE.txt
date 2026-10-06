@@ -1,0 +1,4 @@
+CANONICAL_HEAD=1a94f2450583516715a4fd2d270e68a21dcd90b7
+STATE=IN_PROGRESS
+NEXT=node scripts/wire-anonymous-paper-observation.mjs
+NO_DUPLICATE_IMPLEMENTATION=true
