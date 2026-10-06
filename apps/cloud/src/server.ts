@@ -94,6 +94,10 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly eventLoopMaxStallMs?: number;
   readonly eventLoopStallCount?: number;
   readonly lastEventLoopStallAt?: number | null;
+  /** Display-only research candle collection status (a code and two counts), present when the runtime reports it. */
+  readonly researchCollectionStatus?: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE";
+  readonly researchCandleCount?: number;
+  readonly researchRequiredCandles?: number;
 }
 
 export interface CloudReadinessSnapshot {
@@ -293,7 +297,16 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     ...(stallCount === undefined ? {} : { eventLoopStallCount: Math.trunc(stallCount) }),
     ...(lastStallAt === undefined ? {} : { lastEventLoopStallAt: lastStallAt }),
   };
-  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall }) as unknown as CloudRuntimeLivenessSnapshot;
+  // Research collection status: one of four fixed codes plus two counts, nothing else (no market, time or detail).
+  const rawResearch = source.researchCollectionStatus;
+  const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
+    ? {
+      researchCollectionStatus: rawResearch,
+      ...(optionalNumber("researchCandleCount") === undefined ? {} : { researchCandleCount: Math.trunc(optionalNumber("researchCandleCount") as number) }),
+      ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
+    }
+    : {};
+  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

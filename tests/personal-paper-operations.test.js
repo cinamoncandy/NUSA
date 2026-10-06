@@ -139,6 +139,22 @@ test("fails closed on kill switch and Research fail-closed state", () => {
   assert.equal(snapshot({ research: { health: "FAIL_CLOSED", recoveryStatus: "FAIL_CLOSED" } }).health, "FAIL_CLOSED");
 });
 
+test("Research that is still gathering data or stale never marks PAPER operations degraded, but Research FAIL_CLOSED still fails closed", () => {
+  // The learning side is optional: no experiments yet (DEGRADED) or old evidence (STALE) must not turn the PAPER banner amber.
+  for (const health of ["DEGRADED", "STALE"]) {
+    const result = snapshot({ research: { health, experimentCount: 0, recoveryStatus: "READY" } });
+    assert.equal(result.health, "HEALTHY", `research ${health}`);
+    assert.equal(result.readyForPaperOperations, true);
+  }
+  assert.equal(snapshot({ research: { health: "FAIL_CLOSED", recoveryStatus: "READY" } }).health, "FAIL_CLOSED");
+  assert.equal(snapshot({ research: { health: "HEALTHY", recoveryStatus: "FAIL_CLOSED" } }).health, "FAIL_CLOSED");
+  // PAPER's own signals still degrade it, whatever Research says.
+  assert.equal(snapshot({ operations: { transport: "OFFLINE" } }).health, "DEGRADED");
+  assert.equal(snapshot({ operations: { pendingWrites: 2 } }).health, "DEGRADED");
+  assert.equal(snapshot({ dashboard: { overallHealth: "DEGRADED" } }).health, "DEGRADED");
+  assert.equal(snapshot({ operations: { runtimeState: "READY_OFFLINE" } }).health, "DEGRADED");
+});
+
 test("missing optional Research does not block fresh PAPER operations or create LIVE authority", () => {
   const result = snapshot({ research: null });
   assert.equal(result.health, "HEALTHY");
@@ -222,6 +238,28 @@ test("mobile reads only the authenticated PAPER operations route after exact end
 });
 
 const heartbeat = (overrides = {}) => ({ startedAt: 500, lastHeartbeatAt: 900, lastMarketEventAt: 900, lastPaperDecisionAt: 900, lastPaperOrderAt: null, lastPaperFillAt: null, eventCount: 10, decisionCount: 953, paperOrderCount: 0, paperFillCount: 0, lastError: null, ...overrides });
+
+test("the research collection progress a real server sends (epoch-millisecond times) survives the contract and reaches the app", () => {
+  // The live server reported 18265 candles and times like 1791259039230 (about 1.8e12 ms). Earlier tests used tiny stand-ins (1, 900),
+  // which hid that the contract's 100,000,000 count limit rejected every real time and dropped the whole progress object.
+  const observedAt = 1_791_259_039_230;
+  const progress = { market: "KRW-XRP", candleCount: 18_265, requiredCandles: 15_840, firstCloseMs: observedAt - 18_265 * 60_000, lastCloseMs: observedAt - 39_230, observedAt };
+  const built = snapshot({ operations: { heartbeat: heartbeat({ researchCollection: progress }) } });
+  assert.deepEqual(JSON.parse(JSON.stringify(built.operations.heartbeat.researchCollection)), progress, "the progress is kept when the snapshot is built");
+  const accepted = validatePersonalPaperOperationsSnapshot(JSON.parse(JSON.stringify(built)), 1_100, 500);
+  assert.deepEqual(accepted.operations.heartbeat.researchCollection, progress, "and again when the app validates it");
+  // Still refused when it is genuinely malformed: bad market, negative or fractional count, a time beyond what a Date can hold, a non-number.
+  for (const bad of [
+    { ...progress, market: "btc" }, { ...progress, candleCount: -1 }, { ...progress, requiredCandles: 0 }, { ...progress, candleCount: 1.5 },
+    { ...progress, observedAt: 9_000_000_000_000_000 }, { ...progress, lastCloseMs: "1791259039230" }, { ...progress, firstCloseMs: -1 }, { ...progress, candleCount: 100_000_001 },
+  ]) {
+    // The app's validation (not the server's build step) is what drops a malformed display-only value.
+    const wire = JSON.parse(JSON.stringify(snapshot({ operations: { heartbeat: heartbeat({ researchCollection: bad }) } })));
+    const dropped = validatePersonalPaperOperationsSnapshot(wire, 1_100, 500);
+    assert.equal(dropped.operations.heartbeat.researchCollection, undefined, JSON.stringify(bad));
+    assert.equal(dropped.schemaVersion, 1, "a malformed display value never rejects the whole snapshot");
+  }
+});
 
 test("the snapshot a halted server sends is accepted by the app after a JSON round trip: long persistence cause, research state, long error", () => {
   const cause = "paper account persistence failed: PAPER_LEDGER_RECONCILIATION_REQUIRED cash state 4857.12345678 ledger 4900.87654321 KRW-XRP quantity state 12.50000001 ledger 12.4 realized state -95 ledger -94.5 37 fills";

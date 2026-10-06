@@ -7,8 +7,8 @@ import { buildDecisionRings, type DecisionRingsInput } from "./decisionRingsMode
 import { fieldHero, fieldRadii } from "./designSystem";
 import { holoChipPlacement } from "./holoModel";
 
-// Home hero: the reported PAPER decision count over the NUSA holo sphere: a wave per new decision,
-// a ring burst on each new PAPER order. Motion stops entirely when the OS reduce-motion setting is on.
+// Home hero: the reported PAPER decision count over the NUSA holo sphere: a lit row per new decision,
+// a lime band on each new PAPER order. Motion stops entirely when the OS reduce-motion setting is on.
 export interface DecisionRingsStatus {
   readonly title: string;
   readonly detail: string;
@@ -45,7 +45,7 @@ export function DecisionRings({ status = null, marketLabel = null, ...props }: D
       </View> : null}
     </View>
     <View style={styles.legend}>
-      <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단마다 핵에서 빛이 퍼지고, 주문이 나가면 종목까지 선이 이어집니다</Text>
+      <Text style={[fieldFonts.mono, styles.legendText, { color: theme.colors.textMuted }]}>판단마다 벽의 한 줄이 밝아지고, 주문이 나가면 라임 띠가 가로지릅니다</Text>
       <Text style={[fieldFonts.mono, styles.legendText, { color: fieldHero.lime }]} testID="home-decision-rings-orders">PAPER 주문 {model.paperOrderCount == null ? "—" : model.paperOrderCount.toLocaleString("ko-KR")}건</Text>
     </View>
   </View>;
