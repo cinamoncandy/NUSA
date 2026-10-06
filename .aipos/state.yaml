@@ -2653,4 +2653,11 @@ current_research_experiment_counts:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
   finding: "Experiment outcomes were journal-only; publishes bounded cumulative outcome counts so the Research -> Candidate N+1 link can be located in runtime evidence"
+current_paper_minute_bar_strategy:
+  work_order: WO-PAPER-20261006-MINUTE-BAR-STRATEGY
+  status: READY_FOR_REVIEW
+  branch: claude/minute-bar-strategy
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('2번으로 진행해')"
+  finding: "SMA 5/20 ran on every ticker event (12 s holds; tick replay 0.5% wins, -51% net after fees). The candidate strategy now uses completed 1-minute closes from the persisted ticker store; no parameter or threshold changed"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval

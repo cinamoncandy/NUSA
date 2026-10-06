@@ -14,6 +14,8 @@ export interface CloudRuntimeDashboardHydratorOptions {
   readonly now?: () => number;
   readonly maxPaperAllocation?: number;
   readonly paperCandidateBindingProvider?: PaperCandidateBindingProvider;
+  /** Completed 1-minute closes per market for the candidate strategy; when absent the per-ticker series is used. */
+  readonly paperCandidateMinuteCloses?: (market: string, now: number) => readonly (readonly [number, number])[];
 }
 
 const DEFAULT_MAX_PAPER_ALLOCATION = 0.1;
@@ -34,11 +36,13 @@ export class CloudRuntimeDashboardHydrator {
   private readonly now: () => number;
   private readonly maxPaperAllocation: number;
   private readonly paperCandidateBindingProvider?: PaperCandidateBindingProvider;
+  private readonly paperCandidateMinuteCloses?: (market: string, now: number) => readonly (readonly [number, number])[];
 
   public constructor(options: CloudRuntimeDashboardHydratorOptions = {}) {
     this.now = options.now ?? (() => Date.now());
     this.maxPaperAllocation = options.maxPaperAllocation ?? DEFAULT_MAX_PAPER_ALLOCATION;
     this.paperCandidateBindingProvider = options.paperCandidateBindingProvider;
+    this.paperCandidateMinuteCloses = options.paperCandidateMinuteCloses;
     if (!Number.isFinite(this.maxPaperAllocation) || this.maxPaperAllocation <= 0 || this.maxPaperAllocation > 1) {
       throw new Error("maxPaperAllocation must be in (0, 1]");
     }
@@ -88,7 +92,7 @@ export class CloudRuntimeDashboardHydrator {
         const paperCandidateBinding = this.paperCandidateBindingProvider?.read(market, now);
         const paperCandidateStrategyDecision = paperCandidateBinding?.candidateStrategy == null
           ? undefined
-          : evaluatePaperCandidateStrategy(paperCandidateBinding.candidateStrategy, marketGroups.get(market) ?? [], now, market);
+          : evaluatePaperCandidateStrategy(paperCandidateBinding.candidateStrategy, marketGroups.get(market) ?? [], now, market, this.paperCandidateMinuteCloses?.(market, now));
         decisions.push(decideCio({
           symbol: market,
           now,
