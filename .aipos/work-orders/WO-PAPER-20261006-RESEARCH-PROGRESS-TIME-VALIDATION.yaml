@@ -1,0 +1,26 @@
+id: WO-PAPER-20261006-RESEARCH-PROGRESS-TIME-VALIDATION
+title: "Validate research progress times as times, not as counts"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/research-progress-time-validation
+authority_impact: none
+owner_approval: "2026-10-06 in chat (repeated instruction to resolve the learning 'not received' line)"
+objective: "The HOME learning tile showed 'aggregation not received' with no reason although the server was collecting. After #2532 the server's /health reported researchCollectionStatus COLLECTING with 18265 of 15840 required candles, and the installed app build (21ef03ef0f80) already contains the reason display (#2519). The contract validator isValidResearchCollection held firstCloseMs, lastCloseMs and observedAt to isCount, which caps at 100,000,000, but those fields are epoch milliseconds (about 1.79e12). Every real progress object was therefore judged malformed and dropped by dropMalformedDisplayCounters, and the matching researchCollectionState is only sent when there is no progress, so the app received neither field and fell back to the plain 'not received' text. Existing tests used stand-in times (1, 900) that passed the count cap and hid the defect."
+scope:
+  - "packages/contracts/src/personalPaperOperations.ts: a new isTimeMs check (safe integer between 0 and 8,640,000,000,000,000, the largest time a JavaScript Date can hold) is used for firstCloseMs, lastCloseMs and observedAt. candleCount and requiredCandles keep the count limit."
+  - "tests/personal-paper-operations.test.js: a test with the real server's epoch-millisecond times that survives the server build and the app's validation; malformed progress (bad market, negative or fractional or oversized count, zero required, time beyond a Date, string time, negative time) is still dropped by the app validation without rejecting the snapshot. Confirmed to fail on the previous validator and pass with the fix."
+exclusions:
+  - "Display only. No change to what the server collects, to research settings or schedule, or to trading, risk, accounting, persistence, LIVE, credentials or AI authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "A genuinely malformed progress object is still dropped, never published to the screen as a value."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/personal-paper-operations.test.js
+  - node scripts/lint-mobile.js
+residual: "The drop happens in the app's validation of the snapshot (the server's build step keeps the progress as sent), so the fix reaches the owner only with a new Android build; no PAPER server deploy is needed. Until the phone is updated it keeps showing the plain text; the server /health researchCollectionStatus shows the real status meanwhile."
