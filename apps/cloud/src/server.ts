@@ -97,6 +97,8 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly researchCollectionStatus?: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE";
   readonly researchCandleCount?: number;
   readonly researchRequiredCandles?: number;
+  /** Cumulative PAPER decision-funnel counts since the runtime started: fixed codes and integer counts only. */
+  readonly paperFunnel?: { readonly since: number; readonly counts: Readonly<Record<string, number>> };
 }
 
 export interface CloudReadinessSnapshot {
@@ -297,6 +299,18 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     ...(lastStallAt === undefined ? {} : { lastEventLoopStallAt: lastStallAt }),
   };
   // Research collection status: one of four fixed codes plus two counts, nothing else (no market, time or detail).
+  // Decision funnel: keys are fixed stage/status/reason codes and values are integers, at most 80 keys; anything else is dropped.
+  const FUNNEL_KEY = /^(OTHER|[A-Z][A-Z_]{1,23}:(PASS|SKIP|FAIL)(:[A-Z][A-Z0-9_]{1,47})?)$/;
+  const rawFunnel = source.paperFunnel as { since?: unknown; counts?: unknown } | null | undefined;
+  let funnel: { paperFunnel?: { since: number; counts: Record<string, number> } } = {};
+  if (rawFunnel != null && typeof rawFunnel === "object" && typeof rawFunnel.since === "number" && Number.isFinite(rawFunnel.since) && rawFunnel.since >= 0 && rawFunnel.counts != null && typeof rawFunnel.counts === "object" && !Array.isArray(rawFunnel.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawFunnel.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 80) break;
+      if (FUNNEL_KEY.test(key) && typeof value === "number" && Number.isSafeInteger(value) && value >= 0) counts[key] = value;
+    }
+    funnel = { paperFunnel: { since: rawFunnel.since, counts } };
+  }
   const rawResearch = source.researchCollectionStatus;
   const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
     ? {
@@ -305,7 +319,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
       ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
     }
     : {};
-  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

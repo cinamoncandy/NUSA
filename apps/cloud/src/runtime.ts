@@ -624,7 +624,8 @@ export function startCloudRuntime(
       lastError: heartbeat.lastError,
       ...(previousStop === undefined ? {} : { previousStop }),
       ...stallMonitor.snapshot(),
-      ...researchLiveness()
+      ...researchLiveness(),
+      paperFunnel: paperLearningRecorder.funnelSnapshot()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
       Object.freeze({ ...heartbeat }),

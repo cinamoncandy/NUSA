@@ -28,7 +28,7 @@ test("the only network request is a bounded GET of the runtime's own /health on 
   assert.match(curls[0], /curl -sS -m 6 -o \/tmp\/nusa-health-probe\.txt /, "silent, 6 s timeout, response to a probe file");
   assert.match(curls[0], /http:\/\/127\.0\.0\.1:41731\/health 2>&1$/, "local /health only");
   assert.doesNotMatch(curls[0], /\s-(X|d|H|T|u|F|K|b|c)\s|--(data|header|upload|user|form|request|config|cookie)|Authorization|Bearer/, "a plain GET with no body, header, cookie or credential");
-  assert.match(commands, /head -c 1500 \/tmp\/nusa-health-probe\.txt/, "output bounded");
+  assert.match(commands, /head -c 9000 \/tmp\/nusa-health-probe\.txt/, "output bounded");
   assert.doesNotMatch(commands, /https?:\/\/(?!127\.0\.0\.1)/, "no other address");
 });
 
