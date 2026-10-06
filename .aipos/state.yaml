@@ -2668,3 +2668,18 @@ current_ui_touch_visual_calm:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (master directive; regression from #2541)"
   finding: "touch-visual failed on every PR since #2541 because it waited for replaced testIDs; re-keyed on the calm-v1 screens and tied to the presenters"
+current_ops_deploy_receipt_result:
+  work_order: WO-OPS-20261006-DEPLOY-RECEIPT-RESULT
+  status: READY_FOR_REVIEW
+  branch: claude/deploy-receipt-result
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive section 27, P1)"
+  finding: "A superseded release skipped all host steps but showed success; the final step now records deploymentResult (DEPLOYED / SKIPPED_MAIN_MOVED / FAILED / FAILED_ACTIVATION_IDENTITY)"
+current_learning_loop_status:
+  work_order: WO-LEARNING-20261006-LOOP-STATUS
+  status: READY_FOR_REVIEW
+  branch: claude/closed-learning-loop-status
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
+  finding: "Closed-learning loop step results were log-only; publishes bootstrap/rollover step codes and evaluated-cycle/deployment counts so the stalled learning transition can be named from runtime evidence"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
