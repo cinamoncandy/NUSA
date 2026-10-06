@@ -146,3 +146,35 @@ test("invalid orchestrator configuration is rejected", () => {
     assert.throws(() => new ResearchExperimentOrchestrator(base));
   } finally { s.db.close(); }
 });
+
+test("experiment tick counts accumulate as fixed codes and integers for /health", () => {
+  const s = build(fresh()); seed(s);
+  try {
+    assert.equal(s.orchestrator.experimentTicks(), null, "nothing before the first tick");
+    s.orchestrator.tick();
+    assert.equal(s.orchestrator.experimentTicks().lastStatus, "RECOVERY_NOT_READY");
+    s.orchestrator.recover();
+    const report = s.orchestrator.tick();
+    s.orchestrator.tick();
+    const summary = s.orchestrator.experimentTicks();
+    assert.equal(summary.ticks, 3);
+    assert.equal(summary.lastStatus, "OK");
+    assert.equal(summary.sessionsStarted, 2);
+    assert.equal(summary.counts.COMPLETED, report.experiments.length);
+    assert.equal(summary.counts.NOT_DUE, 2, "the second OK tick found nothing due");
+    const validation = Object.keys(summary.counts).filter((k) => k.startsWith("VALIDATION_"));
+    assert.ok(validation.length >= 1, "each completed experiment records its validation result");
+    for (const [key, value] of Object.entries(summary.counts)) { assert.match(key, /^[A-Z][A-Z0-9_]{1,47}$/); assert.ok(Number.isSafeInteger(value)); }
+  } finally { s.db.close(); }
+});
+
+test("skipped experiments are counted under their stable reason code", () => {
+  const s = build(fresh()); seed(s, 50);
+  try {
+    s.orchestrator.recover();
+    s.orchestrator.tick();
+    const counts = s.orchestrator.experimentTicks().counts;
+    assert.equal(counts.SKIPPED, 2);
+    assert.ok(Object.keys(counts).some((k) => /^SKIPPED_WINDOWS_/.test(k)), JSON.stringify(counts));
+  } finally { s.db.close(); }
+});
