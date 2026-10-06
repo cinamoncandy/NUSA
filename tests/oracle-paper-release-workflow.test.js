@@ -204,6 +204,13 @@ test("the release is dispatch-only and holds no repository write authority", () 
 
 test("the deployed identity and fail-closed authority are always recorded", () => {
   assert.match(workflow, /currentRelease=/);
+  // A superseded source skips every host step yet the run stays green; the receipt must say so.
+  for (const result of ["SKIPPED_MAIN_MOVED", "FAILED", "DEPLOYED", "FAILED_ACTIVATION_IDENTITY"]) assert.match(workflow, new RegExp(`RESULT=${result}\\b`));
+  assert.match(workflow, /SOURCE_FRESH: \$\{\{ steps\.source_fresh\.outputs\.fresh \}\}/);
+  assert.match(workflow, /if \[ "\$SOURCE_FRESH" != "true" \]; then\n\s+RESULT=SKIPPED_MAIN_MOVED/);
+  assert.match(workflow, /\[ "\$\(basename "\$CURRENT_RELEASE"\)" = "\$SOURCE_SHA" \]/, "DEPLOYED only when current resolves to the requested source");
+  assert.match(workflow, /deploymentResult=\$RESULT/);
+  assert.match(workflow, />> "\$GITHUB_STEP_SUMMARY"/);
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
