@@ -1,0 +1,5 @@
+logical_task=ANONYMOUS_PAPER_OBSERVATION
+canonical_branch=fix/mobile-anonymous-paper-observation
+predecessor_pr=1809
+predecessor_role=SOURCE_ONLY_FOR_THIS_SLICE
+third_implementation=FORBIDDEN
