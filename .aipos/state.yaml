@@ -2594,3 +2594,11 @@ current_decision_funnel:
   owner_approval: "2026-10-06 in chat (master directive: PAPER performance and closed-loop convergence, P0-B/P0-C)"
   finding: "No stage or reason totals existed: the stage recorder keeps 250 events. Cumulative funnel counters over its events are published on /health; the first reading after deploy names FIRST_BROKEN_TRANSITION. #2357 is a different task (risk sizing and a mobile display) and is not duplicated"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ui_hero_batched_drawing:
+  work_order: WO-UI-20261006-HERO-BATCHED-DRAWING
+  status: READY_FOR_REVIEW
+  branch: claude/hero-batched-drawing
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
+  finding: "The flow-field hero made about 550 draw calls per frame; batching by look reduces it to about 25 without changing the picture. Not measured on a device"
+  deploy: not_deployed_new_app_build_required
