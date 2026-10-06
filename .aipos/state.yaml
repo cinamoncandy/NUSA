@@ -2631,6 +2631,13 @@ current_paper_loss_session_counts:
   owner_approval: "2026-10-06 in chat (master directive step 6, '알아서해줘')"
   finding: "FIRST_BROKEN_TRANSITION = DECISION(BUY) -> ORDER_INTENT (0/29; 18 CONSECUTIVE_LOSS_LIMIT, 11 STRATEGY_APPROVAL_REJECTED). Publishes today's completed/losing sell counts behind the loss limit; no limit changed"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_paper_loss_attribution:
+  work_order: WO-PAPER-20261006-LOSS-ATTRIBUTION
+  status: READY_FOR_REVIEW
+  branch: claude/loss-attribution
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive step 6, '계속해')"
+  finding: "10:53 UTC: todayCompletedSells=3, todayLosingSells=3, streak=limit 3. Publishes today's completed/losing sells per opening strategy family (fixed codes) from the fill ledger; risk gate untouched"
 current_paper_wait_reason_codes:
   work_order: WO-PAPER-20261006-WAIT-REASON-CODES
   status: READY_FOR_REVIEW
