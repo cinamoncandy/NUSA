@@ -2586,6 +2586,14 @@ current_ui_hero_flow_field:
   owner_approval: "2026-10-06 in chat (second reference video, option 1: replace only the hero)"
   note: "The hero component is shared: HOME hero, field header mark and More-menu mark all change; no screen keeps the old figure. Only the hero figure changes; the rest of the app's colours and layout are untouched by the owner's choice."
   deploy: not_deployed_new_app_build_required
+current_decision_funnel:
+  work_order: WO-PAPER-20261006-DECISION-FUNNEL
+  status: READY_FOR_REVIEW
+  branch: claude/decision-funnel
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive: PAPER performance and closed-loop convergence, P0-B/P0-C)"
+  finding: "No stage or reason totals existed: the stage recorder keeps 250 events. Cumulative funnel counters over its events are published on /health; the first reading after deploy names FIRST_BROKEN_TRANSITION. #2357 is a different task (risk sizing and a mobile display) and is not duplicated"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_ui_hero_batched_drawing:
   work_order: WO-UI-20261006-HERO-BATCHED-DRAWING
   status: READY_FOR_REVIEW
