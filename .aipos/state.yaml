@@ -2536,4 +2536,10 @@ current_stall_metrics:
   authority_impact: none
   owner_approval: "2026-10-06 in chat"
   finding: "PAPER halted with PAPER_WRITER_LEASE_LOST: a process stall above the 30 s writer lease loses it until restart; the stall source is unknown, measurement only"
+current_health_error_class:
+  work_order: WO-OPS-20261006-HEALTH-ERROR-CLASS
+  status: READY_FOR_REVIEW
+  branch: claude/health-error-class
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval

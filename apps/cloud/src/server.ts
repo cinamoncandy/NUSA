@@ -242,6 +242,15 @@ const PUBLIC_LIVENESS_TIMESTAMPS = ["startedAt", "lastHeartbeatAt", "lastMarketE
 const PUBLIC_LIVENESS_COUNTERS = ["eventCount", "decisionCount", "paperOrderCount", "paperFillCount"] as const;
 const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
 const PUBLIC_DECISION_OUTCOME_CODE = /^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/;
+// The runtime's own failure phrases ("paper account persistence failed: <detail>"). Only the phrase before the first colon can
+// become public, and only when it is plain lowercase words starting with "paper": no digits, so no values, ids or keys, and the
+// detail after the colon never leaves the authenticated route.
+const PUBLIC_PAPER_FAILURE_PHRASE = /^paper [a-z ]{2,70}$/;
+function publicLivenessErrorClass(raw: string): string | undefined {
+  const separator = raw.indexOf(":");
+  const phrase = (separator < 0 ? raw : raw.slice(0, separator)).trim();
+  return PUBLIC_PAPER_FAILURE_PHRASE.test(phrase) ? phrase.toUpperCase().replace(/ +/g, "_") : undefined;
+}
 
 /**
  * `/health` is unauthenticated, so the runtime object is rebuilt here from a fixed allowlist instead
@@ -262,7 +271,8 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawError = source.lastError;
   const lastError = rawError === null || rawError === undefined
     ? null
-    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError : "LIVENESS_ERROR_UNCLASSIFIED";
+    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError
+      : (typeof rawError === "string" ? publicLivenessErrorClass(rawError) : undefined) ?? "LIVENESS_ERROR_UNCLASSIFIED";
   const timestamps = Object.fromEntries(PUBLIC_LIVENESS_TIMESTAMPS.map((key) => [key, timestamp(key)]));
   const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
   const rawPreviousStop = source.previousStop;
