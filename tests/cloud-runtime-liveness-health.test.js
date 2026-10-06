@@ -265,3 +265,21 @@ test("the previous stop reason is published only as a coded value and never as f
     assert.doesNotMatch(res.body, /acct-123/);
   }, 41889);
 });
+
+test("/health publishes the loss-limit counts as five non-negative integers, and nothing when any is malformed", async () => {
+  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 5, todayLosingSells: 4 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: session }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperLossSession, session);
+  }, 42301);
+  for (const [index, bad] of [null, "text", { ...session, todayLosingSells: -1 }, { ...session, consecutiveLossCount: 1.5 }, { ...session, todayCompletedSells: undefined }, { ...session, market: "KRW-XRP", pnl: -219 }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: bad }) }, async (handle) => {
+      const res = await request(handle.port, "/health");
+      const body = JSON.parse(res.body);
+      if (index === 5) {
+        assert.deepEqual(Object.keys(body.runtime.paperLossSession).sort(), Object.keys(session).sort(), "extra fields are dropped");
+        assert.doesNotMatch(res.body, /KRW-XRP|-219/);
+      } else assert.equal(body.runtime.paperLossSession, undefined, JSON.stringify(bad));
+    }, 42302 + index);
+  }
+});

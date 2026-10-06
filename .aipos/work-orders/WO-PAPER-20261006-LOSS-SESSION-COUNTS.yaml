@@ -1,0 +1,27 @@
+id: WO-PAPER-20261006-LOSS-SESSION-COUNTS
+title: "Publish the counts behind the consecutive-loss limit on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/risk-loss-session
+authority_impact: none
+owner_approval: "2026-10-06 in chat: master directive step 6 (when BUY reaches risk but risk reduces it, trace the consecutive losses through ledger evidence without loosening limits) and '알아서해줘'"
+objective: "The funnel read at 07:52 UTC named FIRST_BROKEN_TRANSITION = DECISION(BUY) -> ORDER_INTENT: 0 of 29 BUY signals became an order intent; 18 were CONSECUTIVE_LOSS_LIMIT (risk owner) and 11 STRATEGY_APPROVAL_REJECTED. The limit counts losing completed sells today (UTC), but those counts were not observable. This publishes them as display-only integers so the streak can be traced to today's sells."
+scope:
+  - "apps/cloud/src/cloudPaperCanonicalRiskGateway.ts: realizedLossState also returns today's completed sells and losing sells; the gateway keeps the latest counts (evaluatedAt, consecutiveLossCount, maxConsecutiveLosses, todayCompletedSells, todayLosingSells) and exposes lossSession(). The decision itself is unchanged."
+  - "apps/cloud/src/runtime.ts: /health liveness includes paperLossSession when the production risk gate exists."
+  - "apps/cloud/src/server.ts: the public allowlist publishes paperLossSession only as five non-negative integers; anything else (money, market, ids, malformed values) is dropped."
+  - "tests: gateway counts today only and nothing before the first evaluation; /health publishes the five integers and drops malformed input."
+exclusions:
+  - "No change to any risk limit, threshold, strategy, order path, accounting or LIVE. Strategy attribution of each losing sell is not possible from fills (no strategy id on a fill) and is a follow-up."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; malformed counts are dropped, never shown as zero."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/cloud-paper-daily-loss-streak.test.js tests/cloud-runtime-liveness-health.test.js tests/cloud-runtime-canonical-risk-wiring.test.js
+residual: "Requires a PAPER deploy; after it the next /health read shows today's completed and losing sells behind the limit."

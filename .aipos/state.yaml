@@ -2623,3 +2623,11 @@ current_ui_hero_ridge:
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('이거로 할게' on the ridge prototype)"
   finding: "Hero replaced by a ridge landscape; decisions roll a wave from the horizon, a PAPER order raises a lime peak and beam"
+current_paper_loss_session_counts:
+  work_order: WO-PAPER-20261006-LOSS-SESSION-COUNTS
+  status: READY_FOR_REVIEW
+  branch: claude/risk-loss-session
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive step 6, '알아서해줘')"
+  finding: "FIRST_BROKEN_TRANSITION = DECISION(BUY) -> ORDER_INTENT (0/29; 18 CONSECUTIVE_LOSS_LIMIT, 11 STRATEGY_APPROVAL_REJECTED). Publishes today's completed/losing sell counts behind the loss limit; no limit changed"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval

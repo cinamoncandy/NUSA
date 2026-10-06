@@ -548,6 +548,7 @@ export function startCloudRuntime(
   const stallMonitor = createEventLoopStallMonitor();
   stallMonitor.start();
   // Display only: the same research collection status the app reads, as a code and two counts for /health.
+  const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
   const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
     let progress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { progress = researchAutomation?.collectionProgress?.() ?? null; } catch { progress = null; }
@@ -625,7 +626,8 @@ export function startCloudRuntime(
       ...(previousStop === undefined ? {} : { previousStop }),
       ...stallMonitor.snapshot(),
       ...researchLiveness(),
-      paperFunnel: paperLearningRecorder.funnelSnapshot()
+      paperFunnel: paperLearningRecorder.funnelSnapshot(),
+      ...lossSessionLiveness()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
       Object.freeze({ ...heartbeat }),
