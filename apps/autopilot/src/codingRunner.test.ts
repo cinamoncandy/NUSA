@@ -552,6 +552,75 @@ describe("coding runner", () => {
     assert.equal(aiCalls, 1);
   });
 
+  it("uses an explicitly configured Jev tier only for a verified, high-confidence coding admission", async () => {
+    const failureRequest = {
+      ...request,
+      reason: `gha:${request.workflowRunId}:${request.headSha}:failure`,
+    };
+    let selectedModel = "";
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        selectedModel = model;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(failureRequest, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: ai,
+      NUSA_JEV_SHADOW_ENABLED: "true",
+      NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+      NUSA_JEV_MODEL_TIERING_ENABLED: "true",
+      NUSA_JEV_API_KEY: jevTestKey(),
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+      NUSA_AI_CODING_MODEL_LUNA: "@cf/openai/gpt-oss-20b",
+    }, verifiedFailureGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async () => ({
+        rootCause: "CODE",
+        safeToAutofix: "YES",
+        severity: 2,
+        requiredModel: "LUNA",
+        confidence: 0.97,
+      }),
+    });
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(selectedModel, "@cf/openai/gpt-oss-20b");
+  });
+
+  it("keeps the canonical model when a configured Jev tier is unusable", async () => {
+    const failureRequest = {
+      ...request,
+      reason: `gha:${request.workflowRunId}:${request.headSha}:failure`,
+    };
+    let selectedModel = "";
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        selectedModel = model;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(failureRequest, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: ai,
+      NUSA_AI_CODING_MODEL: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      NUSA_JEV_SHADOW_ENABLED: "true",
+      NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+      NUSA_JEV_MODEL_TIERING_ENABLED: "true",
+      NUSA_JEV_API_KEY: jevTestKey(),
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+      NUSA_AI_CODING_MODEL_LUNA: "not a valid model",
+    }, verifiedFailureGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async () => ({
+        rootCause: "CODE",
+        safeToAutofix: "YES",
+        severity: 2,
+        requiredModel: "LUNA",
+        confidence: 0.97,
+      }),
+    });
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(selectedModel, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+  });
+
   it("uses the Cloudflare Workers AI binding when no dedicated endpoint is configured", async () => {
     let runtimeCalls = 0;
     const runtime: CodingRuntime = {

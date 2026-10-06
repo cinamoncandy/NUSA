@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { buildJournal, journalTime } from "./journalModel";
 import { fieldFonts } from "./fieldFonts";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useTheme } from "./ThemeProvider";
@@ -6,8 +7,10 @@ import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperation
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { describePaperOrderReason } from "./paperOrderReason";
 import { buildHomeStatusRail } from "./homeStatusRail";
+import { haltCauseFromSnapshot } from "./haltReasonModel";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
+import { isLocalPaperLedgerDisplayable } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { selectHomeMarketData } from "./homeMarketData";
 import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
@@ -17,15 +20,31 @@ import { FactRow, StateNotice } from "./intelligenceOs";
 import { MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
-import { IntelligenceField } from "./intelligenceField";
 import { buildHomeFieldInput } from "./homeFieldInput";
+import { buildAiTrustLine, buildLearningLine } from "./learningLineModel";
+import { useDailyCounts } from "./useDailyCounts";
+import { chooseDailyCounts, partialWindowNote } from "./dailyResetModel";
+import { buildBuySignalLine } from "./buySignalModel";
+import { buildFeedDiagnosticsLine } from "./feedDiagnosticsModel";
+import { explainDecision } from "./whyNoTradeModel";
+import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { DecisionRings } from "./decisionRings";
+import { staleLabel } from "./cachedSnapshotModel";
+import { connectionLabel } from "./connectionLabelModel";
+import { buildResearchProgressLine } from "./researchProgressModel";
+import { buildTradedCoinLine } from "./tradedCoinModel";
+import { buildHomeVitals, vitalUsesHeroAccent, VITAL_TEST_IDS } from "./homeVitalsModel";
+import { HOME_DETAIL_LABELS } from "./homeDetailCopy";
+import { fieldHero, fieldRadii, labelFont, readableFont } from "./designSystem";
+
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
 
 interface HomeViewProps {
   readonly snapshot: Snapshot | null;
+  /** Last-known snapshot from a previous run; shown only as old values until a live one arrives. */
+  readonly cachedSnapshot?: { readonly snapshot: Snapshot; readonly savedAt: number } | null;
   readonly investmentPercent: number;
   readonly readOnlyError: string | null;
   readonly notConfigured: string | null;
@@ -69,7 +88,8 @@ function cloudExposure(account: Snapshot["portfolio"] extends null ? never : Non
 }
 
 export function HomeView({
-  snapshot,
+  snapshot: liveSnapshot,
+  cachedSnapshot = null,
   investmentPercent,
   readOnlyError,
   notConfigured,
@@ -89,10 +109,16 @@ export function HomeView({
   const { theme } = useTheme();
   const ui = visualSystem(theme);
   const { width } = useWindowDimensions();
+  // A cached snapshot fills the launch screen only while no live one exists and the app is not asking for setup.
+  const stale = liveSnapshot == null && cachedSnapshot != null && notConfigured == null;
+  const snapshot = stale ? cachedSnapshot.snapshot : liveSnapshot;
   const tablet = width >= 768;
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const marketChart = buildChartViewModel({ market: publicMarket, interval: "1m", rawCandles: publicCandles === null ? null : [...publicCandles], currentPrice: publicCurrentPrice, connectionState: publicMarketConnectionState, stale: publicMarketStale });
-  const localPaperActive = snapshot == null && isLocalPaperActive();
+  // The on-device ledger is only a fallback for a device with no PAPER server configured. While a
+  // configured server session is still recovering, its placeholder ₩10,000,000 must not show.
+  const localPaperActive = snapshot == null && isLocalPaperActive() && isLocalPaperLedgerDisplayable();
   const localTradingSnapshot = useLocalPaperSnapshot();
   const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
   const localPortfolio = localPaperActive ? buildLocalPortfolio(localTradingSnapshot, localMarkPrice) : null;
@@ -100,7 +126,7 @@ export function HomeView({
   const localAccount = localPortfolio?.account ?? null;
   const account = cloudAccount ?? localAccount;
   const accountSource = snapshot != null ? "CLOUD" : localPortfolio != null ? "LOCAL" : null;
-  const capitalLabel = accountSource === "LOCAL" ? "LOCAL PAPER CAPITAL" : accountSource === "CLOUD" ? "CLOUD PAPER CAPITAL" : "PAPER CAPITAL";
+  const capitalLabel = accountSource === "LOCAL" ? "PAPER 자산 · 기기" : accountSource === "CLOUD" ? "PAPER 자산 · 서버" + (sessionRecovering ? " · 재확인 중" : "") : "PAPER 자산";
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const exposure = cloudAccount != null ? cloudExposure(cloudAccount) : localAccount?.assetValue ?? null;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
@@ -108,11 +134,14 @@ export function HomeView({
     .sort((a, b) => Math.abs(b.changeRate ?? 0) - Math.abs(a.changeRate ?? 0))
     .slice(0, tablet ? 5 : 3);
   const ai = snapshot?.ai ?? null;
+  const learningLine = buildLearningLine(snapshot?.research ?? null);
+  const aiTrustLine = buildAiTrustLine(snapshot?.ai ?? null);
+  const journal = buildJournal(snapshot?.paperLearning?.events ?? []);
   const disconnected = notConfigured != null;
   const decisionSurface = buildHomeDecisionSurface({
-    runtimeState: snapshot?.operations.runtimeState,
-    health: snapshot?.health,
-    readyForPaperOperations: snapshot?.readyForPaperOperations ?? false,
+    runtimeState: stale ? undefined : snapshot?.operations.runtimeState,
+    health: stale ? undefined : snapshot?.health,
+    readyForPaperOperations: stale ? false : snapshot?.readyForPaperOperations ?? false,
     disconnected,
     readOnlyError: readOnlyError != null,
     accountSource,
@@ -124,16 +153,20 @@ export function HomeView({
     aiConfidence: ai?.confidence,
   });
   // Kept outside buildHomeDecisionSurface so that module stays dependency-free (it is tested by transpiling the single file).
-  const orderReason = disconnected || readOnlyError != null || sessionRecovering ? null : describePaperOrderReason(snapshot?.operations.heartbeat?.lastPaperDecisionOutcome);
+  const decisionWhy = stale || disconnected || readOnlyError != null || sessionRecovering ? [] : explainDecision(snapshot?.operations.heartbeat?.lastDecisionDetail);
+  const orderReason = stale || disconnected || readOnlyError != null || sessionRecovering ? null : describePaperOrderReason(snapshot?.operations.heartbeat?.lastPaperDecisionOutcome);
+  const fieldInput = buildHomeFieldInput({ snapshot: stale ? null : snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
+  const haltCause = haltCauseFromSnapshot(stale ? null : snapshot);
   const rail = buildHomeStatusRail({
-    paperState: snapshot == null ? (notConfigured ? "NOT_CONFIGURED" : "UNAVAILABLE") : snapshot.health === "HEALTHY" ? "READY" : snapshot.health === "DEGRADED" ? "DEGRADED" : "DOWN",
+    paperState: snapshot == null || stale ? (notConfigured ? "NOT_CONFIGURED" : "UNAVAILABLE") : snapshot.health === "HEALTHY" ? "READY" : snapshot.health === "DEGRADED" ? "DEGRADED" : "DOWN",
     paperMode: snapshot?.mode ?? null,
-    killSwitchActive: snapshot?.dashboard.killSwitchActive ?? null,
+    killSwitchActive: stale ? null : snapshot?.dashboard.killSwitchActive ?? null,
     snapshotGeneratedAtMs: snapshot?.generatedAt ?? null,
     feedStale: publicMarketStale,
     feedObservedAtMs: freshestObservedAtMs(marketRows),
     nowMs: Date.now(),
     hasDailyPnlBasis: false,
+    haltCause,
   });
   const aiInsightAvailable = decisionSurface.aiInsightAvailable && !disconnected && readOnlyError == null;
   const recovering = disconnected && sessionRecovering;
@@ -146,12 +179,27 @@ export function HomeView({
   const hasPosition = Boolean(position && Number(position.quantity) > 0);
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
-  const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
+  const connectionLabelText = connectionLabel({ recovering, stale, disconnected, readOnlyError: Boolean(readOnlyError), readyForPaperOperations: Boolean(snapshot?.readyForPaperOperations) });
   // A trusted device whose session is being recovered is not a setup problem: project it as
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
-  const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
+  const shownConnectionLabel = connectionLabelText;
 
-  const fieldInput = buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale });
+  // The rings show history; a current fault (halt, degraded runtime, lost connection) stays on top of them.
+  const baselineCounts = useDailyCounts(stale ? null : snapshot?.operations.heartbeat?.startedAt ?? null, stale ? null : fieldInput.decisionCount, stale ? null : fieldInput.paperOrderCount);
+  const dailyCounts = stale ? Object.freeze({ decisionCount: null, paperOrderCount: null }) : chooseDailyCounts(snapshot?.operations.heartbeat?.windowDecisionCount, snapshot?.operations.heartbeat?.windowOrderCount, baselineCounts);
+  const field = buildIntelligenceField({ ...fieldInput, haltCause, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount });
+  const usingServerWindow = snapshot?.operations.heartbeat?.windowDecisionCount != null && snapshot?.operations.heartbeat?.windowOrderCount != null;
+  const windowNote = !stale && !fieldInput.disconnected && readOnlyError == null && usingServerWindow ? partialWindowNote(snapshot?.operations.heartbeat?.buyCountsSince, Date.now()) : null;
+  const buyHeartbeat = stale || fieldInput.disconnected || readOnlyError != null ? null : snapshot?.operations.heartbeat ?? null;
+  const feedLine = buildFeedDiagnosticsLine({ disconnects: buyHeartbeat?.feedDisconnectCount, staleGaps: buyHeartbeat?.feedStaleGapCount, maxGapMs: buyHeartbeat?.feedMaxGapMs, since: buyHeartbeat?.feedCountsSince });
+  const tradedCoinLine = buildTradedCoinLine({ tradedMarkets: buyHeartbeat?.tradedMarkets, researchMarket: (buyHeartbeat?.researchCollection as { market?: unknown } | undefined)?.market, positionMarket: position?.market, positionQuantity: position?.quantity });
+  const researchLine = buildResearchProgressLine(buyHeartbeat?.researchCollection as never, Date.now(), (buyHeartbeat as { researchCollectionState?: unknown } | null)?.researchCollectionState);
+  const buySignalLine = buildBuySignalLine({ buySignals: buyHeartbeat?.buySignalCount, buyBlocked: buyHeartbeat?.buyBlockedCount, since: buyHeartbeat?.buyCountsSince });
+  const heroMarket = (Array.isArray(buyHeartbeat?.tradedMarkets) && typeof buyHeartbeat?.tradedMarkets[0] === "string" ? buyHeartbeat.tradedMarkets[0] : null) as string | null;
+  const vitals = buildHomeVitals({ coin: tradedCoinLine, buy: buySignalLine, feed: feedLine, learning: { value: researchLine.value, detail: researchLine.detail, tone: researchLine.tone }, unverified: stale || Boolean(sessionRecovering), feedStale: publicMarketStale });
+  const ringsStatus = field.phase === "HALTED" || field.phase === "DEGRADED" || field.phase === "AUTHENTICATION" || field.phase === "RECOVERING"
+    ? { title: field.headline, detail: field.detail, tone: field.phase === "HALTED" ? "halt" as const : "warning" as const }
+    : null;
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
       contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]}
@@ -168,11 +216,29 @@ export function HomeView({
         </Pressable>
       </View>
 
-      <DecisionRings decisionCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : fieldInput.paperOrderCount} />
+      <View testID="home-now"><DecisionRings status={ringsStatus} decisionCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.decisionCount} paperOrderCount={fieldInput.disconnected || readOnlyError != null ? null : dailyCounts.paperOrderCount} marketLabel={heroMarket} /></View>
+      {stale && cachedSnapshot != null ? <Text style={{ color: theme.colors.warning, fontSize: 12, textAlign: "center" }} testID="home-stale-note">{staleLabel(cachedSnapshot.savedAt, Date.now())} · 서버 재확인 중 (아래 값은 이전 값)</Text> : null}
+      {windowNote != null ? <Text style={{ color: theme.colors.textMuted, fontSize: readableFont(11), textAlign: "center" }} testID="home-window-note">{windowNote}</Text> : null}
 
-      <View testID="home-now"><IntelligenceField input={buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale })} /></View>
+      {orderReason == null ? null : <View style={[styles.reasonCard, { borderColor: orderReason.category === "FILLED" || orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.border : theme.colors.warning }]} testID="home-order-reason-card">
+        <Text style={[styles.eyebrow, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]}>{orderReason.category === "FILLED" ? "최근 체결" : orderReason.category === "UNKNOWN" ? "최근 판단 결과" : "주문하지 않은 이유"}</Text>
+        <Text style={[styles.reasonText, { color: theme.colors.text }]} numberOfLines={3} testID="home-no-order-reason">{orderReason.text}</Text>
+        {decisionWhy.map((line, index) => <Text key={index} style={[styles.reasonText, { color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }]} testID={`home-decision-why-${index}`}>{line}</Text>)}
+      </View>}
 
-      <View style={styles.glanceRail} testID="home-status-rail">
+      {disconnected ? null : <View style={styles.vitals} testID="home-vitals">
+        {vitals.map((vital, vitalIndex) => <MotionReveal key={vital.id} index={vitalIndex + 1} style={styles.vitalCell}><View style={[styles.vital, { backgroundColor: theme.colors.surface, borderColor: vital.tone === "warn" ? theme.colors.warning : vitalUsesHeroAccent(vital) ? fieldHero.limeBorder : theme.colors.border }]} testID={VITAL_TEST_IDS[vital.id]}>
+          <View style={styles.vitalHead}>
+            <View style={[styles.vitalDot, { backgroundColor: vitalUsesHeroAccent(vital) ? fieldHero.lime : vital.tone === "ok" ? theme.colors.success : vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]} />
+            <Text style={[styles.vitalLabel, { color: vitalUsesHeroAccent(vital) ? fieldHero.lime : theme.colors.textMuted }]}>{vital.label}</Text>
+          </View>
+          <Text style={[styles.vitalValue, { color: theme.colors.text }]} numberOfLines={2}>{vital.value}</Text>
+          {vital.detail == null ? null : <Text style={[styles.vitalDetail, { color: vital.tone === "warn" ? theme.colors.warning : theme.colors.textMuted }]}>{vital.detail}</Text>}
+        </View></MotionReveal>)}
+      </View>}
+
+      {/* While a recovery/degraded banner is shown the rail would only repeat it; on a halt it stays, because it names the cause (e.g. the kill switch). */}
+      <View style={[styles.glanceRail, ringsStatus && ringsStatus.tone !== "halt" ? styles.hiddenAcceptanceHooks : null]} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
         <Text style={[styles.glanceRisk, { color: riskColor }]}>RISK {rail.riskLabel}</Text>
         <View style={styles.hiddenAcceptanceHooks}><Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text></View>
@@ -183,7 +249,7 @@ export function HomeView({
           <View style={styles.capitalPrimary}>
             <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>{capitalLabel}</Text>
             <Text style={[styles.capitalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
-            <Text style={[styles.pnlValue, { color: pnlColor }]}>{signedMoney(totalPnl)} TOTAL PNL</Text>
+            <Text style={[styles.pnlValue, { color: pnlColor }]}>총 손익 {signedMoney(totalPnl)}</Text>
           </View>
           <View style={styles.capitalFacts}>
             <View style={styles.capitalFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>현금</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(account?.cash)}</Text></View>
@@ -193,34 +259,52 @@ export function HomeView({
         </View>
       </MotionReveal>
 
+      {journal.length === 0 ? null : <View style={styles.journal} testID="home-journal">
+        <View style={styles.journalHead}><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>최근 기록</Text><Text style={[styles.journalHint, { color: theme.colors.textMuted }]}>중요한 일만</Text></View>
+        {journal.map((entry, index) => <View key={entry.id} style={[styles.journalRow, index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border } : null]} testID={`home-journal-${entry.kind}`}>
+          <Text style={[fieldFonts.mono, styles.journalTime, { color: theme.colors.textMuted }]}>{journalTime(entry.at)}</Text>
+          <View style={[styles.journalDot, entry.kind === "fill" ? { backgroundColor: theme.colors.success, borderColor: theme.colors.success } : entry.kind === "hold" ? { borderColor: theme.colors.warning } : entry.kind === "halt" ? { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger } : { borderColor: theme.colors.border, backgroundColor: theme.colors.border }]} />
+          <View style={styles.journalBody}>
+            <Text style={[styles.journalTitle, { color: entry.kind === "quiet" ? theme.colors.textMuted : theme.colors.text }]}>{entry.title}</Text>
+            <Text style={[styles.journalDetail, { color: theme.colors.textMuted }]} numberOfLines={2}>{entry.detail}</Text>
+          </View>
+        </View>)}
+      </View>}
+
       {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${recovering ? "기기 신뢰는 유지되고 있으며 세션을 자동 복구하는 중입니다." : disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen((open) => !open)} style={({ pressed }) => [styles.detailsToggle, { borderColor: theme.colors.border, opacity: pressed ? 0.7 : 1 }]} testID="home-details-toggle">
+        <Text style={[styles.detailsToggleText, { color: theme.colors.text }]}>{moreOpen ? "자세히 닫기" : "시세 · 흐름 · 학습 자세히 보기"}</Text>
+      </Pressable>
+      {/* The approved prototype keeps HOME to the sphere, the capital and 최근 기록; the rest opens on demand.
+          It stays mounted while closed, so release-contract markers remain present. */}
+      <View style={moreOpen ? styles.moreBlock : styles.hiddenAcceptanceHooks} testID="home-more-block">
       <MotionReveal testID="home-market-canvas-reveal">
         <View style={[styles.marketCanvas, { borderColor: ui.color.border }]} testID="home-public-market-chart">
           <View style={styles.canvasHeader}>
-            <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>MARKET CANVAS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
-            <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · PUBLIC READ ONLY</Text></View>
+            <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>시세</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
+            <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>업비트 공개 시세 · 읽기 전용</Text></View>
           </View>
           <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}>
             {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
           </View>
-          <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>PAPER 운영 보기 ↗</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>PAPER 운영 보기 →</Text></Pressable>
         </View>
       </MotionReveal>
 
       <View style={styles.loopHeader}>
-        <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalStart }]}>NUSA LOOP</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>관측하고, 검증하고, 학습합니다</Text></View>
-        <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>자동 실행이 아니라 검증 가능한 판단 흐름</Text>
+        <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalStart }]}>NUSA 흐름</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>보고, 시험하고, 배웁니다</Text></View>
+        <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>실제 돈은 쓰지 않는 PAPER 판단 흐름</Text>
       </View>
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
         <Pressable onPress={() => onNavigate("Paper")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>01 · OBSERVE</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>관측</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>시장 관측</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}</Text>
           <View style={styles.commandPreview}>{marketRows.slice(0, 2).map((market) => <View key={market.market} style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>{market.market}</Text><Text style={[styles.previewValue, { color: (market.changeRate ?? 0) > 0 ? theme.colors.success : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text></View>)}</View>
         </Pressable>
 
-        <View style={styles.hiddenAcceptanceHooks} accessibilityElementsHidden>
+        <View style={styles.hiddenAcceptanceHooks} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Text>NOW</Text>
           <Text>PAPER EQUITY</Text>
           <Text>QUICK ACCESS</Text>
@@ -232,16 +316,15 @@ export function HomeView({
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
         <Pressable onPress={() => onNavigate("More")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>02 · TEST</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
-          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER 실험</Text>
-          <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} position active` : account ? "현재 노출 없음" : "계정 대기 중"}</Text>
-          {orderReason == null ? null : <Text style={[styles.commandSummary, { color: orderReason.category === "FILLED" ? theme.colors.success : orderReason.category === "WAITING" || orderReason.category === "UNKNOWN" ? theme.colors.textMuted : theme.colors.warning }]} numberOfLines={3} testID="home-no-order-reason">{orderReason.text}</Text>}
-          <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>INVESTABLE</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>RESERVED</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>기록</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>성과와 기록</Text>
+          <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} 보유 중` : account ? "보유 없음" : "계정 대기 중"}</Text>
+          <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>투자 가능</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>예비금</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>
 
         <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.aiSignalStart }]}>03 · LEARN</Text><Text style={[styles.commandArrow, { color: theme.colors.aiSignalEnd }]}>↗</Text></View>
-          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 업데이트</Text>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.aiSignalStart }]}>학습</Text><Text style={[styles.commandArrow, { color: theme.colors.aiSignalEnd }]}>↗</Text></View>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 기록</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]} numberOfLines={2}>{decisionSurface.learning}</Text>
           <Text style={[styles.learningResult, { color: theme.colors.aiSignalEnd }]} numberOfLines={1} testID="home-supervisor-learning">{decisionSurface.result}</Text>
         </Pressable>
@@ -255,7 +338,7 @@ export function HomeView({
       >
         <View>
           <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>DECISION BASIS</Text>
-          <Text style={[styles.disclosureTitle, { color: theme.colors.text }]}>왜 지금 이 상태인가</Text>
+          <Text style={[styles.disclosureTitle, { color: theme.colors.text }]}>이 판단의 근거</Text>
         </View>
         <Text style={[styles.disclosureIcon, { color: theme.colors.textMuted }]}>{detailsOpen ? "−" : "+"}</Text>
       </Pressable>
@@ -266,12 +349,15 @@ export function HomeView({
           {aiInsightAvailable ? <Pressable onPress={() => onNavigate("Paper")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>PAPER 근거 상세 보기 →</Text></Pressable> : null}
         </View>
         <View style={[styles.detailFacts, { borderColor: theme.colors.border }]} testID="home-risk-status">
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RESULT</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{decisionSurface.result}</Text></View>
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>SOURCE</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text></View>
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>AUTHORITY</Text><Text style={[styles.detailValue, { color: theme.colors.success }]}>LIVE NONE · AI ZERO</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.risk}</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.result}</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{decisionSurface.result}</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.source}</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text></View>
+          <View style={styles.detailRow} testID="home-learning-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.learning}</Text><Text style={[styles.detailValue, { color: learningLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{learningLine.value}</Text></View>
+          <View style={styles.detailRow} testID="home-ai-trust-line"><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.aiTrust}</Text><Text style={[styles.detailValue, { color: aiTrustLine.tone === "warn" ? theme.colors.warning ?? theme.colors.text : theme.colors.text }]}>{aiTrustLine.value}</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.authority}</Text><Text style={[styles.detailValue, { color: theme.colors.success }]}>LIVE NONE · AI ZERO</Text></View>
         </View>
       </View> : <View style={styles.hiddenAcceptanceHooks}><View testID="ai-card" /><View testID="home-risk-status" /></View>}
+      </View>
 
       <Text style={[styles.disclaimer, { color: theme.colors.textMuted }]}>PUBLIC READ ONLY 데이터는 전략 신호가 아니며, PAPER 결과와 REAL_READ_ONLY 자산은 합산하지 않습니다.</Text>
       <View style={[styles.safetyFooter, { borderTopColor: theme.colors.border }]}><Text style={[styles.safetyText, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text></View>
@@ -280,6 +366,28 @@ export function HomeView({
 }
 
 const styles = StyleSheet.create({
+  detailsToggle: { borderWidth: StyleSheet.hairlineWidth, borderRadius: fieldRadii.md, minHeight: 48, alignItems: "center", justifyContent: "center" },
+  moreBlock: { gap: 18 },
+  detailsToggleText: { fontSize: 14, fontWeight: "500" },
+  journal: { gap: 2 },
+  journalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 },
+  journalHint: { fontSize: 12 },
+  journalRow: { flexDirection: "row", gap: 10, paddingVertical: 11 },
+  journalTime: { width: 42, fontSize: readableFont(11.5), paddingTop: 2 },
+  journalDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, marginTop: 6 },
+  journalBody: { flex: 1, minWidth: 0, gap: 2 },
+  journalTitle: { fontSize: 14, lineHeight: 20 },
+  journalDetail: { fontSize: 12.5, lineHeight: 18 },
+  vitals: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  vitalCell: { flexBasis: "47%", flexGrow: 1 },
+  vital: { flex: 1, minHeight: 96, borderWidth: 1, borderRadius: fieldRadii.lg, paddingVertical: 14, paddingHorizontal: 14, gap: 6 },
+  vitalHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  vitalDot: { width: 8, height: 8, borderRadius: 4 },
+  vitalLabel: { fontSize: 12, lineHeight: 16, fontWeight: "600" },
+  vitalValue: { fontSize: 17, lineHeight: 22, fontWeight: "700" },
+  vitalDetail: { fontSize: 12, lineHeight: 17 },
+  reasonCard: { borderWidth: 1, borderRadius: fieldRadii.lg, paddingVertical: 14, paddingHorizontal: 16, gap: 6 },
+  reasonText: { fontSize: 15, lineHeight: 22, fontWeight: "500" },
   shell: { flex: 1 },
   content: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 32, gap: 16 },
   appBar: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -287,11 +395,11 @@ const styles = StyleSheet.create({
   liveDot: { width: 8, height: 8, borderRadius: 999 },
   brand: { fontSize: 15, lineHeight: 20, letterSpacing: 4, ...fieldFonts.display },
   statusCapsule: { minHeight: 30, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
-  statusCapsuleText: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 0.8 },
+  statusCapsuleText: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 0.8 },
   glanceRail: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: -8 },
-  glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
-  glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "600", letterSpacing: 0.45 },
-  glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "500", fontVariant: ["tabular-nums"] },
+  glancePrimary: { flex: 1, minWidth: 180, fontSize: readableFont(10), lineHeight: 17, fontWeight: "700" },
+  glanceRisk: { fontSize: readableFont(10), lineHeight: 17, fontWeight: "600", letterSpacing: 0.45 },
+  glanceBuild: { fontSize: readableFont(9), lineHeight: 17, fontWeight: "500", fontVariant: ["tabular-nums"] },
 
   capitalRail: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
   capitalPrimary: { flex: 1, minWidth: 210, gap: 3 },
@@ -306,44 +414,44 @@ const styles = StyleSheet.create({
   canvasAction: { minHeight: 44, alignItems: "flex-end", justifyContent: "center" },
   loopHeader: { paddingTop: 4, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" },
 
-  eyebrow: { fontSize: 9, lineHeight: 13, letterSpacing: 2, ...fieldFonts.monoMedium },
+  eyebrow: { fontSize: labelFont(9), lineHeight: 15, letterSpacing: 2, ...fieldFonts.monoMedium },
 
   marketPrice: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
   marketEmpty: { minHeight: 100, paddingVertical: 32, fontSize: 13, lineHeight: 20 },
 
   pnlValue: { fontSize: 13, lineHeight: 18, fontWeight: "600", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
 
-  factLabel: { fontSize: 8, lineHeight: 12, fontWeight: "500", letterSpacing: 0.7 },
+  factLabel: { fontSize: labelFont(8), lineHeight: 15, fontWeight: "500", letterSpacing: 0.7 },
   factValue: { fontSize: 13, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] },
 
   sectionTitle: { marginTop: 3, fontSize: 22, lineHeight: 28, letterSpacing: -0.3, ...fieldFonts.displayLight },
-  sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: 9, lineHeight: 14, fontWeight: "700" },
+  sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: readableFont(9), lineHeight: 17, fontWeight: "700" },
   commandStack: { gap: 10 },
   commandStackTablet: { flexDirection: "row", alignItems: "stretch" },
   command: { flex: 1, minHeight: 132, borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingHorizontal: 2, paddingVertical: 16, gap: 7 },
   commandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  commandCode: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 1.1 },
+  commandCode: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.1 },
   commandArrow: { fontSize: 16, lineHeight: 18, fontWeight: "700" },
   commandTitle: { fontSize: 20, lineHeight: 26, letterSpacing: -0.3, ...fieldFonts.displayLight },
-  commandSummary: { fontSize: 11, lineHeight: 17, fontWeight: "600" },
+  commandSummary: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "600" },
   commandPreview: { marginTop: "auto", gap: 3, paddingTop: 5 },
   previewRow: { minHeight: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  previewLabel: { fontSize: 9, lineHeight: 14, fontWeight: "500" },
-  previewValue: { fontSize: 10, lineHeight: 15, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  learningResult: { marginTop: "auto", fontSize: 10, lineHeight: 15, fontWeight: "600" },
+  previewLabel: { fontSize: readableFont(9), lineHeight: 17, fontWeight: "500" },
+  previewValue: { fontSize: readableFont(10), lineHeight: 17, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  learningResult: { marginTop: "auto", fontSize: readableFont(10), lineHeight: 17, fontWeight: "600" },
   disclosure: { minHeight: 68, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14, paddingVertical: 12 },
   disclosureTitle: { marginTop: 3, fontSize: 19, lineHeight: 24, fontWeight: "600", letterSpacing: -0.35 },
   disclosureIcon: { fontSize: 27, lineHeight: 30, fontWeight: "300" },
   details: { gap: 16 },
   detailNarrative: { gap: 8 },
   detailCopy: { maxWidth: 780, fontSize: 13, lineHeight: 21, fontWeight: "600" },
-  inlineLink: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
+  inlineLink: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "600" },
   detailFacts: { borderTopWidth: StyleSheet.hairlineWidth },
-  detailRow: { minHeight: 45, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
-  detailLabel: { flexShrink: 0, fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 0.7 },
-  detailValue: { flex: 1, textAlign: "right", fontSize: 11, lineHeight: 17, fontWeight: "500" },
+  detailRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
+  detailLabel: { flexShrink: 0, fontSize: 12, lineHeight: 17, fontWeight: "600", letterSpacing: 0.2 },
+  detailValue: { flex: 1, textAlign: "right", fontSize: 14, lineHeight: 20, fontWeight: "500" },
   hiddenAcceptanceHooks: { position: "absolute", width: 1, height: 1, opacity: 0 },
-  disclaimer: { fontSize: 9, lineHeight: 15, fontWeight: "600" },
+  disclaimer: { fontSize: readableFont(9), lineHeight: 17, fontWeight: "600" },
   safetyFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, alignItems: "center" },
-  safetyText: { fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 1.1 },
+  safetyText: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.1 },
 });

@@ -1,6 +1,6 @@
 id: WO-20260924-AI-CAPACITY-COST-CEILING
 title: "Autopilot AI capacity/cost ceiling removal (owner spec 2026-09-24)"
-status: READY_FOR_REVIEW
+status: MERGED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -37,18 +37,20 @@ verification_commands:
   - "node --test tests/autopilot-dispatch-retry.test.js tests/ai-cloud-runtime.test.js (plus the full autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite)"
   - "pnpm run validate (Node >= 24)"
 evidence:
-  implementation_status: READY_FOR_REVIEW
-  implementation_head: 08adc66b24719d92010301ed2b7b7416b17e4486
+  implementation_status: MERGED
+  implementation_head: 74935ee83b77721e6424ca4f46e26afacdf7a8dd
+  merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
+  exact_head_ci: "36362184764 PASS"
   current_slice_validation: "Canonical gha identity coverage added; verified GitHub failed job/step evidence is required before abstention; Jev proposal abstention is propagated as successful NO_ACTION; repair attempts make zero repeat Jev admission calls; AIPOS state/scope reconciled. Rebased without conflict onto protected main b631ef9a352bfd3ed6b90d27de45d5816d48b3c5. Focused admission/cloud/dispatcher tests 48/48 PASS after TypeScript build; pnpm run validate PASS; pnpm run validate:full PASS; git diff --check PASS. Fresh exact-head CI is required."
   prior_slice_validation: "ai-budget-state 6/6 PASS; combined autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite 227/227 PASS; pnpm run validate PASS; secret scan 0 failures; typecheck PASS."
-  external_validation: "REQUIRED: exact-head CI, independent Audit, canonical Release."
+  external_validation: "PR #2331 exact head 74935ee83b77721e6424ca4f46e26afacdf7a8dd passed CI run 36362184764 and required PAPER/Restricted LIVE/read-only companion workflows; merged by canonical Release as 1b058a1d26e14125afb51cc2d87a49a662044130."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Push the rebased existing PR #2331 only; verify fresh exact-head CI, then request independent Audit and canonical Release. Keep bounded routing disabled until #2329 SHADOW acceptance/calibration."
+next_permitted_action: "Keep bounded routing disabled pending accepted #2329 SHADOW calibration; collect real provider-capacity-recovered runtime evidence before measuring savings or enabling any tier successor."
 
 current_slice:
   name: "Jev-first bounded coding admission"

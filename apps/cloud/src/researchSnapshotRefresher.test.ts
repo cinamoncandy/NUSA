@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { RESEARCH_REFRESH_RECORD_FILE, ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
+import { RESEARCH_REFRESH_MIN_AVAILABLE_MEMORY_BYTES, RESEARCH_REFRESH_RECORD_FILE, ResearchSnapshotRefresher, parseMemAvailableBytes } from "./researchSnapshotRefresher";
 
 function harness(startAt = 1_000) {
   const dir = mkdtempSync(path.join(tmpdir(), "nusa-refresh-"));
@@ -19,7 +19,7 @@ function harness(startAt = 1_000) {
     env: { NUSA_MODE: "PAPER", NODE_OPTIONS: "--max-old-space-size=4096 --enable-source-maps" },
     now: () => now,
     minIntervalMs: 100,
-    freeMemoryBytes: () => free,
+    availableMemoryBytes: () => free,
     lowerPriority: (pid) => { lowered.push(pid); },
     spawn: (command, args, options) => {
       const child = Object.assign(new EventEmitter(), { pid: 4242, killed: false, kill() { this.killed = true; return true; } });
@@ -33,7 +33,7 @@ function harness(startAt = 1_000) {
 test("a refresh never starts when the shared host is low on memory, and is capped and deprioritised when it does", () => {
   const { spawned, lowered, make, setFree } = harness();
   const refresher = make();
-  setFree(500 * 1024 * 1024);
+  setFree(300 * 1024 * 1024);
   assert.equal(refresher.requestIfDue(), "LOW_MEMORY");
   assert.equal(spawned.length, 0);
   setFree(900 * 1024 * 1024);
@@ -79,4 +79,23 @@ test("a spawn failure never throws and stop terminates a running refresh", () =>
   refresher.stop();
   assert.equal(spawned[0]!.child.killed, true);
   assert.equal(refresher.requestIfDue(), "UNAVAILABLE");
+});
+
+test("the memory floor is 350 MB of available memory, checked at the boundary", () => {
+  const { spawned, make, setFree } = harness();
+  const refresher = make();
+  assert.equal(RESEARCH_REFRESH_MIN_AVAILABLE_MEMORY_BYTES, 350 * 1024 * 1024);
+  setFree(RESEARCH_REFRESH_MIN_AVAILABLE_MEMORY_BYTES - 1);
+  assert.equal(refresher.requestIfDue(), "LOW_MEMORY");
+  setFree(RESEARCH_REFRESH_MIN_AVAILABLE_MEMORY_BYTES);
+  assert.equal(refresher.requestIfDue(), "STARTED");
+  assert.equal(spawned.length, 1);
+});
+
+test("MemAvailable is parsed from /proc/meminfo, and anything unusable is rejected", () => {
+  const sample = "MemTotal:         977000 kB\nMemFree:           64000 kB\nMemAvailable:     405000 kB\nBuffers:           10000 kB\n";
+  assert.equal(parseMemAvailableBytes(sample), 405000 * 1024, "the host reading from the diagnosis: free is tiny, available is not");
+  assert.equal(parseMemAvailableBytes("MemTotal: 1 kB\nMemFree: 1 kB\n"), undefined);
+  assert.equal(parseMemAvailableBytes("MemAvailable: lots kB\n"), undefined);
+  assert.equal(parseMemAvailableBytes(""), undefined);
 });

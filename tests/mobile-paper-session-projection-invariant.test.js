@@ -71,9 +71,11 @@ test("only a stopped recovery projects RECOVERY_REQUIRED; no endpoint projects N
 test("home projection renders a recovering session as reconnecting, never as SETUP", () => {
   const home = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
   const app = fs.readFileSync("apps/mobile/App.tsx", "utf8");
-  assert.match(app, /sessionRecovering=\{paperSessionState === "RECOVERING"\}/);
+  assert.match(app, /sessionRecovering=\{shownSessionState === "RECOVERING"\}/);
   assert.match(app, /const sessionState = getPaperSessionState\(\);[\s\S]*setPaperSessionState\(sessionState\)/);
-  assert.match(home, /const shownConnectionLabel = recovering \? "RECOVERING" : connectionLabel/);
+  assert.match(home, /connectionLabel\(\{ recovering, stale, disconnected/);
+  const model = require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/connectionLabelModel.ts"), "utf8");
+  assert.ok(model.indexOf('return "RECOVERING"') < model.indexOf('return "SETUP"'), "a recovering session is decided before any setup label");
   assert.match(home, /\{shownConnectionLabel\}/);
   assert.match(home, /recovering \? "PAPER 재연결 중" : disconnected \? "PAPER 연결 필요"/);
 });
@@ -90,4 +92,30 @@ test("foreground RECOVERING preserves the last PAPER projection while runtime st
   );
   assert.doesNotMatch(recoveringBranch, /setOperations\(/);
   assert.doesNotMatch(recoveringBranch, /RECOVERY_FAILED/);
+});
+
+test("a retry loop that never verifies stops projecting RECOVERING after the bounded window", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const session = mobileApprovedSession();
+  const originalRestore = session.restore;
+  const originalRetryable = session.shouldRetryRestore;
+  let calls = 0;
+  try {
+    connection.clearConfiguredPaperEndpoint();
+    session.restore = async () => { calls += 1; return null; };
+    session.shouldRetryRestore = () => true;
+    connection.setConfiguredPaperEndpoint(ENDPOINT);
+    const settle = async () => { for (let i = 0; i < 6; i += 1) await new Promise((resolve) => setImmediate(resolve)); };
+    await settle();
+    assert.equal(connection.getPaperSessionState(), "RECOVERING");
+    for (let i = 0; i < 6; i += 1) { t.mock.timers.tick(30_000); await settle(); }
+    assert.equal(connection.getPaperSessionState(), "RECOVERY_REQUIRED");
+    const before = calls;
+    t.mock.timers.tick(30_000); await settle();
+    assert.ok(calls > before, "background retry keeps running after the projection gives up");
+  } finally {
+    connection.clearConfiguredPaperEndpoint();
+    session.restore = originalRestore;
+    session.shouldRetryRestore = originalRetryable;
+  }
 });

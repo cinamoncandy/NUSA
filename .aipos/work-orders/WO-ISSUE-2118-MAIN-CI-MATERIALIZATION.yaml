@@ -1,0 +1,71 @@
+id: WO-ISSUE-2118-MAIN-CI-MATERIALIZATION
+title: "Suppress duplicate post-merge CI when push-run indexing is delayed"
+status: LATEST_MAIN_SYNCED_REVALIDATION_REQUIRED
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2118
+base_branch: main
+base_commit: 3c49bdd253e51dd67821bfa735d618cd15e70328
+objective: "Prevent a same-SHA workflow_dispatch CI from being queued when the canonical push CI exists but has not yet appeared in the Actions run listing, while preserving exact-head coverage and fail-closed recovery."
+architecture_impact:
+  acknowledged: true
+  analysis: "Tightens the existing single #903 Release control path with bounded read-model propagation handling. Adds no queue, scheduler, CI workflow, authority, or required-check changes."
+evidence:
+  observation: "After PR #2430 merged as 070078d31342fff277909c4929f9445e2728488e, canonical CI push run 36944149502 completed SUCCESS. Release step 12 had already dispatched workflow_dispatch CI run 36944151942 on the identical SHA; the redundant run began shards and was cancelled after Release confirmed its exact-main CI and downstream convergence."
+  cost_signal: "Before cancellation, duplicate validation/UI/core jobs ran approximately 30–82 seconds each. This is measured runner work avoided only in part; no billing-credit amount is asserted."
+  recurrence_on_latest_main: "On main ae1a8dc63846c431ec0e00b94a64bb1f524699e8, push CI 36947837266 completed SUCCESS while same-SHA workflow_dispatch CI 36947838794 began six shards. This independently reproduces the race on the latest base; workflow_dispatch was still in progress when observed, so no total duplicate runner consumption is asserted."
+scope:
+  - "Add a bounded, exact-head Actions-run visibility grace (at most six reads / fifteen seconds) before the existing CI fallback dispatch."
+  - "Re-check protected main before fallback dispatch; a stale merge SHA exits through the existing newer-convergence path."
+  - "Keep existing exact workflow path, head SHA, active/success eligibility; failed/cancelled exact-head runs defer to the existing bounded rerun recovery."
+  - "Add a regression test for bounded wait ordering, exact binding, stale-main guard, and failed-CI handoff to bounded recovery."
+exclusions:
+  - "No required CI, coverage, security, safety, Audit, or Release gate reduction."
+  - "No additional scheduler, queue, retry loop, workflow, or API authority."
+  - "No live trading, credential, or production mutation changes."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - "A visible queued, in-progress, pending, or successful CI run is reused only when name/path/head exactly match the canonical CI and merged SHA."
+  - "The fallback dispatch is not attempted until the bounded visibility grace expires without an eligible exact-head run."
+  - "Main advancing during the grace suppresses stale fallback dispatch."
+  - "Failed/cancelled CI is not treated as success and does not trigger a duplicate full dispatch; existing bounded rerun/exhaustion behavior remains intact."
+  - "Targeted regression, full validation, security gate, exact-head CI, independent Audit, and canonical Release are recorded truthfully."
+verification_commands:
+  - "node --test tests/autopilot-deterministic-audit-release.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+validation:
+  status: LOCAL_PASS
+  latest_main: 3c49bdd253e51dd67821bfa735d618cd15e70328
+  commands:
+    - "node --test tests/autopilot-deterministic-audit-release.test.js — PASS 13/13"
+    - "pnpm run validate:full — PASS"
+    - "pnpm run security:gate — PASS; 0 secrets, 0 high/critical"
+    - "pnpm run lint:scripts — PASS, 0 errors; 14 existing warnings in unrelated files"
+    - "AIPOS YAML/provenance/drift validators — PASS"
+    - "git diff --check — PASS"
+  exact_head_ci: PENDING_AFTER_LATEST_MAIN_SYNC
+  prior_exact_head: bfe10f34ba5a6d70570ba3dc94f072956ccdba41
+  prior_exact_head_ci: 36947076495
+  prior_independent_audit: 36947732272
+  prior_audit_result: PASS_ON_STALE_BASE
+  prior_release_result: CANCELLED_AFTER_BASE_ADVANCE
+  intermediate_exact_head_ci: 36948354610
+  intermediate_ci_result: PASS_ON_STALE_BASE
+  intermediate_audit_run: 36948929273
+  intermediate_audit_result: NO_ACTION_STALE_BASE
+  latest_main_sync_commit: f484735e9b671d56f0ca620bf3bb374abef0fc32
+  latest_sync_local_validation:
+    - "node --test tests/autopilot-deterministic-audit-release.test.js — PASS 13/13"
+    - "pnpm run aipos:yaml — PASS (261 files)"
+    - "pnpm run aipos:provenance — PASS"
+    - "pnpm run aipos:drift — PASS"
+    - "pnpm run security:gate — PASS; zero secrets, zero high/critical"
+    - "git diff --check — PASS"
+pull_request: 2451
+next_permitted_action: "Commit and non-force-push this latest-main sync and evidence record once. Require fresh exact-head CI, independent Audit on the exact current base, canonical Release, and post-merge proof; do not reuse stale evidence."

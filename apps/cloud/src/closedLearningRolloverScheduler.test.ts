@@ -5,6 +5,7 @@ import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverPort } from "./closedLearningRolloverScheduler";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 const START = Date.parse("2026-09-04T14:59:00.000Z"); // 23:59 KST
 const SAME_KST_DAY = Date.parse("2026-09-04T14:59:30.000Z");
@@ -160,6 +161,19 @@ describe("ClosedLearningRolloverScheduler", () => {
     assert.equal(events[3], `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${NEXT_KST_DAY}:1`);
   });
 
+  it("routes a realized owner-baseline period through the canonical learning cycle before continuing the baseline", () => {
+    const baseline = Object.freeze({
+      ...plan("FILLED", "owner-baseline:KRW-BTC:" + START),
+      candidateProvenance: Object.freeze([{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId: "owner-baseline:upbit-public-ticker:KRW-BTC", datasetContentSha256: HASH }]),
+    });
+    const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "INSUFFICIENT", openPeriods: [baseline] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "CLOSED_AND_EVALUATED");
+    assert.deepEqual(events.slice(0, 3), [`close:${baseline.periodId}:${NEXT_KST_DAY}`, "identity:record-0", "cycle"]);
+    assert.equal(events[3], `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${NEXT_KST_DAY}:1`);
+    assert.equal(result.cycle?.record.evidenceFingerprintSha256, HASH);
+  });
+
   it("does not open a duplicate period when a qualified cycle deploys its replacement challenger", () => {
     const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "QUALIFIED_FOR_LEAGUE" });
     assert.equal(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
@@ -187,6 +201,41 @@ describe("ClosedLearningRolloverScheduler", () => {
     assert.equal(result.status, "BLOCKED");
     assert.match(result.reason ?? "", /MISSING_BENCHMARK_EVIDENCE/);
     assert.deepEqual(events, [`close:period-0:${NEXT_KST_DAY}`]);
+  });
+});
+
+describe("closed-learning rollover after a period closed without a successor", () => {
+  const LATER = NEXT_KST_DAY + 60_000;
+
+  it("continues the latest realized candidate from the real canonical account boundary", () => {
+    const { scheduler, events } = harness({ now: LATER, openPeriods: [] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "STALLED_PERIOD_REOPENED");
+    assert.equal(result.reason, "continued:record-0");
+    assert.deepEqual(events, [`open:closed-learning-rollover:1:${LATER}:${LATER}:1`]);
+  });
+
+  it("waits instead of reopening at or before the last realized period end", () => {
+    const { scheduler, events } = harness({ now: NEXT_KST_DAY, openPeriods: [] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "NO_OPEN_PERIOD");
+    assert.equal(result.reason, "WAITING_FOR_CANONICAL_BOUNDARY");
+    assert.deepEqual(events, []);
+  });
+
+  it("leaves a fresh install with no realized history to the bootstrap", () => {
+    const port: ClosedLearningRolloverPort = {
+      listOpenPeriods: () => [],
+      listRealizedPeriods: () => [],
+      readCanonicalPaperAccount: () => account(LATER),
+      closePeriodFromCanonicalAccount: () => { throw new Error("unexpected close"); },
+      openPeriodFromCanonicalAccount: () => { throw new Error("unexpected open"); },
+      buildEvidenceIdentity: () => { throw new Error("unexpected identity"); },
+      runClosedLearningCycle: () => { throw new Error("unexpected cycle"); },
+    };
+    const result = new ClosedLearningRolloverScheduler(port).runOnce();
+    assert.equal(result.status, "NO_OPEN_PERIOD");
+    assert.equal(result.reason, undefined);
   });
 });
 

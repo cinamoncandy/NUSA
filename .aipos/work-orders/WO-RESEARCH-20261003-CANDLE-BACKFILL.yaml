@@ -1,0 +1,27 @@
+id: WO-RESEARCH-20261003-CANDLE-BACKFILL
+title: "Fill the research candle store from Upbit public 1-minute candles so the first experiment does not wait 11 live days"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-candle-backfill
+authority_impact: research_evidence_only
+objective: "The research experiments need train 7 + validation 2 + holdout 2 days of closed 1-minute candles, and the store was filled only from the live ticker, so a market change (BTC to XRP) restarts an 11-day wait. Fill history once from the public exchange endpoint."
+owner_approval: "Owner, 2026-10-03: 'backfill: build it' (answered 'later' earlier, then 'do all' for the three largest tasks)."
+scope:
+  - "apps/cloud/src/researchCandleBackfill.ts: strict parser for Upbit candle pages (market match, UTC minute alignment, positive prices, high/low bound open/close; invalid items dropped and counted, never throw); backfillMarket pages backwards and writes only closed candles strictly older than anything already stored, evaluated in the same synchronous step as each append; page budget, sequential spaced requests, 429 and request errors stop the attempt with a code; public GET fetcher with 10 s timeout and no redirects."
+  - "apps/cloud/src/researchExperimentComposition.ts: runs the backfill 20 s after start for each research market (up to 3 attempts 10 minutes apart when incomplete), exposes backfill() for tests, on by default when research is on, NUSA_RESEARCH_BACKFILL other than ENABLED disables it."
+  - "docs/RESEARCH_EXPERIMENTS_OPERATIONS.md: operations section, provenance note, rollback."
+  - "tests/research-candle-backfill.test.js (9), tests/research-experiment-composition.test.js (+2)."
+exclusions:
+  - "No change to research windows, experiment logic, the candle store schema or retention, the live collector, PAPER decisions, risk, orders, capital, LIVE, credentials or AI authority. No paid AI. Public, credential-free GET only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Disabled by anything but ENABLED; any error stops the attempt and stores nothing further; stored candles are immutable and never replaced."
+rollback: "Set NUSA_RESEARCH_BACKFILL=DISABLED and restart, or revert. Already stored candles are ordinary research candles."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-candle-backfill.test.js tests/research-experiment-composition.test.js tests/research-candle-collector.test.js tests/research-candle-store.test.js
+residual: "History is exchange candles while later candles are ticker-derived (a seam; minutes without trades are absent upstream). Verified against injected pages only; the first real run happens after a server deploy (owner standing deploy approval) and is visible in the app's research row and the [research-backfill] log lines."

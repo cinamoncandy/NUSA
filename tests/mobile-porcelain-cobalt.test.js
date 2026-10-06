@@ -7,14 +7,14 @@ const { buildChartViewModel } = require("../dist/apps/mobile/src/chartViewModel.
 const input = { market: "KRW-BTC", interval: "1m", rawCandles: [{ market: "KRW-BTC", openTime: 60000, closeTime: 120000, open: 100, high: 104, low: 99, close: 102, volume: 1 }], currentPrice: 102, connectionState: "CONNECTED", stale: false };
 
 test("the field theme (which replaced porcelain/cobalt) preserves semantic authority and accessible targets", () => {
-  assert.equal(createTheme("light").colors.background, "#010204");
-  assert.equal(createTheme("light").colors.primary, "#B6F04B");
+  assert.equal(createTheme("light").colors.background, "#05080D");
+  assert.equal(createTheme("light").colors.primary, "#E8F0F2");
   for (const mode of ["light", "dark"]) {
     const t = createTheme(mode);
-    assert.equal(t.radii.lg, 12);
+    assert.equal(t.radii.lg, 18);
     assert.ok(t.interaction.touchTarget >= 48);
     assert.notEqual(t.colors.danger, t.colors.primary);
-    assert.notEqual(t.colors.success, t.colors.primary);
+    assert.notEqual(t.colors.warning, t.colors.primary);
   }
 });
 

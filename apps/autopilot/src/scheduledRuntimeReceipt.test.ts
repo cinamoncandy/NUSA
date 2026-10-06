@@ -134,6 +134,60 @@ test("malformed persisted receipt history fails closed before replay or append",
   await assert.rejects(() => recordScheduledRuntimeReceipt(namespace, RECEIPT), /SCHEDULED_RUNTIME_RECEIPT_PERSIST_FAILED/);
 });
 
+test("scheduled runtime history recovers only malformed legacy head SHA entries", async () => {
+  const namespace = coordinatorNamespace({
+    "scheduled-runtime-receipts-v1": {
+      schemaVersion: 1,
+      receipts: [
+        RECEIPT,
+        { ...RECEIPT, scheduledTime: RECEIPT.scheduledTime + 1, observedAt: RECEIPT.observedAt + 1, headSha: "legacy-invalid-head" },
+      ],
+    },
+  });
+  const evidence = await readScheduledRuntimeEvidence(namespace);
+  assert.deepEqual(evidence.history, [RECEIPT]);
+  await recordScheduledRuntimeReceipt(namespace, {
+    ...RECEIPT,
+    scheduledTime: RECEIPT.scheduledTime + 2,
+    observedAt: RECEIPT.observedAt + 2,
+    headSha: "b".repeat(40),
+  });
+  assert.equal((await readScheduledRuntimeEvidence(namespace)).history.length, 2);
+});
+
+test("scheduled runtime history drops the legacy null-head receipt that runtime proof rejects", async () => {
+  const legacyNullHead = {
+    ...RECEIPT,
+    status: "FAILED",
+    reason: "GITHUB_HTTP_401",
+    headSha: null,
+  };
+  const namespace = coordinatorNamespace({
+    "scheduled-runtime-receipts-v1": { schemaVersion: 1, receipts: [legacyNullHead] },
+  });
+  assert.deepEqual((await readScheduledRuntimeEvidence(namespace)).history, []);
+  await recordScheduledRuntimeReceipt(namespace, {
+    ...RECEIPT,
+    scheduledTime: RECEIPT.scheduledTime + 1,
+    observedAt: RECEIPT.observedAt + 1,
+    headSha: "b".repeat(40),
+  });
+  assert.equal((await readScheduledRuntimeEvidence(namespace)).history.length, 1);
+});
+
+test("scheduled runtime recovery fails closed on duplicate scheduledTime even when one head is malformed", async () => {
+  const namespace = coordinatorNamespace({
+    "scheduled-runtime-receipts-v1": {
+      schemaVersion: 1,
+      receipts: [
+        RECEIPT,
+        { ...RECEIPT, observedAt: RECEIPT.observedAt + 1, headSha: "legacy-invalid-head" },
+      ],
+    },
+  });
+  await assert.rejects(() => readScheduledRuntimeEvidence(namespace), /SCHEDULED_RUNTIME_RECEIPT_READ_FAILED/);
+});
+
 test("scheduled runtime receipt rejects authority drift", async () => {
   const namespace = coordinatorNamespace();
   await assert.rejects(

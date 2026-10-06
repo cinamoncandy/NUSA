@@ -5,6 +5,7 @@ import { InlineNotice } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
 import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./upbitReadOnlyAccount";
+import { labelFont } from "./designSystem";
 
 export function UpbitConnectionPanel() {
   const { theme } = useTheme();
@@ -54,7 +55,7 @@ export function UpbitConnectionPanel() {
 const styles = StyleSheet.create({
   sectionBlock: { gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
-  eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "500", letterSpacing: 1.1 },
+  eyebrow: { fontSize: labelFont(10), lineHeight: 15, fontWeight: "500", letterSpacing: 1.1 },
   sectionTitle: { marginTop: 4, fontSize: 21, lineHeight: 27, fontWeight: "500", letterSpacing: -0.5 },
   hint: { fontSize: 13, lineHeight: 20 },
   row: { flexDirection: "row", gap: 10, flexWrap: "wrap" },

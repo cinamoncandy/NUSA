@@ -7,6 +7,7 @@ import { SettingsView } from "./settingsView";
 import type { SettingsRepository } from "./settings";
 import { NotificationView } from "./notificationView";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
+import { readableFont } from "./designSystem";
 
 interface MoreViewProps { readonly rawOrders: readonly unknown[] | null; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly settingsRepository: SettingsRepository; }
 type BuildFreshness = "CURRENT" | "STALE" | "UNKNOWN";
@@ -51,5 +52,5 @@ export function MoreView({ rawOrders, error, refreshing, onRefresh, settingsRepo
 const styles = StyleSheet.create({
   workspace: { flex: 1 },
   panels: { flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1, alignItems: "center", flexWrap: "wrap" },
-  build: { marginLeft: "auto", fontSize: 11, lineHeight: 16, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  build: { marginLeft: "auto", fontSize: readableFont(11), lineHeight: 17, fontWeight: "700", fontVariant: ["tabular-nums"] },
 });
