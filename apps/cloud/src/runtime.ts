@@ -547,6 +547,14 @@ export function startCloudRuntime(
   // Display only: how long this process was blocked. A stall over the 30 s PAPER writer lease explains a lost lease.
   const stallMonitor = createEventLoopStallMonitor();
   stallMonitor.start();
+  // Display only: the same research collection status the app reads, as a code and two counts for /health.
+  const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
+    let progress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
+    try { progress = researchAutomation?.collectionProgress?.() ?? null; } catch { progress = null; }
+    if (progress != null) return { researchCollectionStatus: "COLLECTING", researchCandleCount: progress.candleCount, researchRequiredCandles: progress.requiredCandles };
+    const settings = readResearchExperimentSettings(env);
+    return { researchCollectionStatus: settings.status === "DISABLED" ? "DISABLED" : settings.status === "INVALID" ? "INVALID" : "UNAVAILABLE" };
+  };
   heartbeatTimer.unref?.();
 
   const loadPaperOperations = (principal: DashboardPrincipal): PersonalPaperOperationsSnapshot => {
@@ -615,7 +623,8 @@ export function startCloudRuntime(
       ...(heartbeat.lastPaperDecisionOutcome === null ? {} : { lastPaperDecisionOutcome: heartbeat.lastPaperDecisionOutcome }),
       lastError: heartbeat.lastError,
       ...(previousStop === undefined ? {} : { previousStop }),
-      ...stallMonitor.snapshot()
+      ...stallMonitor.snapshot(),
+      ...researchLiveness()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
       Object.freeze({ ...heartbeat }),

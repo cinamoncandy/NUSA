@@ -169,6 +169,31 @@ test("/health names the class of the runtime's own paper failures but never the 
   }
 });
 
+test("/health publishes the research collection status as a fixed code plus two counts and nothing else", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchCollectionStatus: "COLLECTING", researchCandleCount: 1234.7, researchRequiredCandles: 16_560, researchMarket: "KRW-XRP", researchDetail: "leak-sentinel-r1" }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.equal(body.runtime.researchCollectionStatus, "COLLECTING");
+    assert.equal(body.runtime.researchCandleCount, 1234);
+    assert.equal(body.runtime.researchRequiredCandles, 16_560);
+    assert.equal(body.runtime.researchMarket, undefined);
+    assert.doesNotMatch(res.body, /leak-sentinel-r1|KRW-XRP/);
+  }, 41851 + 20);
+  for (const [index, status] of ["DISABLED", "INVALID", "UNAVAILABLE"].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchCollectionStatus: status }) }, async (handle) => {
+      const body = JSON.parse((await request(handle.port, "/health")).body);
+      assert.equal(body.runtime.researchCollectionStatus, status);
+      assert.equal(body.runtime.researchCandleCount, undefined);
+    }, 41872 + index);
+  }
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchCollectionStatus: "free text with detail 123", researchCandleCount: -5 }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(Object.keys(body.runtime).sort(), Object.keys(LIVENESS).sort(), "an unknown status is dropped, not published");
+    assert.doesNotMatch(res.body, /free text/);
+  }, 41876);
+});
+
 test("/health strips extra component-health fields from an alternate callback", async () => {
   const measuredAt = 2_000;
   const health = (componentId, provenance, evidenceId) => evaluateComponentHealth({
