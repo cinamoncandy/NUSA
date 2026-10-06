@@ -2691,3 +2691,10 @@ current_learning_stalled_period_reopen:
   owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
   finding: "Runtime closedLearningLoop showed rollover NO_OPEN_PERIOD with realized history: a period closed without a successor and nothing reopened one. Rollover now continues the latest realized candidate from the canonical account boundary"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_research_longer_timeframes_proposal:
+  work_order: WO-RESEARCH-20261006-LONGER-TIMEFRAMES
+  status: PROPOSED
+  branch: claude/research-timeframe-proposal
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('제안서 써줘'); implementation not approved"
+  finding: "All tested families lose on 1-minute bars after costs; proposes a walk-forward Research comparison over 15/60/240-minute bars"
