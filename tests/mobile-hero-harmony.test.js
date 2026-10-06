@@ -28,7 +28,7 @@ test("the hero accent is the figure's own lime and is never a status colour", ()
   const colors = createTheme("dark").colors;
   const dist = (a, c) => Math.hypot(...[1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16) - parseInt(c.slice(i, i + 2), 16)));
   for (const status of [colors.success, colors.warning, colors.danger]) assert.ok(dist(fieldHero.lime, status) >= 60, `lime stays distinct from ${status}`);
-  assert.equal(colors.primary, "#5CE1FF", "the rest of the app keeps its theme colour");
+  assert.equal(colors.primary, "#E8F0F2", "calm-v1: the rest of the app is white on the dark ground; lime stays the hero/order accent");
 });
 
 test("only a healthy learning tile takes the hero accent; warnings and missing data keep their status colour", () => {

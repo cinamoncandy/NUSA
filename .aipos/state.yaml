@@ -2609,3 +2609,10 @@ current_ui_hero_batched_drawing:
   owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
   finding: "The flow-field hero made about 550 draw calls per frame; batching by look reduces it to about 25 without changing the picture. Not measured on a device"
   deploy: not_deployed_new_app_build_required
+current_ui_calm_redesign:
+  work_order: WO-UI-20261006-CALM-REDESIGN
+  status: IN_PROGRESS
+  branch: claude/ux-redesign-plan
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('그냥 다 새로 다시 해줘 개선하지말고', '니가 새롭게 디자인해봐', '진행해')"
+  finding: "Four primary tabs replaced by calm-v1 presenters (지금/학습/안전/기록) over existing screen models; detail screens still field-v1 and named in the work order"
