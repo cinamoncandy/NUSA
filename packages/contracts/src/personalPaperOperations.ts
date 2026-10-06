@@ -286,9 +286,11 @@ function deriveHealth(input: PersonalPaperOperationsInput): PersonalPaperOperati
     input.operations.killSwitchActive || input.operations.accountHalted || input.operations.runtimeState === "HALTED" ||
     input.research?.health === "FAIL_CLOSED" || input.research?.recoveryStatus === "FAIL_CLOSED"
   ) return "FAIL_CLOSED";
+  // Research is optional learning: while it is still gathering data (DEGRADED with no experiments yet) or its evidence is old (STALE) it
+  // must not mark PAPER operations as unhealthy. Only a research FAIL_CLOSED, above, still does. Owner decision in chat 2026-10-06.
   if (
     input.dashboard.overallHealth === "DEGRADED" || !["READY", "RUNNING"].includes(input.operations.runtimeState) || input.operations.transport !== "ONLINE" ||
-    input.operations.pendingWrites > 0 || (input.research != null && (input.research.health !== "HEALTHY" || input.research.recoveryStatus !== "READY"))
+    input.operations.pendingWrites > 0
   ) return "DEGRADED";
   return "HEALTHY";
 }

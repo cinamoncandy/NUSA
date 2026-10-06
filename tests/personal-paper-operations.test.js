@@ -139,6 +139,22 @@ test("fails closed on kill switch and Research fail-closed state", () => {
   assert.equal(snapshot({ research: { health: "FAIL_CLOSED", recoveryStatus: "FAIL_CLOSED" } }).health, "FAIL_CLOSED");
 });
 
+test("Research that is still gathering data or stale never marks PAPER operations degraded, but Research FAIL_CLOSED still fails closed", () => {
+  // The learning side is optional: no experiments yet (DEGRADED) or old evidence (STALE) must not turn the PAPER banner amber.
+  for (const health of ["DEGRADED", "STALE"]) {
+    const result = snapshot({ research: { health, experimentCount: 0, recoveryStatus: "READY" } });
+    assert.equal(result.health, "HEALTHY", `research ${health}`);
+    assert.equal(result.readyForPaperOperations, true);
+  }
+  assert.equal(snapshot({ research: { health: "FAIL_CLOSED", recoveryStatus: "READY" } }).health, "FAIL_CLOSED");
+  assert.equal(snapshot({ research: { health: "HEALTHY", recoveryStatus: "FAIL_CLOSED" } }).health, "FAIL_CLOSED");
+  // PAPER's own signals still degrade it, whatever Research says.
+  assert.equal(snapshot({ operations: { transport: "OFFLINE" } }).health, "DEGRADED");
+  assert.equal(snapshot({ operations: { pendingWrites: 2 } }).health, "DEGRADED");
+  assert.equal(snapshot({ dashboard: { overallHealth: "DEGRADED" } }).health, "DEGRADED");
+  assert.equal(snapshot({ operations: { runtimeState: "READY_OFFLINE" } }).health, "DEGRADED");
+});
+
 test("missing optional Research does not block fresh PAPER operations or create LIVE authority", () => {
   const result = snapshot({ research: null });
   assert.equal(result.health, "HEALTHY");

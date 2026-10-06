@@ -2557,6 +2557,13 @@ current_diagnose_light:
   authority_impact: none
   finding: "Host diagnosis walked the 11 GB release directory (over a minute of disk I/O) on the host it measures; removed so stall readings are not inflated by the probe"
   deploy: no_runtime_change
+current_research_health_not_paper:
+  work_order: WO-PAPER-20261006-RESEARCH-HEALTH-NOT-PAPER
+  status: READY_FOR_REVIEW
+  branch: claude/research-health-not-paper
+  authority_impact: health_classification_display
+  owner_approval: "2026-10-06 in chat"
+  finding: "Research DEGRADED/STALE (still gathering data) made the whole PAPER snapshot DEGRADED, a permanent amber banner after #2520; only research FAIL_CLOSED may affect PAPER health"
 current_health_research_status:
   work_order: WO-OPS-20261006-HEALTH-RESEARCH-STATUS
   status: READY_FOR_REVIEW
