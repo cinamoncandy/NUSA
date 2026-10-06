@@ -2550,3 +2550,10 @@ current_security_dep_patches:
   authority_impact: none
   finding: "Security gate failed on two newly published high advisories (source-map-js, compression); pinned to the patched releases"
   deploy: no_runtime_change
+current_diagnose_light:
+  work_order: WO-OPS-20261006-DIAGNOSE-LIGHT
+  status: READY_FOR_REVIEW
+  branch: claude/diagnose-light
+  authority_impact: none
+  finding: "Host diagnosis walked the 11 GB release directory (over a minute of disk I/O) on the host it measures; removed so stall readings are not inflated by the probe"
+  deploy: no_runtime_change

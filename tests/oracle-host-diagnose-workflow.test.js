@@ -39,3 +39,9 @@ test("log output is bounded and redacted, and a separate concurrency group avoid
   assert.match(text, /group: oracle-host-diagnose/);
   assert.doesNotMatch(text, /group: oracle-paper-release/);
 });
+
+test("the diagnosis does not walk the release directory, so it cannot load the host it measures", () => {
+  const commands = text.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  assert.doesNotMatch(commands, /du\b[^\n]*\/opt\/nusa\/releases/, "no size walk of the 11 GB release directory");
+  assert.match(commands, /ls -1 \/opt\/nusa\/releases[^\n]*wc -l/, "the release directories are only counted");
+});
