@@ -152,8 +152,32 @@ test("the renderer guards the blur, ticks only the full figure and keeps lime fo
   const src = require("node:fs").readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
   assert.match(src, /MakeBlur\(BlurStyle\.Normal, blur, true\)/);
   assert.match(src, /catch \{ \/\* no blur \*\/ \}/, "an unsupported blur must not break the figure");
-  assert.match(src, /canvas\.drawPoints\(PointMode\.Polygon, arc\(-5\)/, "the ruler is two thin arcs");
-  assert.match(src, /if \(detail === 1\) \{\s*for \(let i = 0; i < FLOW_TICKS/, "a small mark skips the ticks");
+  assert.match(src, /canvas\.drawPoints\(PointMode\.Polygon, fixed\.arcOuter/, "the ruler is two thin arcs, built once per size");
+  assert.match(src, /if \(detail === 1\) for \(let i = 0; i < FLOW_TICKS/, "a small mark skips the ticks");
   assert.match(src, /const accent = tone === "normal" \? HOLO_COLORS\.lime : ink/);
   assert.ok(!/HOLO_COLORS\.lime/.test(src.replace(/const accent[^\n]*\n/, "")), "lime is used only for the accent");
+});
+
+test("a frame is drawn in batches: hairlines by look, unlit bars in two lists, ruler geometry built once", () => {
+  const { flowLines, flowSegment, flowLineBucket, flowBucketAlpha, flowBucketThick, FLOW_ALPHA_LEVELS, FLOW_ALPHA_STEP, FLOW_THICK_WIDTH } = require("../dist/apps/mobile/src/holoModel.js");
+  const src = require("node:fs").readFileSync("apps/mobile/src/holoSphere.tsx", "utf8");
+  // The grouping rule: the bucket's alpha is the middle of its step, never far from the line's own, and thickness splits at the threshold.
+  assert.equal(flowLineBucket(0, 0.3), 0);
+  assert.equal(flowLineBucket(0, FLOW_THICK_WIDTH), 1);
+  assert.equal(flowLineBucket(9, 0.3), FLOW_ALPHA_LEVELS * 2 - 2, "a very bright line lands in the top bucket");
+  assert.equal(flowLineBucket(-1, 0.3), 0);
+  for (const line of flowLines()) for (const t of [0, 3, 41]) {
+    const a = flowSegment(line, t).alpha, b = flowLineBucket(a, line.width);
+    assert.ok(b >= 0 && b < FLOW_ALPHA_LEVELS * 2, "every hairline fits a bucket");
+    assert.ok(Math.abs(flowBucketAlpha(b) - a) <= FLOW_ALPHA_STEP, "the batch's alpha stays within one step of the line's own");
+    assert.equal(flowBucketThick(b), line.width >= FLOW_THICK_WIDTH);
+  }
+  // At most two dozen draw calls per frame for the stream, the ruler and the unlit wall; individual drawLine calls remain only for lit rows, boosted lines, the marker and the band.
+  assert.match(src, /canvas\.drawPoints\(PointMode\.Lines, lineBuckets\[b\]!/);
+  assert.match(src, /canvas\.drawPoints\(PointMode\.Lines, barDim/);
+  assert.match(src, /canvas\.drawPoints\(PointMode\.Lines, barBright/);
+  assert.match(src, /canvas\.drawPoints\(PointMode\.Lines, fixed\.longTicks/);
+  const perLoopDrawLines = src.split("\n").filter((line) => /canvas\.drawLine\(seg\./.test(line));
+  assert.equal(perLoopDrawLines.length, 1, "only a boosted hairline is drawn on its own");
+  assert.match(src, /linePool: lines\.map\(\(\) => \[\{ x: 0, y: 0 \}, \{ x: 0, y: 0 \}\]/, "points are preallocated, so a frame allocates none for the stream");
 });

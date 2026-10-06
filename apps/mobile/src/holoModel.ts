@@ -234,6 +234,18 @@ export function wallBar(row: WallRow, tSec: number, grow: number): WallBar {
   return Object.freeze({ x0, x1: x0 + room * length, y: row.y, alpha: row.bright ? 0.86 : 0.5 });
 }
 
+/**
+ * Batching. Drawing every hairline and bar with its own call cost about 550 calls per frame; segments that share a look are drawn together
+ * instead. A hairline's alpha is quantised into FLOW_ALPHA_LEVELS steps of FLOW_ALPHA_STEP (the figure's alphas stay below 0.6), and its width
+ * into thin or thick, so a frame needs at most FLOW_ALPHA_LEVELS * 2 hairline calls.
+ */
+export const FLOW_ALPHA_LEVELS = 6;
+export const FLOW_ALPHA_STEP = 0.1;
+export const FLOW_THICK_WIDTH = 0.6;
+export const flowLineBucket = (alpha: number, width: number): number => Math.min(FLOW_ALPHA_LEVELS - 1, Math.max(0, Math.floor(alpha / FLOW_ALPHA_STEP))) * 2 + (width >= FLOW_THICK_WIDTH ? 1 : 0);
+export const flowBucketAlpha = (bucket: number): number => (Math.floor(bucket / 2) + 0.5) * FLOW_ALPHA_STEP;
+export const flowBucketThick = (bucket: number): boolean => bucket % 2 === 1;
+
 /** The ruler's ticks: heights along it, every fifth one long. */
 export const FLOW_TICKS = 49;
 export const flowTick = (i: number): { y: number; long: boolean } => ({ y: 0.02 + (0.96 * i) / (FLOW_TICKS - 1), long: i % 5 === 0 });
