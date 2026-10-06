@@ -65,8 +65,8 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.doesNotMatch(workflow, /^\s*adb wait-for-device\s*$/m);
   assert.match(workflow, /enter_personal\(\)/);
   assert.match(workflow, /"local-entry-submit"/);
-  assert.match(workflow, /"home-screen"/);
-  for (const marker of ["tab-Paper", "tab-Live", "tab-Home", "tab-More", "more-PaperEvidence", "more-Portfolio", "header-tools-menu", "header-settings", "utility-close"]) {
+  assert.match(workflow, /"now-screen"/);
+  for (const marker of ["tab-Paper", "tab-Live", "tab-Home", "tab-More", "more-PaperEvidence", "learning-details", "more-Portfolio", "header-tools-menu", "header-settings", "utility-close"]) {
     assert.match(workflow, new RegExp(`(?:tap|tap_after_scroll) "${marker}"`));
   }
   for (const ambiguousLabel of ["MARKETS", "PAPER", "PORTFOLIO", "HOME", "도구", "설정", "설정 닫기"]) {
@@ -74,10 +74,16 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   }
   assert.ok(workflow.includes('print(ET.tostring(root, encoding="unicode"), file=sys.stderr)'));
   assert.match(workflow, /if: always\(\)/);
-  assert.match(workflow, /grep -q "more-view" qa\/android-product-ux\/05-more\.xml/);
-  assert.match(workflow, /grep -q "paper-learning-monitor" qa\/android-product-ux\/06-paper\.xml/);
-  assert.match(workflow, /paper-shadow-monitor-switcher\|dashboard-connection-required/);
-  assert.match(workflow, /grep -q "live-field-header" qa\/android-product-ux\/03-live-readiness\.xml/);
+  // calm-v1 presenters (#2541): the gate keys on the testIDs the shipped screens actually render.
+  assert.match(workflow, /grep -q "records-view" qa\/android-product-ux\/05-more\.xml/);
+  assert.match(workflow, /grep -q "learning-view" qa\/android-product-ux\/06-paper\.xml/);
+  assert.match(workflow, /grep -q "paper-learning-monitor" qa\/android-product-ux\/07-paper-evidence-open\.xml/);
+  assert.match(workflow, /learning-view\|dashboard-connection-required/);
+  assert.match(workflow, /grep -q "safety-view" qa\/android-product-ux\/03-live-readiness\.xml/);
+  const src = (file) => fs.readFileSync(`apps/mobile/src/${file}`, "utf8");
+  for (const [file, id] of [["nowView.tsx", "now-screen"], ["recordsView.tsx", "records-view"], ["learningView.tsx", "learning-view"], ["learningView.tsx", "learning-details"], ["safetyView.tsx", "safety-view"], ["paperLearningMonitorView.tsx", "paper-learning-monitor"]]) {
+    assert.ok(src(file).includes(`testID="${id}"`), `${file} renders ${id}`);
+  }
   assert.match(workflow, /grep -q "portfolio-screen" qa\/android-product-ux\/09-portfolio\.xml/);
   // Acceptance keys on testIDs, never on display copy: renaming a label must not fail the emulator gate.
   for (const file of ["03-live-readiness", "09-portfolio"]) {
@@ -86,6 +92,6 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
     // The pattern must look like a testID (lowercase-hyphen); any display copy, Korean or English, fails.
     assert.match(greps[0], /grep -q "[a-z][a-z0-9]*(?:-[a-z0-9]+)+" /, `${file} must be keyed on a testID, not display copy`);
   }
-  assert.match(workflow, /grep -q "home-screen" qa\/android-product-ux\/13-home-return\.xml/);
+  assert.match(workflow, /grep -q "now-screen" qa\/android-product-ux\/13-home-return\.xml/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });
