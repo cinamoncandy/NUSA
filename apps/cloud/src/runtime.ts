@@ -5,6 +5,7 @@ import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { readResearchExperimentSettings } from "./researchExperimentComposition";
+import { createEventLoopStallMonitor } from "./eventLoopStallMonitor";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
@@ -543,6 +544,9 @@ export function startCloudRuntime(
   }) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
+  // Display only: how long this process was blocked. A stall over the 30 s PAPER writer lease explains a lost lease.
+  const stallMonitor = createEventLoopStallMonitor();
+  stallMonitor.start();
   heartbeatTimer.unref?.();
 
   const loadPaperOperations = (principal: DashboardPrincipal): PersonalPaperOperationsSnapshot => {
@@ -610,7 +614,8 @@ export function startCloudRuntime(
       paperFillCount: heartbeat.paperFillCount,
       ...(heartbeat.lastPaperDecisionOutcome === null ? {} : { lastPaperDecisionOutcome: heartbeat.lastPaperDecisionOutcome }),
       lastError: heartbeat.lastError,
-      ...(previousStop === undefined ? {} : { previousStop })
+      ...(previousStop === undefined ? {} : { previousStop }),
+      ...stallMonitor.snapshot()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
       Object.freeze({ ...heartbeat }),
@@ -652,7 +657,7 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForReplacement: (periodId, reason) => requirePaperRealizedPeriodProducer().retireOpenPeriodForReplacement(periodId, reason),
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 

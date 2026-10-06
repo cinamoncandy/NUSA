@@ -128,6 +128,25 @@ test("/health publishes only the allowlisted liveness fields, whatever the sourc
   }, 41887);
 });
 
+test("/health publishes the event-loop stall numbers only as finite non-negative numbers, and only when supplied", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, eventLoopMaxStallMs: 6_100, eventLoopStallCount: 3.9, lastEventLoopStallAt: 1_950 }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.eventLoopMaxStallMs, 6_100);
+    assert.equal(body.runtime.eventLoopStallCount, 3);
+    assert.equal(body.runtime.lastEventLoopStallAt, 1_950);
+  }, 41901);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, eventLoopMaxStallMs: -1, eventLoopStallCount: "7 leak-sentinel-9", lastEventLoopStallAt: Number.NaN }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(Object.keys(body.runtime).sort(), Object.keys(LIVENESS).sort(), "invalid stall values are dropped, not published");
+    assert.doesNotMatch(res.body, /leak-sentinel-9/);
+  }, 41902);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, lastEventLoopStallAt: null }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.lastEventLoopStallAt, null);
+  }, 41903);
+});
+
 test("/health names the class of the runtime's own paper failures but never the detail after the colon", async () => {
   const cases = [
     ["paper account persistence failed: PAPER_LEDGER_RECONCILIATION_REQUIRED realized state -154.31476926 ledger -154.31476925 38 fills", "PAPER_ACCOUNT_PERSISTENCE_FAILED"],
@@ -146,7 +165,7 @@ test("/health names the class of the runtime's own paper failures but never the 
       const body = JSON.parse(res.body);
       assert.equal(body.runtime.lastError, expected, lastError);
       assert.doesNotMatch(res.body, /-154\.3|38 fills|abc123|acct-123|1234|abc-123|ledger/);
-    }, 41890 + index);
+    }, 41850 + index); // a range no other test file uses (41890-41897 overlapped paper-decision-outcome's 41893-41895)
   }
 });
 
