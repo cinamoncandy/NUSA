@@ -11,8 +11,8 @@ test("the field theme is the only preset, frozen and semantic", () => {
   for (const theme of [dark, light]) {
     assert.equal(theme.preset, "field");
     assert.equal(theme.mode, "dark");
-    assert.equal(theme.colors.background, "#02050A");
-    assert.equal(theme.colors.primary, "#5CE1FF");
+    assert.equal(theme.colors.background, "#05080D");
+    assert.equal(theme.colors.primary, "#E8F0F2");
     assert.equal(theme.radii.md, 12);
     assert.equal(theme.shadows.sm.opacity, 0);
     assert.equal(theme.icons.lg, 24);
@@ -81,18 +81,20 @@ test("React Native common intelligence components and preset-aware truthful Them
   assert.match(provider, /createTheme\(mode, preset\)/);
 });
 
-test("success stays visually distinct from the AI signal tone", () => {
+test("calm-v1: success is the plain white normal tone and never amber or red", () => {
   const theme = createTheme("dark");
-  assert.equal(theme.colors.success, "#3DDC97");
-  assert.notEqual(theme.colors.success.toLowerCase(), theme.colors.aiSignalEnd.toLowerCase());
+  assert.equal(theme.colors.success, "#E8F0F2");
+  assert.notEqual(theme.colors.success, theme.colors.warning);
+  assert.notEqual(theme.colors.success, theme.colors.danger);
 });
 
-test("field selection highlights use the cyan accent while amber stays a warning-only tone", () => {
+test("calm-v1: selection highlights are white while amber stays a warning-only tone", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const read = (name) => fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", name), "utf8");
-  assert.match(read("designSystem.ts"), /accent: "#5CE1FF"/);
+  assert.match(read("designSystem.ts"), /accent: "#E8F0F2"/);
   assert.match(read("intelligenceField.tsx"), /const FOCUS_COLOR = fieldPalette\.accent;/);
   assert.match(read("paperShadowMonitorView.tsx"), /mode === item \? fieldPalette\.accent : "transparent"/);
-  assert.equal(createTheme("dark").colors.warning, "#FFB547");
+  assert.equal(createTheme("dark").colors.warning, "#FFC266");
+  assert.equal(createTheme("dark").colors.danger, "#FF5C5C");
 });

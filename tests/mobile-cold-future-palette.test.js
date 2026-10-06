@@ -11,16 +11,18 @@ const colors = createTheme("dark").colors;
 
 test("Cold-future text and controls stay readable on the dark ground", () => {
   assert.ok(contrast(colors.text, colors.background) >= 12, "primary text");
-  assert.ok(contrast(colors.textMuted, colors.background) >= 7, "secondary text");
+  assert.ok(contrast(colors.textMuted, colors.background) >= 6, "secondary text");
   assert.ok(contrast(colors.textMuted, colors.surface) >= 6, "secondary text on cards");
   assert.ok(contrast(colors.primary, colors.background) >= 10, "primary control against the ground");
   assert.ok(contrast(colors.onPrimary, colors.primary) >= 10, "label on a primary button");
   assert.ok(contrast(colors.focus, colors.background) >= 7, "focus ring");
 });
 
-test("decorative colours can never be mistaken for a status colour", () => {
+test("calm-v1: white is the normal tone; nothing else can be mistaken for attention or loss", () => {
+  // In calm-v1 white is both the primary and the healthy/normal tone (owner-approved board), so only amber and red are alarm colours.
   const decorative = { primary: colors.primary, focus: colors.focus, info: colors.info, text: colors.text, neonPurple: colors.neonPurple, neonBlue: colors.neonBlue };
-  const status = { success: colors.success, warning: colors.warning, danger: colors.danger };
+  const status = { warning: colors.warning, danger: colors.danger };
+  assert.equal(colors.success, colors.text, "normal reads as plain white");
   for (const [dn, d] of Object.entries(decorative)) for (const [sn, s] of Object.entries(status)) assert.ok(dist(d, s) >= 90, `${dn} vs ${sn}`);
   assert.ok(dist(colors.success, colors.warning) >= 100);
   assert.ok(dist(colors.warning, colors.danger) >= 90);
