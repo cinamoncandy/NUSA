@@ -2713,3 +2713,10 @@ current_ops_clear_recovered_market_reject:
   owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
   finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_sec_shell_quote_advisory:
+  work_order: WO-SEC-20261006-SHELL-QUOTE-ADVISORY
+  status: READY_FOR_REVIEW
+  branch: claude/shell-quote-advisory
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
+  finding: "CI Security gate red on all heads: new critical shell-quote advisory 1241332; overridden to patched 1.11.0"
