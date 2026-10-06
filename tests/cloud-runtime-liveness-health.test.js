@@ -165,7 +165,7 @@ test("/health names the class of the runtime's own paper failures but never the 
       const body = JSON.parse(res.body);
       assert.equal(body.runtime.lastError, expected, lastError);
       assert.doesNotMatch(res.body, /-154\.3|38 fills|abc123|acct-123|1234|abc-123|ledger/);
-    }, 41890 + index);
+    }, 41850 + index); // a range no other test file uses (41890-41897 overlapped paper-decision-outcome's 41893-41895)
   }
 });
 
