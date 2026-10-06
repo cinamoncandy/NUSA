@@ -8,6 +8,7 @@ import { readResearchExperimentSettings } from "./researchExperimentComposition"
 import { createEventLoopStallMonitor } from "./eventLoopStallMonitor";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { attributeTodayLosses, type PaperLossAttribution } from "./paperLossAttribution";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
@@ -548,6 +549,15 @@ export function startCloudRuntime(
   const stallMonitor = createEventLoopStallMonitor();
   stallMonitor.start();
   // Display only: the same research collection status the app reads, as a code and two counts for /health.
+  // Today's losing sells per strategy family, recomputed at most every 30 s so /health stays cheap. Display only.
+  let lossAttributionCache: PaperLossAttribution | null = null;
+  const lossAttributionLiveness = () => {
+    const now = Date.now();
+    if (lossAttributionCache == null || now - lossAttributionCache.evaluatedAt >= 30_000) {
+      try { lossAttributionCache = effectivePaperLoop == null ? null : attributeTodayLosses(effectivePaperLoop.snapshot().fills, now); } catch { lossAttributionCache = null; }
+    }
+    return lossAttributionCache == null ? {} : { paperLossAttribution: lossAttributionCache };
+  };
   const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
   const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
     let progress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
@@ -627,7 +637,8 @@ export function startCloudRuntime(
       ...stallMonitor.snapshot(),
       ...researchLiveness(),
       paperFunnel: paperLearningRecorder.funnelSnapshot(),
-      ...lossSessionLiveness()
+      ...lossSessionLiveness(),
+      ...lossAttributionLiveness()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
       Object.freeze({ ...heartbeat }),

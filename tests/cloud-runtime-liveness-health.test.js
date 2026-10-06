@@ -283,3 +283,22 @@ test("/health publishes the loss-limit counts as five non-negative integers, and
     }, 42302 + index);
   }
 });
+
+test("/health publishes loss attribution only as fixed family codes with two integers each", async () => {
+  const good = { evaluatedAt: 1_791_284_000_000, byFamily: { SMA_CROSSOVER: { completedSells: 3, losingSells: 3 }, UNATTRIBUTED: { completedSells: 1, losingSells: 0 } } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: good }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperLossAttribution, good);
+  }, 42311);
+  const dirty = { evaluatedAt: 5, byFamily: { "sma-crossover": { completedSells: 1, losingSells: 1 }, "KRW-XRP": { completedSells: 1, losingSells: 1 }, RSI_MEAN_REVERSION: { completedSells: 1, losingSells: 2 }, DONCHIAN_BREAKOUT: { completedSells: 2, losingSells: 1, pnl: -219 } } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.paperLossAttribution.byFamily, { DONCHIAN_BREAKOUT: { completedSells: 2, losingSells: 1 } }, "raw ids, markets, impossible counts and extra fields are dropped");
+    assert.doesNotMatch(res.body, /KRW-XRP|sma-crossover|-219/);
+  }, 42312);
+  for (const [index, bad] of [null, "text", { evaluatedAt: -1, byFamily: {} }, { evaluatedAt: 1, byFamily: [] }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossAttribution, undefined, JSON.stringify(bad));
+    }, 42313 + index);
+  }
+});

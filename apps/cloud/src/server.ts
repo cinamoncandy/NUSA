@@ -100,6 +100,8 @@ export interface CloudRuntimeLivenessSnapshot {
   /** Cumulative PAPER decision-funnel counts since the runtime started: fixed codes and integer counts only. */
   readonly paperFunnel?: { readonly since: number; readonly counts: Readonly<Record<string, number>> };
   /** Counts behind the consecutive-loss limit as of the latest risk evaluation: integers and one timestamp only. */
+  /** Today's completed and losing sells per strategy family code (fixed codes, integers only). */
+  readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
   readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
 }
 
@@ -319,6 +321,21 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const lossSession = rawLoss != null && typeof rawLoss === "object" && LOSS_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
     ? { paperLossSession: Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])) }
     : {};
+  // Loss attribution: at most 8 fixed family codes, each with two non-negative integers.
+  const FAMILY_CODE = /^(SMA_CROSSOVER|RSI_MEAN_REVERSION|DONCHIAN_BREAKOUT|OTHER_FAMILY|UNATTRIBUTED)$/;
+  const rawAttribution = source.paperLossAttribution as { evaluatedAt?: unknown; byFamily?: unknown } | null | undefined;
+  let lossAttribution: { paperLossAttribution?: { evaluatedAt: number; byFamily: Record<string, { completedSells: number; losingSells: number }> } } = {};
+  if (rawAttribution != null && typeof rawAttribution === "object" && Number.isSafeInteger(rawAttribution.evaluatedAt) && Number(rawAttribution.evaluatedAt) >= 0 && rawAttribution.byFamily != null && typeof rawAttribution.byFamily === "object" && !Array.isArray(rawAttribution.byFamily)) {
+    const byFamily: Record<string, { completedSells: number; losingSells: number }> = {};
+    for (const [key, value] of Object.entries(rawAttribution.byFamily as Record<string, unknown>)) {
+      if (Object.keys(byFamily).length >= 8) break;
+      const entry = value as { completedSells?: unknown; losingSells?: unknown } | null;
+      if (FAMILY_CODE.test(key) && entry != null && typeof entry === "object" && Number.isSafeInteger(entry.completedSells) && Number.isSafeInteger(entry.losingSells) && Number(entry.losingSells) >= 0 && Number(entry.completedSells) >= Number(entry.losingSells)) {
+        byFamily[key] = { completedSells: Number(entry.completedSells), losingSells: Number(entry.losingSells) };
+      }
+    }
+    lossAttribution = { paperLossAttribution: { evaluatedAt: Number(rawAttribution.evaluatedAt), byFamily } };
+  }
   const rawResearch = source.researchCollectionStatus;
   const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
     ? {
@@ -327,7 +344,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
       ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
     }
     : {};
-  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);
