@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261006-LONGER-TIMEFRAMES
 title: "Proposal: compare longer bar timeframes (15/60/240 min) in Research"
-status: PROPOSED
+status: APPROVED_IMPLEMENTING
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main

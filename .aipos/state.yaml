@@ -2698,6 +2698,13 @@ current_research_longer_timeframes_proposal:
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('제안서 써줘'); implementation not approved"
   finding: "All tested families lose on 1-minute bars after costs; proposes a walk-forward Research comparison over 15/60/240-minute bars"
+current_research_timeframe_comparison:
+  work_order: WO-RESEARCH-20261006-TIMEFRAME-COMPARISON
+  status: READY_FOR_REVIEW
+  branch: claude/research-timeframe-comparison
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('제안서 구현 승인')"
+  finding: "Research experiments now also run on 15m/60m bars aggregated from stored 1m candles (research evidence only)"
 current_ops_clear_recovered_market_reject:
   work_order: WO-OPS-20261006-CLEAR-RECOVERED-MARKET-REJECT
   status: READY_FOR_REVIEW

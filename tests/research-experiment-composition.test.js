@@ -38,6 +38,9 @@ test("enabled but misconfigured stays disabled with one reason (fail closed)", (
     [env({ NUSA_RESEARCH_HOLDOUT_DAYS: "99" }), "NUMERIC_SETTING_INVALID"],
     [env({ NUSA_RESEARCH_TICK_MINUTES: "1" }), "NUMERIC_SETTING_INVALID"],
     [env({ NUSA_RESEARCH_DAILY_BUDGET: "1000" }), "NUMERIC_SETTING_INVALID"],
+    [env({ NUSA_RESEARCH_INTERVAL_MINUTES: "5" }), "INTERVALS_INVALID"],
+    [env({ NUSA_RESEARCH_INTERVAL_MINUTES: "60,60" }), "INTERVALS_INVALID"],
+    [env({ NUSA_RESEARCH_INTERVAL_MINUTES: "1.5" }), "INTERVALS_INVALID"],
   ];
   for (const [e, reason] of cases) {
     const lines = [];
@@ -55,6 +58,32 @@ test("valid settings use the documented defaults and explicit cost assumptions",
   assert.equal(r.settings.tickMs, 30 * M);
   assert.equal(r.settings.dailyBudgetPerVariant, 48);
   assert.deepEqual({ ...RESEARCH_BACKTEST_COST }, { initialCash: 1_000_000, feeRate: 0.0005, slippageBps: 5 });
+  assert.deepEqual([...r.settings.intervalsMinutes], [1], "default keeps the original 1m experiments only");
+  assert.deepEqual([...readResearchExperimentSettings(env({ NUSA_RESEARCH_INTERVAL_MINUTES: "1,15,60,240" })).settings.intervalsMinutes], [1, 15, 60, 240]);
+});
+
+test("longer bars run the same grid on 1m candles aggregated into complete bars, under separate identities", () => {
+  const db = open();
+  const store = new SqliteResearchCandleStore(db, 200_000);
+  const days = 11; const count = days * 1440;
+  const rows = Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 600) + (i % 11) * 0.2).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close }; });
+  store.append("KRW-BTC", M, rows);
+  const lines = [];
+  const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_DAILY_BUDGET: "10", NUSA_RESEARCH_INTERVAL_MINUTES: "1,60" }), database: db, now: () => T_END, log: (l) => lines.push(l) });
+  try {
+    assert.ok(composition);
+    assert.equal(composition.orchestrators.length, 2);
+    assert.equal(composition.orchestrator, composition.orchestrators[0]);
+    for (const o of composition.orchestrators) assert.equal(o.recover().status, "READY");
+    const report = composition.tickOnce();
+    assert.equal(report.started, 4, "the returned report stays the 1m report");
+    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick OK started=4")));
+    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick 60m OK started=4")), lines.join("\n"));
+    const hourly = composition.orchestrators[1].statusProjection();
+    assert.ok(hourly != null && hourly.experimentCount >= 1);
+    assert.equal(hourly.liveAuthority, "NONE");
+    assert.equal(hourly.challenger.authority, "ZERO_AUTHORITY");
+  } finally { composition.stop(); db.close(); }
 });
 
 test("enabled composition recovers, runs a real tick on stored candles and exposes the status the app reads", () => {

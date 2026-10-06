@@ -6,6 +6,7 @@ import { ResearchRecoveryCoordinator } from "./researchRecoveryCoordinator";
 import { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
 import { collectClosedCandles } from "./researchCandleCollector";
 import { backfillMarket, createUpbitMinuteCandleFetcher, type BackfillResult } from "./researchCandleBackfill";
+import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
 
 /**
  * Composition of the continuous research experiments. DISABLED unless NUSA_CLOUD_RESEARCH_EXPERIMENTS is exactly
@@ -21,6 +22,8 @@ export const RESEARCH_FLAG = "NUSA_CLOUD_RESEARCH_EXPERIMENTS";
 export const RESEARCH_BACKTEST_COST = Object.freeze({ initialCash: 1_000_000, feeRate: 0.0005, slippageBps: 5 });
 const CHAMPION_PROXY = Object.freeze({ fast: 5, slow: 20 }); // matches the owner-approved PAPER baseline parameters
 const CHALLENGER_GRID: readonly (readonly [number, number])[] = Object.freeze([[3, 10], [5, 30], [10, 40], [8, 20]]);
+/** Bar lengths research may compare (docs/PROPOSAL_RESEARCH_LONGER_TIMEFRAMES.md). Longer bars are built from stored 1m candles. */
+export const RESEARCH_INTERVAL_MINUTES: readonly number[] = Object.freeze([1, 15, 60, 240]);
 
 export interface ResearchExperimentSettings {
   readonly markets: readonly string[];
@@ -28,6 +31,8 @@ export interface ResearchExperimentSettings {
   readonly tickMs: number;
   readonly dailyBudgetPerVariant: number;
   readonly sourceCommitSha: string;
+  /** Bar lengths to run the same experiment grid on, in minutes. Default [1] (unchanged behaviour). */
+  readonly intervalsMinutes: readonly number[];
   /** Fill history from Upbit's public 1-minute candles at start. On unless NUSA_RESEARCH_BACKFILL is set to anything but ENABLED. */
   readonly backfill: boolean;
 }
@@ -55,6 +60,11 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
   const tickMinutes = intIn(env.NUSA_RESEARCH_TICK_MINUTES, 30, 5, 360);
   const budget = intIn(env.NUSA_RESEARCH_DAILY_BUDGET, 48, 1, 288);
   if (train == null || validation == null || holdout == null || tickMinutes == null || budget == null) return Object.freeze({ status: "INVALID", reason: "NUMERIC_SETTING_INVALID" });
+  const intervalsRaw = (env.NUSA_RESEARCH_INTERVAL_MINUTES ?? "1").split(",").map((value) => value.trim()).filter((value) => value !== "");
+  const intervalsMinutes = intervalsRaw.map(Number);
+  if (intervalsMinutes.length === 0 || intervalsMinutes.some((value) => !RESEARCH_INTERVAL_MINUTES.includes(value)) || new Set(intervalsMinutes).size !== intervalsMinutes.length) {
+    return Object.freeze({ status: "INVALID", reason: "INTERVALS_INVALID" });
+  }
   return Object.freeze({
     status: "ENABLED",
     settings: Object.freeze({
@@ -63,6 +73,7 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
       tickMs: tickMinutes * M,
       dailyBudgetPerVariant: budget,
       sourceCommitSha: commit,
+      intervalsMinutes: Object.freeze(intervalsMinutes),
       backfill: env.NUSA_RESEARCH_BACKFILL === undefined || env.NUSA_RESEARCH_BACKFILL === "ENABLED",
     }),
   });
@@ -70,6 +81,8 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
 
 export interface ResearchExperimentComposition {
   readonly orchestrator: ResearchExperimentOrchestrator;
+  /** One orchestrator per configured bar length, in settings order; `orchestrator` is the first. */
+  readonly orchestrators: readonly ResearchExperimentOrchestrator[];
   readonly tickOnce: () => TickReport;
   readonly backfill: () => Promise<readonly BackfillResult[]>;
   readonly start: () => void;
@@ -102,32 +115,44 @@ export function composeResearchExperiments(input: {
   const recovery = new ResearchRecoveryCoordinator({ repository: candidates, evaluationLedger: ledger, now });
 
   const market = settings.markets[0]!;
+  const bars = new AggregatedResearchCandleSource(store, M);
   const proxy = (id: string, fast: number, slow: number) => buildSmaResearchStrategy({ strategyId: id, version: "1.0.0", market, fastPeriod: fast, slowPeriod: slow, takeProfitPercent: 3, stopLossPercent: 2, positionPercent: 50, maxPositionNotional: 500_000 });
-  const champion = proxy("research-champion-sma", CHAMPION_PROXY.fast, CHAMPION_PROXY.slow);
-  const evaluatorFor = <A extends "PAPER_ONLY" | "ZERO_AUTHORITY">(strategy: ReturnType<typeof proxy>, authority: A) => new BacktestResearchEvaluator<A>({
-    strategyId: strategy.strategyId, strategyVersion: strategy.version, authority, evaluatorVersion: "backtest-eval-v1",
-    strategy, candles: store, intervalMs: M, backtest: RESEARCH_BACKTEST_COST,
-  });
-  const variants: ResearchVariant[] = CHALLENGER_GRID.map(([fast, slow]) => {
-    const variantId = `sma_${fast}_${slow}`;
-    const challenger = proxy(`research-challenger-${variantId}`, fast, slow);
-    const coordinator = new ResearchRuntimeCoordinator({ champion: evaluatorFor(champion, "PAPER_ONLY"), challenger: evaluatorFor(challenger, "ZERO_AUTHORITY"), ledger });
-    const runtime = new ResearchAutomationRuntime({
-      coordinator, sessions, memory, registerCandidate: (identity) => { log(`[research-experiments] candidate gate eligible (not registered, governed promotion paths unchanged): ${identity.strategyId}@${identity.strategyVersion}`); return Object.freeze({ identity, lifecycle: "RESEARCHING" as const }); }, listCandidates: () => candidates.listCandidates(),
-      recovery, now, maxEvidenceAgeMs: 14 * DAY_MS,
+  // One orchestrator per bar length. The 1m set keeps its original identities; longer bars carry the length in
+  // every strategy id and experiment family so their evidence, sessions and holdouts never mix with 1m evidence.
+  const buildOrchestrator = (minutes: number): { orchestrator: ResearchExperimentOrchestrator; variantCount: number } => {
+    const intervalMs = minutes * M;
+    const tag = minutes === 1 ? "" : `-${minutes}m`;
+    const champion = proxy(`research-champion-sma${tag}`, CHAMPION_PROXY.fast, CHAMPION_PROXY.slow);
+    const evaluatorFor = <A extends "PAPER_ONLY" | "ZERO_AUTHORITY">(strategy: ReturnType<typeof proxy>, authority: A) => new BacktestResearchEvaluator<A>({
+      strategyId: strategy.strategyId, strategyVersion: strategy.version, authority, evaluatorVersion: "backtest-eval-v1",
+      strategy, candles: bars, intervalMs, backtest: RESEARCH_BACKTEST_COST,
     });
-    return { variantId, champion: { strategy: champion, config: CHAMPION_PROXY }, challenger: { strategy: challenger, config: { fast, slow } }, runtime };
-  });
-
-  const orchestrator = new ResearchExperimentOrchestrator({
-    variants, sessions, markets: settings.markets, intervalMs: M, windows: settings.windows, dailyBudgetPerVariant: settings.dailyBudgetPerVariant,
-    collect: (nowMs) => { collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store }); },
-    candles: store, holdout, now, sourceCommitSha: settings.sourceCommitSha,
-    models: { fill: "fill-close-v1", fee: `fee-${RESEARCH_BACKTEST_COST.feeRate}-v1`, slippage: `slip-${RESEARCH_BACKTEST_COST.slippageBps}bps-v1` },
-    evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
-    featurePipeline: { version: "closed-candle-agg-v1", config: { intervalMs: M, maxInternalGapMs: 30_000, volume: 0 } },
-    experimentFamilyPrefix: "sma-research",
-  });
+    const variants: ResearchVariant[] = CHALLENGER_GRID.map(([fast, slow]) => {
+      const variantId = `sma_${fast}_${slow}${tag.replace("-", "_")}`;
+      const challenger = proxy(`research-challenger-${variantId}`, fast, slow);
+      const coordinator = new ResearchRuntimeCoordinator({ champion: evaluatorFor(champion, "PAPER_ONLY"), challenger: evaluatorFor(challenger, "ZERO_AUTHORITY"), ledger });
+      const runtime = new ResearchAutomationRuntime({
+        coordinator, sessions, memory, registerCandidate: (identity) => { log(`[research-experiments] candidate gate eligible (not registered, governed promotion paths unchanged): ${identity.strategyId}@${identity.strategyVersion}`); return Object.freeze({ identity, lifecycle: "RESEARCHING" as const }); }, listCandidates: () => candidates.listCandidates(),
+        recovery, now, maxEvidenceAgeMs: 14 * DAY_MS,
+      });
+      return { variantId, champion: { strategy: champion, config: CHAMPION_PROXY }, challenger: { strategy: challenger, config: { fast, slow } }, runtime };
+    });
+    const orchestrator = new ResearchExperimentOrchestrator({
+      variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant,
+      // Closed 1m candles are collected once per tick by the 1m-equivalent first orchestrator only.
+      collect: (nowMs) => { if (minutes === settings.intervalsMinutes[0]) collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store }); },
+      candles: bars, holdout, now, sourceCommitSha: settings.sourceCommitSha,
+      models: { fill: "fill-close-v1", fee: `fee-${RESEARCH_BACKTEST_COST.feeRate}-v1`, slippage: `slip-${RESEARCH_BACKTEST_COST.slippageBps}bps-v1` },
+      evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
+      featurePipeline: { version: "closed-candle-agg-v1", config: { intervalMs, maxInternalGapMs: 30_000, volume: 0 } },
+      experimentFamilyPrefix: `sma-research${tag}`,
+    });
+    return { orchestrator, variantCount: variants.length };
+  };
+  const built = settings.intervalsMinutes.map(buildOrchestrator);
+  const orchestrators = Object.freeze(built.map((entry) => entry.orchestrator));
+  const orchestrator = orchestrators[0]!;
+  const variantCount = built.reduce((sum, entry) => sum + entry.variantCount, 0);
 
   const fetchPage = createUpbitMinuteCandleFetcher(input.fetchImpl ?? fetch);
   const sleep = input.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -168,13 +193,23 @@ export function composeResearchExperiments(input: {
   let first: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   const tickOnce = (): TickReport => {
-    const report = orchestrator.tick();
-    const completed = report.experiments.filter((e) => e.outcome.status === "COMPLETED").length;
-    log(`[research-experiments] tick ${report.status} started=${report.started} resumed=${report.resumed} stopped=${report.stopped} experiments=${report.experiments.length} completed=${completed}`);
-    return report;
+    let first: TickReport | undefined;
+    settings.intervalsMinutes.forEach((minutes, index) => {
+      try {
+        const report = orchestrators[index]!.tick();
+        if (index === 0) first = report;
+        const completed = report.experiments.filter((e) => e.outcome.status === "COMPLETED").length;
+        log(`[research-experiments] tick ${minutes === 1 ? "" : `${minutes}m `}${report.status} started=${report.started} resumed=${report.resumed} stopped=${report.stopped} experiments=${report.experiments.length} completed=${completed}`);
+      } catch (error) {
+        if (index === 0) throw error;
+        log(`[research-experiments] tick ${minutes}m failed: ${error instanceof Error ? error.message : "unknown"}`);
+      }
+    });
+    return first!;
   };
   return Object.freeze({
     orchestrator,
+    orchestrators,
     tickOnce,
     backfill,
     start: () => {
@@ -184,7 +219,7 @@ export function composeResearchExperiments(input: {
       first.unref?.();
       timer = setInterval(() => { try { tickOnce(); } catch { /* isolated */ } }, settings.tickMs);
       timer.unref?.();
-      log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variants.length} tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
+      log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
     stop: () => { stopped = true; if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });

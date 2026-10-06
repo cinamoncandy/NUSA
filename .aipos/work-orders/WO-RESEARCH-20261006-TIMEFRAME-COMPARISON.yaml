@@ -1,0 +1,27 @@
+id: WO-RESEARCH-20261006-TIMEFRAME-COMPARISON
+title: "Run the research experiment grid on 15m and 60m bars alongside 1m"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/research-timeframe-comparison
+authority_impact: none
+owner_approval: "2026-10-06 in chat: '제안서 구현 승인 (추천)' for docs/PROPOSAL_RESEARCH_LONGER_TIMEFRAMES.md"
+objective: "All tested families lose on 1-minute bars after costs. Run the same walk-forward experiment grid on longer bars so Research evidence covers timeframes where costs are a smaller share of each move."
+scope:
+  - "apps/cloud/src/researchCandleAggregation.ts (new): read-only source that builds N-minute OHLC bars from stored 1m candles; a bar is emitted only when every 1m candle in it exists (no synthetic bars)."
+  - "apps/cloud/src/researchExperimentComposition.ts: NUSA_RESEARCH_INTERVAL_MINUTES (allowed 1,15,60,240; default 1 = unchanged). One orchestrator per bar length with length-tagged strategy ids, variant ids and experiment families; 1m identities and log lines unchanged; candles collected once per tick; a longer-bar failure never stops the 1m tick."
+  - "scripts/start-cloud-runtime.js + deploy/oracle/research-experiments.json: optional owner intervalMinutes list, validated fail-closed; production list [1,15,60]."
+  - "tests: aggregation (complete bars, gap not synthesized, pass-through, non-multiple rejected), settings parsing, 1m+60m composition tick, launcher owner file."
+exclusions:
+  - "No change to the running PAPER strategy, confidence threshold, risk limits, capital, orders, promotion paths or LIVE. Research evidence only; candidates are still only logged by this path."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Invalid interval settings disable research experiments with one reason; incomplete bars stay missing for the walk-forward missing-data gate."
+rollback: "Remove intervalMinutes from deploy/oracle/research-experiments.json, or revert."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-candle-aggregation.test.js tests/research-experiment-composition.test.js tests/research-experiment-orchestrator.test.js tests/research-experiment-pipeline.test.js tests/cloud-runtime-launcher.test.js
+residual: "/health researchExperimentTicks still reports the 1m orchestrator only. 240m is supported but not enabled because the default windows hold too few 4h bars."
