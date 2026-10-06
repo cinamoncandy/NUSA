@@ -24,6 +24,7 @@ import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllo
 import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, armWarmResumeCutoff, isPaperConnectionVerified, isWarmResumeFresh, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
+import { loadAnonymousPaperObservation } from "./src/observation/anonymousObservationClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
 import { loadRealReadOnlyOperations, type RealReadOnlyOperationsLoadResult } from "./src/realReadOnlyOperationsClient";
 import { loadLiveReadinessOperations, type LiveReadinessOperationsLoadResult } from "./src/liveReadinessOperationsClient";
@@ -253,7 +254,17 @@ function AuthenticatedApp() {
       setShadowOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before SHADOW reads." });
       setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before REAL_READ_ONLY reads." });
       setLiveReadinessOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before LIVE readiness reads." });
-      return Promise.resolve();
+      const observation = (async () => {
+        const result = await loadAnonymousPaperObservation();
+        if (generation !== refreshGenerationRef.current) return;
+        const current = getConfiguredPaperEndpoint();
+        if (current != null && isPaperConnectionVerified(current)) return;
+        if (result.status === "READY") setOperations({ status: "READY", snapshot: result.snapshot });
+      })();
+      const clearObservation = () => { if (refreshInFlightRef.current === observation) refreshInFlightRef.current = null; };
+      refreshInFlightRef.current = observation;
+      void observation.then(clearObservation, clearObservation);
+      return observation;
     }
     dispatchRuntime({ type: "RECOVERY_STARTED" });
     const request = (async () => {
