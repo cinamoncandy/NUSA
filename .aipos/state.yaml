@@ -2661,3 +2661,10 @@ current_paper_minute_bar_strategy:
   owner_approval: "2026-10-06 in chat ('2번으로 진행해')"
   finding: "SMA 5/20 ran on every ticker event (12 s holds; tick replay 0.5% wins, -51% net after fees). The candidate strategy now uses completed 1-minute closes from the persisted ticker store; no parameter or threshold changed"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ui_touch_visual_calm:
+  work_order: WO-UI-20261006-TOUCH-VISUAL-CALM
+  status: READY_FOR_REVIEW
+  branch: claude/fix-touch-visual-calm
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive; regression from #2541)"
+  finding: "touch-visual failed on every PR since #2541 because it waited for replaced testIDs; re-keyed on the calm-v1 screens and tied to the presenters"
