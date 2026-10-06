@@ -1,25 +1,25 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const { holoFillMarker, holoChipPlacement, HOLO_RADIUS_FRACTION, HOLO_COLORS, BURST_FILL_ANGLE, BURST_FILL_REACH } = require("../dist/apps/mobile/src/holoModel.js");
+const { holoFillMarker, holoChipPlacement, HOLO_COLORS, FLOW_WALL_END, FLOW_BAND_Y } = require("../dist/apps/mobile/src/holoModel.js");
 const { fieldHero, createTheme } = require("../dist/apps/mobile/src/designSystem.js");
 const { vitalUsesHeroAccent } = require("../dist/apps/mobile/src/homeVitalsModel.js");
 const read = (f) => fs.readFileSync(`apps/mobile/src/${f}`, "utf8");
 
-test("the fill marker and the market chip sit inside the hero canvas for every plausible size and label", () => {
+test("the order marker and the market chip sit inside the hero canvas for every plausible size and label", () => {
   const m = holoFillMarker(300);
-  assert.ok(Math.abs(m.x - (150 + Math.cos(BURST_FILL_ANGLE) * 300 * HOLO_RADIUS_FRACTION * BURST_FILL_REACH)) < 1e-9);
+  assert.ok(Math.abs(m.x - 300 * FLOW_WALL_END) < 1e-9 && Math.abs(m.y - 300 * FLOW_BAND_Y) < 1e-9, "the marker is the right end of the order band");
   for (const size of [200, 300, 360]) {
     const marker = holoFillMarker(size);
-    assert.ok(marker.x > size / 2 && marker.x < size && marker.y > size / 2 && marker.y < size, "lower right of the core, inside the canvas");
+    assert.ok(marker.x > size / 2 && marker.x < size && marker.y > size / 2 && marker.y < size, "lower right of the field, inside the canvas");
     for (const label of ["KRW-XRP", "KRW-BTC", "KRW-DOGE", "KRW-1INCH", "KRW-A", "KRW-ABCDEFGHIJKLMNOP"]) {
       const c = holoChipPlacement(size, label);
       assert.ok(c.left >= 0 && c.left + c.width <= size, `${label} stays inside ${size}`);
-      assert.ok(c.top > 0 && c.top < size && c.width >= 16);
+      assert.ok(c.top >= 0 && c.top < marker.y && c.width >= 16, "the chip sits above the band, never on it");
     }
   }
   const xrp = holoChipPlacement(300, "KRW-XRP");
-  assert.ok(xrp.left > holoFillMarker(300).x, "the chip sits to the right of the marker when there is room");
+  assert.ok(xrp.left + xrp.width <= 300 && xrp.left + xrp.width >= holoFillMarker(300).x - 1, "the chip ends at the band's right end when there is room");
 });
 
 test("the hero accent is the figure's own lime and is never a status colour", () => {
@@ -39,8 +39,8 @@ test("only a healthy learning tile takes the hero accent; warnings and missing d
 
 test("the HOME hero block explains the new figure, shows the market chip only when nothing is wrong, and passes the market through", () => {
   const rings = read("decisionRings.tsx"), home = read("homeView.tsx");
-  assert.match(rings, /판단마다 핵에서 빛이 퍼지고, 주문이 나가면 종목까지 선이 이어집니다/);
-  assert.ok(!/물결이 지나가고|바깥으로 퍼졌다/.test(rings), "the old figure's description is gone");
+  assert.match(rings, /판단마다 벽의 한 줄이 밝아지고, 주문이 나가면 라임 띠가 가로지릅니다/);
+  assert.ok(!/물결이 지나가고|바깥으로 퍼졌다|핵에서 빛이 퍼지고/.test(rings), "the old figures' descriptions are gone");
   assert.match(rings, /marketLabel != null && MARKET_CHIP\.test\(marketLabel\) && status == null/, "no chip while the runtime is held or halted");
   assert.match(rings, /color: fieldHero\.lime \}\]\} testID="home-decision-rings-orders"/);
   assert.match(home, /marketLabel=\{heroMarket\}/);
