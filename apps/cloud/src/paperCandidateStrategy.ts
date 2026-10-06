@@ -174,8 +174,10 @@ export function evaluatePaperCandidateStrategy(
   observations: readonly IntelligenceObservation[],
   now: number,
   market?: string,
+  /** Completed minute closes; when supplied they replace the per-ticker series (see paperMinuteBars.ts). */
+  minuteCloses?: readonly (readonly [number, number])[],
 ): PaperCandidateStrategyDecision {
-  const prices = canonicalPrices(observations, now, market);
+  const prices = minuteCloses ?? canonicalPrices(observations, now, market);
   if (spec.familyId === SMA_FAMILY) return evaluateSma(spec, prices, now);
   if (spec.familyId === RSI_FAMILY) return evaluateRsi(spec, prices, now);
   if (spec.familyId === DONCHIAN_FAMILY) return evaluateDonchian(spec, prices, now);
