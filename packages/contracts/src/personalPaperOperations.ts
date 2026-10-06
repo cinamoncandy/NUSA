@@ -59,6 +59,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly tradedMarkets?: readonly string[];
   /** Display only: how much 1-minute candle history the research experiments have collected. Absent when research is off. */
   readonly researchCollection?: PersonalPaperResearchCollection;
+  /** Display only: why researchCollection is absent. DISABLED: the continuous research experiments are off on this server; INVALID: their settings are rejected; UNAVAILABLE: they are on but the candle store could not be read. Never present together with researchCollection. */
+  readonly researchCollectionState?: "DISABLED" | "INVALID" | "UNAVAILABLE";
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -284,9 +286,11 @@ function deriveHealth(input: PersonalPaperOperationsInput): PersonalPaperOperati
     input.operations.killSwitchActive || input.operations.accountHalted || input.operations.runtimeState === "HALTED" ||
     input.research?.health === "FAIL_CLOSED" || input.research?.recoveryStatus === "FAIL_CLOSED"
   ) return "FAIL_CLOSED";
+  // Research is optional learning: while it is still gathering data (DEGRADED with no experiments yet) or its evidence is old (STALE) it
+  // must not mark PAPER operations as unhealthy. Only a research FAIL_CLOSED, above, still does. Owner decision in chat 2026-10-06.
   if (
     input.dashboard.overallHealth === "DEGRADED" || !["READY", "RUNNING"].includes(input.operations.runtimeState) || input.operations.transport !== "ONLINE" ||
-    input.operations.pendingWrites > 0 || (input.research != null && (input.research.health !== "HEALTHY" || input.research.recoveryStatus !== "READY"))
+    input.operations.pendingWrites > 0
   ) return "DEGRADED";
   return "HEALTHY";
 }
@@ -352,6 +356,7 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   }
   if (record.lastDecisionDetail !== undefined && !isValidDecisionDetail(record.lastDecisionDetail)) delete record.lastDecisionDetail;
   if (record.researchCollection !== undefined && !isValidResearchCollection(record.researchCollection)) delete record.researchCollection;
+  if (record.researchCollectionState !== undefined && (record.researchCollection !== undefined || !["DISABLED", "INVALID", "UNAVAILABLE"].includes(record.researchCollectionState as string))) delete record.researchCollectionState;
   if (record.tradedMarkets !== undefined && !isValidMarketList(record.tradedMarkets)) delete record.tradedMarkets;
 }
 
@@ -365,10 +370,14 @@ function isValidResearchCollection(value: unknown): boolean {
   const v = value as Record<string, unknown>;
   return typeof v.market === "string" && /^KRW-[A-Z0-9-]{1,16}$/.test(v.market)
     && isCount(v.candleCount) && isCount(v.requiredCandles, 1)
-    && (v.firstCloseMs === undefined || isCount(v.firstCloseMs))
-    && (v.lastCloseMs === undefined || isCount(v.lastCloseMs))
-    && isCount(v.observedAt);
+    && (v.firstCloseMs === undefined || isTimeMs(v.firstCloseMs))
+    && (v.lastCloseMs === undefined || isTimeMs(v.lastCloseMs))
+    && isTimeMs(v.observedAt);
 }
+
+// Epoch milliseconds (about 1.8e12 today) are times, not counts: they must not be held to the 100,000,000 count limit, which rejected every real time
+// and made the app show "집계 미수신". The upper bound is the largest time a JavaScript Date can hold.
+const isTimeMs = (value: unknown): boolean => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 8_640_000_000_000_000;
 
 const DECISION_CODE = /^[A-Z_]{2,16}$/;
 const DECISION_REASON = /^[A-Za-z0-9_.:/=+-]{1,160}$/;

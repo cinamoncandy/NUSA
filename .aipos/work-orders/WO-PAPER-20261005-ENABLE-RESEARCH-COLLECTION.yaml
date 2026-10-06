@@ -1,0 +1,26 @@
+id: WO-PAPER-20261005-ENABLE-RESEARCH-COLLECTION
+title: "Owner decision: run the continuous research experiments (learning data collection) on the PAPER server"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/enable-research-collection
+authority_impact: research_collection_enablement
+owner_approval: "Owner instruction in chat, 2026-10-05: '학습 데이터 수집 키고' (turn the learning data collection on), after being told it is research-only, uses public Upbit candles, places no orders, and uses CPU and memory on the 1 GB host."
+objective: "HOME shows the learning data as 'not received' because the continuous research experiments are off (they run only when NUSA_CLOUD_RESEARCH_EXPERIMENTS=1, default off, fail closed). Turn them on through a reviewed release, the same way the owner's PAPER account and markets reach the host."
+scope:
+  - "deploy/oracle/research-experiments.json (new): schemaVersion 1, experiments true, decided by owner 2026-10-05, with the note that it is research evidence only and is turned off by setting false in a reviewed release."
+  - "scripts/start-cloud-runtime.js: readOwnerResearch and a fifth buildRuntimeEnv argument apply NUSA_CLOUD_RESEARCH_EXPERIMENTS from the file over the host environment (1 or 0); a malformed file throws at start (fail closed); absent file applies nothing."
+  - "tests/cloud-runtime-launcher.test.js: the file turns it on over a host that left it off, applies nothing when the host agrees, false switches off, no file applies nothing, five malformed shapes throw, and the runtime's own checks still hold (a valid 40-hex build commit is required, the owner market KRW-XRP is used)."
+exclusions:
+  - "No change to research code, windows, budgets or markets: the runtime defaults stay (train 7, validation 2, holdout 2 days, tick every 30 minutes, daily budget 48 per variant, backfill of public candles at start, owner market KRW-XRP). Nothing is promoted or registered by this path; it places no orders and changes no capital, min-order, risk, execution, LIVE, credential or AI-authority setting. No paid AI."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The runtime still rejects a missing or malformed build commit or invalid research settings and then reports research as INVALID (WO-PAPER-20261005-LEARNING-COLLECTION-REASON), never as healthy."
+rollback: "Set experiments to false in this file in a reviewed release, or revert the change."
+verification_commands:
+  - node --test tests/cloud-runtime-launcher.test.js
+  - node --test tests/mobile-research-progress.test.js tests/research-experiment-composition.test.js
+residual: "Resource effect on the 954 MB host is unmeasured. The runtime holds the experiments in the main process: backfill fetches about 16 thousand public 1-minute candles at start and a backtest runs every 30 minutes. After the deploy check the host diagnosis (memory, restarts) and the HOME learning line; if memory pressure shows, the file can be turned off in a reviewed release. Collecting the first 11 days of history takes time before the first experiment can run unless the backfill fills it immediately."

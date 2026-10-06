@@ -11,11 +11,11 @@ const withoutComments = (source) => source
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
-  assert.match(design, /background: "#02050A"/);
+  assert.match(design, /background: calmPalette\.ground/);
   assert.doesNotMatch(design, /classic:|master:/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
-  assert.match(design, /chartUp: fieldPalette\.paper/);
+  assert.match(design, /chartUp: calmPalette\.text/);
   assert.match(primitives, /metricAccent: \{ position: "absolute", left: 14, right: 14/);
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });

@@ -32,7 +32,7 @@ const SHORT_COPY: Readonly<Record<string, string>> = Object.freeze({
   AI_P0_UNVERIFIABLE: "경보 확인 불가",
   DASHBOARD_FAULTED: "서버 장애",
 });
-const MAX_RAW = 160;
+const MAX_RAW = 260;
 const CODE = /^[A-Z][A-Z0-9_]{2,63}$/;
 // Per-tick market rejections are diagnostics, not halts (same rule as the server projection).
 const DIAGNOSTIC_ERROR_PREFIX = "PUBLIC_MARKET_EVENT_REJECTED:";
@@ -42,8 +42,26 @@ const bounded = (value: string): string => {
   return flat.length > MAX_RAW ? `${flat.slice(0, MAX_RAW - 1)}…` : flat;
 };
 
+const PERSISTENCE_PREFIX = "paper account persistence failed";
+
+/** Plain-Korean hint for why a PAPER account save failed, from the server's short cause text; null when it matches nothing known. */
+function describePersistenceCause(cause: string): string | null {
+  const c = cause.toLowerCase();
+  if (/lease|writer/.test(c)) return "다른 프로세스가 쓰기 권한을 쥐고 있거나 권한을 잃었습니다";
+  if (/readonly|read only|read-only/.test(c)) return "저장소가 읽기 전용입니다";
+  if (/\bfull\b|enospc|no space/.test(c)) return "저장 공간이 부족합니다";
+  if (/busy|locked/.test(c)) return "저장소가 다른 작업에 잠겨 있습니다";
+  if (/cantopen|unable to open|eacces|permission/.test(c)) return "저장소 파일을 열거나 쓸 권한이 없습니다";
+  if (/ledger|reconcil|checksum|schema|invalid/.test(c)) return "장부가 체결 기록과 맞지 않거나 형식이 올바르지 않습니다";
+  return null;
+}
+
 /** Known server error codes in task-level Korean; anything else gets a generic line (raw text stays diagnostic). */
 function describeServerError(code: string): string {
+  if (code.startsWith(PERSISTENCE_PREFIX)) {
+    const hint = describePersistenceCause(code.slice(PERSISTENCE_PREFIX.length));
+    return hint == null ? "모의 계좌 상태를 서버가 저장하지 못했습니다" : `모의 계좌 상태를 서버가 저장하지 못했습니다 (${hint})`;
+  }
   if (code === "PAPER_EXECUTION_FAILED" || code.startsWith("PAPER_EXECUTION_")) return "모의 주문 실행이 실패했습니다";
   if (code === "PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE") return "호가 정보를 가져오지 못했습니다";
   if (code === "PAPER_ORDERBOOK_UNRECONCILED") return "호가 정보가 서로 맞지 않아 확인 중입니다";

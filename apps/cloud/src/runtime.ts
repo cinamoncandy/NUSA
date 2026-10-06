@@ -4,8 +4,12 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
+import { readResearchExperimentSettings } from "./researchExperimentComposition";
+import { createEventLoopStallMonitor } from "./eventLoopStallMonitor";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { attributeTodayLosses, type PaperLossAttribution } from "./paperLossAttribution";
+import { classifyPaperWait } from "./paperWaitReason";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
@@ -81,7 +85,7 @@ export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDash
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
 export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRuntimeMarketDataTick): void; }
 export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryResult; }
-export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; }
+export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; experimentTicks?(): { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null; }
 export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void, onOrderBook?: (orderBook: UpbitOrderBook) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
 export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
@@ -165,7 +169,9 @@ export function startCloudRuntime(
   shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider,
   liveReadinessSourceReaders?: LiveReadinessSourceReaders,
   realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider,
-  engineeringOperatingSource?: NusaEngineeringOperatingSource
+  engineeringOperatingSource?: NusaEngineeringOperatingSource,
+  /** Display-only status of the production closed-learning loop (see closedLearningLoopStatus.ts). */
+  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined>> | null
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -226,7 +232,11 @@ export function startCloudRuntime(
     // Display only; a failing provider must never affect the heartbeat.
     let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }
-    const research = researchProgress == null ? {} : { researchCollection: researchProgress };
+    // When there is no progress, say why (display only): off, rejected settings, or enabled but unreadable.
+    const researchSettings = researchProgress == null ? readResearchExperimentSettings(env) : undefined;
+    const research = researchProgress != null
+      ? { researchCollection: researchProgress }
+      : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
     return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
@@ -433,7 +443,7 @@ export function startCloudRuntime(
         if (canonicalDecision != null) lastDecisionDetail = describeCanonicalDecision(canonicalDecision, now);
         paperLearningRecorder.record({ cycleId, stage: "MARKET_DATA", occurredAt: ticker.trade_timestamp, market: ticker.code, status: "PASS", reason: `source=UPBIT_PUBLIC_TICKER;observedAt=${ticker.trade_timestamp}` });
         const decisionSupported = canonicalDecision != null && ["BUY", "SELL", "HOLD", "REDUCE", "INCREASE"].includes(canonicalDecision.action);
-        paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
+        paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : canonicalDecision.action === "WAIT" ? `NO_ACTIONABLE_PAPER_DECISION:WAIT:${classifyPaperWait(canonicalDecision) ?? "NO_SIGNAL"}` : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
         paperLearningRecorder.record({ cycleId, stage: "PERMISSION", occurredAt: now, market: ticker.code, status: "SKIP", reason: "NO_CANONICAL_TRADE_PERMISSION_EVIDENCE" });
         if (result != null) {
           heartbeat.lastPaperDecisionOutcome = codePaperDecisionOutcome(result);
@@ -445,7 +455,11 @@ export function startCloudRuntime(
           heartbeat.paperFillCount += result.fills.length;
           // Display-only: a BUY decision, and a BUY the boundary explicitly refused (BLOCKED or REJECTED). WAIT, DUPLICATE and FAILED are not counted as refusals.
           if (canonicalDecision?.action === "BUY") { rollBuyWindow(Date.now()); buyWindow.signals += 1; if (result.status === "BLOCKED" || result.status === "REJECTED") buyWindow.blocked += 1; }
-          if (result.status === "FAILED") recordFailure(result.reason ?? "PAPER_EXECUTION_FAILED");
+          if (result.status === "FAILED") {
+            // The reason stays the stable code; the underlying cause (lease lost, ledger mismatch, read-only database ...) is appended for the advanced diagnostic line.
+            const detail = result.reason === "paper account persistence failed" ? effectivePaperLoop?.persistenceFailureDetail() ?? null : null;
+            recordFailure(detail == null ? (result.reason ?? "PAPER_EXECUTION_FAILED") : `${result.reason}: ${detail}`);
+          }
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
           paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });
@@ -534,6 +548,29 @@ export function startCloudRuntime(
   }) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
+  // Display only: how long this process was blocked. A stall over the 30 s PAPER writer lease explains a lost lease.
+  const stallMonitor = createEventLoopStallMonitor();
+  stallMonitor.start();
+  // Display only: the same research collection status the app reads, as a code and two counts for /health.
+  // Today's losing sells per strategy family, recomputed at most every 30 s so /health stays cheap. Display only.
+  let lossAttributionCache: PaperLossAttribution | null = null;
+  const lossAttributionLiveness = () => {
+    const now = Date.now();
+    if (lossAttributionCache == null || now - lossAttributionCache.evaluatedAt >= 30_000) {
+      try { lossAttributionCache = effectivePaperLoop == null ? null : attributeTodayLosses(effectivePaperLoop.snapshot().fills, now); } catch { lossAttributionCache = null; }
+    }
+    return lossAttributionCache == null ? {} : { paperLossAttribution: lossAttributionCache };
+  };
+  const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
+  const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
+  const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
+  const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
+    let progress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
+    try { progress = researchAutomation?.collectionProgress?.() ?? null; } catch { progress = null; }
+    if (progress != null) return { researchCollectionStatus: "COLLECTING", researchCandleCount: progress.candleCount, researchRequiredCandles: progress.requiredCandles };
+    const settings = readResearchExperimentSettings(env);
+    return { researchCollectionStatus: settings.status === "DISABLED" ? "DISABLED" : settings.status === "INVALID" ? "INVALID" : "UNAVAILABLE" };
+  };
   heartbeatTimer.unref?.();
 
   const loadPaperOperations = (principal: DashboardPrincipal): PersonalPaperOperationsSnapshot => {
@@ -601,7 +638,14 @@ export function startCloudRuntime(
       paperFillCount: heartbeat.paperFillCount,
       ...(heartbeat.lastPaperDecisionOutcome === null ? {} : { lastPaperDecisionOutcome: heartbeat.lastPaperDecisionOutcome }),
       lastError: heartbeat.lastError,
-      ...(previousStop === undefined ? {} : { previousStop })
+      ...(previousStop === undefined ? {} : { previousStop }),
+      ...stallMonitor.snapshot(),
+      ...researchLiveness(),
+      paperFunnel: paperLearningRecorder.funnelSnapshot(),
+      ...lossSessionLiveness(),
+      ...lossAttributionLiveness(),
+      ...researchExperimentLiveness(),
+      ...closedLearningLiveness()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
       Object.freeze({ ...heartbeat }),
@@ -643,7 +687,7 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForReplacement: (periodId, reason) => requirePaperRealizedPeriodProducer().retireOpenPeriodForReplacement(periodId, reason),
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 

@@ -1,5 +1,6 @@
 import type { SecureStoragePort } from "./mobileSecurity";
 import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
+import { markStartup } from "./startupTiming";
 
 // The refresh token is the only persisted credential and is stored through the Android
 // Keystore-backed SecureStoragePort. Access tokens remain process-memory-only.
@@ -627,6 +628,7 @@ export class MobileApprovedSession {
     try { stored = await this.storage.getSecret(SESSION_STORAGE_KEY); }
     catch { if (!superseded()) await this.clearLocal(); return null; }
     if (superseded() || stored == null) return null;
+    markStartup("sessionRead");
     let persisted: PersistedSession;
     try { persisted = parsePersisted(stored); }
     catch { await this.clearLocal(); return null; }
@@ -635,8 +637,10 @@ export class MobileApprovedSession {
     try {
       const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/refresh`, { method: "POST", body: JSON.stringify({ refreshToken: persisted.refreshToken, ...(this.deviceId ? { deviceId: this.deviceId } : {}) }) }));
       if (superseded()) return null;
+      markStartup("tokensRefreshed");
       this.acceptTokens(endpoint, tokens);
       await this.persistOrClear(endpoint, tokens);
+      markStartup("tokensSaved");
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
       if (superseded()) return null;
       this.identity = identity;

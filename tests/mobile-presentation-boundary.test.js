@@ -16,9 +16,9 @@ test("App imports every presentation module only through the presentation bounda
   assert.deepEqual(direct, [], `import these via src/presentation: ${direct.join(", ")}`);
   const presentation = read("apps/mobile/src/presentation.tsx");
   for (const presenter of ["HomeView", "PaperShadowMonitorView", "LiveReadinessMonitorView", "MoreMenuView", "TabTransition", "PortfolioView", "NotificationView", "SettingsView", "OrderHistoryView", "StrategiesView", "MoreDetailView", "PrimaryNavigation", "ThemeProvider"]) {
-    assert.match(presentation, new RegExp(`export \\{ ${presenter}\\b`), presenter);
+    assert.match(presentation, new RegExp(`export \\{ (?:[A-Za-z]+ as )?${presenter}\\b`), presenter);
   }
-  assert.match(presentation, /id: "field-v1", status: "INTERIM"/);
+  assert.match(presentation, /id: "calm-v1", status: "INTERIM"/);
 });
 
 test("field motion timing comes from tokens, not literals", () => {

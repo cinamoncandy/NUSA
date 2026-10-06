@@ -52,6 +52,14 @@ export interface OrchestratorOptions {
   readonly experimentFamilyPrefix: string;
 }
 
+export interface ResearchExperimentTickSummary {
+  readonly lastTickAt: number;
+  readonly lastStatus: TickReport["status"];
+  readonly ticks: number;
+  readonly sessionsStarted: number;
+  readonly counts: Readonly<Record<string, number>>;
+}
+
 export interface ResearchCollectionProgress {
   readonly market: string;
   readonly candleCount: number;
@@ -137,7 +145,40 @@ export class ResearchExperimentOrchestrator {
     return best;
   }
 
+  /**
+   * Display only: cumulative experiment outcome counts since this process started, plus the latest tick's status,
+   * keyed by fixed codes (outcome status, validation/holdout comparison result, SKIPPED/ERROR reason code). Integers only.
+   */
+  public experimentTicks(): ResearchExperimentTickSummary | null {
+    return this.tickSummary;
+  }
+
+  private tickSummary: ResearchExperimentTickSummary | null = null;
+
   public tick(): TickReport {
+    const report = this.tickInner();
+    const counts: Record<string, number> = { ...(this.tickSummary?.counts ?? {}) };
+    const add = (key: string): void => { if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && (key in counts || Object.keys(counts).length < 40)) counts[key] = (counts[key] ?? 0) + 1; };
+    for (const item of report.experiments) {
+      const outcome = item.outcome;
+      add(outcome.status);
+      if (outcome.status === "COMPLETED") {
+        add(`VALIDATION_${outcome.validation.result}`);
+        if (outcome.holdout != null) add(`HOLDOUT_${outcome.holdout.result}`);
+        else if (outcome.holdoutNote != null) add(outcome.holdoutNote);
+      } else if (outcome.status === "SKIPPED" || outcome.status === "ERROR") add(`${outcome.status}_${outcome.reason.split(":")[0]}`);
+    }
+    this.tickSummary = Object.freeze({
+      lastTickAt: this.options.now(),
+      lastStatus: report.status,
+      ticks: (this.tickSummary?.ticks ?? 0) + 1,
+      sessionsStarted: (this.tickSummary?.sessionsStarted ?? 0) + report.started,
+      counts: Object.freeze(counts),
+    });
+    return report;
+  }
+
+  private tickInner(): TickReport {
     if (!this.recoveryReady) return empty("RECOVERY_NOT_READY");
     try {
       const nowMs = this.options.now();

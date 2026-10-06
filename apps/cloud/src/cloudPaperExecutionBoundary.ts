@@ -9,6 +9,7 @@ import {
 import type { CloudPaperRiskGate, CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { buildPaperExecutionIntent, UPBIT_KRW_MINIMUM_ORDER_KRW, paperExecutionIntentCommandId, validatePaperExecutionIntent } from "./paperExecutionIntent";
+import { automaticPaperConfidenceAllowsAction } from "./automaticPaperExecutionPolicy";
 
 export interface CloudPaperExecutionBoundaryOptions {
   readonly loop: PaperTradingExecutionLoop;
@@ -236,7 +237,7 @@ export class CloudPaperExecutionBoundary {
     // Cloud automatic strategy authority is deliberately PAPER-only and spot-only. An actionable
     // challenger decision must be self-consistent before it is even presented to the canonical risk gate.
     if (tick.mode !== "PAPER" || decision.leverage !== 1 || decision.risk === "HIGH" || decision.risk === "CRITICAL" ||
-        !Number.isFinite(decision.confidence) || decision.confidence < 0.55 || decision.confidence > 1 ||
+        !automaticPaperConfidenceAllowsAction(decision.confidence) ||
         !Number.isFinite(decision.allocation) || decision.allocation < 0 || decision.allocation > 1 ||
         (decision.action === "BUY" && decision.allocation <= 0)) {
       return this.blocked("STRATEGY_APPROVAL_REJECTED");

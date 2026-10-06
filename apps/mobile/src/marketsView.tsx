@@ -8,7 +8,7 @@ import { parseWatchlistMarkets, type WatchlistRepository } from "./watchlist";
 import { uxLayout } from "./uxLayout";
 import { loadUpbitPublicCandles, UpbitPublicQuotationError, type PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
 import { AuthorityRail, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
-import { labelFont, readableFont } from "./designSystem";
+import { fieldRadii, labelFont, readableFont } from "./designSystem";
 import { monitorLabel } from "./monitorCopy";
 
 interface MarketsViewProps {
@@ -134,8 +134,8 @@ const styles = StyleSheet.create({
   segmentOuter: { paddingTop: 9, paddingBottom: 2 },
   tabletWorkspace: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 28, paddingTop: 18 },
   tabletPanel: { flex: 1, minWidth: 0 },
-  panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 14 },
-  segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },
+  panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: fieldRadii.lg },
+  segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: fieldRadii.md, paddingHorizontal: 12 },
   segmentAlias: { flex: 1, flexDirection: "row" },
   segmentLabel: { fontSize: 12, lineHeight: 17, fontWeight: "500" },
   detailWorkspace: { flex: 1, minWidth: 0 },

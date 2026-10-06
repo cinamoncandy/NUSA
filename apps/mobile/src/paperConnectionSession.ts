@@ -3,6 +3,8 @@ import { clearMobileApprovedSessionMemory, mobileApprovedSession } from "./mobil
 import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 import type { MobileApprovedSessionIdentity } from "./mobileApprovedSession";
+import { markStartup } from "./startupTiming";
+import { warmConnection } from "./connectionWarmup";
 
 type SilentContext = Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>;
 
@@ -45,6 +47,7 @@ export function subscribePaperSessionVerified(listener: () => void): () => void 
 }
 
 function notifyVerified(): void {
+  markStartup("sessionVerified");
   for (const listener of [...verificationListeners]) {
     try { listener(); } catch { /* a UI listener must not break the restore owner */ }
   }
@@ -190,6 +193,7 @@ export function setConfiguredPaperEndpoint(value: string): void {
     clearCredentialMemory();
   }
   configuredEndpoint = next;
+  if (next != null) { markStartup("endpointReady"); warmConnection(next); }
   setDashboardCredentialEndpoint(next);
   if (next != null && (changed || (!isPaperConnectionVerified(next) && restoreInFlight == null))) restoreApprovedSession(next);
 }

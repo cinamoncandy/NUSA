@@ -64,3 +64,33 @@ test("the runtime and contract treat the progress as optional display data", () 
   assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeVitalsModel.ts"), "utf8"), /learning: "home-research-progress-line"/);
   assert.match(view, /buildResearchProgressLine\(buyHeartbeat\?\.researchCollection/);
 });
+
+test("when the server sends no collection progress, the line says why instead of a vague not-received", () => {
+  const { buildResearchProgressLine } = require("../dist/apps/mobile/src/researchProgressModel.js");
+  const now = 1_700_000_000_000;
+  const line = (input, state) => buildResearchProgressLine(input, now, state);
+  assert.deepEqual(line(undefined, "DISABLED"), { value: "리서치 꺼짐", detail: "서버에서 연속 리서치 실험이 켜져 있지 않아 학습 데이터를 모으지 않습니다", tone: "warn" });
+  assert.equal(line(null, "INVALID").value, "리서치 설정 오류");
+  assert.equal(line(null, "UNAVAILABLE").value, "수집 현황 읽기 실패");
+  for (const unknown of [undefined, null, "", "OFF", 7, {}]) assert.deepEqual(line(undefined, unknown), { value: "집계 미수신", detail: null, tone: "muted" }, `unknown state ${String(unknown)} is not guessed`);
+  const real = { market: "KRW-XRP", candleCount: 1440, requiredCandles: 14400, lastCloseMs: now - 60_000, observedAt: now };
+  assert.match(line(real, "DISABLED").value, /^KRW-XRP /, "real progress always wins over a stale reason");
+  assert.equal(line({ market: "bad" }, "DISABLED").value, "집계 미수신", "a malformed progress object is not mistaken for a reason");
+});
+
+test("the runtime reports why progress is absent, the contract validates it, and the home line passes it on", () => {
+  const rt = require("fs").readFileSync(require("path").resolve(__dirname, "../apps/cloud/src/runtime.ts"), "utf8");
+  assert.match(rt, /readResearchExperimentSettings\(env\)/);
+  assert.match(rt, /researchCollectionState: researchSettings\?\.status === "DISABLED" \? "DISABLED" as const : researchSettings\?\.status === "INVALID" \? "INVALID" as const : "UNAVAILABLE" as const/);
+  assert.match(contract, /researchCollectionState\?: "DISABLED" \| "INVALID" \| "UNAVAILABLE"/);
+  assert.match(contract, /record\.researchCollectionState !== undefined && \(record\.researchCollection !== undefined \|\| !\["DISABLED", "INVALID", "UNAVAILABLE"\]\.includes/);
+  assert.match(view, /buildResearchProgressLine\(buyHeartbeat\?\.researchCollection as never, Date\.now\(\), \(buyHeartbeat as \{ researchCollectionState\?: unknown \} \| null\)\?\.researchCollectionState\)/);
+});
+
+test("the settings parser maps off and rejected settings exactly as the runtime reports them", () => {
+  const { readResearchExperimentSettings } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+  assert.equal(readResearchExperimentSettings({}).status, "DISABLED");
+  assert.equal(readResearchExperimentSettings({ NUSA_CLOUD_RESEARCH_EXPERIMENTS: "0" }).status, "DISABLED");
+  assert.equal(readResearchExperimentSettings({ NUSA_CLOUD_RESEARCH_EXPERIMENTS: "1" }).status, "INVALID", "enabled without a 40-hex build commit is rejected");
+  assert.equal(readResearchExperimentSettings({ NUSA_CLOUD_RESEARCH_EXPERIMENTS: "1", NUSA_SOURCE_COMMIT_SHA: "a".repeat(40) }).status, "ENABLED");
+});

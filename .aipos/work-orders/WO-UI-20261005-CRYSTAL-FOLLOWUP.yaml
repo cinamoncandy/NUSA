@@ -1,0 +1,28 @@
+id: WO-UI-20261005-CRYSTAL-FOLLOWUP
+title: "Crystal follow-up: app-wide radius tokens, in-canvas fill expansion, tone-tinted core, accurate legend"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-crystal-followup
+authority_impact: none
+objective: "Address the four review findings left on merged PR #2512 (WO-UI-20261005-CRYSTAL-GLASS) so the redesign is truly app-wide and its status contract holds."
+scope:
+  - "designSystem.ts: fieldRadii (md 12, lg 18, xl 24), equal to the theme radii. 16 presenter files replace hard-coded card/control radii 10/12/14/16/18/20 with fieldRadii.md/lg/xl."
+  - "holoSphere.tsx / holoModel.ts: fill expansion reduced from 0.7 to HOLO_FILL_EXPANSION = 0.1 so the crystal and rings stay inside the canvas; the inner core glow is tinted through holoColor with the runtime tone and tintMix (amber on hold, red on halt)."
+  - "decisionRings.tsx legend and holoModel comment now describe outward expansion instead of a ring."
+  - "tests/mobile-cold-future-palette.test.js: extent bound, core tone, static radii equal theme radii, no remaining hard-coded card radii, legend wording."
+exclusions:
+  - "Named exceptions that keep their literal radius: pills and circles (999/9999 and fixed-size dots 36/40), and tiny bars/ticks/dividers (0-6 px). These are shape, not card/control geometry. Header and More-menu marks stay static (see WO-UI-20261005-MOTION-ORBIT)."
+  - "No data, copy beyond the legend sentence, safety, risk, execution, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Status tint now also reaches the core glow; reduce-motion still draws the still crystal."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "Extent bound is a conservative analytic estimate, not measured on a device. Larger radii may change wrapping in tight pills."

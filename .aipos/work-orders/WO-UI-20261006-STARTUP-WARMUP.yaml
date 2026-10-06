@@ -1,0 +1,29 @@
+id: WO-UI-20261006-STARTUP-WARMUP
+title: "Warm the server connection during the saved-session read and show where the sign-in wait goes"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/startup-warmup
+authority_impact: none
+owner_approval: "2026-10-06 in chat: performance not satisfying on build 1.0.495; the owner chose app stutter, slow connection/loading and trading results to be worked on"
+objective: "The cold start takes 3.3 s on the owner's device (settings 0.1 s, sign-in 2.4 s, first data 0.8 s), from abroad. The sign-in restore runs in this order: read the saved session from secure storage, POST /session/refresh, save the new tokens to secure storage, GET the identity. The first of those network requests also pays for the DNS lookup, TCP connection and TLS handshake. Overlap that setup with the storage read, and measure the four steps separately so the next change is based on numbers."
+scope:
+  - "apps/mobile/src/connectionWarmup.ts: one plain GET of the configured https server's public /health, once per endpoint per process, with no credential, header, cookie or body, redirects as errors, a 4 s timeout, and the answer discarded. A failure, timeout or absent transport is silent. Nothing happens until the app registers its fetch."
+  - "apps/mobile/App.tsx registers the app's fetch once at start-up; apps/mobile/src/paperConnectionSession.ts calls warmConnection(next) where the endpoint becomes known (the existing endpointReady mark)."
+  - "apps/mobile/src/startupTiming.ts and mobileApprovedSession.ts: three more marks (sessionRead, tokensRefreshed, tokensSaved) in the bearer restore; the Settings advanced row shows 'sign-in 2.4 s (read 0.2 · refresh 1.1 · save 0.3 · identity 0.8)' when every step was seen in order, and keeps the old shape otherwise."
+  - "tests/mobile-connection-warmup.test.js: no request before registration; one /health GET per endpoint with no extra option; only a plain https server address is touched (not http, loopback, paths, userinfo or spaces); a throwing transport is silent; the wiring in App.tsx and the session; the split summary and its fallbacks; the marks are recorded in order."
+exclusions:
+  - "The authentication flow itself (the refresh, the identity check, the storage writes, retry and fail-closed handling) is not changed and not reordered. No credential is sent by the warm-up. No change to the server, trading, risk, accounting, LIVE, credentials or AI authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "A warm-up that fails changes nothing; sign-in and the verified-endpoint checks run exactly as before."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-connection-warmup.test.js tests/mobile-startup-timing.test.js
+  - node scripts/lint-mobile.js
+residual: "The time saved is expected (the handshake's round trips overlapped with the storage read) but not measured on a device. After the next Android build the Settings row will show where the 2.4 s goes; if refresh or identity dominate, the next steps are server-side latency and reducing the sequential requests, which touch authentication and need the owner's approval."

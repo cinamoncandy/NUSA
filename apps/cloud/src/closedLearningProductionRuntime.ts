@@ -4,7 +4,9 @@ import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from 
 import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
 import { buildCanonicalPaperCandidatePerformance } from "./canonicalPaperCandidatePerformance";
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
-import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
+import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
+import { PaperMinuteBarSource } from "./paperMinuteBars";
+import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
@@ -87,7 +89,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     enabled: ownerBaselineStrategyEnabled(env),
     baselineMarkets: config.upbitMarkets,
   });
-  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider });
+  // The candidate strategy reads completed 1-minute closes from the persisted public-ticker store (owner decision 2026-10-06).
+  const minuteObservationReader = new SqlitePaperMarketObservationRepository(database);
+  const minuteBars = new PaperMinuteBarSource((market, startAt, endAt) => minuteObservationReader.readWindow(market, startAt, endAt));
+  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider, paperCandidateMinuteCloses: (market, now) => minuteBars.read(market, now) });
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
@@ -100,6 +105,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
   const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line) });
+  const loopStatus = new ClosedLearningLoopStatusTracker();
   const baseHandle = startCloudRuntime(
     env,
     undefined,
@@ -112,6 +118,11 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     undefined,
     researchExperiments?.orchestrator,
     createCloudAiRuntime(env),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    () => loopStatus.snapshot(),
   );
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
@@ -269,6 +280,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     if (closedLearningTick != null) return closedLearningTick;
     const task = (async () => {
       const bootstrap = await runClosedLearningBootstrapAsync();
+      loopStatus.observeBootstrap(bootstrap);
       // If Research has no deployable snapshot, preserve the canonical PAPER loop by opening one
       // truthful market-bound owner-baseline period. The period uses the same account boundary and
       // provenance as the executable baseline binding; it never fabricates fills or benchmark data.
@@ -276,8 +288,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         if (bootstrap.status === "WAITING_RESEARCH_SNAPSHOT") researchRefresh.requestIfDue();
         ensureOwnerBaselinePeriod();
       }
-      await runClosedLearningRolloverAsync();
-    })();
+      loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
+    })().catch((error: unknown) => { loopStatus.observeError(Date.now()); throw error; });
     closedLearningTick = task;
     task.then(
       () => { if (closedLearningTick === task) closedLearningTick = undefined; },

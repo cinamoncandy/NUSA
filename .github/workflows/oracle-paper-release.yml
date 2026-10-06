@@ -157,10 +157,28 @@ jobs:
 
       - name: Record deployed identity and fail-closed authority
         if: always()
+        env:
+          SOURCE_FRESH: ${{ steps.source_fresh.outputs.fresh }}
+          JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
+          CURRENT_RELEASE="$(readlink -f "$NUSA_DEPLOY_ROOT/current" || echo UNKNOWN)"
           echo "requestedSource=$SOURCE_SHA"
-          echo "currentRelease=$(readlink -f "$NUSA_DEPLOY_ROOT/current" || echo UNKNOWN)"
+          echo "currentRelease=$CURRENT_RELEASE"
+          # A green run is not proof of a deploy: a superseded source skips every host step. Name the outcome.
+          if [ "$SOURCE_FRESH" != "true" ]; then
+            RESULT=SKIPPED_MAIN_MOVED
+          elif [ "$JOB_STATUS" != "success" ]; then
+            RESULT=FAILED
+          elif [ "$(basename "$CURRENT_RELEASE")" = "$SOURCE_SHA" ]; then
+            RESULT=DEPLOYED
+          else
+            RESULT=FAILED_ACTIVATION_IDENTITY
+          fi
+          echo "deploymentResult=$RESULT"
+          echo "::notice::deploymentResult=$RESULT source=$SOURCE_SHA"
+          printf '### Oracle PAPER release\n\n| deploymentResult | requestedSource | currentRelease |\n| --- | --- | --- |\n| %s | %s | %s |\n' "$RESULT" "$SOURCE_SHA" "$CURRENT_RELEASE" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RESULT" = "FAILED_ACTIVATION_IDENTITY" ]; then echo "::error::activation reported success but current does not resolve to $SOURCE_SHA"; exit 1; fi
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'

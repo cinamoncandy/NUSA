@@ -70,3 +70,11 @@ export function buildHomeVitals(input: {
   const f = input.feedStale === true;
   return Object.freeze([vital("coin", input.coin, u, f), vital("buy", input.buy, u, f), vital("feed", input.feed, u, f), vital("learning", input.learning, u, f)]);
 }
+
+/**
+ * Which vital tiles take the hero's lime accent: only the learning tile, and only while it is healthy ("ok"). A warning,
+ * an unverified or a not-reported state keeps its status colour, so lime can never stand in for a status.
+ */
+export function vitalUsesHeroAccent(vital: Pick<Vital, "id" | "tone">): boolean {
+  return vital.id === "learning" && vital.tone === "ok";
+}
