@@ -145,6 +145,8 @@ test("/health publishes the event-loop stall numbers only as finite non-negative
     const body = JSON.parse((await request(handle.port, "/health")).body);
     assert.equal(body.runtime.lastEventLoopStallAt, null);
   }, 41903);
+});
+
 test("/health names the class of the runtime's own paper failures but never the detail after the colon", async () => {
   const cases = [
     ["paper account persistence failed: PAPER_LEDGER_RECONCILIATION_REQUIRED realized state -154.31476926 ledger -154.31476925 38 fills", "PAPER_ACCOUNT_PERSISTENCE_FAILED"],
