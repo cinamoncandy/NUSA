@@ -1,0 +1,25 @@
+id: WO-LEARNING-20261006-STALLED-PERIOD-REOPEN
+title: "Continue the closed-learning PAPER loop when a period closed without a successor"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/closed-learning-stall-reopen
+authority_impact: none
+owner_approval: "2026-10-06 in chat: '91% -> 100%' master directive (FIRST_BROKEN_TRANSITION of the learning loop) and '계속해'"
+objective: "Production /health (closedLearningLoop) shows bootstrap EXISTING_PAPER_STATE and rollover NO_OPEN_PERIOD on every tick: realized PAPER periods exist but none is open. The rollover closes a period durably in prepare() and opens its successor only in finalize(); if the cycle throws in between, no successor is opened, and realized history also blocks the owner-baseline bootstrap, so the PAPER -> Ledger -> Performance -> Feedback -> Research loop stalls permanently."
+scope:
+  - "apps/cloud/src/closedLearningRolloverScheduler.ts: with no open period and realized history, continue the latest realized period's immutable advisory, candidate provenance and market in a new period opened from the canonical PAPER account boundary (status STALLED_PERIOD_REOPENED). It waits while the account boundary is not after the last realized period end. With no realized history it remains NO_OPEN_PERIOD for the bootstrap."
+  - "apps/cloud/src/closedLearningRolloverScheduler.test.ts: continuation, boundary wait and fresh-install cases."
+exclusions:
+  - "No change to period close, evaluation, Research, Governance, deployment, PAPER execution, risk thresholds, capital or LIVE. No fill, return or account value is synthesized."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Unavailable canonical account -> BLOCKED; an open failure is caught by runOnce and reported BLOCKED; the multiple-open-period guard is unchanged."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js
+residual: "Requires a PAPER deploy. If a qualified deployment was interrupted mid-way, its replay would now find the continuation period open and fail closed ('another PAPER realized period is already open') rather than opening a second period."

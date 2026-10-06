@@ -204,6 +204,13 @@ test("the release is dispatch-only and holds no repository write authority", () 
 
 test("the deployed identity and fail-closed authority are always recorded", () => {
   assert.match(workflow, /currentRelease=/);
+  // A superseded source skips every host step yet the run stays green; the receipt must say so.
+  for (const result of ["SKIPPED_MAIN_MOVED", "FAILED", "DEPLOYED", "FAILED_ACTIVATION_IDENTITY"]) assert.match(workflow, new RegExp(`RESULT=${result}\\b`));
+  assert.match(workflow, /SOURCE_FRESH: \$\{\{ steps\.source_fresh\.outputs\.fresh \}\}/);
+  assert.match(workflow, /if \[ "\$SOURCE_FRESH" != "true" \]; then\r?\n\s+RESULT=SKIPPED_MAIN_MOVED/);
+  assert.match(workflow, /\[ "\$\(basename "\$CURRENT_RELEASE"\)" = "\$SOURCE_SHA" \]/, "DEPLOYED only when current resolves to the requested source");
+  assert.match(workflow, /deploymentResult=\$RESULT/);
+  assert.match(workflow, />> "\$GITHUB_STEP_SUMMARY"/);
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
@@ -236,4 +243,16 @@ test("rollback restores a legacy release that predates the Autopilot systemd uni
   assert.match(installUnits, /systemctl disable --now "\$\{AUTOPILOT_SERVICE\}"/);
   assert.match(installUnits, /rm -f -- "\$\{SYSTEMD_UNIT_DIR\}\/\$\{AUTOPILOT_SERVICE\}"/);
   assert.match(installUnits, /die "missing nusa-autopilot\.service/, "forward activation must still fail closed when the unit is missing");
+});
+
+test("superseded releases are pruned before the host is touched so a full disk cannot fail the backup", () => {
+  const release = workflow.slice(workflow.indexOf("  release:"));
+  const recheck = release.indexOf("Recheck exact protected main before host mutation");
+  const prune = release.indexOf('sudo "$STEP" prune');
+  const download = release.indexOf("Download built release");
+  const backup = release.indexOf('"$STEP" backup');
+  assert.ok(prune > recheck && prune < download, "prune must run after the main recheck and before the download");
+  assert.ok(prune < backup, "prune must free space before the backup");
+  assert.equal(release.split('"$STEP" prune').length - 1, 1, "prune is invoked exactly once");
+  assert.doesNotMatch(release, /rm -rf|find .* -delete/, "the workflow itself never deletes; only the bounded helper does");
 });

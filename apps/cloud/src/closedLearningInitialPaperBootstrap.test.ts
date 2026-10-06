@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ClosedLearningInitialPaperBootstrap } from "./closedLearningInitialPaperBootstrap";
 import type { ClosedLearningResearchReplayResult } from "./closedLearningResearchWorkerClient";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 const ORIGINAL = "a".repeat(64);
 const REPLAY = "b".repeat(64);
@@ -79,6 +80,7 @@ function options(input: {
   readonly workerError?: string;
   readonly snapshots?: readonly unknown[];
   readonly hasOpen?: boolean;
+  readonly hasOwnerBaselineOpen?: boolean;
   readonly hasRealized?: boolean;
   readonly failHistory?: boolean;
   readonly deployError?: string;
@@ -110,7 +112,9 @@ function options(input: {
     history: { persist: () => { events.push("history"); if (input.failHistory) throw new Error("history unavailable"); return {} as never; } },
     artifacts: { save: (artifact: never) => { events.push("artifact"); return artifact; } },
     deployment: { deploy: (deploymentInput: { decision: { candidateId: string; candidateVersion: string } }) => { events.push("deploy"); if (input.deployError) throw new Error(input.deployError); return { deploymentId: "initial-period", candidateId: deploymentInput.decision.candidateId, candidateVersion: deploymentInput.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }; } },
-    listOpenPeriods: () => input.hasOpen ? [{}] : [],
+    listOpenPeriods: () => input.hasOwnerBaselineOpen
+      ? [{ periodId: "owner-baseline:KRW-BTC:1", candidateProvenance: [{ candidateId: OWNER_BASELINE_CANDIDATE_ID }] }]
+      : input.hasOpen ? [{}] : [],
     listRealizedPeriods: () => input.hasRealized ? [{}] : [],
     now: () => 1_725_494_400_000,
   };
@@ -179,6 +183,13 @@ describe("initial PAPER bootstrap", () => {
     const existing = options({ hasOpen: true });
     assert.equal(new ClosedLearningInitialPaperBootstrap(existing.base).runOnce().status, "EXISTING_PAPER_STATE");
     assert.deepEqual(existing.events, []);
+  });
+
+  it("replays newly refreshed Research while the temporary owner baseline is open", () => {
+    const { base, events } = options({ hasOwnerBaselineOpen: true });
+    const output = new ClosedLearningInitialPaperBootstrap(base).runOnce();
+    assert.equal(output.status, "DEPLOYED");
+    assert.deepEqual(events, ["worker", "history", "artifact", "deploy"]);
   });
 
   it("persists non-deployable Research denominator but creates no artifact or period", () => {

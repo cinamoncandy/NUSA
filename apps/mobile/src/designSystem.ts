@@ -64,23 +64,23 @@ export interface Theme {
   }>;
 }
 
-/** Intelligence Field palette: subsystem hues, amber focus and the near-black void. */
+/** Intelligence Field palette, retuned for calm-v1: subsystems read as quiet greys, healthy is white, amber is attention and red is halt. */
 export const fieldPalette = Object.freeze({
-  void: "#010204",
-  paper: "#3DDC97",
-  market: "#4FC3F7",
-  dim: "#5B6670",
-  governance: "#7C8CFF",
-  muted: "#8A96A0",
-  axiom: "#9B7BFF",
+  void: "#05080D",
+  paper: "#E8F0F2",
+  market: "#B8C4CC",
+  dim: "#566676",
+  governance: "#B8C4CC",
+  muted: "#8794A0",
+  axiom: "#B8C4CC",
   label: "#C9D2D8",
-  text: "#EEF3F6",
+  text: "#E8F1FA",
   heart: "#F4F8FA",
   halt: "#FF5C5C",
   risk: "#FFA94D",
-  focus: "#FFB547",
+  focus: "#FFC266",
   /** Selection/focus highlight for field visuals (focused subsystem, selected tab). Amber `focus` is kept for warning tones only. */
-  accent: "#B6F04B",
+  accent: "#E8F0F2",
 });
 
 const interaction = Object.freeze({
@@ -92,12 +92,23 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
-/** Near-black void, hairline structure, one lime accent with a cyan focus ring. Identical in light and dark. Amber stays a warning-only tone; red stays a halt/danger-only tone. */
+/** Calm redesign (calm-v1) palette. Colour carries meaning only: text = normal, order = my PAPER order (lime), attention = amber, loss = red/halt. */
+export const calmPalette = Object.freeze({
+  ground: "#05080D",
+  line: "#18212B",
+  text: "#E8F0F2",
+  muted: "#8794A0",
+  order: "#C6F54A",
+  attention: "#FFC266",
+  loss: "#FF5C5C",
+} as const);
+
+/** calm-v1: the whole app shares the calm palette. Cards blend into the ground (no boxes), white is the normal and primary tone, amber is attention only and red is loss/halt only. Identical in light and dark. */
 const fieldSurface = Object.freeze({
-  background: "#010204", surface: "#06090D", surfaceRaised: "#0B1016", surfaceSunken: "#030507",
-  text: "#EEF3F6", textMuted: "#8A96A0", primary: "#B6F04B", primarySoft: "#0C1606", onPrimary: "#010204",
-  navSurface: "#010204", border: "#1A2129", borderStrong: "#39434D", info: "#4FC3F7", focus: "#4FC3F7",
-  neonGlow: "rgba(182, 240, 75, 0.10)",
+  background: calmPalette.ground, surface: calmPalette.ground, surfaceRaised: "#0A1017", surfaceSunken: calmPalette.ground,
+  text: calmPalette.text, textMuted: calmPalette.muted, primary: calmPalette.text, primarySoft: "#0A1017", onPrimary: calmPalette.ground,
+  navSurface: calmPalette.ground, border: calmPalette.line, borderStrong: "#2A3440", info: calmPalette.muted, focus: calmPalette.text,
+  neonGlow: "rgba(232, 240, 242, 0.06)",
 });
 
 export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({
@@ -107,7 +118,7 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
     light: fieldSurface,
     typography: Object.freeze({ micro: 10, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 44 }),
     layout: Object.freeze({ screenPadding: 20, sectionGap: 18, cardPadding: 16, heroRadius: 6 }),
-    radii: Object.freeze({ sm: 4, md: 8, lg: 12, xl: 16, full: 9999 as const }),
+    radii: Object.freeze({ sm: 6, md: 12, lg: 18, xl: 24, full: 9999 as const }),
   }),
 });
 
@@ -147,14 +158,14 @@ export function createTheme(_mode: ThemeMode = "dark", presetName: DesignPresetN
       aiSignalEnd: fieldPalette.label,
       aiSignalSoft: "#0B0A14",
       terrain: fieldPalette.label,
-      chartUp: fieldPalette.paper,
-      chartDown: fieldPalette.halt,
+      chartUp: calmPalette.text,
+      chartDown: calmPalette.loss,
       navSurface: palette.navSurface,
       border: palette.border,
       borderStrong: palette.borderStrong,
-      success: fieldPalette.paper,
-      warning: fieldPalette.focus,
-      danger: fieldPalette.halt,
+      success: calmPalette.text,
+      warning: calmPalette.attention,
+      danger: calmPalette.loss,
       info: palette.info,
       onDanger: fieldPalette.void,
       focus: palette.focus,
@@ -228,8 +239,24 @@ export function designSystemSnapshot(theme: Theme): string {
  * Field motion tokens. Every field animation reads its timing from here so a redesign can retune
  * or replace motion in one place. Motion always runs only on a semantic state change.
  */
+/**
+ * The HOME hero's own accent family (lime from the owner's reference). Used only for the elements that sit directly with the
+ * hero (order count, market chip, the learning tile); the rest of the app keeps the theme colours. Status colours are never lime.
+ */
+export const fieldHero = Object.freeze({
+  lime: "#C6F54A",
+  limeBorder: "rgba(198, 245, 74, 0.28)",
+  limeChipBorder: "rgba(198, 245, 74, 0.5)",
+  chipGround: "#050C08",
+} as const);
+
+
+/** Card / control corner radii for presenters that style in a static StyleSheet. Same values as the active theme's radii. */
+export const fieldRadii = Object.freeze({ md: 12, lg: 18, xl: 24 } as const);
+
 export const fieldMotion = Object.freeze({
   settleMs: 900,
+  holoFlowMs: 9000,
   settleStaggerMs: 90,
   coreTurnMs: 700,
   signalMs: 950,
@@ -243,4 +270,18 @@ export const fieldMotion = Object.freeze({
   tabTransitionMs: 320,
   poseMs: 1100,
   orbitStepDeg: 18,
+  revealMs: 320,
+  revealStaggerMs: 55,
+  revealMaxIndex: 6,
 });
+
+/**
+ * Readability floors shared by every screen (owner rule: UI changes apply to the whole app). Body, value and detail
+ * text is never smaller than 12 px; tracked uppercase labels and eyebrows are never smaller than 11 px. Presenters
+ * wrap their font sizes in these instead of hard-coding a smaller number.
+ */
+export const MIN_BODY_FONT = 12;
+export const MIN_LABEL_FONT = 11;
+export const readableFont = (size: number): number => Math.max(size, MIN_BODY_FONT);
+export const labelFont = (size: number): number => Math.max(size, MIN_LABEL_FONT);
+export const readableLineHeight = (size: number, lineHeight: number): number => Math.max(lineHeight, Math.round(size * 1.4));

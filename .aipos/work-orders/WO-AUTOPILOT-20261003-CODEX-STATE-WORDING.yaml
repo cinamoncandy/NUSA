@@ -1,0 +1,23 @@
+id: WO-AUTOPILOT-20261003-CODEX-STATE-WORDING
+title: "Make Codex write AIPOS state that is true on the published commit so Release is not blocked by a review thread"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/autopilot-contract-state-wording
+authority_impact: autopilot_prompt_only
+objective: "The first autonomous Codex PR (#2501) passed CI and Audit, then Release revoked authorization because an unresolved review thread existed. The chatgpt-codex-connector review bot flagged AIPOS state that said 'uncommitted increment ... heavy validation intentionally left to the workflow': Codex cannot commit or validate, so it must describe the work that way when it writes it, but the publish job then commits it and publishes only after validation passed, making the wording false on the published commit. Autopilot has no way to answer or resolve a review thread, so every Codex PR would stall the same way."
+scope:
+  - "scripts/autopilot-codex-select.js: one contract rule telling Codex to write AIPOS fields as they will be true on the published commit (committed and workflow-validated; exact-head CI, independent Audit and Release remaining PLUS every task-specific post-Release action such as exact-main deployment, runtime proof, dogfood or human-only acceptance) and never to write 'uncommitted' or 'pending workflow validation'."
+  - "tests/autopilot-codex-coding.test.js: contract wording test; no-commit authority rule asserted unchanged."
+exclusions:
+  - "No change to what Codex may do (still no commit, push, PR, merge, deploy or CI trigger; heavy commands still blocked), the publish job's validation, the one-open-PR rule, Audit, Release, review-thread preflight or any authority. The Release rule that unresolved review threads block merge is deliberately kept."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Release still blocks on any unresolved review thread; the publish job still publishes only after every validation gate passes, which is what makes the new wording true."
+rollback: "Remove the contract line."
+verification_commands:
+  - node --test tests/autopilot-codex-coding.test.js
+residual: "A prompt change reduces but cannot guarantee the bot stays quiet; other legitimate review findings will still block Release until a human or a future review-response capability resolves them. Whether this removes the stall is proven only by the next Codex PR."

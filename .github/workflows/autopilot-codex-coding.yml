@@ -11,8 +11,13 @@ name: Autopilot Codex Coding
 
 on:
   schedule:
-    - cron: "23 */2 * * *"
+    - cron: "23 * * * *"
   workflow_dispatch: {}
+  # Event-driven continuation: when an autopilot Codex PR merges (or is closed) the "one open PR" gate opens, so
+  # start the next increment immediately instead of waiting for the next hourly slot. Only the trusted base ref is
+  # checked out; the job below ignores every other PR.
+  pull_request_target:
+    types: [closed]
 
 permissions:
   contents: read
@@ -26,6 +31,7 @@ concurrency:
 jobs:
   select:
     name: Select next owner backlog issue
+    if: github.event_name != 'pull_request_target' || (github.event.pull_request.base.ref == 'main' && startsWith(github.event.pull_request.head.ref, 'autopilot/codex/'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:

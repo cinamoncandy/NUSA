@@ -3,11 +3,15 @@ import { clearMobileApprovedSessionMemory, mobileApprovedSession } from "./mobil
 import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 import type { MobileApprovedSessionIdentity } from "./mobileApprovedSession";
+import { markStartup } from "./startupTiming";
+import { warmConnection } from "./connectionWarmup";
 
 type SilentContext = Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>;
 
 let configuredEndpoint: string | null = null;
 let verifiedEndpoint: string | null = null;
+/** When the current VERIFIED observation was last proven by a fresh identity. */
+let verifiedAt = 0;
 let restoreGeneration = 0;
 let restoreInFlight: Promise<void> | null = null;
 /** Whether the in-flight restore is a silent DeviceKey proof; a bearer restore never satisfies a silent request. */
@@ -26,6 +30,10 @@ const RESTORE_RETRY_MAX_MS = 30_000;
 // otherwise retry forever behind a "재연결 중" banner with no action offered. Past this bound the
 // owner is shown RECOVERY_REQUIRED (the connect action) while the background retry keeps running.
 const RECOVERING_RETRY_ATTEMPT_LIMIT = 6;
+// A foreground resume shortly after a proven identity keeps VERIFIED while it re-proves in the
+// background: the mobile access credential lives 10 minutes, so a proof younger than this cannot
+// have expired. Older observations (hours of background/Doze) still fail closed on resume.
+export const WARM_RESUME_MS = 5 * 60 * 1000;
 const verificationListeners = new Set<() => void>();
 
 /**
@@ -39,9 +47,35 @@ export function subscribePaperSessionVerified(listener: () => void): () => void 
 }
 
 function notifyVerified(): void {
+  markStartup("sessionVerified");
   for (const listener of [...verificationListeners]) {
     try { listener(); } catch { /* a UI listener must not break the restore owner */ }
   }
+}
+
+/** Clears VERIFIED and, if it was set, tells the UI to re-project now (fail-closed display). */
+function dropVerification(): void {
+  const wasVerified = verifiedEndpoint != null;
+  verifiedEndpoint = null;
+  if (wasVerified) notifyVerified();
+}
+
+let warmResumeCutoff: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Bounds a warm resume: if no fresh proof lands before the warm window of the current observation
+ * ends (e.g. the installation-id lookup that precedes the re-proof stalls), VERIFIED is dropped and
+ * the session projects RECOVERING, exactly as a stale resume would.
+ */
+export function armWarmResumeCutoff(now = Date.now()): void {
+  if (warmResumeCutoff != null) clearTimeout(warmResumeCutoff);
+  const provenAt = verifiedAt;
+  const remaining = Math.max(0, provenAt + WARM_RESUME_MS - now);
+  warmResumeCutoff = setTimeout(() => {
+    warmResumeCutoff = null;
+    if (verifiedAt !== provenAt || verifiedEndpoint == null) return;
+    foregroundRecoveryPending = true;
+    dropVerification();
+  }, remaining);
 }
 
 function cancelRestoreRetry(): void {
@@ -98,16 +132,20 @@ function startRestore(endpoint: string, force: boolean, silent?: SilentContext):
     if (generation !== restoreGeneration || configuredEndpoint !== endpoint) return;
     if (identity != null) {
       verifiedEndpoint = endpoint;
+      verifiedAt = Date.now();
       cancelRestoreRetry();
       notifyVerified();
       // The Upbit relay uses this same PAPER session and has no separate mobile
       // credential. Re-establish its GET-only monitor after a cold-start restore.
       void connectUpbitReadOnlyAccount(endpoint);
-    } else if (mobileApprovedSession().shouldRetryRestore()) {
-      scheduleRestoreRetry(endpoint, force, silent);
+    } else {
+      // No fresh identity: a warm-resume VERIFIED observation must not outlive a failed re-proof,
+      // and the UI must re-project immediately rather than on the next poll.
+      dropVerification();
+      if (mobileApprovedSession().shouldRetryRestore()) scheduleRestoreRetry(endpoint, force, silent);
     }
   }).catch(() => {
-    if (generation === restoreGeneration && configuredEndpoint === endpoint) verifiedEndpoint = null;
+    if (generation === restoreGeneration && configuredEndpoint === endpoint) dropVerification();
   });
   restoreInFlight = operation;
   restoreInFlightSilent = wantsSilent;
@@ -155,6 +193,7 @@ export function setConfiguredPaperEndpoint(value: string): void {
     clearCredentialMemory();
   }
   configuredEndpoint = next;
+  if (next != null) { markStartup("endpointReady"); warmConnection(next); }
   setDashboardCredentialEndpoint(next);
   if (next != null && (changed || (!isPaperConnectionVerified(next) && restoreInFlight == null))) restoreApprovedSession(next);
 }
@@ -191,10 +230,17 @@ export function markPaperConnectionVerified(value: string): void {
   restoreGeneration += 1;
   cancelRestoreRetry();
   verifiedEndpoint = endpoint;
+  verifiedAt = Date.now();
   void connectUpbitReadOnlyAccount(endpoint);
 }
 
 export function clearPaperConnectionVerification(): void { verifiedEndpoint = null; restoreGeneration += 1; cancelRestoreRetry(); }
+/** Whether a foreground resume may keep VERIFIED while it re-proves (see WARM_RESUME_MS). */
+export function isWarmResumeFresh(now = Date.now()): boolean {
+  const elapsed = now - verifiedAt;
+  // A backward wall-clock change yields a negative elapsed time; never treat that as fresh.
+  return configuredEndpoint != null && isPaperConnectionVerified(configuredEndpoint) && elapsed >= 0 && elapsed < WARM_RESUME_MS;
+}
 export function isPaperConnectionVerified(value = configuredEndpoint): boolean { return value != null && normalizeEndpoint(value) === verifiedEndpoint; }
 /**
  * Best-effort Cloud restore performed during app entry. LOCAL PAPER does not require
@@ -238,10 +284,13 @@ export function resumePaperConnection(silent?: SilentContext): void {
   // backgrounded long enough for the actual access credential to expire. Always revalidate on
   // foreground; restoreApprovedSession is single-flight so duplicate lifecycle events coalesce.
   cancelRestoreRetry();
-  // A process-local VERIFIED observation is stale once foreground revalidation begins. Clear it
-  // before the forced restore so a transient null result can enter the bounded retry path instead
-  // of being suppressed as "already verified". Fresh identity is the only path that marks it true.
-  verifiedEndpoint = null;
+  // A process-local VERIFIED observation older than WARM_RESUME_MS is stale once foreground
+  // revalidation begins. Clear it before the forced restore so a transient null result can enter the
+  // bounded retry path instead of being suppressed as "already verified". A fresher observation is
+  // kept while the same forced re-proof runs; a null or failed result clears it (startRestore).
+  // A restore already in flight predates this resume (possibly fenced by an explicit verification)
+  // and must not stand in for the fresh re-proof, so the warm path requires an idle restore owner.
+  if (!isWarmResumeFresh() || restoreInFlight != null) verifiedEndpoint = null;
   const restore = restoreApprovedSession(endpoint, true, silent);
   foregroundRecoveryPending = false;
   void restore;

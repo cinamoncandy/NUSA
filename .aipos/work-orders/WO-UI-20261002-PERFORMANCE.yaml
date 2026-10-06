@@ -1,0 +1,24 @@
+id: WO-UI-20261002-PERFORMANCE
+title: "More → 성과 shows real PAPER performance; PAPER tab gets the 7-day equity line"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-performance
+authority_impact: none
+objective: "Owner asked to do every proposed improvement (2026-10-02). The app already derives PAPER performance (P&L, win rate, expectancy, max drawdown, fees, turnover) and receives account equity in server events, but More → 성과 said 준비 중 and the prototype's equity chart was missing."
+scope:
+  - "performanceModel.ts (import-free): plain-Korean rows only for a SERVER_STREAM projection; buildEquitySeries keeps server account points from the last 7 days, deduplicated."
+  - "PerformanceView presenter (via the presentation boundary) replaces the More → 성과 placeholder; Risk, System Status and Help stay honest placeholders."
+  - "EquityChart (Skia line) on the PAPER tab, hidden until two points exist and only for server data."
+exclusions:
+  - "No server change; no new metric is computed beyond what paperLearningScreen already derives."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-performance-screen.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."

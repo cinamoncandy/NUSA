@@ -1,0 +1,23 @@
+id: WO-UI-20261002-SAFETY-TRUTH
+title: "Safety line never reads 안전 while PAPER data failed to load or the server is not healthy"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-safety-truth
+authority_impact: none
+objective: "Owner device showed a green 안전 line above 'PAPER 연결 오류'. The line only looked at the session state. It now also says 확인 필요 when the verified session could not load PAPER data or the snapshot health is not HEALTHY."
+scope:
+  - "safetyLineModel.ts: optional dataUnconfirmed input; HALT still wins."
+  - "App.tsx passes dataUnconfirmed whenever there is no snapshot (NOT_CONFIGURED or UNAVAILABLE) or its health is not HEALTHY (ignored while the first projection is pending). The line is shared, so this applies to every tab."
+exclusions:
+  - "The root cause of the owner's load failure needs the on-screen reason text; this change only makes the status truthful."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-safety-line.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."

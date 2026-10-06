@@ -1,0 +1,27 @@
+id: WO-RESEARCH-20261006-EXPERIMENT-COUNTS
+title: "Publish research experiment outcome counts on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/research-experiment-counts
+authority_impact: none
+owner_approval: "2026-10-06 in chat: '91% -> 100%' master directive (P0: Performance -> Feedback -> Research N+1 must be proven from runtime evidence) and '계속해'"
+objective: "Research candle collection is visible on /health, but whether the experiment orchestrator actually runs experiments, and with what validation/holdout results, was only written to the journal, which the read-only diagnosis account cannot read. Without it the learning chain (Research N -> Candidate N+1) cannot be located in runtime evidence."
+scope:
+  - "apps/cloud/src/researchExperimentOrchestrator.ts: tick() records a cumulative summary since process start (last tick time and status, tick count, sessions started, and outcome counts keyed by fixed codes: outcome status, VALIDATION_<result>, HOLDOUT_<result> or holdout note, SKIPPED_/ERROR_<reason code>); experimentTicks() exposes it. Experiment behaviour is unchanged."
+  - "apps/cloud/src/runtime.ts: /health liveness includes researchExperimentTicks when the research automation provides it."
+  - "apps/cloud/src/server.ts: allowlist publishes a fixed status, three integers and at most 40 code-keyed integer counts."
+  - "tests: orchestrator summary (null before a tick, accumulation, NOT_DUE, validation results, skipped reason codes) and the /health allowlist."
+exclusions:
+  - "No change to experiments, windows, budgets, candidate registration, promotion, PAPER execution, risk or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; malformed values are dropped, and an exception publishes nothing."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-experiment-orchestrator.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "Requires a PAPER deploy; counts are since process start, so read them after a few experiment intervals."

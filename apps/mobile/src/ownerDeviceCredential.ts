@@ -4,6 +4,10 @@ export interface OwnerDeviceCredentialStatus {
   readonly hardwareBacked: boolean;
   readonly status: string;
   readonly credentialId: string | null;
+  /** Fixed, non-secret diagnostic classification supplied only when status inspection failed. */
+  readonly reasonCode?: string;
+  /** Opaque per-inspection identifier for correlating native and session recovery evidence. */
+  readonly correlationId?: string;
 }
 
 export interface OwnerDeviceCredentialNative {

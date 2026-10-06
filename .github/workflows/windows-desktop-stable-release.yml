@@ -226,6 +226,7 @@ jobs:
             > NUSA-Windows.provenance.txt
 
       - name: Verify source is still current main before publication
+        id: source_fresh
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -234,12 +235,15 @@ jobs:
           set -euo pipefail
           CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           if [ "$CURRENT_MAIN" != "$EXPECTED_SHA" ]; then
-            echo "::error::Refusing stale Windows publication. Built $EXPECTED_SHA but current main is $CURRENT_MAIN."
-            exit 1
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SUPERSEDED: built $EXPECTED_SHA but current main is $CURRENT_MAIN; stale Windows publication is a non-terminal no-op."
+            exit 0
           fi
+          echo "fresh=true" >> "$GITHUB_OUTPUT"
           echo "Verified publication source is exact current main: $EXPECTED_SHA"
 
       - name: Upload workflow installer artifact
+        if: steps.source_fresh.outputs.fresh == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: NUSA-Windows-${{ steps.source.outputs.short_sha }}
@@ -251,6 +255,7 @@ jobs:
           retention-days: 14
 
       - name: Publish stable Windows GitHub release
+        if: steps.source_fresh.outputs.fresh == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -267,6 +272,7 @@ jobs:
           fi
 
       - name: Final release pointer verification
+        if: steps.source_fresh.outputs.fresh == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

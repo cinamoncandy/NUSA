@@ -1,0 +1,29 @@
+id: WO-UI-20261003-WINDOW-COUNTS
+title: "Server-side 09:00 KST window counts for the HOME decision and order numbers"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-window-counts
+authority_impact: none
+objective: "HOME showed 2,522 decisions while the server had about 24,000 in the same window: the app derives 'since 09:00' from a client baseline taken at its first look at a server run, so a late open or a server restart dropped the part before the app looked. Let the server count the 09:00 KST window and send it."
+scope:
+  - "apps/cloud/src/runtime.ts: window decision and order counters beside the BUY window counters (same 09:00 KST = 00:00 UTC window, in memory, rolled by the same function), reported as windowDecisionCount and windowOrderCount only when the canonical PAPER boundary is active."
+  - "packages/contracts/src/personalPaperOperations.ts: optional fields with non-negative-integer validation when present."
+  - "apps/mobile/src/dailyResetModel.ts: chooseDailyCounts prefers the server window counts when both are usable and otherwise returns the client-baseline counts unchanged; apps/mobile/src/homeView.tsx uses it for the rings and the field."
+  - "Review follow-ups: malformed display-only counters are dropped from the validated snapshot instead of rejecting it (dropMalformedDisplayCounters); counters are attributed with the time of counting; a restart inside the window is disclosed under the rings (partialWindowNote, home-window-note)."
+  - "tests/mobile-daily-reset.test.js: added tests; tests/mobile-buy-signal-line.test.js updated for dropped values."
+exclusions:
+  - "No change to decisions, risk, orders, accounting, the cumulative counters, /health, LIVE, credentials or AI authority. Display only. Older servers keep the client baseline."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Missing, negative, non-finite or non-numeric server values fall back to the client baseline; the window counters are absent without the PAPER boundary."
+rollback: "Revert the change; the fields are optional everywhere."
+verification_commands:
+  - npx tsc -p tsconfig.json --noEmit
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-daily-reset.test.js tests/mobile-buy-signal-line.test.js
+residual: "Counts live in memory: a server restart restarts them; the BUY row and a note under the rings state the later start time. Needs a server deploy and a new app build to take effect; both need owner approval."
