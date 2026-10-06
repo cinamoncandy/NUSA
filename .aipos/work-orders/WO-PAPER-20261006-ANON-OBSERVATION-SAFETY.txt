@@ -1,0 +1,6 @@
+PAPER_ONLY
+liveAuthority=NONE
+productionMutationAllowed=false
+aiAuthority=ZERO_AUTHORITY
+
+Anonymous observation is read-only, default-off, and cannot be used as fallback for an invalid presented credential. REAL balances, PAPER order injection, operator/session issuance, settings mutation, telemetry write, readiness and all other non-allowlisted routes remain on existing authorization.
