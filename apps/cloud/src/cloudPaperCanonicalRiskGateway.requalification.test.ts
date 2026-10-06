@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
-const EXPECTED_RISK_BLOB = "36526fb630290a11fde773c7be48af06c7bdab39";
+const EXPECTED_RISK_BLOB = "e2876443ea0f9b340d47b06fc89d7865c692452a";
 
 function committedGitBlobSha(path: string): string {
   return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
@@ -44,6 +44,14 @@ describe("RISK exact-source re-qualification evidence", () => {
     assert.match(source, /const completed = \[\.\.\.sellOrders\.values\(\)\]\.filter\(\(sell\) => dayOf\(sell\.filledAt\) === today\)/);
     // The unmatched-sell fail-closed path is unchanged.
     assert.match(source, /consecutiveLossCount: Number\.MAX_SAFE_INTEGER/);
+  });
+
+  it("re-qualifies the loss-session counts as display only: recorded after the streak is computed and never read by a decision", () => {
+    const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
+    assert.match(source, /todayCompletedSells: completed\.length, todayLosingSells: completed\.filter\(\(sell\) => sell\.pnl < 0\)\.length/);
+    assert.match(source, /public lossSession\(\): CloudPaperLossSessionSnapshot \| null \{\n    return this\.lastLossSession;/);
+    assert.equal((source.match(/this\.lastLossSession/g) ?? []).length, 2, "written once per evaluation and read only by lossSession()");
+    assert.match(source, /consecutiveLossCount: lossState\.consecutiveLossCount, sessionPeakEquity/, "the decision still uses the same streak");
   });
 
   it("verifies the complete PAPER risk envelope is unchanged", () => {

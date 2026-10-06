@@ -12,6 +12,7 @@ scope:
   - "apps/cloud/src/cloudPaperCanonicalRiskGateway.ts: realizedLossState also returns today's completed sells and losing sells; the gateway keeps the latest counts (evaluatedAt, consecutiveLossCount, maxConsecutiveLosses, todayCompletedSells, todayLosingSells) and exposes lossSession(). The decision itself is unchanged."
   - "apps/cloud/src/runtime.ts: /health liveness includes paperLossSession when the production risk gate exists."
   - "apps/cloud/src/server.ts: the public allowlist publishes paperLossSession only as five non-negative integers; anything else (money, market, ids, malformed values) is dropped."
+  - "apps/cloud/src/moduleQualificationV1.ts and cloudPaperCanonicalRiskGateway.requalification.test.ts: the RISK canonical source blob is rebound from 36526fb6 to e2876443 with re-qualification evidence that the new counts are display only and the envelope is unchanged."
   - "tests: gateway counts today only and nothing before the first evaluation; /health publishes the five integers and drops malformed input."
 exclusions:
   - "No change to any risk limit, threshold, strategy, order path, accounting or LIVE. Strategy attribution of each losing sell is not possible from fills (no strategy id on a fill) and is a follow-up."
@@ -23,5 +24,6 @@ safety:
 rollback: "Revert the change."
 verification_commands:
   - npx tsc -p tsconfig.json
+  - node --test dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.requalification.test.js dist/apps/cloud/src/module10XS.test.js
   - node --test tests/cloud-paper-daily-loss-streak.test.js tests/cloud-runtime-liveness-health.test.js tests/cloud-runtime-canonical-risk-wiring.test.js
 residual: "Requires a PAPER deploy; after it the next /health read shows today's completed and losing sells behind the limit."
