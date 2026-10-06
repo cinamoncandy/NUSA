@@ -180,3 +180,59 @@ test("requires a rich canonical hypothesis for every candidate", () => {
     (error) => error instanceof ResearchRunFactoryError && error.code === "INVALID_CANONICAL_HYPOTHESIS",
   );
 });
+
+
+test("fixed single-market research remains explicitly universe-not-applicable", () => {
+  const plan = buildResearchRunProvenancePlan(inputs());
+  assert.deepEqual(plan.universe, { applicability: "NOT_APPLICABLE_FIXED_SINGLE_MARKET" });
+});
+
+test("universe-selected research fails closed without point-in-time provenance", () => {
+  assert.throws(
+    () => buildResearchRunProvenancePlan(inputs({
+      universeContext: { selectionMode: "POINT_IN_TIME_UNIVERSE" },
+    })),
+    (error) => error instanceof ResearchRunFactoryError && error.code === "MISSING_UNIVERSE_PROVENANCE",
+  );
+});
+
+test("universe-selected research binds exact historical constituent dataset", () => {
+  const provenance = {
+    schemaVersion: 1,
+    universeId: "upbit-krw-active",
+    version: "2026-08-29",
+    asOf: inputs().manifest.startOpenTime,
+    availableAt: inputs().manifest.startOpenTime,
+    selectionPolicyId: "listed-krw-v1",
+    source: "upbit-market-snapshot",
+    constituents: [{
+      market: "KRW-BTC",
+      datasetId: inputs().manifest.datasetId,
+      datasetContentSha256: DATASET_HASH,
+      eligibleFrom: inputs().manifest.startOpenTime,
+      evidenceRef: "upbit:snapshot:2026-08-29",
+    }],
+  };
+  const plan = buildResearchRunProvenancePlan(inputs({
+    universeContext: { selectionMode: "POINT_IN_TIME_UNIVERSE", provenance, manifests: [inputs().manifest] },
+  }));
+  assert.equal(plan.universe.applicability, "BOUND");
+  assert.equal(plan.universe.universeId, "upbit-krw-active");
+  assert.match(plan.universe.universeFingerprint, /^[a-f0-9]{64}$/);
+
+  assert.throws(
+    () => buildResearchRunProvenancePlan(inputs({
+      universeContext: {
+        selectionMode: "POINT_IN_TIME_UNIVERSE",
+        provenance: {
+          ...provenance,
+          constituents: [{ ...provenance.constituents[0], datasetId: "survivor-substitution" }],
+        },
+        manifests: [inputs().manifest],
+      },
+    })),
+    (error) => error instanceof ResearchRunFactoryError
+      && error.code === "INVALID_UNIVERSE_PROVENANCE"
+      && /UNIVERSE_DATASET_BINDING_MISMATCH/.test(error.message),
+  );
+});

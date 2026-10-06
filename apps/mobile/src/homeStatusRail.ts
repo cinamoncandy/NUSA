@@ -37,6 +37,8 @@ export interface HomeStatusInput {
   readonly nowMs: number;
   /** True only when the caller can prove a daily PnL basis exists. */
   readonly hasDailyPnlBasis: boolean;
+  /** Short Korean halt cause from the server fields (see haltReasonModel); null/absent when unknown. */
+  readonly haltCause?: string | null;
 }
 
 export interface HomeStatusRail {
@@ -81,7 +83,9 @@ export function buildHomeStatusRail(input: HomeStatusInput): HomeStatusRail {
       input.paperMode === null);
 
   const systemLine = halted
-    ? input.killSwitchActive === true && input.paperState !== "DOWN" && input.paperMode !== "FAULTED"
+    ? typeof input.haltCause === "string" && input.haltCause.trim() !== ""
+      ? `PAPER 중단(${input.haltCause.trim()})`
+      : input.killSwitchActive === true && input.paperState !== "DOWN" && input.paperMode !== "FAULTED"
       ? "PAPER 중단(킬 스위치)"
       : "PAPER 중단"
     : degraded

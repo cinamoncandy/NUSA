@@ -1,0 +1,26 @@
+id: WO-UI-20261001-DECISION-RINGS
+title: "Show every reported PAPER decision as a spiral of dots on the home screen"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-home-field-cleanup
+authority_impact: none
+objective: "Owner chose the 'decision rings' concept from the mobile design prototypes and asked to apply it: the home hero shows the runtime's real decision count as a golden-angle spiral (oldest at the centre, newest at the edge) with slow ambient motion."
+scope:
+  - "New import-free presentation model apps/mobile/src/decisionRingsModel.ts: maps heartbeat decisionCount/paperOrderCount to sampled spiral dots, a state (UNKNOWN/EMPTY/WAITING/ORDERING) and Korean copy. Invalid or missing counts are UNKNOWN, never zero."
+  - "New component apps/mobile/src/decisionRings.tsx rendered at the top of HomeView: dots, guide rings, a slow rotation, a radar sweep and a ripple at the newest dot, using Animated with the native driver. All motion stops when the OS reduce-motion setting is on."
+  - "HomeView computes the field input once and feeds both the rings and the existing Intelligence Field. Disconnected or read-error states pass null counts so the rings show UNKNOWN instead of stale numbers."
+  - "Follow-up (owner, 2026-10-01): the decision rings replace the older Intelligence Field particle view on HOME instead of stacking above it; the home-now anchor moves to the rings. intelligenceField.tsx stays in the tree, unused on HOME."
+exclusions:
+  - "Individual decisions are not drawn by outcome: the heartbeat only exposes counts, so order dots are not placed on specific decisions."
+  - "No server, strategy, risk, execution, credential or LIVE changes; presentation only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/mobile-decision-rings.test.js
+  - pnpm run validate
+residual: "Physical Android device visual and motion acceptance is HUMAN_ENVIRONMENT_ONLY."

@@ -1,0 +1,34 @@
+id: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
+title: Preserve first-failure evidence for Android PAPER runtime reads
+objective: Identify the first broken Android-to-PAPER runtime transition without fabricating aggregate, ledger, learning, or device evidence.
+scope:
+  - authenticated GET /api/paper-operations mobile read boundary
+  - stable non-secret failure classification for HTTP, timeout, transport, schema, connection replacement, and insecure endpoint
+  - preserve existing endpoint verification, HTTPS, bearer, redirect, freshness, and authority guards
+  - route runtime evidence to the canonical owner after the first failure is observed
+exclusions:
+  - LIVE activation or order authority
+  - fake BUY, SELL, PnL, ledger, learning, or aggregate values
+  - claiming 376/376 provenance without deployed runtime evidence
+  - claiming Galaxy physical acceptance without device evidence
+safety:
+  PAPER_ONLY: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification:
+  - pnpm run build
+  - pnpm run typecheck
+  - node --test tests/mobile-paper-failure-evidence.test.js tests/mobile-paper-read-transport-guard.test.js tests/mobile-paper-session-projection-lifecycle.test.js tests/personal-paper-operations.test.js
+  - pnpm run preflight
+  - pnpm run safety:invariants
+completion_criteria:
+  - exact-head CI passes
+  - independent Audit accepts exact head
+  - canonical Release merges exact audited head
+  - exact-main Oracle deployment identity is verified
+  - authenticated Android request yields actual runtime evidence
+  - 376/376, learning, Ledger, reconnect and Galaxy claims remain unverified until independently evidenced
+status: READY_FOR_REVIEW_PENDING_CI
+blockers: []
+next_action: Run exact-head CI, then Independent Audit and canonical Release; deploy exact main before runtime/Galaxy acceptance.

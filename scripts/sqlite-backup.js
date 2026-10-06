@@ -42,10 +42,16 @@ if (process.env.NUSA_DRY_RUN === "1") {
 if (!fs.existsSync(source)) throw new Error(`database does not exist: ${source}`);
 fs.mkdirSync(destination, { recursive: true, mode: 0o750 });
 
-const db = new DatabaseSync(source);
+const db = new DatabaseSync(source, { readOnly: true });
 let dailyDigest;
 try {
-  db.exec("PRAGMA wal_checkpoint(PASSIVE)");
+  try {
+    db.exec("PRAGMA wal_checkpoint(PASSIVE)");
+  } catch (checkpointError) {
+    // Best-effort only: a read-only source cannot checkpoint, but VACUUM INTO
+    // still produces a consistent snapshot. Never fail the backup for this.
+    console.error(`wal_checkpoint skipped: ${checkpointError instanceof Error ? checkpointError.message : checkpointError}`);
+  }
   db.exec(`VACUUM INTO ${sqlString(daily)}`);
   dailyDigest = verifyAndManifest(daily);
   if (now.getUTCDay() === 0) {

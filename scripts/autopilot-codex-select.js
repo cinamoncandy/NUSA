@@ -9,12 +9,13 @@ const { selectCodexBacklogTask } = require("../dist/apps/autopilot/src/evolveGit
 
 const CONTRACT = [
   "NUSA AUTOPILOT CODEX CONTRACT:",
-  "- Read and obey AGENTS.md, the AIPOS recovery protocol and docs/NUSA_CORE_MASTER_INSTRUCTIONS.md before editing.",
+  "- Read and obey AGENTS.md, the AIPOS recovery protocol and docs/NUSA_CORE_MASTER_INSTRUCTIONS.md before editing. Exception for this delegated-validation lane: the work order's verification commands are executed by the workflow's publish job on separate hardware, not by you (see the next rule).",
   "- Implement only the next smallest verifiable increment of the issue below, with tests, and update the AIPOS work order/state it needs.",
   "- Preserve PAPER-only operation, liveAuthority=NONE, productionMutationAllowed=false and aiAuthority=ZERO_AUTHORITY.",
   "- Never touch LIVE trading, broker/exchange credentials, secrets, .github/workflows or deploy/ files.",
   "- Do not commit, push, open a PR, merge, deploy or trigger CI. Leave changes uncommitted; the workflow validates and publishes them.",
-  "- Run the relevant local validation (pnpm run build, typecheck, validate and the affected tests) and report truthfully what ran.",
+  "- Write every AIPOS state/work-order field as it will be TRUE ON THE PUBLISHED COMMIT: the workflow commits your change and publishes it only after build, typecheck, validate, the work-order index check and the test suites pass. So say the increment is committed and workflow-validated, and list as remaining exact-head CI, independent Audit and Release PLUS every task-specific post-Release action the work order or issue requires (exact-main deployment, runtime proof, dogfood, any HUMAN_ENVIRONMENT_ONLY acceptance): never imply that Release ends the work when it does not. Never write \"uncommitted\", \"pending workflow validation\" or \"validation intentionally left to the workflow\": a review bot flags that stale wording and Release then blocks the PR on the unresolved thread.",
+  "- Do NOT run pnpm install, build, typecheck, the test suite or any other heavy command: this runner shares a 1 GB host with the PAPER runtime and a host guard stops the run (discarding your patch) when memory runs low. The workflow runs build, typecheck, validate, the work-order index check, tests/*.test.js and the isolated (co-located) tests on separate hardware after you finish; heavy commands are blocked on this runner and fail immediately. Light reads (git diff, grep, cat) are fine; report truthfully that validation is left to the workflow.",
 ].join("\n");
 
 async function github(path, token) {

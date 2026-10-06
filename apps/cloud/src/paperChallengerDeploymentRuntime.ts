@@ -109,6 +109,8 @@ export interface QualifiedPaperChallengerArtifactReader {
 export interface CanonicalPaperPeriodPort {
   openPeriodFromCanonicalAccount(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan;
   listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[];
+  listOpenPeriods?: () => readonly PersistedPaperRealizedPeriodPlan[];
+  retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
 }
 
 export interface PaperChallengerDeploymentRuntimeOptions {
@@ -214,6 +216,15 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
       this.options.bindings.activate(market, binding, researchLineage);
     }
 
+    const openPeriods = this.options.periods.listOpenPeriods?.() ?? [];
+    if (openPeriods.length > 1) throw new Error("multiple PAPER periods are unsafe");
+    const baseline = openPeriods[0];
+    if (baseline?.candidateProvenance[0]?.candidateId === "owner-baseline-sma-5-20") {
+      if (this.options.periods.retireOpenPeriodForReplacement == null) throw new Error("owner baseline replacement retirement unavailable");
+      this.options.periods.retireOpenPeriodForReplacement(baseline.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:" + candidateId);
+    } else if (baseline != null) {
+      throw new Error("another PAPER realized period is already open");
+    }
     const periodIndex = nextPeriodIndex(this.options.periods.listRealizedPeriods());
     this.options.periods.openPeriodFromCanonicalAccount({
       periodId,

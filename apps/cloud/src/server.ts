@@ -59,6 +59,7 @@ import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependen
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
 import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
 import type { UxTelemetryStorage } from "./uxTelemetryJournal";
+import { COMPONENT_HEALTH_STATES, type ComponentHealthResult } from "./componentHealth";
 
 /**
  * Evidence that the continuous PAPER runtime is alive, not merely that the process answers HTTP.
@@ -83,9 +84,29 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly decisionCount: number;
   readonly paperOrderCount: number;
   readonly paperFillCount: number;
+  /** Coded `STATUS:REASON` of the latest PAPER boundary decision, e.g. `BLOCKED:PAPER_INVESTMENT_ALLOCATION_EXCEEDED`. */
+  readonly lastPaperDecisionOutcome?: string | null;
   readonly lastError: string | null;
   /** Why the previous runtime process stopped, when a failure record exists. */
   readonly previousStop?: string;
+  /** Display-only event-loop stall measurement (milliseconds, a count and a timestamp), present when the runtime measures it. */
+  readonly eventLoopMaxStallMs?: number;
+  readonly eventLoopStallCount?: number;
+  readonly lastEventLoopStallAt?: number | null;
+  /** Display-only research candle collection status (a code and two counts), present when the runtime reports it. */
+  readonly researchCollectionStatus?: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE";
+  readonly researchCandleCount?: number;
+  readonly researchRequiredCandles?: number;
+  /** Cumulative PAPER decision-funnel counts since the runtime started: fixed codes and integer counts only. */
+  readonly paperFunnel?: { readonly since: number; readonly counts: Readonly<Record<string, number>> };
+  /** Counts behind the consecutive-loss limit as of the latest risk evaluation: integers and one timestamp only. */
+  /** Today's completed and losing sells per strategy family code (fixed codes, integers only). */
+  readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
+  /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
+  readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
+  /** Production closed-learning loop status: fixed codes and integers only. */
+  readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined>>;
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
 }
 
 export interface CloudReadinessSnapshot {
@@ -119,6 +140,8 @@ export interface CloudDashboardServerOptions {
   readonly readiness?: () => CloudReadinessSnapshot;
   /** Continuous PAPER runtime liveness, surfaced on /health so 24-hour operation is observable. */
   readonly runtimeLiveness?: () => CloudRuntimeLivenessSnapshot;
+  /** Deterministic process/workload health; HTTP 200 alone never implies workload health. */
+  readonly runtimeHealth?: () => Readonly<{ process: ComponentHealthResult; workload: ComponentHealthResult }>;
   /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
   /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
@@ -232,6 +255,16 @@ const auditHttpResponse = (
 const PUBLIC_LIVENESS_TIMESTAMPS = ["startedAt", "lastHeartbeatAt", "lastMarketEventAt", "lastPaperDecisionAt", "lastPaperOrderAt", "lastPaperFillAt"] as const;
 const PUBLIC_LIVENESS_COUNTERS = ["eventCount", "decisionCount", "paperOrderCount", "paperFillCount"] as const;
 const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
+const PUBLIC_DECISION_OUTCOME_CODE = /^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/;
+// The runtime's own failure phrases ("paper account persistence failed: <detail>"). Only the phrase before the first colon can
+// become public, and only when it is plain lowercase words starting with "paper": no digits, so no values, ids or keys, and the
+// detail after the colon never leaves the authenticated route.
+const PUBLIC_PAPER_FAILURE_PHRASE = /^paper [a-z ]{2,70}$/;
+function publicLivenessErrorClass(raw: string): string | undefined {
+  const separator = raw.indexOf(":");
+  const phrase = (separator < 0 ? raw : raw.slice(0, separator)).trim();
+  return PUBLIC_PAPER_FAILURE_PHRASE.test(phrase) ? phrase.toUpperCase().replace(/ +/g, "_") : undefined;
+}
 
 /**
  * `/health` is unauthenticated, so the runtime object is rebuilt here from a fixed allowlist instead
@@ -252,12 +285,118 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawError = source.lastError;
   const lastError = rawError === null || rawError === undefined
     ? null
-    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError : "LIVENESS_ERROR_UNCLASSIFIED";
+    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError
+      : (typeof rawError === "string" ? publicLivenessErrorClass(rawError) : undefined) ?? "LIVENESS_ERROR_UNCLASSIFIED";
   const timestamps = Object.fromEntries(PUBLIC_LIVENESS_TIMESTAMPS.map((key) => [key, timestamp(key)]));
   const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
   const rawPreviousStop = source.previousStop;
   const previousStop = typeof rawPreviousStop === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawPreviousStop) ? rawPreviousStop : undefined;
-  return Object.freeze({ ...timestamps, ...counters, lastError, ...(previousStop === undefined ? {} : { previousStop }) }) as unknown as CloudRuntimeLivenessSnapshot;
+  const rawOutcome = source.lastPaperDecisionOutcome;
+  const lastPaperDecisionOutcome = typeof rawOutcome === "string" && PUBLIC_DECISION_OUTCOME_CODE.test(rawOutcome) ? rawOutcome : undefined;
+  // Optional stall measurement: published only as finite non-negative numbers, and only when the source supplies them.
+  const optionalNumber = (key: string): number | undefined => {
+    const raw = source[key];
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : undefined;
+  };
+  const maxStall = optionalNumber("eventLoopMaxStallMs");
+  const stallCount = optionalNumber("eventLoopStallCount");
+  const lastStallAt = source.lastEventLoopStallAt === null ? null : optionalNumber("lastEventLoopStallAt");
+  const stall = {
+    ...(maxStall === undefined ? {} : { eventLoopMaxStallMs: maxStall }),
+    ...(stallCount === undefined ? {} : { eventLoopStallCount: Math.trunc(stallCount) }),
+    ...(lastStallAt === undefined ? {} : { lastEventLoopStallAt: lastStallAt }),
+  };
+  // Research collection status: one of four fixed codes plus two counts, nothing else (no market, time or detail).
+  // Decision funnel: keys are fixed stage/status/reason codes and values are integers, at most 80 keys; anything else is dropped.
+  const FUNNEL_KEY = /^(OTHER|[A-Z][A-Z_]{1,23}:(PASS|SKIP|FAIL)(:[A-Z][A-Z0-9_]{1,47})?)$/;
+  const rawFunnel = source.paperFunnel as { since?: unknown; counts?: unknown } | null | undefined;
+  let funnel: { paperFunnel?: { since: number; counts: Record<string, number> } } = {};
+  if (rawFunnel != null && typeof rawFunnel === "object" && typeof rawFunnel.since === "number" && Number.isFinite(rawFunnel.since) && rawFunnel.since >= 0 && rawFunnel.counts != null && typeof rawFunnel.counts === "object" && !Array.isArray(rawFunnel.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawFunnel.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 80) break;
+      if (FUNNEL_KEY.test(key) && typeof value === "number" && Number.isSafeInteger(value) && value >= 0) counts[key] = value;
+    }
+    funnel = { paperFunnel: { since: rawFunnel.since, counts } };
+  }
+  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing.
+  const rawLoss = source.paperLossSession as Record<string, unknown> | null | undefined;
+  const LOSS_KEYS = ["evaluatedAt", "consecutiveLossCount", "maxConsecutiveLosses", "todayCompletedSells", "todayLosingSells"] as const;
+  const lossSession = rawLoss != null && typeof rawLoss === "object" && LOSS_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
+    ? { paperLossSession: Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])) }
+    : {};
+  // Loss attribution: at most 8 fixed family codes, each with two non-negative integers.
+  const FAMILY_CODE = /^(SMA_CROSSOVER|RSI_MEAN_REVERSION|DONCHIAN_BREAKOUT|OTHER_FAMILY|UNATTRIBUTED)$/;
+  const rawAttribution = source.paperLossAttribution as { evaluatedAt?: unknown; byFamily?: unknown } | null | undefined;
+  let lossAttribution: { paperLossAttribution?: { evaluatedAt: number; byFamily: Record<string, { completedSells: number; losingSells: number }> } } = {};
+  if (rawAttribution != null && typeof rawAttribution === "object" && Number.isSafeInteger(rawAttribution.evaluatedAt) && Number(rawAttribution.evaluatedAt) >= 0 && rawAttribution.byFamily != null && typeof rawAttribution.byFamily === "object" && !Array.isArray(rawAttribution.byFamily)) {
+    const byFamily: Record<string, { completedSells: number; losingSells: number }> = {};
+    for (const [key, value] of Object.entries(rawAttribution.byFamily as Record<string, unknown>)) {
+      if (Object.keys(byFamily).length >= 8) break;
+      const entry = value as { completedSells?: unknown; losingSells?: unknown } | null;
+      if (FAMILY_CODE.test(key) && entry != null && typeof entry === "object" && Number.isSafeInteger(entry.completedSells) && Number.isSafeInteger(entry.losingSells) && Number(entry.losingSells) >= 0 && Number(entry.completedSells) >= Number(entry.losingSells)) {
+        byFamily[key] = { completedSells: Number(entry.completedSells), losingSells: Number(entry.losingSells) };
+      }
+    }
+    lossAttribution = { paperLossAttribution: { evaluatedAt: Number(rawAttribution.evaluatedAt), byFamily } };
+  }
+  // Research experiment ticks: a fixed status code, three integers and at most 40 code-keyed integer counts.
+  const rawTicks = source.researchExperimentTicks as Record<string, unknown> | null | undefined;
+  let experimentTicks: { researchExperimentTicks?: { lastTickAt: number; lastStatus: string; ticks: number; sessionsStarted: number; counts: Record<string, number> } } = {};
+  if (rawTicks != null && typeof rawTicks === "object" && typeof rawTicks.lastStatus === "string" && ["OK", "RECOVERY_NOT_READY", "ERROR"].includes(rawTicks.lastStatus)
+    && ["lastTickAt", "ticks", "sessionsStarted"].every((key) => Number.isSafeInteger(rawTicks[key]) && Number(rawTicks[key]) >= 0)
+    && rawTicks.counts != null && typeof rawTicks.counts === "object" && !Array.isArray(rawTicks.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawTicks.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 40) break;
+      if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value) && Number(value) >= 0) counts[key] = Number(value);
+    }
+    experimentTicks = { researchExperimentTicks: { lastTickAt: Number(rawTicks.lastTickAt), lastStatus: rawTicks.lastStatus, ticks: Number(rawTicks.ticks), sessionsStarted: Number(rawTicks.sessionsStarted), counts } };
+  }
+  // Closed-learning loop: integers for the counters and the tick time, fixed codes for the steps; nothing else.
+  const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
+  let closedLearningLoop: { closedLearningLoop?: Record<string, string | number> } = {};
+  const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome"] as const;
+  if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
+    && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
+    const loop: Record<string, string | number> = {};
+    for (const key of LOOP_INTS) loop[key] = Number(rawLoop[key]);
+    for (const key of LOOP_CODES) { const value = rawLoop[key]; if (typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)) loop[key] = value; }
+    if (loop.bootstrap !== undefined && loop.rollover !== undefined) closedLearningLoop = { closedLearningLoop: loop };
+  }
+  const rawResearch = source.researchCollectionStatus;
+  const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
+    ? {
+      researchCollectionStatus: rawResearch,
+      ...(optionalNumber("researchCandleCount") === undefined ? {} : { researchCandleCount: Math.trunc(optionalNumber("researchCandleCount") as number) }),
+      ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
+    }
+    : {};
+  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...closedLearningLoop }) as unknown as CloudRuntimeLivenessSnapshot;
+}
+
+const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);
+function publicComponentHealth(value: ComponentHealthResult, componentId: "PAPER_PROCESS" | "PAPER_WORKLOAD"): ComponentHealthResult | null {
+  if (value == null || typeof value !== "object") return null;
+  const provenance = componentId === "PAPER_PROCESS" ? "cloud-runtime-heartbeat" : "cloud-paper-market-events";
+  const evidencePrefix = componentId === "PAPER_PROCESS" ? "heartbeat" : "market-event";
+  if (value.componentId !== componentId || !COMPONENT_HEALTH_STATES.includes(value.state)
+    || !PUBLIC_HEALTH_REASONS.has(value.reasonCode) || !Number.isSafeInteger(value.evaluatedAt)
+    || value.evaluatedAt < 0 || typeof value.fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(value.fingerprint)) return null;
+  if (value.observedAt !== undefined && (!Number.isSafeInteger(value.observedAt) || value.observedAt < 0 || value.observedAt > value.evaluatedAt)) return null;
+  if (value.provenance !== undefined && value.provenance !== provenance) return null;
+  if (value.evidenceId !== undefined && (typeof value.evidenceId !== "string" || !new RegExp(`^${evidencePrefix}:\\d+:\\d+(?::\\d+)?$`).test(value.evidenceId))) return null;
+  return Object.freeze({ componentId, state: value.state, reasonCode: value.reasonCode,
+    evaluatedAt: value.evaluatedAt, ...(value.observedAt === undefined ? {} : { observedAt: value.observedAt }),
+    ...(value.provenance === undefined ? {} : { provenance }),
+    ...(value.evidenceId === undefined ? {} : { evidenceId: value.evidenceId }), fingerprint: value.fingerprint });
+}
+function publicRuntimeHealth(value: ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined): ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined {
+  if (value == null || typeof value !== "object") return undefined;
+  const process = publicComponentHealth(value.process, "PAPER_PROCESS");
+  const workload = publicComponentHealth(value.workload, "PAPER_WORKLOAD");
+  return process === null || workload === null ? undefined : Object.freeze({ process, workload });
 }
 
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
@@ -417,11 +556,13 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         // `runtime` appears only when a liveness source is wired, and carries the counters that
         // show whether the continuous PAPER loop is actually ticking.
         const liveness = options.runtimeLiveness?.();
+        const runtimeHealth = publicRuntimeHealth(options.runtimeHealth?.());
         respond("health", dashboardJsonResponse(200, {
           ok: true,
           observedAt: new Date().toISOString(),
           capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
-          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) })
+          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) }),
+          ...(runtimeHealth === undefined ? {} : { runtimeHealth })
         }));
         return;
       }

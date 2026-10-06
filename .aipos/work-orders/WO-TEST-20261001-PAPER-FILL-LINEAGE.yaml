@@ -1,0 +1,29 @@
+id: WO-TEST-20261001-PAPER-FILL-LINEAGE
+title: "Prove a PAPER fill traces back to its order, intent, binding, dataset and decision"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-lineage-test
+authority_impact: none
+objective: "Integrated upgrade brief, P0 evidence lineage: show with a test which links from one canonical PAPER fill back to its causes exist today, and record the link that does not."
+scope:
+  - "tests/paper-fill-lineage.test.js drives one fill through CloudPaperExecutionBoundary with a binding built by bindPaperCandidateForExecution."
+  - "Backward: fill -> order -> execution intent (fingerprint recomputes) -> candidate binding -> dataset identity, plus candidate id, decision time and portfolio plan time."
+  - "The binding fingerprint changes when the dataset content hash changes."
+  - "Forward: one order, one fill and one idempotency ledger entry per command identity; replay leaves orders, fills, cash and the ledger unchanged."
+acceptance:
+  - "All tests in tests/paper-fill-lineage.test.js pass against the built dist."
+remaining_gaps:
+  - "A fill does not reference the market observation (ticker/orderbook) id that produced its decision."
+  - "The execution intent does not retain the decision's reasons or the candidate strategy decision's reason/observation time; decisions differing only there are indistinguishable from the fill."
+exclusions:
+  - "Test only; no production code changes."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/paper-fill-lineage.test.js
+  - pnpm run validate

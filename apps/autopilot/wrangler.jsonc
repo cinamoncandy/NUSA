@@ -7,14 +7,16 @@
   "workers_dev": true,
   "vars": {
     "NUSA_GLOBAL_RELEASE_FREEZE": "false",
+    "NUSA_AUTOPILOT_ZERO_CREDIT_MODE": "true",
     "NUSA_JEV_SHADOW_ENABLED": "true",
-    "NUSA_JEV_BOUNDED_ROUTING_ENABLED": "false"
+    "NUSA_JEV_BOUNDED_ROUTING_ENABLED": "false",
+    "NUSA_JEV_MODEL_TIERING_ENABLED": "false"
   },
   "ai": {
     "binding": "AI"
   },
   "triggers": {
-    "crons": ["* * * * *"]
+    "crons": ["*/5 * * * *"]
   },
   "durable_objects": {
     "bindings": [

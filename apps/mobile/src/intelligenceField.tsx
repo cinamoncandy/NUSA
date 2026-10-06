@@ -2,7 +2,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildHomeFieldFacts, buildIntelligenceField, fieldPose, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
-import { fieldMotion, fieldPalette } from "./designSystem";
+import { fieldRadii, fieldMotion, fieldPalette } from "./designSystem";
 
 /**
  * NUSA Intelligence Field: one central core inside a nebula of five subsystem arms.
@@ -15,7 +15,7 @@ const SUBSYSTEMS: readonly { readonly id: FieldSubsystem; readonly label: string
   { id: "governance", label: "GOVERNANCE", color: fieldPalette.governance, angle: 1.45 },
   { id: "risk", label: "RISK", color: fieldPalette.risk, angle: 2.6 },
 ];
-const FOCUS_COLOR = fieldPalette.focus;
+const FOCUS_COLOR = fieldPalette.accent;
 const TONE_COLOR: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
 const FIELD_HEIGHT = 340;
 const DOTS_PER_ARM = 84;
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   statusWord: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
   phase: { marginLeft: "auto", fontSize: 10, letterSpacing: 2, color: fieldPalette.dim, ...fieldFonts.mono },
   field: { height: FIELD_HEIGHT, overflow: "hidden" },
-  flare: { position: "absolute", width: 32, height: 32, borderRadius: 16, borderWidth: 1 },
+  flare: { position: "absolute", width: 32, height: 32, borderRadius: fieldRadii.lg, borderWidth: 1 },
   pulseRing: { position: "absolute", width: 80, height: 80, borderRadius: 40, borderWidth: 1 },
   coreWrap: { position: "absolute", width: 72, height: 72, alignItems: "center", justifyContent: "center" },
   coreGlow: { position: "absolute", width: 72, height: 72, borderRadius: 36, opacity: 0.16 },

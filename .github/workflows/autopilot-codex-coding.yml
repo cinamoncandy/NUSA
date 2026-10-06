@@ -11,11 +11,18 @@ name: Autopilot Codex Coding
 
 on:
   schedule:
-    - cron: "23 */2 * * *"
+    - cron: "23 * * * *"
   workflow_dispatch: {}
+  # Event-driven continuation: when an autopilot Codex PR merges (or is closed) the "one open PR" gate opens, so
+  # start the next increment immediately instead of waiting for the next hourly slot. Only the trusted base ref is
+  # checked out; the job below ignores every other PR.
+  pull_request_target:
+    types: [closed]
 
 permissions:
   contents: read
+  # Read-only: lets the host guard see whether an Oracle PAPER release is running.
+  actions: read
 
 concurrency:
   group: autopilot-codex-coding
@@ -24,6 +31,7 @@ concurrency:
 jobs:
   select:
     name: Select next owner backlog issue
+    if: github.event_name != 'pull_request_target' || (github.event.pull_request.base.ref == 'main' && startsWith(github.event.pull_request.head.ref, 'autopilot/codex/'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -93,15 +101,69 @@ jobs:
       - name: Run Codex without commit or push authority
         id: run
         shell: bash
+        env:
+          # Only for the host guard's read of PAPER release runs; removed from Codex's environment.
+          GUARD_GH_TOKEN: ${{ github.token }}
         run: |
           # Actions runs bash with -e; turn it off so a Codex failure reaches the usage-limit check.
           set +e -uo pipefail
           codex login status || exit 1
           log="${RUNNER_TEMP}/codex.log"
-          codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < "${RUNNER_TEMP}/prompt/codex-prompt.txt" 2>&1 | tee "$log"
-          rc=${PIPESTATUS[0]}
+          # This runner shares the 1 GB Oracle host with the PAPER runtime. PAPER always wins:
+          # Codex starts only with enough free memory and no PAPER release running, runs at the
+          # lowest CPU/IO priority, and is stopped (patch discarded) as soon as either changes.
+          # The guard runs from an immutable copy outside the tree Codex can write, so an edit to
+          # scripts/ during the run cannot weaken it.
+          guard="${RUNNER_TEMP}/codex-host-guard.sh"
+          cp scripts/autopilot-codex-host-guard.sh "$guard" && chmod 0555 "$guard" || exit 1
+          if ! GH_TOKEN="$GUARD_GH_TOKEN" bash "$guard" start; then
+            echo "usage_limited=false" >> "$GITHUB_OUTPUT"
+            echo "host_deferred=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Every process Codex starts inherits this marker, so the guard can reap the whole tree
+          # even if a command leaves the process group. The Actions token is not passed to Codex.
+          mark="nusa-codex-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          # Delegated validation: heavy tools fail fast on this shared host (the publish job runs
+          # every gate on GitHub-hosted hardware), so a compliant Codex run cannot trip the guard.
+          blocked="${RUNNER_TEMP}/codex-blocked-bin"
+          mkdir -p "$blocked"
+          for tool in pnpm npm npx yarn tsc vitest jest; do
+            printf '#!/bin/sh\necho "%s is disabled on the shared PAPER host; the autopilot publish job runs validation." >&2\nexit 97\n' "$tool" > "$blocked/$tool"
+            chmod 0555 "$blocked/$tool"
+          done
+          # node stays usable for light scripts, but not for the test runner.
+          real_node="$(command -v node)"
+          printf '#!/bin/sh\nfor a in "$@"; do case "$a" in --test|--test=*) echo "node --test is disabled on the shared PAPER host; the autopilot publish job runs tests." >&2; exit 97;; esac; done\nexec "%s" "$@"\n' "$real_node" > "$blocked/node"
+          chmod 0555 "$blocked/node"
+          env -u GUARD_GH_TOKEN -u GH_TOKEN -u GITHUB_TOKEN NUSA_CODEX_RUN_MARK="$mark" PATH="$blocked:$PATH" \
+            setsid nice -n 19 ionice -c3 codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < "${RUNNER_TEMP}/prompt/codex-prompt.txt" > "$log" 2>&1 &
+          pid=$!
+          deferred=false
+          while kill -0 "$pid" 2>/dev/null; do
+            if ! GH_TOKEN="$GUARD_GH_TOKEN" bash "$guard" watch; then
+              deferred=true
+              break
+            fi
+            sleep 10
+          done
+          # Always reap the whole marked tree: after a stop, and after a normal exit so nothing
+          # Codex left behind keeps using the PAPER host.
+          bash "$guard" reap "$mark"
+          wait "$pid"; rc=$?
+          cat "$log"
+          if [ "$deferred" = true ]; then
+            # Nothing Codex half-wrote may be published.
+            git reset -q --hard; git clean -fdq
+            echo "usage_limited=false" >> "$GITHUB_OUTPUT"
+            echo "host_deferred=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "host_deferred=false" >> "$GITHUB_OUTPUT"
           # A ChatGPT usage limit is a wait, not a failure: never fall back to another account.
-          if grep -qi "usage limit" "$log"; then
+          # Only a failed run whose own error line reports the limit counts; Codex output that merely
+          # quotes this workflow (or any text mentioning a usage limit) must not discard a real patch.
+          if [ "$rc" -ne 0 ] && grep -qiE "^ERROR: .*hit your usage limit" "$log"; then
             echo "usage_limited=true" >> "$GITHUB_OUTPUT"
             echo "::notice::ChatGPT usage limit reached for the dedicated autopilot account; waiting for the next window."
             exit 0
@@ -110,7 +172,7 @@ jobs:
           exit "$rc"
       - name: Collect patch
         id: collect
-        if: steps.run.outputs.usage_limited != 'true'
+        if: steps.run.outputs.usage_limited != 'true' && steps.run.outputs.host_deferred != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -145,6 +207,8 @@ jobs:
           name: autopilot-codex-patch-${{ github.run_id }}
           path: ${{ runner.temp }}/out
       - name: Apply patch to current main and enforce the path boundary
+        env:
+          ISSUE: ${{ needs.select.outputs.issue }}
         run: |
           set -euo pipefail
           git apply --3way --index "${RUNNER_TEMP}/out/changes.patch"
@@ -154,6 +218,13 @@ jobs:
             echo "::error::Codex patch touches a protected path; refusing to publish."
             exit 1
           fi
+          # Commit before validation: the test suite restores the runner checkout with
+          # `git reset --hard HEAD`, which would silently drop a patch that is only staged.
+          git config user.name "NUSA Autopilot (Codex)"
+          git config user.email "noreply@nusa.local"
+          git checkout -q -b "autopilot/codex/issue-${ISSUE}-${GITHUB_RUN_ID}"
+          git commit -q -m "autopilot(codex): next increment for #${ISSUE}" -m "Implemented by the dedicated ChatGPT Codex account; validated by autopilot-codex-coding run ${GITHUB_RUN_ID}. PAPER only; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+          git rev-parse HEAD > "${RUNNER_TEMP}/validated-head"
       - run: corepack enable
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -167,21 +238,22 @@ jobs:
           pnpm run validate
           node scripts/aipos-work-order-index.js --check
           node --test tests/*.test.js
+          # Co-located TypeScript tests compiled under dist/ are only collected here.
+          node scripts/run-tests-isolated.js
       - name: Publish branch and PR
         env:
           GH_TOKEN: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
           ISSUE: ${{ needs.select.outputs.issue }}
         run: |
           set -euo pipefail
-          git config user.name "NUSA Autopilot (Codex)"
-          git config user.email "noreply@nusa.local"
           branch="autopilot/codex/issue-${ISSUE}-${GITHUB_RUN_ID}"
-          git checkout -b "$branch"
-          git commit -q -m "autopilot(codex): next increment for #${ISSUE}" -m "Implemented by the dedicated ChatGPT Codex account; validated by autopilot-codex-coding run ${GITHUB_RUN_ID}. PAPER only; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
-          git push -q origin "$branch"
+          # Publish exactly the commit that was validated, never whatever the tests left behind.
+          test "$(git rev-parse HEAD)" = "$(cat "${RUNNER_TEMP}/validated-head")"
+          git diff --quiet HEAD
+          git push -q origin "HEAD:refs/heads/${branch}"
           body="Refs #${ISSUE}
 
-          Autopilot Codex engine (dedicated ChatGPT account). The workflow applied the Codex patch to current main, enforced the protected-path boundary and ran: pnpm run build, typecheck, validate, the work-order index check and node --test tests/*.test.js, all passing. Codex had no commit/push authority. Merge only through CI, Audit and the deterministic Release.
+          Autopilot Codex engine (dedicated ChatGPT account). The workflow applied the Codex patch to current main, enforced the protected-path boundary and ran: pnpm run build, typecheck, validate, the work-order index check, node --test tests/*.test.js and node scripts/run-tests-isolated.js, all passing. Codex had no commit/push authority. Merge only through CI, Audit and the deterministic Release.
 
           Safety: PAPER only, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY."
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "autopilot(codex): #${ISSUE} next increment" --body "$body"

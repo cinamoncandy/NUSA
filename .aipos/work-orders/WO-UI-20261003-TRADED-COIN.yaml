@@ -1,0 +1,30 @@
+id: WO-UI-20261003-TRADED-COIN
+title: "HOME row: which coin the PAPER runtime trades"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-traded-coin
+authority_impact: none
+objective: "The owner trades one coin (XRP first, ADA and SUI later) and the app never said which. Report the configured market list and show it, with the open position and a warning when the learning coin differs from the traded one."
+scope:
+  - "apps/cloud/src/runtime.ts: heartbeat.tradedMarkets = the configured markets, only with the canonical PAPER boundary (display only)."
+  - "packages/contracts/src/personalPaperOperations.ts: optional field; a malformed list is dropped from the validated snapshot (display-only rule), never rejects it."
+  - "apps/mobile/src/tradedCoinModel.ts, homeView.tsx, homeFieldInput.ts: HOME detail row '거래 코인' (symbols in server order, '보유 중: XRP' for an open position, a warning '학습 코인은 BTC (거래 코인과 다름)' when the research market is not traded); missing or unusable values read as not reported."
+  - "tests/mobile-traded-coin.test.js (6)."
+named_exceptions:
+  - "The HOME market chart still follows the fixed KRW-BTC public chart: making it follow the traded coin changes the app's public-price refresh (refs, generations, live ticker) and is a separate change. The new row names the traded coin so the two are not confused."
+exclusions:
+  - "No change to what is traded, markets configuration, decisions, risk, orders, accounting, /health, LIVE, credentials or AI authority. Reports the existing configuration."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Absent or malformed values render as not reported."
+rollback: "Revert the change; the field is optional."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-traded-coin.test.js
+residual: "Needs a server deploy and a new app build. The chart still shows KRW-BTC."

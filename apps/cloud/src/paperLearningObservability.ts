@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type { CioDecision } from "./cioDecisionEngine";
 import type { PaperAccountState, PaperExecutionResult, PaperFillRecord } from "./paperTradingExecutionLoop";
+import { PaperFunnelCounters, type PaperFunnelSnapshot } from "./paperFunnelCounters";
 
 export type PaperLearningStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY" | "PERIOD_OPEN" | "PERIOD_REALIZED_PERSISTED" | "PERIOD_REJECTED";
 export interface PaperLearningGate { readonly name: string; readonly status: "PASS" | "FAIL" | "SKIP"; readonly reason: string; }
@@ -146,6 +147,8 @@ export class PaperLearningEventRecorder {
   private readonly persistencePath?: string;
   private persistence?: DatabaseSync;
   private hydrationAttempted = false;
+  /** Cumulative per-process funnel counts over every event this recorder accepts for the first time (display only). */
+  private readonly funnel = new PaperFunnelCounters();
 
   public constructor(options: PaperLearningEventRecorderOptions = {}) {
     this.maximumEvents = options.maximumEvents ?? DEFAULT_MAXIMUM_EVENTS;
@@ -162,9 +165,15 @@ export class PaperLearningEventRecorder {
     const existing = this.byId.get(event.id);
     if (existing) return existing;
     this.byId.set(event.id, event);
+    this.funnel.observe(event);
     this.pruneMemory();
     this.persist(event);
     return event;
+  }
+
+  /** The cumulative decision-funnel counts since this process started; never replayed into execution. */
+  public funnelSnapshot(): PaperFunnelSnapshot {
+    return this.funnel.snapshot();
   }
 
   public replay(): readonly PaperLearningEvent[] {

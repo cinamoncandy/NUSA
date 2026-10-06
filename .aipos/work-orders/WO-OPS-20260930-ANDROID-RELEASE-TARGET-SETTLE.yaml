@@ -1,0 +1,30 @@
+id: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
+title: Bound Android stable Release target propagation after successful publication
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8427d07115925a0adfc4b6bf2f7a575326085cf7
+implementation_branch: codex/android-stable-release-settle
+authority_impact: release-control
+objective: "Prevent a successful Android stable publication from being reported as a failed trigger while the GitHub Release API is briefly stale."
+evidence:
+  publisher_run: 36722041495
+  false_failure_run: 36721240538
+  subsequent_success_run: 36722017340
+  finding: "Publisher finalized the exact-main Release at 13:36:45Z; trigger observed the former target and failed at 13:36:52Z. Current stable target is the same exact main."
+scope:
+  - "After a successful manual release run, re-read the stable target for at most six ten-second checks."
+  - "Do not dispatch a second release during the bounded settlement window, regardless of which controller dispatched the first."
+  - "Make both Android and deployment watchdogs recognize a successful exact-main manual publisher before another dispatch."
+  - "Keep failed release runs, stale main, and missing target fail-closed."
+validation:
+  focused: "PASS 12/12: node --test tests/android-stable-release-trigger.test.js tests/android-stable-release-idempotency.test.js tests/release-convergence-orthogonality.test.js"
+  repository: "PASS: pnpm run preflight, pnpm run validate, YAML parse, embedded Bash syntax, git diff --check"
+  workflow: exact-head CI and independent Audit before canonical Release
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+completion_rule: "The new trigger must converge on the current exact-main stable target without a duplicate dispatch; local tests and PR CI alone do not prove deployed runtime behavior."

@@ -1,4 +1,5 @@
 import { getLocalPaperLearningEvents } from "./localPaperLearningProjection";
+import { buildHaltExplanation, type HaltEvidenceInput, type HaltExplanation } from "./haltReasonModel";
 
 /**
  * Why the PAPER learning timeline looks the way it does. Issue #755: an empty screen previously
@@ -76,6 +77,8 @@ export interface PaperLearningScreenState {
   readonly performance: PaperLearningPerformance;
   readonly entryPoints: readonly ["HOME", "TRADE", "PORTFOLIO"];
   readonly autoRefresh: true;
+  /** Why the server says HALTED (read-only, from server fields); null when not halted. */
+  readonly halt: HaltExplanation | null;
 }
 
 const freeze = <T>(value: T): T => Object.freeze(value);
@@ -108,7 +111,8 @@ function buildPerformance(timeline: readonly PaperLearningUiEvent[]): PaperLearn
 export function buildPaperLearningScreen(
   events: readonly PaperLearningUiEvent[],
   runtimeStatus: PaperLearningScreenState["status"],
-  serverSource: Exclude<PaperLearningDataSource, "LOCAL_FALLBACK" | "SERVER_STREAM"> | "SERVER_STREAM" = events.length > 0 ? "SERVER_STREAM" : "PROJECTION_EMPTY"
+  serverSource: Exclude<PaperLearningDataSource, "LOCAL_FALLBACK" | "SERVER_STREAM"> | "SERVER_STREAM" = events.length > 0 ? "SERVER_STREAM" : "PROJECTION_EMPTY",
+  haltEvidence: HaltEvidenceInput | null = null
 ): PaperLearningScreenState {
   const localFallback = events.length === 0 ? getLocalPaperLearningEvents() : Object.freeze([] as PaperLearningUiEvent[]);
   const sourceEvents = events.length > 0 ? events : localFallback;
@@ -155,6 +159,7 @@ export function buildPaperLearningScreen(
     recentCycles,
     performance: buildPerformance(timeline),
     entryPoints: freeze(["HOME", "TRADE", "PORTFOLIO"] as const),
-    autoRefresh: true
+    autoRefresh: true,
+    halt: buildHaltExplanation(runtimeStatus, haltEvidence)
   });
 }

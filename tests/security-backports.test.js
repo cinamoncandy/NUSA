@@ -12,7 +12,9 @@ const {
   patchImageSizeJxlPartialStreams,
   patchNanoidSync,
   patchNanoidAsyncBrowser,
-  patchNanoidAsyncNode
+  patchNanoidAsyncNode,
+  patchHttpCacheSemanticsMaxStale,
+  patchBracesWalkerDepth
 } = require("../scripts/security-backports.js");
 const { parseAuditResult, evaluateAudit } = require("../scripts/security-gate-backports.js");
 
@@ -57,6 +59,22 @@ test("nanoid sync and async patches terminate zero-size generators", () => {
   assert.match(asyncBrowser.text, /if \(size <= 0\) return ''/);
   const asyncNode = patchNanoidAsyncNode("return size => tick('', size)", "async-node");
   assert.match(asyncNode.text, /if \(size <= 0\) return Promise\.resolve\(''\)/);
+});
+
+
+test("http-cache-semantics backport prevents max-stale from reviving security-zeroed entries", () => {
+  const vulnerable = "        if (this.stale()) {\n            // If a value is present, then the client is willing to accept a response that has";
+  const patched = patchHttpCacheSemanticsMaxStale(vulnerable);
+  assert.match(patched.text, /this\.maxAge\(\) === 0/);
+  assert.equal(patchHttpCacheSemanticsMaxStale(patched.text).changed, false);
+});
+
+test("braces recursive walkers enforce a bounded nesting depth", () => {
+  const vulnerable = "  const walk = (node, parent = {}) => {\n    walk(child, node);";
+  const patched = patchBracesWalkerDepth(vulnerable, "fixture");
+  assert.match(patched.text, /depth > 256/);
+  assert.match(patched.text, /walk\(child, node, depth \+ 1\)/);
+  assert.equal(patchBracesWalkerDepth(patched.text, "fixture").changed, false);
 });
 
 test("audit compensation is exact and unknown high advisories remain blocking", () => {

@@ -2,6 +2,8 @@ import React from "react";
 import { ScrollView, StyleSheet, Text, View, type ScrollViewProps } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { visualSystem } from "./visualSystem";
+import { readableFont } from "./designSystem";
+import { MotionReveal } from "./components";
 
 export function ScreenFrame({ children, testID, refreshControl }: Readonly<{
   children: React.ReactNode;
@@ -15,7 +17,7 @@ export function ScreenFrame({ children, testID, refreshControl }: Readonly<{
     contentContainerStyle={[styles.screen, { paddingHorizontal: ui.space.screenX, gap: ui.space.section }]}
     refreshControl={refreshControl}
     testID={testID}
-  >{children}</ScrollView>;
+  >{React.Children.toArray(children).map((child, index) => <MotionReveal key={React.isValidElement(child) && child.key != null ? child.key : index} index={index}>{child}</MotionReveal>)}</ScrollView>;
 }
 
 export function ScreenTitle({ title, detail }: Readonly<{ title: string; detail?: string }>) {
@@ -42,6 +44,6 @@ const styles = StyleSheet.create({
   screen: { paddingTop: 16, paddingBottom: 120 },
   titleBlock: { gap: 3 },
   title: { fontSize: 30, lineHeight: 38, fontWeight: "700", letterSpacing: -0.6 },
-  detail: { fontSize: 11, lineHeight: 16 },
+  detail: { fontSize: readableFont(11), lineHeight: 17 },
   surface: { borderWidth: 1 },
 });

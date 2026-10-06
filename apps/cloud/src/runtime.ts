@@ -4,8 +4,12 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
+import { readResearchExperimentSettings } from "./researchExperimentComposition";
+import { createEventLoopStallMonitor } from "./eventLoopStallMonitor";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { attributeTodayLosses, type PaperLossAttribution } from "./paperLossAttribution";
+import { classifyPaperWait } from "./paperWaitReason";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
@@ -19,6 +23,7 @@ import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type Upbit
 import { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
+import { retainObservation } from "./observationRetention";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
 import {
@@ -42,8 +47,11 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
+import { createJevMarketMicrostructureShadowObserverFromEnvironment } from "./ai/jevMarketMicrostructureShadow";
 import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
+import { projectPaperRuntimeHealth } from "./paperRuntimeHealth";
+import { DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS } from "./upbitTickerObservation";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { validateShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { createDormantLiveAuthority } from "./liveReadinessGate";
@@ -58,8 +66,12 @@ import { readCloudRuntimeSafety, readPaperAutoLearningReadiness } from "./liveRe
 import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRealizedPeriodRepository, type PaperRealizedPeriodCanonicalCloseInput, type PaperRealizedPeriodCloseInput, type PaperRealizedPeriodOpenInput, type PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
-import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
+import { codePaperDecisionOutcome } from "./paperDecisionOutcome";
+import { describeCanonicalDecision } from "./paperDecisionDetail";
+import type { PersonalPaperDecisionDetail } from "../../../packages/contracts/src/personalPaperOperations";
+import { PaperMarketObservationStoreError, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
+import { UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
 import {
@@ -73,7 +85,7 @@ export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDash
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
 export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRuntimeMarketDataTick): void; }
 export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryResult; }
-export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; }
+export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; experimentTicks?(): { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null; }
 export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void, onOrderBook?: (orderBook: UpbitOrderBook) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
 export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
@@ -87,6 +99,8 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   /** Canonical account-boundary path; no caller-supplied outcome metrics are accepted. */
   readonly openPaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly closePaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodCanonicalCloseInput) => PersistedPaperPeriodEnvelope;
+  /** Retires only an owner-baseline period at qualified-challenger handoff. */
+  readonly retirePaperRealizedPeriodForReplacement: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForAccountChange: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
@@ -155,7 +169,9 @@ export function startCloudRuntime(
   shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider,
   liveReadinessSourceReaders?: LiveReadinessSourceReaders,
   realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider,
-  engineeringOperatingSource?: NusaEngineeringOperatingSource
+  engineeringOperatingSource?: NusaEngineeringOperatingSource,
+  /** Display-only status of the production closed-learning loop (see closedLearningLoopStatus.ts). */
+  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined>> | null
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -164,6 +180,8 @@ export function startCloudRuntime(
     startedAt: number;
     lastHeartbeatAt: number;
     lastMarketEventAt: number | null;
+    lastAcceptedMarketReceiptAt: number | null;
+    lastFailureAt: number | null;
     lastPaperDecisionAt: number | null;
     lastPaperOrderAt: number | null;
     lastPaperFillAt: number | null;
@@ -171,11 +189,14 @@ export function startCloudRuntime(
     decisionCount: number;
     paperOrderCount: number;
     paperFillCount: number;
+    lastPaperDecisionOutcome: string | null;
     lastError: string | null;
   } = {
     startedAt: runtimeStartedAt,
     lastHeartbeatAt: runtimeStartedAt,
     lastMarketEventAt: null,
+    lastAcceptedMarketReceiptAt: null,
+    lastFailureAt: null,
     lastPaperDecisionAt: null,
     lastPaperOrderAt: null,
     lastPaperFillAt: null,
@@ -183,16 +204,49 @@ export function startCloudRuntime(
     decisionCount: 0,
     paperOrderCount: 0,
     paperFillCount: 0,
+    lastPaperDecisionOutcome: null,
     lastError: null
   };
+  const recordFailure = (code: string): void => { heartbeat.lastError = code; heartbeat.lastFailureAt = Date.now(); };
   // Why the previous process stopped, kept apart from lastError so market start-up cannot overwrite it
   // and a supervisor restart loop stays diagnosable from /health.
   const previousStop = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readPreviousRuntimeFailure(config.cloudStateDbPath);
-  const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => Object.freeze({ ...heartbeat });
+  // Display-only counters (BUY signals, decisions, orders) for the current 09:00 KST window (= 00:00 UTC), kept in memory. They are reported only when the
+  // canonical PAPER boundary is active; without it nothing measures BUY outcomes and 0/0 would be a false statement.
+  const BUY_WINDOW_MS = 86_400_000;
+  const buyWindow = { key: Math.floor(runtimeStartedAt / BUY_WINDOW_MS), signals: 0, blocked: 0, decisions: 0, orders: 0, feedDisconnects: 0, feedStaleGaps: 0, feedMaxGapMs: 0 };
+  let lastTickerArrivalMs: number | null = null;
+  const rollBuyWindow = (nowMs: number): void => {
+    const key = Math.floor(nowMs / BUY_WINDOW_MS);
+    if (key !== buyWindow.key) { buyWindow.key = key; buyWindow.signals = 0; buyWindow.blocked = 0; buyWindow.decisions = 0; buyWindow.orders = 0; buyWindow.feedDisconnects = 0; buyWindow.feedStaleGaps = 0; buyWindow.feedMaxGapMs = 0; }
+  };
+  // Display-only: the numbers and the strategy reason behind the latest canonical decision, so the app can say why nothing was traded.
+  let lastDecisionDetail: PersonalPaperDecisionDetail | undefined;
+  const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
+    if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
+    rollBuyWindow(Date.now());
+    const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
+    // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
+    const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]) };
+    // Display only; a failing provider must never affect the heartbeat.
+    let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
+    try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }
+    // When there is no progress, say why (display only): off, rejected settings, or enabled but unreadable.
+    const researchSettings = researchProgress == null ? readResearchExperimentSettings(env) : undefined;
+    const research = researchProgress != null
+      ? { researchCollection: researchProgress }
+      : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
+    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research });
+  };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
   // This recorder observes the canonical PAPER boundary below. It is deliberately
   // downstream-only: it never submits orders or mutates runtime state.
+  const jevMarketMicrostructureObserver = createJevMarketMicrostructureShadowObserverFromEnvironment(env);
+  const jevMarketMicrostructureLastObservedAt = new Map<string, number>();
+  const JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS = 30_000;
+
   const paperLearningRecorder = new PaperLearningEventRecorder(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository
       ? { persistencePath: config.cloudStateDbPath }
@@ -313,18 +367,31 @@ export function startCloudRuntime(
   const observations = new Map<string, IntelligenceObservation>();
   const latestTickers = new Map<string, PersonalPaperMarketProjection>();
   const latestExecutionQuotes = new Map<string, PaperObservedExecutionQuote>();
+  const orderBookReconciler = new UpbitOrderBookReconciler();
+  let marketConnectionGeneration = 0;
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
     heartbeat.eventCount += 1;
+    // Display-only feed diagnostics: the gap between consecutive ticker arrivals, measured on arrival time so a late trade timestamp cannot hide it.
+    {
+      const arrivedAt = Date.now();
+      rollBuyWindow(arrivedAt);
+      if (lastTickerArrivalMs != null && arrivedAt >= lastTickerArrivalMs) {
+        const gap = arrivedAt - lastTickerArrivalMs;
+        if (gap > DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS) buyWindow.feedStaleGaps += 1;
+        if (gap > buyWindow.feedMaxGapMs) buyWindow.feedMaxGapMs = gap;
+      }
+      lastTickerArrivalMs = arrivedAt;
+    }
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
     if (!observation) {
       // P2 diagnostic suffix only: an operator can now tell a silent feed
       // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
       // malformed tick. Acceptance thresholds are unchanged; a rejected tick never enters trusted observations.
-      heartbeat.lastError = `PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`;
+      recordFailure(`PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`);
       // Reject only the untrusted tick. Previously one stale/invalid market event cleared every
       // already-accepted market observation, so a quiet market (for example a >30s DOGE last-trade
       // timestamp) could latch the whole multi-market PAPER dashboard into NO_MARKET_DATA even while
@@ -334,12 +401,13 @@ export function startCloudRuntime(
       safeHydrate([...observations.values()]);
       return;
     }
+    heartbeat.lastAcceptedMarketReceiptAt = now;
     // Only accepted public-market events may become durable PAPER evidence.
     // This keeps stale/future/malformed transport input out of the canonical observation store.
     latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
     try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h, sourceFingerprint: canonicalUpbitSourceFingerprint(ticker) }); }
-    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
-    observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
+    catch (error) { recordFailure(`PAPER_MARKET_OBSERVATION_REJECTED:${error instanceof PaperMarketObservationStoreError ? error.code : "UNKNOWN"}`); }
+    retainObservation(observations, observation); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     if (!researchRecoveryFailClosed) { try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ } }
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
@@ -361,25 +429,37 @@ export function startCloudRuntime(
         const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: paperExecutionObservedAt(ticker.trade_timestamp, executionNow), mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, portfolio: state.portfolio, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
+        rollBuyWindow(Date.now());
+        buyWindow.decisions += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
         // canonical Cloud PAPER risk boundary. Never let dependency injection create a
         // second mutation path for strategy ticks.
         const result = productionPaperBoundary?.processTick(tick);
           if (result != null) {
-          try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(ticker.code, ticker.trade_timestamp, result.status), observedAt: now, status: result.status }); } catch (error) { heartbeat.lastError = error instanceof Error ? "PAPER_PERIOD_EVIDENCE_REJECTED" : "PAPER_PERIOD_EVIDENCE_REJECTED"; }
+          try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(ticker.code, ticker.trade_timestamp, result.status), observedAt: now, status: result.status }); } catch { recordFailure("PAPER_PERIOD_EVIDENCE_REJECTED"); }
           }
         const cycleId = paperLearningCycleId(ticker.code, ticker.trade_timestamp);
         const canonicalDecision = state.decisions.find((decision) => decision.symbol === ticker.code) ?? state.decisions[0];
+        if (canonicalDecision != null) lastDecisionDetail = describeCanonicalDecision(canonicalDecision, now);
         paperLearningRecorder.record({ cycleId, stage: "MARKET_DATA", occurredAt: ticker.trade_timestamp, market: ticker.code, status: "PASS", reason: `source=UPBIT_PUBLIC_TICKER;observedAt=${ticker.trade_timestamp}` });
         const decisionSupported = canonicalDecision != null && ["BUY", "SELL", "HOLD", "REDUCE", "INCREASE"].includes(canonicalDecision.action);
-        paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
+        paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : canonicalDecision.action === "WAIT" ? `NO_ACTIONABLE_PAPER_DECISION:WAIT:${classifyPaperWait(canonicalDecision) ?? "NO_SIGNAL"}` : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
         paperLearningRecorder.record({ cycleId, stage: "PERMISSION", occurredAt: now, market: ticker.code, status: "SKIP", reason: "NO_CANONICAL_TRADE_PERMISSION_EVIDENCE" });
         if (result != null) {
+          heartbeat.lastPaperDecisionOutcome = codePaperDecisionOutcome(result);
           if (result.orders.length > 0) heartbeat.lastPaperOrderAt = now;
           if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
           heartbeat.paperOrderCount += result.orders.length;
+          rollBuyWindow(Date.now());
+          buyWindow.orders += result.orders.length;
           heartbeat.paperFillCount += result.fills.length;
-          if (result.status === "FAILED") heartbeat.lastError = result.reason ?? "PAPER_EXECUTION_FAILED";
+          // Display-only: a BUY decision, and a BUY the boundary explicitly refused (BLOCKED or REJECTED). WAIT, DUPLICATE and FAILED are not counted as refusals.
+          if (canonicalDecision?.action === "BUY") { rollBuyWindow(Date.now()); buyWindow.signals += 1; if (result.status === "BLOCKED" || result.status === "REJECTED") buyWindow.blocked += 1; }
+          if (result.status === "FAILED") {
+            // The reason stays the stable code; the underlying cause (lease lost, ledger mismatch, read-only database ...) is appended for the advanced diagnostic line.
+            const detail = result.reason === "paper account persistence failed" ? effectivePaperLoop?.persistenceFailureDetail() ?? null : null;
+            recordFailure(detail == null ? (result.reason ?? "PAPER_EXECUTION_FAILED") : `${result.reason}: ${detail}`);
+          }
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
           paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });
@@ -395,18 +475,102 @@ export function startCloudRuntime(
     } else if (effectivePaperLoop != null) clearPaperProjection();
   }, (state) => {
     heartbeat.lastHeartbeatAt = Date.now();
+    if (state !== "CONNECTED" && marketConnectionState === "CONNECTED") { rollBuyWindow(Date.now()); buyWindow.feedDisconnects += 1; }
     marketConnectionState = state;
-    heartbeat.lastError = state === "CONNECTED" ? null : `PUBLIC_MARKET_${state}`;
-    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); latestExecutionQuotes.clear(); safeHydrate([]); }
+    if (state === "CONNECTED") heartbeat.lastError = null; else recordFailure(`PUBLIC_MARKET_${state}`);
+    marketConnectionGeneration += 1;
+    const generation = marketConnectionGeneration;
+    orderBookReconciler.reset();
+    latestExecutionQuotes.clear();
+    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); return; }
+    // A transport connection is not execution-grade market data. Every connection/reconnect
+    // generation must acquire a fresh public REST snapshot before any WebSocket orderbook quote
+    // can enter PAPER execution. Stream events retry expired or failed snapshots with bounded backoff.
+    void Promise.all(config.upbitMarkets.map(async (market) => {
+      try {
+        await orderBookReconciler.refreshSnapshot(market);
+      } catch {
+        if (generation === marketConnectionGeneration) recordFailure("PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE");
+      }
+    }));
+    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); }
   }, (orderBook) => {
     heartbeat.lastHeartbeatAt = Date.now();
     try {
-      const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: Date.now(), totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
+      const receivedAt = Date.now();
+      const reconciled = orderBookReconciler.reconcile(orderBook, receivedAt);
+      if (reconciled == null) {
+        latestExecutionQuotes.delete(orderBook.code);
+        recordFailure("PAPER_ORDERBOOK_UNRECONCILED");
+        if (marketConnectionState === "CONNECTED") {
+          const generation = marketConnectionGeneration;
+          void orderBookReconciler.refreshSnapshot(orderBook.code).catch(() => {
+            if (generation === marketConnectionGeneration) recordFailure("PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE");
+          });
+        }
+        return;
+      }
+      // Renew the REST snapshot before it expires (it is only valid for 30 s) so a steady feed never reaches the failure path
+      // below. A failed renewal is silent here: the old snapshot keeps working until it expires, and only then does the
+      // unreconciled path above record the failure exactly as before.
+      if (marketConnectionState === "CONNECTED" && orderBookReconciler.needsRefresh(orderBook.code, receivedAt)) void orderBookReconciler.refreshSnapshot(orderBook.code).catch(() => undefined);
+      const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
-    } catch { heartbeat.lastError = "PAPER_ORDERBOOK_OBSERVATION_REJECTED"; }
+      // Only observed, validated quotes recover this diagnostic; never clear other failures
+      // or the failure timestamp used by the post-failure market receipt health gate.
+      if ((heartbeat.lastError === "PAPER_ORDERBOOK_UNRECONCILED" || heartbeat.lastError === "PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE")
+        && config.upbitMarkets.every((market) => {
+          const latest = latestExecutionQuotes.get(market);
+          return latest != null && latest.observedAt <= receivedAt && receivedAt - latest.observedAt <= 30_000;
+        })) heartbeat.lastError = null;
+      if (jevMarketMicrostructureObserver != null) {
+        const previousObservedAt = jevMarketMicrostructureLastObservedAt.get(quote.market) ?? 0;
+        if (quote.observedAt - previousObservedAt >= JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS) {
+          jevMarketMicrostructureLastObservedAt.set(quote.market, quote.observedAt);
+          void jevMarketMicrostructureObserver.observe(quote, env).then((receipt) => {
+            console.log(JSON.stringify({
+              event: "NUSA_JEV_MARKET_MICROSTRUCTURE_SHADOW",
+              market: receipt.market,
+              observedAt: receipt.observedAt,
+              state: receipt.selectedState,
+              action: receipt.selectedAction,
+              confidence: receipt.confidence,
+              reasonCode: receipt.reasonCode,
+              fallbackApplied: receipt.fallbackApplied,
+              usableForRouting: receipt.usableForRouting,
+              aiAuthority: receipt.aiAuthority,
+              liveAuthority: receipt.liveAuthority,
+            }));
+          }).catch(() => { /* SHADOW telemetry must never affect PAPER execution */ });
+        }
+      }
+    } catch { recordFailure("PAPER_ORDERBOOK_OBSERVATION_REJECTED"); }
   }) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
+  // Display only: how long this process was blocked. A stall over the 30 s PAPER writer lease explains a lost lease.
+  const stallMonitor = createEventLoopStallMonitor();
+  stallMonitor.start();
+  // Display only: the same research collection status the app reads, as a code and two counts for /health.
+  // Today's losing sells per strategy family, recomputed at most every 30 s so /health stays cheap. Display only.
+  let lossAttributionCache: PaperLossAttribution | null = null;
+  const lossAttributionLiveness = () => {
+    const now = Date.now();
+    if (lossAttributionCache == null || now - lossAttributionCache.evaluatedAt >= 30_000) {
+      try { lossAttributionCache = effectivePaperLoop == null ? null : attributeTodayLosses(effectivePaperLoop.snapshot().fills, now); } catch { lossAttributionCache = null; }
+    }
+    return lossAttributionCache == null ? {} : { paperLossAttribution: lossAttributionCache };
+  };
+  const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
+  const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
+  const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
+  const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
+    let progress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
+    try { progress = researchAutomation?.collectionProgress?.() ?? null; } catch { progress = null; }
+    if (progress != null) return { researchCollectionStatus: "COLLECTING", researchCandleCount: progress.candleCount, researchRequiredCandles: progress.requiredCandles };
+    const settings = readResearchExperimentSettings(env);
+    return { researchCollectionStatus: settings.status === "DISABLED" ? "DISABLED" : settings.status === "INVALID" ? "INVALID" : "UNAVAILABLE" };
+  };
   heartbeatTimer.unref?.();
 
   const loadPaperOperations = (principal: DashboardPrincipal): PersonalPaperOperationsSnapshot => {
@@ -472,9 +636,22 @@ export function startCloudRuntime(
       decisionCount: heartbeat.decisionCount,
       paperOrderCount: heartbeat.paperOrderCount,
       paperFillCount: heartbeat.paperFillCount,
+      ...(heartbeat.lastPaperDecisionOutcome === null ? {} : { lastPaperDecisionOutcome: heartbeat.lastPaperDecisionOutcome }),
       lastError: heartbeat.lastError,
-      ...(previousStop === undefined ? {} : { previousStop })
+      ...(previousStop === undefined ? {} : { previousStop }),
+      ...stallMonitor.snapshot(),
+      ...researchLiveness(),
+      paperFunnel: paperLearningRecorder.funnelSnapshot(),
+      ...lossSessionLiveness(),
+      ...lossAttributionLiveness(),
+      ...researchExperimentLiveness(),
+      ...closedLearningLiveness()
     }),
+    runtimeHealth: () => projectPaperRuntimeHealth(
+      Object.freeze({ ...heartbeat }),
+      Date.now(),
+      { heartbeatStaleAfterMs: 6_000, marketEventStaleAfterMs: DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS },
+    ),
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
     ...(userAccessRepository == null ? {} : { userAccessRepository }),
@@ -507,9 +684,10 @@ export function startCloudRuntime(
     closePaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().closePeriod(input),
     openPaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().openPeriodFromCanonicalAccount(input),
     closePaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().closePeriodFromCanonicalAccount(input),
+    retirePaperRealizedPeriodForReplacement: (periodId, reason) => requirePaperRealizedPeriodProducer().retireOpenPeriodForReplacement(periodId, reason),
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 

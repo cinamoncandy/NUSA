@@ -7,6 +7,7 @@ import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "
 export type ClosedLearningRolloverStatus =
   | "NO_OPEN_PERIOD"
   | "ACCOUNT_REPLACED_PERIOD_REOPENED"
+  | "STALLED_PERIOD_REOPENED"
   | "WAITING_FOR_CANONICAL_BOUNDARY"
   | "WAITING_FOR_KST_DAY_ROLLOVER"
   | "WAITING_FOR_REALIZED_FILL"
@@ -33,6 +34,7 @@ export interface ClosedLearningRolloverPort {
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   /** Retires an open period whose canonical PAPER account was replaced (different initial capital). */
   readonly retireOpenPeriodForAccountChange?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
+  readonly retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
@@ -76,9 +78,39 @@ interface PreparedRollover {
 export class ClosedLearningRolloverScheduler {
   public constructor(private readonly port: ClosedLearningRolloverPort) {}
 
+  /**
+   * A period can be closed without a successor when the cycle throws after the close (the close
+   * is durable, the successor open in finalize never runs). Realized history then also blocks the
+   * owner-baseline bootstrap, so PAPER would stall forever with no open period. Continue the most
+   * recent realized period's immutable candidate/advisory from the real canonical account boundary,
+   * exactly as finalize would have. No fill, return or account value is synthesized.
+   */
+  private reopenStalledContinuation(): ClosedLearningRolloverResult {
+    const realized = this.port.listRealizedPeriods();
+    if (realized.length === 0) return Object.freeze({ status: "NO_OPEN_PERIOD" });
+    const latest = [...realized].sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0]!;
+    const account = this.port.readCanonicalPaperAccount();
+    if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) {
+      return Object.freeze({ status: "BLOCKED", reason: "CANONICAL_PAPER_ACCOUNT_UNAVAILABLE" });
+    }
+    if (account.updatedAt <= latest.record.periodEndAt) {
+      return Object.freeze({ status: "NO_OPEN_PERIOD", reason: "WAITING_FOR_CANONICAL_BOUNDARY" });
+    }
+    const periodIndex = nextPeriodIndex(realized);
+    const reopened = this.port.openPeriodFromCanonicalAccount({
+      periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
+      periodIndex,
+      advisory: latest.record.advisory,
+      candidateProvenance: latest.candidateProvenance,
+      ...(latest.record.market == null ? {} : { market: latest.record.market }),
+      periodStartAt: account.updatedAt,
+    });
+    return Object.freeze({ status: "STALLED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `continued:${latest.record.recordId}` });
+  }
+
   private prepare(): ClosedLearningRolloverResult | PreparedRollover {
     const periods = stableOpenPeriods(this.port.listOpenPeriods());
-    if (periods.length === 0) return Object.freeze({ status: "NO_OPEN_PERIOD" });
+    if (periods.length === 0) return this.reopenStalledContinuation();
     if (periods.length > 1) return Object.freeze({ status: "BLOCKED", reason: "MULTIPLE_OPEN_PAPER_PERIODS" });
 
     const plan = periods[0]!;

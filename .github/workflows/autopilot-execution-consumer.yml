@@ -44,6 +44,7 @@ jobs:
           if (!Number.isSafeInteger(payload.workflow_run_id) || payload.workflow_run_id <= 0) fail('workflow_run_id must be a positive safe integer');
           if (!/^[A-Za-z0-9_.:-]{1,160}$/.test(payload.execution_id || '')) fail('execution_id must be a bounded lifecycle identity');
           if (!/^[A-Za-z0-9_.:-]{1,256}$/.test(payload.dedupe_key || '')) fail('dedupe_key must be a bounded lifecycle identity');
+          if (payload.contract_fingerprint_sha256 != null && !/^[0-9a-f]{64}$/i.test(payload.contract_fingerprint_sha256)) fail('contract_fingerprint_sha256 must be a SHA-256 identity');
           if (payload.live_authority !== 'NONE') fail('live_authority must remain NONE');
           if (payload.production_mutation_allowed !== false) fail('production_mutation_allowed must remain false');
           if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
@@ -88,6 +89,7 @@ jobs:
             reason: payload.reason,
             executionId: payload.execution_id,
             dedupeKey: payload.dedupe_key,
+            ...(payload.contract_fingerprint_sha256 ? { contractFingerprintSha256: String(payload.contract_fingerprint_sha256).toLowerCase() } : {}),
             mutationAllowed: false,
             liveAuthority: 'NONE',
             productionMutationAllowed: false,
@@ -195,6 +197,7 @@ jobs:
           if (!Number.isSafeInteger(payload.workflow_run_id) || payload.workflow_run_id <= 0) fail('workflow_run_id must be a positive safe integer');
           if (!/^[A-Za-z0-9_.:-]{1,160}$/.test(payload.execution_id || '')) fail('execution_id must be a bounded lifecycle identity');
           if (!/^[A-Za-z0-9_.:-]{1,256}$/.test(payload.dedupe_key || '')) fail('dedupe_key must be a bounded lifecycle identity');
+          if (payload.audit_retry_attempt != null && (!Number.isSafeInteger(payload.audit_retry_attempt) || ![0, 1].includes(payload.audit_retry_attempt))) fail('audit_retry_attempt must be 0 or 1 when present');
           if (payload.live_authority !== 'NONE') fail('live_authority must remain NONE');
           if (payload.production_mutation_allowed !== false) fail('production_mutation_allowed must remain false');
           if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
@@ -406,18 +409,15 @@ jobs:
           if (result.status === 'AUDIT_COMPLETED') {
             failureClass = 'none';
           } else if (result.error === "WAITING_PROVIDER_CAPACITY" || result.status === "WAITING_PROVIDER_CAPACITY") {
-            // Structured-code-first (ProviderGatedAuditOutcome status union in
-            // apps/autopilot/src/auditRunner.ts): a capacity wait is transient
-            // even when status is AUDIT_FAILED_CLOSED, whose "closed"
-            // substring must never decide this branch (run 36134520306).
-            failureClass = 'transient';
-            recovery = 'retry';
-          } else if (/4006|daily free allocation|neurons|quota/i.test(text)) {
-            failureClass = 'executor_unavailable';
+            // Capacity waits already carry a durable provider hold and nextRetryAt.
+            // They must never be converted into coding work or immediate Audit retry.
+            failureClass = 'provider_capacity';
+            recovery = 'hold';
+          } else if (/4006|daily free allocation|neurons|quota|429/i.test(text)) {
+            failureClass = 'provider_capacity';
+            recovery = 'hold';
           } else if (/AUDIT_(VERDICT|MODEL_RESPONSE)|JSON_INVALID/i.test(text)) {
-            // A malformed model verdict says nothing about the PR. Classify it before the stale
-            // matcher, whose bare "closed" also matches AUDIT_FAILED_CLOSED (run 36424829641), and
-            // retry once: the recovery dedupe key (PR, head, main, main CI run) bounds it.
+            // A malformed model verdict says nothing about the PR. Keep recovery in the Audit lane.
             failureClass = 'validation_failure';
             recovery = 'retry';
           } else if (/AUDIT_(PR_NOT_OPEN|PR_HEAD_MISMATCH|PR_BASE_MISMATCH|CI_NOT_SUCCESSFUL|CI_HEAD_MISMATCH|CI_REPOSITORY_MISMATCH)|stale|closed|head moved|base moved/i.test(text)) {
@@ -601,7 +601,7 @@ jobs:
       - name: Dispatch deterministic Release successor once
         run: |
           set -euo pipefail
-          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100" --jq ".workflow_runs[] | select(.display_title == \"$DEDUPE_KEY\") | .id" | head -n 1)"
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100" --jq ".workflow_runs[] | select((.display_title == \"$DEDUPE_KEY\") or ((.display_title | test(\"^audit:${PR_NUMBER}:${WORKFLOW_RUN_ID}(:[0-9]+)?:${REQUESTED_HEAD}$\")) and ((.status != \"completed\") or (.conclusion == \"success\")))) | .id" | head -n 1)"
           if [ -n "$existing" ]; then
             echo "Deterministic Release successor already exists for $DEDUPE_KEY via run $existing; suppressing duplicate dispatch."
             exit 0
@@ -627,14 +627,14 @@ jobs:
 
   audit-recovery:
     needs: audit-request
-    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'failure' && needs.audit-request.outputs.recovery == 'retry' }}
+    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'failure' && needs.audit-request.outputs.recovery == 'retry' && github.event.client_payload.audit_retry_attempt != 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write
       pull-requests: read
     steps:
-      - name: Dispatch bounded Audit recovery to canonical main
+      - name: Dispatch one bounded Audit retry on the same exact evidence
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -645,24 +645,24 @@ jobs:
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           state="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.state||""))' "$pr")"
           current_head="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.head?.sha||""))' "$pr")"
-          if [ "$state" != "open" ] || [ "$current_head" != "$REQUESTED_HEAD" ]; then
-            echo 'Audit recovery suppressed: PR is closed or head moved.'
+          current_base="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.base?.sha||""))' "$pr")"
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$state" != "open" ] || [ "$current_head" != "$REQUESTED_HEAD" ] || [ "$current_base" != "$current_main" ]; then
+            echo 'Audit recovery suppressed: PR is closed, head moved, or base is stale.'
             exit 0
           fi
-          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          main_workflow_run_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id' | sort -n | tail -n 1)"
-          test -n "$main_workflow_run_id" || { echo 'Audit recovery suppressed: no successful CI run exists for current main.'; exit 1; }
-          execution_id="audit-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${main_workflow_run_id}"
-          dedupe_key="audit-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}:${main_workflow_run_id}"
+          execution_id="audit-retry:${PR_NUMBER}:${WORKFLOW_RUN_ID}:1"
+          dedupe_key="audit-retry:${PR_NUMBER}:${REQUESTED_HEAD}:${WORKFLOW_RUN_ID}:1"
           gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<EOF
           {
             "event_type": "nusa_autopilot_execution",
             "client_payload": {
-              "kind": "REPOSITORY_AUTOPILOT",
+              "kind": "AUDIT_REQUEST",
               "repository": "$GITHUB_REPOSITORY",
-              "head_sha": "$current_main",
-              "workflow_run_id": $main_workflow_run_id,
-              "reason": "audit-recovery:pr:$PR_NUMBER:head:$REQUESTED_HEAD:main-run:$main_workflow_run_id",
+              "head_sha": "$REQUESTED_HEAD",
+              "pr_number": $PR_NUMBER,
+              "workflow_run_id": $WORKFLOW_RUN_ID,
+              "audit_retry_attempt": 1,
               "execution_id": "$execution_id",
               "dedupe_key": "$dedupe_key",
               "live_authority": "NONE",

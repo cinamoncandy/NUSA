@@ -552,6 +552,75 @@ describe("coding runner", () => {
     assert.equal(aiCalls, 1);
   });
 
+  it("uses an explicitly configured Jev tier only for a verified, high-confidence coding admission", async () => {
+    const failureRequest = {
+      ...request,
+      reason: `gha:${request.workflowRunId}:${request.headSha}:failure`,
+    };
+    let selectedModel = "";
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        selectedModel = model;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(failureRequest, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: ai,
+      NUSA_JEV_SHADOW_ENABLED: "true",
+      NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+      NUSA_JEV_MODEL_TIERING_ENABLED: "true",
+      NUSA_JEV_API_KEY: jevTestKey(),
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+      NUSA_AI_CODING_MODEL_LUNA: "@cf/openai/gpt-oss-20b",
+    }, verifiedFailureGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async () => ({
+        rootCause: "CODE",
+        safeToAutofix: "YES",
+        severity: 2,
+        requiredModel: "LUNA",
+        confidence: 0.97,
+      }),
+    });
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(selectedModel, "@cf/openai/gpt-oss-20b");
+  });
+
+  it("keeps the canonical model when a configured Jev tier is unusable", async () => {
+    const failureRequest = {
+      ...request,
+      reason: `gha:${request.workflowRunId}:${request.headSha}:failure`,
+    };
+    let selectedModel = "";
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        selectedModel = model;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(failureRequest, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: ai,
+      NUSA_AI_CODING_MODEL: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      NUSA_JEV_SHADOW_ENABLED: "true",
+      NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+      NUSA_JEV_MODEL_TIERING_ENABLED: "true",
+      NUSA_JEV_API_KEY: jevTestKey(),
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+      NUSA_AI_CODING_MODEL_LUNA: "not a valid model",
+    }, verifiedFailureGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async () => ({
+        rootCause: "CODE",
+        safeToAutofix: "YES",
+        severity: 2,
+        requiredModel: "LUNA",
+        confidence: 0.97,
+      }),
+    });
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(selectedModel, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+  });
+
   it("uses the Cloudflare Workers AI binding when no dedicated endpoint is configured", async () => {
     let runtimeCalls = 0;
     const runtime: CodingRuntime = {
@@ -904,6 +973,33 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch);
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "ai-coding-engine-not-configured");
+  });
+
+  it("zero-credit mode disables a configured external coding engine without spending a call", async () => {
+    let paidEngineCalls = 0;
+    const result = await executeCodingRunner(request, { ...runtimeEnv, NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "true" }, async (url) => {
+      if (url === runtimeEnv.NUSA_AI_CODING_ENDPOINT) { paidEngineCalls += 1; return response(200, { patch }); }
+      return verifiedGithubFetch(url);
+    });
+    assert.equal(result.status, "INTERFACE_READY");
+    assert.equal(result.reason, "zero-credit-paid-engine-disabled");
+    assert.equal(paidEngineCalls, 0);
+  });
+
+  it("zero-credit mode never falls back to GitHub Models while free Workers AI is waiting", async () => {
+    let githubModelsCalls = 0;
+    let workersAiCalls = 0;
+    const waitUntil = 20_000;
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "true", AI: { async run() { workersAiCalls += 1; return { response: { patch } }; } } }, async (url) => {
+      if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+      return verifiedGithubFetch(url);
+    }, undefined, undefined, { now: () => 10_000, providerWaitUntil: async () => waitUntil });
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WAITING_PROVIDER_CAPACITY");
+    assert.equal(githubModelsCalls, 0);
+    assert.equal(workersAiCalls, 0);
+    assert.equal(result.nextRetryAt, waitUntil);
+    assert.equal(result.fallbackProvider, undefined);
   });
 
   it("falls back from the deprecated llama 3.1 model to the active JSON-schema default", async () => {
