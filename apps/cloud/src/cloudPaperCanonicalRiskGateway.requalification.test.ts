@@ -49,7 +49,7 @@ describe("RISK exact-source re-qualification evidence", () => {
   it("re-qualifies the loss-session counts as display only: recorded after the streak is computed and never read by a decision", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
     assert.match(source, /todayCompletedSells: completed\.length, todayLosingSells: completed\.filter\(\(sell\) => sell\.pnl < 0\)\.length/);
-    assert.match(source, /public lossSession\(\): CloudPaperLossSessionSnapshot \| null \{\n    return this\.lastLossSession;/);
+    assert.match(source, /public lossSession\(\): CloudPaperLossSessionSnapshot \| null \{\r?\n\s*return this\.lastLossSession;/);
     assert.equal((source.match(/this\.lastLossSession/g) ?? []).length, 2, "written once per evaluation and read only by lossSession()");
     assert.match(source, /consecutiveLossCount: lossState\.consecutiveLossCount, sessionPeakEquity/, "the decision still uses the same streak");
   });
