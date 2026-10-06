@@ -169,7 +169,9 @@ export function startCloudRuntime(
   shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider,
   liveReadinessSourceReaders?: LiveReadinessSourceReaders,
   realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider,
-  engineeringOperatingSource?: NusaEngineeringOperatingSource
+  engineeringOperatingSource?: NusaEngineeringOperatingSource,
+  /** Display-only status of the production closed-learning loop (see closedLearningLoopStatus.ts). */
+  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined>> | null
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -559,6 +561,7 @@ export function startCloudRuntime(
     }
     return lossAttributionCache == null ? {} : { paperLossAttribution: lossAttributionCache };
   };
+  const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
   const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
   const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
   const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
@@ -641,7 +644,8 @@ export function startCloudRuntime(
       paperFunnel: paperLearningRecorder.funnelSnapshot(),
       ...lossSessionLiveness(),
       ...lossAttributionLiveness(),
-      ...researchExperimentLiveness()
+      ...researchExperimentLiveness(),
+      ...closedLearningLiveness()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
       Object.freeze({ ...heartbeat }),

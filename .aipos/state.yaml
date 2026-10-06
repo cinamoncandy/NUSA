@@ -2661,3 +2661,11 @@ current_paper_minute_bar_strategy:
   owner_approval: "2026-10-06 in chat ('2번으로 진행해')"
   finding: "SMA 5/20 ran on every ticker event (12 s holds; tick replay 0.5% wins, -51% net after fees). The candidate strategy now uses completed 1-minute closes from the persisted ticker store; no parameter or threshold changed"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_learning_loop_status:
+  work_order: WO-LEARNING-20261006-LOOP-STATUS
+  status: READY_FOR_REVIEW
+  branch: claude/closed-learning-loop-status
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
+  finding: "Closed-learning loop step results were log-only; publishes bootstrap/rollover step codes and evaluated-cycle/deployment counts so the stalled learning transition can be named from runtime evidence"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
