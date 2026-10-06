@@ -1,0 +1,26 @@
+id: WO-OPS-20261006-SECURITY-DEP-PATCHES
+title: "Pin the patched source-map-js and compression versions so the security gate passes again"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/security-dep-patches
+authority_impact: none
+owner_approval: "2026-10-06 in chat ('다 해결해줘'): resolve the bottlenecks and problems found"
+objective: "CI on PR #2529 failed in 'Security gate': 2 unmitigated high advisories published after the previous green run, GHSA-ids 1241209 (source-map-js >=1.0.0 <1.2.2, via storybook > vite > postcss) and 1241221 (compression <1.8.2, via react-native community cli). Both are transitive development-tool dependencies with a patched release. The failure is independent of any code change and blocks every PR, so the gate is satisfied with the fixed versions, not weakened."
+scope:
+  - "pnpm-workspace.yaml: two overrides in the existing security-pin style (source-map-js@1.2.1: 1.2.2, compression@1.8.1: 1.8.2)."
+  - "pnpm-lock.yaml: regenerated with 'pnpm install --lockfile-only'; the diff is limited to those two packages (21 lines) plus compression 1.8.2 listing destroy 1.2.0, which is already in the lockfile."
+exclusions:
+  - "The gate script, its COMPENSATED list and thresholds are untouched. No other package is updated (a broader 'pnpm update' bumped unrelated packages and was discarded). No runtime, trading, risk, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The security gate stays as strict as before."
+rollback: "Revert the change."
+verification_commands:
+  - "pnpm install --lockfile-only"
+  - "node scripts/security-gate-backports.js (locally the two backport-mitigated advisories http-cache-semantics and braces still read as unmitigated because backports are applied at install time in CI; the two new advisories are gone)"
+  - "node --test tests/*security*.test.js"
+residual: "CI must confirm the Security gate passes. Other open PRs need this merged before they can pass."

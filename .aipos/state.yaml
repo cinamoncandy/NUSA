@@ -2543,3 +2543,10 @@ current_health_error_class:
   authority_impact: none
   owner_approval: "2026-10-06 in chat"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_security_dep_patches:
+  work_order: WO-OPS-20261006-SECURITY-DEP-PATCHES
+  status: READY_FOR_REVIEW
+  branch: claude/security-dep-patches
+  authority_impact: none
+  finding: "Security gate failed on two newly published high advisories (source-map-js, compression); pinned to the patched releases"
+  deploy: no_runtime_change
