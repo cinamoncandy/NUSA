@@ -2698,3 +2698,11 @@ current_research_longer_timeframes_proposal:
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('제안서 써줘'); implementation not approved"
   finding: "All tested families lose on 1-minute bars after costs; proposes a walk-forward Research comparison over 15/60/240-minute bars"
+current_ops_clear_recovered_market_reject:
+  work_order: WO-OPS-20261006-CLEAR-RECOVERED-MARKET-REJECT
+  status: READY_FOR_REVIEW
+  branch: claude/clear-recovered-market-reject
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
+  finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
