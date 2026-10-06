@@ -42,7 +42,7 @@ export interface OrchestratorOptions {
   readonly dailyBudgetPerVariant: number;
   /** Pull ticks into closed candles; must not throw for ordinary data problems. */
   readonly collect: (nowMs: number) => void;
-  readonly candles: ResearchCandleSource & { latestCloseTime(market: string, intervalMs: number): number | undefined };
+  readonly candles: ResearchCandleSource & { latestCloseTime(market: string, intervalMs: number): number | undefined; earliestCloseTime?(market: string, intervalMs: number): number | undefined; count?(market: string, intervalMs: number): number };
   readonly holdout: ExperimentRunnerPorts["holdout"];
   readonly now: () => number;
   readonly sourceCommitSha: string;
@@ -50,6 +50,23 @@ export interface OrchestratorOptions {
   readonly evaluator: ExperimentSpec["evaluator"];
   readonly featurePipeline: ExperimentSpec["featurePipeline"];
   readonly experimentFamilyPrefix: string;
+}
+
+export interface ResearchExperimentTickSummary {
+  readonly lastTickAt: number;
+  readonly lastStatus: TickReport["status"];
+  readonly ticks: number;
+  readonly sessionsStarted: number;
+  readonly counts: Readonly<Record<string, number>>;
+}
+
+export interface ResearchCollectionProgress {
+  readonly market: string;
+  readonly candleCount: number;
+  readonly requiredCandles: number;
+  readonly firstCloseMs?: number;
+  readonly lastCloseMs?: number;
+  readonly observedAt: number;
 }
 
 export interface TickReport {
@@ -87,6 +104,33 @@ export class ResearchExperimentOrchestrator {
   /** Experiments run on closed-candle windows (design D1); ticks are intentionally ignored. */
   public onMarketData(): void { /* no-op by design */ }
 
+  /** Display only: how much candle history exists for the first research market versus what the first experiment needs. */
+  public collectionProgress(): ResearchCollectionProgress | null {
+    const market = this.options.markets[0];
+    const count = this.options.candles.count;
+    if (market == null || count == null) return null;
+    const nowMs = this.options.now();
+    if (this.progressCache != null && nowMs - this.progressCache.at < 30_000) return this.progressCache.value;
+    let value: ResearchCollectionProgress | null = null;
+    try {
+      const w = this.options.windows;
+      const first = this.options.candles.earliestCloseTime?.(market, this.options.intervalMs);
+      const last = this.options.candles.latestCloseTime(market, this.options.intervalMs);
+      value = Object.freeze({
+        market,
+        candleCount: count.call(this.options.candles, market, this.options.intervalMs),
+        requiredCandles: Math.ceil((w.trainMs + w.validationMs + w.holdoutMs) / this.options.intervalMs),
+        ...(first === undefined ? {} : { firstCloseMs: first }),
+        ...(last === undefined ? {} : { lastCloseMs: last }),
+        observedAt: nowMs,
+      });
+    } catch { value = null; }
+    this.progressCache = { at: nowMs, value };
+    return value;
+  }
+
+  private progressCache: { readonly at: number; readonly value: ResearchCollectionProgress | null } | undefined;
+
   public statusProjection(): ResearchStatusProjection | null {
     const nowMs = this.options.now();
     let best: ResearchStatusProjection | null = null;
@@ -101,7 +145,40 @@ export class ResearchExperimentOrchestrator {
     return best;
   }
 
+  /**
+   * Display only: cumulative experiment outcome counts since this process started, plus the latest tick's status,
+   * keyed by fixed codes (outcome status, validation/holdout comparison result, SKIPPED/ERROR reason code). Integers only.
+   */
+  public experimentTicks(): ResearchExperimentTickSummary | null {
+    return this.tickSummary;
+  }
+
+  private tickSummary: ResearchExperimentTickSummary | null = null;
+
   public tick(): TickReport {
+    const report = this.tickInner();
+    const counts: Record<string, number> = { ...(this.tickSummary?.counts ?? {}) };
+    const add = (key: string): void => { if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && (key in counts || Object.keys(counts).length < 40)) counts[key] = (counts[key] ?? 0) + 1; };
+    for (const item of report.experiments) {
+      const outcome = item.outcome;
+      add(outcome.status);
+      if (outcome.status === "COMPLETED") {
+        add(`VALIDATION_${outcome.validation.result}`);
+        if (outcome.holdout != null) add(`HOLDOUT_${outcome.holdout.result}`);
+        else if (outcome.holdoutNote != null) add(outcome.holdoutNote);
+      } else if (outcome.status === "SKIPPED" || outcome.status === "ERROR") add(`${outcome.status}_${outcome.reason.split(":")[0]}`);
+    }
+    this.tickSummary = Object.freeze({
+      lastTickAt: this.options.now(),
+      lastStatus: report.status,
+      ticks: (this.tickSummary?.ticks ?? 0) + 1,
+      sessionsStarted: (this.tickSummary?.sessionsStarted ?? 0) + report.started,
+      counts: Object.freeze(counts),
+    });
+    return report;
+  }
+
+  private tickInner(): TickReport {
     if (!this.recoveryReady) return empty("RECOVERY_NOT_READY");
     try {
       const nowMs = this.options.now();

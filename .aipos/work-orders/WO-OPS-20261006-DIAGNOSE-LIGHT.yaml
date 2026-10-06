@@ -1,0 +1,24 @@
+id: WO-OPS-20261006-DIAGNOSE-LIGHT
+title: "Stop the host diagnosis from walking the 11 GB release directory"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/diagnose-light
+authority_impact: none
+owner_approval: "2026-10-06 in chat ('잘 해결해줘'): resolve the problems found"
+objective: "The runtime now reports its own event-loop stalls on /health. Both times the host diagnosis read them, the latest stall time equalled the time of the diagnosis, and the diagnosis ran 'du -sh /opt/nusa/releases' (11 GB), which took over a minute of disk I/O on the 1-vCPU, 954 MB host that the self-hosted runner shares with the runtime. The probe may therefore be adding to what it measures. The runtime's own stalls (15 within 13 minutes, maximum 6.05 s) are real and independent, but the measurement should not load the host."
+scope:
+  - ".github/workflows/oracle-host-diagnose.yml: the size walk of /opt/nusa/releases is removed; the release directories are only counted (ls -1 | wc -l). The state and backup directories (unreadable to this account, so instant) keep their du line."
+  - "tests/oracle-host-diagnose-workflow.test.js: asserts no du over the release directory and that the directories are only counted."
+exclusions:
+  - "Read-only, dispatch-only, no secrets, no new command that writes or contacts another address. No runtime, trading, risk, accounting, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "The workflow stays dispatch-only and read-only."
+rollback: "Revert the change."
+verification_commands:
+  - node --test tests/oracle-host-diagnose-workflow.test.js
+residual: "Whether the runtime stalls are caused by research work, disk writes or memory pressure is still undetermined; with the lighter probe, the stall numbers can be read without the 11 GB walk. The 11 GB of old releases itself is an owner decision (deletion not done)."

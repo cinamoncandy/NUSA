@@ -66,7 +66,8 @@ test("every tab uses the holo sphere; the attractor is gone; motion is throttled
   assert.match(read("moreMenuView.tsx"), /<HoloSphere decisionCount=\{null\}/);
   for (const gone of ["attractorField.tsx", "attractorModel.ts"]) assert.ok(!fs.existsSync(path.join(root, "apps/mobile/src", gone)));
   const view = read("holoSphere.tsx");
-  assert.match(view, /const QUIET_FRAME_MS = 84;/);
+  assert.match(view, /holoFrameBudgetMs\(isHoloQuiet\(state\.current\)\)/);
+  assert.ok(!/const (QUIET|ACTIVE)_FRAME_MS/.test(view), "budgets live in the model, not in the presenter");
   assert.match(view, /if \(reducedMotion \|\| decisionCount == null\)/);
   assert.match(view, /cancelAnimationFrame\(frame\)/);
 });

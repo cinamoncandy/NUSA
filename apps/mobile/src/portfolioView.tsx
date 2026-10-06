@@ -9,6 +9,7 @@ import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { isLocalPaperLedgerDisplayable } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
+import { labelFont, readableFont } from "./designSystem";
 
 export type { PortfolioAccountResponse } from "./portfolioViewModel";
 export interface PortfolioViewProps {
@@ -81,4 +82,4 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14, width: "100%", alignSelf: "center" }, columns: { flexDirection: "row", alignItems: "stretch", gap: 16 }, stack: { gap: 14 }, column: { flex: 1, minWidth: 0 }, allocationRail: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, note: { fontSize: 11, lineHeight: 17 }, footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "600", letterSpacing: 1.05, paddingTop: 4 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14, width: "100%", alignSelf: "center" }, columns: { flexDirection: "row", alignItems: "stretch", gap: 16 }, stack: { gap: 14 }, column: { flex: 1, minWidth: 0 }, allocationRail: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, note: { fontSize: readableFont(11), lineHeight: 17 }, footer: { textAlign: "center", fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.05, paddingTop: 4 } });

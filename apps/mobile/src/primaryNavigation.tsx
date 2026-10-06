@@ -8,6 +8,7 @@ import {
 } from "./navigationContract";
 import { useTheme } from "./ThemeProvider";
 import { visualSystem } from "./visualSystem";
+import { readableFont } from "./designSystem";
 
 const DESCRIPTIONS: Readonly<Record<PrimaryDestination, string>> = Object.freeze({
   Home: "현재 NUSA 상태",
@@ -62,6 +63,6 @@ const styles = StyleSheet.create({
   inner: { width: "100%", flexDirection: "row" },
   item: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 2 },
   indicator: { height: 2, width: 20, borderRadius: 999 },
-  label: { fontSize: 10, fontWeight: "700" },
+  label: { fontSize: readableFont(10), fontWeight: "700" },
   activeLabel: { fontWeight: "600" },
 });

@@ -42,6 +42,8 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
   private static final String SILENT_ACTIVE_ID = "silent_device_credential_id";
   private static final String SILENT_ALIAS_PREFIX = "nusa_paper_silent_device_p256_";
   private static final String ALIAS_PREFIX = "nusa_owner_device_credential_p256_";
+  private static final String SILENT_STATUS_TRANSIENT = "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR";
+  private static final String SILENT_STATUS_INSPECTION_FAILED = "ANDROID_KEYSTORE_INSPECTION_FAILED";
   // A CryptoObject flow is biometric-only.
   private static final int AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_STRONG;
   private static final int MAX_CHALLENGE_BYTES = 4096;
@@ -158,6 +160,19 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
       return;
     }
     try {
+      // Corrupt registration metadata is a definitive local trust failure, not an
+      // AndroidKeyStore/provider inspection failure. Validate it before the transient catch.
+      credentialId = requireCredentialId(credentialId);
+    } catch (IllegalArgumentException error) {
+      result.putBoolean("available", false);
+      result.putBoolean("canCreate", false);
+      result.putBoolean("hardwareBacked", false);
+      result.putString("status", "SILENT_DEVICE_KEY_METADATA_INVALID");
+      result.putNull("credentialId");
+      promise.resolve(result);
+      return;
+    }
+    try {
       KeyStore store = keyStore();
       boolean keyPresent = store.containsAlias(silentAlias(credentialId));
       boolean hardwareBacked = keyPresent && isSilentHardwareBackedOrThrow(credentialId);
@@ -173,7 +188,9 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
       result.putBoolean("available", false);
       result.putBoolean("canCreate", false);
       result.putBoolean("hardwareBacked", false);
-      result.putString("status", "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR");
+      result.putString("status", SILENT_STATUS_TRANSIENT);
+      result.putString("reasonCode", SILENT_STATUS_INSPECTION_FAILED);
+      result.putString("correlationId", UUID.randomUUID().toString());
       result.putString("credentialId", credentialId);
       promise.resolve(result);
     }

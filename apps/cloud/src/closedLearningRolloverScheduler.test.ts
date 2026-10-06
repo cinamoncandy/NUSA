@@ -204,6 +204,41 @@ describe("ClosedLearningRolloverScheduler", () => {
   });
 });
 
+describe("closed-learning rollover after a period closed without a successor", () => {
+  const LATER = NEXT_KST_DAY + 60_000;
+
+  it("continues the latest realized candidate from the real canonical account boundary", () => {
+    const { scheduler, events } = harness({ now: LATER, openPeriods: [] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "STALLED_PERIOD_REOPENED");
+    assert.equal(result.reason, "continued:record-0");
+    assert.deepEqual(events, [`open:closed-learning-rollover:1:${LATER}:${LATER}:1`]);
+  });
+
+  it("waits instead of reopening at or before the last realized period end", () => {
+    const { scheduler, events } = harness({ now: NEXT_KST_DAY, openPeriods: [] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "NO_OPEN_PERIOD");
+    assert.equal(result.reason, "WAITING_FOR_CANONICAL_BOUNDARY");
+    assert.deepEqual(events, []);
+  });
+
+  it("leaves a fresh install with no realized history to the bootstrap", () => {
+    const port: ClosedLearningRolloverPort = {
+      listOpenPeriods: () => [],
+      listRealizedPeriods: () => [],
+      readCanonicalPaperAccount: () => account(LATER),
+      closePeriodFromCanonicalAccount: () => { throw new Error("unexpected close"); },
+      openPeriodFromCanonicalAccount: () => { throw new Error("unexpected open"); },
+      buildEvidenceIdentity: () => { throw new Error("unexpected identity"); },
+      runClosedLearningCycle: () => { throw new Error("unexpected cycle"); },
+    };
+    const result = new ClosedLearningRolloverScheduler(port).runOnce();
+    assert.equal(result.status, "NO_OPEN_PERIOD");
+    assert.equal(result.reason, undefined);
+  });
+});
+
 describe("closed-learning rollover across a replaced PAPER account (owner capital change)", () => {
   function replacedAccountPort(retire?: (periodId: string) => PersistedPaperRealizedPeriodPlan) {
     const calls: string[] = [];

@@ -94,3 +94,47 @@ test("start and stop manage timers without leaking and stop is idempotent", () =
   composition.stop();
   db.close();
 });
+
+test("backfill fills the research market from the public candle endpoint and shows up in the collection progress", async () => {
+  const db = open();
+  const lines = [];
+  const now = Date.UTC(2026, 9, 3, 6, 0, 30);
+  const anchor = Math.floor(now / M) * M;
+  const requests = [];
+  const fetchImpl = async (url) => {
+    requests.push(url);
+    const to = new URL(url).searchParams.get("to");
+    const upper = to == null ? anchor + M : Date.parse(to);
+    const page = [];
+    for (let start = upper - M; page.length < 200; start -= M) page.push({ market: "KRW-XRP", candle_date_time_utc: new Date(start).toISOString().slice(0, 19), opening_price: 1000, high_price: 1001, low_price: 999, trade_price: 1000.5 });
+    return { status: 200, ok: true, json: async () => page };
+  };
+  const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_MARKETS: "KRW-XRP" }), database: db, now: () => now, log: (l) => lines.push(l), fetchImpl, sleep: async () => undefined });
+  try {
+    const results = await composition.backfill();
+    assert.deepEqual(results.map((r) => [r.market, r.status]), [["KRW-XRP", "COMPLETE"]]);
+    const progress = composition.orchestrator.collectionProgress();
+    // 7 + 2 + 2 days of windows plus one day of margin, one candle per minute.
+    assert.ok(progress.candleCount >= 12 * 1440);
+    assert.equal(progress.requiredCandles, 11 * 1440);
+    assert.equal(progress.lastCloseMs, anchor);
+    assert.ok(requests.every((u) => u.startsWith("https://api.upbit.com/v1/candles/minutes/1?")));
+    assert.ok(requests.length <= 100, "bounded number of requests");
+    assert.ok(lines.some((l) => l.startsWith("[research-backfill] KRW-XRP COMPLETE")));
+    assert.deepEqual(await composition.backfill().then((r) => r.map((x) => x.status)), ["COMPLETE"], "a second run is a no-op");
+  } finally { composition.stop(); db.close(); }
+});
+
+test("backfill is skipped entirely when disabled, and after stop", async () => {
+  const db = open();
+  let calls = 0;
+  const fetchImpl = async () => { calls += 1; return { status: 200, ok: true, json: async () => [] }; };
+  const off = composeResearchExperiments({ env: env({ NUSA_RESEARCH_BACKFILL: "DISABLED" }), database: db, log: () => {}, fetchImpl });
+  off.start();
+  off.stop();
+  const stopped = composeResearchExperiments({ env: env(), database: db, log: () => {}, fetchImpl });
+  stopped.stop();
+  assert.deepEqual(await stopped.backfill(), []);
+  assert.equal(calls, 0);
+  db.close();
+});
