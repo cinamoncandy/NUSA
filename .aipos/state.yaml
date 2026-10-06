@@ -2571,3 +2571,10 @@ current_health_research_status:
   authority_impact: none
   finding: "Learning tile still shows no reason; the server's own research collection status is not readable from outside; publish a fixed code plus two counts on /health"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_research_progress_time_validation:
+  work_order: WO-PAPER-20261006-RESEARCH-PROGRESS-TIME-VALIDATION
+  status: READY_FOR_REVIEW
+  branch: claude/research-progress-time-validation
+  authority_impact: none
+  finding: "Research progress times (epoch ms) were validated against the 100,000,000 count cap, so every real progress object was dropped by the app and the learning tile showed plain 'not received' while the server collected 18265 of 15840 candles"
+  deploy: not_deployed_new_app_build_required
