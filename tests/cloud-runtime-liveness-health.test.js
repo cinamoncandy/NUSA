@@ -194,6 +194,32 @@ test("/health publishes the research collection status as a fixed code plus two 
   }, 41876);
 });
 
+test("/health publishes the PAPER decision funnel as fixed stage codes and integer counts, and drops everything else", async () => {
+  const funnel = { since: 1_791_259_000_000, counts: { "MARKET_DATA:PASS": 9000, "DECISION:PASS": 80, "DECISION:PASS:BUY": 60, "RISK:FAIL:CONSECUTIVE_LOSS_LIMIT": 57, OTHER: 3, "RISK:FAIL": 57 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: funnel }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperFunnel, funnel);
+  }, 41861);
+  const dirty = { since: 5, counts: { "RISK:FAIL": 4.5, "risk:fail": 1, "RISK:MAYBE": 2, "RISK:FAIL:lower": 3, "DECISION:PASS:KRW-XRP": 4, "balance is 9,999 KRW": 5, "RISK:FAIL:OK_CODE": 6, "FILL:PASS": -1, "PNL:PASS": "7", "DECISION:SKIP": 8 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(body.runtime.paperFunnel.counts, { "RISK:FAIL:OK_CODE": 6, "DECISION:SKIP": 8 }, "only well-formed keys with non-negative integer counts survive");
+    assert.doesNotMatch(res.body, /9,999|KRW-XRP|lower/);
+  }, 41862);
+  const many = { since: 1, counts: Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`RISK:FAIL:CODE_${i}`, i])) };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: many }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(Object.keys(body.runtime.paperFunnel.counts).length, 80, "at most 80 keys are published");
+  }, 41863);
+  for (const [index, bad] of [null, "text", { since: -1, counts: {} }, { since: 1, counts: [1, 2] }, { since: 1 }, { counts: {} }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: bad }) }, async (handle) => {
+      const body = JSON.parse((await request(handle.port, "/health")).body);
+      assert.equal(body.runtime.paperFunnel, undefined, JSON.stringify(bad));
+    }, 41864 + index);
+  }
+});
+
 test("/health strips extra component-health fields from an alternate callback", async () => {
   const measuredAt = 2_000;
   const health = (componentId, provenance, evidenceId) => evaluateComponentHealth({

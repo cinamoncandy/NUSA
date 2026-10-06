@@ -54,6 +54,6 @@ jobs:
         run: |
           set +e
           echo "== listening sockets (local, no process names)"; ss -ltn 2>&1 | head -15
-          echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 1500 characters)"
+          echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 9000 characters)"
           curl -sS -m 6 -o /tmp/nusa-health-probe.txt -w "http=%{http_code} connect=%{time_connect}s total=%{time_total}s size=%{size_download}B\n" http://127.0.0.1:41731/health 2>&1
-          head -c 1500 /tmp/nusa-health-probe.txt 2>/dev/null; echo
+          head -c 9000 /tmp/nusa-health-probe.txt 2>/dev/null; echo
