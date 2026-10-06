@@ -2578,3 +2578,11 @@ current_research_progress_time_validation:
   authority_impact: none
   finding: "Research progress times (epoch ms) were validated against the 100,000,000 count cap, so every real progress object was dropped by the app and the learning tile showed plain 'not received' while the server collected 18265 of 15840 candles"
   deploy: not_deployed_new_app_build_required
+current_ui_hero_flow_field:
+  work_order: WO-UI-20261006-HERO-FLOW-FIELD
+  status: READY_FOR_REVIEW
+  branch: claude/hero-flow-field
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (second reference video, option 1: replace only the hero)"
+  note: "The hero component is shared: HOME hero, field header mark and More-menu mark all change; no screen keeps the old figure. Only the hero figure changes; the rest of the app's colours and layout are untouched by the owner's choice."
+  deploy: not_deployed_new_app_build_required
