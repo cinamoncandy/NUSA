@@ -2,6 +2,9 @@ name: Apply anonymous PAPER observation wiring
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
 
 permissions:
   contents: write
@@ -12,7 +15,7 @@ concurrency:
 
 jobs:
   apply:
-    if: github.ref == 'refs/heads/fix/mobile-anonymous-paper-observation'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'fix/mobile-anonymous-paper-observation'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
