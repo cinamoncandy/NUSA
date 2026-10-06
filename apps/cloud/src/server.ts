@@ -103,6 +103,10 @@ export interface CloudRuntimeLivenessSnapshot {
   /** Counts behind the consecutive-loss limit as of the latest risk evaluation: integers and one timestamp only. */
   /** Today's completed and losing sells per strategy family code (fixed codes, integers only). */
   readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
+  /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
+  readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
+  /** Production closed-learning loop status: fixed codes and integers only. */
+  readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined>>;
   readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
 }
 
@@ -337,6 +341,31 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     }
     lossAttribution = { paperLossAttribution: { evaluatedAt: Number(rawAttribution.evaluatedAt), byFamily } };
   }
+  // Research experiment ticks: a fixed status code, three integers and at most 40 code-keyed integer counts.
+  const rawTicks = source.researchExperimentTicks as Record<string, unknown> | null | undefined;
+  let experimentTicks: { researchExperimentTicks?: { lastTickAt: number; lastStatus: string; ticks: number; sessionsStarted: number; counts: Record<string, number> } } = {};
+  if (rawTicks != null && typeof rawTicks === "object" && typeof rawTicks.lastStatus === "string" && ["OK", "RECOVERY_NOT_READY", "ERROR"].includes(rawTicks.lastStatus)
+    && ["lastTickAt", "ticks", "sessionsStarted"].every((key) => Number.isSafeInteger(rawTicks[key]) && Number(rawTicks[key]) >= 0)
+    && rawTicks.counts != null && typeof rawTicks.counts === "object" && !Array.isArray(rawTicks.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawTicks.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 40) break;
+      if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value) && Number(value) >= 0) counts[key] = Number(value);
+    }
+    experimentTicks = { researchExperimentTicks: { lastTickAt: Number(rawTicks.lastTickAt), lastStatus: rawTicks.lastStatus, ticks: Number(rawTicks.ticks), sessionsStarted: Number(rawTicks.sessionsStarted), counts } };
+  }
+  // Closed-learning loop: integers for the counters and the tick time, fixed codes for the steps; nothing else.
+  const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
+  let closedLearningLoop: { closedLearningLoop?: Record<string, string | number> } = {};
+  const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome"] as const;
+  if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
+    && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
+    const loop: Record<string, string | number> = {};
+    for (const key of LOOP_INTS) loop[key] = Number(rawLoop[key]);
+    for (const key of LOOP_CODES) { const value = rawLoop[key]; if (typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)) loop[key] = value; }
+    if (loop.bootstrap !== undefined && loop.rollover !== undefined) closedLearningLoop = { closedLearningLoop: loop };
+  }
   const rawResearch = source.researchCollectionStatus;
   const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
     ? {
@@ -345,7 +374,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
       ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
     }
     : {};
-  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...closedLearningLoop }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

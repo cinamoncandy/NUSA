@@ -2646,3 +2646,40 @@ current_paper_wait_reason_codes:
   owner_approval: "2026-10-06 in chat (master directive step 5, '계속해')"
   finding: "WAIT ~96% of decisions under one code; each WAIT now carries one fixed reason code (RISK_REGIME, TRADING_DISABLED, INSUFFICIENT_HISTORY, LOW_CONFIDENCE, NO_SIGNAL, ALREADY_IN_POSITION, NO_POSITION_TO_SELL); no threshold changed"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_research_experiment_counts:
+  work_order: WO-RESEARCH-20261006-EXPERIMENT-COUNTS
+  status: READY_FOR_REVIEW
+  branch: claude/research-experiment-counts
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
+  finding: "Experiment outcomes were journal-only; publishes bounded cumulative outcome counts so the Research -> Candidate N+1 link can be located in runtime evidence"
+current_paper_minute_bar_strategy:
+  work_order: WO-PAPER-20261006-MINUTE-BAR-STRATEGY
+  status: READY_FOR_REVIEW
+  branch: claude/minute-bar-strategy
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('2번으로 진행해')"
+  finding: "SMA 5/20 ran on every ticker event (12 s holds; tick replay 0.5% wins, -51% net after fees). The candidate strategy now uses completed 1-minute closes from the persisted ticker store; no parameter or threshold changed"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ui_touch_visual_calm:
+  work_order: WO-UI-20261006-TOUCH-VISUAL-CALM
+  status: READY_FOR_REVIEW
+  branch: claude/fix-touch-visual-calm
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive; regression from #2541)"
+  finding: "touch-visual failed on every PR since #2541 because it waited for replaced testIDs; re-keyed on the calm-v1 screens and tied to the presenters"
+current_ops_deploy_receipt_result:
+  work_order: WO-OPS-20261006-DEPLOY-RECEIPT-RESULT
+  status: READY_FOR_REVIEW
+  branch: claude/deploy-receipt-result
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (master directive section 27, P1)"
+  finding: "A superseded release skipped all host steps but showed success; the final step now records deploymentResult (DEPLOYED / SKIPPED_MAIN_MOVED / FAILED / FAILED_ACTIVATION_IDENTITY)"
+current_learning_loop_status:
+  work_order: WO-LEARNING-20261006-LOOP-STATUS
+  status: READY_FOR_REVIEW
+  branch: claude/closed-learning-loop-status
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
+  finding: "Closed-learning loop step results were log-only; publishes bootstrap/rollover step codes and evaluated-cycle/deployment counts so the stalled learning transition can be named from runtime evidence"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
