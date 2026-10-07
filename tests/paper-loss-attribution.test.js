@@ -36,3 +36,11 @@ test("yesterday's sells are excluded and a multi-fill sell order counts once", (
   assert.deepEqual(attributeTodayLosses(fills, NOW).byFamily, { DONCHIAN_BREAKOUT: { completedSells: 1, losingSells: 1 } });
   assert.deepEqual(attributeTodayLosses([], NOW).byFamily, {});
 });
+
+test("the attribution day is the Asia/Seoul trading day, the same one the risk loss session uses", () => {
+  // 14:30 UTC is 23:30 KST on 2026-10-06; 15:30 UTC is 00:30 KST on 2026-10-07.
+  const beforeBoundary = Date.parse("2026-10-06T14:30:00Z");
+  const fills = [fill("BUY", 100, beforeBoundary - 2e5, bound("sma-crossover")), fill("SELL", 99, beforeBoundary)];
+  assert.deepEqual(attributeTodayLosses(fills, Date.parse("2026-10-06T14:59:00Z")).byFamily, { SMA_CROSSOVER: { completedSells: 1, losingSells: 1 } }, "still today before 15:00 UTC");
+  assert.deepEqual(attributeTodayLosses(fills, Date.parse("2026-10-06T15:00:00Z")).byFamily, {}, "a pre-boundary loss is not today's after 15:00 UTC, matching todayLosingSells");
+});

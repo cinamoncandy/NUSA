@@ -1,0 +1,39 @@
+id: WO-RISK-20261007-KST-TRADING-DAY
+title: "Unify the cloud PAPER risk adapter onto the canonical Asia/Seoul trading day and publish loss-period evidence"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/risk-kst-trading-day
+issue: 2575
+authority_impact: risk-trading-day-definition-and-display-evidence
+owner_approval: "2026-10-07 in chat ('더 좋은 쪽' delegating the UTC-vs-KST choice after the options were put to the owner)"
+objective: "Remove the UTC/KST disagreement inside one risk evaluation and make the consecutive-loss lifecycle observable, without changing any threshold."
+first_broken_transition: "merged daily-reset policy (#2432, UTC day) -> canonical trading day (Asia/Seoul, CanonicalRiskSafetyGate and closed-learning rollover): the same evaluation used two different 'today's"
+scope:
+  include:
+    - "paperTradingDay.ts: the one cloud PAPER trading day. It delegates to the canonical tradingDayKey (Asia/Seoul) and memoizes (bounded) so a risk evaluation does not build an Intl formatter per fill. cloudPaperCanonicalRiskGateway (streak, dailyRealizedPnL, daily buy/sell notional) and paperLossAttribution both use it, so /health attribution and the session counts agree."
+    - "RISK source identity is pinned in TWO places that must move together with any change to cloudPaperCanonicalRiskGateway.ts: EXPECTED_RISK_BLOB in cloudPaperCanonicalRiskGateway.requalification.test.ts and RISK in moduleQualificationV1.ts (checked by module10XS.test.ts)."
+    - "Display-only loss-session evidence: periodIdentity (trading-day key), periodStartedAt (start of that day), lastIncrementAt (fill time of the loss that last extended the streak, null at 0); published on /health as optional bounded fields."
+  exclude:
+    - "maxConsecutiveLosses stays 3; every other limit, capital, adapters, strategy, execution, LIVE. No loosening other than the boundary itself; no synthetic Order/Fill/PnL."
+effect_to_state_explicitly:
+  - "The reset moves from 00:00 UTC to 15:00 UTC (00:00 KST). A streak whose losses fall on an earlier KST day resets at deploy; the three losses on 2026-10-07 09:40-10:55 KST therefore stop counting once KST 2026-10-08 has begun."
+  - "Once, at the switch, a daily notional/loss budget can be spent twice within 24 hours because the day edge moved; PAPER limits are 2,000,000 KRW."
+acceptance:
+  - "Three losses stay blocked until the KST boundary (14:59 UTC blocked, 15:00 UTC reset exactly once), and a restart before/after reaches the same truth."
+  - "Threshold remains 3; 0->1->2->3 block, winning close, duplicate fill, stale day behaviour unchanged."
+  - "/health keeps the five counts and adds the period evidence only as one coherent tuple (date key, exact KST day start, lastIncrementAt ordered start <= last <= evaluatedAt); partial or contradictory evidence is omitted whole."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test tests/cloud-paper-daily-loss-streak.test.js tests/cloud-runtime-liveness-health.test.js dist/apps/cloud/src/cloudPaperConsecutiveLossLifecycle.test.js dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.requalification.test.js"
+evidence:
+  local_validation: "tsc clean; loss-streak 6 + liveness-health tests pass; lifecycle 6 pass; requalification 6 pass (Node 22 sandbox)."
+  remaining: "Exact-head CI, independent Audit and Release (this touches the canonical RISK source, so the exact-source blob is re-pinned in the requalification test); after merge deploy the exact main SHA and verify /health paperLossSession carries periodIdentity/periodStartedAt/lastIncrementAt, the streak reflects the KST day, and the ledger fingerprint/fill count are unchanged. Item 5 of #2575 (limits 3/4/5 comparison) stays open and is not started."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

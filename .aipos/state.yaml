@@ -2858,3 +2858,10 @@ current_learning_retire_mixed_binding_period:
   authority_impact: closed-learning-period-lifecycle
   owner_approval: "2026-10-07 in chat (option 1: retire the mixed period unscored and start a fresh one)"
   finding: "After the wall-clock rollover the open KRW-XRP period reached the reconciler and failed CANDIDATE_BINDING_MIXED, which fail-closed correctly but blocked the loop forever; the period is now retired unscored and the loop continues in a fresh period"
+current_risk_kst_trading_day:
+  work_order: WO-RISK-20261007-KST-TRADING-DAY
+  status: READY_FOR_REVIEW
+  branch: claude/risk-kst-trading-day
+  authority_impact: risk-trading-day-definition-and-display-evidence
+  owner_approval: "2026-10-07 in chat ('더 좋은 쪽' delegating the UTC-vs-KST choice)"
+  finding: "The cloud PAPER risk adapter used a local UTC day while CanonicalRiskSafetyGate and the learning rollover use Asia/Seoul; it now uses the canonical tradingDayKey, the threshold stays 3, and the loss session publishes period identity, start and last increment on /health (issue 2575 items 2-4)"
