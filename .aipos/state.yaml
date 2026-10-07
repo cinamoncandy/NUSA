@@ -2781,3 +2781,10 @@ current_research_candle_gap_fill:
   owner_approval: "2026-10-07 in chat ('알아서 제일 좋은 결정해')"
   finding: "15m/60m research skipped every window for holdout gaps; restart/feed gaps inside recent 1m history are now refilled from the public candle endpoint"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_autopilot_codex_outcome:
+  work_order: WO-AUTOPILOT-20261007-CODEX-OUTCOME
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-codex-outcome
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('다른 최우선 작업')"
+  finding: "Scheduled Codex runs ended green with no patch (weekly ChatGPT limit, host deferral); each run now records its outcome so zero-completion runs are visible"
