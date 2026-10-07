@@ -482,6 +482,25 @@ export class PaperRealizedPeriodProducer {
     } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
   }
 
+  /**
+   * Retires an open period whose fills mix more than one candidate binding (CANDIDATE_BINDING_MIXED). Such a window can never be
+   * attributed to a single strategy version, so it can never close; only one period may be open, so without this the learning
+   * loop stays blocked forever. Nothing is closed or scored and no return, fill or cost is synthesized: the period leaves the
+   * open set and its fills stay in the canonical ledger. The caller must have just seen the close fail with that exact code.
+   */
+  public retireOpenPeriodForMixedBinding(periodId: string): PersistedPaperRealizedPeriodPlan {
+    try {
+      const current = this.openPeriods.get(periodId);
+      if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      const pending = this.repository.getPending(periodId);
+      if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      this.repository.retirePending(periodId, pending.checksum);
+      this.openPeriods.delete(periodId);
+      this.emit({ type: "PERIOD_REJECTED", periodId, occurredAt: this.options.now?.() ?? Date.now(), reasonCode: "CANDIDATE_BINDING_MIXED" });
+      return current;
+    } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
+  }
+
   public retireOpenPeriodForAccountChange(periodId: string): PersistedPaperRealizedPeriodPlan {
     try {
       const current = this.openPeriods.get(periodId);

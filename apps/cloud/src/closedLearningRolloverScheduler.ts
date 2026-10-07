@@ -10,6 +10,7 @@ export type ClosedLearningRolloverStatus =
   | "ACCOUNT_REPLACED_PERIOD_REOPENED"
   | "STALLED_PERIOD_REOPENED"
   | "UNSTREAMED_MARKET_PERIOD_RETIRED"
+  | "MIXED_BINDING_PERIOD_RETIRED"
   | "WAITING_FOR_CANONICAL_BOUNDARY"
   | "WAITING_FOR_KST_DAY_ROLLOVER"
   | "WAITING_FOR_REALIZED_FILL"
@@ -47,6 +48,8 @@ export interface ClosedLearningRolloverPort {
   readonly streamedMarkets?: () => readonly string[];
   /** Retires an open period bound to a market that is no longer streamed (its benchmark can never exist). */
   readonly retireOpenPeriodForUnstreamedMarket?: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
+  /** Retires an open period whose fills mix candidate bindings (it can never be attributed to one strategy version). Nothing is closed or scored. */
+  readonly retireOpenPeriodForMixedBinding?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   /** A fresh owner-baseline period for the runtime's current market, built by the canonical owner-baseline builder. */
   readonly buildOwnerBaselinePeriod?: (input: { readonly periodIndex: number; readonly periodStartAt: number }) => PaperRealizedPeriodOpenInput | undefined;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
@@ -200,7 +203,18 @@ export class ClosedLearningRolloverScheduler {
       return Object.freeze({ status: "WAITING_FOR_REALIZED_FILL", periodId: plan.periodId });
     }
 
-    const closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
+    let closed: PersistedPaperPeriodEnvelope;
+    try {
+      closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
+    } catch (error) {
+      // A window that mixes strategy versions can never be scored. The reconciler's guard stays as it is; the period is
+      // retired unscored so the loop is not blocked on it forever, and the next tick continues in a fresh period.
+      if ((error as { readonly code?: unknown } | null)?.code === "CANDIDATE_BINDING_MIXED" && this.port.retireOpenPeriodForMixedBinding != null) {
+        this.port.retireOpenPeriodForMixedBinding(plan.periodId);
+        return Object.freeze({ status: "MIXED_BINDING_PERIOD_RETIRED", periodId: plan.periodId, reason: "CANDIDATE_BINDING_MIXED" });
+      }
+      throw error;
+    }
     const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
     if (!realizedPeriods.some((item) => item.record.recordId === closed.record.recordId)) {
       throw new Error("closed PAPER period is missing from the durable realized denominator");

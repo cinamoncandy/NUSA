@@ -118,6 +118,7 @@ function harness(options: {
   outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE";
   awaitingGovernance?: boolean;
   closeError?: Error;
+  retireMixed?: boolean;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
   priorRealized?: readonly PersistedPaperPeriodEnvelope[];
 }) {
@@ -138,6 +139,7 @@ function harness(options: {
     openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
     buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
     runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
+    ...(options.retireMixed === false ? {} : { retireOpenPeriodForMixedBinding: (periodId: string) => { events.push(`retire-mixed:${periodId}`); return plan("FILLED", periodId); } }),
   };
   return { scheduler: new ClosedLearningRolloverScheduler(port), events };
 }
@@ -166,6 +168,32 @@ describe("ClosedLearningRolloverScheduler", () => {
     const { scheduler, events } = harness({ now: SAME_KST_DAY, clock: NEXT_KST_DAY, observation: "WAIT" });
     assert.equal(scheduler.runOnce().status, "WAITING_FOR_REALIZED_FILL");
     assert.deepEqual(events, []);
+  });
+
+  describe("a window that mixes candidate bindings", () => {
+    const mixed = () => Object.assign(new Error("realized PAPER period mixes fills from more than one candidate binding"), { code: "CANDIDATE_BINDING_MIXED" });
+
+    it("is retired unscored: no cycle, no identity, no successor opened in the same tick", () => {
+      const { scheduler, events } = harness({ now: NEXT_KST_DAY, closeError: mixed() });
+      const result = scheduler.runOnce();
+      assert.equal(result.status, "MIXED_BINDING_PERIOD_RETIRED");
+      assert.equal(result.reason, "CANDIDATE_BINDING_MIXED");
+      assert.deepEqual(events.filter((event) => !event.startsWith("close:")), [`retire-mixed:${plan("FILLED").periodId}`]);
+    });
+
+    it("any other close failure stays BLOCKED and retires nothing", () => {
+      const other = Object.assign(new Error("x"), { code: "MISSING_BENCHMARK_EVIDENCE" });
+      const { scheduler, events } = harness({ now: NEXT_KST_DAY, closeError: other });
+      assert.equal(scheduler.runOnce().status, "BLOCKED");
+      assert.ok(!events.some((event) => event.startsWith("retire-mixed")));
+    });
+
+    it("stays BLOCKED when the retirement port is unavailable", () => {
+      const { scheduler } = harness({ now: NEXT_KST_DAY, closeError: mixed(), retireMixed: false });
+      const result = scheduler.runOnce();
+      assert.equal(result.status, "BLOCKED");
+      assert.match(result.reason ?? "", /CANDIDATE_BINDING_MIXED|mixes fills/);
+    });
   });
 
   it("keeps a crossed period open until a real FILLED observation exists", () => {

@@ -104,6 +104,7 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly retirePaperRealizedPeriodForReplacement: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForAccountChange: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForUnstreamedMarket: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
+  readonly retirePaperRealizedPeriodForMixedBinding: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
@@ -707,6 +708,7 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForReplacement: (periodId, reason) => requirePaperRealizedPeriodProducer().retireOpenPeriodForReplacement(periodId, reason),
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     retirePaperRealizedPeriodForUnstreamedMarket: (periodId, streamedMarkets) => requirePaperRealizedPeriodProducer().retireOpenPeriodForUnstreamedMarket(periodId, streamedMarkets),
+    retirePaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForMixedBinding(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
     stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };

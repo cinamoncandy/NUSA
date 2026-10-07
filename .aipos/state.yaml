@@ -2851,3 +2851,10 @@ current_learning_rollover_wall_clock:
   authority_impact: closed-learning-period-close-trigger
   owner_approval: "2026-10-07 in chat (rollover basis changed to the clock)"
   finding: "A consecutive-loss halt stops fills so the canonical account updatedAt never crossed the KST day and the rollover waited; the wall clock now only decides the day passed, the period still closes at the canonical account boundary"
+current_learning_retire_mixed_binding_period:
+  work_order: WO-LEARNING-20261007-RETIRE-MIXED-BINDING-PERIOD
+  status: READY_FOR_REVIEW
+  branch: claude/retire-mixed-binding-period
+  authority_impact: closed-learning-period-lifecycle
+  owner_approval: "2026-10-07 in chat (option 1: retire the mixed period unscored and start a fresh one)"
+  finding: "After the wall-clock rollover the open KRW-XRP period reached the reconciler and failed CANDIDATE_BINDING_MIXED, which fail-closed correctly but blocked the loop forever; the period is now retired unscored and the loop continues in a fresh period"

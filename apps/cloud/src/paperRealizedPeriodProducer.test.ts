@@ -201,3 +201,19 @@ describe("retiring an open period bound to a market the runtime no longer stream
     assert.equal(state.producer.hasOpenPeriod(), true);
   });
 });
+
+describe("retiring an open period whose fills mix candidate bindings", () => {
+  it("removes the open period unscored, records why, and refuses a period that is not open", () => {
+    const events: string[] = [];
+    const state = producer({ onLifecycleEvent: (event) => events.push(`${event.type}:${"reasonCode" in event ? event.reasonCode : ""}`) });
+    state.producer.openPeriod(openPeriod(0));
+    const retired = state.producer.retireOpenPeriodForMixedBinding("period-0");
+    assert.equal(retired.periodId, "period-0");
+    assert.equal(state.producer.hasOpenPeriod(), false);
+    assert.equal(state.repository.getPending("period-0"), undefined);
+    assert.equal(state.producer.listRealizedPeriods().length, 0, "nothing is closed or scored");
+    assert.ok(events.includes("PERIOD_REJECTED:CANDIDATE_BINDING_MIXED"));
+    assert.equal(codeOf(() => state.producer.retireOpenPeriodForMixedBinding("period-0")), "PERIOD_NOT_OPEN");
+    assert.equal(codeOf(() => state.producer.retireOpenPeriodForMixedBinding("missing")), "PERIOD_NOT_OPEN");
+  });
+});

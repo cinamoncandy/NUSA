@@ -1,0 +1,35 @@
+id: WO-LEARNING-20261007-RETIRE-MIXED-BINDING-PERIOD
+title: "Retire an unscorable open period whose fills mix candidate bindings, then continue in a fresh period"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/retire-mixed-binding-period
+authority_impact: closed-learning-period-lifecycle
+owner_approval: "2026-10-07 in chat (option 1: retire the mixed period unscored and start a fresh one)"
+objective: "Stop the closed-learning rollover from staying BLOCKED forever on an open period that can never be attributed to a single strategy version."
+first_broken_transition: "period close -> CANDIDATE_BINDING_MIXED (observed on /health after the wall-clock rollover reached the reconciler on runtime 82a8920): rollover BLOCKED, cyclesEvaluated=0"
+scope:
+  include:
+    - "PaperRealizedPeriodProducer.retireOpenPeriodForMixedBinding: removes the open period, emits PERIOD_REJECTED(CANDIDATE_BINDING_MIXED); nothing is closed or scored."
+    - "ClosedLearningRolloverScheduler: only when the close fails with code CANDIDATE_BINDING_MIXED and the port exists, retire and return MIXED_BINDING_PERIOD_RETIRED; every other failure stays BLOCKED."
+    - "Runtime and production wiring of the new port."
+  exclude:
+    - "The reconciler guard itself (a window may only realize a single binding), evidence requirements, Risk, thresholds, capital, LIVE. No return, fill, cost or PnL is synthesized; the fills stay in the canonical ledger."
+acceptance:
+  - "Mixed-binding close failure retires the period unscored: no cycle, no evidence identity, no successor in the same tick."
+  - "Other close failures and a missing retirement port stay BLOCKED and retire nothing."
+  - "A period that is not open cannot be retired."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js dist/apps/cloud/src/paperRealizedPeriodProducer.test.js dist/apps/cloud/src/paperCanonicalOutcomeReconciliation.test.js"
+evidence:
+  local_validation: "tsc clean; rollover scheduler 27 pass, period producer 11 pass, outcome reconciliation 13 pass (Node 22 sandbox); AIPOS/truth/safety/ai validators ok."
+  remaining: "Exact-head CI, independent Audit and Release; after merge deploy the exact main SHA and verify the loop leaves BLOCKED, retires the period and opens a fresh owner-baseline period with no synthetic fill/PnL. The retired period's 3 fills are excluded from learning evidence by owner decision."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
