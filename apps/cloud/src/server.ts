@@ -107,7 +107,7 @@ export interface CloudRuntimeLivenessSnapshot {
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
   readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
   /** Production closed-learning loop status: fixed codes and integers only. */
-  readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined>>;
+  readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
   readonly sourceCommitSha?: string;
   readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
@@ -371,14 +371,35 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   }
   // Closed-learning loop: integers for the counters and the tick time, fixed codes for the steps; nothing else.
   const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
-  let closedLearningLoop: { closedLearningLoop?: Record<string, string | number> } = {};
+  let closedLearningLoop: { closedLearningLoop?: Record<string, string | number | Record<string, string | number>> } = {};
   const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
   const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome"] as const;
   if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
     && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
-    const loop: Record<string, string | number> = {};
+    const loop: Record<string, string | number | Record<string, string | number>> = {};
     for (const key of LOOP_INTS) loop[key] = Number(rawLoop[key]);
     for (const key of LOOP_CODES) { const value = rawLoop[key]; if (typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)) loop[key] = value; }
+    // Correlation identities: fixed keys only; identifiers, 64-hex fingerprints, KRW markets and integers.
+    const rawEvidence = rawLoop.evidence as Record<string, unknown> | null | undefined;
+    if (rawEvidence != null && typeof rawEvidence === "object" && !Array.isArray(rawEvidence)) {
+      const ID = /^[A-Za-z0-9_.:\/#@-]{1,160}$/;
+      const HEX = /^[a-f0-9]{64}$/;
+      const rules: Record<string, (value: unknown) => boolean> = {
+        openPeriodId: (v) => typeof v === "string" && ID.test(v), openMarket: (v) => typeof v === "string" && /^KRW-[A-Z0-9]{1,15}$/.test(v),
+        openCandidateId: (v) => typeof v === "string" && ID.test(v), realizedPeriodId: (v) => typeof v === "string" && ID.test(v),
+        cycleId: (v) => typeof v === "string" && ID.test(v), cycleEvidenceId: (v) => typeof v === "string" && ID.test(v),
+        decisionId: (v) => typeof v === "string" && ID.test(v), decisionReference: (v) => typeof v === "string" && ID.test(v),
+        decisionCandidateId: (v) => typeof v === "string" && ID.test(v), deploymentId: (v) => typeof v === "string" && ID.test(v),
+        realizedOutcomeFingerprint: (v) => typeof v === "string" && HEX.test(v), realizedCostEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        cycleEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        openPeriodStartAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, openObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        realizedPeriodEndAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+      };
+      const evidence: Record<string, string | number> = {};
+      for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }
+      if (Object.keys(evidence).length > 0) loop.evidence = evidence;
+    }
     if (loop.bootstrap !== undefined && loop.rollover !== undefined) closedLearningLoop = { closedLearningLoop: loop };
   }
   const rawResearch = source.researchCollectionStatus;

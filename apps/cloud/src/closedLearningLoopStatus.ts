@@ -1,10 +1,13 @@
 import type { ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 import type { ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
+import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
+import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
  * decision -> next PAPER deployment). It was only logged, so the step where Experience N -> Research N+1 stalls was
- * not observable. Fixed codes and integers only: no ids, fingerprints, markets, prices or free text.
+ * not observable. Steps are fixed codes and integers; `evidence` adds only canonical identifiers, fingerprints and
+ * markets. No amounts, prices, returns or free text.
  */
 export type ClosedLearningLoopStatus = {
   readonly lastTickAt: number;
@@ -16,7 +19,19 @@ export type ClosedLearningLoopStatus = {
   readonly lastCycleStatus?: string;
   readonly lastCycleOutcome?: string;
   readonly deployments: number;
+  /**
+   * Correlation identities read from the canonical components (open PAPER period, latest realized period, latest
+   * closed-learning cycle), so period -> fill -> realized outcome -> evidence -> Research decision -> next candidate
+   * can be followed mechanically. Identifiers and fingerprints only; no amounts, prices, returns or free text.
+   */
+  readonly evidence?: ClosedLearningEvidenceCorrelation;
 };
+
+export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
+  openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
+  realizedPeriods: number; realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
+  cycleId: string; cycleEvidenceId: string; cycleEvidenceFingerprint: string; decisionId: string; decisionReference: string; decisionCandidateId: string; deploymentId: string;
+}>>;
 
 const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
 const code = (value: unknown): string | undefined => {
@@ -28,6 +43,37 @@ const code = (value: unknown): string | undefined => {
 export class ClosedLearningLoopStatusTracker {
   private status: ClosedLearningLoopStatus | null = null;
   private bootstrap = "NOT_RUN";
+  private periods: ClosedLearningEvidenceCorrelation = {};
+  private cycle: ClosedLearningEvidenceCorrelation = {};
+
+  /** Reads the identities of the current open period and the latest realized period. */
+  public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
+    const latest = [...realized].sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0];
+    this.periods = Object.freeze({
+      ...(open == null ? {} : {
+        openPeriodId: open.periodId,
+        ...(open.market == null ? {} : { openMarket: open.market }),
+        ...(open.candidateProvenance[0] == null ? {} : { openCandidateId: open.candidateProvenance[0].candidateId }),
+        openPeriodStartAt: open.periodStartAt,
+        openObservations: open.observations.length,
+        openFilledObservations: open.observations.filter((item) => item.status === "FILLED").length,
+      }),
+      realizedPeriods: realized.length,
+      ...(latest == null ? {} : {
+        realizedPeriodId: latest.record.recordId,
+        realizedPeriodEndAt: latest.record.periodEndAt,
+        ...(latest.record.canonicalOutcomeReceiptFingerprint == null ? {} : { realizedOutcomeFingerprint: latest.record.canonicalOutcomeReceiptFingerprint }),
+        realizedCostEvidenceFingerprint: latest.record.costEvidence.evidenceFingerprintSha256,
+      }),
+    });
+    this.publish();
+  }
+
+  private publish(): void {
+    if (this.status == null) return;
+    const evidence = Object.freeze({ ...this.periods, ...this.cycle });
+    this.status = Object.freeze({ ...this.status, ...(Object.keys(evidence).length === 0 ? {} : { evidence }) });
+  }
 
   public observeBootstrap(result: Pick<ClosedLearningInitialPaperBootstrapResult, "status">): void {
     this.bootstrap = code(result.status) ?? "UNKNOWN";
@@ -51,6 +97,20 @@ export class ClosedLearningLoopStatusTracker {
       ...(cycleOutcome === undefined ? (previous?.lastCycleOutcome === undefined ? {} : { lastCycleOutcome: previous.lastCycleOutcome }) : { lastCycleOutcome: cycleOutcome }),
       deployments: (previous?.deployments ?? 0) + (deployed ? 1 : 0),
     });
+    const record = result.cycle?.record;
+    if (record != null) {
+      const entries = Object.entries({
+        cycleId: record.cycleId,
+        cycleEvidenceId: record.evidenceId,
+        cycleEvidenceFingerprint: record.evidenceFingerprintSha256,
+        decisionId: record.decision?.decisionId,
+        decisionReference: record.decision?.decisionReference,
+        decisionCandidateId: record.decision?.candidateId,
+        deploymentId: record.paperDeployment?.deploymentId,
+      }).filter(([, value]) => typeof value === "string" && value.length > 0);
+      this.cycle = Object.freeze(Object.fromEntries(entries));
+    }
+    this.publish();
   }
 
   /** A tick that threw before a rollover result: recorded as ERROR without changing the counts. */

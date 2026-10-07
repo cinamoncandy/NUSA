@@ -2750,3 +2750,11 @@ current_ops_health_source_sha:
   owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘', '다음')"
   finding: "/health now states the running build commit so MAIN = DEPLOYED = RUNTIME can be read directly"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_learning_evidence_correlation:
+  work_order: WO-LEARNING-20261007-EVIDENCE-CORRELATION
+  status: READY_FOR_REVIEW
+  branch: claude/health-learning-correlation
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Learning Loop 핵심 7단계 완전수렴 작업지시서, '해')"
+  finding: "/health closedLearningLoop.evidence now carries period/market/candidate, realized outcome fingerprint and Research cycle/decision/deployment identities"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval

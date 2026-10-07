@@ -21,7 +21,9 @@ test("the loop status records bootstrap and rollover steps as codes and counts e
   assert.equal(s.rollover, "BLOCKED");
   assert.equal(s.rolloverReason, "MULTIPLE_OPEN_PAPER_PERIODS");
   assert.equal(s.lastCycleOutcome, "QUALIFIED_FOR_LEAGUE", "the last evaluated outcome is kept across waiting ticks");
-  assert.doesNotMatch(JSON.stringify(s), /period-secret-id|deploymentId/);
+  assert.doesNotMatch(JSON.stringify(s), /period-secret-id/, "rollover periodId/reason text never leaks");
+  assert.deepEqual(Object.keys(s).filter((key) => key !== "evidence").includes("deploymentId"), false, "identities live only under evidence");
+  assert.equal(s.evidence.deploymentId, "d");
 });
 
 test("free-text reasons are reduced to their leading code or dropped, and an error tick keeps the counts", () => {
@@ -41,5 +43,29 @@ test("the production composition feeds every loop tick into the status and hands
   assert.match(src, /loopStatus\.observeBootstrap\(bootstrap\)/);
   assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\)/);
   assert.match(src, /loopStatus\.observeError\(Date\.now\(\)\); throw error;/);
+  assert.match(src, /loopStatus\.observePeriods\(periods\.listOpenPeriods\(\)\[0\], periods\.listRealizedPeriods\(\)\)/, "every tick reads the canonical period identities");
   assert.match(src, /\(\) => loopStatus\.snapshot\(\),\r?\n\s*\(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*\);/);
+});
+
+test("evidence correlates the open period, the latest realized period and the latest Research cycle", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, 1);
+  const hex = (c) => c.repeat(64);
+  const open = { periodId: "owner-baseline:KRW-XRP:1791331979980", market: "KRW-XRP", periodStartAt: 1791331979980, candidateProvenance: [{ candidateId: "owner-baseline-sma-5-20" }], observations: [{ status: "FILLED" }, { status: "WAIT" }] };
+  const realized = [
+    { record: { recordId: "old", periodIndex: 0, periodEndAt: 10, costEvidence: { evidenceFingerprintSha256: hex("b") } } },
+    { record: { recordId: "owner-baseline:KRW-BTC:1", periodIndex: 1, periodEndAt: 20, canonicalOutcomeReceiptFingerprint: hex("a"), costEvidence: { evidenceFingerprintSha256: hex("c") } } },
+  ];
+  t.observePeriods(open, realized);
+  assert.deepEqual(t.snapshot().evidence, {
+    openPeriodId: open.periodId, openMarket: "KRW-XRP", openCandidateId: "owner-baseline-sma-5-20", openPeriodStartAt: 1791331979980, openObservations: 2, openFilledObservations: 1,
+    realizedPeriods: 2, realizedPeriodId: "owner-baseline:KRW-BTC:1", realizedPeriodEndAt: 20, realizedOutcomeFingerprint: hex("a"), realizedCostEvidenceFingerprint: hex("c"),
+  });
+  t.observeRollover({ status: "CLOSED_AND_EVALUATED", cycle: { status: "EXECUTED", record: { cycleId: "closed-learning:c1", evidenceId: "closed-learning-paper:x", evidenceFingerprintSha256: hex("d"), decision: { decisionId: "decision-1", outcome: "INSUFFICIENT", decisionReference: "research:decision-1" } } } }, 2);
+  const evidence = t.snapshot().evidence;
+  assert.equal(evidence.cycleId, "closed-learning:c1");
+  assert.equal(evidence.cycleEvidenceFingerprint, hex("d"));
+  assert.equal(evidence.decisionReference, "research:decision-1");
+  assert.equal(evidence.openPeriodId, open.periodId, "period identities survive the next rollover tick");
+  assert.equal(evidence.decisionCandidateId, undefined);
 });
