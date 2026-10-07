@@ -5,7 +5,7 @@ import { ResearchExperimentOrchestrator, type ResearchVariant, type TickReport }
 import { ResearchRecoveryCoordinator } from "./researchRecoveryCoordinator";
 import { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
 import { collectClosedCandles } from "./researchCandleCollector";
-import { backfillMarket, createUpbitMinuteCandleFetcher, type BackfillResult } from "./researchCandleBackfill";
+import { backfillMarket, createUpbitMinuteCandleFetcher, fillRecentGaps, type BackfillResult, type GapFillResult } from "./researchCandleBackfill";
 import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
 
 /**
@@ -87,6 +87,8 @@ export interface ResearchExperimentComposition {
   readonly experimentTicksByInterval: () => Readonly<Record<string, ReturnType<ResearchExperimentOrchestrator["experimentTicks"]>>>;
   readonly tickOnce: () => TickReport;
   readonly backfill: () => Promise<readonly BackfillResult[]>;
+  /** Refills missing closed minutes inside the recent history from the public candle endpoint. */
+  readonly fillGaps: () => Promise<readonly GapFillResult[]>;
   readonly start: () => void;
   readonly stop: () => void;
 }
@@ -180,12 +182,35 @@ export function composeResearchExperiments(input: {
     }
     return Object.freeze(results);
   };
+  // Restart and feed gaps inside the recent history are never revisited by the collector; longer bars need every
+  // minute, so refill missing minutes from the same public source after the history fill and every 6 hours.
+  let gapFilling = false;
+  let gapTimer: ReturnType<typeof setInterval> | undefined;
+  const fillGaps = async (): Promise<readonly GapFillResult[]> => {
+    if (gapFilling || stopped) return Object.freeze([]);
+    gapFilling = true;
+    const results: GapFillResult[] = [];
+    try {
+      for (const market of settings.markets) {
+        if (stopped) break;
+        const result = await fillRecentGaps({ market, windowMs: targetSpanMs, nowMs: now(), store, fetchPage, sleep });
+        results.push(result);
+        log(`[research-gap-fill] ${market} ${result.status} missing=${result.missing} recorded=${result.recorded} rejected=${result.rejected} pages=${result.pages}${result.errorCode === undefined ? "" : ` error=${result.errorCode}`}`);
+      }
+    } catch (error) {
+      log(`[research-gap-fill] failed: ${error instanceof Error ? error.message : "unknown"}`);
+    } finally {
+      gapFilling = false;
+    }
+    return Object.freeze(results);
+  };
   const scheduleBackfill = (attempt: number, delayMs: number): void => {
     if (stopped || !settings.backfill) return;
     backfillTimer = setTimeout(() => {
       void backfill().then((results) => {
         const done = results.length === settings.markets.length && results.every((r) => r.status === "COMPLETE");
         if (!done && attempt < 3) scheduleBackfill(attempt + 1, 10 * M);
+        else void fillGaps();
       });
     }, delayMs);
     backfillTimer.unref?.();
@@ -219,6 +244,7 @@ export function composeResearchExperiments(input: {
     },
     tickOnce,
     backfill,
+    fillGaps,
     start: () => {
       if (stopped || timer != null) return;
       // The runtime recovers only the first orchestrator (it is the one handed to startCloudRuntime). Every
@@ -233,8 +259,9 @@ export function composeResearchExperiments(input: {
       first.unref?.();
       timer = setInterval(() => { try { tickOnce(); } catch { /* isolated */ } }, settings.tickMs);
       timer.unref?.();
+      if (settings.backfill) { gapTimer = setInterval(() => { void fillGaps(); }, 6 * 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
-    stop: () => { stopped = true; if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
+    stop: () => { stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });
 }

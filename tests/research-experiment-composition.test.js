@@ -189,3 +189,21 @@ test("start recovers every longer bar length so its ticks are not stuck at RECOV
     assert.equal(composition.experimentTicksByInterval()["60m"].lastStatus, "OK");
   } finally { composition.stop(); db.close(); }
 });
+
+test("the composition refills restart gaps in the recent history through the public candle fetcher", async () => {
+  const db = open();
+  const store = new SqliteResearchCandleStore(db, 200_000);
+  const last = Math.floor(T_END / M) * M;
+  store.append("KRW-BTC", M, [{ closeTimeMs: last - 3 * M, open: 10, high: 11, low: 9, close: 10 }, { closeTimeMs: last, open: 10, high: 11, low: 9, close: 10 }]);
+  const stamp = (ms) => new Date(ms).toISOString().slice(0, 19);
+  const fetchImpl = async () => new Response(JSON.stringify([last - 2 * M, last - 3 * M].map((start) => ({ market: "KRW-BTC", candle_date_time_utc: stamp(start), opening_price: 10, high_price: 11, low_price: 9, trade_price: 10 }))), { status: 200, headers: { "content-type": "application/json" } });
+  const lines = [];
+  const composition = composeResearchExperiments({ env: env(), database: db, now: () => T_END, log: (l) => lines.push(l), fetchImpl, sleep: async () => undefined });
+  try {
+    const [result] = await composition.fillGaps();
+    assert.equal(result.missing, 2);
+    assert.equal(result.recorded, 2);
+    assert.equal(store.count("KRW-BTC", M), 4);
+    assert.ok(lines.some((l) => l.startsWith("[research-gap-fill] KRW-BTC FILLED missing=2 recorded=2")), lines.join("\n"));
+  } finally { composition.stop(); db.close(); }
+});
