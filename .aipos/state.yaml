@@ -2816,3 +2816,10 @@ current_research_failure_reasons:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
   finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
+current_research_donchian_family:
+  work_order: WO-RESEARCH-20261007-DONCHIAN-FAMILY
+  status: READY_FOR_REVIEW
+  branch: claude/research-donchian
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('해' after the short-term trading question)"
+  finding: "A Donchian breakout (momentum) family with a pre-committed grid now runs beside SMA and RSI under the same Research gates; DONCHIAN_BREAKOUT is a new research DSL entry rule with no look-ahead"

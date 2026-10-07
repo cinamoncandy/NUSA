@@ -84,11 +84,14 @@ export interface TickReport {
 
 const empty = (status: TickReport["status"]): TickReport => Object.freeze({ status, started: 0, resumed: 0, stopped: 0, experiments: Object.freeze([]) });
 
+/** Upper bound on challenger variants per bar length (SMA 4 + RSI 3 + Donchian 3 today); each runs at most its daily budget of experiments. */
+export const MAX_VARIANTS = 12;
+
 export class ResearchExperimentOrchestrator {
   private recoveryReady = false;
 
   public constructor(private readonly options: OrchestratorOptions) {
-    if (options.variants.length === 0 || options.variants.length > 8) throw new Error("research orchestrator needs 1 to 8 variants");
+    if (options.variants.length === 0 || options.variants.length > MAX_VARIANTS) throw new Error(`research orchestrator needs 1 to ${MAX_VARIANTS} variants`);
     if (new Set(options.variants.map((v) => v.variantId)).size !== options.variants.length) throw new Error("research variant ids must be unique");
     if (options.markets.length === 0 || options.markets.length > 20) throw new Error("research orchestrator needs 1 to 20 markets");
     if (!Number.isSafeInteger(options.dailyBudgetPerVariant) || options.dailyBudgetPerVariant < 1) throw new Error("daily research budget is invalid");
