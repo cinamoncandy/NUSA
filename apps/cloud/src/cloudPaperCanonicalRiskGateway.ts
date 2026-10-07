@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqliteRiskSafetyPersistence } from "../../../packages/storage/src/index";
 import type { PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
-import { CanonicalRiskSafetyGate, tradingDayKey } from "../../../packages/contracts/src/risk-safety-integration";
+import { CanonicalRiskSafetyGate } from "../../../packages/contracts/src/risk-safety-integration";
+import { paperTradingDayKey, paperTradingDayStartedAt } from "./paperTradingDay";
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
@@ -72,9 +73,10 @@ export interface CloudPaperLossSessionSnapshot {
 
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 // One canonical trading day (Asia/Seoul) for every daily limit here, the same one CanonicalRiskSafetyGate and the closed-learning
-// rollover already use. A local UTC day would let two different "today"s disagree inside a single risk evaluation.
-const dayOf = (timestamp: number): string => tradingDayKey(timestamp);
-const dayStartedAt = (dayKey: string): number => Date.parse(`${dayKey}T00:00:00+09:00`);
+// rollover already use (paperTradingDay delegates to tradingDayKey). A local UTC day would let two different "today"s disagree
+// inside a single risk evaluation.
+const dayOf = (timestamp: number): string => paperTradingDayKey(timestamp);
+const dayStartedAt = (dayKey: string): number => paperTradingDayStartedAt(dayKey);
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {

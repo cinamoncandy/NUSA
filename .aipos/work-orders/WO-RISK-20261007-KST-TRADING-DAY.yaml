@@ -12,7 +12,8 @@ objective: "Remove the UTC/KST disagreement inside one risk evaluation and make 
 first_broken_transition: "merged daily-reset policy (#2432, UTC day) -> canonical trading day (Asia/Seoul, CanonicalRiskSafetyGate and closed-learning rollover): the same evaluation used two different 'today's"
 scope:
   include:
-    - "cloudPaperCanonicalRiskGateway: dayOf now delegates to the canonical tradingDayKey (Asia/Seoul). It scopes the consecutive-loss streak, dailyRealizedPnL and the daily buy/sell notional alike."
+    - "paperTradingDay.ts: the one cloud PAPER trading day. It delegates to the canonical tradingDayKey (Asia/Seoul) and memoizes (bounded) so a risk evaluation does not build an Intl formatter per fill. cloudPaperCanonicalRiskGateway (streak, dailyRealizedPnL, daily buy/sell notional) and paperLossAttribution both use it, so /health attribution and the session counts agree."
+    - "RISK source identity is pinned in TWO places that must move together with any change to cloudPaperCanonicalRiskGateway.ts: EXPECTED_RISK_BLOB in cloudPaperCanonicalRiskGateway.requalification.test.ts and RISK in moduleQualificationV1.ts (checked by module10XS.test.ts)."
     - "Display-only loss-session evidence: periodIdentity (trading-day key), periodStartedAt (start of that day), lastIncrementAt (fill time of the loss that last extended the streak, null at 0); published on /health as optional bounded fields."
   exclude:
     - "maxConsecutiveLosses stays 3; every other limit, capital, adapters, strategy, execution, LIVE. No loosening other than the boundary itself; no synthetic Order/Fill/PnL."
@@ -22,7 +23,7 @@ effect_to_state_explicitly:
 acceptance:
   - "Three losses stay blocked until the KST boundary (14:59 UTC blocked, 15:00 UTC reset exactly once), and a restart before/after reaches the same truth."
   - "Threshold remains 3; 0->1->2->3 block, winning close, duplicate fill, stale day behaviour unchanged."
-  - "/health keeps the five counts and adds the period evidence only when well formed."
+  - "/health keeps the five counts and adds the period evidence only as one coherent tuple (date key, exact KST day start, lastIncrementAt ordered start <= last <= evaluatedAt); partial or contradictory evidence is omitted whole."
   - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
 verification_commands:
   - "npx tsc -p tsconfig.json"

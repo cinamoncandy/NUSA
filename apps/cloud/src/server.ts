@@ -278,6 +278,22 @@ function publicLivenessErrorClass(raw: string): string | undefined {
  * identifier, a price -- cannot make it public, and an error that is not a bare code is replaced by
  * a fixed code rather than published as free text.
  */
+/**
+ * Period evidence for the loss session is published only as one coherent tuple: a date key, exactly the start of that Asia/Seoul day,
+ * and the time of the last loss that extended the streak (null at 0), ordered start <= lastIncrementAt <= evaluatedAt. Anything partial or
+ * contradictory is omitted whole, so public health data never reports an impossible loss period.
+ */
+function periodEvidence(raw: Record<string, unknown>): Record<string, unknown> {
+  const { periodIdentity, periodStartedAt, lastIncrementAt, evaluatedAt } = raw;
+  if (typeof periodIdentity !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(periodIdentity)) return {};
+  if (!Number.isSafeInteger(periodStartedAt) || Number(periodStartedAt) !== Date.parse(`${periodIdentity}T00:00:00+09:00`)) return {};
+  if (!Number.isSafeInteger(evaluatedAt) || Number(periodStartedAt) > Number(evaluatedAt)) return {};
+  if (lastIncrementAt !== null) {
+    if (!Number.isSafeInteger(lastIncrementAt) || Number(lastIncrementAt) < Number(periodStartedAt) || Number(lastIncrementAt) > Number(evaluatedAt)) return {};
+  }
+  return { periodIdentity, periodStartedAt: Number(periodStartedAt), lastIncrementAt: lastIncrementAt === null ? null : Number(lastIncrementAt) };
+}
+
 function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntimeLivenessSnapshot {
   const source = value as unknown as Record<string, unknown>;
   const timestamp = (key: string): number | null => {
@@ -332,10 +348,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     ? {
         paperLossSession: {
           ...Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])),
-          // Period evidence is optional and bounded: a date key, the start of that day, and the time of the last loss that extended the streak.
-          ...(typeof rawLoss.periodIdentity === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawLoss.periodIdentity) ? { periodIdentity: rawLoss.periodIdentity } : {}),
-          ...(Number.isSafeInteger(rawLoss.periodStartedAt) && Number(rawLoss.periodStartedAt) >= 0 ? { periodStartedAt: Number(rawLoss.periodStartedAt) } : {}),
-          ...(rawLoss.lastIncrementAt === null || (Number.isSafeInteger(rawLoss.lastIncrementAt) && Number(rawLoss.lastIncrementAt) >= 0) ? { lastIncrementAt: rawLoss.lastIncrementAt === null ? null : Number(rawLoss.lastIncrementAt) } : {}),
+          ...periodEvidence(rawLoss),
         },
       }
     : {};

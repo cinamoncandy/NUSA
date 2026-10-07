@@ -284,19 +284,32 @@ test("/health publishes the loss-limit counts as five non-negative integers, and
   }
 });
 
-test("/health publishes bounded period evidence with the loss-limit counts, and drops it when malformed", async () => {
-  const base = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 3, todayLosingSells: 3 };
-  const good = { ...base, periodIdentity: "2026-10-07", periodStartedAt: 1_791_298_800_000, lastIncrementAt: 1_791_338_101_385 };
+test("/health publishes the loss-period evidence only as one coherent tuple, and omits it whole otherwise", async () => {
+  const start = Date.parse("2026-10-07T00:00:00+09:00");
+  const base = { evaluatedAt: start + 3_600_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 3, todayLosingSells: 3 };
+  const good = { ...base, periodIdentity: "2026-10-07", periodStartedAt: start, lastIncrementAt: start + 1_800_000 };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: good }) }, async (handle) => {
     assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossSession, good);
   }, 42321);
-  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: { ...good, lastIncrementAt: null } }) }, async (handle) => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: { ...good, consecutiveLossCount: 0, lastIncrementAt: null } }) }, async (handle) => {
     assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossSession.lastIncrementAt, null);
   }, 42322);
-  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: { ...base, periodIdentity: "KRW-XRP", periodStartedAt: -1, lastIncrementAt: "x" } }) }, async (handle) => {
-    const body = JSON.parse((await request(handle.port, "/health")).body);
-    assert.deepEqual(body.runtime.paperLossSession, base, "malformed period evidence is dropped; the five counts stay");
-  }, 42323);
+  const contradictory = [
+    { ...base, periodIdentity: "KRW-XRP", periodStartedAt: start, lastIncrementAt: null },
+    { ...base, periodIdentity: "2026-10-07" },
+    { ...base, periodIdentity: "2026-10-07", periodStartedAt: start + 1, lastIncrementAt: null },
+    { ...base, periodIdentity: "2026-10-08", periodStartedAt: start, lastIncrementAt: null },
+    { ...good, periodStartedAt: base.evaluatedAt + 1, lastIncrementAt: null },
+    { ...good, lastIncrementAt: base.evaluatedAt + 1 },
+    { ...good, lastIncrementAt: start - 1 },
+    { ...good, lastIncrementAt: "x" },
+  ];
+  for (const [index, bad] of contradictory.entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: bad }) }, async (handle) => {
+      const body = JSON.parse((await request(handle.port, "/health")).body);
+      assert.deepEqual(body.runtime.paperLossSession, base, `case ${index}: the five counts stay and the whole tuple is omitted`);
+    }, 42323 + index);
+  }
 });
 
 test("/health publishes loss attribution only as fixed family codes with two integers each", async () => {
