@@ -78,6 +78,44 @@ export function buildSmaResearchStrategy(input: {
   return validated.strategy;
 }
 
+/**
+ * Builds a validated RSI mean-reversion research strategy: buy when RSI(period) falls below the threshold, exit on take-profit,
+ * stop-loss or a time limit. A second strategy family next to the SMA crossover, expressed in the same DSL and backtest engine.
+ */
+export function buildRsiResearchStrategy(input: {
+  readonly strategyId: string;
+  readonly version: string;
+  readonly market: string;
+  readonly period: number;
+  readonly threshold: number;
+  readonly takeProfitPercent: number;
+  readonly stopLossPercent: number;
+  readonly timeoutMinutes: number;
+  readonly positionPercent: number;
+  readonly maxPositionNotional: number;
+}): GeneratedStrategy {
+  const draft: GeneratedStrategy = {
+    strategyId: input.strategyId,
+    name: `RSI ${input.period}<${input.threshold} research proxy`,
+    version: input.version,
+    status: "VALIDATED",
+    dsl: {
+      entry: { type: "RSI_THRESHOLD", period: input.period, operator: "BELOW", threshold: input.threshold },
+      exits: [{ type: "TAKE_PROFIT", percent: input.takeProfitPercent }, { type: "STOP_LOSS", percent: input.stopLossPercent }, { type: "TIMEOUT", minutes: input.timeoutMinutes }],
+      risk: { positionSize: { mode: "PERCENT_OF_EQUITY", value: input.positionPercent }, maxRiskPercent: input.stopLossPercent, maxPositionNotional: input.maxPositionNotional },
+      scope: { symbols: [input.market], regimes: ["ANY"] },
+    },
+    evidence: { sourceText: `research proxy ${input.strategyId}@${input.version}`, generationReasons: ["research:rsi-mean-reversion-proxy"] },
+    createdAt: 1,
+    paperOnly: true,
+    productionMutationAllowed: false,
+    executionAllowed: false,
+  };
+  const validated = validateStrategy(draft);
+  if (validated.status !== "VALIDATED" || validated.strategy == null) return fail("STRATEGY_INVALID", `research strategy is invalid: ${validated.errors.join(",")}`);
+  return validated.strategy;
+}
+
 export class BacktestResearchEvaluator<A extends "PAPER_ONLY" | "ZERO_AUTHORITY" = "PAPER_ONLY" | "ZERO_AUTHORITY"> {
   public readonly strategyId: string;
   public readonly strategyVersion: string;
