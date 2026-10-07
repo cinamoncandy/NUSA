@@ -2837,3 +2837,10 @@ current_ui_hero_flow_dynamic:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (v2 prototype, reply '좋아')"
   finding: "The flow hero gains comets with tails, differential swirl and breathing clusters, landing rings and order sparks as pure functions of time; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
+current_learning_rollover_wall_clock:
+  work_order: WO-LEARNING-20261007-ROLLOVER-WALL-CLOCK
+  status: READY_FOR_REVIEW
+  branch: claude/rollover-wall-clock
+  authority_impact: closed-learning-period-close-trigger
+  owner_approval: "2026-10-07 in chat (rollover basis changed to the clock)"
+  finding: "A consecutive-loss halt stops fills so the canonical account updatedAt never crossed the KST day and the rollover waited; the wall clock now only decides the day passed, the period still closes at the canonical account boundary"
