@@ -2735,6 +2735,13 @@ current_learning_period_market_binding:
   owner_approval: "2026-10-07 in chat (Learning Period Benchmark Evidence Break 완전수렴)"
   finding: "First real fill reached period close but the open period was bound to KRW-BTC while only KRW-XRP is streamed (MISSING_BENCHMARK_EVIDENCE); unstreamed-market periods are retired and the owner baseline restarts on the streamed market"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ops_health_research_intervals:
+  work_order: WO-OPS-20261007-HEALTH-RESEARCH-INTERVALS
+  status: READY_FOR_REVIEW
+  branch: claude/health-research-intervals
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘', '다음')"
+  finding: "/health now reports research experiment ticks per bar length so 15m/60m production runs are verifiable"
 current_ops_health_source_sha:
   work_order: WO-OPS-20261007-HEALTH-SOURCE-SHA
   status: READY_FOR_REVIEW

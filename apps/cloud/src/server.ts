@@ -104,6 +104,8 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
   /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
+  /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
+  readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
   /** Production closed-learning loop status: fixed codes and integers only. */
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
@@ -343,17 +345,29 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     lossAttribution = { paperLossAttribution: { evaluatedAt: Number(rawAttribution.evaluatedAt), byFamily } };
   }
   // Research experiment ticks: a fixed status code, three integers and at most 40 code-keyed integer counts.
-  const rawTicks = source.researchExperimentTicks as Record<string, unknown> | null | undefined;
-  let experimentTicks: { researchExperimentTicks?: { lastTickAt: number; lastStatus: string; ticks: number; sessionsStarted: number; counts: Record<string, number> } } = {};
-  if (rawTicks != null && typeof rawTicks === "object" && typeof rawTicks.lastStatus === "string" && ["OK", "RECOVERY_NOT_READY", "ERROR"].includes(rawTicks.lastStatus)
-    && ["lastTickAt", "ticks", "sessionsStarted"].every((key) => Number.isSafeInteger(rawTicks[key]) && Number(rawTicks[key]) >= 0)
-    && rawTicks.counts != null && typeof rawTicks.counts === "object" && !Array.isArray(rawTicks.counts)) {
+  const publicTicks = (raw: Record<string, unknown> | null | undefined): { lastTickAt: number; lastStatus: string; ticks: number; sessionsStarted: number; counts: Record<string, number> } | undefined => {
+    if (raw == null || typeof raw !== "object" || typeof raw.lastStatus !== "string" || !["OK", "RECOVERY_NOT_READY", "ERROR"].includes(raw.lastStatus)
+      || !["lastTickAt", "ticks", "sessionsStarted"].every((key) => Number.isSafeInteger(raw[key]) && Number(raw[key]) >= 0)
+      || raw.counts == null || typeof raw.counts !== "object" || Array.isArray(raw.counts)) return undefined;
     const counts: Record<string, number> = {};
-    for (const [key, value] of Object.entries(rawTicks.counts as Record<string, unknown>)) {
+    for (const [key, value] of Object.entries(raw.counts as Record<string, unknown>)) {
       if (Object.keys(counts).length >= 40) break;
       if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value) && Number(value) >= 0) counts[key] = Number(value);
     }
-    experimentTicks = { researchExperimentTicks: { lastTickAt: Number(rawTicks.lastTickAt), lastStatus: rawTicks.lastStatus, ticks: Number(rawTicks.ticks), sessionsStarted: Number(rawTicks.sessionsStarted), counts } };
+    return { lastTickAt: Number(raw.lastTickAt), lastStatus: raw.lastStatus, ticks: Number(raw.ticks), sessionsStarted: Number(raw.sessionsStarted), counts };
+  };
+  const ticksSummary = publicTicks(source.researchExperimentTicks as Record<string, unknown> | null | undefined);
+  const experimentTicks = ticksSummary === undefined ? {} : { researchExperimentTicks: ticksSummary };
+  // The same summary per research bar length; only the declared lengths are accepted as keys.
+  const rawByInterval = source.researchExperimentTicksByInterval as Record<string, unknown> | null | undefined;
+  let experimentTicksByInterval: { researchExperimentTicksByInterval?: Record<string, ReturnType<typeof publicTicks>> } = {};
+  if (rawByInterval != null && typeof rawByInterval === "object" && !Array.isArray(rawByInterval)) {
+    const byInterval: Record<string, ReturnType<typeof publicTicks>> = {};
+    for (const [key, value] of Object.entries(rawByInterval)) {
+      const summary = /^(1|15|60|240)m$/.test(key) ? publicTicks(value as Record<string, unknown> | null) : undefined;
+      if (summary !== undefined) byInterval[key] = summary;
+    }
+    if (Object.keys(byInterval).length > 0) experimentTicksByInterval = { researchExperimentTicksByInterval: byInterval };
   }
   // Closed-learning loop: integers for the counters and the tick time, fixed codes for the steps; nothing else.
   const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
@@ -398,7 +412,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     : {};
   // Build identity: only a full lowercase 40-hex commit is published, never other text.
   const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
-  return Object.freeze({ ...sourceCommitSha, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...closedLearningLoop }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...sourceCommitSha, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);
