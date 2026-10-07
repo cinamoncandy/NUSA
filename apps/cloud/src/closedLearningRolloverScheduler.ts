@@ -21,6 +21,8 @@ export interface ClosedLearningRolloverResult {
   readonly status: ClosedLearningRolloverStatus;
   readonly periodId?: string;
   readonly reason?: string;
+  /** Present with MIXED_BINDING_PERIOD_RETIRED: the deterministic retirement receipt fingerprint. */
+  readonly retirementEvidenceFingerprintSha256?: string;
   readonly cycle?: ClosedLearningCycleResult;
 }
 
@@ -49,6 +51,7 @@ export interface ClosedLearningRolloverPort {
   /** Retires an open period bound to a market that is no longer streamed (its benchmark can never exist). */
   readonly retireOpenPeriodForUnstreamedMarket?: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
   /** Retires an open period whose fills mix candidate bindings (it can never be attributed to one strategy version). Nothing is closed or scored. */
+  readonly inspectOpenPeriodForMixedBinding?: (periodId: string) => { readonly evidenceFingerprintSha256: string } | null;
   readonly retireOpenPeriodForMixedBinding?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   /** A fresh owner-baseline period for the runtime's current market, built by the canonical owner-baseline builder. */
   readonly buildOwnerBaselinePeriod?: (input: { readonly periodIndex: number; readonly periodStartAt: number }) => PaperRealizedPeriodOpenInput | undefined;
@@ -189,6 +192,15 @@ export class ClosedLearningRolloverScheduler {
     }
     if (account.updatedAt <= plan.periodStartAt) {
       return Object.freeze({ status: "WAITING_FOR_CANONICAL_BOUNDARY", periodId: plan.periodId });
+    }
+    // Fills are immutable, so a window that already mixes candidate bindings can never become scorable. Retire it as soon
+    // as the canonical ledger proves the mix, not only when the trading day closes (no evidence is scored or synthesized).
+    if (this.port.inspectOpenPeriodForMixedBinding != null && this.port.retireOpenPeriodForMixedBinding != null) {
+      const mixed = this.port.inspectOpenPeriodForMixedBinding(plan.periodId);
+      if (mixed != null) {
+        this.port.retireOpenPeriodForMixedBinding(plan.periodId);
+        return Object.freeze({ status: "MIXED_BINDING_PERIOD_RETIRED", periodId: plan.periodId, reason: "CANDIDATE_BINDING_MIXED", retirementEvidenceFingerprintSha256: mixed.evidenceFingerprintSha256 });
+      }
     }
     // The account does not change while PAPER is idle or risk-blocked (for example a consecutive-loss halt), and then
     // its `updatedAt` never crosses the day boundary. Elapsed trading days therefore also count by the wall clock,

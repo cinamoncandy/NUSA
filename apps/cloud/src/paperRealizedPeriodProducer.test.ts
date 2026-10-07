@@ -202,18 +202,79 @@ describe("retiring an open period bound to a market the runtime no longer stream
   });
 });
 
-describe("retiring an open period whose fills mix candidate bindings", () => {
-  it("removes the open period unscored, records why, and refuses a period that is not open", () => {
+describe("mixed candidate binding detection, retirement receipt and ledger preservation", () => {
+  const bindingFor = (candidateId: string, seed: string) => ({
+    schemaVersion: 1 as const, status: "BOUND_UNVERIFIED" as const, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const,
+    candidateId, datasetId: "dataset-a", datasetContentSha256: HASH, advisoryGeneratedAt: BASE, periodStartAt: BASE, advisoryFingerprintSha256: HASH, bindingFingerprintSha256: seed.repeat(64).slice(0, 64),
+  });
+  const fillWith = (id: string, at: number, candidateId: string, seed: string) => ({
+    id, orderId: `order-${id}`, market: "KRW-XRP", side: "BUY" as const, quantity: 1, price: 100, fee: 0, filledAt: at,
+    candidateProvenance: { schemaVersion: 1 as const, source: "CIO_DECISION_BINDING" as const, decisionAt: at, binding: bindingFor(candidateId, seed) },
+  });
+  const accountFor = (fills: readonly ReturnType<typeof fillWith>[], updatedAt: number) => ({
+    version: 1 as const, initialCapital: 1_000_000, cash: 1_000_000, equity: 1_000_000, realizedPnL: 0, unrealizedPnL: 0,
+    positions: [], orders: [], fills: [...fills].reverse(), processedIdempotencyKeys: [], updatedAt,
+  });
+  const setup = (fills: readonly ReturnType<typeof fillWith>[], extra: { events?: string[] } = {}) => {
+    const updatedAt = BASE + 5_000;
+    const state = producer({
+      readCanonicalPaperAccount: () => accountFor(fills, updatedAt) as never,
+      readCanonicalPaperFills: () => [...fills].reverse() as never,
+      onLifecycleEvent: (event) => extra.events?.push(`${event.type}:${"reasonCode" in event ? event.reasonCode : ""}:${"retirementEvidenceFingerprintSha256" in event ? event.retirementEvidenceFingerprintSha256 : ""}`),
+    });
+    state.producer.openPeriod(openPeriod());
+    return { state, updatedAt };
+  };
+
+  it("a single-binding window is evaluable: no receipt and no retirement", () => {
+    const fills = [fillWith("a1", BASE + 100, "candidate-a", "1"), fillWith("a2", BASE + 200, "candidate-a", "1")];
+    const { state } = setup(fills);
+    assert.equal(state.producer.inspectOpenPeriodForMixedBinding("period-0"), null);
+    assert.equal(codeOf(() => state.producer.retireOpenPeriodForMixedBinding("period-0")), "NOT_MIXED");
+    assert.equal(state.producer.hasOpenPeriod(), true);
+  });
+
+  it("a window with two bindings yields a deterministic receipt and is retired unscored with the ledger untouched", () => {
+    const fills = [fillWith("a1", BASE + 100, "candidate-a", "1"), fillWith("b1", BASE + 200, "candidate-b", "2"), fillWith("old", BASE - 50, "candidate-a", "3")];
     const events: string[] = [];
-    const state = producer({ onLifecycleEvent: (event) => events.push(`${event.type}:${"reasonCode" in event ? event.reasonCode : ""}`) });
-    state.producer.openPeriod(openPeriod(0));
-    const retired = state.producer.retireOpenPeriodForMixedBinding("period-0");
-    assert.equal(retired.periodId, "period-0");
+    const { state } = setup(fills, { events });
+    const receipt = state.producer.inspectOpenPeriodForMixedBinding("period-0")!;
+    assert.equal(receipt.reason, "CANDIDATE_BINDING_MIXED");
+    assert.deepEqual(receipt.fillIds, ["a1", "b1"], "fills outside the window are not part of it");
+    assert.equal(receipt.bindings.length, 2);
+    assert.equal(receipt.validPerformanceEvidence, false);
+    assert.equal(receipt.ledgerFillCount, 3, "the whole ledger is preserved");
+    assert.deepEqual(state.producer.inspectOpenPeriodForMixedBinding("period-0"), receipt, "replay yields the same receipt");
+
+    const before = JSON.stringify(fills);
+    state.producer.retireOpenPeriodForMixedBinding("period-0");
+    assert.equal(JSON.stringify(fills), before, "no fill is changed or removed");
     assert.equal(state.producer.hasOpenPeriod(), false);
-    assert.equal(state.repository.getPending("period-0"), undefined);
-    assert.equal(state.producer.listRealizedPeriods().length, 0, "nothing is closed or scored");
-    assert.ok(events.includes("PERIOD_REJECTED:CANDIDATE_BINDING_MIXED"));
-    assert.equal(codeOf(() => state.producer.retireOpenPeriodForMixedBinding("period-0")), "PERIOD_NOT_OPEN");
-    assert.equal(codeOf(() => state.producer.retireOpenPeriodForMixedBinding("missing")), "PERIOD_NOT_OPEN");
+    assert.equal(state.producer.listRealizedPeriods().length, 0, "no Performance evidence is produced");
+    assert.ok(events.includes(`PERIOD_REJECTED:CANDIDATE_BINDING_MIXED:${receipt.evidenceFingerprintSha256}`));
+    assert.equal(codeOf(() => state.producer.retireOpenPeriodForMixedBinding("period-0")), "PERIOD_NOT_OPEN", "no double retirement");
+  });
+
+  it("a restart before retirement derives the identical receipt from the same ledger", () => {
+    const fills = [fillWith("a1", BASE + 100, "candidate-a", "1"), fillWith("b1", BASE + 200, "candidate-b", "2")];
+    const first = setup(fills);
+    const expected = first.state.producer.inspectOpenPeriodForMixedBinding("period-0")!;
+    const restarted = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(first.state.db), {
+      readCanonicalPaperAccount: () => accountFor(fills, BASE + 5_000) as never,
+      readCanonicalPaperFills: () => [...fills].reverse() as never,
+    });
+    assert.deepEqual(restarted.inspectOpenPeriodForMixedBinding("period-0"), expected);
+    restarted.retireOpenPeriodForMixedBinding("period-0");
+    const again = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(first.state.db));
+    assert.equal(again.hasOpenPeriod(), false, "the retirement survives a restart");
+  });
+
+  it("a duplicated or stale fill does not distort the receipt", () => {
+    const fills = [fillWith("a1", BASE + 100, "candidate-a", "1"), fillWith("b1", BASE + 200, "candidate-b", "2")];
+    const clean = setup(fills).state.producer.inspectOpenPeriodForMixedBinding("period-0")!;
+    const withDuplicate = [...fills, fills[0]!, fillWith("stale", BASE - 5_000, "candidate-c", "4")];
+    const receipt = setup(withDuplicate).state.producer.inspectOpenPeriodForMixedBinding("period-0")!;
+    assert.deepEqual(receipt.fillIds, clean.fillIds);
+    assert.deepEqual(receipt.bindings, clean.bindings);
   });
 });

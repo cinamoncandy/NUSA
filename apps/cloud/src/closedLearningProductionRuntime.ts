@@ -145,6 +145,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     retireOpenPeriodForAccountChange: (periodId: string) => baseHandle.retirePaperRealizedPeriodForAccountChange(periodId),
     retireOpenPeriodForUnstreamedMarket: (periodId: string, streamedMarkets: readonly string[]) => baseHandle.retirePaperRealizedPeriodForUnstreamedMarket(periodId, streamedMarkets),
     retireOpenPeriodForMixedBinding: (periodId: string) => baseHandle.retirePaperRealizedPeriodForMixedBinding(periodId),
+    inspectOpenPeriodForMixedBinding: (periodId: string) => baseHandle.inspectPaperRealizedPeriodForMixedBinding(periodId),
   });
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
@@ -200,6 +201,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     retireOpenPeriodForReplacement: periods.retireOpenPeriodForReplacement,
     retireOpenPeriodForUnstreamedMarket: periods.retireOpenPeriodForUnstreamedMarket,
     retireOpenPeriodForMixedBinding: periods.retireOpenPeriodForMixedBinding,
+    inspectOpenPeriodForMixedBinding: periods.inspectOpenPeriodForMixedBinding,
     streamedMarkets: () => config.upbitMarkets,
     buildOwnerBaselinePeriod: ({ periodIndex, periodStartAt }) => {
       const sourceCommitSha = env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "";

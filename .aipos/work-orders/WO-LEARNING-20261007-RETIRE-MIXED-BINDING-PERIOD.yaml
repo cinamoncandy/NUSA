@@ -11,7 +11,9 @@ objective: "Stop the closed-learning rollover from staying BLOCKED forever on an
 first_broken_transition: "period close -> CANDIDATE_BINDING_MIXED (observed on /health after the wall-clock rollover reached the reconciler on runtime 82a8920): rollover BLOCKED, cyclesEvaluated=0"
 scope:
   include:
-    - "PaperRealizedPeriodProducer.retireOpenPeriodForMixedBinding: removes the open period, emits PERIOD_REJECTED(CANDIDATE_BINDING_MIXED); nothing is closed or scored."
+    - "PaperRealizedPeriodProducer.inspectOpenPeriodForMixedBinding: read-only, deterministic retirement receipt (reason, retired period id, window, bindings with fill counts, fill ids, whole-ledger fingerprint and fill count, validPerformanceEvidence=false, evidence fingerprint) derived only from the canonical fill ledger; null unless >=2 bindings are in the window."
+    - "PaperRealizedPeriodProducer.retireOpenPeriodForMixedBinding: re-derives the receipt and refuses (NOT_MIXED) unless the ledger proves the mix; removes the open period and emits PERIOD_REJECTED(CANDIDATE_BINDING_MIXED) carrying the receipt fingerprint; nothing is closed or scored."
+    - "Early detection: the rollover inspects the open period every tick after the canonical-boundary check and retires a proven mix immediately (fills are immutable so it can never become scorable), not only at the trading-day close; the close-time CANDIDATE_BINDING_MIXED failure remains a fallback."
     - "ClosedLearningRolloverScheduler: only when the close fails with code CANDIDATE_BINDING_MIXED and the port exists, retire and return MIXED_BINDING_PERIOD_RETIRED; every other failure stays BLOCKED."
     - "Runtime and production wiring of the new port."
   exclude:
@@ -25,7 +27,8 @@ verification_commands:
   - "npx tsc -p tsconfig.json"
   - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js dist/apps/cloud/src/paperRealizedPeriodProducer.test.js dist/apps/cloud/src/paperCanonicalOutcomeReconciliation.test.js"
 evidence:
-  local_validation: "tsc clean; rollover scheduler 27 pass, period producer 11 pass, outcome reconciliation 13 pass (Node 22 sandbox); AIPOS/truth/safety/ai validators ok."
+  local_validation: "tsc clean; rollover scheduler 28 pass, period producer 14 pass (single binding evaluable; mixed -> deterministic receipt, ledger untouched, no Performance, no double retirement; restart derives the identical receipt; duplicate/stale fills do not distort it), outcome reconciliation 13 pass (Node 22 sandbox)."
+  not_done: "The real fills' binding identities live in the server database, which this agent cannot read (all fill endpoints are authenticated), so the exact mix on the current period is confirmed only by the reconciler's CANDIDATE_BINDING_MIXED /health reason until the receipt is emitted after deploy. The receipt is a lifecycle event/fingerprint, not yet a durable table; the replacement period id is linked by the existing next-tick continuation, not stored in the receipt. Root-cause prevention of the mix (a working order of a previous binding filling inside a new window) is not changed here; it is now detected on the next tick instead of at the day close."
   remaining: "Exact-head CI, independent Audit and Release; after merge deploy the exact main SHA and verify the loop leaves BLOCKED, retires the period and opens a fresh owner-baseline period with no synthetic fill/PnL. The retired period's 3 fills are excluded from learning evidence by owner decision."
 safety:
   paper_only: true

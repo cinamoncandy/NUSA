@@ -119,6 +119,7 @@ function harness(options: {
   awaitingGovernance?: boolean;
   closeError?: Error;
   retireMixed?: boolean;
+  inspectMixed?: boolean;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
   priorRealized?: readonly PersistedPaperPeriodEnvelope[];
 }) {
@@ -139,6 +140,7 @@ function harness(options: {
     openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
     buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
     runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
+    ...(options.inspectMixed === true ? { inspectOpenPeriodForMixedBinding: (periodId: string) => { events.push(`inspect-mixed:${periodId}`); return { evidenceFingerprintSha256: "f".repeat(64) }; } } : {}),
     ...(options.retireMixed === false ? {} : { retireOpenPeriodForMixedBinding: (periodId: string) => { events.push(`retire-mixed:${periodId}`); return plan("FILLED", periodId); } }),
   };
   return { scheduler: new ClosedLearningRolloverScheduler(port), events };
@@ -179,6 +181,14 @@ describe("ClosedLearningRolloverScheduler", () => {
       assert.equal(result.status, "MIXED_BINDING_PERIOD_RETIRED");
       assert.equal(result.reason, "CANDIDATE_BINDING_MIXED");
       assert.deepEqual(events.filter((event) => !event.startsWith("close:")), [`retire-mixed:${plan("FILLED").periodId}`]);
+    });
+
+    it("is retired as soon as the ledger proves the mix, even before the trading day closes, with its receipt fingerprint", () => {
+      const { scheduler, events } = harness({ now: NEXT_KST_DAY, inspectMixed: true });
+      const result = scheduler.runOnce();
+      assert.equal(result.status, "MIXED_BINDING_PERIOD_RETIRED");
+      assert.equal(result.retirementEvidenceFingerprintSha256, "f".repeat(64));
+      assert.deepEqual(events, [`inspect-mixed:${plan("FILLED").periodId}`, `retire-mixed:${plan("FILLED").periodId}`], "nothing is closed, identified or evaluated");
     });
 
     it("any other close failure stays BLOCKED and retires nothing", () => {
