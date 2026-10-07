@@ -3,7 +3,7 @@ import type { ResearchSessionRecord, ResearchStatusProjection } from "../../../p
 import type { ResearchComparisonEvidence, ResearchInputSnapshot } from "../../../packages/contracts/src/researchRuntime";
 import type { GeneratedStrategy } from "../../../packages/core/src/optimizer/aiStrategyEngine";
 import type { ResearchCandleSource } from "./backtestResearchEvaluator";
-import { classifyResearchFailure } from "./researchFailureMemory";
+import { countResearchFailures } from "./researchFailureMemory";
 import { planResearchSession, researchSessionIdFor } from "./researchSessionPlanner";
 import { runResearchExperiment, type ExperimentOutcome, type ExperimentRunnerPorts, type ExperimentSpec } from "./researchExperimentRunner";
 import type { WalkForwardWindowConfig } from "./researchWalkForwardWindows";
@@ -51,6 +51,8 @@ export interface OrchestratorOptions {
   readonly evaluator: ExperimentSpec["evaluator"];
   readonly featurePipeline: ExperimentSpec["featurePipeline"];
   readonly experimentFamilyPrefix: string;
+  /** Validation-role evaluation records of this orchestrator's bar length, read from the durable Research ledger (display only). */
+  readonly failureEvidence?: () => readonly ResearchComparisonEvidence[];
 }
 
 export interface ResearchExperimentTickSummary {
@@ -165,12 +167,14 @@ export class ResearchExperimentOrchestrator {
       add(outcome.status);
       if (outcome.status === "COMPLETED") {
         add(`VALIDATION_${outcome.validation.result}`);
-        const failure = classifyResearchFailure(outcome.validation);
-        if (failure != null) add(`FAIL_${failure}`);
         if (outcome.holdout != null) add(`HOLDOUT_${outcome.holdout.result}`);
         else if (outcome.holdoutNote != null) add(outcome.holdoutNote);
       } else if (outcome.status === "SKIPPED" || outcome.status === "ERROR") add(`${outcome.status}_${outcome.reason.split(":")[0]}`);
     }
+    // Failure reasons are recomputed from the durable evaluation ledger (all-time for this bar length), never counted in memory,
+    // so a restart or a crash between a ledger append and a count cannot lose or double count one. Display only; a read failure omits them.
+    for (const key of Object.keys(counts)) if (key.startsWith("FAIL_")) delete counts[key];
+    try { for (const [key, value] of Object.entries(countResearchFailures(this.options.failureEvidence?.() ?? []))) if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value)) counts[key] = value; } catch { /* display only */ }
     this.tickSummary = Object.freeze({
       lastTickAt: this.options.now(),
       lastStatus: report.status,
