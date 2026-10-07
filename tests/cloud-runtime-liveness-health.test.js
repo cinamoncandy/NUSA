@@ -284,6 +284,21 @@ test("/health publishes the loss-limit counts as five non-negative integers, and
   }
 });
 
+test("/health publishes bounded period evidence with the loss-limit counts, and drops it when malformed", async () => {
+  const base = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 3, todayLosingSells: 3 };
+  const good = { ...base, periodIdentity: "2026-10-07", periodStartedAt: 1_791_298_800_000, lastIncrementAt: 1_791_338_101_385 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: good }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossSession, good);
+  }, 42321);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: { ...good, lastIncrementAt: null } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossSession.lastIncrementAt, null);
+  }, 42322);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: { ...base, periodIdentity: "KRW-XRP", periodStartedAt: -1, lastIncrementAt: "x" } }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperLossSession, base, "malformed period evidence is dropped; the five counts stay");
+  }, 42323);
+});
+
 test("/health publishes loss attribution only as fixed family codes with two integers each", async () => {
   const good = { evaluatedAt: 1_791_284_000_000, byFamily: { SMA_CROSSOVER: { completedSells: 3, losingSells: 3 }, UNATTRIBUTED: { completedSells: 1, losingSells: 0 } } };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: good }) }, async (handle) => {

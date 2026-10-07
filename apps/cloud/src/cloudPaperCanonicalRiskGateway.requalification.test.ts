@@ -39,9 +39,11 @@ describe("RISK exact-source re-qualification evidence", () => {
     assert.doesNotMatch(source, /payloadFingerprint:\s*"PENDING"/);
   });
 
-  it("re-qualifies the consecutive-loss streak as scoped to the current UTC trading day", () => {
+  it("re-qualifies the consecutive-loss streak as scoped to the current canonical (Asia/Seoul) trading day", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
     assert.match(source, /const completed = \[\.\.\.sellOrders\.values\(\)\]\.filter\(\(sell\) => dayOf\(sell\.filledAt\) === today\)/);
+    assert.match(source, /const dayOf = \(timestamp: number\): string => tradingDayKey\(timestamp\);/, "one canonical trading day, not a local UTC day");
+    assert.doesNotMatch(source, /toISOString\(\)\.slice\(0, 10\)/);
     // The unmatched-sell fail-closed path is unchanged.
     assert.match(source, /consecutiveLossCount: Number\.MAX_SAFE_INTEGER/);
   });

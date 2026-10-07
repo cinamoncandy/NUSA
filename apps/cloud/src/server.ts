@@ -112,7 +112,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
   readonly sourceCommitSha?: string;
-  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }
 
 export interface CloudReadinessSnapshot {
@@ -325,11 +325,19 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     }
     funnel = { paperFunnel: { since: rawFunnel.since, counts } };
   }
-  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing.
+  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing; plus optional bounded period evidence.
   const rawLoss = source.paperLossSession as Record<string, unknown> | null | undefined;
   const LOSS_KEYS = ["evaluatedAt", "consecutiveLossCount", "maxConsecutiveLosses", "todayCompletedSells", "todayLosingSells"] as const;
   const lossSession = rawLoss != null && typeof rawLoss === "object" && LOSS_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
-    ? { paperLossSession: Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])) }
+    ? {
+        paperLossSession: {
+          ...Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])),
+          // Period evidence is optional and bounded: a date key, the start of that day, and the time of the last loss that extended the streak.
+          ...(typeof rawLoss.periodIdentity === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawLoss.periodIdentity) ? { periodIdentity: rawLoss.periodIdentity } : {}),
+          ...(Number.isSafeInteger(rawLoss.periodStartedAt) && Number(rawLoss.periodStartedAt) >= 0 ? { periodStartedAt: Number(rawLoss.periodStartedAt) } : {}),
+          ...(rawLoss.lastIncrementAt === null || (Number.isSafeInteger(rawLoss.lastIncrementAt) && Number(rawLoss.lastIncrementAt) >= 0) ? { lastIncrementAt: rawLoss.lastIncrementAt === null ? null : Number(rawLoss.lastIncrementAt) } : {}),
+        },
+      }
     : {};
   // Loss attribution: at most 8 fixed family codes, each with two non-negative integers.
   const FAMILY_CODE = /^(SMA_CROSSOVER|RSI_MEAN_REVERSION|DONCHIAN_BREAKOUT|OTHER_FAMILY|UNATTRIBUTED)$/;
