@@ -83,6 +83,8 @@ export interface ResearchExperimentComposition {
   readonly orchestrator: ResearchExperimentOrchestrator;
   /** One orchestrator per configured bar length, in settings order; `orchestrator` is the first. */
   readonly orchestrators: readonly ResearchExperimentOrchestrator[];
+  /** Display only: each bar length's experiment tick summary, keyed "1m", "15m", ... */
+  readonly experimentTicksByInterval: () => Readonly<Record<string, ReturnType<ResearchExperimentOrchestrator["experimentTicks"]>>>;
   readonly tickOnce: () => TickReport;
   readonly backfill: () => Promise<readonly BackfillResult[]>;
   readonly start: () => void;
@@ -210,6 +212,11 @@ export function composeResearchExperiments(input: {
   return Object.freeze({
     orchestrator,
     orchestrators,
+    experimentTicksByInterval: () => {
+      const byInterval: Record<string, ReturnType<ResearchExperimentOrchestrator["experimentTicks"]>> = {};
+      settings.intervalsMinutes.forEach((minutes, index) => { byInterval[`${minutes}m`] = orchestrators[index]!.experimentTicks(); });
+      return Object.freeze(byInterval);
+    },
     tickOnce,
     backfill,
     start: () => {

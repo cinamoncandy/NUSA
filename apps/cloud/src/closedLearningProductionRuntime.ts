@@ -123,6 +123,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     undefined,
     undefined,
     () => loopStatus.snapshot(),
+    () => researchExperiments?.experimentTicksByInterval() ?? null,
   );
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();

@@ -41,5 +41,5 @@ test("the production composition feeds every loop tick into the status and hands
   assert.match(src, /loopStatus\.observeBootstrap\(bootstrap\)/);
   assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\)/);
   assert.match(src, /loopStatus\.observeError\(Date\.now\(\)\); throw error;/);
-  assert.match(src, /\(\) => loopStatus\.snapshot\(\),\r?\n\s*\);/);
+  assert.match(src, /\(\) => loopStatus\.snapshot\(\),\r?\n\s*\(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*\);/);
 });

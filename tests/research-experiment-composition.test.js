@@ -83,6 +83,10 @@ test("longer bars run the same grid on 1m candles aggregated into complete bars,
     assert.ok(hourly != null && hourly.experimentCount >= 1);
     assert.equal(hourly.liveAuthority, "NONE");
     assert.equal(hourly.challenger.authority, "ZERO_AUTHORITY");
+    const byInterval = composition.experimentTicksByInterval();
+    assert.deepEqual(Object.keys(byInterval), ["1m", "60m"]);
+    assert.equal(byInterval["60m"].lastStatus, "OK");
+    assert.equal(byInterval["60m"].sessionsStarted, 4);
   } finally { composition.stop(); db.close(); }
 });
 

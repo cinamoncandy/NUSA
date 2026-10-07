@@ -338,3 +338,16 @@ test("/health publishes the closed-learning loop status as fixed codes and integ
     }, 42343 + index);
   }
 });
+
+test("research experiment ticks per bar length publish only declared lengths and the fixed summary shape", async () => {
+  const summary = { lastTickAt: 1_000, lastStatus: "OK", ticks: 2, sessionsStarted: 1, counts: { COMPLETED: 3, NOT_DUE: 1 } };
+  const byInterval = { "1m": summary, "15m": { ...summary, ticks: 3 }, "60m": { ...summary, lastStatus: "BOGUS" }, "5m": summary, "<script>": summary };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicksByInterval: byInterval }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const published = JSON.parse(res.body).runtime.researchExperimentTicksByInterval;
+    assert.deepEqual(Object.keys(published).sort(), ["15m", "1m"]);
+    assert.equal(published["15m"].ticks, 3);
+    assert.deepEqual(published["1m"].counts, { COMPLETED: 3, NOT_DUE: 1 });
+    assert.doesNotMatch(res.body, /script|BOGUS|"5m"/);
+  }, 41880);
+});
