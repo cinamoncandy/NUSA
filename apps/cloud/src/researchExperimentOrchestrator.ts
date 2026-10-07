@@ -3,6 +3,7 @@ import type { ResearchSessionRecord, ResearchStatusProjection } from "../../../p
 import type { ResearchComparisonEvidence, ResearchInputSnapshot } from "../../../packages/contracts/src/researchRuntime";
 import type { GeneratedStrategy } from "../../../packages/core/src/optimizer/aiStrategyEngine";
 import type { ResearchCandleSource } from "./backtestResearchEvaluator";
+import { countResearchFailures } from "./researchFailureMemory";
 import { planResearchSession, researchSessionIdFor } from "./researchSessionPlanner";
 import { runResearchExperiment, type ExperimentOutcome, type ExperimentRunnerPorts, type ExperimentSpec } from "./researchExperimentRunner";
 import type { WalkForwardWindowConfig } from "./researchWalkForwardWindows";
@@ -31,6 +32,8 @@ export interface ResearchVariant {
   readonly champion: { readonly strategy: GeneratedStrategy; readonly config: unknown };
   readonly challenger: { readonly strategy: GeneratedStrategy; readonly config: unknown };
   readonly runtime: VariantRuntime;
+  /** Experiment family for this variant's strategy family; defaults to the orchestrator's prefix (the original SMA identities). */
+  readonly experimentFamilyPrefix?: string;
 }
 
 export interface OrchestratorOptions {
@@ -42,7 +45,7 @@ export interface OrchestratorOptions {
   readonly dailyBudgetPerVariant: number;
   /** Pull ticks into closed candles; must not throw for ordinary data problems. */
   readonly collect: (nowMs: number) => void;
-  readonly candles: ResearchCandleSource & { latestCloseTime(market: string, intervalMs: number): number | undefined };
+  readonly candles: ResearchCandleSource & { latestCloseTime(market: string, intervalMs: number): number | undefined; earliestCloseTime?(market: string, intervalMs: number): number | undefined; count?(market: string, intervalMs: number): number };
   readonly holdout: ExperimentRunnerPorts["holdout"];
   readonly now: () => number;
   readonly sourceCommitSha: string;
@@ -50,6 +53,25 @@ export interface OrchestratorOptions {
   readonly evaluator: ExperimentSpec["evaluator"];
   readonly featurePipeline: ExperimentSpec["featurePipeline"];
   readonly experimentFamilyPrefix: string;
+  /** Validation-role evaluation records of this orchestrator's bar length, read from the durable Research ledger (display only). */
+  readonly failureEvidence?: () => readonly ResearchComparisonEvidence[];
+}
+
+export interface ResearchExperimentTickSummary {
+  readonly lastTickAt: number;
+  readonly lastStatus: TickReport["status"];
+  readonly ticks: number;
+  readonly sessionsStarted: number;
+  readonly counts: Readonly<Record<string, number>>;
+}
+
+export interface ResearchCollectionProgress {
+  readonly market: string;
+  readonly candleCount: number;
+  readonly requiredCandles: number;
+  readonly firstCloseMs?: number;
+  readonly lastCloseMs?: number;
+  readonly observedAt: number;
 }
 
 export interface TickReport {
@@ -62,11 +84,14 @@ export interface TickReport {
 
 const empty = (status: TickReport["status"]): TickReport => Object.freeze({ status, started: 0, resumed: 0, stopped: 0, experiments: Object.freeze([]) });
 
+/** Upper bound on challenger variants per bar length (SMA 4 + RSI 3 + Donchian 3 today); each runs at most its daily budget of experiments. */
+export const MAX_VARIANTS = 12;
+
 export class ResearchExperimentOrchestrator {
   private recoveryReady = false;
 
   public constructor(private readonly options: OrchestratorOptions) {
-    if (options.variants.length === 0 || options.variants.length > 8) throw new Error("research orchestrator needs 1 to 8 variants");
+    if (options.variants.length === 0 || options.variants.length > MAX_VARIANTS) throw new Error(`research orchestrator needs 1 to ${MAX_VARIANTS} variants`);
     if (new Set(options.variants.map((v) => v.variantId)).size !== options.variants.length) throw new Error("research variant ids must be unique");
     if (options.markets.length === 0 || options.markets.length > 20) throw new Error("research orchestrator needs 1 to 20 markets");
     if (!Number.isSafeInteger(options.dailyBudgetPerVariant) || options.dailyBudgetPerVariant < 1) throw new Error("daily research budget is invalid");
@@ -87,6 +112,33 @@ export class ResearchExperimentOrchestrator {
   /** Experiments run on closed-candle windows (design D1); ticks are intentionally ignored. */
   public onMarketData(): void { /* no-op by design */ }
 
+  /** Display only: how much candle history exists for the first research market versus what the first experiment needs. */
+  public collectionProgress(): ResearchCollectionProgress | null {
+    const market = this.options.markets[0];
+    const count = this.options.candles.count;
+    if (market == null || count == null) return null;
+    const nowMs = this.options.now();
+    if (this.progressCache != null && nowMs - this.progressCache.at < 30_000) return this.progressCache.value;
+    let value: ResearchCollectionProgress | null = null;
+    try {
+      const w = this.options.windows;
+      const first = this.options.candles.earliestCloseTime?.(market, this.options.intervalMs);
+      const last = this.options.candles.latestCloseTime(market, this.options.intervalMs);
+      value = Object.freeze({
+        market,
+        candleCount: count.call(this.options.candles, market, this.options.intervalMs),
+        requiredCandles: Math.ceil((w.trainMs + w.validationMs + w.holdoutMs) / this.options.intervalMs),
+        ...(first === undefined ? {} : { firstCloseMs: first }),
+        ...(last === undefined ? {} : { lastCloseMs: last }),
+        observedAt: nowMs,
+      });
+    } catch { value = null; }
+    this.progressCache = { at: nowMs, value };
+    return value;
+  }
+
+  private progressCache: { readonly at: number; readonly value: ResearchCollectionProgress | null } | undefined;
+
   public statusProjection(): ResearchStatusProjection | null {
     const nowMs = this.options.now();
     let best: ResearchStatusProjection | null = null;
@@ -101,7 +153,44 @@ export class ResearchExperimentOrchestrator {
     return best;
   }
 
+  /**
+   * Display only: cumulative experiment outcome counts since this process started, plus the latest tick's status,
+   * keyed by fixed codes (outcome status, validation/holdout comparison result, SKIPPED/ERROR reason code). Integers only.
+   */
+  public experimentTicks(): ResearchExperimentTickSummary | null {
+    return this.tickSummary;
+  }
+
+  private tickSummary: ResearchExperimentTickSummary | null = null;
+
   public tick(): TickReport {
+    const report = this.tickInner();
+    const counts: Record<string, number> = { ...(this.tickSummary?.counts ?? {}) };
+    const add = (key: string): void => { if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && (key in counts || Object.keys(counts).length < 40)) counts[key] = (counts[key] ?? 0) + 1; };
+    for (const item of report.experiments) {
+      const outcome = item.outcome;
+      add(outcome.status);
+      if (outcome.status === "COMPLETED") {
+        add(`VALIDATION_${outcome.validation.result}`);
+        if (outcome.holdout != null) add(`HOLDOUT_${outcome.holdout.result}`);
+        else if (outcome.holdoutNote != null) add(outcome.holdoutNote);
+      } else if (outcome.status === "SKIPPED" || outcome.status === "ERROR") add(`${outcome.status}_${outcome.reason.split(":")[0]}`);
+    }
+    // Failure reasons are recomputed from the durable evaluation ledger (all-time for this bar length), never counted in memory,
+    // so a restart or a crash between a ledger append and a count cannot lose or double count one. Display only; a read failure omits them.
+    for (const key of Object.keys(counts)) if (key.startsWith("FAIL_")) delete counts[key];
+    try { for (const [key, value] of Object.entries(countResearchFailures(this.options.failureEvidence?.() ?? []))) if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value)) counts[key] = value; } catch { /* display only */ }
+    this.tickSummary = Object.freeze({
+      lastTickAt: this.options.now(),
+      lastStatus: report.status,
+      ticks: (this.tickSummary?.ticks ?? 0) + 1,
+      sessionsStarted: (this.tickSummary?.sessionsStarted ?? 0) + report.started,
+      counts: Object.freeze(counts),
+    });
+    return report;
+  }
+
+  private tickInner(): TickReport {
     if (!this.recoveryReady) return empty("RECOVERY_NOT_READY");
     try {
       const nowMs = this.options.now();
@@ -146,9 +235,9 @@ export class ResearchExperimentOrchestrator {
             champion: variant.champion, challenger: variant.challenger,
             featurePipeline: this.options.featurePipeline, evaluator: this.options.evaluator, models: this.options.models,
             sourceCommitSha: this.options.sourceCommitSha,
-            experimentFamilyId: `${this.options.experimentFamilyPrefix}:${market}`,
+            experimentFamilyId: `${variant.experimentFamilyPrefix ?? this.options.experimentFamilyPrefix}:${market}`,
             attempt: (this.options.sessions.load(sessionId)?.experimentCount ?? 0) + 1,
-            hypothesisLineage: `${this.options.experimentFamilyPrefix}:${variant.variantId}`,
+            hypothesisLineage: `${variant.experimentFamilyPrefix ?? this.options.experimentFamilyPrefix}:${variant.variantId}`,
             split: { identity: `wf-${this.options.windows.trainMs / 60_000}-${this.options.windows.validationMs / 60_000}-${this.options.windows.holdoutMs / 60_000}m` },
             walkForwardConfig: { windows: this.options.windows, challenger: variant.challenger.config },
           });

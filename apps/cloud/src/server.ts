@@ -89,6 +89,30 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly lastError: string | null;
   /** Why the previous runtime process stopped, when a failure record exists. */
   readonly previousStop?: string;
+  /** Display-only event-loop stall measurement (milliseconds, a count and a timestamp), present when the runtime measures it. */
+  readonly eventLoopMaxStallMs?: number;
+  readonly eventLoopStallCount?: number;
+  readonly lastEventLoopStallAt?: number | null;
+  /** Display-only research candle collection status (a code and two counts), present when the runtime reports it. */
+  readonly researchCollectionStatus?: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE";
+  readonly researchCandleCount?: number;
+  readonly researchRequiredCandles?: number;
+  /** Cumulative PAPER decision-funnel counts since the runtime started: fixed codes and integer counts only. */
+  readonly paperFunnel?: { readonly since: number; readonly counts: Readonly<Record<string, number>> };
+  /** Counts behind the consecutive-loss limit as of the latest risk evaluation: integers and one timestamp only. */
+  /** Today's completed and losing sells per strategy family code (fixed codes, integers only). */
+  readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
+  /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
+  readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
+  /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
+  readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
+  /** Canonical PAPER ledger identity: a 64-hex fingerprint of ledger truth and integer counts/times only. */
+  readonly paperLedger?: { readonly ledgerFingerprintSha256: string; readonly fillCount: number; readonly openPositionCount: number; readonly lastFillAt?: number; readonly ledgerUpdatedAt: number };
+  /** Production closed-learning loop status: fixed codes and integers only. */
+  readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
+  /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
+  readonly sourceCommitSha?: string;
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
 }
 
 export interface CloudReadinessSnapshot {
@@ -238,6 +262,15 @@ const PUBLIC_LIVENESS_TIMESTAMPS = ["startedAt", "lastHeartbeatAt", "lastMarketE
 const PUBLIC_LIVENESS_COUNTERS = ["eventCount", "decisionCount", "paperOrderCount", "paperFillCount"] as const;
 const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
 const PUBLIC_DECISION_OUTCOME_CODE = /^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/;
+// The runtime's own failure phrases ("paper account persistence failed: <detail>"). Only the phrase before the first colon can
+// become public, and only when it is plain lowercase words starting with "paper": no digits, so no values, ids or keys, and the
+// detail after the colon never leaves the authenticated route.
+const PUBLIC_PAPER_FAILURE_PHRASE = /^paper [a-z ]{2,70}$/;
+function publicLivenessErrorClass(raw: string): string | undefined {
+  const separator = raw.indexOf(":");
+  const phrase = (separator < 0 ? raw : raw.slice(0, separator)).trim();
+  return PUBLIC_PAPER_FAILURE_PHRASE.test(phrase) ? phrase.toUpperCase().replace(/ +/g, "_") : undefined;
+}
 
 /**
  * `/health` is unauthenticated, so the runtime object is rebuilt here from a fixed allowlist instead
@@ -258,14 +291,137 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawError = source.lastError;
   const lastError = rawError === null || rawError === undefined
     ? null
-    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError : "LIVENESS_ERROR_UNCLASSIFIED";
+    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError
+      : (typeof rawError === "string" ? publicLivenessErrorClass(rawError) : undefined) ?? "LIVENESS_ERROR_UNCLASSIFIED";
   const timestamps = Object.fromEntries(PUBLIC_LIVENESS_TIMESTAMPS.map((key) => [key, timestamp(key)]));
   const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
   const rawPreviousStop = source.previousStop;
   const previousStop = typeof rawPreviousStop === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawPreviousStop) ? rawPreviousStop : undefined;
   const rawOutcome = source.lastPaperDecisionOutcome;
   const lastPaperDecisionOutcome = typeof rawOutcome === "string" && PUBLIC_DECISION_OUTCOME_CODE.test(rawOutcome) ? rawOutcome : undefined;
-  return Object.freeze({ ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }) }) as unknown as CloudRuntimeLivenessSnapshot;
+  // Optional stall measurement: published only as finite non-negative numbers, and only when the source supplies them.
+  const optionalNumber = (key: string): number | undefined => {
+    const raw = source[key];
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : undefined;
+  };
+  const maxStall = optionalNumber("eventLoopMaxStallMs");
+  const stallCount = optionalNumber("eventLoopStallCount");
+  const lastStallAt = source.lastEventLoopStallAt === null ? null : optionalNumber("lastEventLoopStallAt");
+  const stall = {
+    ...(maxStall === undefined ? {} : { eventLoopMaxStallMs: maxStall }),
+    ...(stallCount === undefined ? {} : { eventLoopStallCount: Math.trunc(stallCount) }),
+    ...(lastStallAt === undefined ? {} : { lastEventLoopStallAt: lastStallAt }),
+  };
+  // Research collection status: one of four fixed codes plus two counts, nothing else (no market, time or detail).
+  // Decision funnel: keys are fixed stage/status/reason codes and values are integers, at most 80 keys; anything else is dropped.
+  const FUNNEL_KEY = /^(OTHER|[A-Z][A-Z_]{1,23}:(PASS|SKIP|FAIL)(:[A-Z][A-Z0-9_]{1,47})?)$/;
+  const rawFunnel = source.paperFunnel as { since?: unknown; counts?: unknown } | null | undefined;
+  let funnel: { paperFunnel?: { since: number; counts: Record<string, number> } } = {};
+  if (rawFunnel != null && typeof rawFunnel === "object" && typeof rawFunnel.since === "number" && Number.isFinite(rawFunnel.since) && rawFunnel.since >= 0 && rawFunnel.counts != null && typeof rawFunnel.counts === "object" && !Array.isArray(rawFunnel.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawFunnel.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 80) break;
+      if (FUNNEL_KEY.test(key) && typeof value === "number" && Number.isSafeInteger(value) && value >= 0) counts[key] = value;
+    }
+    funnel = { paperFunnel: { since: rawFunnel.since, counts } };
+  }
+  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing.
+  const rawLoss = source.paperLossSession as Record<string, unknown> | null | undefined;
+  const LOSS_KEYS = ["evaluatedAt", "consecutiveLossCount", "maxConsecutiveLosses", "todayCompletedSells", "todayLosingSells"] as const;
+  const lossSession = rawLoss != null && typeof rawLoss === "object" && LOSS_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
+    ? { paperLossSession: Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])) }
+    : {};
+  // Loss attribution: at most 8 fixed family codes, each with two non-negative integers.
+  const FAMILY_CODE = /^(SMA_CROSSOVER|RSI_MEAN_REVERSION|DONCHIAN_BREAKOUT|OTHER_FAMILY|UNATTRIBUTED)$/;
+  const rawAttribution = source.paperLossAttribution as { evaluatedAt?: unknown; byFamily?: unknown } | null | undefined;
+  let lossAttribution: { paperLossAttribution?: { evaluatedAt: number; byFamily: Record<string, { completedSells: number; losingSells: number }> } } = {};
+  if (rawAttribution != null && typeof rawAttribution === "object" && Number.isSafeInteger(rawAttribution.evaluatedAt) && Number(rawAttribution.evaluatedAt) >= 0 && rawAttribution.byFamily != null && typeof rawAttribution.byFamily === "object" && !Array.isArray(rawAttribution.byFamily)) {
+    const byFamily: Record<string, { completedSells: number; losingSells: number }> = {};
+    for (const [key, value] of Object.entries(rawAttribution.byFamily as Record<string, unknown>)) {
+      if (Object.keys(byFamily).length >= 8) break;
+      const entry = value as { completedSells?: unknown; losingSells?: unknown } | null;
+      if (FAMILY_CODE.test(key) && entry != null && typeof entry === "object" && Number.isSafeInteger(entry.completedSells) && Number.isSafeInteger(entry.losingSells) && Number(entry.losingSells) >= 0 && Number(entry.completedSells) >= Number(entry.losingSells)) {
+        byFamily[key] = { completedSells: Number(entry.completedSells), losingSells: Number(entry.losingSells) };
+      }
+    }
+    lossAttribution = { paperLossAttribution: { evaluatedAt: Number(rawAttribution.evaluatedAt), byFamily } };
+  }
+  // Research experiment ticks: a fixed status code, three integers and at most 40 code-keyed integer counts.
+  const publicTicks = (raw: Record<string, unknown> | null | undefined): { lastTickAt: number; lastStatus: string; ticks: number; sessionsStarted: number; counts: Record<string, number> } | undefined => {
+    if (raw == null || typeof raw !== "object" || typeof raw.lastStatus !== "string" || !["OK", "RECOVERY_NOT_READY", "ERROR"].includes(raw.lastStatus)
+      || !["lastTickAt", "ticks", "sessionsStarted"].every((key) => Number.isSafeInteger(raw[key]) && Number(raw[key]) >= 0)
+      || raw.counts == null || typeof raw.counts !== "object" || Array.isArray(raw.counts)) return undefined;
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(raw.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 40) break;
+      if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value) && Number(value) >= 0) counts[key] = Number(value);
+    }
+    return { lastTickAt: Number(raw.lastTickAt), lastStatus: raw.lastStatus, ticks: Number(raw.ticks), sessionsStarted: Number(raw.sessionsStarted), counts };
+  };
+  const ticksSummary = publicTicks(source.researchExperimentTicks as Record<string, unknown> | null | undefined);
+  const experimentTicks = ticksSummary === undefined ? {} : { researchExperimentTicks: ticksSummary };
+  // The same summary per research bar length; only the declared lengths are accepted as keys.
+  const rawByInterval = source.researchExperimentTicksByInterval as Record<string, unknown> | null | undefined;
+  let experimentTicksByInterval: { researchExperimentTicksByInterval?: Record<string, ReturnType<typeof publicTicks>> } = {};
+  if (rawByInterval != null && typeof rawByInterval === "object" && !Array.isArray(rawByInterval)) {
+    const byInterval: Record<string, ReturnType<typeof publicTicks>> = {};
+    for (const [key, value] of Object.entries(rawByInterval)) {
+      const summary = /^(1|15|60|240)m$/.test(key) ? publicTicks(value as Record<string, unknown> | null) : undefined;
+      if (summary !== undefined) byInterval[key] = summary;
+    }
+    if (Object.keys(byInterval).length > 0) experimentTicksByInterval = { researchExperimentTicksByInterval: byInterval };
+  }
+  // Closed-learning loop: integers for the counters and the tick time, fixed codes for the steps; nothing else.
+  const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
+  let closedLearningLoop: { closedLearningLoop?: Record<string, string | number | Record<string, string | number>> } = {};
+  const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome"] as const;
+  if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
+    && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
+    const loop: Record<string, string | number | Record<string, string | number>> = {};
+    for (const key of LOOP_INTS) loop[key] = Number(rawLoop[key]);
+    for (const key of LOOP_CODES) { const value = rawLoop[key]; if (typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)) loop[key] = value; }
+    // Correlation identities: fixed keys only; identifiers, 64-hex fingerprints, KRW markets and integers.
+    const rawEvidence = rawLoop.evidence as Record<string, unknown> | null | undefined;
+    if (rawEvidence != null && typeof rawEvidence === "object" && !Array.isArray(rawEvidence)) {
+      const ID = /^[A-Za-z0-9_.:\/#@-]{1,160}$/;
+      const HEX = /^[a-f0-9]{64}$/;
+      const rules: Record<string, (value: unknown) => boolean> = {
+        openPeriodId: (v) => typeof v === "string" && ID.test(v), openMarket: (v) => typeof v === "string" && /^KRW-[A-Z0-9]{1,15}$/.test(v),
+        openCandidateId: (v) => typeof v === "string" && ID.test(v), realizedPeriodId: (v) => typeof v === "string" && ID.test(v),
+        cycleId: (v) => typeof v === "string" && ID.test(v), cycleEvidenceId: (v) => typeof v === "string" && ID.test(v),
+        decisionId: (v) => typeof v === "string" && ID.test(v), decisionReference: (v) => typeof v === "string" && ID.test(v),
+        decisionCandidateId: (v) => typeof v === "string" && ID.test(v), deploymentId: (v) => typeof v === "string" && ID.test(v),
+        realizedOutcomeFingerprint: (v) => typeof v === "string" && HEX.test(v), realizedCostEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        cycleEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        openPeriodStartAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, openObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        realizedPeriodEndAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+      };
+      const evidence: Record<string, string | number> = {};
+      for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }
+      if (Object.keys(evidence).length > 0) loop.evidence = evidence;
+    }
+    if (loop.bootstrap !== undefined && loop.rollover !== undefined) closedLearningLoop = { closedLearningLoop: loop };
+  }
+  const rawResearch = source.researchCollectionStatus;
+  const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
+    ? {
+      researchCollectionStatus: rawResearch,
+      ...(optionalNumber("researchCandleCount") === undefined ? {} : { researchCandleCount: Math.trunc(optionalNumber("researchCandleCount") as number) }),
+      ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
+    }
+    : {};
+  // Ledger identity: a 64-hex fingerprint and non-negative integers; no amount is ever published.
+  const rawLedger = source.paperLedger as Record<string, unknown> | null | undefined;
+  const nonNegative = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+  const paperLedger = rawLedger != null && typeof rawLedger === "object" && typeof rawLedger.ledgerFingerprintSha256 === "string" && /^[a-f0-9]{64}$/.test(rawLedger.ledgerFingerprintSha256)
+    && nonNegative(rawLedger.fillCount) && nonNegative(rawLedger.openPositionCount) && nonNegative(rawLedger.ledgerUpdatedAt) && (rawLedger.lastFillAt === undefined || nonNegative(rawLedger.lastFillAt))
+    ? { paperLedger: { ledgerFingerprintSha256: rawLedger.ledgerFingerprintSha256, fillCount: rawLedger.fillCount, openPositionCount: rawLedger.openPositionCount, ...(rawLedger.lastFillAt === undefined ? {} : { lastFillAt: rawLedger.lastFillAt }), ledgerUpdatedAt: rawLedger.ledgerUpdatedAt } }
+    : {};
+  // Build identity: only a full lowercase 40-hex commit is published, never other text.
+  const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
+  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

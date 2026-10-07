@@ -43,8 +43,9 @@ test("blocked can never exceed signals in the display", () => {
 });
 
 test("HOME reads the server window counts directly (no client baseline) and hides them when disconnected", () => {
-  assert.match(view, /home-buy-signal-line/);
-  assert.match(view, /buyHeartbeat = fieldInput\.disconnected \|\| readOnlyError != null \? null/);
+  assert.match(view, /VITAL_TEST_IDS\[vital\.id\]/, "the key tiles carry the earlier row ids");
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeVitalsModel.ts"), "utf8"), /buy: "home-buy-signal-line"/);
+  assert.match(view, /buyHeartbeat = stale \|\| fieldInput\.disconnected \|\| readOnlyError != null \? null/);
   assert.doesNotMatch(view, /BUY_SIGNAL_KEY/);
 });
 
@@ -60,16 +61,18 @@ test("the runtime counts BUY decisions in a 09:00 KST window and only refusals a
   assert.ok(runtime.lastIndexOf("if (result != null) {", at) > runtime.lastIndexOf("heartbeat.decisionCount +=", at), "counted only after the PAPER boundary produced a result");
 });
 
-test("the runtime reports the counters only when the canonical PAPER boundary is active", () => {
+test("the runtime reports the BUY counters only when the canonical PAPER boundary is active", () => {
   const start = runtime.indexOf("const readHeartbeat = ");
-  const end = runtime.indexOf("};", start);
+  const end = runtime.indexOf("\n  };\n", start);
   const body = runtime.slice(start, end);
-  assert.match(body, /if \(productionPaperBoundary == null\) return Object\.freeze\(\{ \.\.\.heartbeat \}\)/);
-  assert.match(body, /buySignalCount: buyWindow\.signals/);
-  assert.match(body, /buyCountsSince: Math\.max\(runtimeStartedAt, buyWindow\.key \* BUY_WINDOW_MS\)/);
+  assert.match(body, /if \(productionPaperBoundary == null && !config\.upbitPublicDataEnabled\) return Object\.freeze\(\{ \.\.\.heartbeat \}\)/, "nothing is added without a boundary or a feed");
+  assert.match(body, /productionPaperBoundary == null \? \{\} : \{ buySignalCount: buyWindow\.signals/, "the BUY counters need the boundary");
+  assert.match(body, /buyCountsSince: countsSince/);
+  assert.match(body, /const countsSince = Math\.max\(runtimeStartedAt, buyWindow\.key \* BUY_WINDOW_MS\)/);
 });
 
-test("the operations contract accepts the optional fields and rejects bad values", () => {
+
+test("the operations contract accepts the optional fields and drops bad values", () => {
   const { buildPersonalPaperOperationsSnapshot, validatePersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");
   const heartbeat = (extra) => ({ startedAt: 1_000, lastHeartbeatAt: 1_000, lastMarketEventAt: null, lastPaperDecisionAt: null, lastPaperOrderAt: null, lastPaperFillAt: null, eventCount: 0, decisionCount: 0, paperOrderCount: 0, paperFillCount: 0, lastError: null, ...extra });
   const dashboard = { apiVersion: "1", generatedAt: 1_000, mode: "PAPER", killSwitchActive: false, overallHealth: "HEALTHY", tradingAllowed: true, headline: "PAPER healthy", issues: [], deployableCapital: 1_000, deployedCapital: 500, cashCapital: 500, reservedCapital: 0, spotCapital: 500, futuresCapital: 0, positions: [], decisions: [], liveAuthority: "NONE", productionMutationAllowed: false };
@@ -77,7 +80,8 @@ test("the operations contract accepts the optional fields and rejects bad values
   const attempt = (extra) => validatePersonalPaperOperationsSnapshot(buildPersonalPaperOperationsSnapshot({ dashboard, research: null, operations: { ...operations, heartbeat: heartbeat(extra) }, paperLearning: null }, 1_000), 1_100, 500);
   assert.equal(attempt({}).operations.heartbeat.buySignalCount, undefined, "older runtimes omit the counters");
   assert.equal(attempt({ buySignalCount: 5, buyBlockedCount: 2, buyCountsSince: 900 }).operations.heartbeat.buySignalCount, 5);
-  assert.throws(() => attempt({ buySignalCount: -1, buyBlockedCount: 0 }), /buySignalCount/);
-  assert.throws(() => attempt({ buySignalCount: 1, buyBlockedCount: 1.5 }), /buyBlockedCount/);
-  assert.throws(() => attempt({ buySignalCount: 1, buyBlockedCount: 0, buyCountsSince: -5 }), /buyCountsSince/);
+  // Malformed display-only counters are omitted instead of rejecting the snapshot.
+  assert.equal(attempt({ buySignalCount: -1, buyBlockedCount: 0 }).operations.heartbeat.buySignalCount, undefined);
+  assert.equal(attempt({ buySignalCount: 1, buyBlockedCount: 1.5 }).operations.heartbeat.buyBlockedCount, undefined);
+  assert.equal(attempt({ buySignalCount: 1, buyBlockedCount: 0, buyCountsSince: -5 }).operations.heartbeat.buyCountsSince, undefined);
 });

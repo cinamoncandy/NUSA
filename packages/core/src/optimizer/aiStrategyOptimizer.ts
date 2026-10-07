@@ -172,7 +172,9 @@ function applyParameters(strategy: GeneratedStrategy, parameters: readonly Optim
     ? { ...entry, price: values.get("entryPrice") ?? entry.price }
     : entry.type === "RSI_THRESHOLD"
       ? { ...entry, period: values.get("entryPeriod") ?? entry.period, threshold: values.get("entryThreshold") ?? entry.threshold }
-      : { ...entry, fastPeriod: values.get("fastPeriod") ?? entry.fastPeriod, slowPeriod: values.get("slowPeriod") ?? entry.slowPeriod };
+      : entry.type === "DONCHIAN_BREAKOUT"
+        ? { ...entry, period: values.get("entryPeriod") ?? entry.period }
+        : { ...entry, fastPeriod: values.get("fastPeriod") ?? entry.fastPeriod, slowPeriod: values.get("slowPeriod") ?? entry.slowPeriod };
   const exits = strategy.dsl.exits.map((exit) => {
     if (exit.type === "TAKE_PROFIT") return { ...exit, percent: values.get("takeProfitPercent") ?? exit.percent };
     if (exit.type === "STOP_LOSS") return { ...exit, percent: values.get("stopLossPercent") ?? exit.percent };
@@ -211,6 +213,7 @@ export function generateStrategyCandidates(strategy: GeneratedStrategy, grid: St
     dimensions.push({ name: "entryPeriod", values: valuesFor("entryPeriod", grid.entryPeriod, strategy.dsl.entry.period) });
     dimensions.push({ name: "entryThreshold", values: valuesFor("entryThreshold", grid.entryThreshold, strategy.dsl.entry.threshold) });
   }
+  if (strategy.dsl.entry.type === "DONCHIAN_BREAKOUT") dimensions.push({ name: "entryPeriod", values: valuesFor("entryPeriod", grid.entryPeriod, strategy.dsl.entry.period) });
   if (strategy.dsl.entry.type === "SMA_CROSSOVER") {
     dimensions.push({ name: "fastPeriod", values: valuesFor("fastPeriod", grid.fastPeriod, strategy.dsl.entry.fastPeriod) });
     dimensions.push({ name: "slowPeriod", values: valuesFor("slowPeriod", grid.slowPeriod, strategy.dsl.entry.slowPeriod) });
@@ -262,6 +265,7 @@ function changedParameters(base: GeneratedStrategy, candidate: GeneratedStrategy
     if (baseEntry.period !== candidateEntry.period) changes.push({ name: "entryPeriod", value: candidateEntry.period });
     if (baseEntry.threshold !== candidateEntry.threshold) changes.push({ name: "entryThreshold", value: candidateEntry.threshold });
   }
+  if (baseEntry.type === "DONCHIAN_BREAKOUT" && candidateEntry.type === "DONCHIAN_BREAKOUT" && baseEntry.period !== candidateEntry.period) changes.push({ name: "entryPeriod", value: candidateEntry.period });
   if (baseEntry.type === "SMA_CROSSOVER" && candidateEntry.type === "SMA_CROSSOVER") {
     if (baseEntry.fastPeriod !== candidateEntry.fastPeriod) changes.push({ name: "fastPeriod", value: candidateEntry.fastPeriod });
     if (baseEntry.slowPeriod !== candidateEntry.slowPeriod) changes.push({ name: "slowPeriod", value: candidateEntry.slowPeriod });

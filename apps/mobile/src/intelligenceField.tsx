@@ -2,7 +2,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildHomeFieldFacts, buildIntelligenceField, fieldPose, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
-import { fieldMotion, fieldPalette } from "./designSystem";
+import { fieldRadii, fieldMotion, fieldPalette } from "./designSystem";
 
 /**
  * NUSA Intelligence Field: one central core inside a nebula of five subsystem arms.
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   statusWord: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
   phase: { marginLeft: "auto", fontSize: 10, letterSpacing: 2, color: fieldPalette.dim, ...fieldFonts.mono },
   field: { height: FIELD_HEIGHT, overflow: "hidden" },
-  flare: { position: "absolute", width: 32, height: 32, borderRadius: 16, borderWidth: 1 },
+  flare: { position: "absolute", width: 32, height: 32, borderRadius: fieldRadii.lg, borderWidth: 1 },
   pulseRing: { position: "absolute", width: 80, height: 80, borderRadius: 40, borderWidth: 1 },
   coreWrap: { position: "absolute", width: 72, height: 72, alignItems: "center", justifyContent: "center" },
   coreGlow: { position: "absolute", width: 72, height: 72, borderRadius: 36, opacity: 0.16 },

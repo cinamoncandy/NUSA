@@ -1,0 +1,24 @@
+id: WO-UI-20261007-MOTION-FAST-LIGHT
+title: "Retune fieldMotion to the owner-approved fast-and-light option (A)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-motion-fast-light
+authority_impact: none
+owner_approval: "2026-10-07 in chat: asked to change the motion graphics, compared current/A/B/C on a side-by-side preview, chose 'a' (faster and lighter)"
+objective: "Make app animation quicker and lighter on every screen by retuning the single fieldMotion token set (about 0.55x the previous durations, tab transition 320->180ms, reveal 320->180ms, stagger 55->30ms)."
+scope:
+  - "apps/mobile/src/designSystem.ts: fieldMotion durations only. Every presenter already reads these tokens, so every tab and detail screen changes together (owner rule: UI changes apply to the whole app)."
+  - "tests/mobile-motion-tokens.test.js: pins the new tab/reveal/stagger values and caps every interaction duration at 600ms."
+exclusions:
+  - "No presenter, layout, colour, copy, data, navigation or safety wiring change. holoFlowMs is unused by any presenter and is left as is."
+  - "No trading, risk, execution, credential or LIVE behaviour."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+rollback: "Revert the change."
+verification_commands:
+  - node --test tests/mobile-motion-tokens.test.js tests/mobile-motion-reveal.test.js tests/mobile-intelligence-field.test.js tests/mobile-presentation-boundary.test.js
+residual: "Feel on a physical device is HUMAN_ENVIRONMENT_ONLY; the owner confirms with screenshots or a screen recording."

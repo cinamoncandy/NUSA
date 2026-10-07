@@ -1,0 +1,30 @@
+id: WO-UI-20261006-HERO-FLOW-FIELD
+title: "Replace the hero figure with a flow field after the owner's second reference video"
+status: SUPERSEDED_BY_WO-UI-20261006-HERO-RIDGE
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/hero-flow-field
+authority_impact: none
+owner_approval: "2026-10-06 in chat: the owner sent a new reference video and chose option 1, 'replace only the hero'"
+objective: "The owner supplied a second reference video (17 s, 320x400): a monochrome data composition with a curved ruler band and a white marker in the middle, thousands of fine white hairlines streaming in from the left, a dense wall of thin bars on the right with a ragged edge, red/orange highlighted bands for events, large mono numerals, and a row of small dark-teal status panels along the bottom. The owner chose to replace only the hero (the previous gold/emerald dust sphere) with this look, leaving the rest of the app's colours as they are."
+scope:
+  - "apps/mobile/src/holoModel.ts: the figure geometry as pure, deterministic functions: flowLines/flowSegment (hairlines flowing toward the ruler), flowArcX and flowTick (the curved ruler), wallRows/wallBar (the wall of bars, ragged right edge, grows out of the ruler on entrance), pulseFor/waveRow (a decision lights one wall row and the hairlines beside it), flowBandRows/holoFillMarker/holoChipPlacement (the PAPER order band and its end marker; the market chip now sits above the band's end), holoInk (cool white ink tinted amber/red by tone) and flowClockSec (the flow follows the state clock, so a halted runtime nearly stops it). The state machine (observeHolo, tickHolo, the entrance, the tone tint) is unchanged apart from a markRow field. The old sphere/dust/streak helpers are removed."
+  - "apps/mobile/src/holoSphere.tsx: Skia renderer for the new figure with the same component name and props: hairlines, two thin ruler arcs with ticks (full figure only), the wall of bars, a white marker that eases to the lit row, and a lime band with a flaring end marker for each new PAPER order. The guarded blur, still-figure and reduce-motion behaviour are kept; a small mark (points < 600: the header and the menu) draws fewer lines and rows and no ticks."
+  - "apps/mobile/src/decisionRings.tsx: the hero's one-line explanation now describes the new figure."
+  - "tests: the palette tests that pinned the old burst figure (streaks, dust, emerald ramp) are replaced by the equivalent checks for the flow field (determinism and bounds of the hairlines, ruler, wall and pulses, the order band, the marker row, tone colours on the white ink, density, lime reserved for the order band, the renderer's guards); the hero-harmony chip test and legend pin follow the new placement and text."
+  - "UI rule: the hero component is shared, so the HOME hero, the field header mark used on the other screens and the More-menu mark all change together. No screen keeps the old figure. The rest of the app's colours and layout are unchanged by the owner's choice."
+exclusions:
+  - "Only the hero figure changes (owner's option 1). The reference's large numerals and bottom status panels are not added; the owner's earlier colour instruction is kept: lime stays the one accent, and the reference's red/orange event colour is not used because red is the halt status colour. No change to runtime data, trading, risk, accounting, LIVE, credentials or AI authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; the status tint (amber hold, red halt) is kept unmistakable and unchanged in meaning."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-cold-future-palette.test.js tests/mobile-hero-harmony.test.js tests/mobile-holo-sphere.test.js tests/mobile-field-screens.test.js
+  - node scripts/lint-mobile.js
+residual: "Skia cannot run in this environment. The figure was checked by rendering the same model values and draw order as SVG in Chromium (normal, a decision lighting rows, the PAPER order band, hold, halt, and the small mark). The owner should confirm the look on the device after the next Android build; any adjustment of density, brightness or speed is a small follow-up."

@@ -1,0 +1,30 @@
+id: WO-UI-20261006-HERO-RIDGE
+title: "Replace the hero figure with the owner-chosen ridge landscape (능선)"
+status: SUPERSEDED_BY_WO-UI-20261007-HERO-FLOW-FIELD
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/hero-ridge
+authority_impact: none
+owner_approval: "2026-10-06 in chat: the owner disliked the motion graphic ('모션그래픽이 별로야'), rejected the orbit prototype ('다른 디자인') and chose the ridge prototype video ('이거로 할게')"
+objective: "Replace the flow-field hero with a receding landscape of hairline ridges flowing toward the viewer. A runtime decision sends a bright wave from the horizon through the ridges; a PAPER order raises a peak with a lime light beam and its ridge glows lime; hold / halt tint the ink amber / red and halt nearly stops the flow."
+scope:
+  - "apps/mobile/src/holoModel.ts: the flow-field geometry (hairlines, ruler, wall, bands) is replaced by pure ridge geometry: ridgeNoise, ridgeDepth, ridgeBaseY, ridgeX, ridgeHeight, ridgeWaveGlow, ridgeOrderMix, ridgeRowAlpha; holoFillMarker/holoChipPlacement now place the beam foot and the market chip. The state machine (observeHolo, tickHolo, entrance, tone tint, flow clock) is unchanged."
+  - "apps/mobile/src/holoSphere.tsx: Skia renderer for the ridges with the same component name and props: rows drawn far to near with a ground fill for occlusion, edge fades built once per size, a lime beam with a guarded blur bloom for an order. Small marks (points < 600) draw 16 ridges of 28 columns."
+  - "apps/mobile/src/decisionRings.tsx: the legend describes the new figure."
+  - "tests: the flow-field geometry tests are replaced by ridge equivalents (determinism, bounds, ordering, wave travel, order peak and lime, renderer contract); hero-harmony placement and legend checks follow the new figure."
+  - "UI rule: the hero component is shared, so the HOME hero and every small mark change together."
+exclusions:
+  - "No change to runtime data, trading, risk, accounting, LIVE, credentials or AI authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; the status tint (amber hold, red halt) and the still-figure / reduce-motion contract are kept."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-cold-future-palette.test.js tests/mobile-hero-harmony.test.js
+  - node scripts/lint-mobile.js
+residual: "Skia cannot run in this environment; the figure was checked by drawing the compiled model with the same draw order on a Chromium canvas (order beam, halt tint, small mark). The owner should confirm look and smoothness on the device after the next Android build; each frame now draws two paths per ridge (about 100 draws), so frame time on a low-end phone must be checked."

@@ -116,3 +116,23 @@ test("the host guard reaps a Codex descendant that left the process group", { sk
   const after = spawnSync("bash", ["-c", `for p in /proc/[0-9]*; do tr '\\0' '\\n' < $p/environ 2>/dev/null | grep -qxF NUSA_CODEX_RUN_MARK=${mark} && echo $p; done`], { encoding: "utf8" });
   assert.equal(after.stdout.trim(), "", "no marked process survives");
 });
+
+test("the Codex contract makes AIPOS state true on the published commit so the review bot does not block Release", () => {
+  const prompt = buildPrompt({ issueNumber: 1, capability: "test", title: "t", body: "b" });
+  assert.match(prompt, /TRUE ON THE PUBLISHED COMMIT/);
+  assert.match(prompt, /Never write \\?"uncommitted\\?"/);
+  assert.match(prompt, /exact-head CI, independent Audit and Release PLUS every task-specific post-Release action/);
+  assert.match(prompt, /exact-main deployment, runtime proof, dogfood/);
+  assert.match(prompt, /never imply that Release ends the work when it does not/);
+  assert.match(prompt, /Do not commit, push, open a PR/, "the no-commit authority rule is unchanged");
+  assert.match(prompt, /liveAuthority=NONE/);
+});
+
+test("every Codex run records which outcome it reached so a zero-completion run is never read as a completion", () => {
+  const workflow = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", ".github", "workflows", "autopilot-codex-coding.yml"), "utf8");
+  const step = workflow.slice(workflow.indexOf("- name: Record Codex outcome"), workflow.indexOf("- uses: actions/upload-artifact", workflow.indexOf("- name: Record Codex outcome")));
+  assert.match(step, /if: always\(\)/);
+  for (const outcome of ["HOST_DEFERRED", "USAGE_LIMITED", "CODEX_FAILED", "PATCH_READY", "NO_PATCH"]) assert.match(step, new RegExp(outcome));
+  assert.match(step, /GITHUB_STEP_SUMMARY/);
+  assert.doesNotMatch(step, /GITHUB_OUTPUT|exit 1/, "display only: no output, gate or failure is added");
+});

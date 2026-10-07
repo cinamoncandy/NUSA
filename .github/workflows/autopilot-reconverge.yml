@@ -1,0 +1,35 @@
+name: Autopilot Reconverge
+
+# Merges current main into an autopilot/* PR that already passed exact-head CI but fell behind main, so the
+# deterministic Audit (which declines a stale base) can accept the refreshed head. Merge commit only; it never
+# merges the PR, never touches Audit/Release, and skips forks, drafts, `hold` and conflicting PRs.
+# PAPER only, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY.
+
+on:
+  schedule:
+    - cron: "7,27,47 * * * *"
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autopilot-reconverge
+  cancel-in-progress: false
+
+jobs:
+  reconverge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 1
+      - name: Merge main into stale autopilot PRs
+        env:
+          GH_TOKEN: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
+        run: node scripts/autopilot-reconverge.mjs

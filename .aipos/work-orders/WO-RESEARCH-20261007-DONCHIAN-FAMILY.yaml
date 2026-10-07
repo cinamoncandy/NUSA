@@ -1,0 +1,31 @@
+id: WO-RESEARCH-20261007-DONCHIAN-FAMILY
+title: "Add a Donchian breakout strategy family (momentum) to the continuous Research experiments"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/research-donchian
+authority_impact: none
+owner_approval: "2026-10-07 in chat: the owner asked whether NUSA does short-term trading; the agent answered that the running 1m SMA strategy is short-term but no short-term strategy beats costs yet, and proposed widening Research with short-term strategies (breakout needs an engine rule); the owner replied '해'"
+objective: "SMA crossover and RSI mean reversion both fail after costs on 1m/15m/60m. Add a third, different edge hypothesis for short horizons (momentum: buy a close above the previous N bars' highest high) so Research covers trend-following, mean-reversion and breakout, under the same walk-forward, holdout, cost and governance gates."
+scope:
+  - "packages/core/src/optimizer/aiStrategyEngine.ts: a DONCHIAN_BREAKOUT entry rule (period 2..500, integer) and its validation (DONCHIAN_RULE_INVALID)."
+  - "packages/core/src/optimizer/aiBacktestEngine.ts: the entry signal is the close above the highest HIGH of the previous `period` bars. The current bar is excluded (no look-ahead) and fewer than `period` previous bars means no signal. The previous code fell through to the SMA branch for any other rule type, so the new rule has an explicit branch."
+  - "packages/core/src/optimizer/aiStrategyOptimizer.ts: the optimizer varies and reports the Donchian period (entryPeriod) instead of treating the entry as an SMA one."
+  - "apps/cloud/src/backtestResearchEvaluator.ts: buildDonchianResearchStrategy (validated through validateStrategy)."
+  - "apps/cloud/src/researchExperimentComposition.ts: a pre-committed grid of periods 10, 20, 30 with take-profit 3%, stop-loss 2% and a 12-bar time limit, as extra variants on every bar length (1m/15m/60m) next to SMA and RSI, in their own experiment family (donchian-research[-Nm]). 30 + 12 = 42 bars fits the shortest 2-day window at 60m (48 bars)."
+  - "apps/cloud/src/researchExperimentOrchestrator.ts: the variant cap rises from 8 to MAX_VARIANTS = 12 (10 variants run per bar length: 4 SMA + 3 RSI + 3 Donchian)."
+  - "docs/RESEARCH_EXPERIMENTS_OPERATIONS.md and tests: runbook, engine rule (no look-ahead, lookback, validation), optimizer, evaluator builder, composition (10 variants, family identities, SMA/RSI unchanged, window fit)."
+exclusions:
+  - "No change to the cost model, walk-forward windows, holdout rules, candidate gate, Governance, PAPER execution, risk, capital or thresholds. The running PAPER strategy is unchanged. Research never promotes."
+  - "The DSL change is research-only: the PAPER decision path does not consume this rule. A volatility or trend filter would need another DSL rule and is not done here."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  research_integrity: "The grid, exits and time limit were fixed before any Donchian result existed; no parameter is tuned on validation or holdout evidence. Each config has its own hash, so holdout single-use rules apply independently. No look-ahead: the breakout compares the close with strictly earlier bars' highs."
+rollback: "Revert the change; Donchian sessions and evidence stay in the ledger as history and stop growing."
+verification_commands:
+  - node_modules/.bin/tsc -p tsconfig.json
+  - node --test tests/ai-backtest-engine.test.js tests/ai-strategy-engine.test.js tests/ai-strategy-optimizer.test.js tests/backtest-research-evaluator.test.js tests/research-experiment-composition.test.js tests/research-experiment-orchestrator.test.js tests/research-failure-memory.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "Research work per tick grows from 7 to 10 variants per bar length. Whether breakouts show an edge is an empirical question the gates answer; NO_EDGE is a valid outcome and no threshold is lowered."

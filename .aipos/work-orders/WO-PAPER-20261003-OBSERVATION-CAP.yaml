@@ -1,0 +1,25 @@
+id: WO-PAPER-20261003-OBSERVATION-CAP
+title: "Keep PAPER market observations per market so the SMA 5/20 baseline can warm up with several markets"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-observation-cap
+authority_impact: execution_exposure_paper_only
+objective: "The owner's phone showed 'insufficient observations (10/20)' 23 minutes after a restart and no order was ever placed. The runtime kept one in-memory window of 50 observations shared by all markets, while the SMA 5/20 baseline needs 20 observations of the same market. With five configured markets each market held about 10, so the strategy stayed at 10/20 forever."
+scope:
+  - "apps/cloud/src/observationRetention.ts: retainObservation caps observations per market (40) instead of one shared 50. Eviction drops the oldest of that market only; the total is bounded by markets x 40 (at most 5 markets)."
+  - "apps/cloud/src/runtime.ts: uses it where the shared window was trimmed."
+  - "tests/observation-retention.test.js (6): five markets all reach 20; the legacy shared window plateaus at exactly 10 per market (the reported number); per-market cap and total bound; a quiet market is not evicted by a busy one; duplicate trade ids; bad cap."
+exclusions:
+  - "No change to the strategy, its parameters (SMA 5/20, confidence >= 0.5), decision thresholds, risk limits, the execution gate, minimum order, capital, freshness windows, LIVE, credentials or AI authority. Accepted-observation intake is unchanged; only how many are remembered per market."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Stale, future-dated or malformed ticks are still rejected before retention; per-market freshness checks in the hydrator are unchanged."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/observation-retention.test.js
+residual: "Per-tick work grows with the number of retained observations (at most 5 x 40 = 200 instead of 50); not measured on the 1 GB host. The buffer is still cleared on every feed reconnect, so each reconnect restarts the warm-up; seeding it from persisted observations is a separate change. Trading begins only after this is deployed (owner standing deploy approval) and 20 observations exist."

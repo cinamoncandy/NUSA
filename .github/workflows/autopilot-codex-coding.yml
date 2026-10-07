@@ -11,8 +11,13 @@ name: Autopilot Codex Coding
 
 on:
   schedule:
-    - cron: "23 */2 * * *"
+    - cron: "23 * * * *"
   workflow_dispatch: {}
+  # Event-driven continuation: when an autopilot Codex PR merges (or is closed) the "one open PR" gate opens, so
+  # start the next increment immediately instead of waiting for the next hourly slot. Only the trusted base ref is
+  # checked out; the job below ignores every other PR.
+  pull_request_target:
+    types: [closed]
 
 permissions:
   contents: read
@@ -26,6 +31,7 @@ concurrency:
 jobs:
   select:
     name: Select next owner backlog issue
+    if: github.event_name != 'pull_request_target' || (github.event.pull_request.base.ref == 'main' && startsWith(github.event.pull_request.head.ref, 'autopilot/codex/'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -177,6 +183,24 @@ jobs:
           if [ -s "${RUNNER_TEMP}/out/changes.patch" ]; then echo "has_patch=true" >> "$GITHUB_OUTPUT"; else echo "has_patch=false" >> "$GITHUB_OUTPUT"; fi
           git reset -q --hard
           git clean -fdq
+      - name: Record Codex outcome
+        # A run that waited or produced nothing still ends green; say which, so a zero-completion run is never
+        # read as a useful completion. Display only: it changes no output, gate or authority.
+        if: always()
+        shell: bash
+        env:
+          RUN_OUTCOME: ${{ steps.run.outcome }}
+          USAGE_LIMITED: ${{ steps.run.outputs.usage_limited }}
+          HOST_DEFERRED: ${{ steps.run.outputs.host_deferred }}
+          HAS_PATCH: ${{ steps.collect.outputs.has_patch }}
+        run: |
+          if [ "$HOST_DEFERRED" = "true" ]; then outcome=HOST_DEFERRED
+          elif [ "$USAGE_LIMITED" = "true" ]; then outcome=USAGE_LIMITED
+          elif [ "$RUN_OUTCOME" != "success" ]; then outcome=CODEX_FAILED
+          elif [ "$HAS_PATCH" = "true" ]; then outcome=PATCH_READY
+          else outcome=NO_PATCH; fi
+          echo "::notice::Autopilot Codex outcome: ${outcome}"
+          printf '### Autopilot Codex outcome\n\n`%s`\n' "$outcome" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: steps.collect.outputs.has_patch == 'true'
         with:

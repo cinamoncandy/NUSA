@@ -2,7 +2,7 @@ import React from "react";
 import { fieldFonts } from "./fieldFonts";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MORE_DESTINATIONS, type MoreDestination } from "./navigationContract";
-import { fieldPalette } from "./designSystem";
+import { fieldPalette, readableFont } from "./designSystem";
 import { HoloSphere } from "./holoSphere";
 
 /** Field-style index grouped by what the owner is trying to do; thin rows, no cards. */
@@ -73,5 +73,5 @@ const styles = StyleSheet.create({
   rowTitle: { color: fieldPalette.text, fontSize: 16, fontWeight: "500" },
   hint: { color: fieldPalette.muted, fontSize: 12 },
   chevron: { color: fieldPalette.muted, fontSize: 22, lineHeight: 24 },
-  footer: { color: fieldPalette.dim, fontSize: 11, ...fieldFonts.mono },
+  footer: { color: fieldPalette.dim, fontSize: readableFont(11), ...fieldFonts.mono },
 });

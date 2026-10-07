@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "markets": ["KRW-XRP"],
+  "decidedBy": "owner",
+  "decidedAt": "2026-10-03",
+  "note": "PAPER only. Applied over the host NUSA_CLOUD_UPBIT_MARKETS and NUSA_RESEARCH_MARKETS at start. Owner decision: trade and learn KRW-XRP first; add other markets later by changing this file in a reviewed release."
+}

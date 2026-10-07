@@ -128,6 +128,98 @@ test("/health publishes only the allowlisted liveness fields, whatever the sourc
   }, 41887);
 });
 
+test("/health publishes the event-loop stall numbers only as finite non-negative numbers, and only when supplied", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, eventLoopMaxStallMs: 6_100, eventLoopStallCount: 3.9, lastEventLoopStallAt: 1_950 }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.eventLoopMaxStallMs, 6_100);
+    assert.equal(body.runtime.eventLoopStallCount, 3);
+    assert.equal(body.runtime.lastEventLoopStallAt, 1_950);
+  }, 41901);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, eventLoopMaxStallMs: -1, eventLoopStallCount: "7 leak-sentinel-9", lastEventLoopStallAt: Number.NaN }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(Object.keys(body.runtime).sort(), Object.keys(LIVENESS).sort(), "invalid stall values are dropped, not published");
+    assert.doesNotMatch(res.body, /leak-sentinel-9/);
+  }, 41902);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, lastEventLoopStallAt: null }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.lastEventLoopStallAt, null);
+  }, 41903);
+});
+
+test("/health names the class of the runtime's own paper failures but never the detail after the colon", async () => {
+  const cases = [
+    ["paper account persistence failed: PAPER_LEDGER_RECONCILIATION_REQUIRED realized state -154.31476926 ledger -154.31476925 38 fills", "PAPER_ACCOUNT_PERSISTENCE_FAILED"],
+    ["paper account persistence failed", "PAPER_ACCOUNT_PERSISTENCE_FAILED"],
+    ["paper order lifecycle reconciliation mismatch", "PAPER_ORDER_LIFECYCLE_RECONCILIATION_MISMATCH"],
+    // Not the runtime's own plain-words phrase: still replaced, never published.
+    ["Upbit said: invalid key abc123 for account acct-123", "LIVENESS_ERROR_UNCLASSIFIED"],
+    ["paper account 1234 failed: x", "LIVENESS_ERROR_UNCLASSIFIED"],
+    ["paper key abc-123 leaked", "LIVENESS_ERROR_UNCLASSIFIED"],
+    ["Paper account persistence failed: x", "LIVENESS_ERROR_UNCLASSIFIED"],
+    ["paper " + "x".repeat(80) + ": y", "LIVENESS_ERROR_UNCLASSIFIED"],
+  ];
+  for (const [index, [lastError, expected]] of cases.entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, lastError }) }, async (handle) => {
+      const res = await request(handle.port, "/health");
+      const body = JSON.parse(res.body);
+      assert.equal(body.runtime.lastError, expected, lastError);
+      assert.doesNotMatch(res.body, /-154\.3|38 fills|abc123|acct-123|1234|abc-123|ledger/);
+    }, 41850 + index); // a range no other test file uses (41890-41897 overlapped paper-decision-outcome's 41893-41895)
+  }
+});
+
+test("/health publishes the research collection status as a fixed code plus two counts and nothing else", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchCollectionStatus: "COLLECTING", researchCandleCount: 1234.7, researchRequiredCandles: 16_560, researchMarket: "KRW-XRP", researchDetail: "leak-sentinel-r1" }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.equal(body.runtime.researchCollectionStatus, "COLLECTING");
+    assert.equal(body.runtime.researchCandleCount, 1234);
+    assert.equal(body.runtime.researchRequiredCandles, 16_560);
+    assert.equal(body.runtime.researchMarket, undefined);
+    assert.doesNotMatch(res.body, /leak-sentinel-r1|KRW-XRP/);
+  }, 41851 + 20);
+  for (const [index, status] of ["DISABLED", "INVALID", "UNAVAILABLE"].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchCollectionStatus: status }) }, async (handle) => {
+      const body = JSON.parse((await request(handle.port, "/health")).body);
+      assert.equal(body.runtime.researchCollectionStatus, status);
+      assert.equal(body.runtime.researchCandleCount, undefined);
+    }, 41872 + index);
+  }
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchCollectionStatus: "free text with detail 123", researchCandleCount: -5 }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(Object.keys(body.runtime).sort(), Object.keys(LIVENESS).sort(), "an unknown status is dropped, not published");
+    assert.doesNotMatch(res.body, /free text/);
+  }, 41876);
+});
+
+test("/health publishes the PAPER decision funnel as fixed stage codes and integer counts, and drops everything else", async () => {
+  const funnel = { since: 1_791_259_000_000, counts: { "MARKET_DATA:PASS": 9000, "DECISION:PASS": 80, "DECISION:PASS:BUY": 60, "RISK:FAIL:CONSECUTIVE_LOSS_LIMIT": 57, OTHER: 3, "RISK:FAIL": 57 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: funnel }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperFunnel, funnel);
+  }, 41861);
+  const dirty = { since: 5, counts: { "RISK:FAIL": 4.5, "risk:fail": 1, "RISK:MAYBE": 2, "RISK:FAIL:lower": 3, "DECISION:PASS:KRW-XRP": 4, "balance is 9,999 KRW": 5, "RISK:FAIL:OK_CODE": 6, "FILL:PASS": -1, "PNL:PASS": "7", "DECISION:SKIP": 8 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(body.runtime.paperFunnel.counts, { "RISK:FAIL:OK_CODE": 6, "DECISION:SKIP": 8 }, "only well-formed keys with non-negative integer counts survive");
+    assert.doesNotMatch(res.body, /9,999|KRW-XRP|lower/);
+  }, 41862);
+  const many = { since: 1, counts: Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`RISK:FAIL:CODE_${i}`, i])) };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: many }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(Object.keys(body.runtime.paperFunnel.counts).length, 80, "at most 80 keys are published");
+  }, 41863);
+  for (const [index, bad] of [null, "text", { since: -1, counts: {} }, { since: 1, counts: [1, 2] }, { since: 1 }, { counts: {} }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperFunnel: bad }) }, async (handle) => {
+      const body = JSON.parse((await request(handle.port, "/health")).body);
+      assert.equal(body.runtime.paperFunnel, undefined, JSON.stringify(bad));
+    }, 41864 + index);
+  }
+});
+
 test("/health strips extra component-health fields from an alternate callback", async () => {
   const measuredAt = 2_000;
   const health = (componentId, provenance, evidenceId) => evaluateComponentHealth({
@@ -172,4 +264,132 @@ test("the previous stop reason is published only as a coded value and never as f
     assert.equal(JSON.parse(res.body).runtime.previousStop, undefined);
     assert.doesNotMatch(res.body, /acct-123/);
   }, 41889);
+});
+
+test("/health publishes the loss-limit counts as five non-negative integers, and nothing when any is malformed", async () => {
+  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 5, todayLosingSells: 4 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: session }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperLossSession, session);
+  }, 42301);
+  for (const [index, bad] of [null, "text", { ...session, todayLosingSells: -1 }, { ...session, consecutiveLossCount: 1.5 }, { ...session, todayCompletedSells: undefined }, { ...session, market: "KRW-XRP", pnl: -219 }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: bad }) }, async (handle) => {
+      const res = await request(handle.port, "/health");
+      const body = JSON.parse(res.body);
+      if (index === 5) {
+        assert.deepEqual(Object.keys(body.runtime.paperLossSession).sort(), Object.keys(session).sort(), "extra fields are dropped");
+        assert.doesNotMatch(res.body, /KRW-XRP|-219/);
+      } else assert.equal(body.runtime.paperLossSession, undefined, JSON.stringify(bad));
+    }, 42302 + index);
+  }
+});
+
+test("/health publishes loss attribution only as fixed family codes with two integers each", async () => {
+  const good = { evaluatedAt: 1_791_284_000_000, byFamily: { SMA_CROSSOVER: { completedSells: 3, losingSells: 3 }, UNATTRIBUTED: { completedSells: 1, losingSells: 0 } } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: good }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.deepEqual(body.runtime.paperLossAttribution, good);
+  }, 42311);
+  const dirty = { evaluatedAt: 5, byFamily: { "sma-crossover": { completedSells: 1, losingSells: 1 }, "KRW-XRP": { completedSells: 1, losingSells: 1 }, RSI_MEAN_REVERSION: { completedSells: 1, losingSells: 2 }, DONCHIAN_BREAKOUT: { completedSells: 2, losingSells: 1, pnl: -219 } } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.paperLossAttribution.byFamily, { DONCHIAN_BREAKOUT: { completedSells: 2, losingSells: 1 } }, "raw ids, markets, impossible counts and extra fields are dropped");
+    assert.doesNotMatch(res.body, /KRW-XRP|sma-crossover|-219/);
+  }, 42312);
+  for (const [index, bad] of [null, "text", { evaluatedAt: -1, byFamily: {} }, { evaluatedAt: 1, byFamily: [] }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossAttribution, undefined, JSON.stringify(bad));
+    }, 42313 + index);
+  }
+});
+
+test("/health publishes research experiment ticks only as a fixed status, integers and code-keyed counts", async () => {
+  const good = { lastTickAt: 1_791_290_000_000, lastStatus: "OK", ticks: 12, sessionsStarted: 2, counts: { COMPLETED: 4, NOT_DUE: 20, VALIDATION_CHAMPION_BETTER: 3, VALIDATION_CHALLENGER_BETTER: 1, HOLDOUT_INCONCLUSIVE: 1 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicks: good }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.researchExperimentTicks, good);
+  }, 42321);
+  const dirty = { ...good, counts: { COMPLETED: 1, "KRW-XRP": 2, "skipped reason": 3, ERROR_X: -1, OK_CODE: 1.5 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicks: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.researchExperimentTicks.counts, { COMPLETED: 1 });
+    assert.doesNotMatch(res.body, /KRW-XRP|skipped reason/);
+  }, 42322);
+  for (const [index, bad] of [null, { ...good, lastStatus: "free text" }, { ...good, ticks: -1 }, { ...good, counts: [] }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicks: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.researchExperimentTicks, undefined, JSON.stringify(bad));
+    }, 42323 + index);
+  }
+});
+
+test("/health publishes the closed-learning loop status as fixed codes and integers only", async () => {
+  const good = { lastTickAt: 1_791_290_000_000, ticks: 9, bootstrap: "WAITING_RESEARCH_SNAPSHOT", rollover: "WAITING_FOR_REALIZED_FILL", cyclesEvaluated: 0, deployments: 0 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: good }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop, good);
+  }, 42341);
+  const dirty = { ...good, rolloverReason: "retired:paper-period-1", lastCycleOutcome: "QUALIFIED_FOR_LEAGUE", periodId: "secret", extra: 5 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: dirty }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.closedLearningLoop, { ...good, lastCycleOutcome: "QUALIFIED_FOR_LEAGUE" });
+    assert.doesNotMatch(res.body, /secret|paper-period/);
+  }, 42342);
+  for (const [index, bad] of [null, { ...good, ticks: -1 }, { ...good, bootstrap: "free text" }, { ...good, rollover: undefined }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop, undefined, JSON.stringify(bad));
+    }, 42343 + index);
+  }
+});
+
+test("research experiment ticks per bar length publish only declared lengths and the fixed summary shape", async () => {
+  const summary = { lastTickAt: 1_000, lastStatus: "OK", ticks: 2, sessionsStarted: 1, counts: { COMPLETED: 3, NOT_DUE: 1 } };
+  const byInterval = { "1m": summary, "15m": { ...summary, ticks: 3 }, "60m": { ...summary, lastStatus: "BOGUS" }, "5m": summary, "<script>": summary };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicksByInterval: byInterval }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const published = JSON.parse(res.body).runtime.researchExperimentTicksByInterval;
+    assert.deepEqual(Object.keys(published).sort(), ["15m", "1m"]);
+    assert.equal(published["15m"].ticks, 3);
+    assert.deepEqual(published["1m"].counts, { COMPLETED: 3, NOT_DUE: 1 });
+    assert.doesNotMatch(res.body, /script|BOGUS|"5m"/);
+  }, 41880);
+});
+
+test("the running build commit is published only as a full lowercase 40-hex SHA", async () => {
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, sourceCommitSha: sha }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.sourceCommitSha, sha);
+  }, 41886);
+  for (const bad of ["", "abc123", sha.toUpperCase(), `${sha} extra`, 42]) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, sourceCommitSha: bad }) }, async (handle) => {
+      const res = await request(handle.port, "/health");
+      assert.equal(JSON.parse(res.body).runtime.sourceCommitSha, undefined, String(bad));
+      assert.doesNotMatch(res.body, /extra/);
+    }, 41886);
+  }
+});
+
+test("closed-learning evidence identities pass only through fixed keys and safe value shapes", async () => {
+  const hex = "e".repeat(64);
+  const loop = { lastTickAt: 1, ticks: 1, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_KST_DAY_ROLLOVER", evidence: {
+    openPeriodId: "owner-baseline:KRW-XRP:1791331979980", openMarket: "KRW-XRP", openFilledObservations: 1, realizedOutcomeFingerprint: hex,
+    cycleEvidenceFingerprint: "not-hex", decisionReference: "research decision <b>", injected: "x", realizedPeriods: -1, openMarket2: "KRW-XRP",
+  } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const evidence = JSON.parse(res.body).runtime.closedLearningLoop.evidence;
+    assert.deepEqual(evidence, { openPeriodId: "owner-baseline:KRW-XRP:1791331979980", openMarket: "KRW-XRP", realizedOutcomeFingerprint: hex, openFilledObservations: 1 });
+    assert.doesNotMatch(res.body, /injected|not-hex|<b>|openMarket2/);
+  }, 41879);
+});
+
+test("the PAPER ledger identity publishes only a 64-hex fingerprint and non-negative integers", async () => {
+  const good = { ledgerFingerprintSha256: "a".repeat(64), fillCount: 4, openPositionCount: 1, lastFillAt: 1791331979980, ledgerUpdatedAt: 1791331979980 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLedger: { ...good, cash: 8399 } }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.paperLedger, good);
+    assert.doesNotMatch(res.body, /8399|"cash"/);
+  }, 41878);
+  for (const bad of [{ ...good, ledgerFingerprintSha256: "short" }, { ...good, fillCount: -1 }, { ...good, lastFillAt: 1.5 }]) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLedger: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLedger, undefined);
+    }, 41878);
+  }
 });

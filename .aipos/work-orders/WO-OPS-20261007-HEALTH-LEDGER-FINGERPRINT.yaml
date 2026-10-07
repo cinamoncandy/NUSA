@@ -1,0 +1,26 @@
+id: WO-OPS-20261007-HEALTH-LEDGER-FINGERPRINT
+title: "Publish a canonical PAPER ledger fingerprint on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/health-ledger-fingerprint
+authority_impact: none
+owner_approval: "2026-10-07 in chat: P0 'Ledger 금액 기준 restart/recovery/replay 증명'"
+objective: "Restart/recovery acceptance needs evidence that cash, positions, realized PnL and fills are identical before and after a restart, but /health exposes no ledger state and no credential is available to read it."
+scope:
+  - "paperLedgerFingerprint.ts (new): SHA-256 over ledger truth only (initial capital, cash, realized PnL, position quantity/average entry/realized PnL, all fills in canonical order) plus fill count, open position count, last fill time and ledger update time; mark-dependent values excluded."
+  - "runtime.ts, server.ts: /health runtime.paperLedger publishes only the 64-hex fingerprint and non-negative integers."
+  - "tests: mark moves do not change it, every ledger fact does, fill order is canonical, a real PAPER fill restored after restart has the identical fingerprint, allowlist drops amounts and malformed values."
+exclusions:
+  - "No amount, price or position size is published. No change to PAPER execution, ledger, risk or LIVE; /health is not an accounting source."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; a read error publishes nothing."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/paper-ledger-fingerprint.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "Requires a PAPER deploy; restart evidence is the fingerprint read before and after the next deploy."

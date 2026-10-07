@@ -17,14 +17,38 @@ Optional tuning (invalid values keep it disabled): `NUSA_RESEARCH_MARKETS` (defa
 `NUSA_RESEARCH_TRAIN_DAYS` (7), `NUSA_RESEARCH_VALIDATION_DAYS` (2), `NUSA_RESEARCH_HOLDOUT_DAYS` (2),
 `NUSA_RESEARCH_TICK_MINUTES` (30, 5-360), `NUSA_RESEARCH_DAILY_BUDGET` (48 per variant, at most 288).
 
+## History backfill (on by default when research is on)
+
+At start (after 20 s, retried up to 3 times 10 minutes apart if a request fails or is rate limited) the runtime
+fills the candle store for each research market from Upbit's public 1-minute candle endpoint
+(`GET https://api.upbit.com/v1/candles/minutes/1`, no credentials), so the first experiment does not wait the
+full train + validation + holdout days (plus one day of margin) for live collection.
+
+- It only writes candles older than anything already stored, decided at the moment of each append, so it cannot
+  conflict with or replace live-collected candles. Only fully closed minutes are accepted and every candle is
+  validated; invalid ones are dropped and counted.
+- Requests are sequential (150 ms apart), 10 s timeout each, bounded in number. A 429 stops the attempt.
+- Provenance: history is the exchange's own candles; candles collected afterwards are ticker-derived. They can
+  differ slightly at the seam and a market with minutes without trades has gaps in the exchange data.
+- Log lines: `[research-backfill] KRW-XRP COMPLETE recorded=... rejected=... pages=...`.
+- Turn it off with `NUSA_RESEARCH_BACKFILL=DISABLED` (any value other than `ENABLED` also disables it) and restart.
+
 ## What it does
 1. Every tick it turns stored public ticker observations into closed 1-minute candles and stores them durably
    (incomplete minutes are dropped; the oldest retained minute is skipped).
 2. Once enough history exists (train + validation + holdout, 11 days by default) it runs, per challenger variant
-   (four SMA parameter sets against an SMA 5/20 research proxy of the PAPER baseline), a VALIDATION experiment and,
+   (four SMA parameter sets, three RSI mean-reversion sets and three Donchian breakout sets, all against an SMA 5/20
+   research proxy of the PAPER baseline), a VALIDATION experiment and,
    only if the challenger wins and the holdout was never used for that configuration, one HOLDOUT experiment.
 3. Each experiment carries full provenance, is ledgered, and feeds the `research` status the app's LEARNING line shows.
 4. A new session per variant starts each KST trading day; the previous day's sessions are stopped.
+5. Strategy families: SMA crossover variants (`sma_<fast>_<slow>`, experiment family `sma-research[-Nm]`) and RSI
+   oversold mean-reversion variants (`rsi_<period>_<threshold>`: RSI 14<30, 14<25, 7<20, take-profit 3%, stop-loss 2%,
+   12-bar time limit; experiment family `rsi-research[-Nm]`). The grids are fixed in code before any result is seen;
+   nothing is tuned on validation or holdout evidence. Donchian breakout variants (`donchian_<period>`: buy when the close
+   breaks above the highest high of the previous 10, 20 or 30 bars, take-profit 3%, stop-loss 2%, 12-bar time limit;
+   experiment family `donchian-research[-Nm]`) are the momentum / breakout family. Each bar length (1m/15m/60m) runs all
+   ten variants.
 
 ## Expectations and limits
 - No experiment can run before about 11 days of candles exist, so the LEARNING line shows candles-driven progress only
@@ -41,7 +65,7 @@ affected. To undo the schema, revert the build; the two extra empty tables are h
 
 ## Verifying after enabling
 Check the service log, in this order:
-1. `[research-experiments] enabled: markets=... variants=4 tickMinutes=...` right after start. A
+1. `[research-experiments] enabled: markets=... variants=10 tickMinutes=...` right after start (4 SMA + 3 RSI + 3 Donchian). A
    `disabled: <reason>` line means a setting is invalid; fix it and restart (nothing ran).
 2. `[research-experiments] tick ...` lines every tick. `started=0 experiments=0` during the first ~11 days is expected
    (not enough candles yet), not a fault.

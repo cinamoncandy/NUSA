@@ -22,6 +22,8 @@ export interface IntelligenceFieldInput {
   /** Canonical runtime facts shown verbatim when execution is absent; never a guessed cause. */
   readonly pipelineStage?: string | null;
   readonly lastError?: string | null;
+  /** Short Korean cause when the server reports HALTED (server fields only; never guessed). */
+  readonly haltCause?: string | null;
 }
 
 export interface IntelligenceFieldModel {
@@ -49,7 +51,7 @@ export function buildIntelligenceField(input: IntelligenceFieldInput): Intellige
     return freeze({ phase: "AUTHENTICATION", statusWord: "OFFLINE", tone: "amber", headline: "PAPER 서버 연결 필요", detail: "설정에서 서버 연결을 확인해 주세요.", lit: ["governance"], focus: "governance", states: { governance: "REQUIRED" }, coreLevel: 0.35 });
   }
   if (input.haltActive) {
-    return freeze({ phase: "HALTED", statusWord: "HALTED", tone: "red", headline: "안전 정지 중", detail: "리스크 경계가 새 판단을 멈췄습니다. 원장은 보존됩니다.", lit: ALL, focus: "risk", states: { governance: "ONLINE", market: "ONLINE", risk: "HALT", axiom: "PAUSED", paper: "PAUSED" }, coreLevel: 0.7 });
+    return freeze({ phase: "HALTED", statusWord: "HALTED", tone: "red", headline: "안전 정지 중", detail: input.haltCause ? `리스크 경계가 새 판단을 멈췄습니다. 원장은 보존됩니다. 사유: ${input.haltCause}` : "리스크 경계가 새 판단을 멈췄습니다. 원장은 보존됩니다.", lit: ALL, focus: "risk", states: { governance: "ONLINE", market: "ONLINE", risk: "HALT", axiom: "PAUSED", paper: "PAUSED" }, coreLevel: 0.7 });
   }
   if (input.degraded) {
     return freeze({ phase: "DEGRADED", statusWord: "DEGRADED", tone: "amber", headline: "PAPER 상태 확인 필요", detail: "서버 상태가 정상으로 확인되지 않았습니다. 아래 안내를 확인해 주세요.", lit: ["governance"], focus: "governance", states: { governance: "DEGRADED" }, coreLevel: 0.5 });
