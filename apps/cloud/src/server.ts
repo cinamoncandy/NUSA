@@ -106,6 +106,8 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
   readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
+  /** Canonical PAPER ledger identity: a 64-hex fingerprint of ledger truth and integer counts/times only. */
+  readonly paperLedger?: { readonly ledgerFingerprintSha256: string; readonly fillCount: number; readonly openPositionCount: number; readonly lastFillAt?: number; readonly ledgerUpdatedAt: number };
   /** Production closed-learning loop status: fixed codes and integers only. */
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
@@ -410,9 +412,16 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
       ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
     }
     : {};
+  // Ledger identity: a 64-hex fingerprint and non-negative integers; no amount is ever published.
+  const rawLedger = source.paperLedger as Record<string, unknown> | null | undefined;
+  const nonNegative = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+  const paperLedger = rawLedger != null && typeof rawLedger === "object" && typeof rawLedger.ledgerFingerprintSha256 === "string" && /^[a-f0-9]{64}$/.test(rawLedger.ledgerFingerprintSha256)
+    && nonNegative(rawLedger.fillCount) && nonNegative(rawLedger.openPositionCount) && nonNegative(rawLedger.ledgerUpdatedAt) && (rawLedger.lastFillAt === undefined || nonNegative(rawLedger.lastFillAt))
+    ? { paperLedger: { ledgerFingerprintSha256: rawLedger.ledgerFingerprintSha256, fillCount: rawLedger.fillCount, openPositionCount: rawLedger.openPositionCount, ...(rawLedger.lastFillAt === undefined ? {} : { lastFillAt: rawLedger.lastFillAt }), ledgerUpdatedAt: rawLedger.ledgerUpdatedAt } }
+    : {};
   // Build identity: only a full lowercase 40-hex commit is published, never other text.
   const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
-  return Object.freeze({ ...sourceCommitSha, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

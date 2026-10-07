@@ -379,3 +379,17 @@ test("closed-learning evidence identities pass only through fixed keys and safe 
     assert.doesNotMatch(res.body, /injected|not-hex|<b>|openMarket2/);
   }, 41879);
 });
+
+test("the PAPER ledger identity publishes only a 64-hex fingerprint and non-negative integers", async () => {
+  const good = { ledgerFingerprintSha256: "a".repeat(64), fillCount: 4, openPositionCount: 1, lastFillAt: 1791331979980, ledgerUpdatedAt: 1791331979980 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLedger: { ...good, cash: 8399 } }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.paperLedger, good);
+    assert.doesNotMatch(res.body, /8399|"cash"/);
+  }, 41878);
+  for (const bad of [{ ...good, ledgerFingerprintSha256: "short" }, { ...good, fillCount: -1 }, { ...good, lastFillAt: 1.5 }]) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLedger: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLedger, undefined);
+    }, 41878);
+  }
+});

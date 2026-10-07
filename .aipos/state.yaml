@@ -2766,6 +2766,13 @@ current_research_interval_recovery:
   owner_approval: "2026-10-07 in chat (Learning Loop 7단계 작업지시서, '계속해')"
   finding: "/health showed 15m/60m research RECOVERY_NOT_READY; only the first orchestrator was recovered, now all are recovered at start"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ops_health_ledger_fingerprint:
+  work_order: WO-OPS-20261007-HEALTH-LEDGER-FINGERPRINT
+  status: READY_FOR_REVIEW
+  branch: claude/health-ledger-fingerprint
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Ledger 금액 기준 restart/recovery 증명)"
+  finding: "/health now carries a PAPER ledger fingerprint (no amounts) so restart/recovery can be checked for an identical accounting state"
 current_research_candle_gap_fill:
   work_order: WO-RESEARCH-20261007-CANDLE-GAP-FILL
   status: READY_FOR_REVIEW
