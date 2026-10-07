@@ -56,6 +56,17 @@ function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): numb
   return maximum + 1;
 }
 
+/**
+ * A blocked rollover reason leads with the failing step's stable error code (for example
+ * "MISSING_BENCHMARK_EVIDENCE:<message>"), so the read-only loop status can say why it is blocked without
+ * publishing free text. Errors without a code keep their message.
+ */
+function blockedReason(error: unknown): string {
+  const message = error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED";
+  const errorCode = (error as { readonly code?: unknown } | null)?.code;
+  return typeof errorCode === "string" && /^[A-Z][A-Z0-9_]{2,63}$/.test(errorCode) && !message.startsWith(`${errorCode}:`) ? `${errorCode}:${message}` : message;
+}
+
 function hasRealizedFill(plan: PersistedPaperRealizedPeriodPlan): boolean {
   return plan.observations.some((item) => item.status === "FILLED");
 }
@@ -217,7 +228,7 @@ export class ClosedLearningRolloverScheduler {
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
-        reason: error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED",
+        reason: blockedReason(error),
       });
     }
   }
@@ -237,7 +248,7 @@ export class ClosedLearningRolloverScheduler {
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
-        reason: error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED",
+        reason: blockedReason(error),
       });
     }
   }
