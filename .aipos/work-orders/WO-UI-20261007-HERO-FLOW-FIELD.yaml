@@ -1,0 +1,30 @@
+id: WO-UI-20261007-HERO-FLOW-FIELD
+title: "Replace the ridge hero with the owner-chosen flow field (흐름) from reference videos"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/hero-flow-field
+authority_impact: none
+owner_approval: "2026-10-07 in chat: the owner rejected the neon ridge, aurora and terminal concepts, then supplied four reference videos ('참고해'); the agent built a canvas prototype from them (hairline streams flowing into particle clusters, one per stage of the chain) and the owner approved it ('해')"
+objective: "Replace the ridge landscape hero with a flow field in the reference videos' style: hairline data streams flowing into glowing particle clusters for market -> research -> risk -> paper -> ledger. A decision sends a pulse down the chain; a PAPER order ignites the paper cluster with a lime ring and beam and lights its hand-off to the ledger; hold / halt tint risk onward amber / red and a halt dims the streams out of risk."
+scope:
+  - "apps/mobile/src/holoModel.ts: the ridge geometry is replaced by pure flow geometry: FLOW_NODES, FLOW_EDGES, buildFlowField (deterministic, density-scaled), flowStrandCurve, flowStrandPoint, flowPulsePosition, flowEdgeGlow, flowNodeGlow, flowNodeColor, flowEdgeOpen, flowClusterPoint, flowLabelPlacement; holoFillMarker / holoChipPlacement now place the beam and market chip on the paper cluster. The state machine (observeHolo, tickHolo, entrance, tone tint, flow clock, frame budgets) is unchanged."
+  - "apps/mobile/src/holoSphere.tsx: Skia renderer with the same component name and props. Each stream is drawn as two batched paths (bright / dim) plus one point batch of flowing particles, each cluster as a blurred halo plus two point batches, so a frame is about 35 draws. Stage labels render as small chips at sizes of 220 px and up."
+  - "apps/mobile/src/decisionRings.tsx: the legend describes the new figure."
+  - "tests: ridge geometry and renderer tests are replaced by flow equivalents (determinism, bounds, chain-order pulse, order ignition, halt gating, label placement, renderer contract); hero-harmony placement and legend checks follow the new figure."
+  - "UI rule: HoloSphere is the one shared hero component (HOME hero, every field header mark and the More menu mark), so every screen that shows it changes together; no screen is left on the ridge."
+exclusions:
+  - "No change to runtime data, trading, risk, accounting, LIVE, credentials or AI authority. The figure shows the chain; it does not read or claim any stage's state beyond the existing decision count, PAPER order count and tone."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; the hold / halt tint and the still-figure / reduce-motion contract are kept, and lime is used only for a PAPER order in the normal tone."
+rollback: "Revert the change."
+verification_commands:
+  - node_modules/.bin/tsc -p tsconfig.json
+  - node_modules/.bin/tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js
+residual: "Skia cannot run in this environment. The figure was checked by drawing the compiled model with the renderer's draw order on a Chromium canvas (normal, order ignition, halt). The owner should confirm look and smoothness on the device after the next Android build; at full detail a frame draws about 2,260 cluster points and 480 hairlines in about 35 batched draws, so frame time on a low-end phone must be checked (lower the density if needed)."

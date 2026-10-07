@@ -78,50 +78,50 @@ test("holo state advances by elapsed time, not by how often it is drawn", () => 
 });
 
 
-test("the ridge hero is deterministic and stays inside the canvas", () => {
+test("the flow field is deterministic and stays inside the canvas", () => {
   const M = require("../dist/apps/mobile/src/holoModel.js");
-  assert.equal(M.ridgeNoise(1.3, 2.7), M.ridgeNoise(1.3, 2.7), "deterministic terrain");
-  for (const rows of [M.RIDGE_ROWS, 16]) for (const t of [0, 1.7, 40, 5000]) {
-    let prev = -1;
-    for (let r = 0; r < rows; r += 1) {
-      const d = M.ridgeDepth(r, rows, t);
-      assert.ok(d > 0 && d <= 1, "depth stays in 0..1");
-      assert.ok(d > prev, "rows stay ordered near to far");
-      prev = d;
-      const base = M.ridgeBaseY(d);
-      assert.ok(base >= M.RIDGE_HORIZON - 1e-9 && base <= M.RIDGE_NEAR + 1e-9, "a ridge sits between the horizon and the near edge");
-      for (const u of [0, 0.25, 0.5, 0.56, 1]) for (const rise of [0, 1]) {
-        const h = M.ridgeHeight(u, d, t, rise), x = M.ridgeX(u, d);
-        assert.ok(h >= 0 && base - h >= 0, "peaks never leave the top of the canvas");
-        assert.ok(x > -0.2 && x < 1.2, "the landscape stays near the canvas");
-      }
-    }
+  const a = M.buildFlowField(1), b = M.buildFlowField(1);
+  assert.deepEqual(Array.from(a.points[0].slice(0, 16)), Array.from(b.points[0].slice(0, 16)), "same density, same field");
+  assert.equal(a.points.length, M.FLOW_NODES.length);
+  assert.ok(M.buildFlowField(0.2).points[1].length < a.points[1].length, "small marks draw fewer particles");
+  assert.deepEqual(M.FLOW_NODES.map((n) => n.id), ["market", "research", "risk", "paper", "ledger"], "one cluster per stage, in chain order");
+  for (const t of [0, 1.7, 40, 5000]) M.FLOW_EDGES.forEach((_, e) => a.strands[e].forEach((strand) => {
+    const c = M.flowStrandCurve(e, strand, t);
+    for (const u of [0, 0.5, 1]) { const p = M.flowStrandPoint(c, u); assert.ok(p.x > -0.2 && p.x < 1.2 && p.y > -0.2 && p.y < 1.2); }
+    assert.ok(Math.abs(c.ex - M.FLOW_NODES[M.FLOW_EDGES[e][1]].x) < 0.25, "a stream ends in its target cluster");
+  }));
+  for (let i = 0; i < M.FLOW_NODES.length; i += 1) for (const k of [0, 5, 23]) {
+    const p = M.flowClusterPoint(i, a.points[i], k, 1.3, 1);
+    assert.ok(p.x > 0 && p.x < 1 && p.y > 0 && p.y < 1, "cluster particles stay inside the canvas");
   }
-  assert.ok(M.ridgeBaseY(0.01) > M.ridgeBaseY(0.9), "near rows sit lower than far rows");
-  assert.ok(M.ridgeRowAlpha(0.05) > M.ridgeRowAlpha(0.9), "near rows are brighter");
-  assert.notEqual(M.ridgeDepth(3, M.RIDGE_ROWS, 0), M.ridgeDepth(3, M.RIDGE_ROWS, 0.2), "the landscape flows toward the viewer");
+  for (const size of [220, 300, 360]) for (let i = 0; i < M.FLOW_NODES.length; i += 1) {
+    const l = M.flowLabelPlacement(size, i, 70);
+    assert.ok(l.left >= 0 && l.left + 70 <= size && l.top >= 0 && l.top + 16 <= size, "labels stay inside the canvas");
+  }
 });
 
-test("a decision's wave rolls from the horizon toward the viewer, and an order raises a lime peak", () => {
+test("a decision's pulse travels the chain in order, an order ignites paper, and a halt closes risk onward", () => {
   const M = require("../dist/apps/mobile/src/holoModel.js");
   const wave = M.waveFor(4, 1000);
-  assert.equal(M.ridgeWaveGlow(wave, 0.5, 999), 0, "not before it is born");
-  assert.equal(M.ridgeWaveGlow(wave, 0.5, 1000 + M.HOLO_WAVE_MS), 0, "gone after its lifetime");
-  assert.ok(M.ridgeWaveGlow(wave, 0.99, 1010) > 0, "born on the horizon");
-  assert.ok(M.ridgeWaveGlow(wave, 0.5, 1000 + M.HOLO_WAVE_MS / 2) > 0, "half way, half way across");
-  assert.equal(M.ridgeWaveGlow(wave, 0.1, 1010), 0, "not near the viewer at birth");
-  assert.ok(M.ridgeHeight(M.RIDGE_ORDER_U, M.RIDGE_ORDER_DEPTH, 0, 1) > M.ridgeHeight(M.RIDGE_ORDER_U, M.RIDGE_ORDER_DEPTH, 0, 0) + 0.1, "an order raises a peak");
-  assert.ok(M.ridgeOrderMix(M.RIDGE_ORDER_DEPTH, 1) > 0.9 && M.ridgeOrderMix(0.9, 1) === 0 && M.ridgeOrderMix(M.RIDGE_ORDER_DEPTH, 0) === 0, "only the order's ridge turns lime, and only while it rises");
+  assert.equal(M.flowPulsePosition(wave, 999), null, "not before it is born");
+  assert.equal(M.flowPulsePosition(wave, 1000 + M.HOLO_WAVE_MS), null, "gone after its lifetime");
+  const early = M.flowPulsePosition(wave, 1000 + M.HOLO_WAVE_MS * 0.15), late = M.flowPulsePosition(wave, 1000 + M.HOLO_WAVE_MS * 0.85);
+  assert.ok(M.flowNodeGlow(early, 0) > M.flowNodeGlow(early, 4), "early, the market lights before the ledger");
+  assert.ok(M.flowNodeGlow(late, 4) > M.flowNodeGlow(late, 0), "late, the ledger lights after the market");
+  assert.ok(M.flowEdgeGlow(early, 0) > M.flowEdgeGlow(early, 4), "streams light in chain order too");
+  assert.deepEqual(M.flowNodeColor(1, "halt", 1), M.FLOW_NODES[1].color, "a halt does not recolour market or research");
+  assert.notDeepEqual(M.flowNodeColor(2, "halt", 1), M.FLOW_NODES[2].color, "risk onward takes the halt tint");
+  assert.deepEqual(M.flowNodeColor(2, "halt", 0), M.FLOW_NODES[2].color, "the tint eases in with tintMix, never snaps");
+  assert.ok(M.flowEdgeOpen(3, "halt", 1) < 0.3 && M.flowEdgeOpen(1, "halt", 1) === 1 && M.flowEdgeOpen(3, "hold", 1) === 1, "a halt dims only the streams out of risk");
 });
 
-test("the renderer draws far to near with ground fill, keeps tone ink, and reserves lime for the order", () => {
+test("the renderer batches each stream and cluster, keeps tone ink, and reserves lime for the order", () => {
   const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "apps", "mobile", "src", "holoSphere.tsx"), "utf8");
-  assert.match(src, /for \(let r = rows - 1; r >= 0; r -= 1\)/, "far rows first so nearer ridges hide them");
-  assert.match(src, /canvas\.drawPath\(fill, paints\.ground\)/, "occlusion by ground fill");
   assert.match(src, /const ink = holoInk\(tone, s\.tintMix\)/, "hold / halt tint the ink");
   assert.match(src, /const accent = tone === "normal" \? HOLO_COLORS\.lime : ink/, "no lime while held or halted");
   assert.ok(!/HOLO_COLORS\.lime/.test(src.replace(/const accent[^\n]*\n/, "")), "lime is used only for the accent");
   assert.match(src, /try \{ glow\.setMaskFilter/, "blur is guarded");
   assert.match(src, /if \(reducedMotion \|\| decisionCount == null\)/, "still figure contract");
-  assert.ok(!/flowLines|wallRows|flowArcX|burstStreaks|dustField/.test(src), "old figures are gone");
+  assert.ok(!/ridgeDepth|ridgeHeight|RIDGE_ROWS|flowLines|wallRows|burstStreaks|dustField/.test(src), "old figures are gone");
 });
+
