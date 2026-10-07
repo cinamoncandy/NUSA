@@ -1,0 +1,28 @@
+id: WO-UI-20261007-HERO-RIDGE-CINEMATIC
+title: "Make the ridge hero more cinematic: neon depth ink, glow pass, horizon light, depth sway"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/hero-ridge-cinematic
+authority_impact: none
+owner_approval: "2026-10-07 in chat: after three rejected replacement concepts (neon ridge, aurora, terminal) and no reference material available, the owner asked to improve the current motion ('지금 모션에서 더 멋지게 개선해줘')"
+objective: "Improve the owner-approved ridge hero (WO-UI-20261006-HERO-RIDGE) without replacing it: near ridges and wave-lit ridges lean neon cyan, eligible rows get a soft glow pass, a breathing horizon light sits behind the farthest ridge, and ridges sway sideways more the nearer they are."
+scope:
+  - "apps/mobile/src/holoModel.ts: ridgeNeonInk, ridgeGlowsRow, ridgeSway, ridgeHorizonGlow (pure, bounded)."
+  - "apps/mobile/src/holoSphere.tsx: neon row ink, glow pass on near and lit rows, horizon light band, depth sway. Small marks (points < 600) draw no glow or horizon light; reduce-motion draws no sway and a still horizon light."
+  - "tests/mobile-holo-sphere.test.js: neon tint rules, glow row selection, sway and horizon bounds, renderer contract."
+  - "UI rule: HoloSphere is the one shared hero used by HOME and every small mark, so every screen that shows it changes together."
+exclusions:
+  - "Ridge geometry, flow clock, decision wave, order beam, halt tint, entrance and still-figure contract are unchanged. Hold stays amber and halt stays red (no neon tint). No runtime data, trading, risk, accounting, LIVE, credentials or AI authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; reduce-motion keeps a still figure."
+rollback: "Revert the change."
+verification_commands:
+  - node_modules/.bin/tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-holo-sphere.test.js tests/mobile-hero-harmony.test.js tests/mobile-presentation-boundary.test.js tests/mobile-cold-future-palette.test.js
+residual: "Skia cannot run in this environment. Look and frame time (about 4 to 10 extra blurred strokes plus one blurred rect per frame on HOME) must be checked on a physical device (HUMAN_ENVIRONMENT_ONLY). If a low-end phone stutters, lower the near-row glow count in ridgeGlowsRow. A wholly new hero concept is parked until the owner supplies reference material."
