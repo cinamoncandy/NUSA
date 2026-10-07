@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, PointMode, Skia, StrokeCap, createPicture, type SkPicture, type SkPoint } from "@shopify/react-native-skia";
 import { fieldFonts } from "./fieldFonts";
 import { calmPalette } from "./designSystem";
-import { FLOW_EDGES, FLOW_NODES, FLOW_PAPER, HOLO_COLORS, buildFlowField, easeOutCubic, flowClockSec, flowClusterPoint, flowEdgeGlow, flowEdgeOpen, flowLabelPlacement, flowNodeColor, flowNodeGlow, flowPulsePosition, flowStrandCurve, flowStrandPoint, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, tickHolo, type HoloTone, type Rgb } from "./holoModel";
+import { FLOW_COMETS_PER_EDGE, FLOW_COMET_TAIL_POINTS, FLOW_EDGES, FLOW_NODES, FLOW_PAPER, FLOW_SPARKS, HOLO_COLORS, HOLO_ORDER_MS, buildFlowField, easeOutCubic, flowAmbientComet, flowArrivalRing, flowBreath, flowClockSec, flowClusterPoint, flowCometProgress, flowCometStrand, flowEdgeGlow, flowEdgeOpen, flowLabelPlacement, flowNodeColor, flowNodeGlow, flowOrderRing, flowParticleSwirl, flowParticleTwinkle, flowPulsePosition, flowSpark, flowStrandCurve, flowStrandPoint, flowTailLight, flowTailProgress, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, tickHolo, type HoloTone, type Rgb } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends a bright pulse down the chain. Null draws it still. */
@@ -55,8 +55,20 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     if (!reducedMotion) for (const wave of s.waves) { const p = flowPulsePosition(wave, nowMs); if (p != null) pulses.push(p); }
     const burst = reducedMotion ? 0 : s.burst;
     const hairline = Math.max(0.5, S / 500);
+    const density = Math.min(1, points / 1600);
+    const tailPoints = density < 0.5 ? 1 : FLOW_COMET_TAIL_POINTS;
+    const orderAge = !reducedMotion && s.orderBornMs != null ? (nowMs - s.orderBornMs) / 1000 : null;
     setPicture(createPicture((canvas) => {
-      // Streams: one batched path per stream and brightness group, plus the particles riding them.
+      // Comets: a bright head with a fading tail, batched into three brightness groups plus the heads.
+      const heads: SkPoint[] = [], tails: SkPoint[][] = [[], [], []];
+      const addComet = (curve: ReturnType<typeof flowStrandCurve>, u: number) => {
+        for (let j = 0; j < tailPoints; j += 1) {
+          const p = flowStrandPoint(curve, flowTailProgress(u, j, tailPoints));
+          const point = { x: p.x * S, y: p.y * S };
+          if (j === 0) heads.push(point); else tails[Math.min(2, Math.floor(flowTailLight(j, tailPoints) * 3))]!.push(point);
+        }
+      };
+      // Streams: one batched path per stream and brightness group, plus the ambient comets riding them.
       FLOW_EDGES.forEach(([from, to], e) => {
         const lit = pulses.reduce((m, p) => Math.max(m, flowEdgeGlow(p, e)), 0);
         const open = flowEdgeOpen(e, tone, s.tintMix);
@@ -65,45 +77,67 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
         const order = e === FLOW_EDGES.length - 1 ? burst : 0;
         if (order > 0.02) color = mix(color, accent, order);
         const bright = Skia.Path.Make(), dim = Skia.Path.Make();
-        const riders: SkPoint[] = [];
         field.strands[e]!.forEach((strand, k) => {
           const c = flowStrandCurve(e, strand, tSec);
           const path = strand.alpha > 0.6 ? bright : dim;
           path.moveTo(c.sx * S, c.sy * S); path.quadTo(c.cx * S, c.cy * S, c.ex * S, c.ey * S);
-          if (!reducedMotion && k % 3 === 0 && open > 0.5) {
-            const p = flowStrandPoint(c, ((tSec * 0.18 * strand.speed + strand.phase) % 1 + 1) % 1);
-            riders.push({ x: p.x * S, y: p.y * S });
-          }
+          if (!reducedMotion && k % 4 === 0 && open > 0.5) addComet(c, flowAmbientComet(strand, tSec));
         });
         paints.line.setStrokeWidth(hairline);
         set(paints.line, color, grow * open * (0.05 + lit * 0.12 + order * 0.12)); canvas.drawPath(bright, paints.line);
         set(paints.line, color, grow * open * (0.025 + lit * 0.06 + order * 0.06)); canvas.drawPath(dim, paints.line);
-        if (riders.length > 0) { paints.dot.setStrokeWidth(hairline * 2.4); set(paints.dot, mix(color, [255, 255, 255], 0.4), grow * (0.45 + lit * 0.4)); canvas.drawPoints(PointMode.Points, riders, paints.dot); }
+        // A decision launches bright comets down every stream, stream by stream, so the pulse visibly travels the chain.
+        if (!reducedMotion && open > 0.5) for (const wave of s.waves) {
+          const strands = field.strands[e]!;
+          for (let i = 0; i < FLOW_COMETS_PER_EDGE; i += 1) {
+            const u = flowCometProgress(wave, e, i, nowMs);
+            if (u != null) addComet(flowStrandCurve(e, strands[flowCometStrand(e, i, strands.length)]!, tSec), u);
+          }
+        }
       });
-      // Clusters: a soft halo, then the particles in a bright and a dim batch.
-      const rotation = tSec * 0.05;
+      const cometColor = mix(ink, [255, 255, 255], 0.5);
+      paints.dot.setStrokeWidth(hairline * 1.6);
+      [0.22, 0.4, 0.62].forEach((alpha, g) => { if (tails[g]!.length > 0) { set(paints.dot, cometColor, grow * alpha); canvas.drawPoints(PointMode.Points, tails[g]!, paints.dot); } });
+      if (heads.length > 0) { paints.dot.setStrokeWidth(hairline * 3); set(paints.dot, [255, 255, 255], grow * 0.95); canvas.drawPoints(PointMode.Points, heads, paints.dot); }
+      // Clusters: a breathing halo, particles that each swirl at their own rate and twinkle, and a ring where a pulse lands.
       FLOW_NODES.forEach((node, i) => {
         const lit = pulses.reduce((m, p) => Math.max(m, flowNodeGlow(p, i)), 0);
         const flare = i === FLOW_PAPER ? burst : 0;
         const color = flare > 0.02 ? mix(flowNodeColor(i, tone, s.tintMix), accent, flare) : flowNodeColor(i, tone, s.tintMix);
-        const cx = node.x * S, cy = node.y * S, r = node.r * S * (0.6 + 0.4 * grow);
+        const breath = reducedMotion ? 1 : flowBreath(i, tSec, lit * 0.8, flare);
+        const cx = node.x * S, cy = node.y * S, r = node.r * S * (0.6 + 0.4 * grow) * breath;
         paints.glow.setStyle(PaintStyle.Fill);
-        set(paints.glow, color, grow * (0.12 + lit * 0.14 + flare * 0.3)); canvas.drawCircle(cx, cy, r * 0.9, paints.glow);
+        set(paints.glow, color, grow * (0.12 + lit * 0.2 + flare * 0.35)); canvas.drawCircle(cx, cy, r * 0.9, paints.glow);
+        const arrival = reducedMotion ? null : flowArrivalRing(lit);
+        if (arrival != null) { paints.line.setStrokeWidth(hairline * 2); set(paints.line, color, grow * arrival.alpha); canvas.drawCircle(cx, cy, node.r * S * arrival.scale, paints.line); }
         const pts = field.points[i]!, n = pts.length / 4, near: SkPoint[] = [], far: SkPoint[] = [];
         for (let k = 0; k < n; k += 1) {
-          const p = flowClusterPoint(i, pts, k, rotation, 0.6 + 0.4 * grow);
-          (p.light * (0.5 + pts[k * 4 + 3]!) > 0.7 ? near : far).push({ x: p.x * S, y: p.y * S });
+          const m = pts[k * 4 + 3]!;
+          const p = flowClusterPoint(i, pts, k, tSec * 0.07 * flowParticleSwirl(m), (0.6 + 0.4 * grow) * breath);
+          (p.light * (0.5 + m) * (reducedMotion ? 1 : flowParticleTwinkle(m, tSec)) > 0.7 ? near : far).push({ x: p.x * S, y: p.y * S });
         }
         paints.dot.setStrokeWidth(hairline * 1.8);
         set(paints.dot, color, grow * (0.7 + lit * 0.3)); canvas.drawPoints(PointMode.Points, near, paints.dot);
         set(paints.dot, color, grow * (0.32 + lit * 0.3)); canvas.drawPoints(PointMode.Points, far, paints.dot);
       });
-      // A PAPER order: a lime ring opening around the paper cluster and a beam rising from it.
-      if (burst > 0.02) {
+      // A PAPER order: three staggered lime rings, a beam rising from the paper cluster, and sparks thrown outward.
+      if (orderAge != null) {
         const foot = holoFillMarker(S), paper = FLOW_NODES[FLOW_PAPER]!;
         paints.line.setStrokeWidth(Math.max(1, S / 260));
-        set(paints.line, accent, grow * 0.8 * burst); canvas.drawCircle(paper.x * S, paper.y * S, paper.r * S * (1.1 + 0.7 * burst), paints.line);
-        set(paints.line, accent, grow * 0.55 * burst); canvas.drawLine(foot.x, foot.y, foot.x, 0, paints.line);
+        for (let ring = 0; ring < 3; ring += 1) {
+          const o = flowOrderRing(ring, orderAge);
+          if (o != null) { set(paints.line, accent, grow * o.alpha); canvas.drawCircle(paper.x * S, paper.y * S, paper.r * S * o.scale, paints.line); }
+        }
+        const beam = Math.max(0, 1 - orderAge / (HOLO_ORDER_MS / 1000)), rise = easeOutCubic(orderAge / 0.5);
+        if (beam > 0.02) { set(paints.line, accent, grow * 0.7 * beam); canvas.drawLine(foot.x, foot.y, foot.x, foot.y - (foot.y) * rise, paints.line); }
+        const sparks: SkPoint[][] = [[], [], []];
+        const sparkCount = Math.max(16, Math.round(FLOW_SPARKS * density));
+        for (let i = 0; i < sparkCount; i += 1) {
+          const sp = flowSpark(i, orderAge);
+          if (sp != null) sparks[Math.min(2, Math.floor(sp.life * 3))]!.push({ x: sp.x * S, y: sp.y * S });
+        }
+        paints.dot.setStrokeWidth(hairline * 2.2);
+        [0.35, 0.65, 1].forEach((alpha, g) => { if (sparks[g]!.length > 0) { set(paints.dot, accent, grow * alpha); canvas.drawPoints(PointMode.Points, sparks[g]!, paints.dot); } });
       }
     }, { width: size, height: size }));
   };
@@ -113,7 +147,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     state.current = observeHolo(state.current, decisionCount, fillCount, now);
     if (reducedMotion || decisionCount == null) {
       // Still figure: no pulses or ring in flight, tone colour applied.
-      state.current = Object.freeze({ ...state.current, waves: Object.freeze([]), burst: 0, burstTarget: 0, flash: 0, birth: 1, tintMix: 1 });
+      state.current = Object.freeze({ ...state.current, waves: Object.freeze([]), burst: 0, burstTarget: 0, flash: 0, birth: 1, tintMix: 1, orderBornMs: null });
       stillDrawn.current = true;
       render(now);
       return undefined;

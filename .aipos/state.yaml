@@ -2830,3 +2830,10 @@ current_research_donchian_family:
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('해' after the short-term trading question)"
   finding: "A Donchian breakout (momentum) family with a pre-committed grid now runs beside SMA and RSI under the same Research gates; DONCHIAN_BREAKOUT is a new research DSL entry rule with no look-ahead"
+current_ui_hero_flow_dynamic:
+  work_order: WO-UI-20261007-HERO-FLOW-DYNAMIC
+  status: READY_FOR_REVIEW
+  branch: claude/hero-flow-dynamic
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (v2 prototype, reply '좋아')"
+  finding: "The flow hero gains comets with tails, differential swirl and breathing clusters, landing rings and order sparks as pure functions of time; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
