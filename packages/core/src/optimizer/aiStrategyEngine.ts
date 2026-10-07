@@ -2,6 +2,7 @@ export type StrategyStatus = "DRAFT" | "VALIDATED" | "REJECTED";
 export type EntryRule =
   | { readonly type: "SMA_CROSSOVER"; readonly fastPeriod: number; readonly slowPeriod: number; readonly direction: "ABOVE" | "BELOW" }
   | { readonly type: "RSI_THRESHOLD"; readonly period: number; readonly operator: "BELOW"; readonly threshold: number }
+  | { readonly type: "DONCHIAN_BREAKOUT"; readonly period: number }
   | { readonly type: "PRICE_THRESHOLD"; readonly operator: "ABOVE"; readonly price: number };
 export type ExitRule =
   | { readonly type: "TAKE_PROFIT"; readonly percent: number }
@@ -176,6 +177,7 @@ export function validateStrategy(strategy: GeneratedStrategy): StrategyValidatio
   const { entry, exits, risk, scope } = strategy.dsl;
   if (entry.type === "SMA_CROSSOVER" && (!Number.isInteger(entry.fastPeriod) || !Number.isInteger(entry.slowPeriod) || entry.fastPeriod <= 0 || entry.fastPeriod >= entry.slowPeriod)) errors.push("SMA_PERIODS_INVALID");
   if (entry.type === "RSI_THRESHOLD" && (!Number.isInteger(entry.period) || entry.period <= 0 || entry.threshold <= 0 || entry.threshold >= 100)) errors.push("RSI_RULE_INVALID");
+  if (entry.type === "DONCHIAN_BREAKOUT" && (!Number.isInteger(entry.period) || entry.period < 2 || entry.period > 500)) errors.push("DONCHIAN_RULE_INVALID");
   if (entry.type === "PRICE_THRESHOLD" && !finitePositive(entry.price)) errors.push("PRICE_RULE_INVALID");
   if (!exits.some((exit) => exit.type === "TAKE_PROFIT" && finitePositive(exit.percent))) errors.push("TAKE_PROFIT_INVALID");
   if (!exits.some((exit) => exit.type === "STOP_LOSS" && finitePositive(exit.percent) && exit.percent <= 100)) errors.push("STOP_LOSS_INVALID");

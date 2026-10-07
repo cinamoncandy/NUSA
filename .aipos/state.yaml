@@ -2823,3 +2823,10 @@ current_ui_app_icon_flow:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (icon comparison, reply '새 아이콘')"
   finding: "The app icon family (Android adaptive, themed, splash, legacy PNGs, desktop SVG/PNG/ICO) is redrawn as hairline streams funnelling into a glowing cluster; the desktop icon moves off the retired flame design; device look is HUMAN_ENVIRONMENT_ONLY"
+current_research_donchian_family:
+  work_order: WO-RESEARCH-20261007-DONCHIAN-FAMILY
+  status: READY_FOR_REVIEW
+  branch: claude/research-donchian
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('해' after the short-term trading question)"
+  finding: "A Donchian breakout (momentum) family with a pre-committed grid now runs beside SMA and RSI under the same Research gates; DONCHIAN_BREAKOUT is a new research DSL entry rule with no look-ahead"

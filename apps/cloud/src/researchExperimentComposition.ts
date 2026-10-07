@@ -1,5 +1,5 @@
 import { SqliteCandidatePromotionRepository, SqliteResearchCandleStore, SqliteResearchEvaluationLedger, SqliteResearchHoldoutLedger, SqliteResearchMemoryRepository, SqliteResearchSessionRepository, SqlitePaperMarketObservationRepository, type SqliteDatabase } from "../../../packages/storage/src/index";
-import { BacktestResearchEvaluator, buildRsiResearchStrategy, buildSmaResearchStrategy } from "./backtestResearchEvaluator";
+import { BacktestResearchEvaluator, buildDonchianResearchStrategy, buildRsiResearchStrategy, buildSmaResearchStrategy } from "./backtestResearchEvaluator";
 import { ResearchAutomationRuntime } from "./researchAutomationRuntime";
 import { ResearchExperimentOrchestrator, type ResearchVariant, type TickReport } from "./researchExperimentOrchestrator";
 import { ResearchRecoveryCoordinator } from "./researchRecoveryCoordinator";
@@ -27,6 +27,10 @@ const RSI_CHALLENGER_GRID: readonly (readonly [number, number])[] = Object.freez
 // RSI positions close after this many bars of the experiment's bar length if neither take-profit nor stop-loss hit. It must fit
 // inside the shortest evaluation window after the RSI warm-up: 2-day validation/holdout at 60m is 48 bars, minus up to 14 warm-up bars.
 export const RSI_TIMEOUT_BARS = 12;
+// Donchian breakout grid (previous N bars' highest high), fixed before any result was seen. The longest period plus the time limit must
+// fit in the shortest evaluation window after warm-up: 2-day validation/holdout at 60m is 48 bars, so 30 + 12 = 42 fits.
+export const DONCHIAN_GRID: readonly number[] = Object.freeze([10, 20, 30]);
+export const DONCHIAN_TIMEOUT_BARS = 12;
 /** Bar lengths research may compare (docs/PROPOSAL_RESEARCH_LONGER_TIMEFRAMES.md). Longer bars are built from stored 1m candles. */
 export const RESEARCH_INTERVAL_MINUTES: readonly number[] = Object.freeze([1, 15, 60, 240]);
 
@@ -154,7 +158,13 @@ export function composeResearchExperiments(input: {
       const challenger = buildRsiResearchStrategy({ strategyId: `research-challenger-${variantId}`, version: "1.0.0", market, period, threshold, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: RSI_TIMEOUT_BARS * minutes, positionPercent: 50, maxPositionNotional: 500_000 });
       return variantFor(variantId, challenger, { family: "rsi", period, threshold, timeoutBars: RSI_TIMEOUT_BARS }, `rsi-research${tag}`);
     });
-    const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants];
+    // Donchian breakout family (pre-committed grid): its own experiment family, compared against the same SMA 5/20 champion.
+    const donchianVariants = DONCHIAN_GRID.map((period) => {
+      const variantId = `donchian_${period}${tag.replace("-", "_")}`;
+      const challenger = buildDonchianResearchStrategy({ strategyId: `research-challenger-${variantId}`, version: "1.0.0", market, period, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: DONCHIAN_TIMEOUT_BARS * minutes, positionPercent: 50, maxPositionNotional: 500_000 });
+      return variantFor(variantId, challenger, { family: "donchian", period, timeoutBars: DONCHIAN_TIMEOUT_BARS }, `donchian-research${tag}`);
+    });
+    const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants, ...donchianVariants];
     const orchestrator = new ResearchExperimentOrchestrator({
       variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant,
       // Closed 1m candles are collected once per tick by the 1m-equivalent first orchestrator only.
