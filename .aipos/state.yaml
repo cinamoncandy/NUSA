@@ -2795,7 +2795,7 @@ current_ui_motion_fast_light:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (chose option 'a' on the motion preview)"
   finding: "App-wide animation retuned to the faster, lighter fieldMotion set; device feel is HUMAN_ENVIRONMENT_ONLY"
-current_ui_hero_flow_field:
+current_ui_hero_flow_streams:
   work_order: WO-UI-20261007-HERO-FLOW-FIELD
   status: READY_FOR_REVIEW
   branch: claude/hero-flow-field
