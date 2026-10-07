@@ -112,7 +112,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
   readonly sourceCommitSha?: string;
-  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly lifecycleStatus: "ACTIVE" | "RISK_BLOCKED_CONSECUTIVE_LOSS" | "RESET_AT_KST_BOUNDARY"; readonly periodId: string; readonly periodStartedAt: number; readonly nextBoundaryAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly lastIncrementAt: number | null; readonly lastCompletedSellAt: number | null; readonly lastResetBoundaryAt: number };
 }
 
 export interface CloudReadinessSnapshot {
@@ -325,12 +325,32 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     }
     funnel = { paperFunnel: { since: rawFunnel.since, counts } };
   }
-  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing.
+  // Loss-limit lifecycle: fixed status/period identity plus bounded ledger-derived timestamps and counts, or nothing.
   const rawLoss = source.paperLossSession as Record<string, unknown> | null | undefined;
-  const LOSS_KEYS = ["evaluatedAt", "consecutiveLossCount", "maxConsecutiveLosses", "todayCompletedSells", "todayLosingSells"] as const;
-  const lossSession = rawLoss != null && typeof rawLoss === "object" && LOSS_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
-    ? { paperLossSession: Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])) }
-    : {};
+  const LOSS_INTEGER_KEYS = ["evaluatedAt", "periodStartedAt", "nextBoundaryAt", "consecutiveLossCount", "maxConsecutiveLosses", "todayCompletedSells", "todayLosingSells", "lastResetBoundaryAt"] as const;
+  const LOSS_NULLABLE_KEYS = ["lastIncrementAt", "lastCompletedSellAt"] as const;
+  const LOSS_STATUSES = new Set(["ACTIVE", "RISK_BLOCKED_CONSECUTIVE_LOSS", "RESET_AT_KST_BOUNDARY"]);
+  const validLossTimestamp = (value: unknown): boolean => value === null || (Number.isSafeInteger(value) && Number(value) >= 0);
+  const lossSessionValid = rawLoss != null && typeof rawLoss === "object"
+    && LOSS_INTEGER_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
+    && LOSS_NULLABLE_KEYS.every((key) => validLossTimestamp(rawLoss[key]))
+    && typeof rawLoss.lifecycleStatus === "string" && LOSS_STATUSES.has(rawLoss.lifecycleStatus)
+    && typeof rawLoss.periodId === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawLoss.periodId);
+  const safeLoss = lossSessionValid ? rawLoss as Record<string, unknown> : null;
+  const lossSession = safeLoss === null ? {} : { paperLossSession: {
+    lifecycleStatus: safeLoss.lifecycleStatus as "ACTIVE" | "RISK_BLOCKED_CONSECUTIVE_LOSS" | "RESET_AT_KST_BOUNDARY",
+    periodId: String(safeLoss.periodId),
+    evaluatedAt: Number(safeLoss.evaluatedAt),
+    periodStartedAt: Number(safeLoss.periodStartedAt),
+    nextBoundaryAt: Number(safeLoss.nextBoundaryAt),
+    consecutiveLossCount: Number(safeLoss.consecutiveLossCount),
+    maxConsecutiveLosses: Number(safeLoss.maxConsecutiveLosses),
+    todayCompletedSells: Number(safeLoss.todayCompletedSells),
+    todayLosingSells: Number(safeLoss.todayLosingSells),
+    lastIncrementAt: safeLoss.lastIncrementAt === null ? null : Number(safeLoss.lastIncrementAt),
+    lastCompletedSellAt: safeLoss.lastCompletedSellAt === null ? null : Number(safeLoss.lastCompletedSellAt),
+    lastResetBoundaryAt: Number(safeLoss.lastResetBoundaryAt)
+  } };
   // Loss attribution: at most 8 fixed family codes, each with two non-negative integers.
   const FAMILY_CODE = /^(SMA_CROSSOVER|RSI_MEAN_REVERSION|DONCHIAN_BREAKOUT|OTHER_FAMILY|UNATTRIBUTED)$/;
   const rawAttribution = source.paperLossAttribution as { evaluatedAt?: unknown; byFamily?: unknown } | null | undefined;

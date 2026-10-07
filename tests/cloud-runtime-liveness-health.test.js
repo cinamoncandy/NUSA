@@ -266,17 +266,17 @@ test("the previous stop reason is published only as a coded value and never as f
   }, 41889);
 });
 
-test("/health publishes the loss-limit counts as five non-negative integers, and nothing when any is malformed", async () => {
-  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 5, todayLosingSells: 4 };
+test("/health publishes bounded consecutive-loss lifecycle evidence, and nothing when any field is malformed", async () => {
+  const session = { evaluatedAt: 1_791_270_000_000, lifecycleStatus: "RISK_BLOCKED_CONSECUTIVE_LOSS", periodId: "2026-10-07", periodStartedAt: 1_791_241_200_000, nextBoundaryAt: 1_791_327_600_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 5, todayLosingSells: 4, lastIncrementAt: 1_791_260_000_000, lastCompletedSellAt: 1_791_260_000_000, lastResetBoundaryAt: 1_791_241_200_000 };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: session }) }, async (handle) => {
     const body = JSON.parse((await request(handle.port, "/health")).body);
     assert.deepEqual(body.runtime.paperLossSession, session);
   }, 42301);
-  for (const [index, bad] of [null, "text", { ...session, todayLosingSells: -1 }, { ...session, consecutiveLossCount: 1.5 }, { ...session, todayCompletedSells: undefined }, { ...session, market: "KRW-XRP", pnl: -219 }].entries()) {
+  for (const [index, bad] of [null, "text", { ...session, todayLosingSells: -1 }, { ...session, consecutiveLossCount: 1.5 }, { ...session, periodId: "UTC" }, { ...session, lifecycleStatus: "STUCK" }, { ...session, market: "KRW-XRP", pnl: -219 }].entries()) {
     await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: bad }) }, async (handle) => {
       const res = await request(handle.port, "/health");
       const body = JSON.parse(res.body);
-      if (index === 5) {
+      if (index === 6) {
         assert.deepEqual(Object.keys(body.runtime.paperLossSession).sort(), Object.keys(session).sort(), "extra fields are dropped");
         assert.doesNotMatch(res.body, /KRW-XRP|-219/);
       } else assert.equal(body.runtime.paperLossSession, undefined, JSON.stringify(bad));

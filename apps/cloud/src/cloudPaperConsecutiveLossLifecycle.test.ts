@@ -4,8 +4,8 @@ import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS, type CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import type { PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
 
-const DAY1 = Date.UTC(2026, 9, 7, 0, 0, 0);
-const DAY2 = Date.UTC(2026, 9, 8, 0, 0, 0);
+const DAY1 = Date.UTC(2026, 9, 6, 15, 0, 0); // 2026-10-07 00:00 KST
+const DAY2 = Date.UTC(2026, 9, 7, 15, 0, 0); // 2026-10-08 00:00 KST
 const HOUR = 3_600_000;
 const M = "KRW-BTC";
 
@@ -34,7 +34,7 @@ function gate(db = new SqliteDatabase(":memory:")): CloudPaperCanonicalRiskGatew
   return new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 1_000_000, sourceCommitSha: "test" });
 }
 
-describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
+describe("consecutive-loss streak lifecycle (threshold 3, KST day)", () => {
   it("keeps the limit at 3", () => assert.equal(CLOUD_PAPER_RISK_LIMITS.maxConsecutiveLosses, 3));
 
   it("counts 0→1→2→3 and blocks only at 3", () => {
@@ -53,13 +53,29 @@ describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
 
   const blocked = state(pairs(DAY1, [90, 90, 90]));
 
-  it("3 → UTC day boundary → 0 and the order is allowed again", () => {
+  it("3 → KST day boundary → 0 exactly once and the order is allowed again", () => {
     const g = gate();
     assert.ok(g.evaluate(request(blocked, DAY1 + 10 * HOUR, 1)).reasonCodes.includes("CONSECUTIVE_LOSS_LIMIT"));
     assert.equal(g.evaluate(request(blocked, DAY2 - 1, 2)).status, "REJECT");
     assert.equal(g.evaluate(request(blocked, DAY2, 3)).status, "ALLOW");
     assert.equal(g.lossSession()!.consecutiveLossCount, 0);
     assert.equal(g.lossSession()!.todayCompletedSells, 0);
+    assert.deepEqual(g.lossSession(), {
+      evaluatedAt: DAY2,
+      lifecycleStatus: "RESET_AT_KST_BOUNDARY",
+      periodId: "2026-10-08",
+      periodStartedAt: DAY2,
+      nextBoundaryAt: DAY2 + 24 * HOUR,
+      consecutiveLossCount: 0,
+      maxConsecutiveLosses: 3,
+      todayCompletedSells: 0,
+      todayLosingSells: 0,
+      lastIncrementAt: null,
+      lastCompletedSellAt: null,
+      lastResetBoundaryAt: DAY2
+    });
+    g.evaluate(request(blocked, DAY2 + 1, 4));
+    assert.equal(g.lossSession()!.lastResetBoundaryAt, DAY2, "re-evaluation does not invent another reset");
   });
 
   it("restart before the boundary stays 3/BLOCK; restart after gives the same reset truth", () => {
@@ -72,6 +88,8 @@ describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
     const restartedAfter = gate();
     assert.equal(restartedAfter.evaluate(request(blocked, DAY2 + 500, 3)).status, "ALLOW");
     assert.equal(restartedAfter.lossSession()!.consecutiveLossCount, 0);
+    assert.equal(restartedAfter.lossSession()!.periodId, "2026-10-08");
+    assert.equal(restartedAfter.lossSession()!.lastResetBoundaryAt, DAY2);
   });
 
   it("a duplicate/stale fill leaves the count unchanged", () => {
@@ -89,6 +107,7 @@ describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
     g2.evaluate(request(partial, DAY1 + 10 * HOUR, 3));
     assert.equal(g2.lossSession()!.consecutiveLossCount, 1);
     assert.equal(g2.lossSession()!.todayCompletedSells, 1);
+    assert.equal(g2.lossSession()!.lastIncrementAt, DAY1 + 2000);
   });
 
   it("a winning close ends the streak", () => {

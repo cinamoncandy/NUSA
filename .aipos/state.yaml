@@ -2858,3 +2858,13 @@ current_learning_retire_mixed_binding_period:
   authority_impact: closed-learning-period-lifecycle
   owner_approval: "2026-10-07 in chat (option 1: retire the mixed period unscored and start a fresh one)"
   finding: "After the wall-clock rollover the open KRW-XRP period reached the reconciler and failed CANDIDATE_BINDING_MIXED, which fail-closed correctly but blocked the loop forever; the period is now retired unscored and the loop continues in a fresh period"
+current_issue_2575_consecutive_loss_kst_lifecycle:
+  work_order: WO-ISSUE-2575-CONSECUTIVE-LOSS-KST-LIFECYCLE
+  issue: 2575
+  status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+  authority_impact: paper_risk_lifecycle
+  first_broken_transition: "canonical 00:00 KST boundary -> cloud consecutive-loss period selection"
+  finding: "The prior permanent-streak repair scoped the cloud loss streak to UTC, but the canonical risk trading day is 00:00 KST. The increment moves only this streak lifecycle to KST, retains limit 3, and exposes deterministic period/increment/reset evidence."
+  validation: "The published increment is committed and workflow-validated on separate hardware: build, typecheck, validate, work-order index, tests/*.test.js, and isolated co-located tests pass, including deterministic restart/replay and duplicate-fill lifecycle coverage."
+  remaining: "Exact-head CI, independent Audit and Release; then exact-main PAPER deployment and authenticated /health runtime proof across a KST boundary."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

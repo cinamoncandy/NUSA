@@ -37,7 +37,7 @@ test('three losing sells today still trip the consecutive-loss limit', () => {
   assert.ok(evaluate(losingRoundTrips(60_000)).reasonCodes.includes('CONSECUTIVE_LOSS_LIMIT'));
 });
 
-test('a losing streak from a previous UTC day no longer blocks today', () => {
+test('a losing streak from a previous KST day no longer blocks today', () => {
   const result = evaluate(losingRoundTrips(DAY));
   assert.equal(result.reasonCodes.includes('CONSECUTIVE_LOSS_LIMIT'), false, JSON.stringify(result.reasonCodes));
 });
@@ -45,7 +45,14 @@ test('a losing streak from a previous UTC day no longer blocks today', () => {
 test('the loss-limit counts behind a decision are published for display: today only, integers only', () => {
   let session;
   evaluate(losingRoundTrips(60_000), (gateway) => { session = gateway.lossSession(); });
-  assert.deepEqual(session, { evaluatedAt: NOW, consecutiveLossCount: 3, maxConsecutiveLosses: CLOUD_PAPER_RISK_LIMITS.maxConsecutiveLosses, todayCompletedSells: 3, todayLosingSells: 3 });
+  assert.equal(session.lifecycleStatus, 'RISK_BLOCKED_CONSECUTIVE_LOSS');
+  assert.equal(session.periodId, '2026-10-01');
+  assert.equal(session.consecutiveLossCount, 3);
+  assert.equal(session.maxConsecutiveLosses, CLOUD_PAPER_RISK_LIMITS.maxConsecutiveLosses);
+  assert.equal(session.todayCompletedSells, 3);
+  assert.equal(session.todayLosingSells, 3);
+  assert.equal(session.lastIncrementAt, session.lastCompletedSellAt);
+  assert.equal(session.lastResetBoundaryAt, Date.parse('2026-09-30T15:00:00Z'));
   evaluate(losingRoundTrips(DAY), (gateway) => { session = gateway.lossSession(); });
   assert.equal(session.todayCompletedSells, 0, 'yesterday\'s sells are not today\'s');
   assert.equal(session.consecutiveLossCount, 0);

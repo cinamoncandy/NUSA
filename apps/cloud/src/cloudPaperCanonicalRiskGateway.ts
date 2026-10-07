@@ -55,19 +55,33 @@ export interface CloudPaperRiskGate {
 }
 
 /**
- * Display-only counts behind the consecutive-loss limit, as of the latest risk evaluation: today's (UTC) completed sell
- * orders, how many of them lost, the current losing streak and the configured limit. Integers only (no money, market or id).
+ * Display-only lifecycle evidence behind the consecutive-loss limit, as of the latest risk evaluation: the canonical
+ * KST period, completed/losing SELL counts, current streak/limit, and ledger-derived increment/reset timestamps.
  */
 export interface CloudPaperLossSessionSnapshot {
   readonly evaluatedAt: number;
+  readonly lifecycleStatus: "ACTIVE" | "RISK_BLOCKED_CONSECUTIVE_LOSS" | "RESET_AT_KST_BOUNDARY";
+  readonly periodId: string;
+  readonly periodStartedAt: number;
+  readonly nextBoundaryAt: number;
   readonly consecutiveLossCount: number;
   readonly maxConsecutiveLosses: number;
   readonly todayCompletedSells: number;
   readonly todayLosingSells: number;
+  readonly lastIncrementAt: number | null;
+  readonly lastCompletedSellAt: number | null;
+  readonly lastResetBoundaryAt: number;
 }
 
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 const dayOf = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const KST_DAY_MS = 24 * 60 * 60 * 1000;
+const kstPeriod = (timestamp: number): Readonly<{ id: string; startedAt: number; nextBoundaryAt: number }> => {
+  const shifted = timestamp + KST_OFFSET_MS;
+  const startedAt = Math.floor(shifted / KST_DAY_MS) * KST_DAY_MS - KST_OFFSET_MS;
+  return Object.freeze({ id: dayOf(shifted), startedAt, nextBoundaryAt: startedAt + KST_DAY_MS });
+};
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {
@@ -151,7 +165,7 @@ function dailyNotional(state: PaperAccountState, now: number): Readonly<{ dailyB
   return Object.freeze({ dailyBuyNotional, dailySellNotional });
 }
 
-function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number; todayCompletedSells: number; todayLosingSells: number }> {
+function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number; todayCompletedSells: number; todayLosingSells: number; periodId: string; periodStartedAt: number; nextBoundaryAt: number; lastIncrementAt: number | null; lastCompletedSellAt: number | null }> {
   const positions = new Map<string, { quantity: number; averageEntryPrice: number }>();
   const sells: Array<{ pnl: number; filledAt: number }> = [];
   const sellOrders = new Map<string, { pnl: number; filledAt: number }>();
@@ -163,7 +177,7 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
       positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextAverage });
       continue;
     }
-    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER, todayCompletedSells: 0, todayLosingSells: 0 });
+    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER, todayCompletedSells: 0, todayLosingSells: 0, periodId: "INVALID", periodStartedAt: 0, nextBoundaryAt: 0, lastIncrementAt: null, lastCompletedSellAt: null });
     const pnl = (order.price - prior.averageEntryPrice) * order.quantity - order.fee;
     const nextQuantity = Math.max(0, prior.quantity - order.quantity);
     positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : prior.averageEntryPrice });
@@ -173,16 +187,28 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
   }
   const today = dayOf(now);
   const dailyRealizedPnL = sells.filter((sell) => dayOf(sell.filledAt) === today).reduce((sum, sell) => sum + sell.pnl, 0);
-  // The streak is scoped to the current UTC trading day, like the daily loss limit. Counting the
+  // The streak is scoped to the canonical 00:00 KST trading-day boundary. Counting the
   // whole history made the limit permanent: once tripped, no order could run to produce the
   // winning sell that would clear it. The owner chose a daily reset on 2026-10-01.
   let consecutiveLossCount = 0;
-  const completed = [...sellOrders.values()].filter((sell) => dayOf(sell.filledAt) === today).sort((a, b) => a.filledAt - b.filledAt);
+  const period = kstPeriod(now);
+  const completed = [...sellOrders.values()].filter((sell) => sell.filledAt >= period.startedAt && sell.filledAt < period.nextBoundaryAt).sort((a, b) => a.filledAt - b.filledAt);
   for (let index = completed.length - 1; index >= 0; index -= 1) {
     if (completed[index]!.pnl >= 0) break;
     consecutiveLossCount += 1;
   }
-  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount, todayCompletedSells: completed.length, todayLosingSells: completed.filter((sell) => sell.pnl < 0).length });
+  const lastCompleted = completed.at(-1) ?? null;
+  return Object.freeze({
+    dailyRealizedPnL,
+    consecutiveLossCount,
+    todayCompletedSells: completed.length,
+    todayLosingSells: completed.filter((sell) => sell.pnl < 0).length,
+    periodId: period.id,
+    periodStartedAt: period.startedAt,
+    nextBoundaryAt: period.nextBoundaryAt,
+    lastIncrementAt: consecutiveLossCount > 0 ? lastCompleted?.filledAt ?? null : null,
+    lastCompletedSellAt: lastCompleted?.filledAt ?? null
+  });
 }
 
 export interface CloudPaperCanonicalRiskGatewayOptions {
@@ -221,7 +247,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     });
   }
 
-  /** The loss-limit counts from the latest evaluation, or null before any. Display only; never used for a decision. */
+  /** The loss-limit lifecycle from the latest evaluation, or null before any. Display only; never used for a decision. */
   public lossSession(): CloudPaperLossSessionSnapshot | null {
     return this.lastLossSession;
   }
@@ -255,7 +281,21 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const notionals = dailyNotional(input.state, input.now);
     const lossState = realizedLossState(input.state, input.now);
     if (Number.isFinite(lossState.dailyRealizedPnL)) {
-      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells });
+      const resetAtBoundary = lossState.todayCompletedSells === 0 && input.state.fills.some((fill) => fill.side === "SELL" && fill.filledAt < lossState.periodStartedAt);
+      this.lastLossSession = Object.freeze({
+        evaluatedAt: input.now,
+        lifecycleStatus: lossState.consecutiveLossCount >= this.limits.maxConsecutiveLosses ? "RISK_BLOCKED_CONSECUTIVE_LOSS" : resetAtBoundary ? "RESET_AT_KST_BOUNDARY" : "ACTIVE",
+        periodId: lossState.periodId,
+        periodStartedAt: lossState.periodStartedAt,
+        nextBoundaryAt: lossState.nextBoundaryAt,
+        consecutiveLossCount: lossState.consecutiveLossCount,
+        maxConsecutiveLosses: this.limits.maxConsecutiveLosses,
+        todayCompletedSells: lossState.todayCompletedSells,
+        todayLosingSells: lossState.todayLosingSells,
+        lastIncrementAt: lossState.lastIncrementAt,
+        lastCompletedSellAt: lossState.lastCompletedSellAt,
+        lastResetBoundaryAt: lossState.periodStartedAt
+      });
     }
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);

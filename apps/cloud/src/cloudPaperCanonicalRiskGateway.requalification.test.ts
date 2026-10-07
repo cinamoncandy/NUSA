@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
-const EXPECTED_RISK_BLOB = "e2876443ea0f9b340d47b06fc89d7865c692452a";
+const EXPECTED_RISK_BLOB = "693f8ff274cb47fdc175ab740a5f4710ef9ca278";
 
 function committedGitBlobSha(path: string): string {
   return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
@@ -39,16 +39,18 @@ describe("RISK exact-source re-qualification evidence", () => {
     assert.doesNotMatch(source, /payloadFingerprint:\s*"PENDING"/);
   });
 
-  it("re-qualifies the consecutive-loss streak as scoped to the current UTC trading day", () => {
+  it("re-qualifies the consecutive-loss streak as scoped to the canonical KST trading day", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
-    assert.match(source, /const completed = \[\.\.\.sellOrders\.values\(\)\]\.filter\(\(sell\) => dayOf\(sell\.filledAt\) === today\)/);
+    assert.match(source, /const KST_OFFSET_MS = 9 \* 60 \* 60 \* 1000/);
+    assert.match(source, /sell\.filledAt >= period\.startedAt && sell\.filledAt < period\.nextBoundaryAt/);
     // The unmatched-sell fail-closed path is unchanged.
     assert.match(source, /consecutiveLossCount: Number\.MAX_SAFE_INTEGER/);
   });
 
   it("re-qualifies the loss-session counts as display only: recorded after the streak is computed and never read by a decision", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
-    assert.match(source, /todayCompletedSells: completed\.length, todayLosingSells: completed\.filter\(\(sell\) => sell\.pnl < 0\)\.length/);
+    assert.match(source, /todayCompletedSells: completed\.length/);
+    assert.match(source, /lastResetBoundaryAt: lossState\.periodStartedAt/);
     assert.match(source, /public lossSession\(\): CloudPaperLossSessionSnapshot \| null \{\r?\n\s*return this\.lastLossSession;/);
     assert.equal((source.match(/this\.lastLossSession/g) ?? []).length, 2, "written once per evaluation and read only by lossSession()");
     assert.match(source, /consecutiveLossCount: lossState\.consecutiveLossCount, sessionPeakEquity/, "the decision still uses the same streak");

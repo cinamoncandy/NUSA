@@ -1,0 +1,37 @@
+id: WO-ISSUE-2575-CONSECUTIVE-LOSS-KST-LIFECYCLE
+title: "Verify and repair the PAPER consecutive-loss KST reset lifecycle"
+status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2575
+base_branch: main
+authority_impact: paper_risk_lifecycle
+objective: "Prove whether the max-three consecutive-loss stop clears at the canonical 00:00 KST trading-day boundary before considering any threshold relaxation. The cloud owner was day-scoped but used UTC, contradicting the canonical KST risk boundary and leaving PAPER blocked for nine hours beyond the intended reset."
+predecessor_review:
+  - "WO-PAPER-20261001-DAILY-LOSS-STREAK removed the permanent all-history streak but implemented a UTC boundary."
+  - "WO-PAPER-20261006-LOSS-SESSION-COUNTS exposed count/limit evidence but not period, increment, or reset-boundary identity."
+scope:
+  - "Keep maxConsecutiveLosses=3 and derive the streak from completed SELL orders in the current 00:00 KST period."
+  - "Publish fixed lifecycle status, KST period identity/bounds, current count/limit, last increment/completed-sell timestamps, and last reset boundary from canonical ledger truth."
+  - "Cover 2 losses allowed, the third completed losing SELL blocked, restart before boundary blocked, exact boundary reset, restart/replay equality, and stale/duplicate/partial-fill idempotency."
+  - "Rebind the RISK exact-source qualification pin to blob 693f8ff274cb47fdc175ab740a5f4710ef9ca278 without changing its independent-evidence authority."
+finding: "A reset bug exists: the canonical cloud streak filters fills by UTC date even though WO-0018 establishes 00:00 KST as the canonical trading-day boundary. Threshold comparison 3/4/5 is therefore not authorized or required in this increment."
+unchanged:
+  - "maxConsecutiveLosses remains 3; no risk threshold is relaxed."
+  - "Daily realized PnL/notional policy, governance, approvals, execution, accounting, and LIVE boundaries are unchanged."
+  - "All lifecycle evidence is display-only and cannot authorize an order."
+safety:
+  scope: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node --test tests/cloud-paper-daily-loss-streak.test.js tests/cloud-runtime-liveness-health.test.js
+  - node --test dist/apps/cloud/src/cloudPaperConsecutiveLossLifecycle.test.js dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.requalification.test.js
+  - node scripts/check-work-order-index.js
+  - node scripts/run-tests-isolated.js
+validation: "The published increment is committed and workflow-validated on separate hardware: build, typecheck, validate, the work-order index check, tests/*.test.js, and isolated co-located tests pass. Deterministic lifecycle coverage binds the reset to 00:00 KST and proves restart/replay and duplicate-fill invariants without changing the threshold."
+remaining: "Exact-head CI, independent Audit and Release; then exact-main PAPER deployment and authenticated /health runtime proof across a KST boundary showing period identity advances once, count clears, lifecycleStatus=RESET_AT_KST_BOUNDARY, and liveAuthority=NONE / productionMutationAllowed=false / aiAuthority=ZERO_AUTHORITY."
