@@ -88,3 +88,14 @@ test("holdout failure blocks promotion and invalid inputs fail closed", () => {
   assert.throws(() => runStrategyOptimization({ ...input({ parameterGrid: { entryPrice: [0] } }) }), /invalid parameter grid/);
   assert.throws(() => runStrategyOptimization({ ...input(), dataset: { version: dataset.version, checksum: "bad" } }), /SHA-256/);
 });
+
+test("the optimizer understands a Donchian breakout entry: it varies and reports only its period", () => {
+  const { generateStrategyCandidates } = require("../dist/apps/mobile/src/aiStrategyOptimizer.js");
+  const { validateStrategy } = require("../dist/apps/mobile/src/aiStrategyEngine.js");
+  const draft = { strategyId: "donchian", name: "Donchian", version: "1.0.0", status: "VALIDATED", dsl: { entry: { type: "DONCHIAN_BREAKOUT", period: 20 }, exits: [{ type: "TAKE_PROFIT", percent: 5 }, { type: "STOP_LOSS", percent: 2 }], risk: { positionSize: { mode: "PERCENT_OF_EQUITY", value: 10 }, maxRiskPercent: 2, maxPositionNotional: 1000 }, scope: { symbols: ["KRW-BTC"], regimes: ["ANY"] } }, evidence: { sourceText: "x", generationReasons: ["x"] }, createdAt: 1, paperOnly: true, productionMutationAllowed: false, executionAllowed: false };
+  const base = validateStrategy(draft).strategy;
+  const candidates = generateStrategyCandidates(base, { entryPeriod: [10, 20, 30] });
+  const periods = candidates.map((c) => c.dsl.entry.period);
+  assert.ok(candidates.every((c) => c.dsl.entry.type === "DONCHIAN_BREAKOUT" && !("fastPeriod" in c.dsl.entry)), "the entry stays a Donchian rule and never turns into an SMA one");
+  assert.deepEqual([...new Set(periods)].sort((a, b) => a - b), [10, 20, 30]);
+});

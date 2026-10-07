@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { BacktestResearchEvaluator, BacktestEvaluatorError, buildRsiResearchStrategy, buildSmaResearchStrategy } = require("../dist/apps/cloud/src/backtestResearchEvaluator.js");
+const { BacktestResearchEvaluator, BacktestEvaluatorError, buildDonchianResearchStrategy, buildRsiResearchStrategy, buildSmaResearchStrategy } = require("../dist/apps/cloud/src/backtestResearchEvaluator.js");
 
 const M = 60_000;
 const BASE = { initialCash: 1_000_000, feeRate: 0.0005, slippageBps: 5 };
@@ -81,4 +81,16 @@ test("the RSI mean-reversion family builds a valid DSL strategy and trades the o
   for (const key of ["netReturn", "costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality", "tradeCount"]) assert.ok(Number.isFinite(result.metrics[key]), key);
   assert.ok(result.metrics.tradeCount >= 1, "the falling stretch drives RSI below 30 at least once");
   assert.equal(code(() => buildRsiResearchStrategy({ strategyId: "x", version: "1", market: "KRW-BTC", period: 7, threshold: 120, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: 48, positionPercent: 50, maxPositionNotional: 1 })), "STRATEGY_INVALID", "an impossible threshold is rejected");
+});
+
+test("the Donchian breakout family builds a valid DSL strategy and trades a breakout through the same evaluator", () => {
+  const donchian = buildDonchianResearchStrategy({ strategyId: "research-donchian", version: "1.0.0", market: "KRW-BTC", period: 10, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: 12, positionPercent: 50, maxPositionNotional: 500_000 });
+  assert.equal(donchian.dsl.entry.type, "DONCHIAN_BREAKOUT");
+  assert.deepEqual(donchian.dsl.exits.map((e) => e.type), ["TAKE_PROFIT", "STOP_LOSS", "TIMEOUT"]);
+  assert.equal(donchian.paperOnly, true);
+  assert.equal(donchian.executionAllowed, false);
+  const result = evaluator({ strategyId: "research-donchian", strategy: donchian }).evaluate(contextFor());
+  for (const key of ["netReturn", "costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality", "tradeCount"]) assert.ok(Number.isFinite(result.metrics[key]), key);
+  assert.ok(result.metrics.tradeCount >= 1, "the rising stretch breaks the 10-bar channel at least once");
+  assert.equal(code(() => buildDonchianResearchStrategy({ strategyId: "x", version: "1", market: "KRW-BTC", period: 1, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: 12, positionPercent: 50, maxPositionNotional: 1 })), "STRATEGY_INVALID", "a one-bar channel is rejected");
 });
