@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, createPicture, type SkPicture } from "@shopify/react-native-skia";
 import { calmPalette } from "./designSystem";
-import { HOLO_COLORS, RIDGE_COLS, RIDGE_NEON, RIDGE_ROWS, easeOutCubic, flowClockSec, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, ridgeBaseY, ridgeDepth, ridgeHeight, ridgeGlowsRow, ridgeHorizonGlow, ridgeNeonInk, ridgeOrderMix, ridgeRowAlpha, ridgeSway, ridgeWaveGlow, ridgeX, tickHolo, type HoloTone } from "./holoModel";
+import { HOLO_COLORS, RIDGE_COLS, RIDGE_ROWS, easeOutCubic, flowClockSec, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, ridgeBaseY, ridgeDepth, ridgeHeight, ridgeGlowsRow, ridgeHorizonGlow, ridgeNeonInk, ridgeOrderMix, ridgeRowAlpha, ridgeSway, ridgeWaveGlow, ridgeX, tickHolo, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends a bright wave from the horizon through the ridges. Null draws it still. */
@@ -53,13 +53,16 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
     const ink = holoInk(tone, s.tintMix);
     const accent = tone === "normal" ? HOLO_COLORS.lime : ink;
     const set = (p: typeof paints.line, c: readonly [number, number, number], a: number) => { rgba[0] = c[0] / 255; rgba[1] = c[1] / 255; rgba[2] = c[2] / 255; rgba[3] = Math.max(0, Math.min(1, a)); p.setColor(rgba); };
+    // The still figure forces tintMix to 1 for every tone; only hold / halt should lose the neon there.
+    const neonTint = reducedMotion && tone === "normal" ? 0 : s.tintMix;
+    let litGlows = 0;
     const waves = reducedMotion ? [] : s.waves;
     const burst = reducedMotion ? 0 : s.burst;
     setPicture(createPicture((canvas) => {
       // Horizon light: a soft band behind the farthest ridge that breathes with the flow clock.
       if (detail === 1) {
-        const hy = ridgeBaseY(1) * S, strength = (reducedMotion ? 0.55 : ridgeHorizonGlow(tSec, burst)) * grow * (tone === "normal" ? 1 : 0.7);
-        set(paints.glow, tone === "normal" ? RIDGE_NEON : ink, 0.1 * strength);
+        const hy = ridgeBaseY(1) * S, strength = (reducedMotion ? 0.55 : ridgeHorizonGlow(tSec, burst)) * grow * (1 - 0.3 * neonTint);
+        set(paints.glow, ridgeNeonInk(ink, 0, 1, neonTint), 0.1 * strength);
         paints.glow.setStyle(PaintStyle.Fill);
         canvas.drawRect(Skia.XYWHRect(S * 0.08, hy - S * 0.05, S * 0.84, S * 0.1), paints.glow);
       }
@@ -79,10 +82,11 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
         for (const w of waves) glowA = Math.max(glowA, ridgeWaveGlow(w, depth, nowMs));
         const lime = ridgeOrderMix(depth, burst);
         const alpha = grow * Math.min(1, ridgeRowAlpha(depth) + (lime > 0.02 ? lime : glowA * 0.8));
-        const rowInk = lime > 0.02 ? accent : ridgeNeonInk(ink, tone, depth, glowA);
+        const rowInk = lime > 0.02 ? accent : ridgeNeonInk(ink, depth, glowA, neonTint);
         const width = Math.max(0.5, (0.6 + 0.9 * (1 - depth)) * (S / 720) * 2);
         // Neon: a wide soft pass under the line on the near rows and wherever a wave or order is lighting a ridge.
-        if (detail === 1 && !reducedMotion && ridgeGlowsRow(r, depth, glowA, lime)) {
+        if (detail === 1 && !reducedMotion && ridgeGlowsRow(r, depth, glowA, lime, litGlows)) {
+          if (glowA > 0.08 || lime > 0.05) litGlows += 1;
           set(paints.glow, rowInk, alpha * (0.25 + glowA * 0.35));
           paints.glow.setStyle(PaintStyle.Stroke); paints.glow.setStrokeWidth(width * 3.2);
           canvas.drawPath(path, paints.glow);

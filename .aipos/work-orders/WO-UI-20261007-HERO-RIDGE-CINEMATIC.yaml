@@ -22,7 +22,8 @@ safety:
   fail_closed: "Display only; reduce-motion keeps a still figure."
 rollback: "Revert the change."
 verification_commands:
+  - node_modules/.bin/tsc -p tsconfig.json
   - node_modules/.bin/tsc -p apps/mobile/tsconfig.json --noEmit
   - node scripts/lint-mobile.js
   - node --test tests/mobile-holo-sphere.test.js tests/mobile-hero-harmony.test.js tests/mobile-presentation-boundary.test.js tests/mobile-cold-future-palette.test.js
-residual: "Skia cannot run in this environment. Look and frame time (about 4 to 10 extra blurred strokes plus one blurred rect per frame on HOME) must be checked on a physical device (HUMAN_ENVIRONMENT_ONLY). If a low-end phone stutters, lower the near-row glow count in ridgeGlowsRow. A wholly new hero concept is parked until the owner supplies reference material."
+residual: "Skia cannot run in this environment. Look and frame time (at most 6 wave- or order-lit rows plus about 4 near rows of extra blurred strokes, plus one blurred rect, per frame on HOME) must be checked on a physical device (HUMAN_ENVIRONMENT_ONLY). If a low-end phone stutters, lower the near-row glow count in ridgeGlowsRow. A wholly new hero concept is parked until the owner supplies reference material."

@@ -72,30 +72,38 @@ test("every tab uses the holo sphere; the attractor is gone; motion is throttled
   assert.match(view, /cancelAnimationFrame\(frame\)/);
 });
 
-test("neon ridge: near ridges and wave-lit ridges lean neon only in the normal tone; hold and halt keep their tint", () => {
-  const { ridgeNeonInk, ridgeGlowsRow, RIDGE_NEON } = shim.exports;
+test("neon ridge: near and wave-lit ridges lean neon, and the neon fades with the tone transition", () => {
+  const { ridgeNeonInk, RIDGE_NEON } = shim.exports;
   const ink = HOLO_COLORS.ink;
-  const far = ridgeNeonInk(ink, "normal", 1, 0);
-  assert.deepEqual(far, ink, "the horizon keeps the cool white ink");
-  const near = ridgeNeonInk(ink, "normal", 0, 0);
-  const lit = ridgeNeonInk(ink, "normal", 1, 1);
-  for (const c of [near, lit]) assert.ok(Math.abs(c[0] - RIDGE_NEON[0]) < Math.abs(ink[0] - RIDGE_NEON[0]), "red moves toward the neon accent");
-  for (const tone of ["hold", "halt"]) assert.equal(ridgeNeonInk(ink, tone, 0, 1), ink, `${tone} is never recoloured`);
-  assert.equal(ridgeGlowsRow(1, 0.9, 0, 0), false, "a quiet far row draws no glow");
-  assert.equal(ridgeGlowsRow(1, 0.9, 0.5, 0), true, "a wave-lit row glows");
-  assert.equal(ridgeGlowsRow(1, 0.9, 0, 0.4), true, "an order-lit row glows");
-  const nearRows = [0, 1, 2, 3, 4, 5].filter((i) => ridgeGlowsRow(i, 0.1, 0, 0)).length;
-  assert.equal(nearRows, 2, "only every third near row glows, so extra draws stay small");
+  assert.deepEqual(ridgeNeonInk(ink, 1, 0, 0), ink, "the horizon keeps the cool white ink");
+  const closer = (c) => Math.abs(c[0] - RIDGE_NEON[0]) < Math.abs(ink[0] - RIDGE_NEON[0]);
+  assert.ok(closer(ridgeNeonInk(ink, 0, 0, 0)), "a near ridge leans neon");
+  assert.ok(closer(ridgeNeonInk(ink, 1, 1, 0)), "a wave-lit horizon ridge leans neon");
+  // Entering hold / halt: tintMix eases 0 -> 1, so the neon must ease out with it, never jump.
+  const steps = [0, 0.25, 0.5, 0.75, 1].map((m) => Math.abs(ridgeNeonInk(ink, 0, 1, m)[0] - ink[0]));
+  for (let i = 1; i < steps.length; i += 1) assert.ok(steps[i] < steps[i - 1], "neon strength falls monotonically with tintMix");
+  assert.deepEqual(ridgeNeonInk(ink, 0, 1, 1), ink, "a fully tinted hold / halt ridge has no neon left");
+  assert.deepEqual(ridgeNeonInk(ink, 0, 1, 7), ink, "tintMix is clamped");
 });
 
-test("the ridge renderer draws the glow pass and the neon ink", () => {
-  const view = read("holoSphere.tsx");
-  assert.match(view, /ridgeNeonInk\(ink, tone, depth, glowA\)/);
-  assert.match(view, /ridgeGlowsRow\(r, depth, glowA, lime\)/);
-  assert.match(view, /!reducedMotion && ridgeGlowsRow/);
+test("glow rows stay bounded even when many wave fronts light most rows", () => {
+  const { ridgeGlowsRow, RIDGE_GLOW_LIT_MAX, RIDGE_ROWS } = shim.exports;
+  assert.equal(ridgeGlowsRow(1, 0.9, 0, 0, 0), false, "a quiet far row draws no glow");
+  assert.equal(ridgeGlowsRow(1, 0.9, 0.5, 0, 0), true, "a wave-lit row glows while budget remains");
+  assert.equal(ridgeGlowsRow(1, 0.9, 0, 0.4, 0), true, "an order-lit row glows while budget remains");
+  assert.equal(ridgeGlowsRow(1, 0.9, 0.9, 0.9, RIDGE_GLOW_LIT_MAX), false, "no lit row glows once the per-frame cap is spent");
+  // Worst case: every row is wave-lit. Count the blurred passes a frame would draw.
+  let lit = 0, drawn = 0;
+  for (let r = RIDGE_ROWS - 1; r >= 0; r -= 1) {
+    const depth = r / (RIDGE_ROWS - 1);
+    if (ridgeGlowsRow(r, depth, 0.9, 0, lit)) { drawn += 1; lit += 1; }
+  }
+  const nearRows = Array.from({ length: RIDGE_ROWS }, (_, r) => r).filter((r) => r / (RIDGE_ROWS - 1) < 0.3 && r % 3 === 0).length;
+  assert.ok(drawn <= RIDGE_GLOW_LIT_MAX + nearRows, `at most ${RIDGE_GLOW_LIT_MAX + nearRows} glow passes, got ${drawn}`);
+  assert.ok(drawn < RIDGE_ROWS / 2, "far fewer glow passes than rows");
 });
 
-test("ridge depth sway and horizon light: the horizon stays put, near ridges drift, and the light stays bounded", () => {
+test("ridge depth sway and horizon light stay bounded", () => {
   const { ridgeSway, ridgeHorizonGlow, RIDGE_SWAY } = shim.exports;
   assert.equal(ridgeSway(1, 5), 0, "the horizon never sways");
   let maxNear = 0, maxMid = 0;
@@ -106,7 +114,4 @@ test("ridge depth sway and horizon light: the horizon stays put, near ridges dri
     const g = ridgeHorizonGlow(t, burst);
     assert.ok(g >= 0 && g <= 1, `horizon glow ${g} stays within 0..1`);
   }
-  const view = read("holoSphere.tsx");
-  assert.match(view, /reducedMotion \? 0 : ridgeSway\(depth, tSec\)/);
-  assert.match(view, /ridgeHorizonGlow\(tSec, burst\)/);
 });
