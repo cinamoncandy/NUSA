@@ -2580,7 +2580,7 @@ current_research_progress_time_validation:
   deploy: not_deployed_new_app_build_required
 current_ui_hero_flow_field:
   work_order: WO-UI-20261006-HERO-FLOW-FIELD
-  status: READY_FOR_REVIEW
+  status: SUPERSEDED_BY_WO-UI-20261006-HERO-RIDGE
   branch: claude/hero-flow-field
   authority_impact: none
   owner_approval: "2026-10-06 in chat (second reference video, option 1: replace only the hero)"
@@ -2618,7 +2618,7 @@ current_ui_calm_redesign:
   finding: "Four primary tabs replaced by calm-v1 presenters (지금/학습/안전/기록) over existing screen models; detail screens still field-v1 and named in the work order"
 current_ui_hero_ridge:
   work_order: WO-UI-20261006-HERO-RIDGE
-  status: READY_FOR_REVIEW
+  status: SUPERSEDED_BY_WO-UI-20261007-HERO-FLOW-FIELD
   branch: claude/hero-ridge
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('이거로 할게' on the ridge prototype)"
@@ -2795,6 +2795,13 @@ current_ui_motion_fast_light:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (chose option 'a' on the motion preview)"
   finding: "App-wide animation retuned to the faster, lighter fieldMotion set; device feel is HUMAN_ENVIRONMENT_ONLY"
+current_ui_hero_flow_streams:
+  work_order: WO-UI-20261007-HERO-FLOW-FIELD
+  status: READY_FOR_REVIEW
+  branch: claude/hero-flow-field
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (reference videos, then '해' on the prototype)"
+  finding: "The shared hero becomes a flow field of hairline streams into particle clusters for the canonical chain; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
 current_research_rsi_family:
   work_order: WO-RESEARCH-20261007-RSI-FAMILY
   status: READY_FOR_REVIEW
