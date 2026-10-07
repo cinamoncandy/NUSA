@@ -3,11 +3,13 @@ import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integ
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 export type ClosedLearningRolloverStatus =
   | "NO_OPEN_PERIOD"
   | "ACCOUNT_REPLACED_PERIOD_REOPENED"
   | "STALLED_PERIOD_REOPENED"
+  | "UNSTREAMED_MARKET_PERIOD_RETIRED"
   | "WAITING_FOR_CANONICAL_BOUNDARY"
   | "WAITING_FOR_KST_DAY_ROLLOVER"
   | "WAITING_FOR_REALIZED_FILL"
@@ -35,6 +37,12 @@ export interface ClosedLearningRolloverPort {
   /** Retires an open period whose canonical PAPER account was replaced (different initial capital). */
   readonly retireOpenPeriodForAccountChange?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
+  /** Markets the runtime streams public tickers for; a period's benchmark can only come from one of these. */
+  readonly streamedMarkets?: () => readonly string[];
+  /** Retires an open period bound to a market that is no longer streamed (its benchmark can never exist). */
+  readonly retireOpenPeriodForUnstreamedMarket?: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
+  /** A fresh owner-baseline period for the runtime's current market, built by the canonical owner-baseline builder. */
+  readonly buildOwnerBaselinePeriod?: (input: { readonly periodIndex: number; readonly periodStartAt: number }) => PaperRealizedPeriodOpenInput | undefined;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
@@ -97,6 +105,16 @@ export class ClosedLearningRolloverScheduler {
       return Object.freeze({ status: "NO_OPEN_PERIOD", reason: "WAITING_FOR_CANONICAL_BOUNDARY" });
     }
     const periodIndex = nextPeriodIndex(realized);
+    if (latest.record.market != null && this.isUnstreamed(latest.record.market)) {
+      // The latest candidate was bound to a market this runtime no longer streams, so a continuation there could
+      // never be benchmarked. Only the owner baseline may restart on the current market, through its canonical
+      // builder (its provenance names the market); any other candidate stays blocked rather than being moved.
+      const ownerBaseline = latest.candidateProvenance.length === 1 && latest.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID;
+      const input = ownerBaseline ? this.port.buildOwnerBaselinePeriod?.({ periodIndex, periodStartAt: account.updatedAt }) : undefined;
+      if (input == null || input.market == null || this.isUnstreamed(input.market)) return Object.freeze({ status: "BLOCKED", reason: "STALLED_PERIOD_MARKET_NOT_STREAMED" });
+      const reopened = this.port.openPeriodFromCanonicalAccount(input);
+      return Object.freeze({ status: "STALLED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `continued:${latest.record.recordId}` });
+    }
     const reopened = this.port.openPeriodFromCanonicalAccount({
       periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
       periodIndex,
@@ -108,12 +126,24 @@ export class ClosedLearningRolloverScheduler {
     return Object.freeze({ status: "STALLED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `continued:${latest.record.recordId}` });
   }
 
+  private isUnstreamed(market: string): boolean {
+    const streamed = this.port.streamedMarkets?.();
+    return streamed != null && streamed.length > 0 && !streamed.map((value) => value.trim().toUpperCase()).includes(market.trim().toUpperCase());
+  }
+
   private prepare(): ClosedLearningRolloverResult | PreparedRollover {
     const periods = stableOpenPeriods(this.port.listOpenPeriods());
     if (periods.length === 0) return this.reopenStalledContinuation();
     if (periods.length > 1) return Object.freeze({ status: "BLOCKED", reason: "MULTIPLE_OPEN_PAPER_PERIODS" });
 
     const plan = periods[0]!;
+    if (plan.market != null && this.isUnstreamed(plan.market)) {
+      // Its benchmark can only come from that market's ticker store, which this runtime no longer feeds, so the
+      // period can never close. Retire it (nothing is closed or scored); the next tick starts a fresh period.
+      if (this.port.retireOpenPeriodForUnstreamedMarket == null) return Object.freeze({ status: "BLOCKED", periodId: plan.periodId, reason: "UNSTREAMED_MARKET_RETIREMENT_UNAVAILABLE" });
+      this.port.retireOpenPeriodForUnstreamedMarket(plan.periodId, this.port.streamedMarkets?.() ?? []);
+      return Object.freeze({ status: "UNSTREAMED_MARKET_PERIOD_RETIRED", periodId: plan.periodId, reason: "MARKET_NOT_STREAMED" });
+    }
     const account = this.port.readCanonicalPaperAccount();
     if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) {
       return Object.freeze({ status: "BLOCKED", periodId: plan.periodId, reason: "CANONICAL_PAPER_ACCOUNT_UNAVAILABLE" });

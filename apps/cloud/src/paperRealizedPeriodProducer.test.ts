@@ -176,3 +176,28 @@ describe("retiring an open period when the canonical PAPER account is replaced",
     assert.equal(codeOf(() => state.producer.retireOpenPeriodForAccountChange("missing")), "PERIOD_NOT_OPEN");
   });
 });
+
+describe("retiring an open period bound to a market the runtime no longer streams", () => {
+  it("retires only a market-bound period whose market is not streamed and records why", () => {
+    const events: string[] = [];
+    const state = producer({ onLifecycleEvent: (event) => events.push(`${event.type}:${"reasonCode" in event ? event.reasonCode : ""}`) });
+    state.producer.openPeriod({ ...openPeriod(0), market: "KRW-BTC" });
+    assert.equal(codeOf(() => state.producer.retireOpenPeriodForUnstreamedMarket("period-0", ["KRW-BTC", "KRW-XRP"])), "MARKET_STILL_STREAMED");
+    assert.equal(codeOf(() => state.producer.retireOpenPeriodForUnstreamedMarket("period-0", [])), "STREAMED_MARKETS_UNAVAILABLE");
+    assert.equal(state.producer.hasOpenPeriod(), true);
+    const retired = state.producer.retireOpenPeriodForUnstreamedMarket("period-0", ["krw-xrp"]);
+    assert.equal(retired.market, "KRW-BTC");
+    assert.equal(state.producer.hasOpenPeriod(), false);
+    assert.equal(state.repository.getPending("period-0"), undefined);
+    assert.equal(state.producer.listRealizedPeriods().length, 0, "nothing is closed or scored");
+    assert.ok(events.includes("PERIOD_REJECTED:MARKET_NOT_STREAMED"));
+    assert.equal(codeOf(() => state.producer.retireOpenPeriodForUnstreamedMarket("period-0", ["KRW-XRP"])), "PERIOD_NOT_OPEN");
+  });
+
+  it("never retires a period that carries no market", () => {
+    const state = producer();
+    state.producer.openPeriod(openPeriod(0));
+    assert.equal(codeOf(() => state.producer.retireOpenPeriodForUnstreamedMarket("period-0", ["KRW-XRP"])), "MARKET_STILL_STREAMED");
+    assert.equal(state.producer.hasOpenPeriod(), true);
+  });
+});
