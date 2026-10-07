@@ -42,7 +42,8 @@ describe("RISK exact-source re-qualification evidence", () => {
   it("re-qualifies the consecutive-loss streak as scoped to the current canonical (Asia/Seoul) trading day", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
     assert.match(source, /const completed = \[\.\.\.sellOrders\.values\(\)\]\.filter\(\(sell\) => dayOf\(sell\.filledAt\) === today\)/);
-    assert.match(source, /const dayOf = \(timestamp: number\): string => tradingDayKey\(timestamp\);/, "one canonical trading day, not a local UTC day");
+    assert.match(source, /const dayOf = \(timestamp: number\): string => paperTradingDayKey\(timestamp\);/, "one canonical trading day, not a local UTC day");
+    assert.match(readFileSync("apps/cloud/src/paperTradingDay.ts", "utf8"), /tradingDayKey\(timestamp\)/, "the helper delegates to the canonical Asia\/Seoul trading day");
     assert.doesNotMatch(source, /toISOString\(\)\.slice\(0, 10\)/);
     // The unmatched-sell fail-closed path is unchanged.
     assert.match(source, /consecutiveLossCount: Number\.MAX_SAFE_INTEGER/);
