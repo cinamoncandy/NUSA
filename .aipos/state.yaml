@@ -2758,3 +2758,11 @@ current_learning_evidence_correlation:
   owner_approval: "2026-10-07 in chat (Learning Loop 핵심 7단계 완전수렴 작업지시서, '해')"
   finding: "/health closedLearningLoop.evidence now carries period/market/candidate, realized outcome fingerprint and Research cycle/decision/deployment identities"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_research_interval_recovery:
+  work_order: WO-RESEARCH-20261007-INTERVAL-RECOVERY
+  status: READY_FOR_REVIEW
+  branch: claude/research-interval-recovery
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Learning Loop 7단계 작업지시서, '계속해')"
+  finding: "/health showed 15m/60m research RECOVERY_NOT_READY; only the first orchestrator was recovered, now all are recovered at start"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
