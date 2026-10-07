@@ -171,3 +171,21 @@ test("backfill is skipped entirely when disabled, and after stop", async () => {
   assert.equal(calls, 0);
   db.close();
 });
+
+test("start recovers every longer bar length so its ticks are not stuck at RECOVERY_NOT_READY", () => {
+  const db = open();
+  const store = new SqliteResearchCandleStore(db, 200_000);
+  const count = 11 * 1440;
+  store.append("KRW-BTC", M, Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 600)).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close }; }));
+  const lines = [];
+  const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_DAILY_BUDGET: "10", NUSA_RESEARCH_INTERVAL_MINUTES: "1,60", NUSA_RESEARCH_BACKFILL: "DISABLED" }), database: db, now: () => T_END, log: (l) => lines.push(l) });
+  try {
+    assert.equal(composition.orchestrators[0].recover().status, "READY", "the runtime recovers the first orchestrator");
+    composition.tickOnce();
+    assert.equal(composition.experimentTicksByInterval()["60m"].lastStatus, "RECOVERY_NOT_READY", "without start the longer bar never recovers");
+    composition.start();
+    assert.ok(lines.includes("[research-experiments] recover 60m READY"), lines.join("\n"));
+    composition.tickOnce();
+    assert.equal(composition.experimentTicksByInterval()["60m"].lastStatus, "OK");
+  } finally { composition.stop(); db.close(); }
+});

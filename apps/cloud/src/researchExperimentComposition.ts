@@ -221,6 +221,13 @@ export function composeResearchExperiments(input: {
     backfill,
     start: () => {
       if (stopped || timer != null) return;
+      // The runtime recovers only the first orchestrator (it is the one handed to startCloudRuntime). Every
+      // other bar length must recover here, before its first tick, or it stays RECOVERY_NOT_READY forever.
+      orchestrators.slice(1).forEach((other, index) => {
+        let status = "FAIL_CLOSED";
+        try { status = other.recover().status; } catch { status = "FAIL_CLOSED"; }
+        log(`[research-experiments] recover ${settings.intervalsMinutes[index + 1]}m ${status}`);
+      });
       scheduleBackfill(1, 20_000);
       first = setTimeout(() => { try { tickOnce(); } catch { /* isolated */ } }, 60_000);
       first.unref?.();
