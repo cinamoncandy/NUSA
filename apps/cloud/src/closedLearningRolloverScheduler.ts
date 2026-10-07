@@ -32,6 +32,12 @@ export interface ClosedLearningRolloverPort {
   readonly listOpenPeriods: () => readonly PersistedPaperRealizedPeriodPlan[];
   readonly listRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
+  /**
+   * Wall clock used only to decide that the open period's trading day has passed. It never becomes
+   * the period end or any account value: the period still closes at the exact canonical account
+   * `updatedAt`. Absent, the rollover keeps waiting for the account itself to cross the day boundary.
+   */
+  readonly now?: () => number;
   readonly closePeriodFromCanonicalAccount: (input: { readonly periodId: string; readonly periodEndAt: number }) => PersistedPaperPeriodEnvelope;
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   /** Retires an open period whose canonical PAPER account was replaced (different initial capital). */
@@ -86,8 +92,8 @@ interface PreparedRollover {
  * Production-safe closed-learning rollover boundary.
  *
  * This scheduler never invents a wall-clock account snapshot. It may close a period only at the
- * exact canonical PAPER account `updatedAt`, and only after that boundary has crossed the existing
- * Asia/Seoul trading-day boundary. A period without a real FILLED observation remains open.
+ * exact canonical PAPER account `updatedAt`, and only after that boundary, or the wall clock when the
+ * account is idle, has crossed the existing Asia/Seoul trading-day boundary. A period without a real FILLED observation remains open.
  *
  * Evidence identity construction is deliberately injected: source commit, cost model, risk hash,
  * champion identity, evidence fingerprints, and which realized periods belong to one immutable
@@ -181,7 +187,13 @@ export class ClosedLearningRolloverScheduler {
     if (account.updatedAt <= plan.periodStartAt) {
       return Object.freeze({ status: "WAITING_FOR_CANONICAL_BOUNDARY", periodId: plan.periodId });
     }
-    if (tradingDayKey(account.updatedAt) === tradingDayKey(plan.periodStartAt)) {
+    // The account does not change while PAPER is idle or risk-blocked (for example a consecutive-loss halt), and then
+    // its `updatedAt` never crosses the day boundary. Elapsed trading days therefore also count by the wall clock,
+    // while the period still ends only at the canonical account boundary above.
+    const startDay = tradingDayKey(plan.periodStartAt);
+    const clock = this.port.now?.();
+    const clockCrossed = clock !== undefined && Number.isSafeInteger(clock) && clock >= account.updatedAt && tradingDayKey(clock) !== startDay;
+    if (tradingDayKey(account.updatedAt) === startDay && !clockCrossed) {
       return Object.freeze({ status: "WAITING_FOR_KST_DAY_ROLLOVER", periodId: plan.periodId });
     }
     if (!hasRealizedFill(plan)) {
