@@ -239,6 +239,69 @@ describe("closed-learning rollover after a period closed without a successor", (
   });
 });
 
+describe("closed-learning rollover when a period is bound to a market the runtime no longer streams", () => {
+  const LATER = NEXT_KST_DAY + 60_000;
+  function port(over: Partial<ClosedLearningRolloverPort> & { open?: readonly PersistedPaperRealizedPeriodPlan[]; realized?: readonly PersistedPaperPeriodEnvelope[] }) {
+    const events: string[] = [];
+    const base: ClosedLearningRolloverPort = {
+      listOpenPeriods: () => over.open ?? [],
+      listRealizedPeriods: () => over.realized ?? [],
+      readCanonicalPaperAccount: () => account(LATER),
+      closePeriodFromCanonicalAccount: ({ periodId }) => { events.push(`close:${periodId}`); throw new Error("canonical PAPER period benchmark evidence is unavailable"); },
+      openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.market}:${input.candidateProvenance[0]?.candidateId}`); return { ...plan("WAIT", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
+      buildEvidenceIdentity: () => identity(),
+      runClosedLearningCycle: () => cycle("INSUFFICIENT"),
+      streamedMarkets: () => ["KRW-XRP"],
+      retireOpenPeriodForUnstreamedMarket: (periodId, markets) => { events.push(`retire:${periodId}:${markets.join(",")}`); return plan("FILLED", periodId); },
+      buildOwnerBaselinePeriod: ({ periodIndex, periodStartAt }) => ({ periodId: `owner-baseline:KRW-XRP:${periodStartAt}`, periodIndex, advisory: advisory(), candidateProvenance: Object.freeze([{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId: "owner-baseline:upbit-public-ticker:KRW-XRP", datasetContentSha256: HASH }]), market: "KRW-XRP", periodStartAt }),
+    };
+    return { scheduler: new ClosedLearningRolloverScheduler({ ...base, ...over }), events };
+  }
+  const baselineEnvelope = (market: string) => Object.freeze({ ...envelope(), record: Object.freeze({ ...envelope().record, market }), candidateProvenance: Object.freeze([{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId: `owner-baseline:upbit-public-ticker:${market}`, datasetContentSha256: HASH }]) });
+
+  it("retires an open period on an unstreamed market instead of failing its close forever", () => {
+    const { scheduler, events } = port({ open: [plan("FILLED")] }); // plan() is bound to KRW-BTC
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "UNSTREAMED_MARKET_PERIOD_RETIRED");
+    assert.equal(result.reason, "MARKET_NOT_STREAMED");
+    assert.deepEqual(events, ["retire:period-0:KRW-XRP"], "no close is attempted and no benchmark is invented");
+  });
+
+  it("stays blocked when retirement is unavailable", () => {
+    const { scheduler, events } = port({ open: [plan("FILLED")], retireOpenPeriodForUnstreamedMarket: undefined });
+    assert.equal(scheduler.runOnce().reason, "UNSTREAMED_MARKET_RETIREMENT_UNAVAILABLE");
+    assert.deepEqual(events, []);
+  });
+
+  it("restarts the owner baseline on the streamed market through its canonical builder, not by copying the old market", () => {
+    const { scheduler, events } = port({ realized: [baselineEnvelope("KRW-BTC")] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "STALLED_PERIOD_REOPENED");
+    assert.deepEqual(events, [`open:owner-baseline:KRW-XRP:${LATER}:KRW-XRP:${OWNER_BASELINE_CANDIDATE_ID}`]);
+  });
+
+  it("never moves a non-baseline candidate to another market", () => {
+    const { scheduler, events } = port({ realized: [envelope()] }); // candidate-a on KRW-BTC
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.reason, "STALLED_PERIOD_MARKET_NOT_STREAMED");
+    assert.deepEqual(events, []);
+  });
+
+  it("keeps continuing on the same market when it is still streamed", () => {
+    const { scheduler, events } = port({ realized: [baselineEnvelope("KRW-XRP")] });
+    assert.equal(scheduler.runOnce().status, "STALLED_PERIOD_REOPENED");
+    assert.deepEqual(events, [`open:closed-learning-rollover:1:${LATER}:KRW-XRP:${OWNER_BASELINE_CANDIDATE_ID}`]);
+  });
+
+  it("still tries to close a streamed-market period normally", () => {
+    const xrpPlan = Object.freeze({ ...plan("FILLED"), market: "KRW-XRP" });
+    const { scheduler, events } = port({ open: [xrpPlan] });
+    assert.equal(scheduler.runOnce().status, "BLOCKED", "a genuinely missing benchmark still fails closed");
+    assert.deepEqual(events, ["close:period-0"]);
+  });
+});
+
 describe("closed-learning rollover across a replaced PAPER account (owner capital change)", () => {
   function replacedAccountPort(retire?: (periodId: string) => PersistedPaperRealizedPeriodPlan) {
     const calls: string[] = [];

@@ -2720,3 +2720,11 @@ current_sec_shell_quote_advisory:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
   finding: "CI Security gate red on all heads: new critical shell-quote advisory 1241332; overridden to patched 1.11.0"
+current_learning_period_market_binding:
+  work_order: WO-LEARNING-20261007-PERIOD-MARKET-BINDING
+  status: READY_FOR_REVIEW
+  branch: claude/period-benchmark-evidence
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Learning Period Benchmark Evidence Break 완전수렴)"
+  finding: "First real fill reached period close but the open period was bound to KRW-BTC while only KRW-XRP is streamed (MISSING_BENCHMARK_EVIDENCE); unstreamed-market periods are retired and the owner baseline restarts on the streamed market"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval

@@ -460,6 +460,28 @@ export class PaperRealizedPeriodProducer {
     return current;
   }
 
+  /**
+   * Retires the open period when it is bound to a market the runtime no longer streams. Its benchmark can only
+   * come from that market's public ticker observations, so it can never close; only one period may be open, so
+   * without this the learning loop stays blocked forever. A period without a market, or whose market is still
+   * streamed, is never retired. Nothing is closed or scored: the period simply leaves the open set.
+   */
+  public retireOpenPeriodForUnstreamedMarket(periodId: string, streamedMarkets: readonly string[]): PersistedPaperRealizedPeriodPlan {
+    try {
+      const current = this.openPeriods.get(periodId);
+      if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      const streamed = new Set(streamedMarkets.map((market) => market.trim().toUpperCase()));
+      if (streamed.size === 0) throw new PaperRealizedPeriodProducerError("STREAMED_MARKETS_UNAVAILABLE", "runtime streamed markets are unavailable", periodId);
+      if (current.market == null || streamed.has(current.market)) throw new PaperRealizedPeriodProducerError("MARKET_STILL_STREAMED", "PAPER period market is still streamed", periodId);
+      const pending = this.repository.getPending(periodId);
+      if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      this.repository.retirePending(periodId, pending.checksum);
+      this.openPeriods.delete(periodId);
+      this.emit({ type: "PERIOD_REJECTED", periodId, occurredAt: this.options.now?.() ?? Date.now(), reasonCode: "MARKET_NOT_STREAMED" });
+      return current;
+    } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
+  }
+
   public retireOpenPeriodForAccountChange(periodId: string): PersistedPaperRealizedPeriodPlan {
     try {
       const current = this.openPeriods.get(periodId);
