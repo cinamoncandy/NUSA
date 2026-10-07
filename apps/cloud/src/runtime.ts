@@ -172,7 +172,9 @@ export function startCloudRuntime(
   realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider,
   engineeringOperatingSource?: NusaEngineeringOperatingSource,
   /** Display-only status of the production closed-learning loop (see closedLearningLoopStatus.ts). */
-  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined>> | null
+  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined>> | null,
+  /** Display-only research experiment tick summaries keyed by bar length ("1m", "15m", ...). */
+  researchIntervalTicks?: () => Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null>> | null
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -572,6 +574,7 @@ export function startCloudRuntime(
     }
     return lossAttributionCache == null ? {} : { paperLossAttribution: lossAttributionCache };
   };
+  const researchIntervalLiveness = () => { let byInterval: Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }> | null = null; try { const raw = researchIntervalTicks?.() ?? null; if (raw != null) { byInterval = {}; for (const [key, value] of Object.entries(raw)) if (value != null) byInterval[key] = value; } } catch { byInterval = null; } return byInterval == null || Object.keys(byInterval).length === 0 ? {} : { researchExperimentTicksByInterval: byInterval }; };
   const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
   const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
   const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
@@ -658,6 +661,7 @@ export function startCloudRuntime(
       ...lossSessionLiveness(),
       ...lossAttributionLiveness(),
       ...researchExperimentLiveness(),
+      ...researchIntervalLiveness(),
       ...closedLearningLiveness()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
