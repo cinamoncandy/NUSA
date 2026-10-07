@@ -2837,6 +2837,13 @@ current_ui_hero_flow_dynamic:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (v2 prototype, reply '좋아')"
   finding: "The flow hero gains comets with tails, differential swirl and breathing clusters, landing rings and order sparks as pure functions of time; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
+current_autopilot_runner_failure_identity:
+  work_order: WO-AUTOPILOT-20261007-RUNNER-FAILURE-IDENTITY
+  status: READY_FOR_REVIEW
+  branch: claude/coding-runner-named-failure-reason
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Autopilot completion convergence master work order)"
+  finding: "The evolve discovery failure reason carries no run id, so the coding runner rejected a really failed run as not successful; the named identity is now accepted when commit and failed conclusion match the GitHub-verified run"
 current_learning_rollover_wall_clock:
   work_order: WO-LEARNING-20261007-ROLLOVER-WALL-CLOCK
   status: READY_FOR_REVIEW
