@@ -150,6 +150,7 @@ export function composeResearchExperiments(input: {
       evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
       featurePipeline: { version: "closed-candle-agg-v1", config: { intervalMs, maxInternalGapMs: 30_000, volume: 0 } },
       experimentFamilyPrefix: `sma-research${tag}`,
+      failureEvidence: () => ledger.list().filter((record) => record.provenance?.windowRole === "VALIDATION" && record.provenance.interval === `${minutes}m`),
     });
     return { orchestrator, variantCount: variants.length };
   };
