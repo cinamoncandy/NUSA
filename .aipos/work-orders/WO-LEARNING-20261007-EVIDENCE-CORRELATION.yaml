@@ -1,0 +1,28 @@
+id: WO-LEARNING-20261007-EVIDENCE-CORRELATION
+title: "Publish learning-loop correlation identities on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/health-learning-correlation
+authority_impact: none
+owner_approval: "2026-10-07 in chat: Learning Loop 핵심 7단계 완전수렴 작업지시서 (Observability 요구) and '해'"
+objective: "The 7-step learning acceptance needs period -> fill -> realized outcome -> evidence -> Research decision -> next candidate to be followed mechanically; /health exposed only step codes, so period/market/candidate/fingerprint continuity could not be read."
+finding: "The production loop is: open period (fill observations) -> realized period (canonical outcome + cost evidence) -> closed-learning evidence identity -> Research replay consuming PAPER evidence -> decision -> PAPER deployment. evaluatePaperGovernanceFeedback exists on the runtime handle but nothing in production calls it."
+scope:
+  - "closedLearningLoopStatus.ts: observePeriods() reads the open period (id, market, candidate, start, observation and FILLED counts) and the latest realized period (id, end, outcome and cost-evidence fingerprints); each evaluated cycle adds cycleId, evidence id/fingerprint, decision id/reference, candidate id and deployment id."
+  - "closedLearningProductionRuntime.ts: every loop tick reads the canonical periods into the tracker."
+  - "server.ts: closedLearningLoop.evidence publishes only fixed keys with safe shapes (identifier pattern, 64-hex fingerprints, KRW markets, non-negative integers)."
+  - "tests: tracker correlation, allowlist filtering, production wiring pin; one earlier assertion that no deploymentId may appear now asserts identities appear only under evidence."
+exclusions:
+  - "No change to periods, Research, Governance, deployment, PAPER execution, risk or LIVE. No amounts, prices, returns or free text are published. /health is not an accounting source."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; malformed values and unknown keys are omitted; a read failure publishes nothing new."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "Fill, ledger and performance fingerprints per fill are not exposed (the realized period carries the canonical outcome receipt fingerprint). Wiring Strategy Governance feedback receipts into the loop is a separate decision."

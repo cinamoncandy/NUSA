@@ -352,3 +352,17 @@ test("the running build commit is published only as a full lowercase 40-hex SHA"
     }, 41886);
   }
 });
+
+test("closed-learning evidence identities pass only through fixed keys and safe value shapes", async () => {
+  const hex = "e".repeat(64);
+  const loop = { lastTickAt: 1, ticks: 1, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_KST_DAY_ROLLOVER", evidence: {
+    openPeriodId: "owner-baseline:KRW-XRP:1791331979980", openMarket: "KRW-XRP", openFilledObservations: 1, realizedOutcomeFingerprint: hex,
+    cycleEvidenceFingerprint: "not-hex", decisionReference: "research decision <b>", injected: "x", realizedPeriods: -1, openMarket2: "KRW-XRP",
+  } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const evidence = JSON.parse(res.body).runtime.closedLearningLoop.evidence;
+    assert.deepEqual(evidence, { openPeriodId: "owner-baseline:KRW-XRP:1791331979980", openMarket: "KRW-XRP", realizedOutcomeFingerprint: hex, openFilledObservations: 1 });
+    assert.doesNotMatch(res.body, /injected|not-hex|<b>|openMarket2/);
+  }, 41879);
+});

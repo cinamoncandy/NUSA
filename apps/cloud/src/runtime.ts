@@ -172,7 +172,7 @@ export function startCloudRuntime(
   realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider,
   engineeringOperatingSource?: NusaEngineeringOperatingSource,
   /** Display-only status of the production closed-learning loop (see closedLearningLoopStatus.ts). */
-  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined>> | null
+  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>> | null
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
