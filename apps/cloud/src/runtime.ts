@@ -640,6 +640,8 @@ export function startCloudRuntime(
     // from these counters. Publishing them makes 24-hour operation something that can be checked
     // rather than assumed from the process being up.
     runtimeLiveness: () => Object.freeze({
+      // The exact commit this process was built from, so main = deployed = running can be read directly.
+      sourceCommitSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim(),
       startedAt: heartbeat.startedAt,
       lastHeartbeatAt: heartbeat.lastHeartbeatAt,
       lastMarketEventAt: heartbeat.lastMarketEventAt,

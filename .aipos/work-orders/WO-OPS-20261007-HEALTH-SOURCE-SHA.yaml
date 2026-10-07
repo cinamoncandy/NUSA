@@ -1,0 +1,26 @@
+id: WO-OPS-20261007-HEALTH-SOURCE-SHA
+title: "Publish the running build commit on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/health-source-sha
+authority_impact: none
+owner_approval: "2026-10-07 in chat: '니 판단으로 누사를 최고로 업그레이드 시켜줘' and '다음'"
+objective: "Proving MAIN_SHA = DEPLOYED_SHA = RUNTIME_SHA required reading the release workflow's activation step; the running process never said which commit it was built from."
+scope:
+  - "runtime.ts: runtime liveness carries the process's NUSA_SOURCE_COMMIT_SHA (already set by the release for every exact-main deploy)."
+  - "server.ts: /health publishes runtime.sourceCommitSha only when it is a full lowercase 40-hex commit; anything else is omitted."
+  - "tests: allowlist accepts only a 40-hex SHA; production runtime publishes the commit it was started with."
+exclusions:
+  - "No change to trading, risk, learning, deployment or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; malformed values are never published."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/cloud-runtime-liveness-health.test.js tests/cloud-runtime-source-sha-health.test.js
+residual: "Requires a PAPER deploy."
