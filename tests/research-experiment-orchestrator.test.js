@@ -164,6 +164,9 @@ test("experiment tick counts accumulate as fixed codes and integers for /health"
     assert.equal(summary.counts.NOT_DUE, 2, "the second OK tick found nothing due");
     const validation = Object.keys(summary.counts).filter((k) => k.startsWith("VALIDATION_"));
     assert.ok(validation.length >= 1, "each completed experiment records its validation result");
+    const notBetter = validation.filter((k) => k !== "VALIDATION_CHALLENGER_BETTER").reduce((n, k) => n + summary.counts[k], 0);
+    const failed = Object.keys(summary.counts).filter((k) => k.startsWith("FAIL_")).reduce((n, k) => n + summary.counts[k], 0);
+    assert.equal(failed, notBetter, "every validation that did not beat the champion is counted under exactly one bounded failure reason");
     for (const [key, value] of Object.entries(summary.counts)) { assert.match(key, /^[A-Z][A-Z0-9_]{1,47}$/); assert.ok(Number.isSafeInteger(value)); }
   } finally { s.db.close(); }
 });

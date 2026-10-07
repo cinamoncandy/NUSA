@@ -3,6 +3,7 @@ import type { ResearchSessionRecord, ResearchStatusProjection } from "../../../p
 import type { ResearchComparisonEvidence, ResearchInputSnapshot } from "../../../packages/contracts/src/researchRuntime";
 import type { GeneratedStrategy } from "../../../packages/core/src/optimizer/aiStrategyEngine";
 import type { ResearchCandleSource } from "./backtestResearchEvaluator";
+import { classifyResearchFailure } from "./researchFailureMemory";
 import { planResearchSession, researchSessionIdFor } from "./researchSessionPlanner";
 import { runResearchExperiment, type ExperimentOutcome, type ExperimentRunnerPorts, type ExperimentSpec } from "./researchExperimentRunner";
 import type { WalkForwardWindowConfig } from "./researchWalkForwardWindows";
@@ -164,6 +165,8 @@ export class ResearchExperimentOrchestrator {
       add(outcome.status);
       if (outcome.status === "COMPLETED") {
         add(`VALIDATION_${outcome.validation.result}`);
+        const failure = classifyResearchFailure(outcome.validation);
+        if (failure != null) add(`FAIL_${failure}`);
         if (outcome.holdout != null) add(`HOLDOUT_${outcome.holdout.result}`);
         else if (outcome.holdoutNote != null) add(outcome.holdoutNote);
       } else if (outcome.status === "SKIPPED" || outcome.status === "ERROR") add(`${outcome.status}_${outcome.reason.split(":")[0]}`);

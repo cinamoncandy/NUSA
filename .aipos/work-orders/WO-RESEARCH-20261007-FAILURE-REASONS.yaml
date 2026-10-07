@@ -1,0 +1,26 @@
+id: WO-RESEARCH-20261007-FAILURE-REASONS
+title: "Classify every non-winning Research validation under one bounded failure reason"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/failed-strategy-memory
+authority_impact: none
+owner_approval: "2026-10-07 in chat: Strategy Research + Governance master directive section 14 (failed strategy memory with bounded reasons) and the reply '해' to the proposal to build it"
+objective: "Research already records every evaluation durably in the Research evaluation ledger, but a failure was only a result code (CHAMPION_BETTER / EQUIVALENT / INCONCLUSIVE). Derive one bounded reason from that same evidence (NO_EDGE, LOW_SAMPLE, COST_SENSITIVE, EXCESSIVE_DRAWDOWN, EXECUTION_MISMATCH) and count it, so failed candidates are explained and Research N+1 can tell whether it repeats the same failure."
+scope:
+  - "apps/cloud/src/researchFailureMemory.ts (new, pure): classifyResearchFailure with a fixed priority; no store of its own, so no second source of truth for failed candidates (the evaluation ledger already keeps them)."
+  - "apps/cloud/src/researchExperimentOrchestrator.ts: each completed experiment whose validation did not beat the champion adds one FAIL_<reason> count next to the existing VALIDATION_<result> count. The counts already reach /health as fixed codes and integers, so no server change."
+  - "tests/research-failure-memory.test.js (new) and an invariant in tests/research-experiment-orchestrator.test.js: every non-winning validation lands under exactly one reason."
+exclusions:
+  - "No threshold, risk, capital or promotion change; a failure reason never lowers a bar. No new storage or schema. No order, execution, LIVE, credential or AI authority. The other directive reasons (OVERFIT, REGIME_SPECIFIC, PARAMETER_FRAGILE, RISK_INCOMPATIBLE, INSUFFICIENT_PAPER) need evidence this ledger does not carry and are not guessed."
+  - "Repeat detection against earlier Research runs (comparing a new candidate's config with failed ones) is a follow-up; this change makes the reasons durable-derivable and visible first."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+rollback: "Revert the change."
+verification_commands:
+  - node_modules/.bin/tsc -p tsconfig.json
+  - node --test tests/research-failure-memory.test.js tests/research-experiment-orchestrator.test.js tests/research-experiment-composition.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "INCONCLUSIVE is mapped to LOW_SAMPLE as the nearest bounded reason (the comparison could not separate the strategies); that mapping is a documented assumption. After the next PAPER deploy the FAIL_ counts appear under researchExperimentTicksByInterval."

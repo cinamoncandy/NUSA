@@ -2795,3 +2795,10 @@ current_ui_motion_fast_light:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (chose option 'a' on the motion preview)"
   finding: "App-wide animation retuned to the faster, lighter fieldMotion set; device feel is HUMAN_ENVIRONMENT_ONLY"
+current_research_failure_reasons:
+  work_order: WO-RESEARCH-20261007-FAILURE-REASONS
+  status: READY_FOR_REVIEW
+  branch: claude/failed-strategy-memory
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
+  finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
