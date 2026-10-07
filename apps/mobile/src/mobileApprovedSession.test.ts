@@ -87,21 +87,35 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal(session.shouldRetryRestore(), true);
   });
 
-  it("fails closed without retry or bearer fallback when native inspection definitively reports the key absent", async () => {
-    const storage = new MemorySecureStorage(); // nothing persisted: no bearer session to fall back to
+  it("fails closed without mutation, retry, or bearer fallback for definitive missing or invalid silent keys", async () => {
     const endpoint = "https://paper.example";
-    const request = (async () => { throw new Error("must not reach the network with no persisted session and no silent key"); }) as unknown as typeof fetch;
-    const native = {
-      getSilentDeviceStatus: async () => ({ available: false, canCreate: false, hardwareBacked: false, status: "SILENT_DEVICE_KEY_ABSENT", credentialId: null }),
-      signSilentChallenge: async () => { throw new Error("must not be called"); },
-      deleteSilentDeviceCredential: async () => { throw new Error("must not be called"); },
-    } as unknown as OwnerDeviceCredentialNative;
-    const session = new MobileApprovedSession(storage, request);
-    await assert.rejects(
-      () => session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0003", native),
-      /registered silent DeviceKey is unavailable/,
-    );
-    assert.equal(session.shouldRetryRestore(), false);
+    for (const status of [
+      { available: false, canCreate: true, hardwareBacked: false, status: "SILENT_DEVICE_KEY_NOT_REGISTERED", credentialId: null },
+      { available: false, canCreate: true, hardwareBacked: false, status: "HARDWARE_BACKING_UNAVAILABLE", credentialId: "silent-credential-0123456789" },
+    ]) {
+      const storage = new MemorySecureStorage(); // no bearer session is available for a trust downgrade
+      let networkRequests = 0;
+      let signatures = 0;
+      let creations = 0;
+      let deletions = 0;
+      const request = (async () => { networkRequests += 1; throw new Error("must not reach the network for a definitive local trust failure"); }) as unknown as typeof fetch;
+      const native = {
+        getSilentDeviceStatus: async () => status,
+        signSilentChallenge: async () => { signatures += 1; throw new Error("must not sign"); },
+        createSilentDeviceCredential: async () => { creations += 1; throw new Error("must not create a replacement DeviceKey"); },
+        deleteSilentDeviceCredential: async () => { deletions += 1; },
+      } as unknown as OwnerDeviceCredentialNative;
+      const session = new MobileApprovedSession(storage, request);
+      await assert.rejects(
+        () => session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0003", native),
+        /registered silent DeviceKey is unavailable/,
+      );
+      assert.equal(session.shouldRetryRestore(), false);
+      assert.equal(networkRequests, 0);
+      assert.equal(signatures, 0);
+      assert.equal(creations, 0);
+      assert.equal(deletions, 0);
+    }
   });
 
   it("preserves transient native reason/correlation evidence and arms silent recovery", async () => {
