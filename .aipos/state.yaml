@@ -2788,3 +2788,10 @@ current_autopilot_codex_outcome:
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('다른 최우선 작업')"
   finding: "Scheduled Codex runs ended green with no patch (weekly ChatGPT limit, host deferral); each run now records its outcome so zero-completion runs are visible"
+current_ui_motion_fast_light:
+  work_order: WO-UI-20261007-MOTION-FAST-LIGHT
+  status: READY_FOR_REVIEW
+  branch: claude/ui-motion-fast-light
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (chose option 'a' on the motion preview)"
+  finding: "App-wide animation retuned to the faster, lighter fieldMotion set; device feel is HUMAN_ENVIRONMENT_ONLY"
