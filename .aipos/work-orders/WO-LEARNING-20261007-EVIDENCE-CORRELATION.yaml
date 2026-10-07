@@ -25,4 +25,5 @@ rollback: "Revert the change."
 verification_commands:
   - npx tsc -p tsconfig.json
   - node --test tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js
-residual: "Fill, ledger and performance fingerprints per fill are not exposed (the realized period carries the canonical outcome receipt fingerprint). Wiring Strategy Governance feedback receipts into the loop is a separate decision."
+owner_decision: "2026-10-07 in chat ('a'): Feedback N for the learning-loop acceptance is the closed-learning Research decision (cycle evidence fingerprint -> decision id/reference), which already consumes the realized PAPER evidence. evaluatePaperGovernanceFeedback is not wired into the loop and is not required for this acceptance."
+residual: "Fill, ledger and performance fingerprints per fill are not exposed (the realized period carries the canonical outcome receipt fingerprint)."
