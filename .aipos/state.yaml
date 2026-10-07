@@ -2720,3 +2720,11 @@ current_sec_shell_quote_advisory:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
   finding: "CI Security gate red on all heads: new critical shell-quote advisory 1241332; overridden to patched 1.11.0"
+current_ops_rollover_reason_codes:
+  work_order: WO-OPS-20261007-ROLLOVER-REASON-CODES
+  status: READY_FOR_REVIEW
+  branch: claude/rollover-reason-codes
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘')"
+  finding: "/health showed rollover BLOCKED without a reason; blocked reasons now lead with the error code so rolloverReason is published"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval

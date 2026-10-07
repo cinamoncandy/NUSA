@@ -6,6 +6,7 @@ import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProd
 import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverPort } from "./closedLearningRolloverScheduler";
 import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
+import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
 
 const START = Date.parse("2026-09-04T14:59:00.000Z"); // 23:59 KST
 const SAME_KST_DAY = Date.parse("2026-09-04T14:59:30.000Z");
@@ -236,6 +237,24 @@ describe("closed-learning rollover after a period closed without a successor", (
     const result = new ClosedLearningRolloverScheduler(port).runOnce();
     assert.equal(result.status, "NO_OPEN_PERIOD");
     assert.equal(result.reason, undefined);
+  });
+});
+
+describe("closed-learning rollover blocked reasons", () => {
+  it("leads with the failing step's error code so the loop status can name it", () => {
+    const failure = Object.assign(new Error("canonical PAPER period benchmark evidence is unavailable"), { code: "MISSING_BENCHMARK_EVIDENCE" });
+    const { scheduler } = harness({ now: NEXT_KST_DAY, closeError: failure });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.reason, "MISSING_BENCHMARK_EVIDENCE:canonical PAPER period benchmark evidence is unavailable");
+    const tracker = new ClosedLearningLoopStatusTracker();
+    tracker.observeRollover(result, NEXT_KST_DAY);
+    assert.equal(tracker.snapshot()?.rolloverReason, "MISSING_BENCHMARK_EVIDENCE");
+  });
+
+  it("keeps the plain message when the error has no stable code", () => {
+    const { scheduler } = harness({ now: NEXT_KST_DAY, closeError: Object.assign(new Error("boom"), { code: "lower-case" }) });
+    assert.equal(scheduler.runOnce().reason, "boom");
   });
 });
 
