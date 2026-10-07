@@ -31,6 +31,8 @@ export interface ResearchVariant {
   readonly champion: { readonly strategy: GeneratedStrategy; readonly config: unknown };
   readonly challenger: { readonly strategy: GeneratedStrategy; readonly config: unknown };
   readonly runtime: VariantRuntime;
+  /** Experiment family for this variant's strategy family; defaults to the orchestrator's prefix (the original SMA identities). */
+  readonly experimentFamilyPrefix?: string;
 }
 
 export interface OrchestratorOptions {
@@ -223,9 +225,9 @@ export class ResearchExperimentOrchestrator {
             champion: variant.champion, challenger: variant.challenger,
             featurePipeline: this.options.featurePipeline, evaluator: this.options.evaluator, models: this.options.models,
             sourceCommitSha: this.options.sourceCommitSha,
-            experimentFamilyId: `${this.options.experimentFamilyPrefix}:${market}`,
+            experimentFamilyId: `${variant.experimentFamilyPrefix ?? this.options.experimentFamilyPrefix}:${market}`,
             attempt: (this.options.sessions.load(sessionId)?.experimentCount ?? 0) + 1,
-            hypothesisLineage: `${this.options.experimentFamilyPrefix}:${variant.variantId}`,
+            hypothesisLineage: `${variant.experimentFamilyPrefix ?? this.options.experimentFamilyPrefix}:${variant.variantId}`,
             split: { identity: `wf-${this.options.windows.trainMs / 60_000}-${this.options.windows.validationMs / 60_000}-${this.options.windows.holdoutMs / 60_000}m` },
             walkForwardConfig: { windows: this.options.windows, challenger: variant.challenger.config },
           });

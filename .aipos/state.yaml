@@ -2795,3 +2795,10 @@ current_ui_motion_fast_light:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (chose option 'a' on the motion preview)"
   finding: "App-wide animation retuned to the faster, lighter fieldMotion set; device feel is HUMAN_ENVIRONMENT_ONLY"
+current_research_rsi_family:
+  work_order: WO-RESEARCH-20261007-RSI-FAMILY
+  status: READY_FOR_REVIEW
+  branch: claude/research-strategy-breadth
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('1번해')"
+  finding: "Research tested only SMA crossover variants and all failed after costs; an RSI mean-reversion family (pre-committed grid) now runs under the same gates as its own experiment family"

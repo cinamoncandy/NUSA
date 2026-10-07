@@ -1,5 +1,5 @@
 import { SqliteCandidatePromotionRepository, SqliteResearchCandleStore, SqliteResearchEvaluationLedger, SqliteResearchHoldoutLedger, SqliteResearchMemoryRepository, SqliteResearchSessionRepository, SqlitePaperMarketObservationRepository, type SqliteDatabase } from "../../../packages/storage/src/index";
-import { BacktestResearchEvaluator, buildSmaResearchStrategy } from "./backtestResearchEvaluator";
+import { BacktestResearchEvaluator, buildRsiResearchStrategy, buildSmaResearchStrategy } from "./backtestResearchEvaluator";
 import { ResearchAutomationRuntime } from "./researchAutomationRuntime";
 import { ResearchExperimentOrchestrator, type ResearchVariant, type TickReport } from "./researchExperimentOrchestrator";
 import { ResearchRecoveryCoordinator } from "./researchRecoveryCoordinator";
@@ -22,6 +22,10 @@ export const RESEARCH_FLAG = "NUSA_CLOUD_RESEARCH_EXPERIMENTS";
 export const RESEARCH_BACKTEST_COST = Object.freeze({ initialCash: 1_000_000, feeRate: 0.0005, slippageBps: 5 });
 const CHAMPION_PROXY = Object.freeze({ fast: 5, slow: 20 }); // matches the owner-approved PAPER baseline parameters
 const CHALLENGER_GRID: readonly (readonly [number, number])[] = Object.freeze([[3, 10], [5, 30], [10, 40], [8, 20]]);
+// RSI mean-reversion grid [period, oversold threshold], fixed before any result was seen (no tuning on validation or holdout).
+const RSI_CHALLENGER_GRID: readonly (readonly [number, number])[] = Object.freeze([[14, 30], [14, 25], [7, 20]]);
+// RSI positions close after this many bars of the experiment's bar length if neither take-profit nor stop-loss hit.
+const RSI_TIMEOUT_BARS = 48;
 /** Bar lengths research may compare (docs/PROPOSAL_RESEARCH_LONGER_TIMEFRAMES.md). Longer bars are built from stored 1m candles. */
 export const RESEARCH_INTERVAL_MINUTES: readonly number[] = Object.freeze([1, 15, 60, 240]);
 
@@ -131,16 +135,25 @@ export function composeResearchExperiments(input: {
       strategyId: strategy.strategyId, strategyVersion: strategy.version, authority, evaluatorVersion: "backtest-eval-v1",
       strategy, candles: bars, intervalMs, backtest: RESEARCH_BACKTEST_COST,
     });
-    const variants: ResearchVariant[] = CHALLENGER_GRID.map(([fast, slow]) => {
-      const variantId = `sma_${fast}_${slow}${tag.replace("-", "_")}`;
-      const challenger = proxy(`research-challenger-${variantId}`, fast, slow);
+    const variantFor = (variantId: string, challenger: ReturnType<typeof proxy>, config: unknown, experimentFamilyPrefix?: string): ResearchVariant => {
       const coordinator = new ResearchRuntimeCoordinator({ champion: evaluatorFor(champion, "PAPER_ONLY"), challenger: evaluatorFor(challenger, "ZERO_AUTHORITY"), ledger });
       const runtime = new ResearchAutomationRuntime({
         coordinator, sessions, memory, registerCandidate: (identity) => { log(`[research-experiments] candidate gate eligible (not registered, governed promotion paths unchanged): ${identity.strategyId}@${identity.strategyVersion}`); return Object.freeze({ identity, lifecycle: "RESEARCHING" as const }); }, listCandidates: () => candidates.listCandidates(),
         recovery, now, maxEvidenceAgeMs: 14 * DAY_MS,
       });
-      return { variantId, champion: { strategy: champion, config: CHAMPION_PROXY }, challenger: { strategy: challenger, config: { fast, slow } }, runtime };
+      return { variantId, champion: { strategy: champion, config: CHAMPION_PROXY }, challenger: { strategy: challenger, config }, runtime, ...(experimentFamilyPrefix == null ? {} : { experimentFamilyPrefix }) };
+    };
+    const smaVariants = CHALLENGER_GRID.map(([fast, slow]) => {
+      const variantId = `sma_${fast}_${slow}${tag.replace("-", "_")}`;
+      return variantFor(variantId, proxy(`research-challenger-${variantId}`, fast, slow), { fast, slow });
     });
+    // RSI mean-reversion family (pre-committed grid): its own experiment family, compared against the same SMA 5/20 champion.
+    const rsiVariants = RSI_CHALLENGER_GRID.map(([period, threshold]) => {
+      const variantId = `rsi_${period}_${threshold}${tag.replace("-", "_")}`;
+      const challenger = buildRsiResearchStrategy({ strategyId: `research-challenger-${variantId}`, version: "1.0.0", market, period, threshold, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: RSI_TIMEOUT_BARS * minutes, positionPercent: 50, maxPositionNotional: 500_000 });
+      return variantFor(variantId, challenger, { family: "rsi", period, threshold, timeoutBars: RSI_TIMEOUT_BARS }, `rsi-research${tag}`);
+    });
+    const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants];
     const orchestrator = new ResearchExperimentOrchestrator({
       variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant,
       // Closed 1m candles are collected once per tick by the 1m-equivalent first orchestrator only.
