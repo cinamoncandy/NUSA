@@ -338,3 +338,17 @@ test("/health publishes the closed-learning loop status as fixed codes and integ
     }, 42343 + index);
   }
 });
+
+test("the running build commit is published only as a full lowercase 40-hex SHA", async () => {
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, sourceCommitSha: sha }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.sourceCommitSha, sha);
+  }, 41886);
+  for (const bad of ["", "abc123", sha.toUpperCase(), `${sha} extra`, 42]) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, sourceCommitSha: bad }) }, async (handle) => {
+      const res = await request(handle.port, "/health");
+      assert.equal(JSON.parse(res.body).runtime.sourceCommitSha, undefined, String(bad));
+      assert.doesNotMatch(res.body, /extra/);
+    }, 41886);
+  }
+});
