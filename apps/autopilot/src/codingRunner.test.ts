@@ -448,9 +448,13 @@ describe("coding runner", () => {
       assert.equal(evidence.workflowConclusion, "failure");
     });
 
-    it("rejects a different commit, a different workflow name, or a run that is not actually failed", async () => {
+    it("accepts a normalized or different workflow label when the cited run really failed on the same commit", async () => {
+      await verifyCodingRunnerRequestAgainstGitHub(named("failure", request.headSha, "mobile-native"), "github-token", fetchFor("failure", "Mobile Native"));
+      await verifyCodingRunnerRequestAgainstGitHub(named("failure", request.headSha, "ci"), "github-token", fetchFor("failure", "Android Stable Release"));
+    });
+
+    it("rejects a different commit or a run that is not actually failed", async () => {
       await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub(named("failure", "b".repeat(40)), "github-token", fetchFor("failure")), /CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH/);
-      await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub(named("failure", request.headSha, "release"), "github-token", fetchFor("failure")), /CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH/);
       await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub(named(), "github-token", fetchFor("success")), /CODING_RUNNER_FAILURE_EVIDENCE_INVALID/);
     });
 

@@ -1,0 +1,31 @@
+id: WO-AUTOPILOT-20261007-RUNNER-FAILURE-IDENTITY
+title: "Coding runner accepts the evolve discovery failure identity (no run id)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/coding-runner-named-failure-reason
+authority_impact: none
+owner_approval: "2026-10-07 in chat (Autopilot completion convergence master work order)"
+objective: "Close the first broken transition of the Autopilot completion chain: repair dispatch -> external coding runner."
+first_broken_transition: "Autopilot repair dispatch (reason evolve:discovery:gha:<workflow>:<sha>:failure) -> coding runner rejects a really failed run as CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL"
+scope:
+  include:
+    - "verifyCodingRunnerRequestAgainstGitHub also accepts gha:<workflow>:<sha>:<conclusion>; commit and failed conclusion must match the GitHub-verified cited run."
+  exclude:
+    - "Credentials, permissions, Risk, Release, Audit, protected-main, LIVE; failure-class taxonomy, preflight, checkpoints and canary are later P0 steps."
+acceptance:
+  - "A verified failed run with a matching commit is a failure-repair request; a different commit or a non-failed run is rejected; a reason without failure identity still needs a successful run."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/codingRunner.test.js tests/autopilot-dispatch-retry.test.js"
+evidence:
+  observed: "Autopilot Execution Consumer run 37642423707 on main 85edd78 ended executor=FAILED_CLOSED with CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL."
+  remaining: "Exact-head CI, independent Audit and Release; after merge the Autopilot Cloudflare worker must deploy, then a repair dispatch must reach the runner. Main CI run 37641690699 (85edd78) concluded failure with no test gate job; re-run once, attempt 2 pending."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

@@ -607,8 +607,10 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   if (run.status !== "completed") throw new Error("CODING_RUNNER_WORKFLOW_NOT_COMPLETED");
 
   // Two canonical failure-reason identities: `gha:<runId>:<sha>:<conclusion>` (planner) and the evolve discovery
-  // observation `gha:<workflow>:<sha>:<conclusion>`, which carries no run id. The run id is bound by the GitHub fetch
-  // above; for the named form the workflow name must also equal the verified run's name.
+  // observation `gha:<workflow>:<sha>:<conclusion>`, which carries no run id. The cited run id is bound by the GitHub
+  // fetch above (id, head sha, repository). For the named form the commit and the failed conclusion must match that
+  // verified run; the workflow label is not compared, because discovery normalizes it and may select a different
+  // failing workflow of the same commit than the cited run, and the label carries no authority.
   const numericReason = request.reason.match(/(?:^|:)gha:(?:[^:]+:)?(\d+):([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i);
   const namedReason = numericReason === null
     ? request.reason.match(/(?:^|:)gha:([A-Za-z][A-Za-z0-9_-]{0,63}):([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i)
@@ -620,10 +622,7 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
       || numericReason[2].toLowerCase() !== request.headSha.toLowerCase())) {
     throw new Error("CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH");
   }
-  if (namedReason
-    && (namedReason[2].toLowerCase() !== request.headSha.toLowerCase()
-      || typeof run.name !== "string"
-      || namedReason[1].toLowerCase() !== run.name.trim().toLowerCase())) {
+  if (namedReason && namedReason[2].toLowerCase() !== request.headSha.toLowerCase()) {
     throw new Error("CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH");
   }
   const allowedConclusions = failureRepair ? ["failure", "cancelled", "timed_out"] : ["success"];
