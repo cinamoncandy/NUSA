@@ -44,7 +44,7 @@ describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
       const s = state(pairs(DAY1, Array(losses).fill(90)));
       const r = g.evaluate(request(s, DAY1 + 10 * HOUR, losses));
       seen.push([g.lossSession()!.consecutiveLossCount, r.status]);
-      if (losses < 3) assert.notEqual(r.status, "REJECT", `losses=${losses}`);
+      if (losses < 3) assert.equal(r.status, "ALLOW", `losses=${losses}`);
       else assert.ok(r.reasonCodes.includes("CONSECUTIVE_LOSS_LIMIT"));
     }
     assert.deepEqual(seen.map(([c]) => c), [0, 1, 2, 3]);
@@ -76,8 +76,10 @@ describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
 
   it("a duplicate/stale fill leaves the count unchanged", () => {
     const g = gate();
-    const dup = [...blocked.fills, blocked.fills[0]!];
-    assert.equal(g.evaluate(request({ ...blocked, fills: dup }, DAY1 + 10 * HOUR, 1)).status, "HALT"); // duplicate id fails closed
+    // Two fills of one order, quantities still reconcile; only the shared fill id differs between the two ledgers.
+    const split = (secondId: string) => state([fill("b", "BUY", 100, DAY1, "b", 2), fill("x1", "SELL", 90, DAY1 + 1000, "sell", 1), fill(secondId, "SELL", 90, DAY1 + 2000, "sell", 1)]);
+    assert.equal(gate().evaluate(request(split("x2"), DAY1 + 10 * HOUR, 0)).status, "ALLOW");
+    assert.equal(g.evaluate(request(split("x1"), DAY1 + 10 * HOUR, 1)).status, "HALT"); // duplicate fill id fails closed
     const staleDay = state([...pairs(DAY1 - 24 * HOUR, [90, 90]), ...pairs(DAY1, [90])]);
     g.evaluate(request(staleDay, DAY1 + 10 * HOUR, 2));
     assert.equal(g.lossSession()!.consecutiveLossCount, 1, "yesterday's losses never count");
@@ -92,7 +94,7 @@ describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
   it("a winning close ends the streak", () => {
     const g = gate();
     const s = state(pairs(DAY1, [90, 90, 110]));
-    assert.notEqual(g.evaluate(request(s, DAY1 + 10 * HOUR, 1)).status, "REJECT");
+    assert.equal(g.evaluate(request(s, DAY1 + 10 * HOUR, 1)).status, "ALLOW");
     assert.equal(g.lossSession()!.consecutiveLossCount, 0);
     const again = state(pairs(DAY1, [90, 110, 90, 90]));
     g.evaluate(request(again, DAY1 + 10 * HOUR, 2));
