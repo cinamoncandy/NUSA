@@ -193,6 +193,13 @@ async function main() {
     return Buffer.from(data, "base64");
   };
   if (preview) { write("preview-1024.png", await png("full-bleed", 1024)); write("preview-192.png", await png("square-rounded", 192)); write("preview-48.png", await png("round", 48)); await browser.close(); return; }
+  if (process.env.ONLY_ICO === "1") {
+    const only = [];
+    for (const size of [16, 24, 32, 48, 64, 128, 256]) only.push({ size, png: await png("square-rounded", size) });
+    write("build/nusa-a4p.ico", icoFromPngs(only));
+    await browser.close();
+    return;
+  }
   const densities = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
   for (const [dpi, size] of Object.entries(densities)) {
     write(`apps/mobile/android/app/src/main/res/mipmap-${dpi}/ic_launcher.png`, await png("square-rounded", size));
@@ -201,7 +208,10 @@ async function main() {
   write("build/nusa-appicon.svg", svgMaster("full-bleed"));
   write("build/icon-1024.png", await png("full-bleed", 1024));
   write("build/icon.png", await png("full-bleed", 512));
-  write("build/nusa-a4p.ico", icoFromPngs(await Promise.all([16, 24, 32, 48, 64, 128, 256].map(async (size) => ({ size, png: await png("square-rounded", size) })))));
+  // One page at a time: opening the sizes concurrently stalled headless Chromium in a sandboxed host.
+  const icoEntries = [];
+  for (const size of [16, 24, 32, 48, 64, 128, 256]) icoEntries.push({ size, png: await png("square-rounded", size) });
+  write("build/nusa-a4p.ico", icoFromPngs(icoEntries));
   await browser.close();
 }
 

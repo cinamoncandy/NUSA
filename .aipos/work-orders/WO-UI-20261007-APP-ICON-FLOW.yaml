@@ -1,0 +1,27 @@
+id: WO-UI-20261007-APP-ICON-FLOW
+title: "Redraw the app icon family as the flow-edition N monogram"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/app-icon-flow
+authority_impact: none
+owner_approval: "2026-10-07 in chat: the owner asked for the icon to match the new concept design, was shown a side-by-side comparison of the current icon and the new one, and replied '새 아이콘'"
+objective: "Match the app icon to the owner-approved flow-field hero. The N monogram stays recognisable; its three contour strokes become seven hairline data streams that fan out from a small particle cluster at the bottom-left and funnel into a glowing decision-point particle cluster at the top-right, lime on near-black. The desktop icon was still the retired flame design and is brought onto the same mark."
+scope:
+  - "build/generate-nusa-appicon.js (new): one deterministic generator for the whole family; every output below is derived from the same geometry."
+  - "Android vector drawables: ic_nusa_logo_foreground, ic_nusa_logo_monochrome, ic_nusa_splash, ic_nusa_logo and the API 24 ic_launcher / ic_launcher_round fallbacks. The comment 'NUSA N monogram mark', the lime #B6F04B and the #0B0C0E ground that existing tests pin are kept; the monochrome drawable uses only #FFFFFFFF."
+  - "Android legacy launcher PNGs: ic_launcher (rounded square) and ic_launcher_round at mdpi, hdpi, xhdpi, xxhdpi and xxxhdpi."
+  - "Desktop: build/nusa-appicon.svg, build/icon.png (512), build/icon-1024.png and build/nusa-a4p.ico (16, 24, 32, 48, 64, 128, 256)."
+  - "UI rule: every surface that shows the app icon changes together (Android launcher, themed icon, splash, desktop window and installer). No surface keeps the old mark."
+exclusions:
+  - "The status-bar notification icon stays the simple monochrome N (a hairline bundle would not survive 24 dp). The adaptive icon background colour is unchanged. No code, runtime, trading, risk, credential or AI authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+rollback: "Revert the change."
+verification_commands:
+  - node --test tests/mobile-brand-concept1.test.js tests/mobile-design-system-v1.test.js
+  - node scripts/lint-mobile.js
+residual: "Android vector drawables cannot blur, so the adaptive and splash icons draw the streams and particles without the soft glow that the PNG and desktop icons have. How the icon looks on a real home screen and in a themed (monochrome) launcher is HUMAN_ENVIRONMENT_ONLY and needs the next Android build. The generator needs Chromium through @playwright/test and renders the PNGs one page at a time because concurrent pages stalled headless Chromium in a sandboxed host."
