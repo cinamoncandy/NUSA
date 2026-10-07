@@ -5,6 +5,7 @@ owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
 implementation_branch: claude/hero-flow-field
+supersedes: "WO-UI-20261006-HERO-RIDGE (the ridge hero). The branch name was first used by WO-UI-20261006-HERO-FLOW-FIELD, an earlier flow-field figure that the ridge already superseded; that work order is marked superseded so the branch maps to this one task."
 authority_impact: none
 owner_approval: "2026-10-07 in chat: the owner rejected the neon ridge, aurora and terminal concepts, then supplied four reference videos ('참고해'); the agent built a canvas prototype from them (hairline streams flowing into particle clusters, one per stage of the chain) and the owner approved it ('해')"
 objective: "Replace the ridge landscape hero with a flow field in the reference videos' style: hairline data streams flowing into glowing particle clusters for market -> research -> risk -> paper -> ledger. A decision sends a pulse down the chain; a PAPER order ignites the paper cluster with a lime ring and beam and lights its hand-off to the ledger; hold / halt tint risk onward amber / red and a halt dims the streams out of risk."

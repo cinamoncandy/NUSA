@@ -1,6 +1,6 @@
 id: WO-UI-20261006-HERO-FLOW-FIELD
 title: "Replace the hero figure with a flow field after the owner's second reference video"
-status: READY_FOR_REVIEW
+status: SUPERSEDED_BY_WO-UI-20261006-HERO-RIDGE
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
