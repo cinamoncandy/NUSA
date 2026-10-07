@@ -2844,3 +2844,10 @@ current_autopilot_runner_failure_identity:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (Autopilot completion convergence master work order)"
   finding: "The evolve discovery failure reason carries no run id, so the coding runner rejected a really failed run as not successful; the named identity is now accepted when commit and failed conclusion match the GitHub-verified run"
+current_learning_rollover_wall_clock:
+  work_order: WO-LEARNING-20261007-ROLLOVER-WALL-CLOCK
+  status: READY_FOR_REVIEW
+  branch: claude/rollover-wall-clock
+  authority_impact: closed-learning-period-close-trigger
+  owner_approval: "2026-10-07 in chat (rollover basis changed to the clock)"
+  finding: "A consecutive-loss halt stops fills so the canonical account updatedAt never crossed the KST day and the rollover waited; the wall clock now only decides the day passed, the period still closes at the canonical account boundary"

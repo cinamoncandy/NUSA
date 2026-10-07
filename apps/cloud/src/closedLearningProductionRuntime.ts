@@ -192,6 +192,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listOpenPeriods: periods.listOpenPeriods,
     listRealizedPeriods: periods.listRealizedPeriods,
     readCanonicalPaperAccount,
+    now: () => Date.now(),
     closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
     retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,

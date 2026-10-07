@@ -113,6 +113,7 @@ function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE", aw
 
 function harness(options: {
   now: number;
+  clock?: number;
   observation?: "FILLED" | "WAIT";
   outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE";
   awaitingGovernance?: boolean;
@@ -128,6 +129,7 @@ function harness(options: {
     listOpenPeriods: () => openPeriods,
     listRealizedPeriods: () => realized,
     readCanonicalPaperAccount: () => account(options.now),
+    ...(options.clock === undefined ? {} : { now: () => options.clock! }),
     closePeriodFromCanonicalAccount: ({ periodId, periodEndAt }) => {
       events.push(`close:${periodId}:${periodEndAt}`);
       if (options.closeError) throw options.closeError;
@@ -144,6 +146,25 @@ describe("ClosedLearningRolloverScheduler", () => {
   it("does not close before the canonical PAPER account crosses the KST trading-day boundary", () => {
     const { scheduler, events } = harness({ now: SAME_KST_DAY });
     assert.equal(scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");
+    assert.deepEqual(events, []);
+  });
+
+  it("closes at the canonical account boundary, not the clock, once the wall clock passes the KST day while the account is idle", () => {
+    const { scheduler, events } = harness({ now: SAME_KST_DAY, clock: NEXT_KST_DAY + 1000 });
+    assert.equal(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
+    assert.equal(events[0], `close:${plan("FILLED").periodId}:${SAME_KST_DAY}`);
+    assert.ok(events.some((event) => event.startsWith("open:") && event.includes(`:${SAME_KST_DAY}:`)), "successor starts at the canonical boundary");
+  });
+
+  it("still waits when the wall clock is on the same KST day, absent, or behind the account", () => {
+    assert.equal(harness({ now: SAME_KST_DAY, clock: SAME_KST_DAY + 1000 }).scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");
+    assert.equal(harness({ now: SAME_KST_DAY }).scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");
+    assert.equal(harness({ now: SAME_KST_DAY, clock: SAME_KST_DAY - 1 }).scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");
+  });
+
+  it("a clock-crossed period without a FILLED observation still waits and writes nothing", () => {
+    const { scheduler, events } = harness({ now: SAME_KST_DAY, clock: NEXT_KST_DAY, observation: "WAIT" });
+    assert.equal(scheduler.runOnce().status, "WAITING_FOR_REALIZED_FILL");
     assert.deepEqual(events, []);
   });
 
