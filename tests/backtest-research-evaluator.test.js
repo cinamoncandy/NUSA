@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { BacktestResearchEvaluator, BacktestEvaluatorError, buildSmaResearchStrategy } = require("../dist/apps/cloud/src/backtestResearchEvaluator.js");
+const { BacktestResearchEvaluator, BacktestEvaluatorError, buildRsiResearchStrategy, buildSmaResearchStrategy } = require("../dist/apps/cloud/src/backtestResearchEvaluator.js");
 
 const M = 60_000;
 const BASE = { initialCash: 1_000_000, feeRate: 0.0005, slippageBps: 5 };
@@ -69,4 +69,16 @@ test("the strategy builder validates and enforces the paper-only boundary", () =
   assert.equal(s.status, "VALIDATED");
   assert.throws(() => buildSmaResearchStrategy({ strategyId: "x", version: "1.0.0", market: "KRW-BTC", fastPeriod: 8, slowPeriod: 3, takeProfitPercent: 5, stopLossPercent: 3, positionPercent: 50, maxPositionNotional: 1 }), BacktestEvaluatorError);
   assert.throws(() => buildSmaResearchStrategy({ strategyId: "x", version: "bad", market: "KRW-BTC", fastPeriod: 3, slowPeriod: 8, takeProfitPercent: 5, stopLossPercent: 3, positionPercent: 50, maxPositionNotional: 1 }), BacktestEvaluatorError);
+});
+
+test("the RSI mean-reversion family builds a valid DSL strategy and trades the oversold dip through the same evaluator", () => {
+  const rsi = buildRsiResearchStrategy({ strategyId: "research-rsi", version: "1.0.0", market: "KRW-BTC", period: 7, threshold: 30, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: 48, positionPercent: 50, maxPositionNotional: 500_000 });
+  assert.equal(rsi.dsl.entry.type, "RSI_THRESHOLD");
+  assert.deepEqual(rsi.dsl.exits.map((e) => e.type), ["TAKE_PROFIT", "STOP_LOSS", "TIMEOUT"]);
+  assert.equal(rsi.paperOnly, true);
+  assert.equal(rsi.executionAllowed, false);
+  const result = evaluator({ strategyId: "research-rsi", strategy: rsi }).evaluate(contextFor());
+  for (const key of ["netReturn", "costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality", "tradeCount"]) assert.ok(Number.isFinite(result.metrics[key]), key);
+  assert.ok(result.metrics.tradeCount >= 1, "the falling stretch drives RSI below 30 at least once");
+  assert.equal(code(() => buildRsiResearchStrategy({ strategyId: "x", version: "1", market: "KRW-BTC", period: 7, threshold: 120, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: 48, positionPercent: 50, maxPositionNotional: 1 })), "STRATEGY_INVALID", "an impossible threshold is rejected");
 });

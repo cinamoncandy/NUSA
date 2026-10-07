@@ -76,9 +76,9 @@ test("longer bars run the same grid on 1m candles aggregated into complete bars,
     assert.equal(composition.orchestrator, composition.orchestrators[0]);
     for (const o of composition.orchestrators) assert.equal(o.recover().status, "READY");
     const report = composition.tickOnce();
-    assert.equal(report.started, 4, "the returned report stays the 1m report");
-    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick OK started=4")));
-    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick 60m OK started=4")), lines.join("\n"));
+    assert.equal(report.started, 7, "the returned report stays the 1m report (4 SMA + 3 RSI variants)");
+    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick OK started=7")));
+    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick 60m OK started=7")), lines.join("\n"));
     const hourly = composition.orchestrators[1].statusProjection();
     assert.ok(hourly != null && hourly.experimentCount >= 1);
     assert.equal(hourly.liveAuthority, "NONE");
@@ -86,7 +86,7 @@ test("longer bars run the same grid on 1m candles aggregated into complete bars,
     const byInterval = composition.experimentTicksByInterval();
     assert.deepEqual(Object.keys(byInterval), ["1m", "60m"]);
     assert.equal(byInterval["60m"].lastStatus, "OK");
-    assert.equal(byInterval["60m"].sessionsStarted, 4);
+    assert.equal(byInterval["60m"].sessionsStarted, 7);
   } finally { composition.stop(); db.close(); }
 });
 
@@ -103,16 +103,22 @@ test("enabled composition recovers, runs a real tick on stored candles and expos
     assert.equal(composition.orchestrator.recover().status, "READY");
     const report = composition.tickOnce();
     assert.equal(report.status, "OK");
-    assert.equal(report.started, 4);
-    assert.equal(report.experiments.length, 4);
+    assert.equal(report.started, 7, "4 SMA + 3 RSI variants");
+    assert.equal(report.experiments.length, 7);
     for (const e of report.experiments) assert.equal(e.outcome.status, "COMPLETED", JSON.stringify(e));
+    // The RSI mean-reversion family runs as its own variants and experiment family, against the same SMA champion.
+    const rsi = report.experiments.filter((e) => e.variantId.startsWith("rsi_"));
+    assert.deepEqual(rsi.map((e) => e.variantId).sort(), ["rsi_14_25", "rsi_14_30", "rsi_7_20"]);
+    for (const e of rsi) assert.equal(e.outcome.validation.challenger.strategyId, `research-challenger-${e.variantId}`);
+    for (const e of rsi) assert.match(e.outcome.validation.provenance.experimentFamilyId, /^rsi-research:/);
+    for (const e of report.experiments.filter((x) => x.variantId.startsWith("sma_"))) assert.match(e.outcome.validation.provenance.experimentFamilyId, /^sma-research:/, "SMA identities are unchanged");
     const projection = composition.orchestrator.statusProjection();
     assert.ok(projection != null && projection.experimentCount >= 1);
     assert.equal(projection.liveAuthority, "NONE");
     assert.equal(projection.productionMutationAllowed, false);
     assert.equal(projection.champion.authority, "PAPER_ONLY");
     assert.equal(projection.challenger.authority, "ZERO_AUTHORITY");
-    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick OK started=4")));
+    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick OK started=7")));
     const again = composition.tickOnce();
     assert.equal(again.started, 0);
   } finally { composition.stop(); db.close(); }
@@ -206,4 +212,11 @@ test("the composition refills restart gaps in the recent history through the pub
     assert.equal(store.count("KRW-BTC", M), 4);
     assert.ok(lines.some((l) => l.startsWith("[research-gap-fill] KRW-BTC FILLED missing=2 recorded=2")), lines.join("\n"));
   } finally { composition.stop(); db.close(); }
+});
+
+test("the RSI time limit fits inside the shortest evaluation window after the indicator warm-up", () => {
+  const { RSI_TIMEOUT_BARS } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+  const shortestWindowBars = (2 * 24 * 60) / 60; // default 2-day validation/holdout at the longest enabled bar (60m)
+  const longestWarmUp = 14; // RSI 14 is the longest period in the grid
+  assert.ok(RSI_TIMEOUT_BARS + longestWarmUp < shortestWindowBars, `${RSI_TIMEOUT_BARS} + ${longestWarmUp} must fit in ${shortestWindowBars} bars`);
 });

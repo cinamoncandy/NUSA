@@ -2802,6 +2802,13 @@ current_ui_hero_flow_streams:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (reference videos, then '해' on the prototype)"
   finding: "The shared hero becomes a flow field of hairline streams into particle clusters for the canonical chain; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
+current_research_rsi_family:
+  work_order: WO-RESEARCH-20261007-RSI-FAMILY
+  status: READY_FOR_REVIEW
+  branch: claude/research-strategy-breadth
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('1번해')"
+  finding: "Research tested only SMA crossover variants and all failed after costs; an RSI mean-reversion family (pre-committed grid) now runs under the same gates as its own experiment family"
 current_research_failure_reasons:
   work_order: WO-RESEARCH-20261007-FAILURE-REASONS
   status: READY_FOR_REVIEW
