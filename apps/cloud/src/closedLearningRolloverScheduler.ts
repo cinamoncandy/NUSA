@@ -23,6 +23,9 @@ export interface ClosedLearningRolloverResult {
   readonly reason?: string;
   /** Present with MIXED_BINDING_PERIOD_RETIRED: the deterministic retirement receipt fingerprint. */
   readonly retirementEvidenceFingerprintSha256?: string;
+  /** Present with MIXED_BINDING_PERIOD_RETIRED: the period opened in the same step from the retired plan's own candidate. */
+  readonly replacementPeriodId?: string;
+  readonly replacementCandidateId?: string;
   readonly cycle?: ClosedLearningCycleResult;
 }
 
@@ -154,6 +157,32 @@ export class ClosedLearningRolloverScheduler {
     return streamed != null && streamed.length > 0 && !streamed.map((value) => value.trim().toUpperCase()).includes(market.trim().toUpperCase());
   }
 
+  /**
+   * Retires a period whose fills mix candidate bindings and opens its replacement in the same step, from the retired plan's own
+   * advisory, candidate provenance and market at the canonical account boundary (as the account-replaced path does). The
+   * replacement therefore never depends on realized history, which may be empty or may belong to a superseded candidate.
+   */
+  private retireMixedAndReplace(plan: PersistedPaperRealizedPeriodPlan, account: PaperAccountState, evidenceFingerprintSha256?: string): ClosedLearningRolloverResult {
+    this.port.retireOpenPeriodForMixedBinding!(plan.periodId);
+    const periodIndex = nextPeriodIndex(this.port.listRealizedPeriods());
+    const reopened = this.port.openPeriodFromCanonicalAccount({
+      periodId: `closed-learning-mixed-binding-replaced:${periodIndex}:${account.updatedAt}`,
+      periodIndex,
+      advisory: plan.advisory,
+      candidateProvenance: plan.candidateProvenance,
+      ...(plan.market == null ? {} : { market: plan.market }),
+      periodStartAt: account.updatedAt,
+    });
+    return Object.freeze({
+      status: "MIXED_BINDING_PERIOD_RETIRED",
+      periodId: plan.periodId,
+      reason: "CANDIDATE_BINDING_MIXED",
+      replacementPeriodId: reopened.periodId,
+      ...(plan.candidateProvenance[0] == null ? {} : { replacementCandidateId: plan.candidateProvenance[0].candidateId }),
+      ...(evidenceFingerprintSha256 === undefined ? {} : { retirementEvidenceFingerprintSha256: evidenceFingerprintSha256 }),
+    });
+  }
+
   private prepare(): ClosedLearningRolloverResult | PreparedRollover {
     const periods = stableOpenPeriods(this.port.listOpenPeriods());
     if (periods.length === 0) return this.reopenStalledContinuation();
@@ -197,10 +226,7 @@ export class ClosedLearningRolloverScheduler {
     // as the canonical ledger proves the mix, not only when the trading day closes (no evidence is scored or synthesized).
     if (this.port.inspectOpenPeriodForMixedBinding != null && this.port.retireOpenPeriodForMixedBinding != null) {
       const mixed = this.port.inspectOpenPeriodForMixedBinding(plan.periodId);
-      if (mixed != null) {
-        this.port.retireOpenPeriodForMixedBinding(plan.periodId);
-        return Object.freeze({ status: "MIXED_BINDING_PERIOD_RETIRED", periodId: plan.periodId, reason: "CANDIDATE_BINDING_MIXED", retirementEvidenceFingerprintSha256: mixed.evidenceFingerprintSha256 });
-      }
+      if (mixed != null) return this.retireMixedAndReplace(plan, account, mixed.evidenceFingerprintSha256);
     }
     // The account does not change while PAPER is idle or risk-blocked (for example a consecutive-loss halt), and then
     // its `updatedAt` never crosses the day boundary. Elapsed trading days therefore also count by the wall clock,
@@ -222,8 +248,7 @@ export class ClosedLearningRolloverScheduler {
       // A window that mixes strategy versions can never be scored. The reconciler's guard stays as it is; the period is
       // retired unscored so the loop is not blocked on it forever, and the next tick continues in a fresh period.
       if ((error as { readonly code?: unknown } | null)?.code === "CANDIDATE_BINDING_MIXED" && this.port.retireOpenPeriodForMixedBinding != null) {
-        this.port.retireOpenPeriodForMixedBinding(plan.periodId);
-        return Object.freeze({ status: "MIXED_BINDING_PERIOD_RETIRED", periodId: plan.periodId, reason: "CANDIDATE_BINDING_MIXED" });
+        return this.retireMixedAndReplace(plan, account);
       }
       throw error;
     }
