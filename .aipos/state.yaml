@@ -2802,3 +2802,10 @@ current_research_rsi_family:
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('1번해')"
   finding: "Research tested only SMA crossover variants and all failed after costs; an RSI mean-reversion family (pre-committed grid) now runs under the same gates as its own experiment family"
+current_research_failure_reasons:
+  work_order: WO-RESEARCH-20261007-FAILURE-REASONS
+  status: READY_FOR_REVIEW
+  branch: claude/failed-strategy-memory
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
+  finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
