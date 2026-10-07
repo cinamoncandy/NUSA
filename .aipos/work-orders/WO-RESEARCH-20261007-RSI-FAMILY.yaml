@@ -10,8 +10,9 @@ owner_approval: "2026-10-07 in chat: owner asked to upgrade NUSA as a whole; the
 objective: "Research tested only four SMA crossover variants, and on 1m/15m/60m every one failed to beat the champion after costs. Widen the hypothesis space with a second, different edge hypothesis (RSI oversold mean reversion) that the existing DSL and backtest engine already support, run under the same walk-forward, holdout, cost and governance gates."
 scope:
   - "apps/cloud/src/backtestResearchEvaluator.ts: buildRsiResearchStrategy (RSI_THRESHOLD entry, take-profit, stop-loss and time-limit exits; validated through the existing validateStrategy)."
-  - "apps/cloud/src/researchExperimentComposition.ts: a pre-committed RSI grid [14,30], [14,25], [7,20] with a 48-bar time limit, built as extra variants on every bar length (1m/15m/60m) next to the unchanged SMA grid, against the same SMA 5/20 champion proxy."
+  - "apps/cloud/src/researchExperimentComposition.ts: a pre-committed RSI grid [14,30], [14,25], [7,20] with a 12-bar time limit (fits inside the shortest 2-day window at 60m after the 14-bar RSI warm-up), built as extra variants on every bar length (1m/15m/60m) next to the unchanged SMA grid, against the same SMA 5/20 champion proxy."
   - "apps/cloud/src/researchExperimentOrchestrator.ts: an optional per-variant experimentFamilyPrefix, so RSI evidence is recorded under its own experiment family (rsi-research[-Nm]) while every SMA identity stays byte-identical."
+  - "docs/RESEARCH_EXPERIMENTS_OPERATIONS.md: the runbook describes both families, the RSI grid and the expected variants=7 log line."
   - "tests: the RSI builder and evaluation, the composition running all seven variants with RSI under its own family and SMA identities unchanged."
 exclusions:
   - "No change to the DSL, the backtest engine, the cost model, the walk-forward windows, the holdout rules, the candidate gate, Governance, PAPER execution, risk, capital or thresholds. Research never promotes: a passing candidate still only logs that the gate is eligible."
@@ -20,7 +21,7 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-  research_integrity: "The RSI grid and time limit were fixed before any RSI result existed; no parameter is tuned on validation or holdout evidence. Each RSI config has its own config hash, so holdout single-use rules apply to it independently."
+  research_integrity: "The RSI grid and time limit were fixed before any RSI result existed (the time limit was shortened from 48 to 12 bars in review, before any RSI experiment ever ran, because 48 bars could never elapse inside a 60m window); no parameter is tuned on validation or holdout evidence. Each RSI config has its own config hash, so holdout single-use rules apply to it independently."
 rollback: "Revert the change; RSI sessions and evidence remain in the ledger as history and stop growing."
 verification_commands:
   - node_modules/.bin/tsc -p tsconfig.json

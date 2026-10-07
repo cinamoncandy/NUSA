@@ -24,8 +24,9 @@ const CHAMPION_PROXY = Object.freeze({ fast: 5, slow: 20 }); // matches the owne
 const CHALLENGER_GRID: readonly (readonly [number, number])[] = Object.freeze([[3, 10], [5, 30], [10, 40], [8, 20]]);
 // RSI mean-reversion grid [period, oversold threshold], fixed before any result was seen (no tuning on validation or holdout).
 const RSI_CHALLENGER_GRID: readonly (readonly [number, number])[] = Object.freeze([[14, 30], [14, 25], [7, 20]]);
-// RSI positions close after this many bars of the experiment's bar length if neither take-profit nor stop-loss hit.
-const RSI_TIMEOUT_BARS = 48;
+// RSI positions close after this many bars of the experiment's bar length if neither take-profit nor stop-loss hit. It must fit
+// inside the shortest evaluation window after the RSI warm-up: 2-day validation/holdout at 60m is 48 bars, minus up to 14 warm-up bars.
+export const RSI_TIMEOUT_BARS = 12;
 /** Bar lengths research may compare (docs/PROPOSAL_RESEARCH_LONGER_TIMEFRAMES.md). Longer bars are built from stored 1m candles. */
 export const RESEARCH_INTERVAL_MINUTES: readonly number[] = Object.freeze([1, 15, 60, 240]);
 

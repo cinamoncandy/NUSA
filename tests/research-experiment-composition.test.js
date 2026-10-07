@@ -213,3 +213,10 @@ test("the composition refills restart gaps in the recent history through the pub
     assert.ok(lines.some((l) => l.startsWith("[research-gap-fill] KRW-BTC FILLED missing=2 recorded=2")), lines.join("\n"));
   } finally { composition.stop(); db.close(); }
 });
+
+test("the RSI time limit fits inside the shortest evaluation window after the indicator warm-up", () => {
+  const { RSI_TIMEOUT_BARS } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+  const shortestWindowBars = (2 * 24 * 60) / 60; // default 2-day validation/holdout at the longest enabled bar (60m)
+  const longestWarmUp = 14; // RSI 14 is the longest period in the grid
+  assert.ok(RSI_TIMEOUT_BARS + longestWarmUp < shortestWindowBars, `${RSI_TIMEOUT_BARS} + ${longestWarmUp} must fit in ${shortestWindowBars} bars`);
+});
