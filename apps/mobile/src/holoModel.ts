@@ -28,9 +28,13 @@ export interface HoloState {
   readonly markRow: number | null;
   readonly decisionCount: number | null;
   readonly fillCount: number | null;
+  /** When the latest PAPER order was observed; the ring, sparks and beam are pure functions of its age. Null before any order. */
+  readonly orderBornMs: number | null;
 }
 
 export const HOLO_WAVE_MS = 2600;
+/** How long a PAPER order's ring, sparks and beam last. */
+export const HOLO_ORDER_MS = 3600;
 export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "lime" | "fill" | "hold" | "halt" | "ink", Rgb>> = Object.freeze({
   // The figure itself is cool white ink (after the owner's reference); lime is the one accent, for the order band and its marker.
   // The emerald ramp names are kept for the tint maths and the tests that pin it. Status tints (fill / hold / halt) stay unmistakable.
@@ -51,7 +55,7 @@ export const HOLO_BIRTH_MS = 1700;
 export const easeOutCubic = (t: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 
 export function initialHoloState(): HoloState {
-  return Object.freeze({ spin: 0, burst: 0, burstTarget: 0, flash: 0, flashColor: HOLO_COLORS.ink, waves: Object.freeze([]), birth: 0, tintMix: 0, markRow: null, decisionCount: null, fillCount: null });
+  return Object.freeze({ spin: 0, burst: 0, burstTarget: 0, flash: 0, flashColor: HOLO_COLORS.ink, waves: Object.freeze([]), birth: 0, tintMix: 0, markRow: null, decisionCount: null, fillCount: null, orderBornMs: null });
 }
 
 /** Fibonacci sphere: evenly spread unit vectors. */
@@ -93,7 +97,7 @@ export function observeHolo(state: HoloState, decisionCount: number | null, fill
     for (let i = 0; i < newDecisions; i += 1) waves.push(waveFor(decisionCount - i, nowMs - i * 400));
     next = Object.freeze({ ...next, waves: Object.freeze(waves.slice(-6)), flash: Math.max(next.flash, 0.25), markRow: waveRow(waves[waves.length - newDecisions]!) });
   }
-  if (fillCount > state.fillCount) next = Object.freeze({ ...next, burstTarget: 1, flash: 1, flashColor: HOLO_COLORS.fill });
+  if (fillCount > state.fillCount) next = Object.freeze({ ...next, burstTarget: 1, flash: 1, flashColor: HOLO_COLORS.fill, orderBornMs: nowMs });
   return Object.freeze({ ...next, decisionCount, fillCount });
 }
 
@@ -115,7 +119,8 @@ export function tickHolo(state: HoloState, tone: HoloTone, dtMs: number, nowMs: 
   const tintStep = 1 - Math.pow(0.92, dtMs / 84);
   const tintMix = Math.abs(tintTarget - state.tintMix) < 0.002 ? tintTarget : state.tintMix + (tintTarget - state.tintMix) * tintStep;
   const waves = state.waves.filter((wave) => nowMs - wave.bornMs < HOLO_WAVE_MS);
-  return Object.freeze({ ...state, spin, burst, burstTarget, flash, birth, tintMix, waves: waves.length === state.waves.length ? state.waves : Object.freeze(waves) });
+  const orderBornMs = state.orderBornMs != null && nowMs - state.orderBornMs >= HOLO_ORDER_MS ? null : state.orderBornMs;
+  return Object.freeze({ ...state, spin, burst, burstTarget, flash, birth, tintMix, orderBornMs, waves: waves.length === state.waves.length ? state.waves : Object.freeze(waves) });
 }
 
 /** Wave displacement at a unit point. */
@@ -269,6 +274,64 @@ export function flowLabelPlacement(size: number, node: number, width: number): {
   return { left: Math.max(2, Math.min(Math.round(size * (n.x + n.r * 0.75)), size - width - 2)), top: Math.max(2, Math.min(Math.round(size * (n.y - n.r * 0.95)), size - 18)) };
 }
 
+// ---- Dynamics: comets, sparks and rings are pure functions of time, so the picture needs no particle state ----------------------------
+
+/** Comets a decision launches down each stream (the pulse is carried by bright heads with tails). */
+export const FLOW_COMETS_PER_EDGE = 6;
+/** A comet's tail length (as a fraction of its stream) and its number of tail points. */
+export const FLOW_COMET_TAIL = 0.16;
+export const FLOW_COMET_TAIL_POINTS = 9;
+/** Seconds a stream's comets are held back after the decision, so the pulse visibly travels the chain. */
+export const flowCometDelaySec = (edge: number): number => (edge * 0.55 * HOLO_WAVE_MS) / 1000 / (FLOW_PULSE_SPAN + 0.6);
+
+/** Which strand of a stream a decision comet rides (deterministic, spread across the bundle). */
+export const flowCometStrand = (edge: number, index: number, strandCount: number): number => ((index * 37 + edge * 11 + 5) % Math.max(1, strandCount) + Math.max(1, strandCount)) % Math.max(1, strandCount);
+
+/** A decision comet's progress along its stream (0 at the source .. 1 at the target), or null before launch and after arrival. */
+export function flowCometProgress(wave: HoloWave, edge: number, index: number, nowMs: number): number | null {
+  const age = (nowMs - wave.bornMs) / 1000 - flowCometDelaySec(edge) - index * 0.045;
+  const speed = 0.85 + ((index * 53 + edge * 7) % 10) / 10 * 0.3; // 0.85..1.15 streams per second
+  const u = age * speed;
+  return u >= 0 && u < 1 ? u : null;
+}
+
+/** An ambient comet's progress along a strand (always moving; a halt nearly stops it through the flow clock). */
+export const flowAmbientComet = (strand: FlowStrand, tSec: number): number => ((tSec * 0.22 * strand.speed + strand.phase / (Math.PI * 2)) % 1 + 1) % 1;
+
+/** Tail point j (0 = head) of a comet at progress u: it trails behind the head along the stream and clamps at the source. */
+export const flowTailProgress = (u: number, j: number, points = FLOW_COMET_TAIL_POINTS): number => Math.max(0, u - (j / Math.max(1, points - 1)) * FLOW_COMET_TAIL);
+
+/** Brightness (0..1) of tail point j: 1 at the head fading to 0 at the end. */
+export const flowTailLight = (j: number, points = FLOW_COMET_TAIL_POINTS): number => 1 - j / Math.max(1, points);
+
+/** Sparks thrown by a PAPER order from the paper cluster; position and life are deterministic in the spark index and the order's age. */
+export const FLOW_SPARKS = 70;
+export function flowSpark(index: number, ageSec: number): { readonly x: number; readonly y: number; readonly life: number } | null {
+  const random = seededRandom(900 + index);
+  const angle = random() * Math.PI * 2, speed = 0.13 + random() * 0.55, duration = 0.5 + random() * 1.0;
+  if (ageSec < 0 || ageSec >= duration) return null;
+  const origin = FLOW_NODES[FLOW_PAPER]!;
+  const drag = Math.exp(-ageSec * 1.5);
+  return { x: origin.x + Math.cos(angle) * speed * (1 - drag) / 1.5, y: origin.y + (Math.sin(angle) * speed * (1 - drag)) / 1.5 - 0.1 * ageSec + 0.14 * ageSec * ageSec, life: 1 - ageSec / duration };
+}
+
+/** The rings an order opens around the paper cluster: three, staggered. Radius is a multiple of the cluster radius; alpha 0..1. */
+export function flowOrderRing(ring: number, ageSec: number): { readonly scale: number; readonly alpha: number } | null {
+  const age = ageSec - ring * 0.25;
+  if (age < 0 || age >= 1.8) return null;
+  return { scale: 0.9 + easeOutCubic(age / 1.6) * 2.4, alpha: 0.7 * (1 - age / 1.8) };
+}
+
+/** The ring a pulse opens around a cluster it lands on (glow 0..1 as flowNodeGlow reports it): grows as the glow fades. */
+export const flowArrivalRing = (glow: number): { readonly scale: number; readonly alpha: number } | null => (glow > 0.15 ? { scale: 1.1 + (1 - glow) * 1.4, alpha: glow * 0.6 } : null);
+
+/** A cluster's breathing scale: slow idle swell, a lift while a pulse lands, and a bigger lift while an order ignites it. */
+export const flowBreath = (node: number, tSec: number, pulse: number, order: number): number => 1 + 0.05 * Math.sin(tSec * (0.8 + node * 0.15)) + pulse * 0.12 + order * 0.2;
+
+/** A particle's own swirl rate and twinkle (0..1) from its brightness class, so clusters turn differentially instead of as one body. */
+export const flowParticleSwirl = (m: number): number => 0.5 + m * 1.5;
+export const flowParticleTwinkle = (m: number, tSec: number): number => 0.6 + 0.4 * Math.sin(tSec * flowParticleSwirl(m) * 2 + m * 6.283);
+
 /** Where the order's light beam stands (its foot): the top of the PAPER cluster, in canvas pixels for a square canvas of `size`. */
 export function holoFillMarker(size: number): { x: number; y: number } {
   const paper = FLOW_NODES[FLOW_PAPER]!;
@@ -284,5 +347,5 @@ export function holoChipPlacement(size: number, label: string): { left: number; 
 
 /** True when nothing but the ambient flow is moving. */
 export function isHoloQuiet(state: HoloState): boolean {
-  return state.waves.length === 0 && state.burst === 0 && state.burstTarget === 0 && state.flash < 0.02 && state.birth >= 1;
+  return state.waves.length === 0 && state.burst === 0 && state.burstTarget === 0 && state.flash < 0.02 && state.birth >= 1 && state.orderBornMs == null;
 }
