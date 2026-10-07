@@ -2788,3 +2788,10 @@ current_autopilot_codex_outcome:
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('다른 최우선 작업')"
   finding: "Scheduled Codex runs ended green with no patch (weekly ChatGPT limit, host deferral); each run now records its outcome so zero-completion runs are visible"
+current_ui_hero_neon_ridge:
+  work_order: WO-UI-20261007-HERO-NEON-RIDGE
+  status: READY_FOR_REVIEW
+  branch: claude/hero-neon-ridge
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (agent chose preview option A after the owner said to proceed)"
+  finding: "Ridge hero gains depth-tinted neon ink and a glow pass on near and lit rows; device look and frame time are HUMAN_ENVIRONMENT_ONLY"

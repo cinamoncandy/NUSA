@@ -152,6 +152,25 @@ export function holoInk(tone: HoloTone, tintMix: number): Rgb {
   return tinted(HOLO_COLORS.ink, tone, 0, HOLO_COLORS.ink, tintMix);
 }
 
+/** Neon accent the nearest ridges lean toward in the normal tone (hold / halt keep their unmistakable status tint). */
+export const RIDGE_NEON: Rgb = [96, 220, 255];
+
+/**
+ * Ridge ink with depth: far ridges keep the cool white ink, near ridges (and a ridge a decision wave is crossing) lean toward neon.
+ * Only the normal tone is recoloured, so amber hold and red halt stay unmistakable. depth is 0 (near) .. 1 (horizon).
+ */
+export function ridgeNeonInk(ink: Rgb, tone: HoloTone, depth: number, waveGlow: number): Rgb {
+  if (tone !== "normal") return ink;
+  const near = Math.min(1, Math.max(0, 1 - depth)), wave = Math.min(1, Math.max(0, waveGlow));
+  const m = Math.min(0.85, near * 0.55 + wave * 0.45);
+  return [ink[0] + (RIDGE_NEON[0] - ink[0]) * m, ink[1] + (RIDGE_NEON[1] - ink[1]) * m, ink[2] + (RIDGE_NEON[2] - ink[2]) * m];
+}
+
+/** Rows that also draw a soft glow pass: the nearest rows (every third) and any row a wave or order is lighting. Keeps extra draws small. */
+export function ridgeGlowsRow(rowIndex: number, depth: number, waveGlow: number, orderMix: number): boolean {
+  return waveGlow > 0.08 || orderMix > 0.05 || (depth < 0.3 && rowIndex % 3 === 0);
+}
+
 /** Overshooting ease (back out): a mark springs slightly past full size, then settles. */
 export const easeOutBack = (t: number): number => { const x = Math.min(1, Math.max(0, t)) - 1; return 1 + 2.70158 * x * x * x + 1.70158 * x * x; };
 

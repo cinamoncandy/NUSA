@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, Skia, StrokeCap, StrokeJoin, createPicture, type SkPicture } from "@shopify/react-native-skia";
 import { calmPalette } from "./designSystem";
-import { HOLO_COLORS, RIDGE_COLS, RIDGE_ROWS, easeOutCubic, flowClockSec, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, ridgeBaseY, ridgeDepth, ridgeHeight, ridgeOrderMix, ridgeRowAlpha, ridgeWaveGlow, ridgeX, tickHolo, type HoloTone } from "./holoModel";
+import { HOLO_COLORS, RIDGE_COLS, RIDGE_ROWS, easeOutCubic, flowClockSec, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, ridgeBaseY, ridgeDepth, ridgeHeight, ridgeGlowsRow, ridgeNeonInk, ridgeOrderMix, ridgeRowAlpha, ridgeWaveGlow, ridgeX, tickHolo, type HoloTone } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends a bright wave from the horizon through the ridges. Null draws it still. */
@@ -71,8 +71,16 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
         for (const w of waves) glowA = Math.max(glowA, ridgeWaveGlow(w, depth, nowMs));
         const lime = ridgeOrderMix(depth, burst);
         const alpha = grow * Math.min(1, ridgeRowAlpha(depth) + (lime > 0.02 ? lime : glowA * 0.8));
-        set(paints.line, lime > 0.02 ? accent : ink, alpha);
-        paints.line.setStrokeWidth(Math.max(0.5, (0.6 + 0.9 * (1 - depth)) * (S / 720) * 2));
+        const rowInk = lime > 0.02 ? accent : ridgeNeonInk(ink, tone, depth, glowA);
+        const width = Math.max(0.5, (0.6 + 0.9 * (1 - depth)) * (S / 720) * 2);
+        // Neon: a wide soft pass under the line on the near rows and wherever a wave or order is lighting a ridge.
+        if (detail === 1 && !reducedMotion && ridgeGlowsRow(r, depth, glowA, lime)) {
+          set(paints.glow, rowInk, alpha * (0.25 + glowA * 0.35));
+          paints.glow.setStyle(PaintStyle.Stroke); paints.glow.setStrokeWidth(width * 3.2);
+          canvas.drawPath(path, paints.glow);
+        }
+        set(paints.line, rowInk, alpha);
+        paints.line.setStrokeWidth(width);
         canvas.drawPath(path, paints.line);
       }
       // Fade the landscape's left and right ends into the ground (paints built once per size).
@@ -82,7 +90,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
         const foot = holoFillMarker(S);
         set(paints.line, accent, grow * 0.55 * burst); paints.line.setStrokeWidth(Math.max(1, S / 240));
         canvas.drawLine(foot.x, foot.y, foot.x, 0, paints.line);
-        set(paints.glow, accent, grow * 0.5 * burst); canvas.drawCircle(foot.x, foot.y, S * 0.06, paints.glow);
+        paints.glow.setStyle(PaintStyle.Fill); set(paints.glow, accent, grow * 0.5 * burst); canvas.drawCircle(foot.x, foot.y, S * 0.06, paints.glow);
       }
     }, { width: size, height: size }));
   };
