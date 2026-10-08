@@ -22,12 +22,13 @@ test("retry budget exhaustion remains failed remediation but cannot retry", () =
   assert.equal(result.retryable, false);
 });
 
-test("authority, unknown, stale evidence and capacity fail closed without remediation", () => {
+test("authority, unknown, stale evidence and unknown capacity fail closed without remediation", () => {
   for (const reason of [
     "CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN",
     "SOMETHING_NEW",
     "CODING_PUBLISH_STALE_HEAD_SUPPRESSED",
     "WORKERS_AI_RATE_LIMITED",
+    "PROVIDER_CAPACITY_STATE_UNAVAILABLE",
   ]) {
     const result = decideCodingRunnerNoAction(reason, 0, 2);
     assert.equal(result.outcome, "FAILED_CLOSED");
@@ -40,6 +41,12 @@ test("only explicit proposal failures can enter remediation", () => {
   assert.equal(decideCodingRunnerNoAction("SANDBOX_PATCH_FUTURE_UNKNOWN", 0, 2).retryable, false);
   assert.equal(decideCodingRunnerNoAction("CODING_PROPOSAL_JSON_INVALID", 0, 2).retryable, true);
   assert.equal(decideCodingRunnerNoAction("SANDBOX_PATCH_APPLY_CHECK_FAILED", 0, 2).retryable, true);
+});
+
+test("concrete transient provider failures are retryable only with bounded evidence", () => {
+  assert.equal(decideCodingRunnerNoAction("GITHUB_MODELS_CODING_HTTP_503", 0, 2).retryable, true);
+  assert.equal(decideCodingRunnerNoAction("coding-engine-request-failed", 0, 2, 503).retryable, true);
+  assert.equal(decideCodingRunnerNoAction("coding-engine-request-failed", 0, 2, 400).retryable, false);
 });
 
 test("valid no-action requires an explicit successful abstention reason", () => {
