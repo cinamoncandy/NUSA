@@ -69,6 +69,19 @@ export class ClosedLearningEvolutionLedgerRepository implements ClosedLearningCy
     return Object.freeze({ cycleId, evidenceId: identity.evidenceId, evidenceFingerprintSha256: identity.fingerprint, decision, ...(paperDeployment ? { paperDeployment } : {}), recordedAt: Date.parse(decisionRecord.recordedAt) });
   }
 
+  /** Display-only read of the durable cycle history: how many cycles were recorded and the most recent one. Never throws on an unreadable row. */
+  public summary(): { readonly cyclesRecorded: number; readonly latest?: ClosedLearningCycleRecord } {
+    const decisions = this.ledger.list().filter((record) => record.opportunityId.startsWith("closed-learning:") && record.opportunityId.endsWith(":decision"));
+    let latest: ClosedLearningCycleRecord | undefined;
+    for (const decision of decisions) {
+      try {
+        const record = this.get(decision.opportunityId.slice(0, -":decision".length));
+        if (record != null && (latest == null || record.recordedAt >= latest.recordedAt)) latest = record;
+      } catch { /* an unreadable durable row cannot hide the others; it is not counted as the latest */ }
+    }
+    return Object.freeze({ cyclesRecorded: decisions.length, ...(latest == null ? {} : { latest }) });
+  }
+
   public append(record: ClosedLearningCycleRecord): ClosedLearningCycleRecord {
     if (!CYCLE.test(record.cycleId) || !record.evidenceId.trim() || !HASH.test(record.evidenceFingerprintSha256)) throw new Error("closed learning cycle record identity is invalid");
     const existing = this.get(record.cycleId);

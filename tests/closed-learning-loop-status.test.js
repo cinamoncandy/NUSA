@@ -69,3 +69,60 @@ test("evidence correlates the open period, the latest realized period and the la
   assert.equal(evidence.openPeriodId, open.periodId, "period identities survive the next rollover tick");
   assert.equal(evidence.decisionCandidateId, undefined);
 });
+
+// ---- durable cycle evidence: a restart must not erase the last lap -------------------------------------------------
+const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+const { SqliteEvolutionLearningLedger } = require("../dist/packages/storage/src/evolutionLearningLedger.js");
+const { ClosedLearningEvolutionLedgerRepository } = require("../dist/apps/cloud/src/closedLearningEvolutionLedgerRepository.js");
+
+const HEX = (seed) => seed.repeat(64).slice(0, 64);
+const cycleRecord = (seed, outcome, recordedAt, extra = {}) => ({
+  cycleId: `closed-learning:${HEX(seed)}`, evidenceId: `evidence-${seed}`, evidenceFingerprintSha256: HEX(seed),
+  decision: { decisionId: `decision-${seed}`, outcome, decisionReference: `research:decision-${seed}`, reasons: ["NOT_BETTER_THAN_COST"], ...(outcome === "QUALIFIED_FOR_LEAGUE" ? { candidateId: "candidate-b", candidateVersion: "v2" } : {}) },
+  recordedAt, ...extra,
+});
+
+test("the durable ledger summary counts recorded cycles and reports the most recent one", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const repo = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db));
+    assert.deepEqual(repo.summary(), { cyclesRecorded: 0 });
+    repo.append(cycleRecord("a", "REJECTED", 1_000));
+    repo.append(cycleRecord("b", "INSUFFICIENT", 5_000));
+    const summary = repo.summary();
+    assert.equal(summary.cyclesRecorded, 2);
+    assert.equal(summary.latest.cycleId, `closed-learning:${HEX("b")}`);
+    assert.equal(summary.latest.decision.outcome, "INSUFFICIENT");
+    // A restart (a fresh repository over the same database) reads the same truth.
+    assert.deepEqual(new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db)).summary().latest.cycleId, summary.latest.cycleId);
+  } finally { db.close(); }
+});
+
+test("after a restart the status shows the last durable cycle identities but keeps the per-process counters at zero", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeBootstrap({ status: "EXISTING_PAPER_STATE" });
+  t.observeRollover({ status: "WAITING_FOR_CANONICAL_BOUNDARY" }, 1000);
+  t.observeDurableCycles({ cyclesRecorded: 3, latest: cycleRecord("c", "REJECTED", 9_000) });
+  const s = t.snapshot();
+  assert.equal(s.cyclesEvaluated, 0, "the in-process counter is not backfilled");
+  assert.equal(s.lastCycleOutcome, "REJECTED", "the durable outcome fills in when this process has seen none");
+  assert.equal(s.evidence.cycleId, `closed-learning:${HEX("c")}`);
+  assert.equal(s.evidence.cycleEvidenceFingerprint, HEX("c"));
+  assert.equal(s.evidence.decisionId, "decision-c");
+  assert.equal(s.evidence.cyclesRecorded, 3);
+  assert.equal(s.evidence.lastCycleRecordedAt, 9_000);
+  assert.doesNotMatch(JSON.stringify(s), /NOT_BETTER_THAN_COST/, "reasons never leave the module");
+});
+
+test("a cycle evaluated in this process wins over the durable copy", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeDurableCycles({ cyclesRecorded: 1, latest: cycleRecord("c", "REJECTED", 9_000) });
+  t.observeRollover({ status: "CLOSED_AND_EVALUATED", cycle: { status: "EXECUTED", record: cycleRecord("d", "QUALIFIED_FOR_LEAGUE", 12_000, { paperDeployment: { deploymentId: "dep-d" } }) } }, 2000);
+  t.observeDurableCycles({ cyclesRecorded: 2, latest: cycleRecord("d", "QUALIFIED_FOR_LEAGUE", 12_000) });
+  const s = t.snapshot();
+  assert.equal(s.cyclesEvaluated, 1);
+  assert.equal(s.lastCycleOutcome, "QUALIFIED_FOR_LEAGUE");
+  assert.equal(s.evidence.cycleId, `closed-learning:${HEX("d")}`);
+  assert.equal(s.evidence.deploymentId, "dep-d");
+  assert.equal(s.evidence.cyclesRecorded, 2);
+});

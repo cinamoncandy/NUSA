@@ -1,0 +1,34 @@
+id: WO-LEARNING-20261008-DURABLE-CYCLE-HEALTH
+title: "Show the durable closed-learning cycle history on /health so a restart does not erase the last lap"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/health-durable-learning-cycle
+authority_impact: none
+objective: "Make the Experience N -> Research N+1 evidence survive a restart or deploy. cyclesEvaluated / lastCycle* / cycle identities were process memory only, so each deploy blanked the proof that a cycle had run."
+first_broken_transition: "closed-learning cycle recorded in the durable ledger -> /health (after the 2026-10-08 deploy the replacement period had closed and a successor opened, yet /health showed cyclesEvaluated=0 and no cycle identity, and the lap could not be confirmed)"
+scope:
+  include:
+    - "ClosedLearningEvolutionLedgerRepository.summary(): read-only count of recorded cycles and the most recent cycle record from the existing append-only ledger."
+    - "ClosedLearningLoopStatusTracker.observeDurableCycles(): seeds evidence (cycleId, cycleEvidenceId, cycleEvidenceFingerprint, decisionId, decisionReference, decisionCandidateId, deploymentId), lastCycleOutcome (only when this process has none) and two new integers cyclesRecorded / lastCycleRecordedAt. A cycle evaluated in this process always wins; cyclesEvaluated stays a per-process counter and is not backfilled."
+    - "/health whitelist accepts cyclesRecorded and lastCycleRecordedAt as non-negative integers."
+  exclude:
+    - "Any write, any Risk/threshold/capital change, any decision input. Display only; reasons and free text never leave the module."
+acceptance:
+  - "Summary counts cycles and returns the latest; a fresh repository over the same database returns the same truth."
+  - "After a restart the status shows the last durable identities and outcome while cyclesEvaluated stays 0."
+  - "A cycle evaluated in this process wins over the durable copy."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js"
+evidence:
+  local_validation: "tsc clean; closed-learning-loop-status + liveness-health tests pass (Node 22 sandbox)."
+  remaining: "Exact-head CI, independent Audit and Release; after merge deploy the exact main SHA and read /health closedLearningLoop.evidence.cyclesRecorded / cycleId to see whether the first lap's cycle was recorded."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

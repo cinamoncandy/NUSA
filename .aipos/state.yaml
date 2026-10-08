@@ -2865,3 +2865,9 @@ current_risk_kst_trading_day:
   authority_impact: risk-trading-day-definition-and-display-evidence
   owner_approval: "2026-10-07 in chat ('더 좋은 쪽' delegating the UTC-vs-KST choice)"
   finding: "The cloud PAPER risk adapter used a local UTC day while CanonicalRiskSafetyGate and the learning rollover use Asia/Seoul; it now uses the canonical tradingDayKey, the threshold stays 3, and the loss session publishes period identity, start and last increment on /health (issue 2575 items 2-4)"
+current_learning_durable_cycle_health:
+  work_order: WO-LEARNING-20261008-DURABLE-CYCLE-HEALTH
+  status: READY_FOR_REVIEW
+  branch: claude/health-durable-learning-cycle
+  authority_impact: none
+  finding: "cyclesEvaluated, lastCycle* and the cycle identities on /health were process memory, so a deploy erased the proof of the last lap; they are now also read from the durable ledger (display only), with per-process counters unchanged"

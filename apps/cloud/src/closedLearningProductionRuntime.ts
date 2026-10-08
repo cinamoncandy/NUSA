@@ -304,6 +304,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         ensureOwnerBaselinePeriod();
       }
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
+      try { loopStatus.observeDurableCycles(cycleRepository.summary()); } catch { /* display only */ }
       try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
     })().catch((error: unknown) => { loopStatus.observeError(Date.now()); throw error; });
     closedLearningTick = task;

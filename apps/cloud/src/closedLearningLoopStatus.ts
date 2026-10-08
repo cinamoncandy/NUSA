@@ -2,6 +2,7 @@ import type { ClosedLearningInitialPaperBootstrapResult } from "./closedLearning
 import type { ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
+import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -31,6 +32,8 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
   realizedPeriods: number; realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
   cycleId: string; cycleEvidenceId: string; cycleEvidenceFingerprint: string; decisionId: string; decisionReference: string; decisionCandidateId: string; deploymentId: string;
+  /** Durable (survives restarts): how many cycles the ledger holds, and when the latest was recorded. */
+  cyclesRecorded: number; lastCycleRecordedAt: number;
 }>>;
 
 const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
@@ -45,6 +48,9 @@ export class ClosedLearningLoopStatusTracker {
   private bootstrap = "NOT_RUN";
   private periods: ClosedLearningEvidenceCorrelation = {};
   private cycle: ClosedLearningEvidenceCorrelation = {};
+  private durable: { cyclesRecorded: number; lastCycleRecordedAt?: number } | null = null;
+  private durableOutcome: string | undefined;
+  private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
 
   /** Reads the identities of the current open period and the latest realized period. */
   public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
@@ -69,10 +75,39 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  /**
+   * Seeds the cycle identities from the durable ledger so a restart does not erase the evidence of the last lap. The counters
+   * (cyclesEvaluated, lastCycle*) stay per process; what a cycle in this process observed always wins over the durable copy.
+   */
+  public observeDurableCycles(summary: { readonly cyclesRecorded: number; readonly latest?: ClosedLearningCycleRecord }): void {
+    this.durable = Object.freeze({ cyclesRecorded: summary.cyclesRecorded, ...(summary.latest == null ? {} : { lastCycleRecordedAt: summary.latest.recordedAt }) });
+    const latest = summary.latest;
+    this.durableOutcome = code(latest?.decision?.outcome);
+    this.durableCycleIdentity = latest == null ? {} : Object.freeze(Object.fromEntries(Object.entries({
+      cycleId: latest.cycleId,
+      cycleEvidenceId: latest.evidenceId,
+      cycleEvidenceFingerprint: latest.evidenceFingerprintSha256,
+      decisionId: latest.decision?.decisionId,
+      decisionReference: latest.decision?.decisionReference,
+      decisionCandidateId: latest.decision?.candidateId,
+      deploymentId: latest.paperDeployment?.deploymentId,
+    }).filter(([, value]) => typeof value === "string" && value.length > 0)));
+    this.publish();
+  }
+
   private publish(): void {
     if (this.status == null) return;
-    const evidence = Object.freeze({ ...this.periods, ...this.cycle });
-    this.status = Object.freeze({ ...this.status, ...(Object.keys(evidence).length === 0 ? {} : { evidence }) });
+    const evidence = Object.freeze({
+      ...this.durableCycleIdentity,
+      ...(this.durable == null ? {} : { cyclesRecorded: this.durable.cyclesRecorded, ...(this.durable.lastCycleRecordedAt === undefined || !Number.isSafeInteger(this.durable.lastCycleRecordedAt) ? {} : { lastCycleRecordedAt: this.durable.lastCycleRecordedAt }) }),
+      ...this.periods,
+      ...this.cycle,
+    });
+    this.status = Object.freeze({
+      ...this.status,
+      ...(this.status.lastCycleOutcome === undefined && this.durableOutcome !== undefined ? { lastCycleOutcome: this.durableOutcome } : {}),
+      ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
+    });
   }
 
   public observeBootstrap(result: Pick<ClosedLearningInitialPaperBootstrapResult, "status">): void {
