@@ -436,6 +436,33 @@ describe("coding runner", () => {
     });
   });
 
+  describe("evolve discovery failure reason without a run id (gha:<workflow>:<sha>:<conclusion>)", () => {
+    const fetchFor = (conclusion: string, name = "CI") => async (url: string) => {
+      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      return response(200, { id: request.workflowRunId, name, head_sha: request.headSha, head_branch: "main", status: "completed", conclusion, repository: { full_name: request.repository } });
+    };
+    const named = (suffix = "failure", sha = request.headSha, name = "ci") => ({ ...request, reason: `evolve:discovery:gha:${name}:${sha}:${suffix}:Canonical workflow CI concluded failure for ${sha}.` });
+
+    it("treats a verified failed run of the same workflow and commit as a failure-repair request", async () => {
+      const evidence = await verifyCodingRunnerRequestAgainstGitHub(named(), "github-token", fetchFor("failure"));
+      assert.equal(evidence.workflowConclusion, "failure");
+    });
+
+    it("accepts a normalized or different workflow label when the cited run really failed on the same commit", async () => {
+      await verifyCodingRunnerRequestAgainstGitHub(named("failure", request.headSha, "mobile-native"), "github-token", fetchFor("failure", "Mobile Native"));
+      await verifyCodingRunnerRequestAgainstGitHub(named("failure", request.headSha, "ci"), "github-token", fetchFor("failure", "Android Stable Release"));
+    });
+
+    it("rejects a different commit or a run that is not actually failed", async () => {
+      await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub(named("failure", "b".repeat(40)), "github-token", fetchFor("failure")), /CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH/);
+      await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub(named(), "github-token", fetchFor("success")), /CODING_RUNNER_FAILURE_EVIDENCE_INVALID/);
+    });
+
+    it("still requires a successful run when the reason carries no failure identity", async () => {
+      await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub({ ...request, reason: "evolve:discovery:github-issue-2118" }, "github-token", fetchFor("failure")), /CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL/);
+    });
+  });
+
   it("falls back to public GitHub evidence when a scoped token masks a public resource as not found", async () => {
     const calls: string[] = [];
     await verifyCodingRunnerRequestAgainstGitHub(request, "scoped-token", async (url, init) => {
@@ -973,6 +1000,7 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch);
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "ai-coding-engine-not-configured");
+    assert.deepEqual(result.readinessBlockers, ["CODING_ENGINE_NOT_CONFIGURED"], "names exactly what is missing; the GitHub token is present");
   });
 
   it("zero-credit mode disables a configured external coding engine without spending a call", async () => {
@@ -983,6 +1011,7 @@ describe("coding runner", () => {
     });
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "zero-credit-paid-engine-disabled");
+    assert.deepEqual(result.readinessBlockers, ["ZERO_CREDIT_PAID_ENGINE_DISABLED"]);
     assert.equal(paidEngineCalls, 0);
   });
 

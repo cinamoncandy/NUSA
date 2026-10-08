@@ -38,6 +38,9 @@ test("enabled but misconfigured stays disabled with one reason (fail closed)", (
     [env({ NUSA_RESEARCH_HOLDOUT_DAYS: "99" }), "NUMERIC_SETTING_INVALID"],
     [env({ NUSA_RESEARCH_TICK_MINUTES: "1" }), "NUMERIC_SETTING_INVALID"],
     [env({ NUSA_RESEARCH_DAILY_BUDGET: "1000" }), "NUMERIC_SETTING_INVALID"],
+    [env({ NUSA_RESEARCH_INTERVAL_MINUTES: "5" }), "INTERVALS_INVALID"],
+    [env({ NUSA_RESEARCH_INTERVAL_MINUTES: "60,60" }), "INTERVALS_INVALID"],
+    [env({ NUSA_RESEARCH_INTERVAL_MINUTES: "1.5" }), "INTERVALS_INVALID"],
   ];
   for (const [e, reason] of cases) {
     const lines = [];
@@ -55,6 +58,36 @@ test("valid settings use the documented defaults and explicit cost assumptions",
   assert.equal(r.settings.tickMs, 30 * M);
   assert.equal(r.settings.dailyBudgetPerVariant, 48);
   assert.deepEqual({ ...RESEARCH_BACKTEST_COST }, { initialCash: 1_000_000, feeRate: 0.0005, slippageBps: 5 });
+  assert.deepEqual([...r.settings.intervalsMinutes], [1], "default keeps the original 1m experiments only");
+  assert.deepEqual([...readResearchExperimentSettings(env({ NUSA_RESEARCH_INTERVAL_MINUTES: "1,15,60,240" })).settings.intervalsMinutes], [1, 15, 60, 240]);
+});
+
+test("longer bars run the same grid on 1m candles aggregated into complete bars, under separate identities", () => {
+  const db = open();
+  const store = new SqliteResearchCandleStore(db, 200_000);
+  const days = 11; const count = days * 1440;
+  const rows = Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 600) + (i % 11) * 0.2).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close }; });
+  store.append("KRW-BTC", M, rows);
+  const lines = [];
+  const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_DAILY_BUDGET: "10", NUSA_RESEARCH_INTERVAL_MINUTES: "1,60" }), database: db, now: () => T_END, log: (l) => lines.push(l) });
+  try {
+    assert.ok(composition);
+    assert.equal(composition.orchestrators.length, 2);
+    assert.equal(composition.orchestrator, composition.orchestrators[0]);
+    for (const o of composition.orchestrators) assert.equal(o.recover().status, "READY");
+    const report = composition.tickOnce();
+    assert.equal(report.started, 10, "the returned report stays the 1m report (4 SMA + 3 RSI + 3 Donchian variants)");
+    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick OK started=10")));
+    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick 60m OK started=10")), lines.join("\n"));
+    const hourly = composition.orchestrators[1].statusProjection();
+    assert.ok(hourly != null && hourly.experimentCount >= 1);
+    assert.equal(hourly.liveAuthority, "NONE");
+    assert.equal(hourly.challenger.authority, "ZERO_AUTHORITY");
+    const byInterval = composition.experimentTicksByInterval();
+    assert.deepEqual(Object.keys(byInterval), ["1m", "60m"]);
+    assert.equal(byInterval["60m"].lastStatus, "OK");
+    assert.equal(byInterval["60m"].sessionsStarted, 10);
+  } finally { composition.stop(); db.close(); }
 });
 
 test("enabled composition recovers, runs a real tick on stored candles and exposes the status the app reads", () => {
@@ -70,16 +103,25 @@ test("enabled composition recovers, runs a real tick on stored candles and expos
     assert.equal(composition.orchestrator.recover().status, "READY");
     const report = composition.tickOnce();
     assert.equal(report.status, "OK");
-    assert.equal(report.started, 4);
-    assert.equal(report.experiments.length, 4);
+    assert.equal(report.started, 10, "4 SMA + 3 RSI + 3 Donchian variants");
+    assert.equal(report.experiments.length, 10);
     for (const e of report.experiments) assert.equal(e.outcome.status, "COMPLETED", JSON.stringify(e));
+    // The RSI mean-reversion family runs as its own variants and experiment family, against the same SMA champion.
+    const rsi = report.experiments.filter((e) => e.variantId.startsWith("rsi_"));
+    assert.deepEqual(rsi.map((e) => e.variantId).sort(), ["rsi_14_25", "rsi_14_30", "rsi_7_20"]);
+    for (const e of rsi) assert.equal(e.outcome.validation.challenger.strategyId, `research-challenger-${e.variantId}`);
+    for (const e of rsi) assert.match(e.outcome.validation.provenance.experimentFamilyId, /^rsi-research:/);
+    const donchian = report.experiments.filter((e) => e.variantId.startsWith("donchian_"));
+    assert.deepEqual(donchian.map((e) => e.variantId).sort(), ["donchian_10", "donchian_20", "donchian_30"]);
+    for (const e of donchian) assert.match(e.outcome.validation.provenance.experimentFamilyId, /^donchian-research:/);
+    for (const e of report.experiments.filter((x) => x.variantId.startsWith("sma_"))) assert.match(e.outcome.validation.provenance.experimentFamilyId, /^sma-research:/, "SMA identities are unchanged");
     const projection = composition.orchestrator.statusProjection();
     assert.ok(projection != null && projection.experimentCount >= 1);
     assert.equal(projection.liveAuthority, "NONE");
     assert.equal(projection.productionMutationAllowed, false);
     assert.equal(projection.champion.authority, "PAPER_ONLY");
     assert.equal(projection.challenger.authority, "ZERO_AUTHORITY");
-    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick OK started=4")));
+    assert.ok(lines.some((l) => l.startsWith("[research-experiments] tick OK started=10")));
     const again = composition.tickOnce();
     assert.equal(again.started, 0);
   } finally { composition.stop(); db.close(); }
@@ -137,4 +179,54 @@ test("backfill is skipped entirely when disabled, and after stop", async () => {
   assert.deepEqual(await stopped.backfill(), []);
   assert.equal(calls, 0);
   db.close();
+});
+
+test("start recovers every longer bar length so its ticks are not stuck at RECOVERY_NOT_READY", () => {
+  const db = open();
+  const store = new SqliteResearchCandleStore(db, 200_000);
+  const count = 11 * 1440;
+  store.append("KRW-BTC", M, Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 600)).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close }; }));
+  const lines = [];
+  const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_DAILY_BUDGET: "10", NUSA_RESEARCH_INTERVAL_MINUTES: "1,60", NUSA_RESEARCH_BACKFILL: "DISABLED" }), database: db, now: () => T_END, log: (l) => lines.push(l) });
+  try {
+    assert.equal(composition.orchestrators[0].recover().status, "READY", "the runtime recovers the first orchestrator");
+    composition.tickOnce();
+    assert.equal(composition.experimentTicksByInterval()["60m"].lastStatus, "RECOVERY_NOT_READY", "without start the longer bar never recovers");
+    composition.start();
+    assert.ok(lines.includes("[research-experiments] recover 60m READY"), lines.join("\n"));
+    composition.tickOnce();
+    assert.equal(composition.experimentTicksByInterval()["60m"].lastStatus, "OK");
+  } finally { composition.stop(); db.close(); }
+});
+
+test("the composition refills restart gaps in the recent history through the public candle fetcher", async () => {
+  const db = open();
+  const store = new SqliteResearchCandleStore(db, 200_000);
+  const last = Math.floor(T_END / M) * M;
+  store.append("KRW-BTC", M, [{ closeTimeMs: last - 3 * M, open: 10, high: 11, low: 9, close: 10 }, { closeTimeMs: last, open: 10, high: 11, low: 9, close: 10 }]);
+  const stamp = (ms) => new Date(ms).toISOString().slice(0, 19);
+  const fetchImpl = async () => new Response(JSON.stringify([last - 2 * M, last - 3 * M].map((start) => ({ market: "KRW-BTC", candle_date_time_utc: stamp(start), opening_price: 10, high_price: 11, low_price: 9, trade_price: 10 }))), { status: 200, headers: { "content-type": "application/json" } });
+  const lines = [];
+  const composition = composeResearchExperiments({ env: env(), database: db, now: () => T_END, log: (l) => lines.push(l), fetchImpl, sleep: async () => undefined });
+  try {
+    const [result] = await composition.fillGaps();
+    assert.equal(result.missing, 2);
+    assert.equal(result.recorded, 2);
+    assert.equal(store.count("KRW-BTC", M), 4);
+    assert.ok(lines.some((l) => l.startsWith("[research-gap-fill] KRW-BTC FILLED missing=2 recorded=2")), lines.join("\n"));
+  } finally { composition.stop(); db.close(); }
+});
+
+test("the RSI time limit fits inside the shortest evaluation window after the indicator warm-up", () => {
+  const { RSI_TIMEOUT_BARS } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+  const shortestWindowBars = (2 * 24 * 60) / 60; // default 2-day validation/holdout at the longest enabled bar (60m)
+  const longestWarmUp = 14; // RSI 14 is the longest period in the grid
+  assert.ok(RSI_TIMEOUT_BARS + longestWarmUp < shortestWindowBars, `${RSI_TIMEOUT_BARS} + ${longestWarmUp} must fit in ${shortestWindowBars} bars`);
+});
+
+test("the Donchian grid and time limit fit inside the shortest evaluation window after warm-up", () => {
+  const { DONCHIAN_GRID, DONCHIAN_TIMEOUT_BARS } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+  const shortestWindowBars = (2 * 24 * 60) / 60; // default 2-day validation/holdout at the longest enabled bar (60m)
+  assert.deepEqual([...DONCHIAN_GRID], [10, 20, 30], "the grid is pre-committed");
+  assert.ok(Math.max(...DONCHIAN_GRID) + DONCHIAN_TIMEOUT_BARS < shortestWindowBars, "warm-up plus time limit must fit in the window");
 });

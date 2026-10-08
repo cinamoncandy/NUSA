@@ -76,15 +76,31 @@ export function ownerBaselineStrategyEnabled(env: NodeJS.ProcessEnv): boolean {
   return value === undefined || value === "ENABLED";
 }
 
+/**
+ * The code identity of the owner baseline strategy. It deliberately is NOT the deployed commit.
+ *
+ * The strategy specification is part of the binding, and the binding fingerprint is part of every fill. With the commit SHA in
+ * it, each deploy minted a new fingerprint for the very same strategy: fills on either side of a deploy landed in one learning
+ * period under two bindings, and the period could never be scored (CANDIDATE_BINDING_MIXED). The identity is derived from an
+ * explicit implementation version instead, so it changes only when the strategy's behaviour is deliberately re-versioned. The golden
+ * decision test in ownerBaselinePaperStrategy.test.ts fails if the behaviour changes without a version bump.
+ */
+export const OWNER_BASELINE_IMPLEMENTATION_VERSION = "owner-baseline-sma-5-20/implementation-1";
+export const OWNER_BASELINE_CODE_IDENTITY: string = sha256({ ownerBaselineImplementation: OWNER_BASELINE_IMPLEMENTATION_VERSION }).slice(0, 40);
+
+/**
+ * `sourceCommitSha` is still required and validated: without an exact source identity the baseline fails closed, as before. It no
+ * longer enters the strategy specification or the binding fingerprint.
+ */
 export function ownerBaselineStrategySpec(sourceCommitSha: string): PaperCandidateStrategySpec {
-  const codeSha = sourceCommitSha.trim().toLowerCase();
-  if (!isOwnerBaselineSourceCommitSha(codeSha)) throw new Error("owner baseline strategy requires the exact 40-hex source commit");
+  const deployedCommit = sourceCommitSha.trim().toLowerCase();
+  if (!isOwnerBaselineSourceCommitSha(deployedCommit)) throw new Error("owner baseline strategy requires the exact 40-hex source commit");
   const parameters = Object.freeze({ shortPeriod: 5, longPeriod: 20 });
   const identity = { candidateId: OWNER_BASELINE_CANDIDATE_ID, familyId: "sma-crossover", lineageId: "owner-baseline", parameters, costModelVersion: "nusa-paper-cost-v1" };
-  return Object.freeze({ ...identity, specificationHash: sha256(identity), codeSha });
+  return Object.freeze({ ...identity, specificationHash: sha256(identity), codeSha: OWNER_BASELINE_CODE_IDENTITY });
 }
 
-/** Deterministic baseline binding for one market and UTC day, so a restart keeps the same binding. */
+/** Deterministic baseline binding for one market and Asia/Seoul day, so a restart or a deploy keeps the same binding. */
 export function ownerBaselineBinding(market: string, decisionAt: number, sourceCommitSha: string): PaperCandidateExecutionBinding {
   if (!Number.isSafeInteger(decisionAt) || decisionAt < DAY_MS) throw new Error("owner baseline decision time is invalid");
   const normalizedMarket = market.trim().toUpperCase();

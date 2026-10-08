@@ -16,7 +16,7 @@ current_issue_2260_mobile_devicekey_inspection:
   authority_impact: mobile-paper-session-trust-classification
   first_broken_transition: "AndroidKeyStore inspection exception -> false SILENT_DEVICE_KEY_NOT_REGISTERED projection"
   scope: "Preserve registered silent DeviceKey metadata on transient AndroidKeyStore inspection failure; emit stable non-secret reason/correlation evidence; retry only through the existing single-flight bounded PAPER recovery path; definitive missing/invalid key remains fail-closed."
-  validation: "PR #2503 exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks. The published increment is committed and workflow-validated; it requires a whitespace-free retained credentialId plus canonical false availability/canCreate/hardwareBacked fields, fixed ANDROID_KEYSTORE_INSPECTION_FAILED reason, and UUIDv4 correlation before transient retry. Focused acceptance coverage proves the retry retains the DeviceKey, performs one silent signature with user input=0, and never creates or deletes key material. Fresh exact-head CI is required for the published commit."
+  validation: "PR #2503 exact-head e950f2b70dd16c65216458cf704b895f7e0910d4 passed CI run 37173255593 and all companion checks. The published increment is committed and workflow-validated; it requires a whitespace-free retained credentialId plus canonical false availability/canCreate/hardwareBacked fields, fixed ANDROID_KEYSTORE_INSPECTION_FAILED reason, and UUIDv4 correlation before transient retry. Focused acceptance coverage proves the retry retains the DeviceKey, performs one silent signature with user input=0, and never creates or deletes key material; canonical missing-key and invalid-hardware outcomes perform no network, signature, create, delete, bearer fallback, or retry. Fresh exact-head CI is required for the published commit."
   remaining: "Exact-head CI on the published commit, independent Audit and Release; then HUMAN_ENVIRONMENT_ONLY Galaxy background-to-foreground acceptance under #2218."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_runtime_proof_cron_propagation:
@@ -2580,7 +2580,7 @@ current_research_progress_time_validation:
   deploy: not_deployed_new_app_build_required
 current_ui_hero_flow_field:
   work_order: WO-UI-20261006-HERO-FLOW-FIELD
-  status: READY_FOR_REVIEW
+  status: SUPERSEDED_BY_WO-UI-20261006-HERO-RIDGE
   branch: claude/hero-flow-field
   authority_impact: none
   owner_approval: "2026-10-06 in chat (second reference video, option 1: replace only the hero)"
@@ -2618,7 +2618,7 @@ current_ui_calm_redesign:
   finding: "Four primary tabs replaced by calm-v1 presenters (지금/학습/안전/기록) over existing screen models; detail screens still field-v1 and named in the work order"
 current_ui_hero_ridge:
   work_order: WO-UI-20261006-HERO-RIDGE
-  status: READY_FOR_REVIEW
+  status: SUPERSEDED_BY_WO-UI-20261007-HERO-FLOW-FIELD
   branch: claude/hero-ridge
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('이거로 할게' on the ridge prototype)"
@@ -2683,3 +2683,228 @@ current_learning_loop_status:
   owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
   finding: "Closed-learning loop step results were log-only; publishes bootstrap/rollover step codes and evaluated-cycle/deployment counts so the stalled learning transition can be named from runtime evidence"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_learning_stalled_period_reopen:
+  work_order: WO-LEARNING-20261006-STALLED-PERIOD-REOPEN
+  status: READY_FOR_REVIEW
+  branch: claude/closed-learning-stall-reopen
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
+  finding: "Runtime closedLearningLoop showed rollover NO_OPEN_PERIOD with realized history: a period closed without a successor and nothing reopened one. Rollover now continues the latest realized candidate from the canonical account boundary"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_research_longer_timeframes_proposal:
+  work_order: WO-RESEARCH-20261006-LONGER-TIMEFRAMES
+  status: PROPOSED
+  branch: claude/research-timeframe-proposal
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('제안서 써줘'); implementation not approved"
+  finding: "All tested families lose on 1-minute bars after costs; proposes a walk-forward Research comparison over 15/60/240-minute bars"
+current_research_timeframe_comparison:
+  work_order: WO-RESEARCH-20261006-TIMEFRAME-COMPARISON
+  status: READY_FOR_REVIEW
+  branch: claude/research-timeframe-comparison
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat ('제안서 구현 승인')"
+  finding: "Research experiments now also run on 15m/60m bars aggregated from stored 1m candles (research evidence only)"
+current_ops_clear_recovered_market_reject:
+  work_order: WO-OPS-20261006-CLEAR-RECOVERED-MARKET-REJECT
+  status: READY_FOR_REVIEW
+  branch: claude/clear-recovered-market-reject
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
+  finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_sec_shell_quote_advisory:
+  work_order: WO-SEC-20261006-SHELL-QUOTE-ADVISORY
+  status: READY_FOR_REVIEW
+  branch: claude/shell-quote-advisory
+  authority_impact: none
+  owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
+  finding: "CI Security gate red on all heads: new critical shell-quote advisory 1241332; overridden to patched 1.11.0"
+current_ops_rollover_reason_codes:
+  work_order: WO-OPS-20261007-ROLLOVER-REASON-CODES
+  status: READY_FOR_REVIEW
+  branch: claude/rollover-reason-codes
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘')"
+  finding: "/health showed rollover BLOCKED without a reason; blocked reasons now lead with the error code so rolloverReason is published"
+current_learning_period_market_binding:
+  work_order: WO-LEARNING-20261007-PERIOD-MARKET-BINDING
+  status: READY_FOR_REVIEW
+  branch: claude/period-benchmark-evidence
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Learning Period Benchmark Evidence Break 완전수렴)"
+  finding: "First real fill reached period close but the open period was bound to KRW-BTC while only KRW-XRP is streamed (MISSING_BENCHMARK_EVIDENCE); unstreamed-market periods are retired and the owner baseline restarts on the streamed market"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ops_health_research_intervals:
+  work_order: WO-OPS-20261007-HEALTH-RESEARCH-INTERVALS
+  status: READY_FOR_REVIEW
+  branch: claude/health-research-intervals
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘', '다음')"
+  finding: "/health now reports research experiment ticks per bar length so 15m/60m production runs are verifiable"
+current_ops_health_source_sha:
+  work_order: WO-OPS-20261007-HEALTH-SOURCE-SHA
+  status: READY_FOR_REVIEW
+  branch: claude/health-source-sha
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘', '다음')"
+  finding: "/health now states the running build commit so MAIN = DEPLOYED = RUNTIME can be read directly"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_learning_evidence_correlation:
+  work_order: WO-LEARNING-20261007-EVIDENCE-CORRELATION
+  status: READY_FOR_REVIEW
+  branch: claude/health-learning-correlation
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Learning Loop 핵심 7단계 완전수렴 작업지시서, '해')"
+  finding: "/health closedLearningLoop.evidence now carries period/market/candidate, realized outcome fingerprint and Research cycle/decision/deployment identities"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_research_interval_recovery:
+  work_order: WO-RESEARCH-20261007-INTERVAL-RECOVERY
+  status: READY_FOR_REVIEW
+  branch: claude/research-interval-recovery
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Learning Loop 7단계 작업지시서, '계속해')"
+  finding: "/health showed 15m/60m research RECOVERY_NOT_READY; only the first orchestrator was recovered, now all are recovered at start"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_ops_health_ledger_fingerprint:
+  work_order: WO-OPS-20261007-HEALTH-LEDGER-FINGERPRINT
+  status: READY_FOR_REVIEW
+  branch: claude/health-ledger-fingerprint
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Ledger 금액 기준 restart/recovery 증명)"
+  finding: "/health now carries a PAPER ledger fingerprint (no amounts) so restart/recovery can be checked for an identical accounting state"
+current_research_candle_gap_fill:
+  work_order: WO-RESEARCH-20261007-CANDLE-GAP-FILL
+  status: READY_FOR_REVIEW
+  branch: claude/research-candle-gap-fill
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('알아서 제일 좋은 결정해')"
+  finding: "15m/60m research skipped every window for holdout gaps; restart/feed gaps inside recent 1m history are now refilled from the public candle endpoint"
+  deploy: requires_paper_deploy_after_merge_owner_standing_approval
+current_autopilot_codex_outcome:
+  work_order: WO-AUTOPILOT-20261007-CODEX-OUTCOME
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-codex-outcome
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('다른 최우선 작업')"
+  finding: "Scheduled Codex runs ended green with no patch (weekly ChatGPT limit, host deferral); each run now records its outcome so zero-completion runs are visible"
+current_ui_motion_fast_light:
+  work_order: WO-UI-20261007-MOTION-FAST-LIGHT
+  status: READY_FOR_REVIEW
+  branch: claude/ui-motion-fast-light
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (chose option 'a' on the motion preview)"
+  finding: "App-wide animation retuned to the faster, lighter fieldMotion set; device feel is HUMAN_ENVIRONMENT_ONLY"
+current_ui_hero_flow_streams:
+  work_order: WO-UI-20261007-HERO-FLOW-FIELD
+  status: READY_FOR_REVIEW
+  branch: claude/hero-flow-field
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (reference videos, then '해' on the prototype)"
+  finding: "The shared hero becomes a flow field of hairline streams into particle clusters for the canonical chain; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
+current_research_rsi_family:
+  work_order: WO-RESEARCH-20261007-RSI-FAMILY
+  status: READY_FOR_REVIEW
+  branch: claude/research-strategy-breadth
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('1번해')"
+  finding: "Research tested only SMA crossover variants and all failed after costs; an RSI mean-reversion family (pre-committed grid) now runs under the same gates as its own experiment family"
+current_research_failure_reasons:
+  work_order: WO-RESEARCH-20261007-FAILURE-REASONS
+  status: READY_FOR_REVIEW
+  branch: claude/failed-strategy-memory
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
+  finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
+current_ui_app_icon_flow:
+  work_order: WO-UI-20261007-APP-ICON-FLOW
+  status: READY_FOR_REVIEW
+  branch: claude/app-icon-flow
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (icon comparison, reply '새 아이콘')"
+  finding: "The app icon family (Android adaptive, themed, splash, legacy PNGs, desktop SVG/PNG/ICO) is redrawn as hairline streams funnelling into a glowing cluster; the desktop icon moves off the retired flame design; device look is HUMAN_ENVIRONMENT_ONLY"
+current_research_donchian_family:
+  work_order: WO-RESEARCH-20261007-DONCHIAN-FAMILY
+  status: READY_FOR_REVIEW
+  branch: claude/research-donchian
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat ('해' after the short-term trading question)"
+  finding: "A Donchian breakout (momentum) family with a pre-committed grid now runs beside SMA and RSI under the same Research gates; DONCHIAN_BREAKOUT is a new research DSL entry rule with no look-ahead"
+current_ui_hero_flow_dynamic:
+  work_order: WO-UI-20261007-HERO-FLOW-DYNAMIC
+  status: READY_FOR_REVIEW
+  branch: claude/hero-flow-dynamic
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (v2 prototype, reply '좋아')"
+  finding: "The flow hero gains comets with tails, differential swirl and breathing clusters, landing rings and order sparks as pure functions of time; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
+current_autopilot_runner_failure_identity:
+  work_order: WO-AUTOPILOT-20261007-RUNNER-FAILURE-IDENTITY
+  status: READY_FOR_REVIEW
+  branch: claude/coding-runner-named-failure-reason
+  authority_impact: none
+  owner_approval: "2026-10-07 in chat (Autopilot completion convergence master work order)"
+  finding: "The evolve discovery failure reason carries no run id, so the coding runner rejected a really failed run as not successful; the named identity is now accepted when commit and failed conclusion match the GitHub-verified run"
+current_learning_rollover_wall_clock:
+  work_order: WO-LEARNING-20261007-ROLLOVER-WALL-CLOCK
+  status: READY_FOR_REVIEW
+  branch: claude/rollover-wall-clock
+  authority_impact: closed-learning-period-close-trigger
+  owner_approval: "2026-10-07 in chat (rollover basis changed to the clock)"
+  finding: "A consecutive-loss halt stops fills so the canonical account updatedAt never crossed the KST day and the rollover waited; the wall clock now only decides the day passed, the period still closes at the canonical account boundary"
+current_learning_retire_mixed_binding_period:
+  work_order: WO-LEARNING-20261007-RETIRE-MIXED-BINDING-PERIOD
+  status: READY_FOR_REVIEW
+  branch: claude/retire-mixed-binding-period
+  authority_impact: closed-learning-period-lifecycle
+  owner_approval: "2026-10-07 in chat (option 1: retire the mixed period unscored and start a fresh one)"
+  finding: "After the wall-clock rollover the open KRW-XRP period reached the reconciler and failed CANDIDATE_BINDING_MIXED, which fail-closed correctly but blocked the loop forever; the period is now retired unscored and the loop continues in a fresh period"
+current_risk_kst_trading_day:
+  work_order: WO-RISK-20261007-KST-TRADING-DAY
+  status: READY_FOR_REVIEW
+  branch: claude/risk-kst-trading-day
+  authority_impact: risk-trading-day-definition-and-display-evidence
+  owner_approval: "2026-10-07 in chat ('더 좋은 쪽' delegating the UTC-vs-KST choice)"
+  finding: "The cloud PAPER risk adapter used a local UTC day while CanonicalRiskSafetyGate and the learning rollover use Asia/Seoul; it now uses the canonical tradingDayKey, the threshold stays 3, and the loss session publishes period identity, start and last increment on /health (issue 2575 items 2-4)"
+current_learning_durable_cycle_health:
+  work_order: WO-LEARNING-20261008-DURABLE-CYCLE-HEALTH
+  status: READY_FOR_REVIEW
+  branch: claude/health-durable-learning-cycle
+  authority_impact: none
+  finding: "cyclesEvaluated, lastCycleStatus/Outcome and the cycle identities on /health were process memory, so a deploy erased the proof of the last lap; the cycle identities, lastCycleOutcome and two new integers (cyclesRecorded, lastCycleRecordedAt) are now also read from the durable ledger (display only, one replay, withdrawn if the ledger is unreadable). lastCycleStatus, deployments and cyclesEvaluated stay per-process and are not restored"
+current_learning_last_blocked_reason:
+  work_order: WO-LEARNING-20261008-LAST-BLOCKED-REASON
+  status: READY_FOR_REVIEW
+  branch: claude/health-last-blocked-reason
+  authority_impact: none
+  finding: "After #2581 the replacement period closed (realizedPeriods=2) but the durable ledger holds no cycle (cyclesRecorded=0); the BLOCKED reason of the failed cycle was overwritten within one tick. /health now keeps lastBlockedReason/lastBlockedAt (per process, code only)"
+current_strategy_baseline_code_identity:
+  work_order: WO-STRATEGY-20261008-BASELINE-CODE-IDENTITY
+  status: READY_FOR_REVIEW
+  branch: claude/baseline-code-identity
+  authority_impact: strategy-identity-in-binding-fingerprint
+  owner_approval: "2026-10-08 in chat ('2')"
+  finding: "The owner baseline strategy codeSha was the deployed commit, so every deploy changed the binding fingerprint and mixed the open learning period; it is now a fixed implementation identity (the first deploy changes the fingerprint once; the reconciler guard and Risk 3/3 are untouched)"
+current_autopilot_runner_readiness:
+  work_order: WO-AUTOPILOT-20261008-RUNNER-READINESS
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-runner-preflight
+  authority_impact: none
+  finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
+current_learning_pending_order_attribution_test:
+  work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
+  status: READY_FOR_REVIEW
+  branch: claude/pending-order-attribution-test
+  authority_impact: none
+  finding: "Tests pin that a continued working order keeps its creating binding (no silent relabel); the cross-period fill gap for a continued order with no current decision remains open and needs a design decision"
+current_learning_durable_blocked_reason:
+  work_order: WO-LEARNING-20261008-DURABLE-BLOCKED-REASON
+  status: READY_FOR_REVIEW
+  branch: claude/durable-cycle-failure
+  authority_impact: none
+  finding: "The last closed-learning BLOCKED/ERROR reason is now also written as a bare code beside the Cloud state and seeds /health after a restart; the unrecorded cycle's own cause is still unknown and this makes the next failure readable"
+current_research_failure_history:
+  work_order: WO-RESEARCH-20261008-FAILURE-HISTORY
+  status: READY_FOR_REVIEW
+  branch: claude/research-failure-history
+  authority_impact: none
+  finding: "Failed Research challengers now have a deterministic per-variant failure history and a REPEAT_<reason> display count recomputed from the durable ledger; this informs Research N+1 but does not steer it (adaptive scheduling was offered and declined by the owner)"

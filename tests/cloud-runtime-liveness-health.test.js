@@ -284,6 +284,66 @@ test("/health publishes the loss-limit counts as five non-negative integers, and
   }
 });
 
+test("/health publishes the loss-period evidence only as one coherent tuple, and omits it whole otherwise", async () => {
+  const start = Date.parse("2026-10-07T00:00:00+09:00");
+  const base = { evaluatedAt: start + 3_600_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 3, todayLosingSells: 3 };
+  const good = { ...base, periodIdentity: "2026-10-07", periodStartedAt: start, lastIncrementAt: start + 1_800_000 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: good }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossSession, good);
+  }, 42321);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: { ...good, consecutiveLossCount: 0, lastIncrementAt: null } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLossSession.lastIncrementAt, null);
+  }, 42322);
+  const contradictory = [
+    { ...base, periodIdentity: "KRW-XRP", periodStartedAt: start, lastIncrementAt: null },
+    { ...base, periodIdentity: "2026-10-07" },
+    { ...base, periodIdentity: "2026-10-07", periodStartedAt: start + 1, lastIncrementAt: null },
+    { ...base, periodIdentity: "2026-10-08", periodStartedAt: start, lastIncrementAt: null },
+    { ...good, periodStartedAt: base.evaluatedAt + 1, lastIncrementAt: null },
+    { ...good, lastIncrementAt: base.evaluatedAt + 1 },
+    { ...good, lastIncrementAt: start - 1 },
+    { ...good, lastIncrementAt: "x" },
+  ];
+  for (const [index, bad] of contradictory.entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: bad }) }, async (handle) => {
+      const body = JSON.parse((await request(handle.port, "/health")).body);
+      assert.deepEqual(body.runtime.paperLossSession, base, `case ${index}: the five counts stay and the whole tuple is omitted`);
+    }, 42323 + index);
+  }
+});
+
+test("/health publishes the durable cycle counts as integers inside the loop evidence, and drops anything malformed", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY", lastCycleOutcome: "REJECTED",
+    evidence: { cyclesRecorded: 3, lastCycleRecordedAt: 1_791_419_000_000, cycleId: "closed-learning:" + "a".repeat(64), cycleEvidenceFingerprint: "b".repeat(64) } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.closedLearningLoop.evidence.cyclesRecorded, 3);
+    assert.equal(body.runtime.closedLearningLoop.evidence.lastCycleRecordedAt, 1_791_419_000_000);
+    assert.equal(body.runtime.closedLearningLoop.lastCycleOutcome, "REJECTED");
+  }, 42331);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { cyclesRecorded: -1, lastCycleRecordedAt: "x", cycleId: "closed-learning:" + "a".repeat(64) } } }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.equal(evidence.cyclesRecorded, undefined);
+    assert.equal(evidence.lastCycleRecordedAt, undefined);
+    assert.equal(evidence.cycleId, "closed-learning:" + "a".repeat(64));
+  }, 42332);
+});
+
+test("/health publishes the last blocked reason as a code with its time, and drops it when unpaired or malformed", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "STALLED_PERIOD_REOPENED" };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, lastBlockedReason: "MISSING_BENCHMARK_EVIDENCE", lastBlockedAt: 1_791_419_000_000 } }) }, async (handle) => {
+    const out = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop;
+    assert.equal(out.lastBlockedReason, "MISSING_BENCHMARK_EVIDENCE");
+    assert.equal(out.lastBlockedAt, 1_791_419_000_000);
+  }, 42341);
+  for (const [index, bad] of [{ lastBlockedReason: "MISSING_BENCHMARK_EVIDENCE" }, { lastBlockedReason: "free text with spaces", lastBlockedAt: 5 }, { lastBlockedReason: "TICK_ERROR", lastBlockedAt: -1 }, { lastBlockedAt: 5 }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, ...bad } }) }, async (handle) => {
+      const out = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop;
+      assert.equal(out.lastBlockedReason, undefined, `case ${index}`);
+    }, 42342 + index);
+  }
+});
+
 test("/health publishes loss attribution only as fixed family codes with two integers each", async () => {
   const good = { evaluatedAt: 1_791_284_000_000, byFamily: { SMA_CROSSOVER: { completedSells: 3, losingSells: 3 }, UNATTRIBUTED: { completedSells: 1, losingSells: 0 } } };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: good }) }, async (handle) => {
@@ -336,5 +396,60 @@ test("/health publishes the closed-learning loop status as fixed codes and integ
     await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: bad }) }, async (handle) => {
       assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop, undefined, JSON.stringify(bad));
     }, 42343 + index);
+  }
+});
+
+test("research experiment ticks per bar length publish only declared lengths and the fixed summary shape", async () => {
+  const summary = { lastTickAt: 1_000, lastStatus: "OK", ticks: 2, sessionsStarted: 1, counts: { COMPLETED: 3, NOT_DUE: 1 } };
+  const byInterval = { "1m": summary, "15m": { ...summary, ticks: 3 }, "60m": { ...summary, lastStatus: "BOGUS" }, "5m": summary, "<script>": summary };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, researchExperimentTicksByInterval: byInterval }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const published = JSON.parse(res.body).runtime.researchExperimentTicksByInterval;
+    assert.deepEqual(Object.keys(published).sort(), ["15m", "1m"]);
+    assert.equal(published["15m"].ticks, 3);
+    assert.deepEqual(published["1m"].counts, { COMPLETED: 3, NOT_DUE: 1 });
+    assert.doesNotMatch(res.body, /script|BOGUS|"5m"/);
+  }, 41880);
+});
+
+test("the running build commit is published only as a full lowercase 40-hex SHA", async () => {
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, sourceCommitSha: sha }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.sourceCommitSha, sha);
+  }, 41886);
+  for (const bad of ["", "abc123", sha.toUpperCase(), `${sha} extra`, 42]) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, sourceCommitSha: bad }) }, async (handle) => {
+      const res = await request(handle.port, "/health");
+      assert.equal(JSON.parse(res.body).runtime.sourceCommitSha, undefined, String(bad));
+      assert.doesNotMatch(res.body, /extra/);
+    }, 41886);
+  }
+});
+
+test("closed-learning evidence identities pass only through fixed keys and safe value shapes", async () => {
+  const hex = "e".repeat(64);
+  const loop = { lastTickAt: 1, ticks: 1, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_KST_DAY_ROLLOVER", evidence: {
+    openPeriodId: "owner-baseline:KRW-XRP:1791331979980", openMarket: "KRW-XRP", openFilledObservations: 1, realizedOutcomeFingerprint: hex,
+    cycleEvidenceFingerprint: "not-hex", decisionReference: "research decision <b>", injected: "x", realizedPeriods: -1, openMarket2: "KRW-XRP",
+  } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const evidence = JSON.parse(res.body).runtime.closedLearningLoop.evidence;
+    assert.deepEqual(evidence, { openPeriodId: "owner-baseline:KRW-XRP:1791331979980", openMarket: "KRW-XRP", realizedOutcomeFingerprint: hex, openFilledObservations: 1 });
+    assert.doesNotMatch(res.body, /injected|not-hex|<b>|openMarket2/);
+  }, 41879);
+});
+
+test("the PAPER ledger identity publishes only a 64-hex fingerprint and non-negative integers", async () => {
+  const good = { ledgerFingerprintSha256: "a".repeat(64), fillCount: 4, openPositionCount: 1, lastFillAt: 1791331979980, ledgerUpdatedAt: 1791331979980 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLedger: { ...good, cash: 8399 } }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.deepEqual(JSON.parse(res.body).runtime.paperLedger, good);
+    assert.doesNotMatch(res.body, /8399|"cash"/);
+  }, 41878);
+  for (const bad of [{ ...good, ledgerFingerprintSha256: "short" }, { ...good, fillCount: -1 }, { ...good, lastFillAt: 1.5 }]) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLedger: bad }) }, async (handle) => {
+      assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLedger, undefined);
+    }, 41878);
   }
 });

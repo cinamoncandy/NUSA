@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import {
   PersistedPaperPeriodStoreError,
   SqlitePersistedPaperPeriodStore,
@@ -66,7 +67,27 @@ export interface PaperRuntimeObservation {
 export type PaperRealizedPeriodLifecycleEvent =
   | { readonly type: "PERIOD_OPEN"; readonly periodId: string; readonly occurredAt: number }
   | { readonly type: "PERIOD_REALIZED_PERSISTED"; readonly periodId: string; readonly occurredAt: number }
-  | { readonly type: "PERIOD_REJECTED"; readonly periodId: string; readonly occurredAt: number; readonly reasonCode: string };
+  | { readonly type: "PERIOD_REJECTED"; readonly periodId: string; readonly occurredAt: number; readonly reasonCode: string; readonly retirementEvidenceFingerprintSha256?: string };
+
+/**
+ * Deterministic, replayable evidence that an open period was retired because its canonical fills mix candidate
+ * bindings. It is derived only from the immutable canonical fill ledger and the period boundary (no wall clock, no
+ * synthesized value), so the same ledger and period always yield the same receipt and fingerprint.
+ */
+export interface PaperPeriodMixedBindingReceipt {
+  readonly schemaVersion: 1;
+  readonly reason: "CANDIDATE_BINDING_MIXED";
+  readonly retiredPeriodId: string;
+  readonly periodStartAt: number;
+  readonly retiredAtBoundary: number;
+  readonly bindings: readonly { readonly candidateId: string; readonly bindingFingerprintSha256: string; readonly fillCount: number }[];
+  readonly fillIds: readonly string[];
+  readonly fillCount: number;
+  readonly ledgerFingerprintSha256: string;
+  readonly ledgerFillCount: number;
+  readonly validPerformanceEvidence: false;
+  readonly evidenceFingerprintSha256: string;
+}
 
 export interface PaperRealizedPeriodProducerOptions {
   readonly onLifecycleEvent?: (event: PaperRealizedPeriodLifecycleEvent) => void;
@@ -458,6 +479,97 @@ export class PaperRealizedPeriodProducer {
     this.openPeriods.delete(periodId);
     this.emit({ type: "PERIOD_REJECTED", periodId, occurredAt: this.options.now?.() ?? Date.now(), reasonCode: "SUPERSEDED_BY_QUALIFIED_CHALLENGER" });
     return current;
+  }
+
+  /**
+   * Retires the open period when it is bound to a market the runtime no longer streams. Its benchmark can only
+   * come from that market's public ticker observations, so it can never close; only one period may be open, so
+   * without this the learning loop stays blocked forever. A period without a market, or whose market is still
+   * streamed, is never retired. Nothing is closed or scored: the period simply leaves the open set.
+   */
+  public retireOpenPeriodForUnstreamedMarket(periodId: string, streamedMarkets: readonly string[]): PersistedPaperRealizedPeriodPlan {
+    try {
+      const current = this.openPeriods.get(periodId);
+      if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      const streamed = new Set(streamedMarkets.map((market) => market.trim().toUpperCase()));
+      if (streamed.size === 0) throw new PaperRealizedPeriodProducerError("STREAMED_MARKETS_UNAVAILABLE", "runtime streamed markets are unavailable", periodId);
+      if (current.market == null || streamed.has(current.market)) throw new PaperRealizedPeriodProducerError("MARKET_STILL_STREAMED", "PAPER period market is still streamed", periodId);
+      const pending = this.repository.getPending(periodId);
+      if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      this.repository.retirePending(periodId, pending.checksum);
+      this.openPeriods.delete(periodId);
+      this.emit({ type: "PERIOD_REJECTED", periodId, occurredAt: this.options.now?.() ?? Date.now(), reasonCode: "MARKET_NOT_STREAMED" });
+      return current;
+    } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
+  }
+
+  /**
+   * Inspects the open period against the canonical fill ledger. Returns the retirement receipt only when the window
+   * (periodStartAt, canonical account updatedAt] holds fills from more than one candidate binding; otherwise null.
+   * Read-only and deterministic. A mixed window can never become scorable (fills are immutable), so it may be retired
+   * as soon as it is observed instead of waiting for the trading-day close.
+   */
+  public inspectOpenPeriodForMixedBinding(periodId: string): PaperPeriodMixedBindingReceipt | null {
+    const current = this.openPeriods.get(periodId);
+    if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+    const reader = this.options.readCanonicalPaperAccount;
+    if (reader == null) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_UNAVAILABLE", "canonical PAPER account source is unavailable", periodId);
+    let account: PaperAccountState;
+    try { account = reader(); } catch { throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_UNAVAILABLE", "canonical PAPER account source could not be read", periodId); }
+    const boundary = account.updatedAt;
+    if (!Number.isSafeInteger(boundary) || boundary <= current.periodStartAt) return null;
+    const fills = this.readCanonicalPaperFills(periodId) ?? account.fills;
+    // A repeated fill identity is one fill (the canonical ledger forbids duplicates), so it cannot distort the counts.
+    const unique = new Map<string, PaperFillRecord>();
+    for (const fill of fills) if (!unique.has(fill.id)) unique.set(fill.id, fill);
+    const window = [...unique.values()].filter((fill) => fill.filledAt > current.periodStartAt && fill.filledAt <= boundary)
+      .sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id));
+    const byBinding = new Map<string, { candidateId: string; bindingFingerprintSha256: string; fillCount: number }>();
+    for (const fill of window) {
+      const binding = fill.candidateProvenance?.binding;
+      if (binding == null) continue;
+      const entry = byBinding.get(binding.bindingFingerprintSha256) ?? { candidateId: binding.candidateId, bindingFingerprintSha256: binding.bindingFingerprintSha256, fillCount: 0 };
+      byBinding.set(binding.bindingFingerprintSha256, { ...entry, fillCount: entry.fillCount + 1 });
+    }
+    if (byBinding.size < 2) return null;
+    const bindings = [...byBinding.values()].sort((left, right) => left.bindingFingerprintSha256.localeCompare(right.bindingFingerprintSha256));
+    const ledger = paperLedgerFingerprint({ ...account, fills: [...fills] });
+    const core = {
+      schemaVersion: 1 as const,
+      reason: "CANDIDATE_BINDING_MIXED" as const,
+      retiredPeriodId: periodId,
+      periodStartAt: current.periodStartAt,
+      retiredAtBoundary: boundary,
+      bindings,
+      fillIds: window.map((fill) => fill.id),
+      fillCount: window.length,
+      ledgerFingerprintSha256: ledger.ledgerFingerprintSha256,
+      ledgerFillCount: ledger.fillCount,
+      validPerformanceEvidence: false as const,
+    };
+    return Object.freeze({ ...core, evidenceFingerprintSha256: digest(core) });
+  }
+
+  /**
+   * Retires an open period whose fills mix more than one candidate binding (CANDIDATE_BINDING_MIXED). Such a window can never be
+   * attributed to a single strategy version, so it can never close; only one period may be open, so without this the learning
+   * loop stays blocked forever. It re-derives the receipt itself and refuses (NOT_MIXED) unless the canonical fills prove the
+   * mix. Nothing is closed or scored and no return, fill or cost is synthesized: the period leaves the open set and every fill
+   * stays in the canonical ledger.
+   */
+  public retireOpenPeriodForMixedBinding(periodId: string): PersistedPaperRealizedPeriodPlan {
+    try {
+      const current = this.openPeriods.get(periodId);
+      if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      const receipt = this.inspectOpenPeriodForMixedBinding(periodId);
+      if (receipt == null) throw new PaperRealizedPeriodProducerError("NOT_MIXED", "PAPER period fills do not mix candidate bindings", periodId);
+      const pending = this.repository.getPending(periodId);
+      if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      this.repository.retirePending(periodId, pending.checksum);
+      this.openPeriods.delete(periodId);
+      this.emit({ type: "PERIOD_REJECTED", periodId, occurredAt: this.options.now?.() ?? Date.now(), reasonCode: "CANDIDATE_BINDING_MIXED", retirementEvidenceFingerprintSha256: receipt.evidenceFingerprintSha256 });
+      return current;
+    } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
   }
 
   public retireOpenPeriodForAccountChange(periodId: string): PersistedPaperRealizedPeriodPlan {

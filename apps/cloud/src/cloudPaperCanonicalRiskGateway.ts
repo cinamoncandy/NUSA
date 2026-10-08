@@ -3,6 +3,7 @@ import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqliteRiskSafetyPersistence } from "../../../packages/storage/src/index";
 import type { PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
 import { CanonicalRiskSafetyGate } from "../../../packages/contracts/src/risk-safety-integration";
+import { paperTradingDayKey, paperTradingDayStartedAt } from "./paperTradingDay";
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
@@ -64,10 +65,18 @@ export interface CloudPaperLossSessionSnapshot {
   readonly maxConsecutiveLosses: number;
   readonly todayCompletedSells: number;
   readonly todayLosingSells: number;
+  /** Trading-day key (Asia/Seoul) the counts belong to, the start of that day, and the fill time of the loss that last extended the streak (null at 0). */
+  readonly periodIdentity: string;
+  readonly periodStartedAt: number;
+  readonly lastIncrementAt: number | null;
 }
 
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
-const dayOf = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
+// One canonical trading day (Asia/Seoul) for every daily limit here, the same one CanonicalRiskSafetyGate and the closed-learning
+// rollover already use (paperTradingDay delegates to tradingDayKey). A local UTC day would let two different "today"s disagree
+// inside a single risk evaluation.
+const dayOf = (timestamp: number): string => paperTradingDayKey(timestamp);
+const dayStartedAt = (dayKey: string): number => paperTradingDayStartedAt(dayKey);
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {
@@ -151,7 +160,7 @@ function dailyNotional(state: PaperAccountState, now: number): Readonly<{ dailyB
   return Object.freeze({ dailyBuyNotional, dailySellNotional });
 }
 
-function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number; todayCompletedSells: number; todayLosingSells: number }> {
+function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number; todayCompletedSells: number; todayLosingSells: number; lastIncrementAt: number | null }> {
   const positions = new Map<string, { quantity: number; averageEntryPrice: number }>();
   const sells: Array<{ pnl: number; filledAt: number }> = [];
   const sellOrders = new Map<string, { pnl: number; filledAt: number }>();
@@ -163,7 +172,7 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
       positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextAverage });
       continue;
     }
-    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER, todayCompletedSells: 0, todayLosingSells: 0 });
+    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER, todayCompletedSells: 0, todayLosingSells: 0, lastIncrementAt: null });
     const pnl = (order.price - prior.averageEntryPrice) * order.quantity - order.fee;
     const nextQuantity = Math.max(0, prior.quantity - order.quantity);
     positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : prior.averageEntryPrice });
@@ -173,7 +182,7 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
   }
   const today = dayOf(now);
   const dailyRealizedPnL = sells.filter((sell) => dayOf(sell.filledAt) === today).reduce((sum, sell) => sum + sell.pnl, 0);
-  // The streak is scoped to the current UTC trading day, like the daily loss limit. Counting the
+  // The streak is scoped to the current trading day (Asia/Seoul), like the daily loss limit. Counting the
   // whole history made the limit permanent: once tripped, no order could run to produce the
   // winning sell that would clear it. The owner chose a daily reset on 2026-10-01.
   let consecutiveLossCount = 0;
@@ -182,7 +191,8 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
     if (completed[index]!.pnl >= 0) break;
     consecutiveLossCount += 1;
   }
-  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount, todayCompletedSells: completed.length, todayLosingSells: completed.filter((sell) => sell.pnl < 0).length });
+  const lastIncrementAt = consecutiveLossCount === 0 ? null : completed[completed.length - 1]!.filledAt;
+  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount, todayCompletedSells: completed.length, todayLosingSells: completed.filter((sell) => sell.pnl < 0).length, lastIncrementAt });
 }
 
 export interface CloudPaperCanonicalRiskGatewayOptions {
@@ -255,7 +265,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const notionals = dailyNotional(input.state, input.now);
     const lossState = realizedLossState(input.state, input.now);
     if (Number.isFinite(lossState.dailyRealizedPnL)) {
-      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells });
+      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt });
     }
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);

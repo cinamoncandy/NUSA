@@ -1,0 +1,26 @@
+id: WO-RESEARCH-20261007-FAILURE-REASONS
+title: "Classify every non-winning Research validation under one bounded failure reason"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/failed-strategy-memory
+authority_impact: none
+owner_approval: "2026-10-07 in chat: Strategy Research + Governance master directive section 14 (failed strategy memory with bounded reasons) and the reply '해' to the proposal to build it"
+objective: "Research already records every evaluation durably in the Research evaluation ledger, but a failure was only a result code (CHAMPION_BETTER / EQUIVALENT / INCONCLUSIVE). Derive one bounded reason from that same ledger evidence (NO_EDGE, LOW_SAMPLE, COST_SENSITIVE, EXCESSIVE_DRAWDOWN, EXECUTION_MISMATCH) and count it, so failed candidates are explained and Research N+1 can tell whether it repeats the same failure."
+scope:
+  - "apps/cloud/src/researchFailureMemory.ts (new, pure): classifyResearchFailure with a fixed priority; no store of its own, so no second source of truth for failed candidates (the evaluation ledger already keeps them)."
+  - "apps/cloud/src/researchExperimentOrchestrator.ts and researchExperimentComposition.ts: each tick recomputes the FAIL_<reason> counts from the durable Research ledger (validation-role records of this bar length, all-time) through an optional failureEvidence port, so a restart or a crash between a ledger append and a count cannot lose or double count one. The counts already reach /health as fixed codes and integers, so no server change."
+  - "tests/research-failure-memory.test.js (new) and an invariant in tests/research-experiment-orchestrator.test.js: every non-winning validation lands under exactly one reason."
+exclusions:
+  - "No threshold, risk, capital or promotion change; a failure reason never lowers a bar. No new storage or schema. No order, execution, LIVE, credential or AI authority. The other directive reasons (OVERFIT, REGIME_SPECIFIC, PARAMETER_FRAGILE, RISK_INCOMPATIBLE, INSUFFICIENT_PAPER) need evidence this ledger does not carry and are not guessed."
+  - "Repeat detection against earlier Research runs (comparing a new candidate's config with failed ones) is a follow-up; this change makes the reasons durable-derivable and visible first."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+rollback: "Revert the change."
+verification_commands:
+  - node_modules/.bin/tsc -p tsconfig.json
+  - node --test tests/research-failure-memory.test.js tests/research-experiment-orchestrator.test.js tests/research-experiment-composition.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "LOW_SAMPLE is reserved for unusable evidence (a missing evaluation or net return, or a coordinator reason other than a completed comparison); a completed comparison that found no clear winner is judged on its metrics. COST_SENSITIVE reads the ledger's cost evidence (gross vs net return) because the evaluator sets netReturn and costAdjustedReturn to the same value. After the next PAPER deploy the FAIL_ counts appear under researchExperimentTicksByInterval."

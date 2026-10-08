@@ -1,4 +1,5 @@
 import { buildMobileDashboardResponse } from "./mobileDashboardApi";
+import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloudRuntimeConfig";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
@@ -102,6 +103,9 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   /** Retires only an owner-baseline period at qualified-challenger handoff. */
   readonly retirePaperRealizedPeriodForReplacement: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForAccountChange: (periodId: string) => PersistedPaperRealizedPeriodPlan;
+  readonly retirePaperRealizedPeriodForUnstreamedMarket: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
+  readonly retirePaperRealizedPeriodForMixedBinding: (periodId: string) => PersistedPaperRealizedPeriodPlan;
+  readonly inspectPaperRealizedPeriodForMixedBinding: (periodId: string) => { readonly evidenceFingerprintSha256: string } | null;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
@@ -171,7 +175,9 @@ export function startCloudRuntime(
   realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider,
   engineeringOperatingSource?: NusaEngineeringOperatingSource,
   /** Display-only status of the production closed-learning loop (see closedLearningLoopStatus.ts). */
-  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined>> | null
+  closedLearningStatus?: () => Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>> | null,
+  /** Display-only research experiment tick summaries keyed by bar length ("1m", "15m", ...). */
+  researchIntervalTicks?: () => Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null>> | null
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -370,6 +376,8 @@ export function startCloudRuntime(
   const orderBookReconciler = new UpbitOrderBookReconciler();
   let marketConnectionGeneration = 0;
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
+  // Market whose rejected tick set the current PUBLIC_MARKET_EVENT_REJECTED diagnostic, if any.
+  let rejectedTickerMarket: string | undefined;
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
@@ -392,6 +400,7 @@ export function startCloudRuntime(
       // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
       // malformed tick. Acceptance thresholds are unchanged; a rejected tick never enters trusted observations.
       recordFailure(`PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`);
+      rejectedTickerMarket = ticker.code;
       // Reject only the untrusted tick. Previously one stale/invalid market event cleared every
       // already-accepted market observation, so a quiet market (for example a >30s DOGE last-trade
       // timestamp) could latch the whole multi-market PAPER dashboard into NO_MARKET_DATA even while
@@ -402,6 +411,13 @@ export function startCloudRuntime(
       return;
     }
     heartbeat.lastAcceptedMarketReceiptAt = now;
+    // A per-tick rejection is a diagnostic about that market's feed. Once the same market delivers an accepted
+    // tick again the condition has recovered, so it must not keep /health DEGRADED forever. Any other error
+    // (durable evidence, connection, reconciliation) is left untouched.
+    if (rejectedTickerMarket === ticker.code && heartbeat.lastError?.startsWith("PUBLIC_MARKET_EVENT_REJECTED:")) {
+      heartbeat.lastError = null;
+      rejectedTickerMarket = undefined;
+    }
     // Only accepted public-market events may become durable PAPER evidence.
     // This keeps stale/future/malformed transport input out of the canonical observation store.
     latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
@@ -561,6 +577,8 @@ export function startCloudRuntime(
     }
     return lossAttributionCache == null ? {} : { paperLossAttribution: lossAttributionCache };
   };
+  const researchIntervalLiveness = () => { let byInterval: Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }> | null = null; try { const raw = researchIntervalTicks?.() ?? null; if (raw != null) { byInterval = {}; for (const [key, value] of Object.entries(raw)) if (value != null) byInterval[key] = value; } } catch { byInterval = null; } return byInterval == null || Object.keys(byInterval).length === 0 ? {} : { researchExperimentTicksByInterval: byInterval }; };
+  const paperLedgerLiveness = () => { try { const state = effectivePaperLoop?.snapshot(); return state == null ? {} : { paperLedger: paperLedgerFingerprint(state) }; } catch { return {}; } };
   const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
   const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
   const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
@@ -626,6 +644,8 @@ export function startCloudRuntime(
     // from these counters. Publishing them makes 24-hour operation something that can be checked
     // rather than assumed from the process being up.
     runtimeLiveness: () => Object.freeze({
+      // The exact commit this process was built from, so main = deployed = running can be read directly.
+      sourceCommitSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim(),
       startedAt: heartbeat.startedAt,
       lastHeartbeatAt: heartbeat.lastHeartbeatAt,
       lastMarketEventAt: heartbeat.lastMarketEventAt,
@@ -645,6 +665,8 @@ export function startCloudRuntime(
       ...lossSessionLiveness(),
       ...lossAttributionLiveness(),
       ...researchExperimentLiveness(),
+      ...paperLedgerLiveness(),
+      ...researchIntervalLiveness(),
       ...closedLearningLiveness()
     }),
     runtimeHealth: () => projectPaperRuntimeHealth(
@@ -686,6 +708,9 @@ export function startCloudRuntime(
     closePaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().closePeriodFromCanonicalAccount(input),
     retirePaperRealizedPeriodForReplacement: (periodId, reason) => requirePaperRealizedPeriodProducer().retireOpenPeriodForReplacement(periodId, reason),
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
+    retirePaperRealizedPeriodForUnstreamedMarket: (periodId, streamedMarkets) => requirePaperRealizedPeriodProducer().retireOpenPeriodForUnstreamedMarket(periodId, streamedMarkets),
+    retirePaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForMixedBinding(periodId),
+    inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
     stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };

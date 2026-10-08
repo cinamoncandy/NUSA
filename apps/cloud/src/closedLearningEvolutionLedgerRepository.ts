@@ -59,14 +59,41 @@ export class ClosedLearningEvolutionLedgerRepository implements ClosedLearningCy
 
   public get(cycleId: string): ClosedLearningCycleRecord | undefined {
     if (!CYCLE.test(cycleId)) throw new Error("closed learning cycleId is invalid");
-    const decisionRecord = this.ledger.list().find((record) => record.opportunityId === `${cycleId}:decision`);
+    return this.build(cycleId, this.ledger.list());
+  }
+
+  /** Builds one cycle record from an already obtained ledger replay, so a caller that reads many cycles replays (and re-validates) the ledger once. */
+  private build(cycleId: string, records: ReturnType<EvolutionLedgerPort["list"]>): ClosedLearningCycleRecord | undefined {
+    const decisionRecord = records.find((record) => record.opportunityId === `${cycleId}:decision`);
     if (decisionRecord == null) return undefined;
     const identity = references(decisionRecord);
     const decision = parseDecision(decisionRecord.hypothesis);
-    const paperRecord = this.ledger.list().find((record) => record.opportunityId === `${cycleId}:paper`);
+    const paperRecord = records.find((record) => record.opportunityId === `${cycleId}:paper`);
     const paperDeployment = paperRecord == null ? undefined : parseDeployment(paperRecord.hypothesis);
     if (paperDeployment != null && (paperDeployment.candidateId !== decision.candidateId || paperDeployment.candidateVersion !== decision.candidateVersion)) throw new Error("closed learning durable candidate identity conflict");
     return Object.freeze({ cycleId, evidenceId: identity.evidenceId, evidenceFingerprintSha256: identity.fingerprint, decision, ...(paperDeployment ? { paperDeployment } : {}), recordedAt: Date.parse(decisionRecord.recordedAt) });
+  }
+
+  /**
+   * Display-only read of the durable cycle history from ONE ledger replay: the number of valid recorded cycles and the most recent one.
+   * An unreadable or namespace-shaped-but-invalid entry is neither counted nor allowed to hide the others. A failure of the ledger
+   * itself (corruption, persistence error) is not swallowed here: it propagates so the caller can withdraw what it published.
+   */
+  public summary(): { readonly cyclesRecorded: number; readonly latest?: ClosedLearningCycleRecord } {
+    const records = this.ledger.list();
+    let cyclesRecorded = 0;
+    let latest: ClosedLearningCycleRecord | undefined;
+    for (const decision of records) {
+      if (!decision.opportunityId.endsWith(":decision")) continue;
+      const cycleId = decision.opportunityId.slice(0, -":decision".length);
+      if (!CYCLE.test(cycleId)) continue;
+      let record: ClosedLearningCycleRecord | undefined;
+      try { record = this.build(cycleId, records); } catch { continue; }
+      if (record == null) continue;
+      cyclesRecorded += 1;
+      if (latest == null || record.recordedAt >= latest.recordedAt) latest = record;
+    }
+    return Object.freeze({ cyclesRecorded, ...(latest == null ? {} : { latest }) });
   }
 
   public append(record: ClosedLearningCycleRecord): ClosedLearningCycleRecord {

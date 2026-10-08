@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
-import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
+import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverPort } from "./closedLearningRolloverScheduler";
 import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
+import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
 
 const START = Date.parse("2026-09-04T14:59:00.000Z"); // 23:59 KST
 const SAME_KST_DAY = Date.parse("2026-09-04T14:59:30.000Z");
@@ -112,14 +113,18 @@ function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE", aw
 
 function harness(options: {
   now: number;
+  clock?: number;
   observation?: "FILLED" | "WAIT";
   outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE";
   awaitingGovernance?: boolean;
   closeError?: Error;
+  retireMixed?: boolean;
+  inspectMixed?: boolean;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
   priorRealized?: readonly PersistedPaperPeriodEnvelope[];
 }) {
   const events: string[] = [];
+  const openInputs: PaperRealizedPeriodOpenInput[] = [];
   const closed = envelope();
   const openPeriods = options.openPeriods ?? [plan(options.observation ?? "FILLED")];
   const realized = Object.freeze([...(options.priorRealized ?? []), closed]);
@@ -127,16 +132,19 @@ function harness(options: {
     listOpenPeriods: () => openPeriods,
     listRealizedPeriods: () => realized,
     readCanonicalPaperAccount: () => account(options.now),
+    ...(options.clock === undefined ? {} : { now: () => options.clock! }),
     closePeriodFromCanonicalAccount: ({ periodId, periodEndAt }) => {
       events.push(`close:${periodId}:${periodEndAt}`);
       if (options.closeError) throw options.closeError;
       return closed;
     },
-    openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
+    openPeriodFromCanonicalAccount: (input) => { openInputs.push(input); events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
     buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
     runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
+    ...(options.inspectMixed === true ? { inspectOpenPeriodForMixedBinding: (periodId: string) => { events.push(`inspect-mixed:${periodId}`); return { evidenceFingerprintSha256: "f".repeat(64) }; } } : {}),
+    ...(options.retireMixed === false ? {} : { retireOpenPeriodForMixedBinding: (periodId: string) => { events.push(`retire-mixed:${periodId}`); return plan("FILLED", periodId); } }),
   };
-  return { scheduler: new ClosedLearningRolloverScheduler(port), events };
+  return { scheduler: new ClosedLearningRolloverScheduler(port), events, openInputs };
 }
 
 describe("ClosedLearningRolloverScheduler", () => {
@@ -144,6 +152,66 @@ describe("ClosedLearningRolloverScheduler", () => {
     const { scheduler, events } = harness({ now: SAME_KST_DAY });
     assert.equal(scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");
     assert.deepEqual(events, []);
+  });
+
+  it("closes at the canonical account boundary, not the clock, once the wall clock passes the KST day while the account is idle", () => {
+    const { scheduler, events } = harness({ now: SAME_KST_DAY, clock: NEXT_KST_DAY + 1000 });
+    assert.equal(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
+    assert.equal(events[0], `close:${plan("FILLED").periodId}:${SAME_KST_DAY}`);
+    assert.ok(events.some((event) => event.startsWith("open:") && event.includes(`:${SAME_KST_DAY}:`)), "successor starts at the canonical boundary");
+  });
+
+  it("still waits when the wall clock is on the same KST day, absent, or behind the account", () => {
+    assert.equal(harness({ now: SAME_KST_DAY, clock: SAME_KST_DAY + 1000 }).scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");
+    assert.equal(harness({ now: SAME_KST_DAY }).scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");
+    assert.equal(harness({ now: SAME_KST_DAY, clock: SAME_KST_DAY - 1 }).scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");
+  });
+
+  it("a clock-crossed period without a FILLED observation still waits and writes nothing", () => {
+    const { scheduler, events } = harness({ now: SAME_KST_DAY, clock: NEXT_KST_DAY, observation: "WAIT" });
+    assert.equal(scheduler.runOnce().status, "WAITING_FOR_REALIZED_FILL");
+    assert.deepEqual(events, []);
+  });
+
+  describe("a window that mixes candidate bindings", () => {
+    const mixed = () => Object.assign(new Error("realized PAPER period mixes fills from more than one candidate binding"), { code: "CANDIDATE_BINDING_MIXED" });
+
+    it("is retired unscored with no cycle or identity, and replaced in the same step from the retired plan's own candidate", () => {
+      const { scheduler, events, openInputs } = harness({ now: NEXT_KST_DAY, closeError: mixed() });
+      const result = scheduler.runOnce();
+      assert.equal(result.status, "MIXED_BINDING_PERIOD_RETIRED");
+      assert.equal(result.reason, "CANDIDATE_BINDING_MIXED");
+      assert.equal(result.replacementCandidateId, plan("FILLED").candidateProvenance[0]!.candidateId);
+      assert.match(result.replacementPeriodId ?? "", /^closed-learning-mixed-binding-replaced:/);
+      assert.deepEqual(events.filter((event) => !event.startsWith("close:") && !event.startsWith("open:")), [`retire-mixed:${plan("FILLED").periodId}`]);
+      assert.equal(openInputs.length, 1);
+      assert.deepEqual(openInputs[0]!.candidateProvenance, plan("FILLED").candidateProvenance, "the replacement keeps the retired plan's candidate, not realized history");
+      assert.equal(openInputs[0]!.periodStartAt, NEXT_KST_DAY, "it starts at the canonical account boundary");
+    });
+
+    it("is retired as soon as the ledger proves the mix, even before the trading day closes, with its receipt fingerprint", () => {
+      const { scheduler, events } = harness({ now: NEXT_KST_DAY, inspectMixed: true });
+      const result = scheduler.runOnce();
+      assert.equal(result.status, "MIXED_BINDING_PERIOD_RETIRED");
+      assert.equal(result.retirementEvidenceFingerprintSha256, "f".repeat(64));
+      assert.deepEqual(events.filter((event) => !event.startsWith("open:")), [`inspect-mixed:${plan("FILLED").periodId}`, `retire-mixed:${plan("FILLED").periodId}`], "nothing is closed, identified or evaluated");
+      assert.equal(events.filter((event) => event.startsWith("open:")).length, 1, "exactly one replacement is opened");
+      assert.ok(result.replacementPeriodId);
+    });
+
+    it("any other close failure stays BLOCKED and retires nothing", () => {
+      const other = Object.assign(new Error("x"), { code: "MISSING_BENCHMARK_EVIDENCE" });
+      const { scheduler, events } = harness({ now: NEXT_KST_DAY, closeError: other });
+      assert.equal(scheduler.runOnce().status, "BLOCKED");
+      assert.ok(!events.some((event) => event.startsWith("retire-mixed")));
+    });
+
+    it("stays BLOCKED when the retirement port is unavailable", () => {
+      const { scheduler } = harness({ now: NEXT_KST_DAY, closeError: mixed(), retireMixed: false });
+      const result = scheduler.runOnce();
+      assert.equal(result.status, "BLOCKED");
+      assert.match(result.reason ?? "", /CANDIDATE_BINDING_MIXED|mixes fills/);
+    });
   });
 
   it("keeps a crossed period open until a real FILLED observation exists", () => {
@@ -201,6 +269,122 @@ describe("ClosedLearningRolloverScheduler", () => {
     assert.equal(result.status, "BLOCKED");
     assert.match(result.reason ?? "", /MISSING_BENCHMARK_EVIDENCE/);
     assert.deepEqual(events, [`close:period-0:${NEXT_KST_DAY}`]);
+  });
+});
+
+describe("closed-learning rollover after a period closed without a successor", () => {
+  const LATER = NEXT_KST_DAY + 60_000;
+
+  it("continues the latest realized candidate from the real canonical account boundary", () => {
+    const { scheduler, events } = harness({ now: LATER, openPeriods: [] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "STALLED_PERIOD_REOPENED");
+    assert.equal(result.reason, "continued:record-0");
+    assert.deepEqual(events, [`open:closed-learning-rollover:1:${LATER}:${LATER}:1`]);
+  });
+
+  it("waits instead of reopening at or before the last realized period end", () => {
+    const { scheduler, events } = harness({ now: NEXT_KST_DAY, openPeriods: [] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "NO_OPEN_PERIOD");
+    assert.equal(result.reason, "WAITING_FOR_CANONICAL_BOUNDARY");
+    assert.deepEqual(events, []);
+  });
+
+  it("leaves a fresh install with no realized history to the bootstrap", () => {
+    const port: ClosedLearningRolloverPort = {
+      listOpenPeriods: () => [],
+      listRealizedPeriods: () => [],
+      readCanonicalPaperAccount: () => account(LATER),
+      closePeriodFromCanonicalAccount: () => { throw new Error("unexpected close"); },
+      openPeriodFromCanonicalAccount: () => { throw new Error("unexpected open"); },
+      buildEvidenceIdentity: () => { throw new Error("unexpected identity"); },
+      runClosedLearningCycle: () => { throw new Error("unexpected cycle"); },
+    };
+    const result = new ClosedLearningRolloverScheduler(port).runOnce();
+    assert.equal(result.status, "NO_OPEN_PERIOD");
+    assert.equal(result.reason, undefined);
+  });
+});
+
+describe("closed-learning rollover blocked reasons", () => {
+  it("leads with the failing step's error code so the loop status can name it", () => {
+    const failure = Object.assign(new Error("canonical PAPER period benchmark evidence is unavailable"), { code: "MISSING_BENCHMARK_EVIDENCE" });
+    const { scheduler } = harness({ now: NEXT_KST_DAY, closeError: failure });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.reason, "MISSING_BENCHMARK_EVIDENCE:canonical PAPER period benchmark evidence is unavailable");
+    const tracker = new ClosedLearningLoopStatusTracker();
+    tracker.observeRollover(result, NEXT_KST_DAY);
+    assert.equal(tracker.snapshot()?.rolloverReason, "MISSING_BENCHMARK_EVIDENCE");
+  });
+
+  it("keeps the plain message when the error has no stable code", () => {
+    const { scheduler } = harness({ now: NEXT_KST_DAY, closeError: Object.assign(new Error("boom"), { code: "lower-case" }) });
+    assert.equal(scheduler.runOnce().reason, "boom");
+  });
+});
+
+describe("closed-learning rollover when a period is bound to a market the runtime no longer streams", () => {
+  const LATER = NEXT_KST_DAY + 60_000;
+  function port(over: Partial<ClosedLearningRolloverPort> & { open?: readonly PersistedPaperRealizedPeriodPlan[]; realized?: readonly PersistedPaperPeriodEnvelope[] }) {
+    const events: string[] = [];
+    const base: ClosedLearningRolloverPort = {
+      listOpenPeriods: () => over.open ?? [],
+      listRealizedPeriods: () => over.realized ?? [],
+      readCanonicalPaperAccount: () => account(LATER),
+      closePeriodFromCanonicalAccount: ({ periodId }) => { events.push(`close:${periodId}`); throw new Error("canonical PAPER period benchmark evidence is unavailable"); },
+      openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.market}:${input.candidateProvenance[0]?.candidateId}`); return { ...plan("WAIT", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
+      buildEvidenceIdentity: () => identity(),
+      runClosedLearningCycle: () => cycle("INSUFFICIENT"),
+      streamedMarkets: () => ["KRW-XRP"],
+      retireOpenPeriodForUnstreamedMarket: (periodId, markets) => { events.push(`retire:${periodId}:${markets.join(",")}`); return plan("FILLED", periodId); },
+      buildOwnerBaselinePeriod: ({ periodIndex, periodStartAt }) => ({ periodId: `owner-baseline:KRW-XRP:${periodStartAt}`, periodIndex, advisory: advisory(), candidateProvenance: Object.freeze([{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId: "owner-baseline:upbit-public-ticker:KRW-XRP", datasetContentSha256: HASH }]), market: "KRW-XRP", periodStartAt }),
+    };
+    return { scheduler: new ClosedLearningRolloverScheduler({ ...base, ...over }), events };
+  }
+  const baselineEnvelope = (market: string) => Object.freeze({ ...envelope(), record: Object.freeze({ ...envelope().record, market }), candidateProvenance: Object.freeze([{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId: `owner-baseline:upbit-public-ticker:${market}`, datasetContentSha256: HASH }]) });
+
+  it("retires an open period on an unstreamed market instead of failing its close forever", () => {
+    const { scheduler, events } = port({ open: [plan("FILLED")] }); // plan() is bound to KRW-BTC
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "UNSTREAMED_MARKET_PERIOD_RETIRED");
+    assert.equal(result.reason, "MARKET_NOT_STREAMED");
+    assert.deepEqual(events, ["retire:period-0:KRW-XRP"], "no close is attempted and no benchmark is invented");
+  });
+
+  it("stays blocked when retirement is unavailable", () => {
+    const { scheduler, events } = port({ open: [plan("FILLED")], retireOpenPeriodForUnstreamedMarket: undefined });
+    assert.equal(scheduler.runOnce().reason, "UNSTREAMED_MARKET_RETIREMENT_UNAVAILABLE");
+    assert.deepEqual(events, []);
+  });
+
+  it("restarts the owner baseline on the streamed market through its canonical builder, not by copying the old market", () => {
+    const { scheduler, events } = port({ realized: [baselineEnvelope("KRW-BTC")] });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "STALLED_PERIOD_REOPENED");
+    assert.deepEqual(events, [`open:owner-baseline:KRW-XRP:${LATER}:KRW-XRP:${OWNER_BASELINE_CANDIDATE_ID}`]);
+  });
+
+  it("never moves a non-baseline candidate to another market", () => {
+    const { scheduler, events } = port({ realized: [envelope()] }); // candidate-a on KRW-BTC
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.reason, "STALLED_PERIOD_MARKET_NOT_STREAMED");
+    assert.deepEqual(events, []);
+  });
+
+  it("keeps continuing on the same market when it is still streamed", () => {
+    const { scheduler, events } = port({ realized: [baselineEnvelope("KRW-XRP")] });
+    assert.equal(scheduler.runOnce().status, "STALLED_PERIOD_REOPENED");
+    assert.deepEqual(events, [`open:closed-learning-rollover:1:${LATER}:KRW-XRP:${OWNER_BASELINE_CANDIDATE_ID}`]);
+  });
+
+  it("still tries to close a streamed-market period normally", () => {
+    const xrpPlan = Object.freeze({ ...plan("FILLED"), market: "KRW-XRP" });
+    const { scheduler, events } = port({ open: [xrpPlan] });
+    assert.equal(scheduler.runOnce().status, "BLOCKED", "a genuinely missing benchmark still fails closed");
+    assert.deepEqual(events, ["close:period-0"]);
   });
 });
 

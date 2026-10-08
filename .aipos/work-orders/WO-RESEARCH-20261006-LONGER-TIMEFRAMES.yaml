@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261006-LONGER-TIMEFRAMES
+title: "Proposal: compare longer bar timeframes (15/60/240 min) in Research"
+status: APPROVED_IMPLEMENTING
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/research-timeframe-proposal
+authority_impact: none
+owner_approval: "2026-10-06 in chat: '제안서 써줘' (proposal document only; implementation needs separate approval)"
+objective: "Offline replay shows every tested family loses on 1-minute bars after 0.15% round-trip cost (gross edge ~0). Propose a Research comparison across 1/15/60/240-minute bars with walk-forward/OOS evidence, routed through the existing orchestrator and Governance Feedback path."
+scope:
+  - "docs/PROPOSAL_RESEARCH_LONGER_TIMEFRAMES.md (new): evidence, proposal and owner decisions."
+exclusions:
+  - "No code change. No change to the running PAPER strategy, thresholds, risk limits, capital or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Documentation only."
+rollback: "Revert the change."
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+  - node scripts/validate-repository-truth.js
+residual: "Preliminary numbers are a two-market, single-split replay and are not promotion evidence."
