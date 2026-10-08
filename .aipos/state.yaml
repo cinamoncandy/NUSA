@@ -2890,3 +2890,9 @@ current_autopilot_runner_readiness:
   branch: claude/autopilot-runner-preflight
   authority_impact: none
   finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
+current_learning_pending_order_attribution_test:
+  work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
+  status: READY_FOR_REVIEW
+  branch: claude/pending-order-attribution-test
+  authority_impact: none
+  finding: "Tests pin that a continued working order keeps its creating binding (no silent relabel); the cross-period fill gap for a continued order with no current decision remains open and needs a design decision"
