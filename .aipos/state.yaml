@@ -2920,3 +2920,9 @@ current_learning_resume_failed_cycle:
   branch: claude/cycle-failure-reproduction
   authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
   finding: "A period closed durably and its cycle threw was never retried (the next tick only reopened a continuation), so its learning was lost; the scheduler now resumes the latest unrecorded cycle in the stalled state, bounded to 5 ticks per period. The original production failure reason is unknown, so this is a confirmed hole matching the symptom, not a proven cause"
+current_learning_baseline_shadow:
+  work_order: WO-LEARNING-20261008-BASELINE-SHADOW
+  status: READY_FOR_REVIEW
+  branch: claude/risk-blocked-shadow
+  authority_impact: display-and-analysis-only-no-order-no-ledger-no-risk-input
+  finding: "While the consecutive-loss halt censors the PAPER ledger, a shadow of the baseline rule on the same minute bars keeps producing hypothetical round trips with fees (counts and basis points on /health) so learning and the 3/4/5 limit comparison have uncensored outcomes; not PAPER evidence"

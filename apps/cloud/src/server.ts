@@ -421,6 +421,10 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         realizedPeriodEndAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         cyclesRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0, lastCycleRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        // Baseline shadow totals: counts and basis points as non-negative integers; no amount or price.
+        shadowSince: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        shadowWins: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowGrossGainBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        shadowGrossLossBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowFeeBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
       };
       const evidence: Record<string, string | number> = {};
       for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }
