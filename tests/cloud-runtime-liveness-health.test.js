@@ -453,3 +453,20 @@ test("the PAPER ledger identity publishes only a 64-hex fingerprint and non-nega
     }, 41878);
   }
 });
+
+test("/health publishes the baseline shadow totals as non-negative integers only, and drops malformed ones", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY",
+    evidence: { shadowSince: 1_791_439_000_000, shadowTrades: 12, shadowWins: 2, shadowGrossGainBp: 300, shadowGrossLossBp: 800, shadowFeeBp: 120, shadowNetKrw: 9_999 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.deepEqual({ t: evidence.shadowTrades, w: evidence.shadowWins, g: evidence.shadowGrossGainBp, l: evidence.shadowGrossLossBp, f: evidence.shadowFeeBp, s: evidence.shadowSince }, { t: 12, w: 2, g: 300, l: 800, f: 120, s: 1_791_439_000_000 });
+    assert.equal(evidence.shadowNetKrw, undefined, "an unlisted key (any amount) is never published");
+  }, 42341);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { shadowTrades: -1, shadowWins: 1.5, shadowFeeBp: "x", shadowGrossGainBp: 7 } } }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.equal(evidence.shadowTrades, undefined);
+    assert.equal(evidence.shadowWins, undefined);
+    assert.equal(evidence.shadowFeeBp, undefined);
+    assert.equal(evidence.shadowGrossGainBp, 7);
+  }, 42342);
+});
