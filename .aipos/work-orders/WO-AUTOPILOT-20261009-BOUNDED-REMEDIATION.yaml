@@ -1,0 +1,36 @@
+id: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
+title: "Close actionable coding-runner failure to bounded remediation transition"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: autopilot/p0-2595-bounded-remediation
+issue: 2595
+authority_impact: none
+safety:
+  paper_only: true
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+first_broken_transition: "classified actionable coding-runner failure -> actual bounded remediation"
+scope:
+  include:
+    - "Fail-closed coding-runner failure taxonomy with explicit retry allowlists."
+    - "Distinct VALID_NO_ACTION, FAILED_TO_REMEDIATE, and FAILED_CLOSED decisions."
+    - "Hard remediation retry budget capped at three attempts."
+    - "Provider HTTP 5xx evidence can classify a concrete transient provider failure as bounded-retryable."
+    - "Declare the decision primitive in UNWIRED_CONTROL_PLANE_DEBT until the canonical worker consumes it."
+  exclude:
+    - "Any merge, release, secret, production, LIVE, Risk PASS, order, accounting, or strategy-promotion authority."
+    - "Automatic retry wiring in this increment."
+acceptance:
+  - "Authority, production mutation, unknown, request-invalid, stale/mismatched evidence and unavailable capacity state fail closed."
+  - "Future or repeated proposal reason prefixes do not become retryable without an explicit allowlist entry."
+  - "Actionable known proposal/provider failures are retryable only inside the fixed budget."
+  - "VALID_NO_ACTION requires an explicit successful abstention reason."
+  - "Exact-head CI passes and independent review has no unresolved findings before Release consideration."
+  - "Production wiring is a later bounded increment and must remove the corresponding unwired-debt entry."
+verification:
+  - "npx tsc -p tsconfig.json"
+  - "node --test dist/apps/autopilot/src/codingRunnerRemediation.test.js"
+  - "node --test tests/autopilot-control-plane-wiring.test.js"
