@@ -29,3 +29,18 @@ test("duplicate or malformed sells never count twice, order is deterministic, an
   assert.throws(() => compareConsecutiveLossLimits(sells, [0]));
   assert.throws(() => compareConsecutiveLossLimits(sells, [2.5]));
 });
+
+test("a conflicting duplicate order fails instead of depending on input order, and out-of-range timestamps are ignored", () => {
+  const a = sell("a", 0, -5), b = { ...sell("a", 0, 9) };
+  assert.throws(() => compareConsecutiveLossLimits([a, b], [3]));
+  assert.throws(() => compareConsecutiveLossLimits([b, a], [3]));
+  const bad = { orderId: "huge", completedAt: Number.MAX_VALUE, netPnl: 1 };
+  assert.equal(compareConsecutiveLossLimits([bad, sell("ok", 0, -1)], [3])[0].tradeCount, 1);
+});
+
+test("limits above the limit the ledger was recorded under are flagged censored", () => {
+  const sells = [sell("a", 0, -1), sell("b", 1, -1), sell("c", 2, -1), sell("d", 3, 5)];
+  const [l3, l4, l5] = compareConsecutiveLossLimits(sells, [3, 4, 5]);
+  assert.deepEqual([l3.censored, l4.censored, l5.censored], [false, true, true]);
+  assert.equal(compareConsecutiveLossLimits(sells, [4, 5], { recordedUnderLimit: 5 }).some((r) => r.censored), false);
+});
