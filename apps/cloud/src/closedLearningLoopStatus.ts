@@ -50,6 +50,8 @@ export class ClosedLearningLoopStatusTracker {
   private cycle: ClosedLearningEvidenceCorrelation = {};
   private durable: { cyclesRecorded: number; lastCycleRecordedAt?: number } | null = null;
   private durableOutcome: string | undefined;
+  /** The outcome of a cycle evaluated by THIS process (wins over the durable copy). */
+  private processCycleOutcome: string | undefined;
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
 
   /** Reads the identities of the current open period and the latest realized period. */
@@ -95,6 +97,14 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  /** The durable ledger could not be read: withdraw everything published from it, so /health never presents stale durable evidence as current. */
+  public clearDurableCycles(): void {
+    this.durable = null;
+    this.durableOutcome = undefined;
+    this.durableCycleIdentity = {};
+    this.publish();
+  }
+
   private publish(): void {
     if (this.status == null) return;
     const evidence = Object.freeze({
@@ -103,11 +113,16 @@ export class ClosedLearningLoopStatusTracker {
       ...this.periods,
       ...this.cycle,
     });
+    // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
+    // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
+    const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, ...rest } = this.status;
+    const processOutcome = this.processCycleOutcome;
+    const outcome = processOutcome ?? this.durableOutcome;
     this.status = Object.freeze({
-      ...this.status,
-      ...(this.status.lastCycleOutcome === undefined && this.durableOutcome !== undefined ? { lastCycleOutcome: this.durableOutcome } : {}),
+      ...rest,
+      ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),
       ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
-    });
+    }) as ClosedLearningLoopStatus;
   }
 
   public observeBootstrap(result: Pick<ClosedLearningInitialPaperBootstrapResult, "status">): void {
@@ -119,6 +134,7 @@ export class ClosedLearningLoopStatusTracker {
     const evaluated = result.status === "CLOSED_AND_EVALUATED";
     const cycleStatus = code(result.cycle?.status);
     const cycleOutcome = code(result.cycle?.record?.decision?.outcome);
+    if (cycleOutcome !== undefined) this.processCycleOutcome = cycleOutcome;
     const deployed = evaluated && result.cycle?.record?.paperDeployment != null;
     const reason = code(result.reason);
     this.status = Object.freeze({
@@ -129,7 +145,6 @@ export class ClosedLearningLoopStatusTracker {
       ...(reason === undefined ? {} : { rolloverReason: reason }),
       cyclesEvaluated: (previous?.cyclesEvaluated ?? 0) + (evaluated ? 1 : 0),
       ...(cycleStatus === undefined ? (previous?.lastCycleStatus === undefined ? {} : { lastCycleStatus: previous.lastCycleStatus }) : { lastCycleStatus: cycleStatus }),
-      ...(cycleOutcome === undefined ? (previous?.lastCycleOutcome === undefined ? {} : { lastCycleOutcome: previous.lastCycleOutcome }) : { lastCycleOutcome: cycleOutcome }),
       deployments: (previous?.deployments ?? 0) + (deployed ? 1 : 0),
     });
     const record = result.cycle?.record;
@@ -152,6 +167,7 @@ export class ClosedLearningLoopStatusTracker {
   public observeError(now: number): void {
     const previous = this.status;
     this.status = Object.freeze({ ...(previous ?? { cyclesEvaluated: 0, deployments: 0 }), lastTickAt: now, ticks: (previous?.ticks ?? 0) + 1, bootstrap: this.bootstrap, rollover: "ERROR" }) as ClosedLearningLoopStatus;
+    this.publish();
   }
 
   public snapshot(): ClosedLearningLoopStatus | null {

@@ -2870,4 +2870,4 @@ current_learning_durable_cycle_health:
   status: READY_FOR_REVIEW
   branch: claude/health-durable-learning-cycle
   authority_impact: none
-  finding: "cyclesEvaluated, lastCycle* and the cycle identities on /health were process memory, so a deploy erased the proof of the last lap; they are now also read from the durable ledger (display only), with per-process counters unchanged"
+  finding: "cyclesEvaluated, lastCycleStatus/Outcome and the cycle identities on /health were process memory, so a deploy erased the proof of the last lap; the cycle identities, lastCycleOutcome and two new integers (cyclesRecorded, lastCycleRecordedAt) are now also read from the durable ledger (display only, one replay, withdrawn if the ledger is unreadable). lastCycleStatus, deployments and cyclesEvaluated stay per-process and are not restored"

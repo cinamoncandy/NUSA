@@ -6,12 +6,14 @@ repository: cinamoncandy/NUSA
 base_branch: main
 branch: claude/health-durable-learning-cycle
 authority_impact: none
+scope_note: "Read-only observability over a persistence path. It is not in the lightweight categories by itself, so the persistence/recovery validation below is recorded in full; it changes no write, authority or decision input."
 objective: "Make the Experience N -> Research N+1 evidence survive a restart or deploy. cyclesEvaluated / lastCycle* / cycle identities were process memory only, so each deploy blanked the proof that a cycle had run."
 first_broken_transition: "closed-learning cycle recorded in the durable ledger -> /health (after the 2026-10-08 deploy the replacement period had closed and a successor opened, yet /health showed cyclesEvaluated=0 and no cycle identity, and the lap could not be confirmed)"
 scope:
   include:
-    - "ClosedLearningEvolutionLedgerRepository.summary(): read-only count of recorded cycles and the most recent cycle record from the existing append-only ledger."
-    - "ClosedLearningLoopStatusTracker.observeDurableCycles(): seeds evidence (cycleId, cycleEvidenceId, cycleEvidenceFingerprint, decisionId, decisionReference, decisionCandidateId, deploymentId), lastCycleOutcome (only when this process has none) and two new integers cyclesRecorded / lastCycleRecordedAt. A cycle evaluated in this process always wins; cyclesEvaluated stays a per-process counter and is not backfilled."
+    - "ClosedLearningEvolutionLedgerRepository.summary(): read-only, ONE ledger replay; counts only valid recorded cycles and returns the most recent. An invalid or unreadable entry is neither counted nor hides the others; a failure of the ledger itself propagates."
+    - "ClosedLearningLoopStatusTracker.observeDurableCycles(): seeds evidence (cycleId, cycleEvidenceId, cycleEvidenceFingerprint, decisionId, decisionReference, decisionCandidateId, deploymentId), lastCycleOutcome (only when this process has none) and two new integers cyclesRecorded / lastCycleRecordedAt. A cycle evaluated in this process always wins; cyclesEvaluated stays a per-process counter and is not backfilled. lastCycleStatus and deployments are NOT restored (they are not stored durably)."
+    - "clearDurableCycles(): if the ledger cannot be read the durable projection is withdrawn whole (counts, identities, outcome) and never left as if current. The history is read before the fallible bootstrap/rollover each tick and again after it, and the evidence stays visible on an ERROR tick."
     - "/health whitelist accepts cyclesRecorded and lastCycleRecordedAt as non-negative integers."
   exclude:
     - "Any write, any Risk/threshold/capital change, any decision input. Display only; reasons and free text never leave the module."
@@ -24,7 +26,7 @@ verification_commands:
   - "npx tsc -p tsconfig.json"
   - "node -r ./tests/register-dist.cjs --test tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js"
 evidence:
-  local_validation: "tsc clean; closed-learning-loop-status + liveness-health tests pass (Node 22 sandbox)."
+  local_validation: "tsc clean; closed-learning-loop-status + liveness-health tests pass (Node 22 sandbox). Persistence/recovery evidence: a fresh repository over the same database returns the same latest cycle (restart); a single replay is asserted; invalid entries are not counted; a corrupted ledger propagates and the published durable values are withdrawn; the in-process cycle always wins. validate:full is left to CI (Node 24 is required)."
   remaining: "Exact-head CI, independent Audit and Release; after merge deploy the exact main SHA and read /health closedLearningLoop.evidence.cyclesRecorded / cycleId to see whether the first lap's cycle was recorded."
 safety:
   paper_only: true

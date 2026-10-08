@@ -293,7 +293,13 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const runClosedLearningTick = (): Promise<void> => {
     if (stopping) return Promise.resolve();
     if (closedLearningTick != null) return closedLearningTick;
+    // Durable cycle history is read first, so /health still shows the last lap while the bootstrap or rollover below is failing,
+    // and withdrawn whole if the ledger cannot be read (never stale evidence presented as current).
+    const refreshDurableCycles = (): void => {
+      try { loopStatus.observeDurableCycles(cycleRepository.summary()); } catch { loopStatus.clearDurableCycles(); }
+    };
     const task = (async () => {
+      refreshDurableCycles();
       const bootstrap = await runClosedLearningBootstrapAsync();
       loopStatus.observeBootstrap(bootstrap);
       // If Research has no deployable snapshot, preserve the canonical PAPER loop by opening one
@@ -304,7 +310,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         ensureOwnerBaselinePeriod();
       }
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
-      try { loopStatus.observeDurableCycles(cycleRepository.summary()); } catch { /* display only */ }
+      refreshDurableCycles();
       try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
     })().catch((error: unknown) => { loopStatus.observeError(Date.now()); throw error; });
     closedLearningTick = task;

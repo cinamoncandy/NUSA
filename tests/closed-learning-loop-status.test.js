@@ -126,3 +126,57 @@ test("a cycle evaluated in this process wins over the durable copy", () => {
   assert.equal(s.evidence.deploymentId, "dep-d");
   assert.equal(s.evidence.cyclesRecorded, 2);
 });
+
+// ---- review hardening ---------------------------------------------------------------------------------------------
+test("the durable summary replays the ledger once and counts only valid cycles", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db);
+    const repo = new ClosedLearningEvolutionLedgerRepository(ledger);
+    repo.append(cycleRecord("a", "REJECTED", 1_000));
+    repo.append(cycleRecord("b", "INSUFFICIENT", 5_000));
+    // A namespace-shaped but invalid entry in the shared ledger: neither counted nor allowed to hide the others.
+    ledger.append({ opportunityId: "closed-learning:not-a-cycle:decision", problem: "x", hypothesis: "{}", evidenceReferences: ["closed-learning-evidence:e", "closed-learning-fingerprint:" + HEX("f")], changeReference: "x", validationStatus: "REJECTED", outcome: "UNDERPERFORMED", failureReason: "x", rollbackReference: null, reusable: true, recordedAt: new Date(9_000).toISOString() });
+    let replays = 0;
+    const counting = new ClosedLearningEvolutionLedgerRepository({ append: (r) => ledger.append(r), list: () => { replays += 1; return ledger.list(); } });
+    const summary = counting.summary();
+    assert.equal(replays, 1, "one replay no matter how many cycles");
+    assert.equal(summary.cyclesRecorded, 2, "the invalid entry is not a recorded cycle");
+    assert.equal(summary.latest.cycleId, `closed-learning:${HEX("b")}`);
+  } finally { db.close(); }
+});
+
+test("a ledger failure propagates from summary(), and clearing withdraws every durable value that was published", () => {
+  const broken = new ClosedLearningEvolutionLedgerRepository({ append: () => { throw new Error("x"); }, list: () => { throw new Error("ledger corrupted"); } });
+  assert.throws(() => broken.summary(), /ledger corrupted/);
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeRollover({ status: "WAITING_FOR_CANONICAL_BOUNDARY" }, 1000);
+  t.observeDurableCycles({ cyclesRecorded: 2, latest: cycleRecord("c", "REJECTED", 9_000) });
+  assert.equal(t.snapshot().lastCycleOutcome, "REJECTED");
+  t.clearDurableCycles();
+  const s = t.snapshot();
+  assert.equal(s.lastCycleOutcome, undefined, "the durable outcome is withdrawn, not left as if current");
+  assert.equal(s.evidence, undefined, "no durable identity or count remains");
+});
+
+test("clearing the durable copy never removes what a cycle evaluated in this process observed", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeDurableCycles({ cyclesRecorded: 1, latest: cycleRecord("c", "REJECTED", 9_000) });
+  t.observeRollover({ status: "CLOSED_AND_EVALUATED", cycle: { status: "EXECUTED", record: cycleRecord("d", "INSUFFICIENT", 12_000) } }, 2000);
+  t.clearDurableCycles();
+  const s = t.snapshot();
+  assert.equal(s.lastCycleOutcome, "INSUFFICIENT");
+  assert.equal(s.evidence.cycleId, `closed-learning:${HEX("d")}`);
+  assert.equal(s.evidence.cyclesRecorded, undefined);
+});
+
+test("the durable evidence is visible even when the tick fails before a rollover result", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeDurableCycles({ cyclesRecorded: 4, latest: cycleRecord("c", "REJECTED", 9_000) });
+  assert.equal(t.snapshot(), null, "nothing is published before the first tick result");
+  t.observeError(1000);
+  const s = t.snapshot();
+  assert.equal(s.rollover, "ERROR");
+  assert.equal(s.evidence.cyclesRecorded, 4);
+  assert.equal(s.lastCycleOutcome, "REJECTED");
+});
