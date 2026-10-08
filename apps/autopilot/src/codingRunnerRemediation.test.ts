@@ -22,7 +22,7 @@ test("retry budget exhaustion remains failed remediation but cannot retry", () =
   assert.equal(result.retryable, false);
 });
 
-test("authority, unknown and stale evidence never enter remediation", () => {
+test("authority, unknown, stale evidence and capacity fail closed without remediation", () => {
   for (const reason of [
     "CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN",
     "SOMETHING_NEW",
@@ -30,9 +30,22 @@ test("authority, unknown and stale evidence never enter remediation", () => {
     "WORKERS_AI_RATE_LIMITED",
   ]) {
     const result = decideCodingRunnerNoAction(reason, 0, 2);
-    assert.equal(result.outcome, "VALID_NO_ACTION");
+    assert.equal(result.outcome, "FAILED_CLOSED");
     assert.equal(result.retryable, false);
   }
+});
+
+test("only explicit proposal failures can enter remediation", () => {
+  assert.equal(decideCodingRunnerNoAction("CODING_PROPOSAL_REPEATED", 0, 2).retryable, false);
+  assert.equal(decideCodingRunnerNoAction("SANDBOX_PATCH_FUTURE_UNKNOWN", 0, 2).retryable, false);
+  assert.equal(decideCodingRunnerNoAction("CODING_PROPOSAL_JSON_INVALID", 0, 2).retryable, true);
+  assert.equal(decideCodingRunnerNoAction("SANDBOX_PATCH_APPLY_CHECK_FAILED", 0, 2).retryable, true);
+});
+
+test("valid no-action requires an explicit successful abstention reason", () => {
+  const result = decideCodingRunnerNoAction("NO_ACTION_WARRANTED", 0, 2);
+  assert.equal(result.outcome, "VALID_NO_ACTION");
+  assert.equal(result.retryable, false);
 });
 
 test("invalid retry budget fails closed", () => {
