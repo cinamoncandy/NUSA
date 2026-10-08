@@ -2896,3 +2896,9 @@ current_learning_pending_order_attribution_test:
   branch: claude/pending-order-attribution-test
   authority_impact: none
   finding: "Tests pin that a continued working order keeps its creating binding (no silent relabel); the cross-period fill gap for a continued order with no current decision remains open and needs a design decision"
+current_learning_durable_blocked_reason:
+  work_order: WO-LEARNING-20261008-DURABLE-BLOCKED-REASON
+  status: READY_FOR_REVIEW
+  branch: claude/durable-cycle-failure
+  authority_impact: none
+  finding: "The last closed-learning BLOCKED/ERROR reason is now also written as a bare code beside the Cloud state and seeds /health after a restart; the unrecorded cycle's own cause is still unknown and this makes the next failure readable"
