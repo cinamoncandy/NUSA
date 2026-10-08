@@ -4,6 +4,7 @@ import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { evaluatePaperCandidateStrategy } from "./paperCandidateStrategy";
 import {
   OWNER_BASELINE_CANDIDATE_ID,
+  OWNER_BASELINE_CODE_IDENTITY,
   OwnerBaselinePaperBindingProvider,
   ownerBaselineBinding,
   isOwnerBaselineSourceCommitSha,
@@ -11,6 +12,8 @@ import {
 } from "./ownerBaselinePaperStrategy";
 
 const COMMIT = "a".repeat(40);
+const GOLDEN_RISING = { action: "BUY", confidence: 0.75 };
+const GOLDEN_FALLING = { action: "SELL", confidence: 0.75 };
 const NOW = Date.UTC(2026, 8, 29, 4, 0, 0);
 
 test("the baseline binding passes the canonical execution binding validator and stays PAPER-only", () => {
@@ -24,7 +27,7 @@ test("the baseline binding passes the canonical execution binding validator and 
   assert.deepEqual(validated.candidateStrategy?.parameters, { shortPeriod: 5, longPeriod: 20 });
 });
 
-test("the binding is deterministic within a UTC day so a restart keeps the same strategy identity", () => {
+test("the binding is deterministic within an Asia/Seoul day so a restart keeps the same strategy identity", () => {
   const first = ownerBaselineBinding("KRW-BTC", NOW, COMMIT);
   assert.deepEqual(ownerBaselineBinding("KRW-BTC", NOW + 60_000, COMMIT), first);
   assert.notEqual(ownerBaselineBinding("KRW-ETH", NOW, COMMIT).bindingFingerprintSha256, first.bindingFingerprintSha256);
@@ -71,4 +74,25 @@ test("the baseline binds every configured market, each with its own deterministi
   assert.equal(multi.read("KRW-BTC", NOW), undefined, "unconfigured markets stay unbound");
   assert.equal(new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: true, baselineMarkets: [] }).read("KRW-XRP", NOW), undefined);
   assert.equal(new OwnerBaselinePaperBindingProvider({ challenger: { read: () => undefined }, sourceCommitSha: COMMIT, enabled: false, baselineMarkets: ["KRW-XRP"] }).read("KRW-XRP", NOW), undefined);
+});
+
+test("the binding fingerprint does not depend on the deployed commit, so a deploy never mixes a period", () => {
+  const a = ownerBaselineBinding("KRW-BTC", NOW, "a".repeat(40));
+  const b = ownerBaselineBinding("KRW-BTC", NOW, "b".repeat(40));
+  assert.equal(a.bindingFingerprintSha256, b.bindingFingerprintSha256);
+  assert.equal(a.candidateStrategy?.codeSha, OWNER_BASELINE_CODE_IDENTITY);
+  assert.notEqual(a.candidateStrategy?.codeSha, "a".repeat(40));
+  assert.throws(() => ownerBaselineBinding("KRW-BTC", NOW, "not-a-commit"));
+});
+
+test("GOLDEN: the baseline decision is fixed; changing SMA behaviour requires bumping OWNER_BASELINE_IMPLEMENTATION_VERSION", () => {
+  const binding = ownerBaselineBinding("KRW-BTC", NOW, COMMIT);
+  const series = (price: (i: number) => number) => Array.from({ length: 30 }, (_, index) => ({
+    id: `tick-${index}`, source: "CHART" as const, market: "KRW-BTC", price: price(index), sentiment: 0, confidence: 1,
+    observedAt: binding.periodStartAt + 1_000 * (index + 1), expiresAt: NOW + 60_000, summary: "tick",
+  }));
+  const pick = (d: { action: string; confidence: number }) => ({ action: d.action, confidence: Number(d.confidence.toFixed(6)) });
+  const rising = pick(evaluatePaperCandidateStrategy(binding.candidateStrategy!, series((i) => 100 + i) as never, NOW, "KRW-BTC"));
+  const falling = pick(evaluatePaperCandidateStrategy(binding.candidateStrategy!, series((i) => 200 - i) as never, NOW, "KRW-BTC"));
+  assert.deepEqual({ rising, falling }, { rising: GOLDEN_RISING, falling: GOLDEN_FALLING });
 });
