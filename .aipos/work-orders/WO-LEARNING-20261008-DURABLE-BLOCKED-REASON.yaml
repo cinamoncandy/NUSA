@@ -32,7 +32,7 @@ evidence:
     environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
     commands:
       - "npx tsc -p tsconfig.json -> clean"
-      - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningBlockedRecord.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js dist/apps/cloud/src/runtimeFailureRecord.test.js -> 46 pass, 0 fail"
+      - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningBlockedRecord.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js dist/apps/cloud/src/runtimeFailureRecord.test.js -> 46 pass, 0 fail (before the write-success fix); after it the same files without runtimeFailureRecord: 43 pass, 0 fail"
       - "node -r ./tests/register-dist.cjs --test tests/closed-learning-governance-wiring.test.js tests/closed-learning-http-event-loop-regression.test.js tests/closed-learning-loop-status.test.js tests/integration-paper-lifecycle-production-root.test.js tests/paper-minute-bars.test.js tests/repository-truth.test.js tests/start-cloud-runtime-supervision.test.js -> 36 pass, 0 fail"
   remaining: "Exact-head CI, independent Audit and Release; deploy once (a restart), then the reason persists for later failures."
 safety:

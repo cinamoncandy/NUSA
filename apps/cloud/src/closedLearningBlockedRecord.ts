@@ -21,14 +21,18 @@ export function closedLearningBlockedRecordPath(cloudStateDbPath: string): strin
   return path.join(path.dirname(normalized), CLOSED_LEARNING_BLOCKED_RECORD_FILE);
 }
 
-export function recordClosedLearningBlocked(cloudStateDbPath: string, record: ClosedLearningBlockedRecord): void {
+/** Returns true only after the atomic rename succeeded, so a caller can retry a failed best-effort write on a later tick. */
+export function recordClosedLearningBlocked(cloudStateDbPath: string, record: ClosedLearningBlockedRecord): boolean {
   const file = closedLearningBlockedRecordPath(cloudStateDbPath);
-  if (file == null || !CODE.test(record.reason) || !Number.isSafeInteger(record.at) || record.at < 0) return;
+  if (file == null || !CODE.test(record.reason) || !Number.isSafeInteger(record.at) || record.at < 0) return false;
   try {
     const temporary = `${file}.tmp`;
     writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, reason: record.reason, at: record.at }), { mode: 0o600 });
     renameSync(temporary, file);
-  } catch { /* forensics must never change the loop */ }
+    return true;
+  } catch {
+    return false; // forensics must never change the loop
+  }
 }
 
 export function readClosedLearningBlocked(cloudStateDbPath: string): ClosedLearningBlockedRecord | undefined {

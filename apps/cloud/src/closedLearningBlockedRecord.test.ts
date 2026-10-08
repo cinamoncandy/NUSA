@@ -11,7 +11,7 @@ const dbPath = (): string => path.join(mkdtempSync(path.join(tmpdir(), "nusa-blo
 test("a recorded reason survives a read and only bare codes are accepted", () => {
   const db = dbPath();
   assert.equal(readClosedLearningBlocked(db), undefined);
-  recordClosedLearningBlocked(db, { reason: "CANDIDATE_BINDING_MIXED", at: 1_700_000_000_000 });
+  assert.equal(recordClosedLearningBlocked(db, { reason: "CANDIDATE_BINDING_MIXED", at: 1_700_000_000_000 }), true);
   assert.deepEqual({ ...readClosedLearningBlocked(db) }, { reason: "CANDIDATE_BINDING_MIXED", at: 1_700_000_000_000 });
   recordClosedLearningBlocked(db, { reason: "free text with spaces", at: 5 });
   recordClosedLearningBlocked(db, { reason: "TICK_ERROR", at: -1 });
@@ -21,7 +21,8 @@ test("a recorded reason survives a read and only bare codes are accepted", () =>
 test("memory and relative paths are ignored, and corrupt or foreign files read as nothing", () => {
   assert.equal(closedLearningBlockedRecordPath(":memory:"), undefined);
   assert.equal(closedLearningBlockedRecordPath("relative.sqlite"), undefined);
-  recordClosedLearningBlocked(":memory:", { reason: "TICK_ERROR", at: 1 });
+  assert.equal(recordClosedLearningBlocked(":memory:", { reason: "TICK_ERROR", at: 1 }), false, "nothing is written, so the caller keeps retrying");
+  assert.equal(recordClosedLearningBlocked("/nonexistent-directory-nusa/cloud-state.sqlite", { reason: "TICK_ERROR", at: 1 }), false, "a failed write reports false");
   const db = dbPath();
   writeFileSync(closedLearningBlockedRecordPath(db)!, "{not json");
   assert.equal(readClosedLearningBlocked(db), undefined);

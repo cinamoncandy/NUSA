@@ -113,8 +113,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const persistLastBlocked = (): void => {
     const current = loopStatus.lastBlockedRecord();
     if (current == null || current.at === persistedBlockedAt) return;
-    persistedBlockedAt = current.at;
-    recordClosedLearningBlocked(config.cloudStateDbPath, current);
+    // Advance the marker only after a successful write, so a transient failure is retried on a later tick.
+    if (recordClosedLearningBlocked(config.cloudStateDbPath, current)) persistedBlockedAt = current.at;
   };
   const baseHandle = startCloudRuntime(
     env,
