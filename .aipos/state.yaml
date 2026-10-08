@@ -2914,3 +2914,9 @@ current_research_sma_cost_note:
   branch: claude/research-note-sma-cost-screen
   authority_impact: none
   finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
+current_learning_baseline_shadow:
+  work_order: WO-LEARNING-20261008-BASELINE-SHADOW
+  status: READY_FOR_REVIEW
+  branch: claude/risk-blocked-shadow
+  authority_impact: display-and-analysis-only-no-order-no-ledger-no-risk-input
+  finding: "While the consecutive-loss halt censors the PAPER ledger, a shadow of the baseline rule on the same minute bars keeps producing hypothetical round trips with fees (counts and basis points on /health) so learning and the 3/4/5 limit comparison have uncensored outcomes; not PAPER evidence"

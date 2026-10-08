@@ -213,3 +213,20 @@ test("an error on the very first tick is recorded too", () => {
   t.observeError(500);
   assert.equal(t.snapshot().lastBlockedReason, "TICK_ERROR");
 });
+
+test("shadow totals appear in the evidence as integers, are withdrawn when malformed or not started, and the runtime wires them", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, 1);
+  t.observeShadow({ since: 5, trades: 3, wins: 1, grossGainBp: 40, grossLossBp: 90, feeBp: 30 });
+  assert.deepEqual({ ...t.snapshot().evidence }, { shadowSince: 5, shadowTrades: 3, shadowWins: 1, shadowGrossGainBp: 40, shadowGrossLossBp: 90, shadowFeeBp: 30 });
+  t.observeShadow({ since: 5, trades: 1, wins: 2, grossGainBp: 0, grossLossBp: 0, feeBp: 0 });
+  assert.equal(t.snapshot().evidence, undefined, "wins above trades is malformed and withdrawn");
+  t.observeShadow({ since: 0, trades: 0, wins: 0, grossGainBp: 0, grossLossBp: 0, feeBp: 0 });
+  assert.equal(t.snapshot().evidence, undefined, "a shadow that has not started publishes nothing");
+  t.observeShadow(undefined);
+  assert.equal(t.snapshot().evidence, undefined);
+  const src = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
+  assert.match(src, /baselineShadow\?\.observe\(market, bars\)/, "the shadow reads the same completed minute bars the strategy reads");
+  assert.match(src, /loopStatus\.observeShadow\(baselineShadow\.summary\(\)\)/);
+  assert.match(src, /writeBaselineShadowRecord\(config\.cloudStateDbPath, persistable\)\) baselineShadow\.markUnpersisted\(\)/, "a failed write is retried on a later tick");
+});
