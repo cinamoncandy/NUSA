@@ -3,6 +3,7 @@ import type { ClosedLearningRolloverResult } from "./closedLearningRolloverSched
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator";
+import type { ClosedLearningCycleFailureReceipt } from "./closedLearningEvolutionLedgerRepository";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -40,6 +41,8 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   cycleId: string; cycleEvidenceId: string; cycleEvidenceFingerprint: string; decisionId: string; decisionReference: string; decisionCandidateId: string; deploymentId: string;
   /** Durable (survives restarts): how many cycles the ledger holds, and when the latest was recorded. */
   cyclesRecorded: number; lastCycleRecordedAt: number;
+  failuresRecorded: number; latestFailureId: string; latestFailurePeriodId: string; latestFailureEvidenceId: string; latestFailureEvidenceFingerprint: string;
+  latestFailureSourceCommitSha: string; latestFailureRuntimeSourceCommitSha: string; latestFailureStage: string; latestFailureCode: string; latestFailureRecordedAt: number;
   /**
    * Baseline SHADOW totals (hypothetical round trips of the baseline rule, whether or not Risk allowed a real order). Non-negative
    * integers in basis points and counts only; NOT PAPER evidence and never a promotion input (see paperBaselineShadow.ts).
@@ -65,6 +68,7 @@ export class ClosedLearningLoopStatusTracker {
   private processCycleOutcome: string | undefined;
   private lastBlocked: { reason: string; at: number } | undefined;
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
+  private durableFailure: ClosedLearningEvidenceCorrelation = {};
   private shadow: ClosedLearningEvidenceCorrelation = {};
 
   /** Reads the identities of the current open period and the latest realized period. */
@@ -125,10 +129,24 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  public observeDurableFailures(summary: { readonly failuresRecorded: number; readonly latest?: ClosedLearningCycleFailureReceipt }): void {
+    const latest = summary.latest;
+    this.durableFailure = Object.freeze({ failuresRecorded: summary.failuresRecorded, ...(latest == null ? {} : {
+      latestFailureId: latest.failureId, latestFailurePeriodId: latest.closedPeriodId, latestFailureEvidenceId: latest.evidenceId,
+      latestFailureEvidenceFingerprint: latest.evidenceFingerprintSha256, latestFailureSourceCommitSha: latest.sourceCommitSha,
+      latestFailureRuntimeSourceCommitSha: latest.runtimeSourceCommitSha, latestFailureStage: latest.stage,
+      latestFailureCode: latest.code, latestFailureRecordedAt: latest.recordedAt,
+    }) });
+    this.publish();
+  }
+
+  public clearDurableFailures(): void { this.durableFailure = {}; this.publish(); }
+
   private publish(): void {
     if (this.status == null) return;
     const evidence = Object.freeze({
       ...this.durableCycleIdentity,
+      ...this.durableFailure,
       ...(this.durable == null ? {} : { cyclesRecorded: this.durable.cyclesRecorded, ...(this.durable.lastCycleRecordedAt === undefined || !Number.isSafeInteger(this.durable.lastCycleRecordedAt) ? {} : { lastCycleRecordedAt: this.durable.lastCycleRecordedAt }) }),
       ...this.periods,
       ...this.cycle,
