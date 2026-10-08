@@ -199,3 +199,18 @@ test("failure reasons are recomputed from the ledger records, so a brand-new orc
     assert.equal(fresh2.experimentTicks().counts.FAIL_NO_EDGE, 1, "recomputed each tick, never double counted");
   } finally { s.db.close(); }
 });
+
+test("ordinary outcome count keys are capped at 30 so the derived FAIL_ and REPEAT_ keys always fit within /health's 40", () => {
+  const { addOutcomeCount, MAX_ORDINARY_COUNT_KEYS } = require("../dist/apps/cloud/src/researchExperimentOrchestrator.js");
+  assert.equal(MAX_ORDINARY_COUNT_KEYS, 30);
+  const counts = { FAIL_NO_EDGE: 4, REPEAT_NO_EDGE: 1 };
+  for (let index = 0; index < 60; index += 1) addOutcomeCount(counts, `OUTCOME_${index}`);
+  const ordinary = Object.keys(counts).filter((key) => !key.startsWith("FAIL_") && !key.startsWith("REPEAT_"));
+  assert.equal(ordinary.length, 30, "stale derived keys do not consume ordinary slots, and ordinary keys stop at the cap");
+  addOutcomeCount(counts, "OUTCOME_0");
+  assert.equal(counts.OUTCOME_0, 2, "an existing key still counts after the cap");
+  addOutcomeCount(counts, "FAIL_INJECTED");
+  addOutcomeCount(counts, "bad key");
+  assert.equal(counts.FAIL_INJECTED, undefined, "derived keys are never written by the ordinary path");
+  assert.equal(counts["bad key"], undefined);
+});

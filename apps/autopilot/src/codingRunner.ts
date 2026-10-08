@@ -1,3 +1,4 @@
+import { assessCodingRunnerReadiness, type CodingRunnerReadinessBlocker } from "./codingRunnerReadiness";
 import { logAiCall } from "./aiCallTelemetry";
 import { selectJevCodingModel } from "./jevCodingModelTier";
 import {
@@ -183,6 +184,8 @@ export interface CodingRunnerResult {
   readonly jevAdmissionReason?: string;
   readonly jevRequiredModel?: string | null;
   readonly jevConfidence?: number;
+  /** What the runner lacks to execute, named; present on INTERFACE_READY results only. */
+  readonly readinessBlockers?: readonly CodingRunnerReadinessBlocker[];
 }
 
 interface HttpResponse {
@@ -975,7 +978,15 @@ export async function executeCodingRunner(
     }
   }
 
-  if (!env.AI) return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured" };
+  if (!env.AI) {
+    const readiness = assessCodingRunnerReadiness({
+      hasWorkersAiBinding: false,
+      hasConfiguredEngine: Boolean(endpoint && token),
+      hasGithubToken: Boolean(env.NUSA_GITHUB_TOKEN?.trim()),
+      zeroCreditMode,
+    });
+    return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured", readinessBlockers: readiness.blockers };
+  }
   const tierSelection = selectJevCodingModel(jevAdmission, env);
   const tierConfiguredModel = tierSelection?.model?.trim();
   const tierModel = tierConfiguredModel

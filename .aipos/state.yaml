@@ -2883,3 +2883,40 @@ current_risk_loss_limit_comparison_tool:
   branch: claude/loss-limit-comparison
   authority_impact: none
   finding: "Added an offline deterministic comparison of consecutive-loss limits over a completed-sell sequence (tooling only, threshold stays 3); no real comparison exists yet because the ledger sequence is owner-authenticated, so issue 2575 item 5 remains open"
+current_strategy_baseline_code_identity:
+  work_order: WO-STRATEGY-20261008-BASELINE-CODE-IDENTITY
+  status: READY_FOR_REVIEW
+  branch: claude/baseline-code-identity
+  authority_impact: strategy-identity-in-binding-fingerprint
+  owner_approval: "2026-10-08 in chat ('2')"
+  finding: "The owner baseline strategy codeSha was the deployed commit, so every deploy changed the binding fingerprint and mixed the open learning period; it is now a fixed implementation identity (the first deploy changes the fingerprint once; the reconciler guard and Risk 3/3 are untouched)"
+current_autopilot_runner_readiness:
+  work_order: WO-AUTOPILOT-20261008-RUNNER-READINESS
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-runner-preflight
+  authority_impact: none
+  finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
+current_learning_pending_order_attribution_test:
+  work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
+  status: READY_FOR_REVIEW
+  branch: claude/pending-order-attribution-test
+  authority_impact: none
+  finding: "Tests pin that a continued working order keeps its creating binding (no silent relabel); the cross-period fill gap for a continued order with no current decision remains open and needs a design decision"
+current_learning_durable_blocked_reason:
+  work_order: WO-LEARNING-20261008-DURABLE-BLOCKED-REASON
+  status: READY_FOR_REVIEW
+  branch: claude/durable-cycle-failure
+  authority_impact: none
+  finding: "The last closed-learning BLOCKED/ERROR reason is now also written as a bare code beside the Cloud state and seeds /health after a restart; the unrecorded cycle's own cause is still unknown and this makes the next failure readable"
+current_research_failure_history:
+  work_order: WO-RESEARCH-20261008-FAILURE-HISTORY
+  status: READY_FOR_REVIEW
+  branch: claude/research-failure-history
+  authority_impact: none
+  finding: "Failed Research challengers now have a deterministic per-variant failure history and a REPEAT_<reason> display count recomputed from the durable ledger; this informs Research N+1 but does not steer it (adaptive scheduling was offered and declined by the owner)"
+current_research_sma_cost_note:
+  work_order: WO-RESEARCH-20261008-SMA-COST-NOTE
+  status: READY_FOR_REVIEW
+  branch: claude/research-note-sma-cost-screen
+  authority_impact: none
+  finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
