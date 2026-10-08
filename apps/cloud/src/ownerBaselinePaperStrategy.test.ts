@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { evaluatePaperCandidateStrategy } from "./paperCandidateStrategy";
 import {
   OWNER_BASELINE_CANDIDATE_ID,
   OWNER_BASELINE_CODE_IDENTITY,
+  OWNER_BASELINE_IMPLEMENTATION_VERSION,
   OwnerBaselinePaperBindingProvider,
   ownerBaselineBinding,
   isOwnerBaselineSourceCommitSha,
@@ -95,4 +99,26 @@ test("GOLDEN: the baseline decision is fixed; changing SMA behaviour requires bu
   const rising = pick(evaluatePaperCandidateStrategy(binding.candidateStrategy!, series((i) => 100 + i) as never, NOW, "KRW-BTC"));
   const falling = pick(evaluatePaperCandidateStrategy(binding.candidateStrategy!, series((i) => 200 - i) as never, NOW, "KRW-BTC"));
   assert.deepEqual({ rising, falling }, { rising: GOLDEN_RISING, falling: GOLDEN_FALLING });
+});
+
+/** Source text of a top-level function, found by name with brace matching (no parser dependency). */
+function functionSource(source: string, name: string): string {
+  const start = source.search(new RegExp(`(export )?function ${name}\\b`));
+  assert.ok(start >= 0, `function ${name} must exist`);
+  const open = source.indexOf("{", source.indexOf(")", start));
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}" && (depth -= 1) === 0) return source.slice(start, index + 1);
+  }
+  throw new Error(`unterminated function ${name}`);
+}
+
+test("PIN: the SMA evaluation path is pinned to OWNER_BASELINE_IMPLEMENTATION_VERSION", () => {
+  // If this fails you changed how the baseline decides. Bump OWNER_BASELINE_IMPLEMENTATION_VERSION
+  // (a new identity, so fills before and after are never scored as one strategy) and update both pins.
+  const source = readFileSync(resolve(__dirname, "../../../../apps/cloud/src/paperCandidateStrategy.ts"), "utf8");
+  const sma = ["parseSmaParameters", "canonicalPrices", "evaluateSma", "evaluatePaperCandidateStrategy"].map((name) => functionSource(source, name)).join("\n").replace(/\s+/g, " ");
+  const digest = createHash("sha256").update(sma).digest("hex");
+  assert.deepEqual({ version: OWNER_BASELINE_IMPLEMENTATION_VERSION, digest }, { version: "owner-baseline-sma-5-20/implementation-1", digest: "727a482eb477b74710250c0af67e9a29a05921357409682837ed142075848beb" });
 });
