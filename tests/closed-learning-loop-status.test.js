@@ -183,6 +183,38 @@ test("the durable evidence is visible even when the tick fails before a rollover
   assert.equal(s.lastCycleOutcome, "REJECTED");
 });
 
+test("cycle failure receipts survive restart, deduplicate replay, and remain beside a later successful cycle", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db);
+    const repo = new ClosedLearningEvolutionLedgerRepository(ledger, () => 7_000);
+    const input = { closedPeriodId: "period-7", evidenceId: "closed-learning-paper:e7", evidenceFingerprintSha256: HEX("e"), sourceCommitSha: "a".repeat(40), runtimeSourceCommitSha: "b".repeat(40), stage: "CYCLE", code: "RESEARCH_WORKER_FAILED" };
+    const first = repo.appendFailure(input);
+    assert.equal(repo.appendFailure(input).failureId, first.failureId);
+    assert.equal(repo.failureSummary().failuresRecorded, 1, "same deterministic failure is appended once");
+    repo.append(cycleRecord("7", "REJECTED", 8_000));
+    const restarted = new ClosedLearningEvolutionLedgerRepository(ledger).failureSummary();
+    assert.equal(restarted.failuresRecorded, 1, "success does not rewrite failure history");
+    const t = new ClosedLearningLoopStatusTracker();
+    t.observeDurableFailures(restarted);
+    t.observeDurableCycles(repo.summary());
+    t.observeRollover({ status: "WAITING_FOR_CANONICAL_BOUNDARY" }, 9_000);
+    assert.equal(t.snapshot().evidence.latestFailurePeriodId, "period-7");
+    assert.equal(t.snapshot().evidence.latestFailureCode, "RESEARCH_WORKER_FAILED");
+    assert.equal(t.snapshot().evidence.cyclesRecorded, 1, "latest success is exposed separately");
+    assert.doesNotMatch(JSON.stringify(t.snapshot()), /price|balance|exception/i);
+  } finally { db.close(); }
+});
+
+test("malformed durable cycle failure evidence fails closed", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db);
+    ledger.append({ opportunityId: "closed-learning-failure:" + HEX("f"), problem: "x", evidenceReferences: ["closed-learning-evidence:e"], hypothesis: "{}", changeReference: "a".repeat(40), validationStatus: "CYCLE_FAILURE", outcome: "FAILED", failureReason: "FAILED", rollbackReference: null, reusable: true, recordedAt: new Date(1_000).toISOString() });
+    assert.throws(() => new ClosedLearningEvolutionLedgerRepository(ledger).failureSummary(), /malformed|invalid/);
+  } finally { db.close(); }
+});
+
 // ---- the reason a tick was blocked must outlive the next tick ------------------------------------------------------
 test("a BLOCKED reason is kept after later ticks succeed, so a transient failure is still readable", () => {
   const t = new ClosedLearningLoopStatusTracker();

@@ -6,12 +6,55 @@ import type {
   ClosedLearningPaperDeploymentReceipt,
   ClosedLearningResearchDecision,
 } from "./closedLearningLoopCoordinator";
+import { createHash } from "node:crypto";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
 
 const CYCLE = /^closed-learning:[a-f0-9]{64}$/;
 const HASH = /^[a-f0-9]{64}$/;
+const SHA1 = /^[a-f0-9]{40}$/;
+const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
+const FAILURE = /^closed-learning-failure:[a-f0-9]{64}$/;
+
+export interface ClosedLearningCycleFailureReceipt {
+  readonly failureId: string;
+  readonly closedPeriodId: string;
+  readonly evidenceId: string;
+  readonly evidenceFingerprintSha256: string;
+  readonly sourceCommitSha: string;
+  readonly runtimeSourceCommitSha: string;
+  readonly stage: "CYCLE" | "FINALIZE";
+  readonly code: string;
+  readonly recordedAt: number;
+}
+
+function failureIdentity(input: Omit<ClosedLearningCycleFailureReceipt, "failureId" | "recordedAt">): string {
+  return `closed-learning-failure:${createHash("sha256").update(canonicalResearchJson(input), "utf8").digest("hex")}`;
+}
+
+function parseFailure(record: EvolutionRecord): ClosedLearningCycleFailureReceipt {
+  if (!FAILURE.test(record.opportunityId) || record.validationStatus !== "CYCLE_FAILURE") throw new Error("closed learning durable failure namespace is invalid");
+  let value: unknown;
+  try { value = JSON.parse(record.hypothesis); } catch { throw new Error("closed learning durable failure is invalid JSON"); }
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("closed learning durable failure is invalid");
+  const item = value as Record<string, unknown>;
+  const receipt = item as unknown as ClosedLearningCycleFailureReceipt;
+  if (receipt.failureId !== record.opportunityId || !FAILURE.test(receipt.failureId) || typeof receipt.closedPeriodId !== "string" || !receipt.closedPeriodId.trim()
+    || typeof receipt.evidenceId !== "string" || !receipt.evidenceId.trim() || !HASH.test(receipt.evidenceFingerprintSha256)
+    || !SHA1.test(receipt.sourceCommitSha) || !SHA1.test(receipt.runtimeSourceCommitSha)
+    || (receipt.stage !== "CYCLE" && receipt.stage !== "FINALIZE") || !CODE.test(receipt.code)
+    || !Number.isSafeInteger(receipt.recordedAt) || receipt.recordedAt < 0
+    || Object.keys(item).sort().join(",") !== "closedPeriodId,code,evidenceFingerprintSha256,evidenceId,failureId,recordedAt,runtimeSourceCommitSha,sourceCommitSha,stage") {
+    throw new Error("closed learning durable failure receipt is malformed");
+  }
+  const { failureId: _failureId, recordedAt: _recordedAt, ...identity } = receipt;
+  if (failureIdentity(identity) !== receipt.failureId) throw new Error("closed learning durable failure identity is tampered");
+  const expectedReferences = [`closed-learning-evidence:${receipt.evidenceId}`, `closed-learning-fingerprint:${receipt.evidenceFingerprintSha256}`, `paper-period:${receipt.closedPeriodId}`].sort();
+  if (record.failureReason !== receipt.code || record.changeReference !== receipt.runtimeSourceCommitSha || Date.parse(record.recordedAt) !== receipt.recordedAt
+    || record.evidenceReferences.join("\n") !== expectedReferences.join("\n")) throw new Error("closed learning durable failure metadata is tampered");
+  return Object.freeze({ ...receipt });
+}
 
 function parseDecision(value: string): ClosedLearningResearchDecision {
   let parsed: unknown;
@@ -94,6 +137,27 @@ export class ClosedLearningEvolutionLedgerRepository implements ClosedLearningCy
       if (latest == null || record.recordedAt >= latest.recordedAt) latest = record;
     }
     return Object.freeze({ cyclesRecorded, ...(latest == null ? {} : { latest }) });
+  }
+
+  /** Append-only, replay-idempotent failure evidence in the existing hash-chained learning ledger. */
+  public appendFailure(input: Omit<ClosedLearningCycleFailureReceipt, "failureId" | "recordedAt">): ClosedLearningCycleFailureReceipt {
+    if (!input.closedPeriodId.trim() || !input.evidenceId.trim() || !HASH.test(input.evidenceFingerprintSha256) || !SHA1.test(input.sourceCommitSha)
+      || !SHA1.test(input.runtimeSourceCommitSha) || !CODE.test(input.code) || (input.stage !== "CYCLE" && input.stage !== "FINALIZE")) throw new Error("closed learning failure receipt input is invalid");
+    const failureId = failureIdentity(input);
+    const existing = this.failureSummary().receipts.find((item) => item.failureId === failureId);
+    if (existing != null) return existing;
+    const timestamp = this.now();
+    if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new Error("closed learning durable clock is invalid");
+    const receipt = Object.freeze({ failureId, ...input, recordedAt: timestamp });
+    this.ledger.append({ opportunityId: failureId, problem: "NUSA production PAPER closed learning cycle failure", evidenceReferences: [`closed-learning-evidence:${input.evidenceId}`, `closed-learning-fingerprint:${input.evidenceFingerprintSha256}`, `paper-period:${input.closedPeriodId}`], hypothesis: canonicalResearchJson(receipt), changeReference: input.runtimeSourceCommitSha, validationStatus: "CYCLE_FAILURE", outcome: "FAILED", failureReason: input.code, rollbackReference: null, reusable: true, recordedAt: new Date(timestamp).toISOString() });
+    return receipt;
+  }
+
+  /** Strict replay: any malformed/tampered receipt withdraws the projection by throwing. */
+  public failureSummary(): { readonly failuresRecorded: number; readonly receipts: readonly ClosedLearningCycleFailureReceipt[]; readonly latest?: ClosedLearningCycleFailureReceipt } {
+    const receipts = this.ledger.list().filter((record) => record.opportunityId.startsWith("closed-learning-failure:")).map(parseFailure);
+    const latest = receipts.reduce<ClosedLearningCycleFailureReceipt | undefined>((value, item) => value == null || item.recordedAt >= value.recordedAt ? item : value, undefined);
+    return Object.freeze({ failuresRecorded: receipts.length, receipts: Object.freeze(receipts), ...(latest == null ? {} : { latest }) });
   }
 
   public append(record: ClosedLearningCycleRecord): ClosedLearningCycleRecord {
