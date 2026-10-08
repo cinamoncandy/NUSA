@@ -4,8 +4,9 @@ import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS, type CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import type { PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
 
-const DAY1 = Date.UTC(2026, 9, 7, 0, 0, 0);
-const DAY2 = Date.UTC(2026, 9, 8, 0, 0, 0);
+// Canonical trading day is Asia/Seoul: the boundary is KST midnight (15:00 UTC), the same day the canonical risk gate and the learning rollover use.
+const DAY1 = Date.parse("2026-10-07T00:00:00+09:00");
+const DAY2 = Date.parse("2026-10-08T00:00:00+09:00");
 const HOUR = 3_600_000;
 const M = "KRW-BTC";
 
@@ -34,7 +35,7 @@ function gate(db = new SqliteDatabase(":memory:")): CloudPaperCanonicalRiskGatew
   return new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 1_000_000, sourceCommitSha: "test" });
 }
 
-describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
+describe("consecutive-loss streak lifecycle (threshold 3, KST trading day)", () => {
   it("keeps the limit at 3", () => assert.equal(CLOUD_PAPER_RISK_LIMITS.maxConsecutiveLosses, 3));
 
   it("counts 0→1→2→3 and blocks only at 3", () => {
@@ -53,7 +54,7 @@ describe("consecutive-loss streak lifecycle (threshold 3, UTC day)", () => {
 
   const blocked = state(pairs(DAY1, [90, 90, 90]));
 
-  it("3 → UTC day boundary → 0 and the order is allowed again", () => {
+  it("3 → KST day boundary → 0 and the order is allowed again", () => {
     const g = gate();
     assert.ok(g.evaluate(request(blocked, DAY1 + 10 * HOUR, 1)).reasonCodes.includes("CONSECUTIVE_LOSS_LIMIT"));
     assert.equal(g.evaluate(request(blocked, DAY2 - 1, 2)).status, "REJECT");

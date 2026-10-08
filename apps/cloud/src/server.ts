@@ -112,7 +112,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
   readonly sourceCommitSha?: string;
-  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number };
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }
 
 export interface CloudReadinessSnapshot {
@@ -278,6 +278,22 @@ function publicLivenessErrorClass(raw: string): string | undefined {
  * identifier, a price -- cannot make it public, and an error that is not a bare code is replaced by
  * a fixed code rather than published as free text.
  */
+/**
+ * Period evidence for the loss session is published only as one coherent tuple: a date key, exactly the start of that Asia/Seoul day,
+ * and the time of the last loss that extended the streak (null at 0), ordered start <= lastIncrementAt <= evaluatedAt. Anything partial or
+ * contradictory is omitted whole, so public health data never reports an impossible loss period.
+ */
+function periodEvidence(raw: Record<string, unknown>): Record<string, unknown> {
+  const { periodIdentity, periodStartedAt, lastIncrementAt, evaluatedAt } = raw;
+  if (typeof periodIdentity !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(periodIdentity)) return {};
+  if (!Number.isSafeInteger(periodStartedAt) || Number(periodStartedAt) !== Date.parse(`${periodIdentity}T00:00:00+09:00`)) return {};
+  if (!Number.isSafeInteger(evaluatedAt) || Number(periodStartedAt) > Number(evaluatedAt)) return {};
+  if (lastIncrementAt !== null) {
+    if (!Number.isSafeInteger(lastIncrementAt) || Number(lastIncrementAt) < Number(periodStartedAt) || Number(lastIncrementAt) > Number(evaluatedAt)) return {};
+  }
+  return { periodIdentity, periodStartedAt: Number(periodStartedAt), lastIncrementAt: lastIncrementAt === null ? null : Number(lastIncrementAt) };
+}
+
 function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntimeLivenessSnapshot {
   const source = value as unknown as Record<string, unknown>;
   const timestamp = (key: string): number | null => {
@@ -325,11 +341,16 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     }
     funnel = { paperFunnel: { since: rawFunnel.since, counts } };
   }
-  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing.
+  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing; plus optional bounded period evidence.
   const rawLoss = source.paperLossSession as Record<string, unknown> | null | undefined;
   const LOSS_KEYS = ["evaluatedAt", "consecutiveLossCount", "maxConsecutiveLosses", "todayCompletedSells", "todayLosingSells"] as const;
   const lossSession = rawLoss != null && typeof rawLoss === "object" && LOSS_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
-    ? { paperLossSession: Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])) }
+    ? {
+        paperLossSession: {
+          ...Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])),
+          ...periodEvidence(rawLoss),
+        },
+      }
     : {};
   // Loss attribution: at most 8 fixed family codes, each with two non-negative integers.
   const FAMILY_CODE = /^(SMA_CROSSOVER|RSI_MEAN_REVERSION|DONCHIAN_BREAKOUT|OTHER_FAMILY|UNATTRIBUTED)$/;
@@ -375,12 +396,14 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
   let closedLearningLoop: { closedLearningLoop?: Record<string, string | number | Record<string, string | number>> } = {};
   const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
-  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason"] as const;
   if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
     && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
     const loop: Record<string, string | number | Record<string, string | number>> = {};
     for (const key of LOOP_INTS) loop[key] = Number(rawLoop[key]);
     for (const key of LOOP_CODES) { const value = rawLoop[key]; if (typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)) loop[key] = value; }
+    if (loop.lastBlockedReason !== undefined && Number.isSafeInteger(rawLoop.lastBlockedAt) && Number(rawLoop.lastBlockedAt) >= 0) loop.lastBlockedAt = Number(rawLoop.lastBlockedAt);
+    else delete loop.lastBlockedReason;
     // Correlation identities: fixed keys only; identifiers, 64-hex fingerprints, KRW markets and integers.
     const rawEvidence = rawLoop.evidence as Record<string, unknown> | null | undefined;
     if (rawEvidence != null && typeof rawEvidence === "object" && !Array.isArray(rawEvidence)) {
@@ -397,6 +420,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         openPeriodStartAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, openObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         realizedPeriodEndAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        cyclesRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0, lastCycleRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
       };
       const evidence: Record<string, string | number> = {};
       for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }

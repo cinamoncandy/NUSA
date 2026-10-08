@@ -2851,3 +2851,42 @@ current_learning_rollover_wall_clock:
   authority_impact: closed-learning-period-close-trigger
   owner_approval: "2026-10-07 in chat (rollover basis changed to the clock)"
   finding: "A consecutive-loss halt stops fills so the canonical account updatedAt never crossed the KST day and the rollover waited; the wall clock now only decides the day passed, the period still closes at the canonical account boundary"
+current_learning_retire_mixed_binding_period:
+  work_order: WO-LEARNING-20261007-RETIRE-MIXED-BINDING-PERIOD
+  status: READY_FOR_REVIEW
+  branch: claude/retire-mixed-binding-period
+  authority_impact: closed-learning-period-lifecycle
+  owner_approval: "2026-10-07 in chat (option 1: retire the mixed period unscored and start a fresh one)"
+  finding: "After the wall-clock rollover the open KRW-XRP period reached the reconciler and failed CANDIDATE_BINDING_MIXED, which fail-closed correctly but blocked the loop forever; the period is now retired unscored and the loop continues in a fresh period"
+current_risk_kst_trading_day:
+  work_order: WO-RISK-20261007-KST-TRADING-DAY
+  status: READY_FOR_REVIEW
+  branch: claude/risk-kst-trading-day
+  authority_impact: risk-trading-day-definition-and-display-evidence
+  owner_approval: "2026-10-07 in chat ('더 좋은 쪽' delegating the UTC-vs-KST choice)"
+  finding: "The cloud PAPER risk adapter used a local UTC day while CanonicalRiskSafetyGate and the learning rollover use Asia/Seoul; it now uses the canonical tradingDayKey, the threshold stays 3, and the loss session publishes period identity, start and last increment on /health (issue 2575 items 2-4)"
+current_learning_durable_cycle_health:
+  work_order: WO-LEARNING-20261008-DURABLE-CYCLE-HEALTH
+  status: READY_FOR_REVIEW
+  branch: claude/health-durable-learning-cycle
+  authority_impact: none
+  finding: "cyclesEvaluated, lastCycleStatus/Outcome and the cycle identities on /health were process memory, so a deploy erased the proof of the last lap; the cycle identities, lastCycleOutcome and two new integers (cyclesRecorded, lastCycleRecordedAt) are now also read from the durable ledger (display only, one replay, withdrawn if the ledger is unreadable). lastCycleStatus, deployments and cyclesEvaluated stay per-process and are not restored"
+current_learning_last_blocked_reason:
+  work_order: WO-LEARNING-20261008-LAST-BLOCKED-REASON
+  status: READY_FOR_REVIEW
+  branch: claude/health-last-blocked-reason
+  authority_impact: none
+  finding: "After #2581 the replacement period closed (realizedPeriods=2) but the durable ledger holds no cycle (cyclesRecorded=0); the BLOCKED reason of the failed cycle was overwritten within one tick. /health now keeps lastBlockedReason/lastBlockedAt (per process, code only)"
+current_strategy_baseline_code_identity:
+  work_order: WO-STRATEGY-20261008-BASELINE-CODE-IDENTITY
+  status: READY_FOR_REVIEW
+  branch: claude/baseline-code-identity
+  authority_impact: strategy-identity-in-binding-fingerprint
+  owner_approval: "2026-10-08 in chat ('2')"
+  finding: "The owner baseline strategy codeSha was the deployed commit, so every deploy changed the binding fingerprint and mixed the open learning period; it is now a fixed implementation identity (the first deploy changes the fingerprint once; the reconciler guard and Risk 3/3 are untouched)"
+current_autopilot_runner_readiness:
+  work_order: WO-AUTOPILOT-20261008-RUNNER-READINESS
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-runner-preflight
+  authority_impact: none
+  finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"

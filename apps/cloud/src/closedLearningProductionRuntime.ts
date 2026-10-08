@@ -144,6 +144,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     retireOpenPeriodForReplacement: (periodId: string, reason: string) => baseHandle.retirePaperRealizedPeriodForReplacement(periodId, reason),
     retireOpenPeriodForAccountChange: (periodId: string) => baseHandle.retirePaperRealizedPeriodForAccountChange(periodId),
     retireOpenPeriodForUnstreamedMarket: (periodId: string, streamedMarkets: readonly string[]) => baseHandle.retirePaperRealizedPeriodForUnstreamedMarket(periodId, streamedMarkets),
+    retireOpenPeriodForMixedBinding: (periodId: string) => baseHandle.retirePaperRealizedPeriodForMixedBinding(periodId),
+    inspectOpenPeriodForMixedBinding: (periodId: string) => baseHandle.inspectPaperRealizedPeriodForMixedBinding(periodId),
   });
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
@@ -198,6 +200,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,
     retireOpenPeriodForReplacement: periods.retireOpenPeriodForReplacement,
     retireOpenPeriodForUnstreamedMarket: periods.retireOpenPeriodForUnstreamedMarket,
+    retireOpenPeriodForMixedBinding: periods.retireOpenPeriodForMixedBinding,
+    inspectOpenPeriodForMixedBinding: periods.inspectOpenPeriodForMixedBinding,
     streamedMarkets: () => config.upbitMarkets,
     buildOwnerBaselinePeriod: ({ periodIndex, periodStartAt }) => {
       const sourceCommitSha = env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "";
@@ -289,7 +293,13 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const runClosedLearningTick = (): Promise<void> => {
     if (stopping) return Promise.resolve();
     if (closedLearningTick != null) return closedLearningTick;
+    // Durable cycle history is read first, so /health still shows the last lap while the bootstrap or rollover below is failing,
+    // and withdrawn whole if the ledger cannot be read (never stale evidence presented as current).
+    const refreshDurableCycles = (): void => {
+      try { loopStatus.observeDurableCycles(cycleRepository.summary()); } catch { loopStatus.clearDurableCycles(); }
+    };
     const task = (async () => {
+      refreshDurableCycles();
       const bootstrap = await runClosedLearningBootstrapAsync();
       loopStatus.observeBootstrap(bootstrap);
       // If Research has no deployable snapshot, preserve the canonical PAPER loop by opening one
@@ -300,6 +310,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         ensureOwnerBaselinePeriod();
       }
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
+      refreshDurableCycles();
       try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
     })().catch((error: unknown) => { loopStatus.observeError(Date.now()); throw error; });
     closedLearningTick = task;
