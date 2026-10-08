@@ -1,0 +1,32 @@
+id: WO-AUTOPILOT-20261008-FAILURE-CLASSIFICATION
+title: "Coding runner failure classification (Autopilot completion convergence, P0 step 2)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-failure-classification
+authority_impact: none
+owner_approval: "2026-10-08 in chat ('다 해' on the Autopilot convergence work order)"
+scope_note: "Pure, advisory classifier; nothing calls it yet and it triggers no retry. Docs/tests-level change with no runtime effect."
+objective: "Give every coding-runner reason code a failure class and a bounded recovery hint, failing closed on unknown codes, so later preflight/bounded-recovery steps share one taxonomy."
+scope:
+  include:
+    - "apps/autopilot/src/codingRunnerFailureClass.ts: classifyCodingRunnerFailure(reason) -> {failureClass, recovery, retryable}."
+    - "Tests for every class, unknown/non-string fail-closed, and authority precedence."
+  exclude:
+    - "Wiring into executeCodingRunner/results, actual retries, preflight, checkpoint/resume, canary, receipts (later steps); credentials, Risk, Release, Audit, LIVE."
+acceptance:
+  - "Authority codes are never retryable; unknown codes are UNKNOWN/STOP/not retryable."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/codingRunnerFailureClass.test.js"
+evidence:
+  local_validation: "see PR body (Node 22 sandbox)."
+  remaining: "Exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

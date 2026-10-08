@@ -2877,3 +2877,9 @@ current_learning_last_blocked_reason:
   branch: claude/health-last-blocked-reason
   authority_impact: none
   finding: "After #2581 the replacement period closed (realizedPeriods=2) but the durable ledger holds no cycle (cyclesRecorded=0); the BLOCKED reason of the failed cycle was overwritten within one tick. /health now keeps lastBlockedReason/lastBlockedAt (per process, code only)"
+current_autopilot_failure_classification:
+  work_order: WO-AUTOPILOT-20261008-FAILURE-CLASSIFICATION
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-failure-classification
+  authority_impact: none
+  finding: "Added a pure fail-closed classifier mapping coding-runner reason codes to a failure class and bounded recovery hint; not wired yet (later P0 steps: preflight, bounded recovery, checkpoint/resume, canary)"
