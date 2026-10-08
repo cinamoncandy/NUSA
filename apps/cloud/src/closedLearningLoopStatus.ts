@@ -19,6 +19,12 @@ export type ClosedLearningLoopStatus = {
   readonly cyclesEvaluated: number;
   readonly lastCycleStatus?: string;
   readonly lastCycleOutcome?: string;
+  /**
+   * The most recent BLOCKED/ERROR tick of THIS process, kept after later ticks succeed. A blocked cycle is retried or its period reopened
+   * within one tick, so the reason used to be overwritten before anyone could read it. Fixed codes and one timestamp only.
+   */
+  readonly lastBlockedReason?: string;
+  readonly lastBlockedAt?: number;
   readonly deployments: number;
   /**
    * Correlation identities read from the canonical components (open PAPER period, latest realized period, latest
@@ -52,6 +58,7 @@ export class ClosedLearningLoopStatusTracker {
   private durableOutcome: string | undefined;
   /** The outcome of a cycle evaluated by THIS process (wins over the durable copy). */
   private processCycleOutcome: string | undefined;
+  private lastBlocked: { reason: string; at: number } | undefined;
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
 
   /** Reads the identities of the current open period and the latest realized period. */
@@ -115,12 +122,13 @@ export class ClosedLearningLoopStatusTracker {
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
-    const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, ...rest } = this.status;
+    const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, ...rest } = this.status;
     const processOutcome = this.processCycleOutcome;
     const outcome = processOutcome ?? this.durableOutcome;
     this.status = Object.freeze({
       ...rest,
       ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),
+      ...(this.lastBlocked === undefined ? {} : { lastBlockedReason: this.lastBlocked.reason, lastBlockedAt: this.lastBlocked.at }),
       ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
     }) as ClosedLearningLoopStatus;
   }
@@ -135,6 +143,7 @@ export class ClosedLearningLoopStatusTracker {
     const cycleStatus = code(result.cycle?.status);
     const cycleOutcome = code(result.cycle?.record?.decision?.outcome);
     if (cycleOutcome !== undefined) this.processCycleOutcome = cycleOutcome;
+    if (result.status === "BLOCKED") this.lastBlocked = { reason: code(result.reason) ?? "BLOCKED_WITHOUT_CODE", at: now };
     const deployed = evaluated && result.cycle?.record?.paperDeployment != null;
     const reason = code(result.reason);
     this.status = Object.freeze({
@@ -165,6 +174,7 @@ export class ClosedLearningLoopStatusTracker {
 
   /** A tick that threw before a rollover result: recorded as ERROR without changing the counts. */
   public observeError(now: number): void {
+    this.lastBlocked = { reason: "TICK_ERROR", at: now };
     const previous = this.status;
     this.status = Object.freeze({ ...(previous ?? { cyclesEvaluated: 0, deployments: 0 }), lastTickAt: now, ticks: (previous?.ticks ?? 0) + 1, bootstrap: this.bootstrap, rollover: "ERROR" }) as ClosedLearningLoopStatus;
     this.publish();

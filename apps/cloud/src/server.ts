@@ -396,12 +396,14 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
   let closedLearningLoop: { closedLearningLoop?: Record<string, string | number | Record<string, string | number>> } = {};
   const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
-  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason"] as const;
   if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
     && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
     const loop: Record<string, string | number | Record<string, string | number>> = {};
     for (const key of LOOP_INTS) loop[key] = Number(rawLoop[key]);
     for (const key of LOOP_CODES) { const value = rawLoop[key]; if (typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)) loop[key] = value; }
+    if (loop.lastBlockedReason !== undefined && Number.isSafeInteger(rawLoop.lastBlockedAt) && Number(rawLoop.lastBlockedAt) >= 0) loop.lastBlockedAt = Number(rawLoop.lastBlockedAt);
+    else delete loop.lastBlockedReason;
     // Correlation identities: fixed keys only; identifiers, 64-hex fingerprints, KRW markets and integers.
     const rawEvidence = rawLoop.evidence as Record<string, unknown> | null | undefined;
     if (rawEvidence != null && typeof rawEvidence === "object" && !Array.isArray(rawEvidence)) {

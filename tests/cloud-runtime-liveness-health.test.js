@@ -329,6 +329,21 @@ test("/health publishes the durable cycle counts as integers inside the loop evi
   }, 42332);
 });
 
+test("/health publishes the last blocked reason as a code with its time, and drops it when unpaired or malformed", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "STALLED_PERIOD_REOPENED" };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, lastBlockedReason: "MISSING_BENCHMARK_EVIDENCE", lastBlockedAt: 1_791_419_000_000 } }) }, async (handle) => {
+    const out = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop;
+    assert.equal(out.lastBlockedReason, "MISSING_BENCHMARK_EVIDENCE");
+    assert.equal(out.lastBlockedAt, 1_791_419_000_000);
+  }, 42341);
+  for (const [index, bad] of [{ lastBlockedReason: "MISSING_BENCHMARK_EVIDENCE" }, { lastBlockedReason: "free text with spaces", lastBlockedAt: 5 }, { lastBlockedReason: "TICK_ERROR", lastBlockedAt: -1 }, { lastBlockedAt: 5 }].entries()) {
+    await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, ...bad } }) }, async (handle) => {
+      const out = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop;
+      assert.equal(out.lastBlockedReason, undefined, `case ${index}`);
+    }, 42342 + index);
+  }
+});
+
 test("/health publishes loss attribution only as fixed family codes with two integers each", async () => {
   const good = { evaluatedAt: 1_791_284_000_000, byFamily: { SMA_CROSSOVER: { completedSells: 3, losingSells: 3 }, UNATTRIBUTED: { completedSells: 1, losingSells: 0 } } };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: good }) }, async (handle) => {
