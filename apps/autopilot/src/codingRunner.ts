@@ -898,16 +898,29 @@ async function executeProposal(
     const published = await publisher.publish(request, runtimeResult);
     return { status: "EXECUTION_ACCEPTED", ...status, ...safeRuntime, ...published };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "coding-runtime-failed";
-    const classification = classifyCodingRunnerFailure(reason);
-    return { status: "EXECUTION_FAILED", reason, failureClass: classification.failureClass, recovery: classification.recovery, ...status };
+    return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed", ...status };
   }
 }
 
+/** Runs the coding runner and labels every failed execution with its advisory failure class (single labelling point). */
 export async function executeCodingRunner(
   request: CodingRunnerRequest,
   env: CodingRunnerEnv,
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
+  runtime?: CodingRuntime,
+  publisher?: CodingPublisher,
+  options: CodingRunnerExecutionOptions = {},
+): Promise<CodingRunnerResult> {
+  const result = await executeCodingRunnerUnlabelled(request, env, fetchImpl, runtime, publisher, options);
+  if (result.status !== "EXECUTION_FAILED") return result;
+  const classification = classifyCodingRunnerFailure(result.reason);
+  return { ...result, failureClass: classification.failureClass, recovery: classification.recovery };
+}
+
+async function executeCodingRunnerUnlabelled(
+  request: CodingRunnerRequest,
+  env: CodingRunnerEnv,
+  fetchImpl: FetchImpl,
   runtime?: CodingRuntime,
   publisher?: CodingPublisher,
   options: CodingRunnerExecutionOptions = {},
