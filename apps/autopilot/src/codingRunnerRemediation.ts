@@ -20,6 +20,7 @@ export function decideCodingRunnerNoAction(
   reason: unknown,
   attempt: number,
   maxAttempts = 2,
+  httpStatus?: number,
 ): CodingRunnerRemediationDecision {
   if (!Number.isSafeInteger(attempt) || attempt < 0 || !Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) {
     throw new Error("CODING_REMEDIATION_ATTEMPT_LIMIT_INVALID");
@@ -34,7 +35,7 @@ export function decideCodingRunnerNoAction(
       maxAttempts,
     });
   }
-  const classification = classifyCodingRunnerFailure(reason);
+  const classification = classifyCodingRunnerFailure(reason, httpStatus);
   const retryable = classification.retryable && attempt < maxAttempts;
   return Object.freeze({
     outcome: classification.retryable ? "FAILED_TO_REMEDIATE" : "FAILED_CLOSED",
