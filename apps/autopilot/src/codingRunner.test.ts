@@ -183,6 +183,8 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(contextual, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_FAILED");
     assert.equal(result.reason, "CODING_EDIT_PATH_FORBIDDEN");
+    assert.equal(result.failureClass, "PROPOSAL_REJECTED", "a failed execution carries the advisory failure class");
+    assert.equal(result.recovery, "REGENERATE_PROPOSAL");
   });
 
   it("accepts only the fail-closed repository contract with lifecycle identity", () => {

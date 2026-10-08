@@ -1,3 +1,4 @@
+import { classifyCodingRunnerFailure, type CodingRunnerFailureClass, type CodingRunnerRecovery } from "./codingRunnerFailureClass";
 import { logAiCall } from "./aiCallTelemetry";
 import { selectJevCodingModel } from "./jevCodingModelTier";
 import {
@@ -183,6 +184,9 @@ export interface CodingRunnerResult {
   readonly jevAdmissionReason?: string;
   readonly jevRequiredModel?: string | null;
   readonly jevConfidence?: number;
+  /** Advisory classification of `reason` for a failed execution; it grants nothing and retries nothing. */
+  readonly failureClass?: CodingRunnerFailureClass;
+  readonly recovery?: CodingRunnerRecovery;
 }
 
 interface HttpResponse {
@@ -894,7 +898,9 @@ async function executeProposal(
     const published = await publisher.publish(request, runtimeResult);
     return { status: "EXECUTION_ACCEPTED", ...status, ...safeRuntime, ...published };
   } catch (error) {
-    return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed", ...status };
+    const reason = error instanceof Error ? error.message : "coding-runtime-failed";
+    const classification = classifyCodingRunnerFailure(reason);
+    return { status: "EXECUTION_FAILED", reason, failureClass: classification.failureClass, recovery: classification.recovery, ...status };
   }
 }
 

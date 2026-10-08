@@ -2882,4 +2882,4 @@ current_autopilot_failure_classification:
   status: READY_FOR_REVIEW
   branch: claude/autopilot-failure-classification
   authority_impact: none
-  finding: "Added a pure fail-closed classifier mapping coding-runner reason codes to a failure class and bounded recovery hint; not wired yet (later P0 steps: preflight, bounded recovery, checkpoint/resume, canary)"
+  finding: "Added a pure fail-closed classifier mapping coding-runner reason codes to a failure class and bounded recovery hint; labels EXECUTION_FAILED results only, no retry (later P0 steps: preflight, bounded recovery, checkpoint/resume, canary)"
