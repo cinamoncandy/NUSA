@@ -17,6 +17,8 @@ scope:
     - "Any threshold or Risk change (stays 3), any runtime call site, any real result."
 limitations:
   - "Counterfactual over a fixed sequence: a blocked sell is assumed never to have happened; later position path-dependence is not modelled. Fees and slippage must already be inside netPnl."
+  - "Censoring: the runtime enforces limit 3, so its ledger never holds the sells blocked after the 3rd consecutive loss. Limits 4 and 5 cannot be evaluated from that ledger; the function flags them censored=true. A valid 4/5 comparison needs uncensored shadow/replay outcomes or blocked-candidate records."
+  - "Conflicting duplicate order records make the function throw (identical duplicates are deduplicated); out-of-range timestamps are ignored."
   - "No real comparison was produced: completed-sell data lives in the owner-authenticated ledger and is not available to this session. Item 5 stays OPEN until the owner or a runtime export supplies the sequence."
 acceptance:
   - "The function is deterministic and covered by tests; the threshold is untouched."
@@ -25,7 +27,14 @@ verification_commands:
   - "npx tsc -p tsconfig.json"
   - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/consecutiveLossLimitComparison.test.js"
 evidence:
-  local_validation: "see PR body (Node 22 sandbox)."
+  local_validation:
+    environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
+    commands:
+      - "npx tsc -p tsconfig.json -> clean"
+      - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/consecutiveLossLimitComparison.test.js -> 5 pass, 0 fail"
+      - "node -r ./tests/register-dist.cjs --test tests/autopilot-control-plane-wiring.test.js -> 3 pass, 0 fail"
+      - "node scripts/validate-{aipos-yaml,repository-truth,safety-architecture,ai-zero-authority,repository-portability,platform-independent-tests}.js -> all ok"
+    behaviour_covered: "3/4/5 divergence, KST day reset, win reset, dedupe, ordering, invalid limits, conflicting duplicates, invalid timestamps, censoring flags"
   remaining: "Exact-head CI, independent Audit and Release; a real comparison needs the ledger's completed-sell sequence."
 safety:
   paper_only: true

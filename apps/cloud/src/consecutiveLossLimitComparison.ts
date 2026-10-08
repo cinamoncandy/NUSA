@@ -6,6 +6,11 @@ import { paperTradingDayKey } from "./paperTradingDay";
  * counterfactual over a fixed sequence: a blocked sell is assumed never to have happened, and the
  * path-dependence of positions after a block is NOT modelled. Treat the output as a screening
  * comparison, never as promotion evidence.
+ *
+ * CENSORING: a ledger recorded under limit L never contains the sells the runtime blocked after the
+ * L-th consecutive loss, so a limit above L cannot recover their outcomes from that ledger alone and
+ * would look identical to L. Results for limit > `recordedUnderLimit` are therefore flagged
+ * `censored: true` and must not be read as evidence; they need uncensored shadow/replay outcomes.
  */
 export interface CompletedPaperSell {
   readonly orderId: string;
@@ -26,15 +31,33 @@ export interface ConsecutiveLossLimitResult {
   readonly opportunityLoss: number;
   /** Sum of the magnitude of negative PnL of blocked sells (what the cap avoided). */
   readonly avoidedLoss: number;
+  /** True when the input ledger was recorded under a lower limit, so this limit cannot be evaluated from it. */
+  readonly censored: boolean;
 }
 
-export function compareConsecutiveLossLimits(sells: readonly CompletedPaperSell[], limits: readonly number[]): readonly ConsecutiveLossLimitResult[] {
-  const seen = new Set<string>();
+export interface ConsecutiveLossComparisonOptions {
+  /** The limit the runtime enforced while the sells were recorded (the runtime limit is 3). */
+  readonly recordedUnderLimit?: number;
+}
+
+function validTimestamp(value: number): boolean {
+  if (!Number.isFinite(value)) return false;
+  try { paperTradingDayKey(value); return true; } catch { return false; }
+}
+
+export function compareConsecutiveLossLimits(sells: readonly CompletedPaperSell[], limits: readonly number[], options: ConsecutiveLossComparisonOptions = {}): readonly ConsecutiveLossLimitResult[] {
+  const recordedUnderLimit = options.recordedUnderLimit ?? 3;
+  const seen = new Map<string, CompletedPaperSell>();
   const ordered: CompletedPaperSell[] = [];
   for (const sell of sells) {
-    if (!Number.isFinite(sell.completedAt) || !Number.isFinite(sell.netPnl) || sell.orderId === "") continue;
-    if (seen.has(sell.orderId)) continue; // a duplicate fill never counts twice
-    seen.add(sell.orderId);
+    if (!validTimestamp(sell.completedAt) || !Number.isFinite(sell.netPnl) || sell.orderId === "") continue;
+    const earlier = seen.get(sell.orderId);
+    if (earlier !== undefined) {
+      // An identical duplicate never counts twice; a conflicting one makes the export untrustworthy, so fail rather than pick by input order.
+      if (earlier.completedAt !== sell.completedAt || earlier.netPnl !== sell.netPnl) throw new Error(`conflicting records for order ${sell.orderId}`);
+      continue;
+    }
+    seen.set(sell.orderId, sell);
     ordered.push(sell);
   }
   ordered.sort((a, b) => a.completedAt - b.completedAt || (a.orderId < b.orderId ? -1 : 1));
@@ -62,6 +85,6 @@ export function compareConsecutiveLossLimits(sells: readonly CompletedPaperSell[
       maxDrawdown = Math.max(maxDrawdown, peak - equity);
       streak = sell.netPnl < 0 ? streak + 1 : 0;
     }
-    return Object.freeze({ limit, tradeCount, blockedCount, netPnl, maxDrawdown, pnlWhileStreakAtOrAboveThree: pnlWhileStreak, opportunityLoss, avoidedLoss });
+    return Object.freeze({ limit, tradeCount, blockedCount, netPnl, maxDrawdown, pnlWhileStreakAtOrAboveThree: pnlWhileStreak, opportunityLoss, avoidedLoss, censored: limit > recordedUnderLimit });
   });
 }
