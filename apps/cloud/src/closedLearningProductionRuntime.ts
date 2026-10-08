@@ -30,7 +30,7 @@ import { FileQualifiedPaperChallengerArtifactStore } from "./qualifiedPaperChall
 import { ClosedLearningLineageReplayInputSource } from "./closedLearningLineageReplayInputSource";
 import { ClosedLearningProductionResearchAdapter } from "./closedLearningProductionResearchAdapter";
 import { ClosedLearningEvolutionLedgerRepository } from "./closedLearningEvolutionLedgerRepository";
-import { ClosedLearningLoopCoordinator, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
+import { ClosedLearningLoopCoordinator, closedLearningCycleId, isCompleteClosedLearningCycle, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { PaperChallengerDeploymentRuntime } from "./paperChallengerDeploymentRuntime";
 import { ClosedLearningPendingPeriodReader } from "./closedLearningPendingPeriodReader";
 import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceIdentitySource";
@@ -236,6 +236,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       return buildOwnerBaselinePaperPeriodInput({ market, periodIndex, periodStartAt, sourceCommitSha });
     },
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
+    // "Recorded" means complete: a qualified decision without its deployment receipt is resumed by running the coordinator again.
+    isCycleRecorded: (identity) => isCompleteClosedLearningCycle(cycleRepository.get(closedLearningCycleId(identity))),
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
   });

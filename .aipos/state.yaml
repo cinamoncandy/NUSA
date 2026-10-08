@@ -2914,6 +2914,12 @@ current_research_sma_cost_note:
   branch: claude/research-note-sma-cost-screen
   authority_impact: none
   finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
+current_learning_resume_failed_cycle:
+  work_order: WO-LEARNING-20261008-RESUME-FAILED-CYCLE
+  status: READY_FOR_REVIEW
+  branch: claude/cycle-failure-reproduction
+  authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
+  finding: "A period closed durably and its cycle threw was never retried (the next tick only reopened a continuation), so its learning was lost; the scheduler now resumes the latest unrecorded cycle in the stalled state, bounded to 5 ticks per period. The original production failure reason is unknown, so this is a confirmed hole matching the symptom, not a proven cause"
 current_learning_baseline_shadow:
   work_order: WO-LEARNING-20261008-BASELINE-SHADOW
   status: READY_FOR_REVIEW

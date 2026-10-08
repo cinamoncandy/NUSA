@@ -59,6 +59,11 @@ export interface ClosedLearningRolloverPort {
   /** A fresh owner-baseline period for the runtime's current market, built by the canonical owner-baseline builder. */
   readonly buildOwnerBaselinePeriod?: (input: { readonly periodIndex: number; readonly periodStartAt: number }) => PaperRealizedPeriodOpenInput | undefined;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
+  /**
+   * Whether the durable cycle ledger already holds the cycle for this exact evidence identity. Absent, a closed period whose cycle
+   * threw is never retried (the previous behaviour); present, the scheduler resumes it before continuing the candidate.
+   */
+  readonly isCycleRecorded?: (identity: ClosedLearningEvidenceIdentity) => boolean;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
 }
@@ -90,8 +95,16 @@ function stableOpenPeriods(input: readonly PersistedPaperRealizedPeriodPlan[]): 
   return Object.freeze([...input].sort((left, right) => left.periodIndex - right.periodIndex || left.periodId.localeCompare(right.periodId)));
 }
 
+/** What finalize needs from the period it continues: the open plan, or the latest realized period when a cycle is resumed. */
+type ContinuationSource = Pick<PersistedPaperRealizedPeriodPlan, "periodId" | "advisory" | "candidateProvenance" | "market">;
+
+/** How many ticks a closed period's failed cycle is retried before PAPER continues without it (so a persistent failure cannot stall PAPER with no open period). */
+export const MAX_CYCLE_RESUME_ATTEMPTS = 5;
+
 interface PreparedRollover {
-  readonly plan: PersistedPaperRealizedPeriodPlan;
+  /** The realized-period record this rollover closed or resumed, so a failed cycle can be resumed on the next tick. */
+  readonly closedRecordId: string;
+  readonly plan: ContinuationSource;
   readonly account: PaperAccountState;
   readonly realizedPeriods: readonly PersistedPaperPeriodEnvelope[];
   readonly identity: ClosedLearningEvidenceIdentity;
@@ -110,7 +123,44 @@ interface PreparedRollover {
  * complete realized denominator to that builder and refuses to synthesize any identity itself.
  */
 export class ClosedLearningRolloverScheduler {
+  /** Realized-period record ids whose cycle did not finish after THIS process closed them, with the resume attempts used. Only these are resumed. */
+  private readonly awaitingCycle = new Map<string, number>();
+
   public constructor(private readonly port: ClosedLearningRolloverPort) {}
+
+  /**
+   * A period's close is durable but its cycle can throw (Research worker, ledger, identity). Without this, the next tick only reopened a
+   * continuation, so that period's learning was lost for good. When this process closed the latest realized period, its cycle did not
+   * finish and no successor is open, run its cycle again (the coordinator replays an existing cycle, so this is idempotent) and finalize exactly as the original run
+   * would have. Bounded: after MAX_CYCLE_RESUME_ATTEMPTS ticks PAPER continues without it, as before. Nothing is synthesized.
+   */
+  private resumeUnrecordedCycle(): ClosedLearningRolloverResult | PreparedRollover | undefined {
+    const isRecorded = this.port.isCycleRecorded;
+    if (isRecorded == null) return undefined;
+    const realized = this.port.listRealizedPeriods();
+    if (realized.length === 0) return undefined;
+    const latest = [...realized].sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0]!;
+    // Only a gap this process created: the empty open-period set must come from the close being resumed, not from a later retirement
+    // of a successor (which also leaves no open period) or from history that predates this process.
+    const attempts = this.awaitingCycle.get(latest.record.recordId);
+    if (attempts === undefined || attempts >= MAX_CYCLE_RESUME_ATTEMPTS) return undefined;
+    // The same streamed-market guard as the stalled-continuation path: a dead market must never receive a successor or a deployment.
+    if (latest.record.market != null && this.isUnstreamed(latest.record.market)) return undefined;
+    const account = this.port.readCanonicalPaperAccount();
+    if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) return undefined;
+    // The successor opens at the real canonical boundary after the close, exactly as the stalled-continuation path requires.
+    if (account.updatedAt <= latest.record.periodEndAt) return undefined;
+    this.awaitingCycle.set(latest.record.recordId, attempts + 1);
+    const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
+    if (isRecorded(identity)) return undefined;
+    return Object.freeze({
+      closedRecordId: latest.record.recordId,
+      plan: Object.freeze({ periodId: latest.record.recordId, advisory: latest.record.advisory, candidateProvenance: latest.candidateProvenance, ...(latest.record.market == null ? {} : { market: latest.record.market }) }),
+      account,
+      realizedPeriods: Object.freeze([...realized]),
+      identity,
+    });
+  }
 
   /**
    * A period can be closed without a successor when the cycle throws after the close (the close
@@ -185,7 +235,7 @@ export class ClosedLearningRolloverScheduler {
 
   private prepare(): ClosedLearningRolloverResult | PreparedRollover {
     const periods = stableOpenPeriods(this.port.listOpenPeriods());
-    if (periods.length === 0) return this.reopenStalledContinuation();
+    if (periods.length === 0) return this.resumeUnrecordedCycle() ?? this.reopenStalledContinuation();
     if (periods.length > 1) return Object.freeze({ status: "BLOCKED", reason: "MULTIPLE_OPEN_PAPER_PERIODS" });
 
     const plan = periods[0]!;
@@ -257,7 +307,7 @@ export class ClosedLearningRolloverScheduler {
       throw new Error("closed PAPER period is missing from the durable realized denominator");
     }
     const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
-    return Object.freeze({ plan, account, realizedPeriods, identity });
+    return Object.freeze({ closedRecordId: closed.record.recordId, plan, account, realizedPeriods, identity });
   }
 
   private finalize(prepared: PreparedRollover, cycle: ClosedLearningCycleResult): ClosedLearningRolloverResult {
@@ -285,9 +335,13 @@ export class ClosedLearningRolloverScheduler {
     try {
       prepared = this.prepare();
       if ("status" in prepared) return prepared;
-      return this.finalize(prepared, this.port.runClosedLearningCycle(prepared.identity));
+      const result = this.finalize(prepared, this.port.runClosedLearningCycle(prepared.identity));
+      this.awaitingCycle.delete(prepared.closedRecordId);
+      return result;
     } catch (error) {
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
+      // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
+      if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
@@ -305,9 +359,13 @@ export class ClosedLearningRolloverScheduler {
       const cycle = this.port.runClosedLearningCycleAsync == null
         ? this.port.runClosedLearningCycle(prepared.identity)
         : await this.port.runClosedLearningCycleAsync(prepared.identity);
-      return this.finalize(prepared, cycle);
+      const result = this.finalize(prepared, cycle);
+      this.awaitingCycle.delete(prepared.closedRecordId);
+      return result;
     } catch (error) {
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
+      // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
+      if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
