@@ -1,0 +1,87 @@
+{
+ "capturedAfterDeploy": "70b998487336781734ced0b504a7281a00b2dee2",
+ "observedFrom": "https://nusa-api.duckdns.org/health",
+ "paperFunnel": {
+  "counts": {
+   "DECISION:PASS": 1013,
+   "DECISION:PASS:BUY": 190,
+   "DECISION:PASS:NO_ACTIONABLE_PAPER_DECISION": 823,
+   "DECISION:PASS:NO_POSITION_TO_SELL": 823,
+   "DECISION:PASS:WAIT": 823,
+   "MARKET_DATA:PASS": 1013,
+   "ORDER_INTENT:FAIL": 190,
+   "ORDER_INTENT:FAIL:CONSECUTIVE_LOSS_LIMIT": 190,
+   "ORDER_INTENT:FAIL:PAPER_RISK_REJECT": 190,
+   "ORDER_INTENT:SKIP": 823,
+   "PERMISSION:SKIP": 1013,
+   "PERMISSION:SKIP:NOT_EVALUATED_NO_ACTIONABLE_DECISION": 823,
+   "PERMISSION:SKIP:NO_CANONICAL_TRADE_PERMISSION_EVIDENCE": 190,
+   "PNL:PASS": 1013,
+   "RISK:FAIL": 190,
+   "RISK:FAIL:CONSECUTIVE_LOSS_LIMIT": 190
+  },
+  "since": 1791438649340
+ },
+ "paperLedger": {
+  "fillCount": 62,
+  "lastFillAt": 1791428041363,
+  "ledgerFingerprintSha256": "8df5999544d71a904df52798972ecf1fb0742f6dc3a9fbadcfd30f02be5aa6e0",
+  "ledgerUpdatedAt": 1791428041363,
+  "openPositionCount": 0
+ },
+ "paperLossAttribution": {
+  "byFamily": {
+   "SMA_CROSSOVER": {
+    "completedSells": 5,
+    "losingSells": 4
+   }
+  },
+  "evaluatedAt": 1791439845009
+ },
+ "paperLossSession": {
+  "consecutiveLossCount": 3,
+  "evaluatedAt": 1791439844168,
+  "lastIncrementAt": 1791428041363,
+  "maxConsecutiveLosses": 3,
+  "periodIdentity": "2026-10-08",
+  "periodStartedAt": 1791385200000,
+  "todayCompletedSells": 5,
+  "todayLosingSells": 4
+ },
+ "researchExperimentTicksByInterval": {
+  "15m": {
+   "counts": {
+    "FAIL_EXCESSIVE_DRAWDOWN": 8,
+    "FAIL_NO_EDGE": 10,
+    "NOT_DUE": 10,
+    "REPEAT_EXCESSIVE_DRAWDOWN": 3,
+    "REPEAT_NO_EDGE": 3
+   },
+   "lastTickAt": 1791438713875,
+   "ticks": 1
+  },
+  "1m": {
+   "counts": {
+    "FAIL_EXCESSIVE_DRAWDOWN": 22,
+    "FAIL_NO_EDGE": 6,
+    "NOT_DUE": 10,
+    "REPEAT_EXCESSIVE_DRAWDOWN": 6
+   },
+   "lastTickAt": 1791438713546,
+   "ticks": 1
+  },
+  "60m": {
+   "counts": {
+    "FAIL_EXCESSIVE_DRAWDOWN": 7,
+    "FAIL_NO_EDGE": 13,
+    "NOT_DUE": 10,
+    "REPEAT_EXCESSIVE_DRAWDOWN": 3,
+    "REPEAT_NO_EDGE": 6
+   },
+   "lastTickAt": 1791438714151,
+   "ticks": 1
+  }
+ },
+ "sourceCommitSha": "70b998487336781734ced0b504a7281a00b2dee2",
+ "startedAt": 1791438649338
+}
