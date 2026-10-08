@@ -2884,3 +2884,9 @@ current_strategy_baseline_code_identity:
   authority_impact: strategy-identity-in-binding-fingerprint
   owner_approval: "2026-10-08 in chat ('2')"
   finding: "The owner baseline strategy codeSha was the deployed commit, so every deploy changed the binding fingerprint and mixed the open learning period; it is now a fixed implementation identity (the first deploy changes the fingerprint once; the reconciler guard and Risk 3/3 are untouched)"
+current_autopilot_runner_readiness:
+  work_order: WO-AUTOPILOT-20261008-RUNNER-READINESS
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-runner-preflight
+  authority_impact: none
+  finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
