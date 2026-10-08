@@ -13,6 +13,7 @@ scope:
   include:
     - "Append an immutable failure receipt to the existing hash-chained evolution learning ledger after a prepared cycle fails in CYCLE or FINALIZE."
     - "Bind the receipt to closed period, evidence id/fingerprint, Research source SHA, runtime source SHA, fixed stage/code and timestamp; deterministic identity deduplicates replay."
+    - "Bound and canonicalize receipt identity fields before append or replay so oversized, padded, or control-bearing identities fail closed."
     - "Strictly replay failure receipts and project the latest failure independently from the latest successful durable cycle on read-only loop health."
   exclude:
     - "Research N+1 selection, candidate parameters, thresholds, PAPER execution/risk behavior, LIVE authority, and inferred historical failure reasons."

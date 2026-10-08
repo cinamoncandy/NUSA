@@ -16,6 +16,15 @@ const HASH = /^[a-f0-9]{64}$/;
 const SHA1 = /^[a-f0-9]{40}$/;
 const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
 const FAILURE = /^closed-learning-failure:[a-f0-9]{64}$/;
+const MAX_FAILURE_IDENTITY_LENGTH = 512;
+
+function boundedFailureIdentity(value: unknown): value is string {
+  return typeof value === "string"
+    && value === value.trim()
+    && value.length > 0
+    && value.length <= MAX_FAILURE_IDENTITY_LENGTH
+    && !/[\u0000-\u001f\u007f]/.test(value);
+}
 
 export interface ClosedLearningCycleFailureReceipt {
   readonly failureId: string;
@@ -40,8 +49,8 @@ function parseFailure(record: EvolutionRecord): ClosedLearningCycleFailureReceip
   if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("closed learning durable failure is invalid");
   const item = value as Record<string, unknown>;
   const receipt = item as unknown as ClosedLearningCycleFailureReceipt;
-  if (receipt.failureId !== record.opportunityId || !FAILURE.test(receipt.failureId) || typeof receipt.closedPeriodId !== "string" || !receipt.closedPeriodId.trim()
-    || typeof receipt.evidenceId !== "string" || !receipt.evidenceId.trim() || !HASH.test(receipt.evidenceFingerprintSha256)
+  if (receipt.failureId !== record.opportunityId || !FAILURE.test(receipt.failureId) || !boundedFailureIdentity(receipt.closedPeriodId)
+    || !boundedFailureIdentity(receipt.evidenceId) || !HASH.test(receipt.evidenceFingerprintSha256)
     || !SHA1.test(receipt.sourceCommitSha) || !SHA1.test(receipt.runtimeSourceCommitSha)
     || (receipt.stage !== "CYCLE" && receipt.stage !== "FINALIZE") || !CODE.test(receipt.code)
     || !Number.isSafeInteger(receipt.recordedAt) || receipt.recordedAt < 0
@@ -141,7 +150,7 @@ export class ClosedLearningEvolutionLedgerRepository implements ClosedLearningCy
 
   /** Append-only, replay-idempotent failure evidence in the existing hash-chained learning ledger. */
   public appendFailure(input: Omit<ClosedLearningCycleFailureReceipt, "failureId" | "recordedAt">): ClosedLearningCycleFailureReceipt {
-    if (!input.closedPeriodId.trim() || !input.evidenceId.trim() || !HASH.test(input.evidenceFingerprintSha256) || !SHA1.test(input.sourceCommitSha)
+    if (!boundedFailureIdentity(input.closedPeriodId) || !boundedFailureIdentity(input.evidenceId) || !HASH.test(input.evidenceFingerprintSha256) || !SHA1.test(input.sourceCommitSha)
       || !SHA1.test(input.runtimeSourceCommitSha) || !CODE.test(input.code) || (input.stage !== "CYCLE" && input.stage !== "FINALIZE")) throw new Error("closed learning failure receipt input is invalid");
     const failureId = failureIdentity(input);
     const existing = this.failureSummary().receipts.find((item) => item.failureId === failureId);

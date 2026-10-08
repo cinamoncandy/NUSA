@@ -215,6 +215,17 @@ test("malformed durable cycle failure evidence fails closed", () => {
   } finally { db.close(); }
 });
 
+test("cycle failure receipts reject unbounded or non-canonical identities", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const repo = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db));
+    const input = { closedPeriodId: "period-7", evidenceId: "closed-learning-paper:e7", evidenceFingerprintSha256: HEX("e"), sourceCommitSha: "a".repeat(40), runtimeSourceCommitSha: "b".repeat(40), stage: "CYCLE", code: "RESEARCH_WORKER_FAILED" };
+    assert.throws(() => repo.appendFailure({ ...input, closedPeriodId: "p".repeat(513) }), /input is invalid/);
+    assert.throws(() => repo.appendFailure({ ...input, evidenceId: " closed-learning-paper:e7" }), /input is invalid/);
+    assert.equal(repo.failureSummary().failuresRecorded, 0, "rejected identities never reach the durable ledger");
+  } finally { db.close(); }
+});
+
 // ---- the reason a tick was blocked must outlive the next tick ------------------------------------------------------
 test("a BLOCKED reason is kept after later ticks succeed, so a transient failure is still readable", () => {
   const t = new ClosedLearningLoopStatusTracker();
