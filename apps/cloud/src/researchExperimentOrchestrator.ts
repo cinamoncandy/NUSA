@@ -87,6 +87,17 @@ const empty = (status: TickReport["status"]): TickReport => Object.freeze({ stat
 /** Upper bound on challenger variants per bar length (SMA 4 + RSI 3 + Donchian 3 today); each runs at most its daily budget of experiments. */
 export const MAX_VARIANTS = 12;
 
+const isDerivedCountKey = (key: string): boolean => key.startsWith("FAIL_") || key.startsWith("REPEAT_");
+
+/** /health publishes at most 40 count keys. Ordinary outcome keys stop at 30 so the derived FAIL_* (5 reasons) and REPEAT_* (5 reasons) always fit. */
+export const MAX_ORDINARY_COUNT_KEYS = 30;
+
+export function addOutcomeCount(counts: Record<string, number>, key: string): void {
+  if (!/^[A-Z][A-Z0-9_]{1,47}$/.test(key) || isDerivedCountKey(key)) return;
+  if (!(key in counts) && Object.keys(counts).filter((existing) => !isDerivedCountKey(existing)).length >= MAX_ORDINARY_COUNT_KEYS) return;
+  counts[key] = (counts[key] ?? 0) + 1;
+}
+
 export class ResearchExperimentOrchestrator {
   private recoveryReady = false;
 
@@ -166,7 +177,7 @@ export class ResearchExperimentOrchestrator {
   public tick(): TickReport {
     const report = this.tickInner();
     const counts: Record<string, number> = { ...(this.tickSummary?.counts ?? {}) };
-    const add = (key: string): void => { if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && (key in counts || Object.keys(counts).length < 40)) counts[key] = (counts[key] ?? 0) + 1; };
+    const add = (key: string): void => addOutcomeCount(counts, key);
     for (const item of report.experiments) {
       const outcome = item.outcome;
       add(outcome.status);

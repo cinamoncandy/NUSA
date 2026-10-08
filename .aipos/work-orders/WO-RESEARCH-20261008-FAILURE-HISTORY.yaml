@@ -18,6 +18,7 @@ scope:
     - "Any change to experiment scheduling, daily budgets, which variants run, promotion, Risk or thresholds."
 limitations:
   - "The research ledger is not yet READ BACK to alter what runs next: Research N+1 is informed, not steered. Adaptive scheduling (budget cut or skip) was offered and not chosen."
+  - "A failure is charged to the record's own requested strategyId/strategyVersion (kept even when the evaluator threw or returned another identity), and ordinary outcome count keys are capped at 30 so FAIL_ and REPEAT_ keys fit /health's 40."
   - "Counts are per bar length (the ledger filter the composition already applies). The detailed per-strategy history is a function over the ledger and is not yet published on /health."
 acceptance:
   - "History is per challenger, order-independent, keeps failures after a later win, and the streak resets on a win."
@@ -30,7 +31,7 @@ evidence:
     environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
     commands:
       - "npx tsc -p tsconfig.json -> clean"
-      - "node -r ./tests/register-dist.cjs --test tests/research-failure-memory.test.js tests/research-experiment-orchestrator.test.js -> 19 pass, 0 fail"
+      - "node -r ./tests/register-dist.cjs --test tests/research-failure-memory.test.js tests/research-experiment-orchestrator.test.js -> 20 pass, 0 fail"
   remaining: "Exact-head CI, independent Audit and Release; a deploy restarts the runtime once."
 safety:
   paper_only: true

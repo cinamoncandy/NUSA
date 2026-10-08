@@ -65,7 +65,7 @@ export interface StrategyFailureHistory {
   readonly repeatStreak: number;
 }
 
-type HistoryRecord = Pick<ResearchComparisonEvidence, "result" | "reason" | "champion" | "challenger" | "costEvidence" | "evaluationTimestamp" | "evaluationId">;
+type HistoryRecord = Pick<ResearchComparisonEvidence, "result" | "reason" | "champion" | "challenger" | "costEvidence" | "evaluationTimestamp" | "evaluationId" | "strategyId" | "strategyVersion">;
 
 /**
  * Per-challenger failure history recomputed from the durable evaluation records, in evaluation-time order (evaluationId breaks ties,
@@ -76,10 +76,11 @@ export function summarizeStrategyFailureHistory(records: readonly HistoryRecord[
   const ordered = [...records].sort((a, b) => a.evaluationTimestamp - b.evaluationTimestamp || (a.evaluationId < b.evaluationId ? -1 : a.evaluationId > b.evaluationId ? 1 : 0));
   const byStrategy = new Map<string, { strategyId: string; strategyVersion: string; reasons: (ResearchFailureReason | null)[] }>();
   for (const record of ordered) {
-    const challenger = record.challenger;
-    if (challenger == null || typeof challenger.strategyId !== "string" || typeof challenger.strategyVersion !== "string") continue;
-    const key = `${challenger.strategyId}@${challenger.strategyVersion}`;
-    const entry = byStrategy.get(key) ?? { strategyId: challenger.strategyId, strategyVersion: challenger.strategyVersion, reasons: [] };
+    // The record's own strategyId/strategyVersion is the REQUESTED challenger and is kept even when the evaluator threw (challenger null)
+    // or returned a different identity, so a failure is always charged to the strategy that was actually under test.
+    if (typeof record.strategyId !== "string" || record.strategyId === "" || typeof record.strategyVersion !== "string" || record.strategyVersion === "") continue;
+    const key = `${record.strategyId}@${record.strategyVersion}`;
+    const entry = byStrategy.get(key) ?? { strategyId: record.strategyId, strategyVersion: record.strategyVersion, reasons: [] };
     entry.reasons.push(classifyResearchFailure(record));
     byStrategy.set(key, entry);
   }

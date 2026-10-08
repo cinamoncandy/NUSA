@@ -57,7 +57,7 @@ test("the reason codes fit the /health count key pattern", () => {
 });
 
 const challengerEvidence = (id, version, at, result, metrics, evaluationId = `e${at}`) => ({
-  evaluationId, evaluationTimestamp: at, result, reason: "MULTI_METRIC_COMPARISON",
+  evaluationId, evaluationTimestamp: at, result, reason: "MULTI_METRIC_COMPARISON", strategyId: id, strategyVersion: version,
   challenger: { ...evaluation(metrics), strategyId: id, strategyVersion: version }, champion: evaluation(base),
 });
 const drawdown = { ...base, maximumDrawdown: 0.5 };
@@ -89,7 +89,13 @@ test("the same records give the same history in any input order, and repeated fa
   assert.deepEqual({ ...countRepeatedFailures(summarizeStrategyFailureHistory(records), 3) }, {});
 });
 
-test("records without a challenger are skipped and an empty ledger gives an empty history", () => {
+test("a failed evaluation is charged to the requested strategy even when the evaluator threw or returned another identity", () => {
   assert.deepEqual([...summarizeStrategyFailureHistory([])], []);
-  assert.deepEqual([...summarizeStrategyFailureHistory([{ evaluationId: "n", evaluationTimestamp: 1, result: "CHAMPION_BETTER", reason: "MULTI_METRIC_COMPARISON", challenger: null, champion: null }])], []);
+  const threw = { evaluationId: "n1", evaluationTimestamp: 1, result: "INCONCLUSIVE", reason: "EVALUATION_INVALID", strategyId: "rsi", strategyVersion: "1", challenger: null, champion: null };
+  const wrongIdentity = { ...challengerEvidence("other", "9", 2, "CHAMPION_BETTER", edge, "n2"), strategyId: "rsi", strategyVersion: "1", reason: "EVALUATION_INVALID" };
+  const history = summarizeStrategyFailureHistory([threw, wrongIdentity]);
+  assert.deepEqual(history.map((item) => `${item.strategyId}@${item.strategyVersion}`), ["rsi@1"], "never charged to the untrusted returned identity");
+  assert.deepEqual({ lastReason: history[0].lastReason, repeatStreak: history[0].repeatStreak }, { lastReason: "LOW_SAMPLE", repeatStreak: 2 });
+  assert.deepEqual({ ...countRepeatedFailures(history) }, { REPEAT_LOW_SAMPLE: 1 });
+  assert.deepEqual([...summarizeStrategyFailureHistory([{ ...threw, strategyId: "" }])], [], "a record without a requested identity is skipped");
 });
