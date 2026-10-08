@@ -1002,6 +1002,7 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch);
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "ai-coding-engine-not-configured");
+    assert.deepEqual(result.readinessBlockers, ["CODING_ENGINE_NOT_CONFIGURED"], "names exactly what is missing; the GitHub token is present");
   });
 
   it("zero-credit mode disables a configured external coding engine without spending a call", async () => {
@@ -1012,6 +1013,7 @@ describe("coding runner", () => {
     });
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "zero-credit-paid-engine-disabled");
+    assert.deepEqual(result.readinessBlockers, ["ZERO_CREDIT_PAID_ENGINE_DISABLED"]);
     assert.equal(paidEngineCalls, 0);
   });
 

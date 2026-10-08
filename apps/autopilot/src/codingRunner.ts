@@ -1,4 +1,5 @@
 import { classifyCodingRunnerFailure, type CodingRunnerFailureClass, type CodingRunnerRecovery } from "./codingRunnerFailureClass";
+import { assessCodingRunnerReadiness, type CodingRunnerReadinessBlocker } from "./codingRunnerReadiness";
 import { logAiCall } from "./aiCallTelemetry";
 import { selectJevCodingModel } from "./jevCodingModelTier";
 import {
@@ -187,6 +188,8 @@ export interface CodingRunnerResult {
   /** Advisory classification of `reason` for a failed execution; it grants nothing and retries nothing. */
   readonly failureClass?: CodingRunnerFailureClass;
   readonly recovery?: CodingRunnerRecovery;
+  /** What the runner lacks to execute, named; present on INTERFACE_READY results only. */
+  readonly readinessBlockers?: readonly CodingRunnerReadinessBlocker[];
 }
 
 interface HttpResponse {
@@ -994,7 +997,15 @@ async function executeCodingRunnerUnlabelled(
     }
   }
 
-  if (!env.AI) return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured" };
+  if (!env.AI) {
+    const readiness = assessCodingRunnerReadiness({
+      hasWorkersAiBinding: false,
+      hasConfiguredEngine: Boolean(endpoint && token),
+      hasGithubToken: Boolean(env.NUSA_GITHUB_TOKEN?.trim()),
+      zeroCreditMode,
+    });
+    return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured", readinessBlockers: readiness.blockers };
+  }
   const tierSelection = selectJevCodingModel(jevAdmission, env);
   const tierConfiguredModel = tierSelection?.model?.trim();
   const tierModel = tierConfiguredModel

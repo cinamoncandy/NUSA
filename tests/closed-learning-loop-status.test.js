@@ -42,7 +42,9 @@ test("the production composition feeds every loop tick into the status and hands
   const src = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
   assert.match(src, /loopStatus\.observeBootstrap\(bootstrap\)/);
   assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\)/);
-  assert.match(src, /loopStatus\.observeError\(Date\.now\(\)\); throw error;/);
+  assert.match(src, /loopStatus\.observeError\(Date\.now\(\)\); persistLastBlocked\(\); throw error;/, "an error tick persists its reason before the scheduler fails closed");
+  assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\);\r?\n\s*persistLastBlocked\(\);/, "a blocked tick persists its reason");
+  assert.match(src, /loopStatus\.seedLastBlocked\(readClosedLearningBlocked\(config\.cloudStateDbPath\)\)/, "the persisted reason seeds the status after a restart");
   assert.match(src, /loopStatus\.observePeriods\(periods\.listOpenPeriods\(\)\[0\], periods\.listRealizedPeriods\(\)\)/, "every tick reads the canonical period identities");
   assert.match(src, /\(\) => loopStatus\.snapshot\(\),\r?\n\s*\(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*\);/);
 });
