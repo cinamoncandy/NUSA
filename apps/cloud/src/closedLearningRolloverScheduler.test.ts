@@ -118,6 +118,7 @@ function harness(options: {
   outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE";
   awaitingGovernance?: boolean;
   closeError?: Error;
+  cycleError?: Error;
   retireMixed?: boolean;
   inspectMixed?: boolean;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
@@ -125,6 +126,7 @@ function harness(options: {
 }) {
   const events: string[] = [];
   const openInputs: PaperRealizedPeriodOpenInput[] = [];
+  const failures: Array<{ closedPeriodId: string; identity: ClosedLearningEvidenceIdentity; stage: "CYCLE" | "FINALIZE"; code: string }> = [];
   const closed = envelope();
   const openPeriods = options.openPeriods ?? [plan(options.observation ?? "FILLED")];
   const realized = Object.freeze([...(options.priorRealized ?? []), closed]);
@@ -140,14 +142,23 @@ function harness(options: {
     },
     openPeriodFromCanonicalAccount: (input) => { openInputs.push(input); events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
     buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
-    runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
+    runClosedLearningCycle: () => { events.push("cycle"); if (options.cycleError) throw options.cycleError; return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
+    recordCycleFailure: (failure) => { failures.push(failure); events.push(`failure:${failure.stage}:${failure.code}`); },
     ...(options.inspectMixed === true ? { inspectOpenPeriodForMixedBinding: (periodId: string) => { events.push(`inspect-mixed:${periodId}`); return { evidenceFingerprintSha256: "f".repeat(64) }; } } : {}),
     ...(options.retireMixed === false ? {} : { retireOpenPeriodForMixedBinding: (periodId: string) => { events.push(`retire-mixed:${periodId}`); return plan("FILLED", periodId); } }),
   };
-  return { scheduler: new ClosedLearningRolloverScheduler(port), events, openInputs };
+  return { scheduler: new ClosedLearningRolloverScheduler(port), events, openInputs, failures };
 }
 
 describe("ClosedLearningRolloverScheduler", () => {
+  it("records bounded identity-only evidence when a prepared cycle fails after the period close", () => {
+    const error = Object.assign(new Error("secret exception text with prices"), { code: "RESEARCH_WORKER_FAILED" });
+    const { scheduler, failures } = harness({ now: NEXT_KST_DAY, cycleError: error });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "BLOCKED");
+    assert.deepEqual(failures, [{ closedPeriodId: "record-0", identity: identity(), stage: "CYCLE", code: "RESEARCH_WORKER_FAILED" }]);
+    assert.doesNotMatch(JSON.stringify(failures), /secret exception|prices/);
+  });
   it("does not close before the canonical PAPER account crosses the KST trading-day boundary", () => {
     const { scheduler, events } = harness({ now: SAME_KST_DAY });
     assert.equal(scheduler.runOnce().status, "WAITING_FOR_KST_DAY_ROLLOVER");

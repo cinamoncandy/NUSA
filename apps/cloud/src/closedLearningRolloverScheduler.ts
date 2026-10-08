@@ -66,6 +66,7 @@ export interface ClosedLearningRolloverPort {
   readonly isCycleRecorded?: (identity: ClosedLearningEvidenceIdentity) => boolean;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
+  readonly recordCycleFailure?: (input: { readonly closedPeriodId: string; readonly identity: ClosedLearningEvidenceIdentity; readonly stage: "CYCLE" | "FINALIZE"; readonly code: string }) => void;
 }
 
 function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): number {
@@ -85,6 +86,13 @@ function blockedReason(error: unknown): string {
   const message = error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED";
   const errorCode = (error as { readonly code?: unknown } | null)?.code;
   return typeof errorCode === "string" && /^[A-Z][A-Z0-9_]{2,63}$/.test(errorCode) && !message.startsWith(`${errorCode}:`) ? `${errorCode}:${message}` : message;
+}
+
+function failureCode(error: unknown): string {
+  const explicit = (error as { readonly code?: unknown } | null)?.code;
+  if (typeof explicit === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(explicit)) return explicit;
+  const head = blockedReason(error).split(":")[0]!;
+  return /^[A-Z][A-Z0-9_]{1,63}$/.test(head) ? head : "CLOSED_LEARNING_CYCLE_FAILED";
 }
 
 function hasRealizedFill(plan: PersistedPaperRealizedPeriodPlan): boolean {
@@ -332,16 +340,20 @@ export class ClosedLearningRolloverScheduler {
 
   public runOnce(): ClosedLearningRolloverResult {
     let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
+    let stage: "CYCLE" | "FINALIZE" = "CYCLE";
     try {
       prepared = this.prepare();
       if ("status" in prepared) return prepared;
-      const result = this.finalize(prepared, this.port.runClosedLearningCycle(prepared.identity));
+      const cycle = this.port.runClosedLearningCycle(prepared.identity);
+      stage = "FINALIZE";
+      const result = this.finalize(prepared, cycle);
       this.awaitingCycle.delete(prepared.closedRecordId);
       return result;
     } catch (error) {
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
       if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
+      if (prepared != null && !("status" in prepared)) this.port.recordCycleFailure?.({ closedPeriodId: prepared.closedRecordId, identity: prepared.identity, stage, code: failureCode(error) });
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
@@ -353,12 +365,14 @@ export class ClosedLearningRolloverScheduler {
   /** Async production path yields while Research/League evaluates the closed PAPER evidence. */
   public async runOnceAsync(): Promise<ClosedLearningRolloverResult> {
     let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
+    let stage: "CYCLE" | "FINALIZE" = "CYCLE";
     try {
       prepared = this.prepare();
       if ("status" in prepared) return prepared;
       const cycle = this.port.runClosedLearningCycleAsync == null
         ? this.port.runClosedLearningCycle(prepared.identity)
         : await this.port.runClosedLearningCycleAsync(prepared.identity);
+      stage = "FINALIZE";
       const result = this.finalize(prepared, cycle);
       this.awaitingCycle.delete(prepared.closedRecordId);
       return result;
@@ -366,6 +380,7 @@ export class ClosedLearningRolloverScheduler {
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
       if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
+      if (prepared != null && !("status" in prepared)) this.port.recordCycleFailure?.({ closedPeriodId: prepared.closedRecordId, identity: prepared.identity, stage, code: failureCode(error) });
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),

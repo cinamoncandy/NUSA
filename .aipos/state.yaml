@@ -2902,6 +2902,17 @@ current_learning_durable_blocked_reason:
   branch: claude/durable-cycle-failure
   authority_impact: none
   finding: "The last closed-learning BLOCKED/ERROR reason is now also written as a bare code beside the Cloud state and seeds /health after a restart; the unrecorded cycle's own cause is still unknown and this makes the next failure readable"
+current_issue_2589_closed_learning_failure_evidence:
+  work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
+  issue: 2589
+  parent_issue: 1605
+  status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+  authority_impact: none
+  first_broken_transition: "closed PAPER Performance Evidence N -> closed-learning cycle/Feedback N"
+  scope: "Persist immutable deterministic failure receipts in the existing hash-chained cycle ledger after a prepared CYCLE/FINALIZE failure; restart-safe read-only health exposes latest failure separately from latest success; strict malformed/tampered replay fails closed."
+  validation: "The published increment is committed and workflow-validated by the delegated publish job: build, typecheck, validate:full, work-order index check, tests/*.test.js and isolated co-located tests pass."
+  remaining: "Exact-head CI, independent Audit and Release; then protected-main merge, exact-main PAPER deployment/runtime proof that durable failure evidence survives restart/recovery or a successful reproduced cycle is recorded, and replay proof that no duplicate failure or cycle record is produced."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_failure_history:
   work_order: WO-RESEARCH-20261008-FAILURE-HISTORY
   status: READY_FOR_REVIEW

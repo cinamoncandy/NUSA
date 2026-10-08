@@ -238,6 +238,15 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
     // "Recorded" means complete: a qualified decision without its deployment receipt is resumed by running the coordinator again.
     isCycleRecorded: (identity) => isCompleteClosedLearningCycle(cycleRepository.get(closedLearningCycleId(identity))),
+    recordCycleFailure: ({ closedPeriodId, identity, stage, code }) => cycleRepository.appendFailure({
+      closedPeriodId,
+      evidenceId: identity.evidenceId,
+      evidenceFingerprintSha256: identity.evidenceFingerprintSha256,
+      sourceCommitSha: identity.sourceCommitSha,
+      runtimeSourceCommitSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim().toLowerCase(),
+      stage,
+      code,
+    }),
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
   });
@@ -325,6 +334,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // and withdrawn whole if the ledger cannot be read (never stale evidence presented as current).
     const refreshDurableCycles = (): void => {
       try { loopStatus.observeDurableCycles(cycleRepository.summary()); } catch { loopStatus.clearDurableCycles(); }
+      try { loopStatus.observeDurableFailures(cycleRepository.failureSummary()); } catch { loopStatus.clearDurableFailures(); }
     };
     const task = (async () => {
       refreshDurableCycles();
