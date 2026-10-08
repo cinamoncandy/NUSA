@@ -431,7 +431,7 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
   const LATER = NEXT_KST_DAY + 60_000;
 
   /** A stateful port: one open FILLED period that crosses the KST day, a durable close, and a cycle that can be made to throw. */
-  function sequence(options: { failuresBeforeSuccess: number; withRecordedCheck?: boolean; cycleAlreadyRecorded?: boolean; startClosed?: boolean }) {
+  function sequence(options: { failuresBeforeSuccess: number; withRecordedCheck?: boolean; cycleAlreadyRecorded?: boolean; startClosed?: boolean; streamedMarkets?: readonly string[] }) {
     const events: string[] = [];
     let open: readonly PersistedPaperRealizedPeriodPlan[] = options.startClosed === true ? [] : [plan("FILLED")];
     let realized: readonly PersistedPaperPeriodEnvelope[] = options.startClosed === true ? Object.freeze([envelope()]) : Object.freeze([]);
@@ -457,6 +457,7 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
         recorded.add(HASH);
         return cycle("INSUFFICIENT");
       },
+      ...(options.streamedMarkets === undefined ? {} : { streamedMarkets: () => options.streamedMarkets! }),
       ...(options.withRecordedCheck === false ? {} : { isCycleRecorded: (id: ClosedLearningEvidenceIdentity) => recorded.has(id.evidenceFingerprintSha256) }),
     };
     return { scheduler: new ClosedLearningRolloverScheduler(port), events, setAccount: (value: number) => { nowAccount = value; }, openIds: () => open.map((item) => item.periodId) };
@@ -514,5 +515,28 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
     const next = baseline.scheduler.runOnce();
     assert.equal(next.status, "STALLED_PERIOD_REOPENED", "without isCycleRecorded the failed cycle is not retried");
     assert.equal(baseline.events.filter((item) => item === "cycle").length, 1);
+  });
+
+  it("never resumes a gap this process did not create (history, or a successor retired later), even when no cycle is recorded", () => {
+    const { scheduler, events, setAccount } = sequence({ failuresBeforeSuccess: 0, startClosed: true });
+    setAccount(LATER);
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "STALLED_PERIOD_REOPENED", "the old unrecorded period is only continued, never re-evaluated");
+    assert.equal(events.filter((item) => item === "cycle").length, 0);
+  });
+
+  it("does not resume onto a market the runtime no longer streams", () => {
+    // The market is streamed when the period closes and the cycle fails; the configuration changes before the retry.
+    let streamed: readonly string[] = ["KRW-BTC"];
+    const { scheduler, events, setAccount } = sequence({ failuresBeforeSuccess: 1, streamedMarkets: streamed });
+    const port = (scheduler as unknown as { port: { streamedMarkets?: () => readonly string[] } }).port;
+    port.streamedMarkets = () => streamed;
+    scheduler.runOnce();
+    streamed = ["KRW-ETH"];
+    setAccount(LATER);
+    const next = scheduler.runOnce();
+    assert.equal(next.status, "BLOCKED", "the existing stalled-continuation guard decides, and a non-baseline candidate is never moved");
+    assert.equal(next.reason, "STALLED_PERIOD_MARKET_NOT_STREAMED");
+    assert.equal(events.filter((item) => item === "cycle").length, 1, "no second cycle and no deployment on the dead market");
   });
 });

@@ -20,6 +20,9 @@ scope:
   exclude:
     - "Cycles of periods that are already realized with a successor open (history is not replayed, because a late qualified decision could deploy a challenger into a period that is already running); any Risk, order, ledger, threshold change."
 limitations:
+  - "Resumes only a gap THIS process created: it remembers the period it closed whose cycle (or finalize) did not finish. History, an older period whose successor was later retired, and any gap after a restart are never resumed (a late qualified decision could otherwise deploy from stale evidence)."
+  - "A recorded cycle counts as complete unless it is a QUALIFIED_FOR_LEAGUE decision without its PAPER deployment receipt; that record is run again because the coordinator resumes exactly it."
+  - "The streamed-market guard of the stalled-continuation path applies: a dead market gets neither a successor nor a deployment from a resumed cycle."
   - "Does not recover the two periods that already closed without a cycle; it prevents the next loss of this kind."
   - "Retries only in the stalled state (no open period). The attempt counter is in memory, so a restart allows another bounded round."
   - "If a persistently failing cycle exhausts the retries, that period's cycle is still lost; the blocked reason is now readable after a restart (see the durable blocked-reason record)."
@@ -35,7 +38,7 @@ evidence:
     environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
     commands:
       - "npx tsc -p tsconfig.json -> clean"
-      - "the scheduler test file plus the seven closed-learning wiring tests above -> 69 pass, 0 fail (33 scheduler tests, 5 new)"
+      - "the scheduler test file (35 tests, 7 new) plus the cycle-complete predicate test and the seven closed-learning wiring tests above -> pass, 0 fail (exact counts in the PR body)"
   remaining: "Exact-head CI, independent Audit and Release; a deploy restarts the runtime once."
 safety:
   paper_only: true
