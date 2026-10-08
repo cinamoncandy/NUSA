@@ -68,12 +68,17 @@ test("restart: totals and last processed bars are restored, old bars are not rep
 });
 
 test("decode rejects malformed persisted state", () => {
-  const good = { schemaVersion: 1, totals: { since: 1, trades: 2, wins: 1, grossGainBp: 3, grossLossBp: 4, feeBp: 20 }, lastBarAt: { "KRW-XRP": 5 } };
+  const good = { schemaVersion: 1, totals: { since: 1, trades: 2, wins: 1, grossGainBp: 3, grossLossBp: 4, feeBp: 20 }, lastBarMinute: { "KRW-XRP": 5 } };
   assert.ok(decodeBaselineShadow(good));
   assert.equal(decodeBaselineShadow({ ...good, schemaVersion: 2 }), undefined);
   assert.equal(decodeBaselineShadow({ ...good, totals: { ...good.totals, wins: 3 } }), undefined, "wins cannot exceed trades");
   assert.equal(decodeBaselineShadow({ ...good, totals: { ...good.totals, feeBp: -1 } }), undefined);
-  assert.equal(decodeBaselineShadow({ ...good, lastBarAt: { "xrp": 5 } }), undefined);
+  assert.equal(decodeBaselineShadow({ ...good, lastBarMinute: { "xrp": 5 } }), undefined);
+  assert.equal(decodeBaselineShadow({ ...good, totals: { ...good.totals, since: 0 } }), undefined, "since 0 with processed bars is inconsistent");
+  assert.equal(decodeBaselineShadow({ ...good, lastBarMinute: {} }), undefined, "a started shadow must have processed a minute");
+  assert.equal(decodeBaselineShadow({ ...good, totals: { since: 0, trades: 0, wins: 0, grossGainBp: 0, grossLossBp: 0, feeBp: 0 }, lastBarMinute: {} })?.totals.trades, 0, "a fresh shadow is consistent");
+  assert.equal(decodeBaselineShadow({ ...good, totals: { ...good.totals, trades: 0, wins: 0 } }), undefined, "no trades but non-zero totals is impossible");
+  assert.equal(decodeBaselineShadow({ ...good, totals: { since: 1, trades: 0, wins: 0, grossGainBp: 100, grossLossBp: 0, feeBp: 0 } }), undefined);
   assert.equal(decodeBaselineShadow(null), undefined);
 });
 
@@ -102,4 +107,26 @@ test("on the frozen public-candle data the shadow reproduces the offline replay 
     for (let end = 1; end <= candles.length; end += 1) shadow.observe(market, candles.slice(Math.max(0, end - 60), end));
     assert.ok(Math.abs(shadow.summary().trades - trades) <= 1, `${market}: shadow ${shadow.summary().trades} vs replay ${trades}`);
   }
+});
+
+test("a late revision of an already completed minute is not a new bar", () => {
+  const rising = bars(40, (index) => 1000 + index * 2); // BUY from the 22nd bar, no SELL yet
+  const shadow = make();
+  feed(shadow, rising);
+  const before = shadow.takePersistable();
+  // The last completed minute is re-read with a later closing tick and a lower price, as a late ticker would produce.
+  const revised = [...rising.slice(0, -1), [rising[rising.length - 1]![0] + 30_000, 900] as const];
+  shadow.observe("KRW-XRP", revised.slice(-60));
+  assert.equal(shadow.summary().trades, 0, "no spurious SELL from a revised close of the same minute");
+  assert.equal(shadow.takePersistable(), undefined, "nothing was processed, so nothing changed");
+  assert.deepEqual(before?.lastBarMinute, { "KRW-XRP": Math.floor(rising[rising.length - 1]![0] / MINUTE) });
+});
+
+test("a winner below half a basis point is still a win, and only the published totals are rounded", () => {
+  const shadow = make() as unknown as { settle(entry: number, exit: number): void; summary(): { trades: number; wins: number; grossGainBp: number; feeBp: number } };
+  shadow.settle(1000, 1001.0008); // about +10 bp gross, about +0.003 bp after the 0.05% fee per side
+  const totals = shadow.summary();
+  assert.equal(totals.trades, 1);
+  assert.equal(totals.wins, 1, "positive after-fee return is a win even though it rounds to 0 bp");
+  assert.ok(totals.grossGainBp >= 9 && totals.grossGainBp <= 11);
 });

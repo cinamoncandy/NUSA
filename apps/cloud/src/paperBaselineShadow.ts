@@ -9,7 +9,7 @@ import { evaluatePaperCandidateStrategy } from "./paperCandidateStrategy";
  *
  * It is display and analysis only: it places no order, writes no ledger, creates no fill, and feeds no Risk, Governance or
  * Research decision. Its totals are NOT PAPER evidence and must never be promoted as such.
- * Persisted state is the totals and the last processed bar per market; an open hypothetical position is NOT persisted, so a
+ * Persisted state is the totals and the last processed minute per market; an open hypothetical position is NOT persisted, so a
  * restart drops it (the shadow is then flat and re-enters on the next bar the rule says BUY).
  */
 export interface BaselineShadowTotals {
@@ -30,7 +30,8 @@ export interface BaselineShadowTotals {
 export interface BaselineShadowPersisted {
   readonly schemaVersion: 1;
   readonly totals: BaselineShadowTotals;
-  readonly lastBarAt: Readonly<Record<string, number>>;
+  /** Last processed completed minute (floor(timestamp / 60 000)) per market. */
+  readonly lastBarMinute: Readonly<Record<string, number>>;
 }
 
 export interface PaperBaselineShadowOptions {
@@ -47,24 +48,29 @@ export function decodeBaselineShadow(value: unknown): BaselineShadowPersisted | 
   if (value == null || typeof value !== "object" || Array.isArray(value)) return undefined;
   const raw = value as Record<string, unknown>;
   const totals = raw.totals as Record<string, unknown> | null | undefined;
-  if (raw.schemaVersion !== 1 || totals == null || typeof totals !== "object" || raw.lastBarAt == null || typeof raw.lastBarAt !== "object" || Array.isArray(raw.lastBarAt)) return undefined;
+  if (raw.schemaVersion !== 1 || totals == null || typeof totals !== "object" || raw.lastBarMinute == null || typeof raw.lastBarMinute !== "object" || Array.isArray(raw.lastBarMinute)) return undefined;
   const keys = ["since", "trades", "wins", "grossGainBp", "grossLossBp", "feeBp"] as const;
   if (!keys.every((key) => nonNegativeInteger(totals[key])) || Number(totals.wins) > Number(totals.trades)) return undefined;
-  const lastBarAt: Record<string, number> = {};
-  for (const [market, at] of Object.entries(raw.lastBarAt as Record<string, unknown>)) {
-    if (!MARKET.test(market) || !nonNegativeInteger(at)) return undefined;
-    lastBarAt[market] = at;
+  // Relational consistency: only states the shadow itself can produce are restored.
+  const empty = Number(totals.trades) === 0;
+  if (empty && (Number(totals.wins) !== 0 || Number(totals.grossGainBp) !== 0 || Number(totals.grossLossBp) !== 0 || Number(totals.feeBp) !== 0)) return undefined;
+  const lastBarMinute: Record<string, number> = {};
+  for (const [market, minute] of Object.entries(raw.lastBarMinute as Record<string, unknown>)) {
+    if (!MARKET.test(market) || !nonNegativeInteger(minute)) return undefined;
+    lastBarMinute[market] = minute;
   }
+  const started = Object.keys(lastBarMinute).length > 0;
+  if ((Number(totals.since) === 0) === started) return undefined; // since is set exactly when a bar was processed
   return Object.freeze({
     schemaVersion: 1 as const,
     totals: Object.freeze({ since: Number(totals.since), trades: Number(totals.trades), wins: Number(totals.wins), grossGainBp: Number(totals.grossGainBp), grossLossBp: Number(totals.grossLossBp), feeBp: Number(totals.feeBp) }),
-    lastBarAt: Object.freeze(lastBarAt),
+    lastBarMinute: Object.freeze(lastBarMinute),
   });
 }
 
 export class PaperBaselineShadow {
   private totals: { since: number; trades: number; wins: number; grossGainBp: number; grossLossBp: number; feeBp: number };
-  private readonly lastBarAt = new Map<string, number>();
+  private readonly lastBarMinute = new Map<string, number>();
   private readonly entry = new Map<string, number>();
   private changed = false;
 
@@ -74,7 +80,7 @@ export class PaperBaselineShadow {
     this.totals = restored == null
       ? { since: 0, trades: 0, wins: 0, grossGainBp: 0, grossLossBp: 0, feeBp: 0 }
       : { ...restored.totals };
-    if (restored != null) for (const [market, at] of Object.entries(restored.lastBarAt)) this.lastBarAt.set(market, at);
+    if (restored != null) for (const [market, minute] of Object.entries(restored.lastBarMinute)) this.lastBarMinute.set(market, minute);
   }
 
   /** Feeds the completed minute closes the strategy just read. Idempotent per bar; never throws; never touches execution. */
@@ -83,13 +89,16 @@ export class PaperBaselineShadow {
       const key = market.trim().toUpperCase();
       if (!MARKET.test(key)) return;
       const valid = bars.filter((bar) => Number.isSafeInteger(bar[0]) && bar[0] > 0 && Number.isFinite(bar[1]) && bar[1] > 0);
-      let processed = this.lastBarAt.get(key) ?? 0;
+      // Bars are deduplicated by their completed-minute bucket, not by the closing tick's timestamp: a late ticker that revises the
+      // close of an already completed minute must not be evaluated as a new bar.
+      let processed = this.lastBarMinute.get(key) ?? -1;
       for (let index = 0; index < valid.length; index += 1) {
         const [at, close] = valid[index]!;
-        if (at <= processed) continue;
-        if (index > 0 && at <= valid[index - 1]![0]) continue; // bars must be strictly ascending
-        processed = at;
-        this.lastBarAt.set(key, at);
+        const minute = Math.floor(at / 60_000);
+        if (minute <= processed) continue;
+        if (index > 0 && minute <= Math.floor(valid[index - 1]![0] / 60_000)) continue; // minutes must be strictly ascending
+        processed = minute;
+        this.lastBarMinute.set(key, minute);
         this.changed = true;
         if (this.totals.since === 0) this.totals.since = Math.max(1, this.options.now());
         const decision = evaluatePaperCandidateStrategy(this.options.spec, [], at, key, valid.slice(0, index + 1));
@@ -106,9 +115,11 @@ export class PaperBaselineShadow {
   private settle(entry: number, exit: number): void {
     const fee = this.options.feeRate;
     const grossBp = Math.round((exit / entry - 1) * 10_000);
-    const netBp = Math.round(((exit * (1 - fee)) / (entry * (1 + fee)) - 1) * 10_000);
+    const netReturn = (exit * (1 - fee)) / (entry * (1 + fee)) - 1;
+    const netBp = Math.round(netReturn * 10_000);
     this.totals.trades += 1;
-    if (netBp > 0) this.totals.wins += 1;
+    // A win is any positive after-fee return, decided before rounding (a 0.3 bp winner must not be counted as a loss).
+    if (netReturn > 0) this.totals.wins += 1;
     if (grossBp > 0) this.totals.grossGainBp += grossBp; else this.totals.grossLossBp += -grossBp;
     this.totals.feeBp += Math.max(0, grossBp - netBp);
   }
@@ -121,7 +132,7 @@ export class PaperBaselineShadow {
   public takePersistable(): BaselineShadowPersisted | undefined {
     if (!this.changed) return undefined;
     this.changed = false;
-    return Object.freeze({ schemaVersion: 1 as const, totals: this.summary(), lastBarAt: Object.freeze(Object.fromEntries(this.lastBarAt)) });
+    return Object.freeze({ schemaVersion: 1 as const, totals: this.summary(), lastBarMinute: Object.freeze(Object.fromEntries(this.lastBarMinute)) });
   }
 
   /** Puts the change flag back when the caller could not write, so the next tick retries. */
