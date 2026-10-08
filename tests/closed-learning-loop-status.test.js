@@ -180,3 +180,34 @@ test("the durable evidence is visible even when the tick fails before a rollover
   assert.equal(s.evidence.cyclesRecorded, 4);
   assert.equal(s.lastCycleOutcome, "REJECTED");
 });
+
+// ---- the reason a tick was blocked must outlive the next tick ------------------------------------------------------
+test("a BLOCKED reason is kept after later ticks succeed, so a transient failure is still readable", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, 1000);
+  assert.equal(t.snapshot().lastBlockedReason, undefined, "nothing blocked yet");
+  t.observeRollover({ status: "BLOCKED", reason: "MISSING_BENCHMARK_EVIDENCE:detail text never leaves" }, 2000);
+  t.observeRollover({ status: "STALLED_PERIOD_REOPENED", reason: "continued:closed-learning-rollover:2:1" }, 2030);
+  const s = t.snapshot();
+  assert.equal(s.rollover, "STALLED_PERIOD_REOPENED", "the live step moved on");
+  assert.equal(s.lastBlockedReason, "MISSING_BENCHMARK_EVIDENCE", "the earlier block is still reported, as a code only");
+  assert.equal(s.lastBlockedAt, 2000);
+  assert.doesNotMatch(JSON.stringify(s), /detail text/);
+});
+
+test("a later block replaces the earlier one, an uncoded block is labelled, and an error tick is recorded", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeRollover({ status: "BLOCKED", reason: "free text without a code" }, 1000);
+  assert.equal(t.snapshot().lastBlockedReason, "BLOCKED_WITHOUT_CODE");
+  t.observeRollover({ status: "BLOCKED", reason: "CANDIDATE_BINDING_MIXED" }, 2000);
+  assert.equal(t.snapshot().lastBlockedReason, "CANDIDATE_BINDING_MIXED");
+  t.observeError(3000);
+  assert.equal(t.snapshot().lastBlockedReason, "TICK_ERROR");
+  assert.equal(t.snapshot().lastBlockedAt, 3000);
+});
+
+test("an error on the very first tick is recorded too", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeError(500);
+  assert.equal(t.snapshot().lastBlockedReason, "TICK_ERROR");
+});
