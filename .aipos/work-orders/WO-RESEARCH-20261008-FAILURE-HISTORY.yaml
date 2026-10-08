@@ -1,0 +1,40 @@
+id: WO-RESEARCH-20261008-FAILURE-HISTORY
+title: "Per-challenger failure history and repeated-failure counts for Research N+1 (record-only link)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-failure-history
+authority_impact: none
+owner_approval: "2026-10-08 in chat (option 'record-only link' chosen; scheduling and budgets deliberately NOT changed)"
+scope_note: "Read-only derivation from the durable Research evaluation ledger plus a display count. It changes no schedule, budget, threshold, promotion or trade."
+objective: "Let Research N+1 say which variant keeps failing for which bounded reason, so 'why is N+1 different from N' can be answered from evidence."
+scope:
+  include:
+    - "summarizeStrategyFailureHistory: per challenger strategyId@version, evaluations, failures, byReason, lastReason, trailing same-reason repeatStreak; deterministic in evaluation-time order (evaluationId breaks ties); never deletes a failed candidate."
+    - "countRepeatedFailures: REPEAT_<reason> = challengers whose latest 2+ evaluations in a row failed for the same reason."
+    - "Orchestrator display counts include REPEAT_* beside FAIL_*, recomputed from the ledger each tick; /health whitelist already accepts the key shape."
+  exclude:
+    - "Any change to experiment scheduling, daily budgets, which variants run, promotion, Risk or thresholds."
+limitations:
+  - "The research ledger is not yet READ BACK to alter what runs next: Research N+1 is informed, not steered. Adaptive scheduling (budget cut or skip) was offered and not chosen."
+  - "Counts are per bar length (the ledger filter the composition already applies). The detailed per-strategy history is a function over the ledger and is not yet published on /health."
+acceptance:
+  - "History is per challenger, order-independent, keeps failures after a later win, and the streak resets on a win."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test tests/research-failure-memory.test.js tests/research-experiment-orchestrator.test.js"
+evidence:
+  local_validation:
+    environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
+    commands:
+      - "npx tsc -p tsconfig.json -> clean"
+      - "node -r ./tests/register-dist.cjs --test tests/research-failure-memory.test.js tests/research-experiment-orchestrator.test.js -> 19 pass, 0 fail"
+  remaining: "Exact-head CI, independent Audit and Release; a deploy restarts the runtime once."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

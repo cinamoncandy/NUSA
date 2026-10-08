@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { classifyResearchFailure, countResearchFailures, RESEARCH_FAILURE_REASONS } = require("../dist/apps/cloud/src/researchFailureMemory.js");
+const { classifyResearchFailure, countResearchFailures, summarizeStrategyFailureHistory, countRepeatedFailures, RESEARCH_FAILURE_REASONS } = require("../dist/apps/cloud/src/researchFailureMemory.js");
 
 const evaluation = (metrics) => ({ strategyId: "s", strategyVersion: "1", authority: "ZERO_AUTHORITY", evaluatorVersion: "e", canonicalInputHash: "h", signal: "HOLD", metrics });
 const base = { netReturn: 0.01, costAdjustedReturn: 0.005, maximumDrawdown: 0.1, executionQuality: 0.9 };
@@ -54,4 +54,42 @@ test("classification is deterministic and always inside the bounded set", () => 
 
 test("the reason codes fit the /health count key pattern", () => {
   for (const reason of RESEARCH_FAILURE_REASONS) assert.match(`FAIL_${reason}`, /^[A-Z][A-Z0-9_]{1,47}$/);
+});
+
+const challengerEvidence = (id, version, at, result, metrics, evaluationId = `e${at}`) => ({
+  evaluationId, evaluationTimestamp: at, result, reason: "MULTI_METRIC_COMPARISON",
+  challenger: { ...evaluation(metrics), strategyId: id, strategyVersion: version }, champion: evaluation(base),
+});
+const drawdown = { ...base, maximumDrawdown: 0.5 };
+const edge = { ...base, netReturn: -0.01 };
+
+test("failure history is per challenger, ordered by evaluation time, and counts the trailing same-reason streak", () => {
+  const records = [
+    challengerEvidence("rsi", "1", 30, "CHAMPION_BETTER", drawdown),
+    challengerEvidence("sma", "1", 10, "CHAMPION_BETTER", edge),
+    challengerEvidence("rsi", "1", 10, "CHAMPION_BETTER", edge),
+    challengerEvidence("rsi", "1", 20, "CHAMPION_BETTER", drawdown),
+    challengerEvidence("sma", "1", 20, "CHALLENGER_BETTER", base),
+  ];
+  const history = summarizeStrategyFailureHistory(records);
+  assert.deepEqual(history.map((item) => item.strategyId), ["rsi", "sma"]);
+  const rsi = history[0], sma = history[1];
+  assert.deepEqual({ evaluations: rsi.evaluations, failures: rsi.failures, lastReason: rsi.lastReason, repeatStreak: rsi.repeatStreak, byReason: { ...rsi.byReason } }, { evaluations: 3, failures: 3, lastReason: "EXCESSIVE_DRAWDOWN", repeatStreak: 2, byReason: { NO_EDGE: 1, EXCESSIVE_DRAWDOWN: 2 } });
+  assert.deepEqual({ lastReason: sma.lastReason, repeatStreak: sma.repeatStreak, failures: sma.failures }, { lastReason: null, repeatStreak: 0, failures: 1 }, "a later win clears the streak but the earlier failure is kept");
+});
+
+test("the same records give the same history in any input order, and repeated failures are counted per bounded reason", () => {
+  const records = [
+    challengerEvidence("a", "1", 1, "CHAMPION_BETTER", drawdown, "x1"), challengerEvidence("a", "1", 1, "CHAMPION_BETTER", drawdown, "x2"),
+    challengerEvidence("b", "1", 1, "CHAMPION_BETTER", edge, "y1"), challengerEvidence("b", "1", 2, "CHAMPION_BETTER", edge, "y2"),
+    challengerEvidence("c", "1", 1, "CHAMPION_BETTER", edge, "z1"),
+  ];
+  assert.deepEqual(summarizeStrategyFailureHistory([...records].reverse()), summarizeStrategyFailureHistory(records));
+  assert.deepEqual({ ...countRepeatedFailures(summarizeStrategyFailureHistory(records)) }, { REPEAT_EXCESSIVE_DRAWDOWN: 1, REPEAT_NO_EDGE: 1 }, "c failed once, so it is not a repeat");
+  assert.deepEqual({ ...countRepeatedFailures(summarizeStrategyFailureHistory(records), 3) }, {});
+});
+
+test("records without a challenger are skipped and an empty ledger gives an empty history", () => {
+  assert.deepEqual([...summarizeStrategyFailureHistory([])], []);
+  assert.deepEqual([...summarizeStrategyFailureHistory([{ evaluationId: "n", evaluationTimestamp: 1, result: "CHAMPION_BETTER", reason: "MULTI_METRIC_COMPARISON", challenger: null, champion: null }])], []);
 });

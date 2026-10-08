@@ -52,3 +52,60 @@ export function countResearchFailures(records: readonly Pick<ResearchComparisonE
   }
   return Object.freeze(counts);
 }
+
+export interface StrategyFailureHistory {
+  readonly strategyId: string;
+  readonly strategyVersion: string;
+  readonly evaluations: number;
+  readonly failures: number;
+  readonly byReason: Readonly<Record<string, number>>;
+  /** The reason of the most recent failure, or null when the latest evaluation won. */
+  readonly lastReason: ResearchFailureReason | null;
+  /** How many of the most recent evaluations in a row failed for exactly `lastReason` (0 when the latest evaluation won). */
+  readonly repeatStreak: number;
+}
+
+type HistoryRecord = Pick<ResearchComparisonEvidence, "result" | "reason" | "champion" | "challenger" | "costEvidence" | "evaluationTimestamp" | "evaluationId">;
+
+/**
+ * Per-challenger failure history recomputed from the durable evaluation records, in evaluation-time order (evaluationId breaks ties,
+ * so the same records always give the same answer). A failed candidate is never deleted; this only lets Research N+1 say which
+ * variant keeps failing for which bounded reason. Report/display only: it changes no schedule, budget or threshold.
+ */
+export function summarizeStrategyFailureHistory(records: readonly HistoryRecord[]): readonly StrategyFailureHistory[] {
+  const ordered = [...records].sort((a, b) => a.evaluationTimestamp - b.evaluationTimestamp || (a.evaluationId < b.evaluationId ? -1 : a.evaluationId > b.evaluationId ? 1 : 0));
+  const byStrategy = new Map<string, { strategyId: string; strategyVersion: string; reasons: (ResearchFailureReason | null)[] }>();
+  for (const record of ordered) {
+    const challenger = record.challenger;
+    if (challenger == null || typeof challenger.strategyId !== "string" || typeof challenger.strategyVersion !== "string") continue;
+    const key = `${challenger.strategyId}@${challenger.strategyVersion}`;
+    const entry = byStrategy.get(key) ?? { strategyId: challenger.strategyId, strategyVersion: challenger.strategyVersion, reasons: [] };
+    entry.reasons.push(classifyResearchFailure(record));
+    byStrategy.set(key, entry);
+  }
+  return Object.freeze([...byStrategy.values()].map((entry) => {
+    const byReason: Record<string, number> = {};
+    for (const reason of entry.reasons) if (reason != null) byReason[reason] = (byReason[reason] ?? 0) + 1;
+    const last = entry.reasons[entry.reasons.length - 1] ?? null;
+    let repeatStreak = 0;
+    if (last != null) for (let index = entry.reasons.length - 1; index >= 0 && entry.reasons[index] === last; index -= 1) repeatStreak += 1;
+    return Object.freeze({
+      strategyId: entry.strategyId,
+      strategyVersion: entry.strategyVersion,
+      evaluations: entry.reasons.length,
+      failures: entry.reasons.filter((reason) => reason != null).length,
+      byReason: Object.freeze(byReason),
+      lastReason: last,
+      repeatStreak,
+    });
+  }).sort((a, b) => (a.strategyId < b.strategyId ? -1 : a.strategyId > b.strategyId ? 1 : a.strategyVersion < b.strategyVersion ? -1 : a.strategyVersion > b.strategyVersion ? 1 : 0)));
+}
+
+/** REPEAT_<reason> = how many challengers' latest `threshold`+ evaluations in a row failed for that same reason. Integers only, bounded keys. */
+export function countRepeatedFailures(history: readonly StrategyFailureHistory[], threshold = 2): Readonly<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const item of history) {
+    if (item.lastReason != null && item.repeatStreak >= threshold) counts[`REPEAT_${item.lastReason}`] = (counts[`REPEAT_${item.lastReason}`] ?? 0) + 1;
+  }
+  return Object.freeze(counts);
+}

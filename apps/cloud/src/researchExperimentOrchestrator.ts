@@ -3,7 +3,7 @@ import type { ResearchSessionRecord, ResearchStatusProjection } from "../../../p
 import type { ResearchComparisonEvidence, ResearchInputSnapshot } from "../../../packages/contracts/src/researchRuntime";
 import type { GeneratedStrategy } from "../../../packages/core/src/optimizer/aiStrategyEngine";
 import type { ResearchCandleSource } from "./backtestResearchEvaluator";
-import { countResearchFailures } from "./researchFailureMemory";
+import { countRepeatedFailures, countResearchFailures, summarizeStrategyFailureHistory } from "./researchFailureMemory";
 import { planResearchSession, researchSessionIdFor } from "./researchSessionPlanner";
 import { runResearchExperiment, type ExperimentOutcome, type ExperimentRunnerPorts, type ExperimentSpec } from "./researchExperimentRunner";
 import type { WalkForwardWindowConfig } from "./researchWalkForwardWindows";
@@ -179,7 +179,13 @@ export class ResearchExperimentOrchestrator {
     // Failure reasons are recomputed from the durable evaluation ledger (all-time for this bar length), never counted in memory,
     // so a restart or a crash between a ledger append and a count cannot lose or double count one. Display only; a read failure omits them.
     for (const key of Object.keys(counts)) if (key.startsWith("FAIL_")) delete counts[key];
-    try { for (const [key, value] of Object.entries(countResearchFailures(this.options.failureEvidence?.() ?? []))) if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value)) counts[key] = value; } catch { /* display only */ }
+    for (const key of Object.keys(counts)) if (key.startsWith("REPEAT_")) delete counts[key];
+    try {
+      const failureRecords = this.options.failureEvidence?.() ?? [];
+      // REPEAT_<reason>: how many challengers keep failing for the same bounded reason (Research N+1 bookkeeping; changes no schedule).
+      const merged = { ...countResearchFailures(failureRecords), ...countRepeatedFailures(summarizeStrategyFailureHistory(failureRecords)) };
+      for (const [key, value] of Object.entries(merged)) if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value)) counts[key] = value;
+    } catch { /* display only */ }
     this.tickSummary = Object.freeze({
       lastTickAt: this.options.now(),
       lastStatus: report.status,
