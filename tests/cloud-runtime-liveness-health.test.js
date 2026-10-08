@@ -312,6 +312,23 @@ test("/health publishes the loss-period evidence only as one coherent tuple, and
   }
 });
 
+test("/health publishes the durable cycle counts as integers inside the loop evidence, and drops anything malformed", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY", lastCycleOutcome: "REJECTED",
+    evidence: { cyclesRecorded: 3, lastCycleRecordedAt: 1_791_419_000_000, cycleId: "closed-learning:" + "a".repeat(64), cycleEvidenceFingerprint: "b".repeat(64) } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.closedLearningLoop.evidence.cyclesRecorded, 3);
+    assert.equal(body.runtime.closedLearningLoop.evidence.lastCycleRecordedAt, 1_791_419_000_000);
+    assert.equal(body.runtime.closedLearningLoop.lastCycleOutcome, "REJECTED");
+  }, 42331);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { cyclesRecorded: -1, lastCycleRecordedAt: "x", cycleId: "closed-learning:" + "a".repeat(64) } } }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.equal(evidence.cyclesRecorded, undefined);
+    assert.equal(evidence.lastCycleRecordedAt, undefined);
+    assert.equal(evidence.cycleId, "closed-learning:" + "a".repeat(64));
+  }, 42332);
+});
+
 test("/health publishes loss attribution only as fixed family codes with two integers each", async () => {
   const good = { evaluatedAt: 1_791_284_000_000, byFamily: { SMA_CROSSOVER: { completedSells: 3, losingSells: 3 }, UNATTRIBUTED: { completedSells: 1, losingSells: 0 } } };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossAttribution: good }) }, async (handle) => {

@@ -2,6 +2,7 @@ import type { ClosedLearningInitialPaperBootstrapResult } from "./closedLearning
 import type { ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
+import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -31,6 +32,8 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
   realizedPeriods: number; realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
   cycleId: string; cycleEvidenceId: string; cycleEvidenceFingerprint: string; decisionId: string; decisionReference: string; decisionCandidateId: string; deploymentId: string;
+  /** Durable (survives restarts): how many cycles the ledger holds, and when the latest was recorded. */
+  cyclesRecorded: number; lastCycleRecordedAt: number;
 }>>;
 
 const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
@@ -45,6 +48,11 @@ export class ClosedLearningLoopStatusTracker {
   private bootstrap = "NOT_RUN";
   private periods: ClosedLearningEvidenceCorrelation = {};
   private cycle: ClosedLearningEvidenceCorrelation = {};
+  private durable: { cyclesRecorded: number; lastCycleRecordedAt?: number } | null = null;
+  private durableOutcome: string | undefined;
+  /** The outcome of a cycle evaluated by THIS process (wins over the durable copy). */
+  private processCycleOutcome: string | undefined;
+  private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
 
   /** Reads the identities of the current open period and the latest realized period. */
   public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
@@ -69,10 +77,52 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  /**
+   * Seeds the cycle identities from the durable ledger so a restart does not erase the evidence of the last lap. The counters
+   * (cyclesEvaluated, lastCycle*) stay per process; what a cycle in this process observed always wins over the durable copy.
+   */
+  public observeDurableCycles(summary: { readonly cyclesRecorded: number; readonly latest?: ClosedLearningCycleRecord }): void {
+    this.durable = Object.freeze({ cyclesRecorded: summary.cyclesRecorded, ...(summary.latest == null ? {} : { lastCycleRecordedAt: summary.latest.recordedAt }) });
+    const latest = summary.latest;
+    this.durableOutcome = code(latest?.decision?.outcome);
+    this.durableCycleIdentity = latest == null ? {} : Object.freeze(Object.fromEntries(Object.entries({
+      cycleId: latest.cycleId,
+      cycleEvidenceId: latest.evidenceId,
+      cycleEvidenceFingerprint: latest.evidenceFingerprintSha256,
+      decisionId: latest.decision?.decisionId,
+      decisionReference: latest.decision?.decisionReference,
+      decisionCandidateId: latest.decision?.candidateId,
+      deploymentId: latest.paperDeployment?.deploymentId,
+    }).filter(([, value]) => typeof value === "string" && value.length > 0)));
+    this.publish();
+  }
+
+  /** The durable ledger could not be read: withdraw everything published from it, so /health never presents stale durable evidence as current. */
+  public clearDurableCycles(): void {
+    this.durable = null;
+    this.durableOutcome = undefined;
+    this.durableCycleIdentity = {};
+    this.publish();
+  }
+
   private publish(): void {
     if (this.status == null) return;
-    const evidence = Object.freeze({ ...this.periods, ...this.cycle });
-    this.status = Object.freeze({ ...this.status, ...(Object.keys(evidence).length === 0 ? {} : { evidence }) });
+    const evidence = Object.freeze({
+      ...this.durableCycleIdentity,
+      ...(this.durable == null ? {} : { cyclesRecorded: this.durable.cyclesRecorded, ...(this.durable.lastCycleRecordedAt === undefined || !Number.isSafeInteger(this.durable.lastCycleRecordedAt) ? {} : { lastCycleRecordedAt: this.durable.lastCycleRecordedAt }) }),
+      ...this.periods,
+      ...this.cycle,
+    });
+    // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
+    // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
+    const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, ...rest } = this.status;
+    const processOutcome = this.processCycleOutcome;
+    const outcome = processOutcome ?? this.durableOutcome;
+    this.status = Object.freeze({
+      ...rest,
+      ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),
+      ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
+    }) as ClosedLearningLoopStatus;
   }
 
   public observeBootstrap(result: Pick<ClosedLearningInitialPaperBootstrapResult, "status">): void {
@@ -84,6 +134,7 @@ export class ClosedLearningLoopStatusTracker {
     const evaluated = result.status === "CLOSED_AND_EVALUATED";
     const cycleStatus = code(result.cycle?.status);
     const cycleOutcome = code(result.cycle?.record?.decision?.outcome);
+    if (cycleOutcome !== undefined) this.processCycleOutcome = cycleOutcome;
     const deployed = evaluated && result.cycle?.record?.paperDeployment != null;
     const reason = code(result.reason);
     this.status = Object.freeze({
@@ -94,7 +145,6 @@ export class ClosedLearningLoopStatusTracker {
       ...(reason === undefined ? {} : { rolloverReason: reason }),
       cyclesEvaluated: (previous?.cyclesEvaluated ?? 0) + (evaluated ? 1 : 0),
       ...(cycleStatus === undefined ? (previous?.lastCycleStatus === undefined ? {} : { lastCycleStatus: previous.lastCycleStatus }) : { lastCycleStatus: cycleStatus }),
-      ...(cycleOutcome === undefined ? (previous?.lastCycleOutcome === undefined ? {} : { lastCycleOutcome: previous.lastCycleOutcome }) : { lastCycleOutcome: cycleOutcome }),
       deployments: (previous?.deployments ?? 0) + (deployed ? 1 : 0),
     });
     const record = result.cycle?.record;
@@ -117,6 +167,7 @@ export class ClosedLearningLoopStatusTracker {
   public observeError(now: number): void {
     const previous = this.status;
     this.status = Object.freeze({ ...(previous ?? { cyclesEvaluated: 0, deployments: 0 }), lastTickAt: now, ticks: (previous?.ticks ?? 0) + 1, bootstrap: this.bootstrap, rollover: "ERROR" }) as ClosedLearningLoopStatus;
+    this.publish();
   }
 
   public snapshot(): ClosedLearningLoopStatus | null {

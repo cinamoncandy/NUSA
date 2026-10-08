@@ -418,6 +418,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         openPeriodStartAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, openObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         realizedPeriodEndAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        cyclesRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0, lastCycleRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
       };
       const evidence: Record<string, string | number> = {};
       for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }
