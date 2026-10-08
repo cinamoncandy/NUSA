@@ -9,6 +9,7 @@ import { PaperMinuteBarSource } from "./paperMinuteBars";
 import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
+import { readClosedLearningBlocked, recordClosedLearningBlocked } from "./closedLearningBlockedRecord";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
 import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
@@ -106,6 +107,15 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
   const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line) });
   const loopStatus = new ClosedLearningLoopStatusTracker();
+  // The last BLOCKED/ERROR reason survives a restart (display only; a reason seen by this process always wins).
+  loopStatus.seedLastBlocked(readClosedLearningBlocked(config.cloudStateDbPath));
+  let persistedBlockedAt = loopStatus.lastBlockedRecord()?.at;
+  const persistLastBlocked = (): void => {
+    const current = loopStatus.lastBlockedRecord();
+    if (current == null || current.at === persistedBlockedAt) return;
+    // Advance the marker only after a successful write, so a transient failure is retried on a later tick.
+    if (recordClosedLearningBlocked(config.cloudStateDbPath, current)) persistedBlockedAt = current.at;
+  };
   const baseHandle = startCloudRuntime(
     env,
     undefined,
@@ -310,9 +320,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         ensureOwnerBaselinePeriod();
       }
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
+      persistLastBlocked();
       refreshDurableCycles();
       try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
-    })().catch((error: unknown) => { loopStatus.observeError(Date.now()); throw error; });
+    })().catch((error: unknown) => { loopStatus.observeError(Date.now()); persistLastBlocked(); throw error; });
     closedLearningTick = task;
     task.then(
       () => { if (closedLearningTick === task) closedLearningTick = undefined; },

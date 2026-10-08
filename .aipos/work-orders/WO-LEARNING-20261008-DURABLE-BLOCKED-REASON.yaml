@@ -1,0 +1,43 @@
+id: WO-LEARNING-20261008-DURABLE-BLOCKED-REASON
+title: "Keep the last closed-learning BLOCKED/ERROR reason across restarts"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/durable-cycle-failure
+authority_impact: none
+owner_approval: "2026-10-08 in chat ('해' after the Strategy Research master order)"
+scope_note: "Display/forensics only. A bare-code record beside the Cloud state (same trust level as runtime-last-failure.json), best-effort, no decision input. Persistence is a single small file, not the accounting ledger."
+objective: "A learning cycle failed after a period closed (cyclesRecorded=0), and the reason was lost because lastBlockedReason is process memory and the single-slot runtime-failure record was overwritten by a later startup failure. Make the reason readable after a restart."
+first_broken_transition: "period closed -> learning cycle recorded (cause unknown because the failure reason did not survive)"
+scope:
+  include:
+    - "apps/cloud/src/closedLearningBlockedRecord.ts: atomic best-effort record/read of {reason code, at} in closed-learning-last-blocked.json."
+    - "Tracker: seedLastBlocked (fills the gap only; a reason seen by this process wins; the seed keeps its own older timestamp) and lastBlockedRecord."
+    - "Runtime: seed at start, persist after a blocked rollover and after an error tick, only when the reason's timestamp changed."
+  exclude:
+    - "Any decision, Risk, ledger, threshold or period change; the single-slot runtime failure record; the root cause of the unrecorded cycle (still unknown)."
+limitations:
+  - "This does not fix the unrecorded cycle; it makes the next failure diagnosable. The seeded value is the last reason ever recorded, with its own timestamp, so readers can tell it predates this process."
+  - "Only bare codes are stored (no free text). A thrown tick still stops the scheduler fail-closed as before."
+acceptance:
+  - "Record round-trips; invalid codes, negative times, corrupt or foreign files are ignored; :memory: and relative paths are ignored."
+  - "A restart seeds /health lastBlockedReason/At; a newer reason from this process replaces the seed."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningBlockedRecord.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js dist/apps/cloud/src/runtimeFailureRecord.test.js"
+evidence:
+  local_validation:
+    environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
+    commands:
+      - "npx tsc -p tsconfig.json -> clean"
+      - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningBlockedRecord.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js dist/apps/cloud/src/runtimeFailureRecord.test.js -> 46 pass, 0 fail (before the write-success fix); after it the same files without runtimeFailureRecord: 43 pass, 0 fail"
+      - "node -r ./tests/register-dist.cjs --test tests/closed-learning-governance-wiring.test.js tests/closed-learning-http-event-loop-regression.test.js tests/closed-learning-loop-status.test.js tests/integration-paper-lifecycle-production-root.test.js tests/paper-minute-bars.test.js tests/repository-truth.test.js tests/start-cloud-runtime-supervision.test.js -> 36 pass, 0 fail"
+  remaining: "Exact-head CI, independent Audit and Release; deploy once (a restart), then the reason persists for later failures."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
