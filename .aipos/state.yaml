@@ -2902,3 +2902,9 @@ current_learning_durable_blocked_reason:
   branch: claude/durable-cycle-failure
   authority_impact: none
   finding: "The last closed-learning BLOCKED/ERROR reason is now also written as a bare code beside the Cloud state and seeds /health after a restart; the unrecorded cycle's own cause is still unknown and this makes the next failure readable"
+current_research_failure_history:
+  work_order: WO-RESEARCH-20261008-FAILURE-HISTORY
+  status: READY_FOR_REVIEW
+  branch: claude/research-failure-history
+  authority_impact: none
+  finding: "Failed Research challengers now have a deterministic per-variant failure history and a REPEAT_<reason> display count recomputed from the durable ledger; this informs Research N+1 but does not steer it (adaptive scheduling was offered and declined by the owner)"
