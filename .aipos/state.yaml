@@ -2908,3 +2908,9 @@ current_research_failure_history:
   branch: claude/research-failure-history
   authority_impact: none
   finding: "Failed Research challengers now have a deterministic per-variant failure history and a REPEAT_<reason> display count recomputed from the durable ledger; this informs Research N+1 but does not steer it (adaptive scheduling was offered and declined by the owner)"
+current_research_sma_cost_note:
+  work_order: WO-RESEARCH-20261008-SMA-COST-NOTE
+  status: READY_FOR_REVIEW
+  branch: claude/research-note-sma-cost-screen
+  authority_impact: none
+  finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
