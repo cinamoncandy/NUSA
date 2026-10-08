@@ -28,7 +28,7 @@ import { FileQualifiedPaperChallengerArtifactStore } from "./qualifiedPaperChall
 import { ClosedLearningLineageReplayInputSource } from "./closedLearningLineageReplayInputSource";
 import { ClosedLearningProductionResearchAdapter } from "./closedLearningProductionResearchAdapter";
 import { ClosedLearningEvolutionLedgerRepository } from "./closedLearningEvolutionLedgerRepository";
-import { ClosedLearningLoopCoordinator, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
+import { ClosedLearningLoopCoordinator, closedLearningCycleId, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { PaperChallengerDeploymentRuntime } from "./paperChallengerDeploymentRuntime";
 import { ClosedLearningPendingPeriodReader } from "./closedLearningPendingPeriodReader";
 import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceIdentitySource";
@@ -220,6 +220,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       return buildOwnerBaselinePaperPeriodInput({ market, periodIndex, periodStartAt, sourceCommitSha });
     },
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
+    isCycleRecorded: (identity) => cycleRepository.get(closedLearningCycleId(identity)) != null,
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
   });
