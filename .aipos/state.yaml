@@ -2943,10 +2943,10 @@ current_autopilot_2595_bounded_remediation:
   issue: 2595
   pull_request: 2596
   branch: autopilot/p0-2595-bounded-remediation
-  implementation_head: 1903dccae6c1e4e38f60f1db89fbc6c954f14909
-  status: IMPLEMENTED_PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
+  implementation_head: 38a35c69fda862a5ecbd6312b18fba1ae256f6bc
+  status: PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
   authority_impact: bounded-coding-runner-failure-classification-and-http-evidence-only
   first_broken_transition: "verified GitHub lookup or sandbox/provider failure -> durable bounded remediation decision"
-  validation: "Focused regression tests were added for lookup HTTP status propagation, allowlisted sandbox suffix normalization, and configured-engine 429 fail-closed capacity classification. Exact-head CI after this AIPOS handoff is pending."
-  remaining: "Exact-head CI; fresh independent review; resolve only verified-fixed review threads; then governed release/merge. Control-plane wiring, durable completion receipt, and real canary remain follow-up."
+  validation: "Focused regressions cover lookup status propagation through /coding/execute, /coding/propose, and /coding/publish; allowlisted sandbox suffix normalization; and configured-engine 429 capacity handling. Exact-head CI for the AIPOS handoff update is pending."
+  remaining: "Run exact-head CI and obtain independent review of the current head; resolve only findings verified fixed on that head; then use governed Release/merge. Control-plane wiring, durable completion receipt, and real canary remain follow-up."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
