@@ -3,6 +3,7 @@ import type { ClosedLearningRolloverResult } from "./closedLearningRolloverSched
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator";
+import type { ClosedLearningCycleFailureReceipt } from "./closedLearningEvolutionLedgerRepository";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -40,6 +41,13 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   cycleId: string; cycleEvidenceId: string; cycleEvidenceFingerprint: string; decisionId: string; decisionReference: string; decisionCandidateId: string; deploymentId: string;
   /** Durable (survives restarts): how many cycles the ledger holds, and when the latest was recorded. */
   cyclesRecorded: number; lastCycleRecordedAt: number;
+  failuresRecorded: number; latestFailureId: string; latestFailurePeriodId: string; latestFailureEvidenceId: string; latestFailureEvidenceFingerprint: string;
+  latestFailureSourceCommitSha: string; latestFailureRuntimeSourceCommitSha: string; latestFailureStage: string; latestFailureCode: string; latestFailureRecordedAt: number;
+  /**
+   * Baseline SHADOW totals (hypothetical round trips of the baseline rule, whether or not Risk allowed a real order). Non-negative
+   * integers in basis points and counts only; NOT PAPER evidence and never a promotion input (see paperBaselineShadow.ts).
+   */
+  shadowSince: number; shadowTrades: number; shadowWins: number; shadowGrossGainBp: number; shadowGrossLossBp: number; shadowFeeBp: number;
 }>>;
 
 const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
@@ -60,6 +68,8 @@ export class ClosedLearningLoopStatusTracker {
   private processCycleOutcome: string | undefined;
   private lastBlocked: { reason: string; at: number } | undefined;
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
+  private durableFailure: ClosedLearningEvidenceCorrelation = {};
+  private shadow: ClosedLearningEvidenceCorrelation = {};
 
   /** Reads the identities of the current open period and the latest realized period. */
   public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
@@ -104,6 +114,13 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  /** Display-only baseline shadow totals; a malformed value withdraws the shadow keys. */
+  public observeShadow(totals: { readonly since: number; readonly trades: number; readonly wins: number; readonly grossGainBp: number; readonly grossLossBp: number; readonly feeBp: number } | undefined): void {
+    const ok = totals != null && [totals.since, totals.trades, totals.wins, totals.grossGainBp, totals.grossLossBp, totals.feeBp].every((value) => Number.isSafeInteger(value) && value >= 0) && totals.wins <= totals.trades;
+    this.shadow = !ok || totals == null || totals.since === 0 ? {} : Object.freeze({ shadowSince: totals.since, shadowTrades: totals.trades, shadowWins: totals.wins, shadowGrossGainBp: totals.grossGainBp, shadowGrossLossBp: totals.grossLossBp, shadowFeeBp: totals.feeBp });
+    this.publish();
+  }
+
   /** The durable ledger could not be read: withdraw everything published from it, so /health never presents stale durable evidence as current. */
   public clearDurableCycles(): void {
     this.durable = null;
@@ -112,13 +129,28 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  public observeDurableFailures(summary: { readonly failuresRecorded: number; readonly latest?: ClosedLearningCycleFailureReceipt }): void {
+    const latest = summary.latest;
+    this.durableFailure = Object.freeze({ failuresRecorded: summary.failuresRecorded, ...(latest == null ? {} : {
+      latestFailureId: latest.failureId, latestFailurePeriodId: latest.closedPeriodId, latestFailureEvidenceId: latest.evidenceId,
+      latestFailureEvidenceFingerprint: latest.evidenceFingerprintSha256, latestFailureSourceCommitSha: latest.sourceCommitSha,
+      latestFailureRuntimeSourceCommitSha: latest.runtimeSourceCommitSha, latestFailureStage: latest.stage,
+      latestFailureCode: latest.code, latestFailureRecordedAt: latest.recordedAt,
+    }) });
+    this.publish();
+  }
+
+  public clearDurableFailures(): void { this.durableFailure = {}; this.publish(); }
+
   private publish(): void {
     if (this.status == null) return;
     const evidence = Object.freeze({
       ...this.durableCycleIdentity,
+      ...this.durableFailure,
       ...(this.durable == null ? {} : { cyclesRecorded: this.durable.cyclesRecorded, ...(this.durable.lastCycleRecordedAt === undefined || !Number.isSafeInteger(this.durable.lastCycleRecordedAt) ? {} : { lastCycleRecordedAt: this.durable.lastCycleRecordedAt }) }),
       ...this.periods,
       ...this.cycle,
+      ...this.shadow,
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.

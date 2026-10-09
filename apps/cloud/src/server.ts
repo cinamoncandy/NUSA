@@ -418,10 +418,19 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         decisionCandidateId: (v) => typeof v === "string" && ID.test(v), deploymentId: (v) => typeof v === "string" && ID.test(v),
         realizedOutcomeFingerprint: (v) => typeof v === "string" && HEX.test(v), realizedCostEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
         cycleEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        latestFailureId: (v) => typeof v === "string" && ID.test(v), latestFailurePeriodId: (v) => typeof v === "string" && ID.test(v),
+        latestFailureEvidenceId: (v) => typeof v === "string" && ID.test(v), latestFailureEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        latestFailureSourceCommitSha: (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v), latestFailureRuntimeSourceCommitSha: (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v),
+        latestFailureStage: (v) => typeof v === "string" && /^(CYCLE|FINALIZE)$/.test(v), latestFailureCode: (v) => typeof v === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(v),
+        latestFailureRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, failuresRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         openPeriodStartAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, openObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         realizedPeriodEndAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         cyclesRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0, lastCycleRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        // Baseline shadow totals: counts and basis points as non-negative integers; no amount or price.
+        shadowSince: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        shadowWins: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowGrossGainBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        shadowGrossLossBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowFeeBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
       };
       const evidence: Record<string, string | number> = {};
       for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }

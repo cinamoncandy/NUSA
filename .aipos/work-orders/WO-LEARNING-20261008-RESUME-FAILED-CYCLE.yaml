@@ -1,0 +1,48 @@
+id: WO-LEARNING-20261008-RESUME-FAILED-CYCLE
+title: "Resume a closed period's learning cycle when it threw after the durable close"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/cycle-failure-reproduction
+authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
+owner_approval: "2026-10-08 in chat ('다 해' on the learning-capability list, item 3: reproduce why a closed period records no cycle)"
+scope_note: "Changes the rollover scheduler's control flow only. No order, Risk, threshold, capital or PAPER ledger change. The cycle that runs is the existing replay-safe coordinator cycle on the existing evidence identity builder; nothing is synthesized."
+objective: "Production shows realized periods but cyclesRecorded=0. First broken transition: a period's close is durable, then the cycle can throw; the next tick only reopened a continuation (reopenStalledContinuation), so that period's cycle was never run again and its learning was lost for good."
+first_broken_transition: "period closed (durable) -> cycle throws -> BLOCKED -> next tick reopens a continuation without ever retrying the cycle"
+evidence_of_cause:
+  - "Code reading plus a deterministic reproduction: with the cycle failing once after the close, the previous scheduler returned STALLED_PERIOD_REOPENED and the cycle ran exactly once; with this change the next tick resumes it and records it."
+  - "The ORIGINAL production failure reason was lost (process memory, later overwritten), so it is NOT proven that this is what happened to the two existing realized periods. It is a confirmed design hole that matches the symptom."
+scope:
+  include:
+    - "closedLearningRolloverScheduler.ts: resumeUnrecordedCycle runs before reopenStalledContinuation when no period is open, the latest realized period has no recorded cycle (new optional port isCycleRecorded) and the canonical account is past that period's end; it runs the cycle and finalizes exactly like the original run (opens the successor per the outcome). Bounded by MAX_CYCLE_RESUME_ATTEMPTS = 5 ticks per period (in memory); afterwards PAPER continues as before."
+    - "closedLearningProductionRuntime.ts: isCycleRecorded reads the durable cycle ledger by the coordinator's own cycle id."
+  exclude:
+    - "Cycles of periods that are already realized with a successor open (history is not replayed, because a late qualified decision could deploy a challenger into a period that is already running); any Risk, order, ledger, threshold change."
+limitations:
+  - "Resumes only a gap THIS process created: it remembers the period it closed whose cycle (or finalize) did not finish. History, an older period whose successor was later retired, and any gap after a restart are never resumed (a late qualified decision could otherwise deploy from stale evidence)."
+  - "A recorded cycle counts as complete unless it is a QUALIFIED_FOR_LEAGUE decision without its PAPER deployment receipt; that record is run again because the coordinator resumes exactly it."
+  - "The streamed-market guard of the stalled-continuation path applies: a dead market gets neither a successor nor a deployment from a resumed cycle."
+  - "Does not recover the two periods that already closed without a cycle; it prevents the next loss of this kind."
+  - "Retries only in the stalled state (no open period). The attempt counter is in memory, so a restart allows another bounded round."
+  - "If a persistently failing cycle exhausts the retries, that period's cycle is still lost; the blocked reason is now readable after a restart (see the durable blocked-reason record)."
+acceptance:
+  - "Cycle fails once after the close: next tick resumes it, records it, opens exactly one successor, and a later tick does not run it again."
+  - "Waits for the canonical boundary; bounded retries then PAPER continues; an already recorded cycle is not run; without isCycleRecorded the previous behaviour is unchanged."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js tests/closed-learning-governance-wiring.test.js tests/closed-learning-http-event-loop-regression.test.js tests/closed-learning-loop-status.test.js tests/integration-paper-lifecycle-production-root.test.js tests/paper-minute-bars.test.js tests/repository-truth.test.js tests/start-cloud-runtime-supervision.test.js"
+evidence:
+  local_validation:
+    environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
+    commands:
+      - "npx tsc -p tsconfig.json -> clean"
+      - "the scheduler test file (35 tests, 7 new) plus the cycle-complete predicate test and the seven closed-learning wiring tests above -> pass, 0 fail (exact counts in the PR body)"
+  remaining: "Exact-head CI, independent Audit and Release; a deploy restarts the runtime once."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

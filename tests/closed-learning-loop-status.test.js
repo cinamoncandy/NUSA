@@ -183,6 +183,49 @@ test("the durable evidence is visible even when the tick fails before a rollover
   assert.equal(s.lastCycleOutcome, "REJECTED");
 });
 
+test("cycle failure receipts survive restart, deduplicate replay, and remain beside a later successful cycle", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db);
+    const repo = new ClosedLearningEvolutionLedgerRepository(ledger, () => 7_000);
+    const input = { closedPeriodId: "period-7", evidenceId: "closed-learning-paper:e7", evidenceFingerprintSha256: HEX("e"), sourceCommitSha: "a".repeat(40), runtimeSourceCommitSha: "b".repeat(40), stage: "CYCLE", code: "RESEARCH_WORKER_FAILED" };
+    const first = repo.appendFailure(input);
+    assert.equal(repo.appendFailure(input).failureId, first.failureId);
+    assert.equal(repo.failureSummary().failuresRecorded, 1, "same deterministic failure is appended once");
+    repo.append(cycleRecord("7", "REJECTED", 8_000));
+    const restarted = new ClosedLearningEvolutionLedgerRepository(ledger).failureSummary();
+    assert.equal(restarted.failuresRecorded, 1, "success does not rewrite failure history");
+    const t = new ClosedLearningLoopStatusTracker();
+    t.observeDurableFailures(restarted);
+    t.observeDurableCycles(repo.summary());
+    t.observeRollover({ status: "WAITING_FOR_CANONICAL_BOUNDARY" }, 9_000);
+    assert.equal(t.snapshot().evidence.latestFailurePeriodId, "period-7");
+    assert.equal(t.snapshot().evidence.latestFailureCode, "RESEARCH_WORKER_FAILED");
+    assert.equal(t.snapshot().evidence.cyclesRecorded, 1, "latest success is exposed separately");
+    assert.doesNotMatch(JSON.stringify(t.snapshot()), /price|balance|exception/i);
+  } finally { db.close(); }
+});
+
+test("malformed durable cycle failure evidence fails closed", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db);
+    ledger.append({ opportunityId: "closed-learning-failure:" + HEX("f"), problem: "x", evidenceReferences: ["closed-learning-evidence:e"], hypothesis: "{}", changeReference: "a".repeat(40), validationStatus: "CYCLE_FAILURE", outcome: "FAILED", failureReason: "FAILED", rollbackReference: null, reusable: true, recordedAt: new Date(1_000).toISOString() });
+    assert.throws(() => new ClosedLearningEvolutionLedgerRepository(ledger).failureSummary(), /malformed|invalid/);
+  } finally { db.close(); }
+});
+
+test("cycle failure receipts reject unbounded or non-canonical identities", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const repo = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db));
+    const input = { closedPeriodId: "period-7", evidenceId: "closed-learning-paper:e7", evidenceFingerprintSha256: HEX("e"), sourceCommitSha: "a".repeat(40), runtimeSourceCommitSha: "b".repeat(40), stage: "CYCLE", code: "RESEARCH_WORKER_FAILED" };
+    assert.throws(() => repo.appendFailure({ ...input, closedPeriodId: "p".repeat(513) }), /input is invalid/);
+    assert.throws(() => repo.appendFailure({ ...input, evidenceId: " closed-learning-paper:e7" }), /input is invalid/);
+    assert.equal(repo.failureSummary().failuresRecorded, 0, "rejected identities never reach the durable ledger");
+  } finally { db.close(); }
+});
+
 // ---- the reason a tick was blocked must outlive the next tick ------------------------------------------------------
 test("a BLOCKED reason is kept after later ticks succeed, so a transient failure is still readable", () => {
   const t = new ClosedLearningLoopStatusTracker();
@@ -212,4 +255,21 @@ test("an error on the very first tick is recorded too", () => {
   const t = new ClosedLearningLoopStatusTracker();
   t.observeError(500);
   assert.equal(t.snapshot().lastBlockedReason, "TICK_ERROR");
+});
+
+test("shadow totals appear in the evidence as integers, are withdrawn when malformed or not started, and the runtime wires them", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, 1);
+  t.observeShadow({ since: 5, trades: 3, wins: 1, grossGainBp: 40, grossLossBp: 90, feeBp: 30 });
+  assert.deepEqual({ ...t.snapshot().evidence }, { shadowSince: 5, shadowTrades: 3, shadowWins: 1, shadowGrossGainBp: 40, shadowGrossLossBp: 90, shadowFeeBp: 30 });
+  t.observeShadow({ since: 5, trades: 1, wins: 2, grossGainBp: 0, grossLossBp: 0, feeBp: 0 });
+  assert.equal(t.snapshot().evidence, undefined, "wins above trades is malformed and withdrawn");
+  t.observeShadow({ since: 0, trades: 0, wins: 0, grossGainBp: 0, grossLossBp: 0, feeBp: 0 });
+  assert.equal(t.snapshot().evidence, undefined, "a shadow that has not started publishes nothing");
+  t.observeShadow(undefined);
+  assert.equal(t.snapshot().evidence, undefined);
+  const src = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
+  assert.match(src, /baselineShadow\?\.observe\(market, bars\)/, "the shadow reads the same completed minute bars the strategy reads");
+  assert.match(src, /loopStatus\.observeShadow\(baselineShadow\.summary\(\)\)/);
+  assert.match(src, /writeBaselineShadowRecord\(config\.cloudStateDbPath, persistable\)\) baselineShadow\.markUnpersisted\(\)/, "a failed write is retried on a later tick");
 });

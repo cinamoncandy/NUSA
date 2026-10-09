@@ -314,10 +314,12 @@ test("/health publishes the loss-period evidence only as one coherent tuple, and
 
 test("/health publishes the durable cycle counts as integers inside the loop evidence, and drops anything malformed", async () => {
   const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY", lastCycleOutcome: "REJECTED",
-    evidence: { cyclesRecorded: 3, lastCycleRecordedAt: 1_791_419_000_000, cycleId: "closed-learning:" + "a".repeat(64), cycleEvidenceFingerprint: "b".repeat(64) } };
+    evidence: { cyclesRecorded: 3, lastCycleRecordedAt: 1_791_419_000_000, cycleId: "closed-learning:" + "a".repeat(64), cycleEvidenceFingerprint: "b".repeat(64), failuresRecorded: 1, latestFailureId: "closed-learning-failure:" + "c".repeat(64), latestFailurePeriodId: "period-1", latestFailureEvidenceId: "closed-learning-paper:e", latestFailureEvidenceFingerprint: "d".repeat(64), latestFailureSourceCommitSha: "e".repeat(40), latestFailureRuntimeSourceCommitSha: "f".repeat(40), latestFailureStage: "CYCLE", latestFailureCode: "RESEARCH_WORKER_FAILED", latestFailureRecordedAt: 1_791_419_000_001 } };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
     const body = JSON.parse((await request(handle.port, "/health")).body);
     assert.equal(body.runtime.closedLearningLoop.evidence.cyclesRecorded, 3);
+    assert.equal(body.runtime.closedLearningLoop.evidence.latestFailureCode, "RESEARCH_WORKER_FAILED");
+    assert.equal(body.runtime.closedLearningLoop.evidence.failuresRecorded, 1);
     assert.equal(body.runtime.closedLearningLoop.evidence.lastCycleRecordedAt, 1_791_419_000_000);
     assert.equal(body.runtime.closedLearningLoop.lastCycleOutcome, "REJECTED");
   }, 42331);
@@ -452,4 +454,21 @@ test("the PAPER ledger identity publishes only a 64-hex fingerprint and non-nega
       assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.paperLedger, undefined);
     }, 41878);
   }
+});
+
+test("/health publishes the baseline shadow totals as non-negative integers only, and drops malformed ones", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY",
+    evidence: { shadowSince: 1_791_439_000_000, shadowTrades: 12, shadowWins: 2, shadowGrossGainBp: 300, shadowGrossLossBp: 800, shadowFeeBp: 120, shadowNetKrw: 9_999 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.deepEqual({ t: evidence.shadowTrades, w: evidence.shadowWins, g: evidence.shadowGrossGainBp, l: evidence.shadowGrossLossBp, f: evidence.shadowFeeBp, s: evidence.shadowSince }, { t: 12, w: 2, g: 300, l: 800, f: 120, s: 1_791_439_000_000 });
+    assert.equal(evidence.shadowNetKrw, undefined, "an unlisted key (any amount) is never published");
+  }, 42341);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { shadowTrades: -1, shadowWins: 1.5, shadowFeeBp: "x", shadowGrossGainBp: 7 } } }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.equal(evidence.shadowTrades, undefined);
+    assert.equal(evidence.shadowWins, undefined);
+    assert.equal(evidence.shadowFeeBp, undefined);
+    assert.equal(evidence.shadowGrossGainBp, 7);
+  }, 42342);
 });
