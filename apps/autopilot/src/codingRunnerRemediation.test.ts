@@ -36,11 +36,32 @@ test("authority, unknown, stale evidence and unknown capacity fail closed withou
   }
 });
 
-test("only explicit proposal failures can enter remediation", () => {
+test("canonical proposal allowlist is admitted but repeated and future prefixes fail closed", () => {
+  for (const reason of [
+    "CODING_PROPOSAL_FAILED_CLOSED",
+    "CODING_PROPOSAL_INVALID",
+    "CODING_PROPOSAL_TOO_LARGE",
+    "CODING_PROPOSAL_UNAVAILABLE",
+    "SANDBOX_BUILD_FAILED",
+    "SANDBOX_PATCH_FILE_COUNT_INVALID",
+    "SANDBOX_PATCH_REQUIRED",
+    "SANDBOX_PATCH_TOO_LARGE",
+  ]) {
+    assert.equal(decideCodingRunnerNoAction(reason, 0, 2).retryable, true, reason);
+  }
   assert.equal(decideCodingRunnerNoAction("CODING_PROPOSAL_REPEATED", 0, 2).retryable, false);
   assert.equal(decideCodingRunnerNoAction("SANDBOX_PATCH_FUTURE_UNKNOWN", 0, 2).retryable, false);
-  assert.equal(decideCodingRunnerNoAction("CODING_PROPOSAL_JSON_INVALID", 0, 2).retryable, true);
-  assert.equal(decideCodingRunnerNoAction("SANDBOX_PATCH_APPLY_CHECK_FAILED", 0, 2).retryable, true);
+});
+
+test("unverified GitHub lookup retries only with transient HTTP evidence", () => {
+  for (const reason of ["CODING_RUNNER_HEAD_SHA_UNVERIFIED", "CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED"]) {
+    assert.equal(decideCodingRunnerNoAction(reason, 0, 2, 503).retryable, true, reason);
+    assert.equal(decideCodingRunnerNoAction(reason, 0, 2, 429).retryable, true, reason);
+    assert.equal(decideCodingRunnerNoAction(reason, 0, 2, 401).retryable, false, reason);
+    assert.equal(decideCodingRunnerNoAction(reason, 0, 2, 404).retryable, false, reason);
+    assert.equal(decideCodingRunnerNoAction(reason, 0, 2).retryable, false, reason);
+  }
+  assert.equal(decideCodingRunnerNoAction("CODING_RUNNER_WORKFLOW_NOT_COMPLETED", 0, 2).retryable, true);
 });
 
 test("concrete transient provider failures are retryable only with bounded evidence", () => {
