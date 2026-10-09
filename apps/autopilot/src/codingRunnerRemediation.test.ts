@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { classifyCodingRunnerFailure } from "./codingRunnerFailureClass";
 import { decideCodingRunnerNoAction } from "./codingRunnerRemediation";
 
 test("actionable proposal failure is failed remediation and bounded retryable", () => {
@@ -62,6 +63,19 @@ test("unverified GitHub lookup retries only with transient HTTP evidence", () =>
     assert.equal(decideCodingRunnerNoAction(reason, 0, 2).retryable, false, reason);
   }
   assert.equal(decideCodingRunnerNoAction("CODING_RUNNER_WORKFLOW_NOT_COMPLETED", 0, 2).retryable, true);
+});
+
+test("configured coding-engine 429 is capacity and never enters remediation", () => {
+  const result = classifyCodingRunnerFailure("coding-engine-request-failed", 429);
+  assert.equal(result.failureClass, "PROVIDER_CAPACITY");
+  assert.equal(result.recovery, "WAIT_FOR_PROVIDER");
+  assert.equal(result.retryable, false);
+});
+
+test("allowlisted sandbox command details normalize while unknown prefixes fail closed", () => {
+  assert.equal(classifyCodingRunnerFailure("SANDBOX_BUILD_FAILED:2:tsc failed").retryable, true);
+  assert.equal(classifyCodingRunnerFailure("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:git failed").retryable, true);
+  assert.equal(classifyCodingRunnerFailure("SANDBOX_PATCH_FUTURE_UNKNOWN:1:failed").retryable, false);
 });
 
 test("concrete transient provider failures are retryable only with bounded evidence", () => {
