@@ -2943,10 +2943,13 @@ current_autopilot_2595_bounded_remediation:
   issue: 2595
   pull_request: 2596
   branch: autopilot/p0-2595-bounded-remediation
-  implementation_head: 38a35c69fda862a5ecbd6312b18fba1ae256f6bc
-  status: PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
+  reviewed_head: 1d5fec754fca44b9ca9724975299319c91d80244
+  implementation_head: 7f1f7fc7ee17fd25652fef21bbbfdbb10c9f05ee
+  status: FINDINGS_ADDRESSED_PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
   authority_impact: bounded-coding-runner-failure-classification-and-http-evidence-only
   first_broken_transition: "verified GitHub lookup or sandbox/provider failure -> durable bounded remediation decision"
-  validation: "Focused regressions cover lookup status propagation through /coding/execute, /coding/propose, and /coding/publish; allowlisted sandbox suffix normalization; and configured-engine 429 capacity handling. Exact-head CI for the AIPOS handoff update is pending."
-  remaining: "Run exact-head CI and obtain independent review of the current head; resolve only findings verified fixed on that head; then use governed Release/merge. Control-plane wiring, durable completion receipt, and real canary remain follow-up."
+  review_state: "Exact-head review 1d5fec754fca44b9ca9724975299319c91d80244 identified proposal-engine HTTP-status loss and exact-head handoff gaps; fixes are committed after that reviewed head. Review current PR head before acceptance."
+  validation: "Regression coverage now includes 429/5xx propagation through /coding/propose, 503 lookup status through /coding/propose and /coding/publish, /coding/execute status propagation, allowlisted sandbox suffix normalization, and configured-engine 429 capacity classification. Exact-head CI after these corrections and handoff refresh is pending."
+  remaining: "Run exact-head CI and fresh independent review for the current branch head; resolve only findings verified fixed on that head; then use governed Release/merge. Control-plane wiring, durable completion receipt, and real canary remain follow-up."
+  next_permitted_action: "Exact-head CI, then independent review; no Release/merge until verified findings are resolved."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
