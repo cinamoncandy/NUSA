@@ -59,8 +59,20 @@ function transientHttpStatus(httpStatus?: number): boolean {
   return httpStatus === 429 || (Number.isSafeInteger(httpStatus) && httpStatus! >= 500 && httpStatus! <= 599);
 }
 
+function transientProviderFailureHttpStatus(httpStatus?: number): boolean {
+  return Number.isSafeInteger(httpStatus) && httpStatus! >= 500 && httpStatus! <= 599;
+}
+
+function normalizeAllowlistedSandboxFailure(code: string): string {
+  const separator = code.indexOf(":");
+  if (separator < 0) return code;
+  const prefix = code.slice(0, separator);
+  return prefix.startsWith("SANDBOX_") && RETRYABLE_PROPOSAL_FAILURES.has(prefix) ? prefix : code;
+}
+
 export function classifyCodingRunnerFailure(reason: unknown, httpStatus?: number): CodingRunnerFailureClassification {
-  const code = typeof reason === "string" ? reason.trim() : "";
+  const rawCode = typeof reason === "string" ? reason.trim() : "";
+  const code = normalizeAllowlistedSandboxFailure(rawCode);
   if (/AUTHORITY|PRODUCTION_MUTATION/.test(code)) return make("AUTHORITY_VIOLATION", "STOP", false);
   if (code === "PROVIDER_CAPACITY_STATE_UNAVAILABLE") return make("PROVIDER_CAPACITY", "STOP", false);
   if (CAPACITY.has(code)) return make("PROVIDER_CAPACITY", "WAIT_FOR_PROVIDER", false);
@@ -74,8 +86,9 @@ export function classifyCodingRunnerFailure(reason: unknown, httpStatus?: number
   if (code === "WORKERS_AI_MODEL_INVALID" || code === "CODING_RUNNER_REQUEST_INVALID" || /^CODING_RUNNER_[A-Z_]+_(INVALID|REQUIRED)$/.test(code)) {
     return make("REQUEST_INVALID", "STOP", false);
   }
+  if (code === "coding-engine-request-failed" && httpStatus === 429) return make("PROVIDER_CAPACITY", "WAIT_FOR_PROVIDER", false);
   const githubModelsTransient = /^GITHUB_MODELS_CODING_HTTP_5\d\d$/.test(code);
-  if (PROVIDER.has(code) || githubModelsTransient || (code === "coding-engine-request-failed" && transientHttpStatus(httpStatus))) {
+  if (PROVIDER.has(code) || githubModelsTransient || (code === "coding-engine-request-failed" && transientProviderFailureHttpStatus(httpStatus))) {
     return make("PROVIDER_FAILURE", "RETRY_BOUNDED", true);
   }
   if (RETRYABLE_PROPOSAL_FAILURES.has(code)) return make("PROPOSAL_REJECTED", "REGENERATE_PROPOSAL", true);
