@@ -36,6 +36,9 @@ verification:
   - "node --test tests/autopilot-control-plane-wiring.test.js"
 
 implementation_commit: 7f1f7fc7ee17fd25652fef21bbbfdbb10c9f05ee
+reviewed_head: 1d5fec754fca44b9ca9724975299319c91d80244
+review_status: FINDINGS_RECEIVED_AND_CORRECTED_IN_SUBSEQUENT_COMMITS
+next_permitted_action: "Run exact-head CI and independent review for the current PR head; resolve only findings verified fixed there."
 validation_status: PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
 review_findings_resolved_in_increment:
   - "Preserve GitHub commit/workflow lookup HTTP status in typed failure evidence across /coding/execute, /coding/propose, and /coding/publish; preserve configured-engine 429/5xx result status through /coding/propose."
