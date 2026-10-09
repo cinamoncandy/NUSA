@@ -39,9 +39,9 @@ export interface ClosedLearningRolloverPort {
   readonly listRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   /**
-   * Wall clock used only to decide that the open period's trading day has passed. It never becomes
-   * the period end or any account value: the period still closes at the exact canonical account
-   * `updatedAt`. Absent, the rollover keeps waiting for the account itself to cross the day boundary.
+   * Real wall clock used only for KST eligibility and to bound restart recovery to the closed
+   * period's trading day. It never becomes the period end or any account value: the period still
+   * closes at the exact canonical account `updatedAt`.
    */
   readonly now?: () => number;
   readonly closePeriodFromCanonicalAccount: (input: { readonly periodId: string; readonly periodEndAt: number }) => PersistedPaperPeriodEnvelope;
@@ -131,16 +131,17 @@ interface PreparedRollover {
  * complete realized denominator to that builder and refuses to synthesize any identity itself.
  */
 export class ClosedLearningRolloverScheduler {
-  /** Realized-period record ids whose cycle did not finish after THIS process closed them, with the resume attempts used. Only these are resumed. */
+  /** Realized-period record ids whose cycle did not finish in THIS process, with the in-process resume attempts used. */
   private readonly awaitingCycle = new Map<string, number>();
 
   public constructor(private readonly port: ClosedLearningRolloverPort) {}
 
   /**
-   * A period's close is durable but its cycle can throw (Research worker, ledger, identity). Without this, the next tick only reopened a
-   * continuation, so that period's learning was lost for good. When this process closed the latest realized period, its cycle did not
-   * finish and no successor is open, run its cycle again (the coordinator replays an existing cycle, so this is idempotent) and finalize exactly as the original run
-   * would have. Bounded: after MAX_CYCLE_RESUME_ATTEMPTS ticks PAPER continues without it, as before. Nothing is synthesized.
+   * A period's close is durable but its cycle can throw or the process can stop before it starts. Resume a gap created in this
+   * process as before. After restart, resume only when no successor is open, the canonical account has not advanced past the exact
+   * close boundary, and the real clock is still on that KST trading day. This excludes old periods and periods whose successor was
+   * retired after account activity. The coordinator replays the same immutable identity; bounded retries and streamed-market checks
+   * still apply. Nothing is synthesized.
    */
   private resumeUnrecordedCycle(): ClosedLearningRolloverResult | PreparedRollover | undefined {
     const isRecorded = this.port.isCycleRecorded;
@@ -148,19 +149,25 @@ export class ClosedLearningRolloverScheduler {
     const realized = this.port.listRealizedPeriods();
     if (realized.length === 0) return undefined;
     const latest = [...realized].sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0]!;
-    // Only a gap this process created: the empty open-period set must come from the close being resumed, not from a later retirement
-    // of a successor (which also leaves no open period) or from history that predates this process.
     const attempts = this.awaitingCycle.get(latest.record.recordId);
-    if (attempts === undefined || attempts >= MAX_CYCLE_RESUME_ATTEMPTS) return undefined;
+    if (attempts !== undefined && attempts >= MAX_CYCLE_RESUME_ATTEMPTS) return undefined;
     // The same streamed-market guard as the stalled-continuation path: a dead market must never receive a successor or a deployment.
     if (latest.record.market != null && this.isUnstreamed(latest.record.market)) return undefined;
     const account = this.port.readCanonicalPaperAccount();
     if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) return undefined;
-    // The successor opens at the real canonical boundary after the close, exactly as the stalled-continuation path requires.
-    if (account.updatedAt <= latest.record.periodEndAt) return undefined;
-    this.awaitingCycle.set(latest.record.recordId, attempts + 1);
+    if (attempts === undefined) {
+      // Across a restart, do not replay old learning into a successor period. A missing cycle is
+      // recoverable only at the exact durable close boundary and during that same KST trading day.
+      const now = this.port.now?.();
+      if (account.updatedAt !== latest.record.periodEndAt || now == null || !Number.isSafeInteger(now) || now < latest.record.periodEndAt
+        || tradingDayKey(now) !== tradingDayKey(latest.record.periodEndAt)) return undefined;
+    } else if (account.updatedAt <= latest.record.periodEndAt) {
+      // Preserve the existing in-process rule: a later canonical account boundary must exist.
+      return undefined;
+    }
     const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
     if (isRecorded(identity)) return undefined;
+    this.awaitingCycle.set(latest.record.recordId, (attempts ?? 0) + 1);
     return Object.freeze({
       closedRecordId: latest.record.recordId,
       plan: Object.freeze({ periodId: latest.record.recordId, advisory: latest.record.advisory, candidateProvenance: latest.candidateProvenance, ...(latest.record.market == null ? {} : { market: latest.record.market }) }),
