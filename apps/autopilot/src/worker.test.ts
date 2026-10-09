@@ -241,6 +241,78 @@ describe("/coding/propose provider-capacity gating", () => {
 });
 
 
+describe("configured coding-engine failure status evidence", () => {
+  it("preserves HTTP 429 capacity and 5xx status through /coding/propose", async () => {
+    const original = globalThis.fetch;
+    const env = {
+      ...baseEnv(memoryNamespace()),
+      NUSA_AI_CODING_ENDPOINT: "https://coding.invalid/generate",
+      NUSA_AI_CODING_TOKEN: "engine-token",
+    } as unknown as WorkerEnv;
+
+    try {
+      for (const httpStatus of [429, 503]) {
+        globalThis.fetch = (async (input: RequestInfo | URL) => {
+          const url = String(input);
+          if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: HEAD }), { status: 200 });
+          if (url.includes("/actions/runs/")) {
+            return new Response(JSON.stringify({
+              id: request.workflowRunId,
+              head_sha: HEAD,
+              head_branch: "main",
+              repository: { full_name: request.repository },
+              event: "workflow_dispatch",
+              status: "completed",
+              conclusion: "success",
+            }), { status: 200 });
+          }
+          if (url === "https://coding.invalid/generate") {
+            return new Response(JSON.stringify({ error: "provider failure" }), { status: httpStatus });
+          }
+          throw new Error(`unexpected fetch ${url}`);
+        }) as typeof fetch;
+
+        const response = await handleCodingProposal(proposalRequest(), env);
+        assert.equal(response.status, 409);
+        const body = await response.json() as { error: string; httpStatus?: number };
+        assert.equal(body.error, "coding-engine-request-failed");
+        assert.equal(body.httpStatus, httpStatus);
+      }
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
+describe("coding proposal and publish lookup status evidence", () => {
+  it("preserves transient GitHub lookup status from both canonical endpoints", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify({ message: "upstream unavailable" }), { status: 503 })) as typeof fetch;
+
+    try {
+      const env = baseEnv(memoryNamespace());
+      const proposal = await handleCodingProposal(proposalRequest(), env);
+      assert.equal(proposal.status, 409);
+      const proposalBody = await proposal.json() as { httpStatus?: number };
+      assert.equal(proposalBody.httpStatus, 503);
+
+      const publish = await handleCodingPublish(new Request("https://worker.example.test/coding/publish", {
+        method: "POST",
+        headers: { authorization: "Bearer coding-token", "content-type": "application/json" },
+        body: JSON.stringify({
+          request,
+          validatedFiles: [{ path: "apps/autopilot/src/dispatchPlanner.ts", content: "export const publishFixture = true;\\n" }],
+        }),
+      }), env);
+      assert.equal(publish.status, 409);
+      const publishBody = await publish.json() as { httpStatus?: number };
+      assert.equal(publishBody.httpStatus, 503);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
 describe("/coding/publish receipt reconciliation", () => {
   it("persists the real publish receipt before projecting PR_OPEN", async () => {
     const coordinator = memoryNamespace();
