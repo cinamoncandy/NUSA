@@ -29,35 +29,53 @@ const make = (failureClass: CodingRunnerFailureClass, recovery: CodingRunnerReco
   Object.freeze({ failureClass, recovery, retryable });
 
 const CAPACITY = new Set(["WORKERS_AI_DAILY_QUOTA_EXHAUSTED", "WORKERS_AI_RATE_LIMITED", "WAITING_PROVIDER_CAPACITY", "BLOCKED_RATE_LIMIT"]);
-const UNVERIFIED = new Set(["CODING_RUNNER_HEAD_SHA_UNVERIFIED", "CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED", "CODING_RUNNER_WORKFLOW_NOT_COMPLETED"]);
+const UNVERIFIED_GITHUB_LOOKUP = new Set(["CODING_RUNNER_HEAD_SHA_UNVERIFIED", "CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED"]);
 const STALE_EVIDENCE = new Set(["CODING_PUBLISH_STALE_HEAD_SUPPRESSED", "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL", "CODING_RUNNER_FAILURE_EVIDENCE_INVALID"]);
 const PROVIDER = new Set(["WORKERS_AI_CODING_ENGINE_FAILED", "GITHUB_MODELS_CODING_FAILED"]);
+// Keep this synchronized with RETRYABLE_PROPOSAL_FAILURE_CODES in scripts/autopilot-dispatch-retry.js.
+// CODING_PROPOSAL_REPEATED is intentionally excluded so a deterministic repeat cannot spend another inference.
 const RETRYABLE_PROPOSAL_FAILURES = new Set([
-  "CODING_PROPOSAL_PATCH_REQUIRED",
-  "CODING_PROPOSAL_SHAPE_INVALID",
+  "CODING_PROPOSAL_FAILED_CLOSED",
+  "CODING_PROPOSAL_INVALID",
   "CODING_PROPOSAL_JSON_INVALID",
+  "CODING_PROPOSAL_PATCH_REQUIRED",
   "CODING_PROPOSAL_RESPONSE_INVALID",
+  "CODING_PROPOSAL_SHAPE_INVALID",
+  "CODING_PROPOSAL_TOO_LARGE",
+  "CODING_PROPOSAL_UNAVAILABLE",
   "CODING_EDIT_CONTEXT_REQUIRED",
   "CODING_EDIT_CONTEXT_PATH_MISMATCH",
   "CODING_EDIT_ANCHOR_NOT_FOUND",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
   "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  "SANDBOX_BUILD_FAILED",
+  "SANDBOX_PATCH_FILE_COUNT_INVALID",
+  "SANDBOX_PATCH_REQUIRED",
+  "SANDBOX_PATCH_TOO_LARGE",
   "GITHUB_MODELS_CODING_RESPONSE_INVALID",
 ]);
+
+function transientHttpStatus(httpStatus?: number): boolean {
+  return httpStatus === 429 || (Number.isSafeInteger(httpStatus) && httpStatus! >= 500 && httpStatus! <= 599);
+}
 
 export function classifyCodingRunnerFailure(reason: unknown, httpStatus?: number): CodingRunnerFailureClassification {
   const code = typeof reason === "string" ? reason.trim() : "";
   if (/AUTHORITY|PRODUCTION_MUTATION/.test(code)) return make("AUTHORITY_VIOLATION", "STOP", false);
   if (code === "PROVIDER_CAPACITY_STATE_UNAVAILABLE") return make("PROVIDER_CAPACITY", "STOP", false);
   if (CAPACITY.has(code)) return make("PROVIDER_CAPACITY", "WAIT_FOR_PROVIDER", false);
-  if (UNVERIFIED.has(code)) return make("EVIDENCE_UNVERIFIED", "RETRY_BOUNDED", true);
+  if (code === "CODING_RUNNER_WORKFLOW_NOT_COMPLETED") return make("EVIDENCE_UNVERIFIED", "RETRY_BOUNDED", true);
+  if (UNVERIFIED_GITHUB_LOOKUP.has(code)) {
+    return transientHttpStatus(httpStatus)
+      ? make("EVIDENCE_UNVERIFIED", "RETRY_BOUNDED", true)
+      : make("EVIDENCE_UNVERIFIED", "STOP", false);
+  }
   if (STALE_EVIDENCE.has(code) || /^CODING_RUNNER_[A-Z_]+_MISMATCH$/.test(code)) return make("EVIDENCE_MISMATCH", "REDISPATCH_FRESH_EVIDENCE", false);
   if (code === "WORKERS_AI_MODEL_INVALID" || code === "CODING_RUNNER_REQUEST_INVALID" || /^CODING_RUNNER_[A-Z_]+_(INVALID|REQUIRED)$/.test(code)) {
     return make("REQUEST_INVALID", "STOP", false);
   }
-  const transientHttp = Number.isSafeInteger(httpStatus) && httpStatus! >= 500 && httpStatus! <= 599;
   const githubModelsTransient = /^GITHUB_MODELS_CODING_HTTP_5\d\d$/.test(code);
-  if (PROVIDER.has(code) || githubModelsTransient || (code === "coding-engine-request-failed" && transientHttp)) {
+  if (PROVIDER.has(code) || githubModelsTransient || (code === "coding-engine-request-failed" && transientHttpStatus(httpStatus))) {
     return make("PROVIDER_FAILURE", "RETRY_BOUNDED", true);
   }
   if (RETRYABLE_PROPOSAL_FAILURES.has(code)) return make("PROPOSAL_REJECTED", "REGENERATE_PROPOSAL", true);
