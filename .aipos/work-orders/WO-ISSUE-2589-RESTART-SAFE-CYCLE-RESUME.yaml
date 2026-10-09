@@ -1,6 +1,6 @@
 id: WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME
 title: "Resume an unrecorded closed-learning cycle after a process restart"
-status: LOCAL_IMPLEMENTATION_VALIDATION_IN_PROGRESS
+status: LOCAL_VALIDATED_GOVERNED_GATES_PENDING
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
