@@ -241,6 +241,35 @@ describe("/coding/propose provider-capacity gating", () => {
 });
 
 
+describe("coding proposal and publish lookup status evidence", () => {
+  it("preserves transient GitHub lookup status from both canonical endpoints", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify({ message: "upstream unavailable" }), { status: 503 })) as typeof fetch;
+
+    try {
+      const env = baseEnv(memoryNamespace());
+      const proposal = await handleCodingProposal(proposalRequest(), env);
+      assert.equal(proposal.status, 409);
+      const proposalBody = await proposal.json() as { httpStatus?: number };
+      assert.equal(proposalBody.httpStatus, 503);
+
+      const publish = await handleCodingPublish(new Request("https://worker.example.test/coding/publish", {
+        method: "POST",
+        headers: { authorization: "Bearer coding-token", "content-type": "application/json" },
+        body: JSON.stringify({
+          request,
+          validatedFiles: [{ path: "apps/autopilot/src/dispatchPlanner.ts", content: "export const publishFixture = true;\\n" }],
+        }),
+      }), env);
+      assert.equal(publish.status, 409);
+      const publishBody = await publish.json() as { httpStatus?: number };
+      assert.equal(publishBody.httpStatus, 503);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
 describe("/coding/publish receipt reconciliation", () => {
   it("persists the real publish receipt before projecting PR_OPEN", async () => {
     const coordinator = memoryNamespace();
