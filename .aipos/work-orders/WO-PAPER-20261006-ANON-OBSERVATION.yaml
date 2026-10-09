@@ -1,0 +1,24 @@
+id: WO-PAPER-20261006-ANON-OBSERVATION
+title: "Restore truthful mobile PAPER observation without widening authority"
+status: IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: fix/mobile-anonymous-paper-observation
+authority_impact: none
+objective: "Allow the mobile app to observe the read-only PAPER projection before enrollment while preserving all credential, mutation, REAL-account, order, and operator boundaries."
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+fail_closed: "Feature is default-off. Presented invalid credentials never fall back to anonymous access. Control, REAL and mutation routes remain authenticated."
+predecessor: "PR #1809 contains the stale source implementation; this work order owns only the minimal anonymous-observation slice reconverged on current protected main."
+acceptance:
+  - "anonymous observation defaults OFF"
+  - "GET /api/paper-operations may be anonymous only when explicitly enabled"
+  - "invalid presented bearer remains 401"
+  - "paper-orders, operator, REAL and settings mutation routes remain protected"
+  - "mobile anonymous client sends no Authorization and is GET-only"
+  - "credentialed client remains unchanged"
+  - "exact-head CI and independent audit required before merge"
