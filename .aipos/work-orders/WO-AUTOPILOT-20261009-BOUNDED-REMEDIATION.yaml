@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
 title: "Close actionable coding-runner failure to bounded remediation transition"
-status: PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
+status: MERGED_INCREMENT_RESIDUAL_OPEN
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -36,15 +36,15 @@ verification:
   - "node --test tests/autopilot-control-plane-wiring.test.js"
 
 implementation_commit: 7f1f7fc7ee17fd25652fef21bbbfdbb10c9f05ee
-reviewed_head: 1d5fec754fca44b9ca9724975299319c91d80244
-review_status: FINDINGS_RECEIVED_AND_CORRECTED_IN_SUBSEQUENT_COMMITS
-next_permitted_action: "Run exact-head CI and independent review for the current PR head; resolve only findings verified fixed there."
-validation_status: PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
+reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+review_status: "INDEPENDENT_REVIEW_PASS_ON_EXACT_HEAD"
+next_permitted_action: "Continue #2595 under the existing #903 control plane: wire the decision primitive into the canonical worker and run focused deterministic validation; preserve Release/Audit authority and do not create a second scheduler or runner."
+validation_status: "MERGED; exact-head CI 37907989197 PASS; post-merge CI 37909190312 PASS; Cloudflare Deploy 37909190345 PASS; Runtime Proof 37909862299 PASS with exact source/deployment SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
 review_findings_resolved_in_increment:
   - "Preserve GitHub commit/workflow lookup HTTP status in typed failure evidence across /coding/execute, /coding/propose, and /coding/publish; preserve configured-engine 429/5xx result status through /coding/propose."
   - "Normalize colon-delimited details only for explicitly allowlisted SANDBOX failure codes."
   - "Treat configured coding-engine HTTP 429 as provider capacity; only 5xx is remediation-retryable."
 remaining:
-  - "Run exact-head CI and independent review after configured-engine status propagation and reviewed-head AIPOS handoff updates."
-  - "Obtain fresh independent review and resolve only findings verified fixed on the reviewed head."
-  - "Keep worker/control-plane wiring, durable completion receipt, and real canary as explicit follow-up under #2595."
+  - "Complete the remaining #2595 work in a successor increment: canonical #903 worker wiring, durable completion receipt, and one real allowlisted actionable-failure canary through CI, Independent Audit, governed Release/merge, and runtime evidence."
+  - "Runtime Proof scheduled ingress abstained because exact-main canonical CI was not found; the deployment identity itself was exact and verified."
+  - "Actual PAPER run 37909797419 was INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; it is not a remediation completion receipt."
