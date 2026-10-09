@@ -1,0 +1,14 @@
+work_order: WO-PAPER-20261006-ANON-OBSERVATION
+status: IN_PROGRESS
+branch: fix/mobile-anonymous-paper-observation
+head_before_pr: 1689612d6816d949a42317a57fa6acfc84db4d8c
+first_broken_transition: "deterministic wiring helper -> application to latest-main server/mobile files"
+notes:
+  - "The previous mobile-file write blocker is resolved."
+  - "Server scope, mobile client, safety tests, integration gate tests and deterministic wiring helper are committed."
+  - "Do not mark READY_FOR_REVIEW until the helper-generated server/App wiring is committed and exact-head validation passes."
+safety:
+  PAPER_ONLY: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

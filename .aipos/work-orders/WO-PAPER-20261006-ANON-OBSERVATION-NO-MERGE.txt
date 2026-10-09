@@ -1,0 +1,2 @@
+NO_MERGE_UNTIL_WIRING_APPLIED_AND_VALIDATED
+The current branch is intentionally IN_PROGRESS. Integration-gate tests are expected to reject acceptance until server.ts and App.tsx contain the deterministic wiring. Exact-head CI and independent audit are mandatory after that transition.

@@ -1,0 +1,2 @@
+PR_STATE=DRAFT_REQUIRED
+Reason: branch has the canonical source modules and fail-closed integration gate but not the generated latest-main wiring. Any PR created from this state must remain Draft and must not be marked READY until the wiring and exact-head validation pass.
