@@ -192,7 +192,11 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
       });
     }
     if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch?.trim()) {
-      throw new Error(result.reason || "CODING_PROPOSAL_UNAVAILABLE");
+      const reason = result.reason || "CODING_PROPOSAL_UNAVAILABLE";
+      if (typeof result.httpStatus === "number" && Number.isSafeInteger(result.httpStatus)) {
+        throw new CodingRunnerHttpEvidenceError(reason, result.httpStatus);
+      }
+      throw new Error(reason);
     }
     return json({
       accepted: true,
