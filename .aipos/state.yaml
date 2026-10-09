@@ -2959,7 +2959,7 @@ current_autopilot_2595_bounded_remediation:
   release_job_id: 113749522793
   audited_pr_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
   audited_base_sha: 2019d0245ae228ca61ce416ee0cd0950b368ec91
-  merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
+  canonical_merge_commit_sha: 21e632ace23bc2ee64778855ce49e0a083706c84
   deterministic_audit: "Canonical audit workflow run 37908729659, job 113749521583, PASS bound to PR #2596 head 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94 and base 2019d0245ae228ca61ce416ee0cd0950b368ec91."
   release_authorization_and_merge: "Canonical Release workflow run 37908729659, job 113749522793, SUCCESS; expected-head merge produced 21e632ace23bc2ee64778855ce49e0a083706c84."
   post_merge_ci: "GitHub Actions run 37909190312 PASS on merge SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
