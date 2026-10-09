@@ -1,6 +1,6 @@
 id: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
 title: "Persist prepared closed-learning cycle failure evidence across restart and replay"
-status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+status: MERGED_INCREMENT_RUNTIME_EVIDENCE_PENDING
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -30,7 +30,10 @@ verification_commands:
   - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js"
 evidence:
   delegated_validation: "The published increment is committed and workflow-validated by the delegated publish job using the commands above plus tests/*.test.js and isolated co-located tests."
-  remaining: "Exact-head CI, independent Audit and Release; then protected-main merge, exact-main PAPER deployment/runtime proof that durable failure evidence survives restart/recovery or a successful reproduced cycle is recorded, and replay proof that no duplicate failure or cycle record is produced."
+  merged_increments:
+    - "PR #2597 head b11e56863ffb2ff13dafb0bfdd2bb4fe4a4d3060 merged as cccaad7e0ad21fed89561b0c5342e229c2fe59454; exact-head release authorization succeeded."
+    - "PR #2598 head e9c3cd6486c28d8a32501a60764379750d200d4a merged as 29f341a254ea71a19050c6815566382260def9fc; exact-head release authorization succeeded."
+  remaining: "The durable failure receipt implementation is on protected main. Actual exact-main PAPER evidence that receipts survive restart and replay without duplicates remains pending; restart-safe re-execution of an unrecorded cycle is tracked separately by successor WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
 safety:
   paper_only: true
   liveAuthority: NONE
