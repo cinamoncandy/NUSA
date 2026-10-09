@@ -35,13 +35,13 @@ verification:
   - "node --test dist/apps/autopilot/src/codingRunnerRemediation.test.js"
   - "node --test tests/autopilot-control-plane-wiring.test.js"
 
-implementation_commit: 38a35c69fda862a5ecbd6312b18fba1ae256f6bc
-validation_status: PENDING_EXACT_HEAD_CI
+implementation_commit: 7f1f7fc7ee17fd25652fef21bbbfdbb10c9f05ee
+validation_status: PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
 review_findings_resolved_in_increment:
-  - "Preserve GitHub commit/workflow lookup HTTP status in typed failure evidence across /coding/execute, /coding/propose, and /coding/publish."
+  - "Preserve GitHub commit/workflow lookup HTTP status in typed failure evidence across /coding/execute, /coding/propose, and /coding/publish; preserve configured-engine 429/5xx result status through /coding/propose."
   - "Normalize colon-delimited details only for explicitly allowlisted SANDBOX failure codes."
   - "Treat configured coding-engine HTTP 429 as provider capacity; only 5xx is remediation-retryable."
 remaining:
-  - "Run focused tests and exact-head CI after the worker endpoint status-propagation fix and AIPOS handoff update."
+  - "Run exact-head CI and independent review after configured-engine status propagation and reviewed-head AIPOS handoff updates."
   - "Obtain fresh independent review and resolve only findings verified fixed on the reviewed head."
   - "Keep worker/control-plane wiring, durable completion receipt, and real canary as explicit follow-up under #2595."
