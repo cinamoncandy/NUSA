@@ -1,0 +1,21 @@
+work_order: WO-PAPER-20261006-ANON-OBSERVATION
+status: IN_PROGRESS
+branch: fix/mobile-anonymous-paper-observation
+head: 255864d0e0ace29ad484f116c1d7e4e3e891cc36
+first_broken_transition: "isolated anonymous observation modules -> latest-main server/mobile wiring"
+completed:
+  - bounded default-off server observation scope
+  - separate GET-only no-credential mobile observation client
+  - focused static safety contracts
+remaining:
+  - latest-main server wiring preserving runtime health contract
+  - latest-main App wiring preserving credentialed path
+  - focused runtime tests
+  - exact-head CI
+  - independent audit
+  - merge and exact-main runtime evidence
+safety:
+  PAPER_ONLY: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

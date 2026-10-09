@@ -185,6 +185,30 @@ describe("coding runner", () => {
     assert.equal(result.reason, "CODING_EDIT_PATH_FORBIDDEN");
   });
 
+  it("preserves the HTTP status for non-200 GitHub commit and workflow lookups", async () => {
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(request, undefined, async () => response(503, {})),
+      (error: unknown) => {
+        assert.equal((error as Error).message, "CODING_RUNNER_HEAD_SHA_UNVERIFIED");
+        assert.equal((error as { httpStatus?: number }).httpStatus, 503);
+        return true;
+      },
+    );
+
+    let call = 0;
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(request, undefined, async () => {
+        call += 1;
+        return call === 1 ? response(200, { sha: request.headSha }) : response(429, {});
+      }),
+      (error: unknown) => {
+        assert.equal((error as Error).message, "CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED");
+        assert.equal((error as { httpStatus?: number }).httpStatus, 429);
+        return true;
+      },
+    );
+  });
+
   it("accepts only the fail-closed repository contract with lifecycle identity", () => {
     assert.deepEqual(validateCodingRunnerRequest(request), request);
   });

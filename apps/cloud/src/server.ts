@@ -54,6 +54,7 @@ import {
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
 import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./publicUpbitQuotationHttp";
+import { anonymousObservationEnabled, createAnonymousObservationScope, hasAuthorizationHeader, isAnonymousObservationRoute, type AnonymousObservationScope } from "./observation/anonymousObservationScope";
 import { handleLiveReadinessHttp, type LiveReadinessHttpDependencies } from "./liveReadinessHttp";
 import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependencies } from "./engineeringOperationsHttp";
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
@@ -417,10 +418,19 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         decisionCandidateId: (v) => typeof v === "string" && ID.test(v), deploymentId: (v) => typeof v === "string" && ID.test(v),
         realizedOutcomeFingerprint: (v) => typeof v === "string" && HEX.test(v), realizedCostEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
         cycleEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        latestFailureId: (v) => typeof v === "string" && ID.test(v), latestFailurePeriodId: (v) => typeof v === "string" && ID.test(v),
+        latestFailureEvidenceId: (v) => typeof v === "string" && ID.test(v), latestFailureEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        latestFailureSourceCommitSha: (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v), latestFailureRuntimeSourceCommitSha: (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v),
+        latestFailureStage: (v) => typeof v === "string" && /^(CYCLE|FINALIZE)$/.test(v), latestFailureCode: (v) => typeof v === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(v),
+        latestFailureRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, failuresRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         openPeriodStartAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, openObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         realizedPeriodEndAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         cyclesRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0, lastCycleRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        // Baseline shadow totals: counts and basis points as non-negative integers; no amount or price.
+        shadowSince: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        shadowWins: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowGrossGainBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        shadowGrossLossBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowFeeBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
       };
       const evidence: Record<string, string | number> = {};
       for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }
@@ -491,6 +501,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   const desktopSessionService = options.desktopSessionService ?? (ownedUserDb == null ? undefined : new DesktopSessionService(ownedUserDb, userAccessRepository));
   const mobileSessionService = options.mobileSessionService ?? (ownedUserDb == null ? undefined : new MobileSessionService(ownedUserDb, userAccessRepository));
   const ownerDeviceCredentialService = options.ownerDeviceCredentialService ?? (ownedUserDb == null || mobileSessionService == null ? undefined : new OwnerDeviceCredentialService(ownedUserDb, userAccessRepository, mobileSessionService));
+  const anonymousObservation: AnonymousObservationScope | null = anonymousObservationEnabled() ? createAnonymousObservationScope() : null;
 
   const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
   if (ownerPrincipal != null) {
@@ -647,6 +658,18 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       const body = req.method === "POST" || req.method === "PUT" ? await readRequestBody(req) : undefined;
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
 
+      const servedAnonymously = anonymousObservation != null && isAnonymousObservationRoute(req.url) && !hasAuthorizationHeader(dashboardRequest.headers);
+      const observationRequest: DashboardHttpRequest = servedAnonymously && anonymousObservation != null
+        ? Object.freeze({ ...dashboardRequest, headers: Object.freeze({ ...dashboardRequest.headers, authorization: `Bearer ${anonymousObservation.sentinel}` }) })
+        : dashboardRequest;
+      const observationTokenVerifier: DashboardTokenVerifier = Object.freeze({
+        ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
+        verify(token: string) {
+          if (servedAnonymously && anonymousObservation != null && token === anonymousObservation.sentinel) { requestPrincipal = anonymousObservation.principal; return anonymousObservation.principal; }
+          return requestTokenVerifier.verify(token);
+        }
+      });
+
       if (desktopSessionService != null && req.url === "/api/operator/desktop-bootstrap") {
         respond("desktop_bootstrap_issue", handleDesktopBootstrapIssueHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
         return;
@@ -774,13 +797,13 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         }));
         return;
       }
-      if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/shadow-operations") { respond("shadow_operations", handleShadowOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadShadowOperations ?? (() => { throw new Error("SHADOW operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/shadow-operations") { respond("shadow_operations", handleShadowOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadShadowOperations ?? (() => { throw new Error("SHADOW operations snapshot not configured"); }) })); return; }
       if (req.url === "/api/real-readonly-operations") { respond("real_readonly_operations", handleRealReadOnlyOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadRealReadOnlyOperations ?? (() => { throw new Error("REAL_READ_ONLY operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/live-readiness") { respond("live_readiness", handleLiveReadinessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadLiveReadiness ?? (() => { throw new Error("LIVE readiness source not configured"); }) })); return; }
-      if (req.url === "/api/engineering-operations") { respond("engineering_operations", handleEngineeringOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadEngineeringOperations ?? (() => { throw new Error("Engineering OS snapshot not configured"); }) })); return; }
-      if (req.url === "/api/evolution-learning") { respond("evolution_learning", handleEvolutionLearningSupervisorHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadEvolutionLearning ?? (() => { throw new Error("Evolution learning snapshot not configured"); }) })); return; }
-      if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadDashboard: options.loadDashboard })); return; }
+      if (req.url === "/api/live-readiness") { respond("live_readiness", handleLiveReadinessHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadLiveReadiness ?? (() => { throw new Error("LIVE readiness source not configured"); }) })); return; }
+      if (req.url === "/api/engineering-operations") { respond("engineering_operations", handleEngineeringOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadEngineeringOperations ?? (() => { throw new Error("Engineering OS snapshot not configured"); }) })); return; }
+      if (req.url === "/api/evolution-learning") { respond("evolution_learning", handleEvolutionLearningSupervisorHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadEvolutionLearning ?? (() => { throw new Error("Evolution learning snapshot not configured"); }) })); return; }
+      if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadDashboard: options.loadDashboard })); return; }
       if (req.url === "/api/operator/users") { respond("operator_users", handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, repository: userAccessRepository })); return; }
       if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {
         let payload: unknown = null;

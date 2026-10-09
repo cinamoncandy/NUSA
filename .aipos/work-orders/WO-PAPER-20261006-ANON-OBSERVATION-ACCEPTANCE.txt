@@ -1,0 +1,9 @@
+ACCEPTANCE=false until all are true:
+- generated server/App wiring committed
+- build passes
+- focused observation tests pass
+- exact-head CI passes
+- independent audit accepts exact head
+- merge uses expected head SHA
+- exact-main runtime proves anonymous PAPER read and protected control surfaces
+- Android projection refreshes current PAPER truth
