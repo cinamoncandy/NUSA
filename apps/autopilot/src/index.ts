@@ -5,7 +5,7 @@ import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { resolveGithubReleaseCompletion } from "./githubReleaseCompletionResolver";
 import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
-import { CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
+import { CodingRunnerEvidenceError, CodingRunnerHttpEvidenceError, executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { prepareProductionExecution, reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
@@ -283,6 +283,7 @@ export async function handleCodingExecute(
         error: failureReason,
         status: "EXECUTION_FAILED",
         failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
+        httpStatus: error instanceof CodingRunnerHttpEvidenceError ? error.httpStatus : null,
         jevShadowReceipt,
         liveAuthority: "NONE",
         productionMutationAllowed: false,
