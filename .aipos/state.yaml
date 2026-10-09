@@ -2938,18 +2938,24 @@ current_learning_baseline_shadow:
   authority_impact: display-and-analysis-only-no-order-no-ledger-no-risk-input
   finding: "While the consecutive-loss halt censors the PAPER ledger, a shadow of the baseline rule on the same minute bars keeps producing hypothetical round trips with fees (counts and basis points on /health) so learning and the 3/4/5 limit comparison have uncensored outcomes; not PAPER evidence"
 
+
 current_autopilot_2595_bounded_remediation:
   work_order: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
   issue: 2595
   pull_request: 2596
   branch: autopilot/p0-2595-bounded-remediation
-  reviewed_head: 1d5fec754fca44b9ca9724975299319c91d80244
-  implementation_head: 7f1f7fc7ee17fd25652fef21bbbfdbb10c9f05ee
-  status: FINDINGS_ADDRESSED_PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
+  implementation_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+  status: MERGED_INCREMENT_POST_MERGE_RUNTIME_VERIFIED_RESIDUAL_OPEN
+  merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
   authority_impact: bounded-coding-runner-failure-classification-and-http-evidence-only
-  first_broken_transition: "verified GitHub lookup or sandbox/provider failure -> durable bounded remediation decision"
-  review_state: "Exact-head review 1d5fec754fca44b9ca9724975299319c91d80244 identified proposal-engine HTTP-status loss and exact-head handoff gaps; fixes are committed after that reviewed head. Review current PR head before acceptance."
-  validation: "Regression coverage now includes 429/5xx propagation through /coding/propose, 503 lookup status through /coding/propose and /coding/publish, /coding/execute status propagation, allowlisted sandbox suffix normalization, and configured-engine 429 capacity classification. Exact-head CI after these corrections and handoff refresh is pending."
-  remaining: "Run exact-head CI and fresh independent review for the current branch head; resolve only findings verified fixed on that head; then use governed Release/merge. Control-plane wiring, durable completion receipt, and real canary remain follow-up."
-  next_permitted_action: "Exact-head CI, then independent review; no Release/merge until verified findings are resolved."
+  first_broken_transition: "classified actionable coding-runner failure -> actual bounded remediation"
+  exact_head_ci: "GitHub Actions run 37907989197 PASS for exact head 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94"
+  independent_review: "Exact-head Codex review on 7acdeef04b reported no major issues; canonical Release audit subsequently passed before merge."
+  release_merge: "Canonical Release merged PR #2596 as 21e632ace23bc2ee64778855ce49e0a083706c84."
+  post_merge_ci: "GitHub Actions run 37909190312 PASS on merge SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
+  deployment: "Cloudflare Deploy run 37909190345 PASS; deployed exact merge SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
+  runtime_proof: "Runtime Proof run 37909862299 PASS; exactHeadVerified=true and deploymentRevision=sourceSha=21e632ace23bc2ee64778855ce49e0a083706c84. Scheduled ingress ABSTAINED because exact-main canonical CI was not found."
+  paper_canary: "Actual PAPER run 37909797419 classified INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; no completion claim."
+  remaining: "Under #2595: wire the remediation decision into the existing #903 canonical worker, persist a durable completion receipt, then pass a real allowlisted actionable-failure canary through the governed chain."
+  next_permitted_action: "Continue #2595 in the existing #903 control plane: canonical worker wiring and focused deterministic validation; do not create another queue, scheduler, or coding runner."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
