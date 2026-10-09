@@ -4,6 +4,7 @@ import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import { reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
 import {
   CodingRunnerEvidenceError,
+  CodingRunnerHttpEvidenceError,
   executeCodingRunner,
   validateCodingRunnerRequest,
   verifyCodingRunnerRequestAgainstGitHub,
@@ -209,6 +210,7 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
       status: "CODING_PROPOSAL_FAILED_CLOSED",
       error: error instanceof Error ? error.message : "CODING_PROPOSAL_FAILED",
       failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
+      httpStatus: error instanceof CodingRunnerHttpEvidenceError ? error.httpStatus : null,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
@@ -271,6 +273,7 @@ export async function handleCodingPublish(request: Request, env: WorkerEnv): Pro
       status: "CODING_PUBLISH_FAILED_CLOSED",
       error: error instanceof Error ? error.message : "CODING_PUBLISH_FAILED",
       failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
+      httpStatus: error instanceof CodingRunnerHttpEvidenceError ? error.httpStatus : null,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
