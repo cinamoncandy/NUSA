@@ -38,9 +38,9 @@ verification:
 implementation_commit: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
 merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
 reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
-review_status: "INDEPENDENT_REVIEW_PASS_ON_EXACT_HEAD"
+review_status: "INDEPENDENT_REVIEW_PASS_ON_EXACT_HEAD; PR #2596 comment 6077782732 reviewed 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94"
 next_permitted_action: "Continue #2595 under the existing #903 control plane: wire the decision primitive into the canonical worker and run focused deterministic validation; preserve Release/Audit authority and do not create a second scheduler or runner."
-validation_status: "MERGED; exact-head CI 37907989197 PASS; post-merge CI 37909190312 PASS; Cloudflare Deploy 37909190345 PASS; Runtime Proof 37909862299 PASS with exact source/deployment SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
+validation_status: "MERGED; exact-head CI 37907989197 PASS; deterministic Audit run 37908729659 job 113749521583 PASS; canonical Release run 37908729659 job 113749522793 SUCCESS and merged as 21e632ace23bc2ee64778855ce49e0a083706c84; post-merge CI 37909190312 PASS; Cloudflare Deploy 37909190345 PASS; Runtime Proof 37909862299 PASS with exact source/deployment SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
 review_findings_resolved_in_increment:
   - "Preserve GitHub commit/workflow lookup HTTP status in typed failure evidence across /coding/execute, /coding/propose, and /coding/publish; preserve configured-engine 429/5xx result status through /coding/propose."
   - "Normalize colon-delimited details only for explicitly allowlisted SANDBOX failure codes."
