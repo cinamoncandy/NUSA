@@ -132,6 +132,16 @@ interface VerifiedCodingWorkflowEvidence {
   readonly headSha: string;
 }
 
+export class CodingRunnerHttpEvidenceError extends Error {
+  readonly httpStatus: number;
+
+  constructor(message: string, httpStatus: number) {
+    super(message);
+    this.name = "CodingRunnerHttpEvidenceError";
+    this.httpStatus = httpStatus;
+  }
+}
+
 export class CodingRunnerEvidenceError extends Error {
   readonly evidence: CodingRunnerFailureEvidence;
 
@@ -596,12 +606,12 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
 
   const commitResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}`, githubToken, fetchImpl);
-  if (commitResponse.status !== 200) throw new Error("CODING_RUNNER_HEAD_SHA_UNVERIFIED");
+  if (commitResponse.status !== 200) throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_HEAD_SHA_UNVERIFIED", commitResponse.status);
   const commit = object(await commitResponse.json());
   if (typeof commit.sha !== "string" || commit.sha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_RUNNER_HEAD_SHA_MISMATCH");
 
   const runResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}`, githubToken, fetchImpl);
-  if (runResponse.status !== 200) throw new Error("CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED");
+  if (runResponse.status !== 200) throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED", runResponse.status);
   const run = object(await runResponse.json());
   const runRepository = object(run.repository);
   if (run.id !== request.workflowRunId) throw new Error("CODING_RUNNER_WORKFLOW_RUN_ID_MISMATCH");
