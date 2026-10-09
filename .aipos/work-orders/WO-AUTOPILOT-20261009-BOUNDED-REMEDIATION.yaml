@@ -39,6 +39,14 @@ implementation_commit: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
 merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
 reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
 review_status: "INDEPENDENT_REVIEW_PASS_ON_EXACT_HEAD; PR #2596 comment 6077782732 reviewed 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94"
+independent_review_comment_id: 6077782732
+independent_review_summary_comment_id: 6058378290
+independent_reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+audit_release_run_id: 37908729659
+audit_job_id: 113749521583
+release_job_id: 113749522793
+audited_pr_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+audited_base_sha: 2019d0245ae228ca61ce416ee0cd0950b368ec91
 next_permitted_action: "Continue #2595 under the existing #903 control plane: wire the decision primitive into the canonical worker and run focused deterministic validation; preserve Release/Audit authority and do not create a second scheduler or runner."
 validation_status: "MERGED; exact-head CI 37907989197 PASS; deterministic Audit run 37908729659 job 113749521583 PASS; canonical Release run 37908729659 job 113749522793 SUCCESS and merged as 21e632ace23bc2ee64778855ce49e0a083706c84; post-merge CI 37909190312 PASS; Cloudflare Deploy 37909190345 PASS; Runtime Proof 37909862299 PASS with exact source/deployment SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
 review_findings_resolved_in_increment:
