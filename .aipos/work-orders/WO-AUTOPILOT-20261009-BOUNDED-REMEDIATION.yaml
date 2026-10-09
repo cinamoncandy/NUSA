@@ -35,7 +35,8 @@ verification:
   - "node --test dist/apps/autopilot/src/codingRunnerRemediation.test.js"
   - "node --test tests/autopilot-control-plane-wiring.test.js"
 
-implementation_commit: 7f1f7fc7ee17fd25652fef21bbbfdbb10c9f05ee
+implementation_commit: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
 reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
 review_status: "INDEPENDENT_REVIEW_PASS_ON_EXACT_HEAD"
 next_permitted_action: "Continue #2595 under the existing #903 control plane: wire the decision primitive into the canonical worker and run focused deterministic validation; preserve Release/Audit authority and do not create a second scheduler or runner."
