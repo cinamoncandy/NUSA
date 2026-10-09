@@ -1,0 +1,37 @@
+id: WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME
+title: "Resume an unrecorded closed-learning cycle after a process restart"
+status: LOCAL_IMPLEMENTATION_VALIDATION_IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: fix/2589-restart-safe-cycle-resume
+issue: 2589
+parent_work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
+supersedes_limit_of: WO-LEARNING-20261008-RESUME-FAILED-CYCLE
+authority_impact: learning-loop-recovery-control-flow-no-order-no-risk-no-paper-ledger-write
+objective: "Resume the latest exact unrecorded PAPER period cycle after a process restart when the cycle never became durable, without replaying stale history or deploying from a successor period."
+first_broken_transition: "durable realized-period close -> process restart -> unrecorded cycle resume"
+finding:
+  - "The merged #2594 scheduler keeps eligible retry intent only in an in-memory Map, so a new scheduler instance cannot resume the unrecorded cycle."
+  - "Current runtime health shows realized periods with cyclesRecorded=0, but the persisted lastBlockedReason predates the current process; it is not attributed as the cause."
+scope:
+  include:
+    - "Reuse the existing rollover scheduler, canonical realized-period store, evidence identity builder, replay-safe cycle coordinator, and durable cycle ledger."
+    - "After restart, resume only when there is no open successor, the latest completed period has no recorded cycle, canonical account.updatedAt exactly equals that period's durable periodEndAt, and the real KST trading day still matches the close day."
+    - "Preserve the existing in-process retry bound and streamed-market guard; use the same immutable evidence identity and idempotent cycle coordinator."
+    - "Keep the existing stalled-continuation behavior for advanced account state, stale KST day, absent clock, missing identity support, or an already-recorded cycle."
+  exclude:
+    - "Backfilling older realized periods when any successor period exists or account activity advanced beyond the close boundary."
+    - "Synthetic fills/PnL, Ledger writes, risk/threshold changes, order behavior changes, Research selection/parameters, LIVE activation, or AI authority."
+acceptance:
+  - "A fresh scheduler instance with a durable close, no open successor, no cycle record, and exact unchanged account boundary resumes the existing cycle and opens at most one successor."
+  - "A recorded cycle is never duplicated; an advanced account, later KST trading day, missing clock, or unstreamed market never triggers stale replay."
+  - "Focused scheduler/production wiring tests, build, typecheck, preflight, validate:full, and work-order index validation pass."
+  - "Exact-head CI, independent review/audit, and canonical Release pass before merge."
+  - "After protected-main deployment, actual PAPER evidence confirms same-identity recovery and deterministic replay; no historic failure reason is inferred."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
