@@ -442,17 +442,19 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
   const LATER = NEXT_KST_DAY + 60_000;
 
   /** A stateful port: one open FILLED period that crosses the KST day, a durable close, and a cycle that can be made to throw. */
-  function sequence(options: { failuresBeforeSuccess: number; withRecordedCheck?: boolean; cycleAlreadyRecorded?: boolean; startClosed?: boolean; streamedMarkets?: readonly string[] }) {
+  function sequence(options: { failuresBeforeSuccess: number; withRecordedCheck?: boolean; cycleAlreadyRecorded?: boolean; startClosed?: boolean; streamedMarkets?: readonly string[]; wallClock?: number }) {
     const events: string[] = [];
     let open: readonly PersistedPaperRealizedPeriodPlan[] = options.startClosed === true ? [] : [plan("FILLED")];
     let realized: readonly PersistedPaperPeriodEnvelope[] = options.startClosed === true ? Object.freeze([envelope()]) : Object.freeze([]);
     const recorded = new Set<string>(options.cycleAlreadyRecorded === true ? [HASH] : []);
     let failures = options.failuresBeforeSuccess;
     let nowAccount = NEXT_KST_DAY;
+    let wallClock = options.wallClock ?? NEXT_KST_DAY;
     const port: ClosedLearningRolloverPort = {
       listOpenPeriods: () => open,
       listRealizedPeriods: () => realized,
       readCanonicalPaperAccount: () => account(nowAccount),
+      now: () => wallClock,
       closePeriodFromCanonicalAccount: ({ periodId, periodEndAt }) => {
         events.push(`close:${periodId}:${periodEndAt}`);
         const closed = envelope();
@@ -471,7 +473,7 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
       ...(options.streamedMarkets === undefined ? {} : { streamedMarkets: () => options.streamedMarkets! }),
       ...(options.withRecordedCheck === false ? {} : { isCycleRecorded: (id: ClosedLearningEvidenceIdentity) => recorded.has(id.evidenceFingerprintSha256) }),
     };
-    return { scheduler: new ClosedLearningRolloverScheduler(port), events, setAccount: (value: number) => { nowAccount = value; }, openIds: () => open.map((item) => item.periodId) };
+    return { scheduler: new ClosedLearningRolloverScheduler(port), port, events, setAccount: (value: number) => { nowAccount = value; }, setClock: (value: number) => { wallClock = value; }, openIds: () => open.map((item) => item.periodId) };
   }
 
   it("retries the cycle on the next tick and opens the successor once, instead of losing the period's learning", () => {
@@ -498,6 +500,22 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
     assert.equal(waiting.status, "NO_OPEN_PERIOD");
     assert.equal(waiting.reason, "WAITING_FOR_CANONICAL_BOUNDARY");
     assert.equal(events.filter((item) => item === "cycle").length, 1);
+  });
+
+  it("resumes the exact unrecorded close after process restart without waiting for a synthetic or later account update", () => {
+    const firstProcess = sequence({ failuresBeforeSuccess: 1 });
+    const failed = firstProcess.scheduler.runOnce();
+    assert.equal(failed.status, "BLOCKED");
+    assert.deepEqual(firstProcess.openIds(), [], "the period close is durable before the process stops");
+
+    const restartedProcess = new ClosedLearningRolloverScheduler(firstProcess.port);
+    const resumed = restartedProcess.runOnce();
+    assert.equal(resumed.status, "CLOSED_AND_EVALUATED");
+    assert.equal(resumed.cycle?.record.evidenceFingerprintSha256, HASH, "the original immutable evidence identity is replayed");
+    assert.equal(firstProcess.events.filter((item) => item === "cycle").length, 2);
+    assert.equal(firstProcess.openIds().length, 1, "exactly one successor is opened after the durable cycle");
+    assert.notEqual(restartedProcess.runOnce().status, "CLOSED_AND_EVALUATED");
+    assert.equal(firstProcess.events.filter((item) => item === "cycle").length, 2, "a recorded cycle is not duplicated after restart");
   });
 
   it("is bounded: a persistent failure stops retrying and PAPER continues with a reopened period", () => {
@@ -528,12 +546,21 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
     assert.equal(baseline.events.filter((item) => item === "cycle").length, 1);
   });
 
-  it("never resumes a gap this process did not create (history, or a successor retired later), even when no cycle is recorded", () => {
+  it("does not replay an older unrecorded period after the canonical account has advanced", () => {
     const { scheduler, events, setAccount } = sequence({ failuresBeforeSuccess: 0, startClosed: true });
     setAccount(LATER);
     const result = scheduler.runOnce();
     assert.equal(result.status, "STALLED_PERIOD_REOPENED", "the old unrecorded period is only continued, never re-evaluated");
     assert.equal(events.filter((item) => item === "cycle").length, 0);
+  });
+
+  it("does not resume an exact-boundary gap after its KST trading day has passed", () => {
+    const { scheduler, events, setClock } = sequence({ failuresBeforeSuccess: 0, startClosed: true });
+    setClock(NEXT_KST_DAY + 24 * 60 * 60 * 1_000);
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "NO_OPEN_PERIOD");
+    assert.equal(result.reason, "WAITING_FOR_CANONICAL_BOUNDARY");
+    assert.equal(events.filter((item) => item === "cycle").length, 0, "stale evidence is never replayed on a later KST day");
   });
 
   it("does not resume onto a market the runtime no longer streams", () => {

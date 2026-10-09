@@ -2906,12 +2906,26 @@ current_issue_2589_closed_learning_failure_evidence:
   work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
   issue: 2589
   parent_issue: 1605
-  status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+  status: MERGED_INCREMENT_RUNTIME_EVIDENCE_PENDING
   authority_impact: none
   first_broken_transition: "closed PAPER Performance Evidence N -> closed-learning cycle/Feedback N"
   scope: "Persist bounded immutable deterministic failure receipts in the existing hash-chained cycle ledger after a prepared CYCLE/FINALIZE failure; restart-safe read-only health exposes latest failure separately from latest success; oversized, non-canonical, malformed, or tampered receipt replay fails closed."
-  validation: "The published increment is committed and workflow-validated by the delegated publish job: build, typecheck, validate:full, work-order index check, tests/*.test.js and isolated co-located tests pass."
-  remaining: "Exact-head CI, independent Audit and Release; then protected-main merge, exact-main PAPER deployment/runtime proof that durable failure evidence survives restart/recovery or a successful reproduced cycle is recorded, and replay proof that no duplicate failure or cycle record is produced."
+  validation: "PR #2597 and #2598 merged with exact-head workflow/release authorization; actual exact-main PAPER failure receipt and replay evidence remains unverified."
+  merged_increments: "PR #2597 -> cccaad7e0ad21fed89561b0c5342e229c2fe59454; PR #2598 -> 29f341a254ea71a19050c6815566382260def9fc."
+  remaining: "Actual exact-main PAPER failure-receipt/replay evidence remains pending; restart-safe unrecorded-cycle re-execution is tracked under WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_issue_2589_restart_safe_resume:
+  work_order: WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME
+  issue: 2589
+  parent_work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
+  status: LOCAL_VALIDATED_GOVERNED_GATES_PENDING
+  branch: fix/2589-restart-safe-cycle-resume
+  base_sha: 5bc350c8dae8e7b633a7d18944fc760998b7019f
+  implementation_head: e844d4369b4600432a20a1ae647178048caf1119
+  first_broken_transition: "durable realized-period close -> process restart -> unrecorded cycle resume"
+  evidence: "#2594 retries only cycles remembered in its in-memory awaitingCycle Map; after restart that marker is absent. Restart resume is guarded by the exact canonical account boundary and same KST day, with no open successor."
+  validation: "pnpm build and typecheck pass; focused scheduler/wiring regression passes 8/8 files; architecture check passes with zero findings; all AIPOS YAML parses. preflight/validate:full are blocked in this sandbox because validator spawnSync git returns EPERM."
+  remaining: "Exact-head CI, Independent Review/Audit, canonical Release and merge; then exact-main PAPER recovery and deterministic replay evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_failure_history:
   work_order: WO-RESEARCH-20261008-FAILURE-HISTORY
@@ -2927,10 +2941,13 @@ current_research_sma_cost_note:
   finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
 current_learning_resume_failed_cycle:
   work_order: WO-LEARNING-20261008-RESUME-FAILED-CYCLE
-  status: READY_FOR_REVIEW
+  status: MERGED_INCREMENT_LIMITATION_RECORDED
   branch: claude/cycle-failure-reproduction
+  pull_request: 2594
+  merge_commit: 893e264ffccf7c41b72670d7da88235727089b19
   authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
-  finding: "A period closed durably and its cycle threw was never retried (the next tick only reopened a continuation), so its learning was lost; the scheduler now resumes the latest unrecorded cycle in the stalled state, bounded to 5 ticks per period. The original production failure reason is unknown, so this is a confirmed hole matching the symptom, not a proven cause"
+  finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
+  limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
 current_learning_baseline_shadow:
   work_order: WO-LEARNING-20261008-BASELINE-SHADOW
   status: READY_FOR_REVIEW
