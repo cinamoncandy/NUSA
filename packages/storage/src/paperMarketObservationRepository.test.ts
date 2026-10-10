@@ -135,9 +135,12 @@ test("multiple open periods use the earliest protection floor across markets", (
 test("unverifiable protection floor fails closed without deleting observations", () => {
   const db = new SqliteDatabase(":memory:");
   try {
+    new SqlitePersistedPaperPeriodStore(db);
     const repository = new SqlitePaperMarketObservationRepository(db, 2);
     db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
-      .run("malformed-floor", 0, "not-a-time", "{}", "checksum");
+      .run("valid-floor", 0, 250, "{}", "valid-checksum");
+    db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
+      .run("malformed-floor", 1, "not-a-time", "{}", "checksum");
     repository.append(observation(100, 100));
     repository.append(observation(200, 200));
     repository.append(observation(300, 300));
