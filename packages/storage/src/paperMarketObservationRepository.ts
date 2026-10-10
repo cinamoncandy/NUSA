@@ -210,11 +210,12 @@ export class SqlitePaperMarketObservationRepository {
     // pruning: losing evidence is worse than temporarily exceeding the cap.
     let protectedFloor: number | undefined;
     try {
-      const row = this.db.connection.prepare(`SELECT MIN(period_start_at) AS protected_floor FROM research_paper_forward_period_pending`).get() as { protected_floor?: unknown } | undefined;
-      const value = row?.protected_floor;
-      if (value !== null && value !== undefined) {
+      const rows = this.db.connection.prepare(`SELECT period_start_at FROM research_paper_forward_period_pending`).all() as Array<{ period_start_at?: unknown }>;
+      for (const row of rows) {
+        const value = row.period_start_at;
         if (!Number.isSafeInteger(value) || Number(value) < 0) return;
-        protectedFloor = Number(value);
+        const startAt = Number(value);
+        protectedFloor = protectedFloor === undefined ? startAt : Math.min(protectedFloor, startAt);
       }
     } catch {
       return;
