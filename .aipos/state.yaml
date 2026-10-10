@@ -2965,7 +2965,7 @@ current_autopilot_2595_bounded_remediation:
   status: MERGED_INCREMENT_POST_MERGE_RUNTIME_VERIFIED_RESIDUAL_OPEN
   merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
   authority_impact: bounded-coding-runner-failure-classification-and-http-evidence-only
-  first_broken_transition: "classified actionable coding-runner failure -> actual bounded remediation"
+  first_broken_transition: "failed workflow identity -> remediation eligibility"
   exact_head_ci: "GitHub Actions run 37907989197 PASS for exact head 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94"
   independent_review: "Exact-head Codex review comment 6077782732 on PR #2596 reviewed 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94 and reported no major issues."
   independent_review_comment_id: 6077782732
@@ -2983,13 +2983,12 @@ current_autopilot_2595_bounded_remediation:
   deployment: "Cloudflare Deploy run 37909190345 PASS; deployed exact merge SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
   runtime_proof: "Runtime Proof run 37909862299 PASS; exactHeadVerified=true and deploymentRevision=sourceSha=21e632ace23bc2ee64778855ce49e0a083706c84. Scheduled ingress ABSTAINED because exact-main canonical CI was not found."
   paper_canary: "Actual PAPER run 37909797419 classified INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; no completion claim."
-  remaining: "Under #2595: wire the remediation decision into the existing #903 canonical worker, persist a durable completion receipt, then pass a real allowlisted actionable-failure canary through the governed chain."
-  successor_branch: autopilot/p0-2595-worker-wiring
-  successor_base_sha: 07f350dc8c4c5fbc2681991cbe61fbc3f6756a05
-  successor_implementation_head: 47fc495c9784273b78019ff72d606aed2d79d956
-  successor_pull_request: 2602
-  successor_status: DRAFT_PR_EXACT_HEAD_CI_PENDING
-  successor_first_broken_transition: "worker remediation decision -> existing #903 consumer bounded execution and provider wait"
-  successor_validation: "TypeScript; codingRunnerRemediation; worker; codingRunner; control-plane-wiring PASS. Dispatch suite 36/38; two temp git integration cases blocked by host EPERM on git init. preflight component checks and strict AIPOS YAML parsing PASS; pnpm wrapper blocked creating /root/.local."
-  next_permitted_action: "Validate temporary git integration cases on a runner that permits git subprocesses, then publish one successor PR for exact-head CI, Independent Audit, and governed Release; durable completion receipt and real canary remain open."
+  invalid_canary_non_eligible_workflow: "INVALID_CANARY_NON_ELIGIBLE_WORKFLOW: consumer run 38030591763 received a dispatch citing Oracle PAPER Release run 38027432366; worker artifact recorded FAILED_TO_REMEDIATE after exactly three SANDBOX_PATCH_* proposal rejections. Preserve as evidence of worker consumption, retry cap enforcement, and the eligibility boundary defect only; do not count as Verified Useful Completion."
+  remaining: "Under #2595, add fail-closed workflow identity and actionable-step eligibility to the existing #903 worker; then obtain a real eligible coding-failure completion, governed verification, runtime evidence, and durable receipt."
+  successor_branch: autopilot/codex/issue-2595-37995487274
+  successor_base_sha: ba6bfa3ec948af52e2b61a9f1de44f921c287b78
+  successor_pull_request: 2601
+  successor_status: BOUNDARY_IMPLEMENTATION_IN_PROGRESS
+  successor_first_broken_transition: "failed workflow identity -> remediation eligibility"
+  next_permitted_action: "Complete exact workflow/run/SHA and actionable-step admission checks in the existing canonical worker, pass focused regression tests and exact-head CI, then Independent Audit and governed Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

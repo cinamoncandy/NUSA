@@ -3,6 +3,11 @@
  * authority and performs no retry. Only explicit, known reason codes can become retryable.
  */
 export type CodingRunnerFailureClass =
+  | "AUDIT_BLOCKED"
+  | "RELEASE_BLOCKED"
+  | "DEPLOYMENT_FAILURE"
+  | "PERMISSION_FAILURE"
+  | "WORKFLOW_NOT_ELIGIBLE"
   | "AUTHORITY_VIOLATION"
   | "EVIDENCE_UNVERIFIED"
   | "EVIDENCE_MISMATCH"
@@ -73,6 +78,18 @@ function normalizeAllowlistedSandboxFailure(code: string): string {
 export function classifyCodingRunnerFailure(reason: unknown, httpStatus?: number): CodingRunnerFailureClassification {
   const rawCode = typeof reason === "string" ? reason.trim() : "";
   const code = normalizeAllowlistedSandboxFailure(rawCode);
+  const failClosedWorkflowCodes = new Map<CodingRunnerFailureClass, readonly string[]>([
+    ["AUDIT_BLOCKED", ["AUDIT_BLOCKED"]],
+    ["RELEASE_BLOCKED", ["RELEASE_BLOCKED"]],
+    ["DEPLOYMENT_FAILURE", ["DEPLOYMENT_FAILURE"]],
+    ["PERMISSION_FAILURE", ["PERMISSION_FAILURE"]],
+    ["WORKFLOW_NOT_ELIGIBLE", ["WORKFLOW_NOT_ELIGIBLE", "ACTIONABLE_FAILURE_NOT_ALLOWLISTED"]],
+    ["EVIDENCE_UNVERIFIED", ["WORKFLOW_IDENTITY_MISSING", "ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED"]],
+    ["EVIDENCE_MISMATCH", ["WORKFLOW_IDENTITY_MISMATCH"]],
+  ]);
+  for (const [failureClass, codes] of failClosedWorkflowCodes) {
+    if (codes.includes(code)) return make(failureClass, "STOP", false);
+  }
   if (/AUTHORITY|PRODUCTION_MUTATION/.test(code)) return make("AUTHORITY_VIOLATION", "STOP", false);
   if (code === "PROVIDER_CAPACITY_STATE_UNAVAILABLE") return make("PROVIDER_CAPACITY", "STOP", false);
   if (CAPACITY.has(code)) return make("PROVIDER_CAPACITY", "WAIT_FOR_PROVIDER", false);
