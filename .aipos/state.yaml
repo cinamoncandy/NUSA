@@ -2898,6 +2898,12 @@ current_learning_last_blocked_reason:
   branch: claude/health-last-blocked-reason
   authority_impact: none
   finding: "After #2581 the replacement period closed (realizedPeriods=2) but the durable ledger holds no cycle (cyclesRecorded=0); the BLOCKED reason of the failed cycle was overwritten within one tick. /health now keeps lastBlockedReason/lastBlockedAt (per process, code only)"
+current_risk_loss_limit_comparison_tool:
+  work_order: WO-RISK-20261008-LOSS-LIMIT-COMPARISON-TOOL
+  status: READY_FOR_REVIEW
+  branch: claude/loss-limit-comparison
+  authority_impact: none
+  finding: "Added an offline deterministic comparison of consecutive-loss limits over a completed-sell sequence (tooling only, threshold stays 3); no real comparison exists yet because the ledger sequence is owner-authenticated, so issue 2575 item 5 remains open"
 current_strategy_baseline_code_identity:
   work_order: WO-STRATEGY-20261008-BASELINE-CODE-IDENTITY
   status: READY_FOR_REVIEW
