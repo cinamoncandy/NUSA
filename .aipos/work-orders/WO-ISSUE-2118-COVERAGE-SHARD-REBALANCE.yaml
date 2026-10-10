@@ -1,0 +1,50 @@
+id: WO-ISSUE-2118-COVERAGE-SHARD-REBALANCE
+title: "Balance measured core coverage shards without reducing coverage"
+status: REVIEW_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P0
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2118
+base_branch: main
+base_commit: 8237e563a78f762a9848f6559d2c3137202d64a8
+objective: "Use measured test-file cost evidence to deterministically rebalance the existing four core coverage shards while preserving the exact test universe and coverage gates."
+scope:
+  - "Assign the existing discovered test inventory by deterministic longest-processing-time using the checked-in p70 profile from four successful main CI runs."
+  - "Keep four shards, all discovered tests, existing coverage collection/merge/thresholds, and required CI gates unchanged."
+  - "Persist malformed cost-profile failures in the existing isolated-test diagnostic artifact."
+  - "Record exact-head implementation, validation and observed performance evidence in this work order and AIPOS state."
+evidence:
+  baseline_runs:
+    - "38017943817 @ 002db578d6e5f01843e3675ef784a6ee428f2152: total 357s; isolated max 157s; core job max 252s"
+    - "38027359182 @ 341fefdd39d820456e43b3ab2caedc52fa9064d3: total 325s; isolated max 138s; core job max 226s"
+    - "38032093469 @ ba6bfa3ec948af52e2b61a9f1de44f921c287b78: total 342s; isolated max 144s; core job max 234s"
+    - "38033675522 @ 8237e563a78f762a9848f6559d2c3137202d64a8: total 337s; isolated max 159s; core job max 247s"
+  baseline_summary: "Total CI median 339.5s; isolated max median 150.5s; isolated shard-spread median 52.25s; queue 1–4s."
+  first_exact_head_run: "38040401563 on 605c1c7d13e1fceee4769abdacf6d16d18732115 PASS; 1,189 tests assigned 297/296/298/298; coverage merge PASS; total 305s; isolated max 121s; isolated spread 43s; core job max 209s. One optimized sample only; core-job spread widened to 71s and no stable performance-success claim is made from a single run."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - "Same test inventory is executed exactly once across four deterministic shards."
+  - "Malformed shard-cost evidence fails closed and writes isolated-test-failure.txt for artifact upload."
+  - "Existing coverage semantics and required gates remain unchanged."
+  - "At least two comparable actual optimized CI runs and post-merge current-main CI evidence are reviewed before declaring performance completion."
+verification_commands:
+  - "node --test tests/deterministic-test-shard.test.js tests/run-tests-isolated.test.js tests/ci-efficiency.test.js"
+validation:
+  status: LOCAL_PASS
+  commands:
+    - "node --test tests/deterministic-test-shard.test.js tests/run-tests-isolated.test.js tests/ci-efficiency.test.js — PASS 11/11"
+    - "pnpm run preflight — PASS"
+    - "pnpm run aipos:yaml — PASS (393 files)"
+    - "pnpm run aipos:provenance — PASS"
+    - "pnpm run aipos:drift — PASS"
+    - "git diff --check — PASS"
+  exact_head_ci: "38040401563 PASS on prior head 605c1c7d13e1fceee4769abdacf6d16d18732115; invalidated by review repair"
+  independent_audit: "38040709695 audit job PASS; two review findings repaired on this head, fresh Audit pending"
+  release: "38040709695 blocked before merge because the two review threads were unresolved; authorization revoked"
+  local: "Review repairs validated; focused tests 11/11, preflight, AIPOS YAML/provenance/drift, and diff check PASS"
+pull_request: 2606
+next_permitted_action: "Run focused tests and AIPOS validators, commit/push the repairs to PR #2606, then require fresh exact-head CI, independent Audit, and canonical Release."

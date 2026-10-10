@@ -144,6 +144,22 @@ current_issue_2118_main_ci_materialization:
   local_validation: "Latest-main sync f484735e: workflow regressions 13/13, AIPOS YAML/provenance/drift, security gate (zero secrets/high/critical), and diff check PASS. Exact head 17c5bd89 CI passed all validation/build/typecheck/architecture/security/coverage/test jobs and all five PAPER/Restricted LIVE/read-only-broker companions."
   remaining: "The change became active on main only after its canonical Release completed merge. Verify duplicate post-merge CI suppression on a subsequent Release execution; do not claim runtime exercise from the pre-merge workflow version."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_issue_2118_coverage_shard_rebalance:
+  work_order: WO-ISSUE-2118-COVERAGE-SHARD-REBALANCE
+  issue: 2118
+  pull_request: 2606
+  branch: ci/2118-cost-aware-coverage
+  status: REVIEW_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI
+  base_sha: 8237e563a78f762a9848f6559d2c3137202d64a8
+  prior_implementation_head: 605c1c7d13e1fceee4769abdacf6d16d18732115
+  prior_exact_head_ci: "38040401563 PASS; invalidated by review repair"
+  baseline_total_ci_median_seconds: 339.5
+  baseline_isolated_max_median_seconds: 150.5
+  baseline_isolated_spread_median_seconds: 52.25
+  observed_first_head: "run 38040401563: total 305s; isolated max 121s; isolated spread 43s; core job max 209s; core job spread 71s; 1,189 files across 4 passing shards. Single sample only."
+  local_validation: "Review repairs: focused tests 11/11; pnpm preflight; AIPOS YAML (393 files), provenance, drift, and diff check PASS."
+  remaining: "Fresh exact-head CI, Independent Audit, and canonical Release are pending after the review repair. Require post-merge CI and a second comparable optimized timing before performance completion."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_worker_deploy_scope:
   work_order: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
   status: MERGED_POST_MERGE_VALIDATION_AND_DEPLOY_SKIP_VERIFIED

@@ -53,7 +53,15 @@ try {
   console.error(message);
   process.exit(1);
 }
-const files = selectDeterministicShard(allFiles, shard, shardCostEvidence);
+let files;
+try {
+  files = selectDeterministicShard(allFiles, shard, shardCostEvidence);
+} catch (error) {
+  const message = `INVALID_TEST_SHARD_COST_EVIDENCE ${error instanceof Error ? error.message : String(error)}`;
+  writeFileSync(diagnosticPath, message, "utf8");
+  console.error(message);
+  process.exit(1);
+}
 if (files.length === 0) {
   const message = `EMPTY_TEST_SHARD ${shard.index + 1}/${shard.count} from ${allFiles.length} test files`;
   writeFileSync(diagnosticPath, message, "utf8");
