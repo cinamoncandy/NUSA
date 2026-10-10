@@ -39,6 +39,8 @@ export interface PersistedPaperPeriodRecord {
   readonly costEvidence: PaperPeriodCostEvidence;
   /** Optional canonical benchmark provenance; legacy records may omit it. */
   readonly benchmarkEvidenceId?: string;
+  /** Full fingerprint of the canonical market observations used to derive benchmarkReturn. */
+  readonly benchmarkInputFingerprintSha256?: string;
   /** Fingerprint of the canonical account outcome used to derive this period. */
   readonly canonicalOutcomeReceiptFingerprint?: string;
   readonly status: PaperPeriodLifecycleStatus;
