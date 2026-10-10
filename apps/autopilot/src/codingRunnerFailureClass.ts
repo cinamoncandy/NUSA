@@ -3,6 +3,11 @@
  * authority and performs no retry. Only explicit, known reason codes can become retryable.
  */
 export type CodingRunnerFailureClass =
+  | "AUDIT_BLOCKED"
+  | "RELEASE_BLOCKED"
+  | "DEPLOYMENT_FAILURE"
+  | "PERMISSION_FAILURE"
+  | "WORKFLOW_NOT_ELIGIBLE"
   | "AUTHORITY_VIOLATION"
   | "EVIDENCE_UNVERIFIED"
   | "EVIDENCE_MISMATCH"
@@ -29,8 +34,8 @@ const make = (failureClass: CodingRunnerFailureClass, recovery: CodingRunnerReco
   Object.freeze({ failureClass, recovery, retryable });
 
 const CAPACITY = new Set(["WORKERS_AI_DAILY_QUOTA_EXHAUSTED", "WORKERS_AI_RATE_LIMITED", "WAITING_PROVIDER_CAPACITY", "BLOCKED_RATE_LIMIT"]);
-const UNVERIFIED_GITHUB_LOOKUP = new Set(["CODING_RUNNER_HEAD_SHA_UNVERIFIED", "CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED"]);
-const STALE_EVIDENCE = new Set(["CODING_PUBLISH_STALE_HEAD_SUPPRESSED", "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL", "CODING_RUNNER_FAILURE_EVIDENCE_INVALID"]);
+const UNVERIFIED_GITHUB_LOOKUP = new Set(["CODING_RUNNER_HEAD_SHA_UNVERIFIED", "CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED", "CODING_RUNNER_MAIN_SHA_UNVERIFIED"]);
+const STALE_EVIDENCE = new Set(["CODING_PUBLISH_STALE_HEAD_SUPPRESSED", "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL", "CODING_RUNNER_FAILURE_EVIDENCE_INVALID", "CODING_RUNNER_WORKFLOW_HEAD_STALE"]);
 const PROVIDER = new Set(["WORKERS_AI_CODING_ENGINE_FAILED", "GITHUB_MODELS_CODING_FAILED"]);
 // Keep this synchronized with RETRYABLE_PROPOSAL_FAILURE_CODES in scripts/autopilot-dispatch-retry.js.
 // CODING_PROPOSAL_REPEATED is intentionally excluded so a deterministic repeat cannot spend another inference.
@@ -73,6 +78,18 @@ function normalizeAllowlistedSandboxFailure(code: string): string {
 export function classifyCodingRunnerFailure(reason: unknown, httpStatus?: number): CodingRunnerFailureClassification {
   const rawCode = typeof reason === "string" ? reason.trim() : "";
   const code = normalizeAllowlistedSandboxFailure(rawCode);
+  const failClosedWorkflowCodes = new Map<CodingRunnerFailureClass, readonly string[]>([
+    ["AUDIT_BLOCKED", ["AUDIT_BLOCKED"]],
+    ["RELEASE_BLOCKED", ["RELEASE_BLOCKED"]],
+    ["DEPLOYMENT_FAILURE", ["DEPLOYMENT_FAILURE"]],
+    ["PERMISSION_FAILURE", ["PERMISSION_FAILURE"]],
+    ["WORKFLOW_NOT_ELIGIBLE", ["WORKFLOW_NOT_ELIGIBLE", "ACTIONABLE_FAILURE_NOT_ALLOWLISTED"]],
+    ["EVIDENCE_UNVERIFIED", ["WORKFLOW_IDENTITY_MISSING", "ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED"]],
+    ["EVIDENCE_MISMATCH", ["WORKFLOW_IDENTITY_MISMATCH"]],
+  ]);
+  for (const [failureClass, codes] of failClosedWorkflowCodes) {
+    if (codes.includes(code)) return make(failureClass, "STOP", false);
+  }
   if (/AUTHORITY|PRODUCTION_MUTATION/.test(code)) return make("AUTHORITY_VIOLATION", "STOP", false);
   if (code === "PROVIDER_CAPACITY_STATE_UNAVAILABLE") return make("PROVIDER_CAPACITY", "STOP", false);
   if (CAPACITY.has(code)) return make("PROVIDER_CAPACITY", "WAIT_FOR_PROVIDER", false);

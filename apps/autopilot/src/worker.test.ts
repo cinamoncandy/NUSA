@@ -77,6 +77,7 @@ async function withStubbedFailureAndJevFetch<T>(run: () => Promise<T>): Promise<
   globalThis.fetch = (async (url: string) => {
     const value = String(url);
     if (value.includes("/commits/")) return new Response(JSON.stringify({ sha: HEAD }), { status: 200 });
+    if (value.includes("/branches/main")) return new Response(JSON.stringify({ commit: { sha: HEAD } }), { status: 200 });
     if (value.includes("/jobs?")) {
       return new Response(JSON.stringify({
         total_count: 1,
@@ -84,18 +85,20 @@ async function withStubbedFailureAndJevFetch<T>(run: () => Promise<T>): Promise<
           run_id: request.workflowRunId,
           name: "validation",
           conclusion: "failure",
-          steps: [{ name: "Preflight", conclusion: "failure" }],
+          steps: [{ name: "Typecheck", conclusion: "failure" }],
         }],
       }), { status: 200 });
     }
     if (value.includes("/actions/runs/")) {
       return new Response(JSON.stringify({
         id: request.workflowRunId,
+        workflow_id: 311000286,
+        path: ".github/workflows/ci.yml",
         name: "CI",
         head_sha: HEAD,
-        head_branch: "feature/failure",
+        head_branch: "main",
         repository: { full_name: request.repository },
-        event: "pull_request",
+        event: "push",
         status: "completed",
         conclusion: "failure",
       }), { status: 200 });
