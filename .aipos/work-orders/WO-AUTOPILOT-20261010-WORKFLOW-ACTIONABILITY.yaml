@@ -1,0 +1,38 @@
+id: WO-AUTOPILOT-20261010-WORKFLOW-ACTIONABILITY
+title: "Current-main workflow failure actionability and logical-work deduplication"
+status: LOCAL_VALIDATED_GOVERNED_GATES_PENDING
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 1851
+pull_request: 1854
+implementation_branch: fix/evolve-workflow-actionability-1851
+source_main_sha: a99da735cdd5b040b24ab24d7933a99fa5ebec2f
+first_broken_transition: "exact workflow failure identity -> causal actionability -> CodingRunner admission"
+objective: "Only exact, trusted, causally allowlisted repository-code failures may enter the existing #903 CodingRunner path; repeated logical failures must dispatch once, and the exact-head canonical Release path must complete its authorization wait without weakening its checks."
+scope:
+  include:
+    - "Bind workflow failure evidence to exact run ID, current main SHA, repository, workflow path, status and conclusion."
+    - "Fail closed for unknown, external, infra, evidence, dependency, credential and authority failures."
+    - "Require the trusted canonical CI workflow and explicit repository-regression step contract for CODE_ACTIONABLE."
+    - "Suppress concurrent distinct-run replays of the same logical source through the existing persistent coordinator."
+    - "Preserve current issue backlog, active WIP, provider-capacity wait and safety contracts."
+    - "Exit the bounded Release propagation loop when the exact-head App success is visible; fail closed when it never appears."
+  exclude:
+    - "No new worker, queue, scheduler or control plane."
+    - "No synthetic failure/canary, LIVE authority, secret mutation or financial execution."
+validation:
+  strict_targeted_typescript_compile: PASS
+  focused_tests: "PASS 53/53 across scheduledEvolutionCoding, scheduledLogicalWorkDedupe, scheduledRuntime.failureRouting, auditReleaseAuthority and canonical Release workflow contracts."
+  full_repository_build: "NOT_COMPLETED; initial whole-project compile was stopped to avoid sustained CPU/memory pressure on the PAPER host."
+  aipos_yaml: "PASS: 394 files parse strictly; no duplicate keys."
+  work_order_provenance: "PASS: reconciled colliding ids WO-0063 and WO-0070."
+  exact_head_ci: PENDING
+  independent_audit: PENDING
+  release_authorization: PENDING
+remaining: "Push this current-main patch to existing PR #1854, obtain exact-head CI and Independent Audit, resolve any findings, then use canonical Release. The exact-head Release propagation loop defect observed on source main is patched and covered by a focused regression; exact-head CI, Independent Audit, and governed Release remain pending."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next_permitted_action: "Update existing PR #1854 with the validated current-main head; do not merge until exact-head CI, Independent Audit and canonical Release succeed."

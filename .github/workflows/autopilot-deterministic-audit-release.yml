@@ -336,11 +336,15 @@ jobs:
             test "$main" = "$AUDITED_BASE"
             status="$(gh api "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses" --jq '[.[] | select(.context == "nusa/release-authorized") | select(.state == "success")] | sort_by(.id) | last // empty')"
             if [ -n "$status" ]; then
-              echo "Waiting for protected-branch evaluation to observe $AUTH_CONTEXT (poll $poll/10)."
+              echo "Protected branch can evaluate the exact-head $AUTH_CONTEXT success (poll $poll/10)."
+              break
+            fi
+            if [ "$poll" -lt 10 ]; then
+              echo "Waiting for exact-head $AUTH_CONTEXT to propagate (poll $poll/10)."
               sleep 3
               continue
             fi
-            echo "::error::Exact-head release authorization disappeared before protected-branch evaluation."
+            echo "::error::Exact-head release authorization was not visible before the bounded propagation wait expired."
             exit 1
           done
 
