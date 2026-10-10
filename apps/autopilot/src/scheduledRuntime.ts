@@ -218,7 +218,7 @@ function currentMainFailureRunId(candidates: readonly unknown[], mainSha: string
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
+    if (text(run.status) !== "completed" || (conclusion !== "failure" && conclusion !== "timed_out")) continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     if (text(run.head_sha)?.toLowerCase() !== mainSha.toLowerCase()) continue;
     const runId = positiveInteger(run.id);
@@ -335,12 +335,21 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
     discoveredOpportunityIds = discoverWorkflowFailureOpportunityIds(candidates, now);
 
     const failedRunId = currentMainFailureRunId(candidates, mainSha, now);
+    let nonActionableFailureReason: string | null = null;
     if (failedRunId) {
       try {
         const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls, now, repository, mainSha, workflowRunId: failedRunId }, fetchImpl);
         console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
-        return codingResult(coding, mainSha, failedRunId, discoveredOpportunityIds, workSupply)
-          ?? result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
+        if (!coding.reason.startsWith("workflow-not-code-actionable:")) {
+          return codingResult(coding, mainSha, failedRunId, discoveredOpportunityIds, workSupply)
+            ?? result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
+        }
+        nonActionableFailureReason = coding.reason;
+        if (readiness.eligibleIssueCount === 0) {
+          return result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
+        }
+        // The failure cannot enter CodingRunner. Let the same canonical scheduler
+        // consider one ready issue against successful CI for this exact main.
       } catch (error) {
         return result("EXECUTION_NOT_DISPATCHED", error instanceof Error ? error.message : "scheduled-evolve-coding-failed", mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
       }
@@ -360,6 +369,7 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
       console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
       const handled = codingResult(coding, mainSha, workflowRunId, discoveredOpportunityIds, workSupply);
       if (handled) return handled;
+      if (nonActionableFailureReason) return result("ABSTAINED", nonActionableFailureReason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
     } catch (error) {
       console.error(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING_FAILED", reason: error instanceof Error ? error.message : "UNKNOWN", ...authority }));
     }

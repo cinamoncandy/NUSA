@@ -72,6 +72,16 @@ test("Release waits a bounded interval for GitHub branch protection to observe i
   assert.match(wait, /base\.sha/);
   assert.match(wait, /nusa\/release-authorized/);
   assert.match(wait, /sleep 3/);
+  const successBranch = wait.match(/if \[ -n \"\$status\" \]; then([\s\S]*?)\n            fi/);
+  assert.ok(successBranch, "the exact-head status must be checked explicitly");
+  assert.match(successBranch[1], /break/,
+    "a visible exact-head success must leave the bounded wait instead of timing out");
+  assert.doesNotMatch(successBranch[1], /continue/,
+    "a visible exact-head success must not consume all remaining polls");
+  assert.match(wait, /if \[ \"\$poll\" -lt 10 \]; then/,
+    "missing status may only wait within the fixed poll budget");
+  assert.match(wait, /authorization was not visible[\s\S]*?exit 1/,
+    "missing exact-head authorization must fail closed after the bounded wait");
 });
 
 test("Audit and Release keep zero-authority fail-closed safety invariants", () => {

@@ -691,2325 +691,94 @@ current_authenticated_rate_limit_isolation:
   merge_commit: 7eb91e911fcb4b9f4b56ad7bded22d80eb988baf
   exact_head_ci: PASS
   remaining: "Independent outside-in public DNS reachability is not proven by the available external vantage and remains a separate network evidence item; no code or Oracle runtime blocker remains."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_mobile_paper_session_reconnect:
-  work_order: WO-20260907-MOBILE-PAPER-SESSION-RECONNECT
-  status: VERIFIED
-  branch: codex/mobile-paper-session-reconnect
-  base_sha: 009fcf93a50283c7bc1b191cfa9dddf2837168ab
-  scope: "Retry approved mobile PAPER session restoration after transient server/transport failures while retaining 401/403 fail-closed revocation."
-  validation: "Focused 10/10 and full isolated suite PASS; current protected main 523372d262a99fa5c8fcfb6c6417915db13830d1 CI and Actual PAPER PASS; Oracle authenticated PAPER deployment verified."
-  deployment_evidence: "Oracle release 523372d262a99fa5c8fcfb6c6417915db13830d1; /ready 200; dashboard PAPER; invalid refresh fail-closed; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
-  remaining: "Independent outside-in public DNS reachability remains a separate network evidence item; no code or Oracle runtime blocker remains."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_renderer_navigation_containment:
-  decision: ADR-0017
-  status: IMPLEMENTED_LOCAL
-  branch: claude/nusa-repository-j93sd8
-  scope: "Electron renderer navigation containment; defense-in-depth on the existing preload boundary. No LIVE, credential, accounting, or production-mutation surface touched."
-  findings:
-    - "No will-navigate handler, no setWindowOpenHandler, and no explicit webviewTag:false anywhere in apps/desktop. A preload is re-injected on every navigation, so a renderer reaching remote content would hand that content all eight contextBridge surfaces, including activateKillSwitch, placeOrder, openFolder, exportDiagnostics and recoveryReview.ownerReview."
-    - "The renderer meta CSP does not survive such a navigation (the new document carries the remote server's headers) and does not restrict top-level navigation in the first place."
-  reachability: "LATENT_NOT_LIVE. No exploit path is currently reachable: the renderer uses createElement/replaceChildren throughout, no innerHTML, and contains no anchors or window.open calls. The gap is what would turn any future link or HTML-string rendering into full bridge disclosure."
-  remediation: "isAllowedRendererNavigation same-document file:// check; applyRendererNavigationPolicy preventing will-navigate, will-attach-webview and window.open; registered on app.on(web-contents-created) so later surfaces are covered by default; webviewTag:false; RENDERER_NAVIGATION_BLOCKED diagnostic with sanitized bounded URL."
-  local_validation: "tsc PASS; tests/electron-renderer-navigation-policy.test.js 4/4 PASS (new); tests/product-release-readiness.test.js 20/20 PASS after updating one stale exact-shape assertion for the added webviewTag field; per-file sweep of tests/*.test.js identical to baseline (same 3 pre-existing Node-24 environment failures); pnpm run lint 0 errors."
-  unverified: "pnpm run preflight and pnpm test could not run here: scripts/check-runtime.js requires Node >= 24 and this environment provides 22.22.2. No Electron GUI smoke was run, so the policy is verified by unit test and static wiring assertion rather than by a live window."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_android_receipt_noise_reduction:
-  status: IMPLEMENTED_LOCAL
-  authority_impact: none
-  branch: claude/nusa-repository-j93sd8
-  scope: "CI notification noise only (.github/workflows/android-stable-release.yml). No application code, safety gate, or authority boundary touched."
-  finding: "Every merge to main that reached Android stable release posted a #558 issue comment on success as well as failure (174 accumulated comments), each triggering an email. The same evidence a successful run comments already ships as durable release assets (NUSA-Android.provenance.txt, NUSA-Android.firebase-success.txt), so the success-path comment was a pure notification duplicate."
-  change: "Every run now records the receipt in $GITHUB_STEP_SUMMARY (durable, no notification). #558 is commented only when job_status != success, where the comment remains the only durable record because a failed run publishes no release."
-  requested_scope: "Owner asked only to address the recurring noise; Firebase Distribution tester email was explicitly left unchanged (owner's stated preference) and is out of scope here."
-  local_validation: "YAML parses (python yaml.safe_load); receipt shell logic simulated standalone for both success and failure paths under set -u, including an unset GITHUB_STEP_SUMMARY, with the expected summary-write/comment behavior confirmed for each. No workflow run was triggered in this environment."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_upbit_bridge_credential_persistence:
-  decision: ADR-0018
-  status: IMPLEMENTED_LOCAL
-  branch: claude/nusa-repository-j93sd8
-  scope: "Mobile Upbit READ_ONLY bridge credential persistence. No LIVE, order, transfer, or production-mutation surface touched."
-  reported_symptom: "Owner reported the Upbit READ_ONLY connection authenticating successfully and then coming undone by itself."
-  root_cause: "upbitCredentialSession.ts held the credential in a module-level variable and nowhere else. Android reclaims a backgrounded process freely, so the next launch found isConfigured() false and refreshUpbitReadOnlyAccount short-circuited with 'credential is not configured'. The connection was never revoked; its credential did not outlive the process."
-  change: "Persist through the same SecureStoragePort (Android Keystore) the approved PAPER session uses; restore when memory is empty; delete the stored secret on explicit disconnect; best-effort so a runtime without secure storage still connects for that session. Added restoreUpbitReadOnlyAccount() called once at app start, because the base URL and refresh timer do not survive the process either."
-  superseded_contract: "tests/mobile-upbit-readonly-bridge.test.js asserted process-memory-only; updated to assert the new contract (secure-storage-only persistence, no AsyncStorage/plaintext/API keys, disconnect deletes) rather than removed."
-  owner_decision: "Owner explicitly chose Keystore persistence over memory-only when presented with the tradeoff."
-  local_validation: "tsc PASS; new tests/mobile-upbit-credential-persistence.test.js 5/5 PASS including a process-restart case reproducing the reported symptom; tests/mobile-upbit-readonly-bridge.test.js 8/8 PASS; pnpm run lint 0 errors; full per-file sweep of tests/*.test.js leaves only tests/evidence-cli-contract.test.js, verified failing on a clean tree at the same base."
-  unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-project: nusa
-updated_at: "2026-10-02T17:53:30+09:00"
-current_execution_target:
-  work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
-  status: VERIFYING
-  branch: codex/autopilot-repeat-failure-stop
-  base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
-  pull_request: 2464
-  scope: "Stop the existing bounded proposal retry loop when one correction repeats the same deterministic validation failure code, reducing avoidable inference attempts without weakening validation."
-  authority_impact: none
-  first_broken_transition: repeated_deterministic_failure_to_extra_proposal_call
-  evidence: "Runtime 36982300882: same SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED on attempts 1 and 2, then CODING_PROPOSAL_JSON_INVALID on attempt 3; 0 accepted proposals and 0 code changes."
-  next: "After publishing AIPOS corrections, resolve all actionable review threads; require fresh exact-head CI, independent Audit, then canonical Release. Do not merge outside Release."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_audit_exact_head_binding:
-  work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
-  status: READY_FOR_REVIEW
-  branch: fix/audit-exact-head-binding
-  base_sha: e1a9f3ccb2cbc463344a18d322821ac80c82ded7
-  implementation_head: pending
-  pull_request: 2343
-  finding: "The Audit runner recorded an independently observed head but fetched the model diff from the mutable pull endpoint, leaving a force-push/revert race between observation and reviewed bytes."
-  remediation: "Fetch the comparison through immutable base..head commit identities, preserve changed-file bounds, and fail closed on malformed or mismatched evidence."
-  validation: "Focused independent-Audit contract tests PASS; fresh exact-head CI and Audit/Release are required after push."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-latest_autopilot_normalized_apply_failure:
-  work_order: WO-20260926-AUTOPILOT-NORMALIZED-APPLY-FAILURE
-  status: READY_FOR_REVIEW
-  branch: fix/autopilot-preserve-normalized-apply-failure
-  base_sha: 56fe41fc45510958da1ef54de71045dc3eb54067
-  implementation_head: 1b47bebfbbc4d76a3a492d699fec518108dc17f7
-  pull_request: 2322
-  scope: "Preserve SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED and carry exact bounded source context into the existing repair escalation; no authority or execution-path expansion."
-  validation: "Dispatch retry 32/32, coding runner 49/49, build/typecheck/targeted lint/AI zero-authority/safety invariants PASS."
-  remaining: "Exact-head protected CI passed; independent Audit/Release must be rerun after this AIPOS metadata update."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_autopilot_repeated_deterministic_failure_stop:
-  work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
-  status: VERIFYING
-  branch: codex/autopilot-repeat-failure-stop
-  base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
-  pull_request: 2464
-  observed_run: 36982300882
-  observation: "One logical execution repeated SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED on two distinct proposals, then returned CODING_PROPOSAL_JSON_INVALID on the third; no proposal was accepted and no code changed."
-  expected_efficiency: "Stop after the first bounded correction repeats the same deterministic failure code, avoiding additional proposal calls for that repeated failure. Actual token/credit savings are unmeasured."
-  next: "Resolve the actionable AIPOS review threads; then fresh exact-head CI, independent Audit, and canonical Release."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_deterministic_coding_patches:
-  work_order: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
-  status: READY_FOR_REVIEW
-  branch: codex/autopilot-build-retry
-  base_sha: c50840a4371e421b0c6ca4042d0dbd6635ffa6c0
-  implementation_head: 486f3c411901291ec5908cf92d63439e0e057337
-  pull_request: 2324
-  scope: "Bounded structured coding edits plus retry recovery after a sandbox build rejection, using the existing sandbox/publish path."
-  validation: "Focused dispatch retry 33/33, build/typecheck/lint/validate/validate:full/AI/safety/AIPOS/diff-check PASS; exact-head CI, PAPER, broker-read-only, and Restricted LIVE companion checks PASS."
-  remaining: "Resolve the exact-head review thread, then rerun independent Audit and canonical Release; genuine coding recovery runtime evidence remains required."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_autopilot_worker_github_credential_sync:
-  work_order: WO-20260927-AUTOPILOT-WORKER-GITHUB-CREDENTIAL-SYNC
-  status: READY_FOR_REVIEW
-  branch: codex/autopilot-worker-token-sync
-  base_sha: f35b0ad935ca469a283cae1e4658075ca9cd82a7
-  implementation_head: 17288b2c6a25a12f696e0efa183d84cf0469f663
-  pull_request: 2325
-  scope: "Synchronize the least-privilege repository GitHub credential into the canonical Cloudflare Worker deployment path for exact-head verification and publish, without exposing secret material or expanding trading authority."
-  validation: "Focused workflow contract and repository validation PASS; exact-head CI and credential preflight PASS; Audit/Release pending."
-  remaining: "Canonical Audit/Release and post-merge deployment/runtime proof; Worker dogfood must still prove exact-head verification and bounded autonomous publication."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-owner_decisions:
-  autonomy: "2026-09-24 owner: every non-LIVE decision is autonomous; the only owner decision is LIVE trading approval."
-safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: verification
-status: in_progress
-objective: "Make repository event-driven development transitions deterministic and replay-safe while holding all production and LIVE authority at the human/environment boundary."
-latest_research_slice:
-  work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
-  status: COMPLETED
-  base_commit: d9b162e72df75675a950478ed5ab3a980e9488fb
-  implementation_branch: feat/research-real-run-regime-evidence
-  implementation_head: 7692c4258be0382f60b799e9fe1a7ab13a036c1a
-  pull_request: 854
-  merge_commit: a5f0edb2712106401d8581ca98b42d550779d65c
-  scope: "Add strictly point-in-time regime evidence to the canonical real-market research run and carry it through the existing League bridge without weakening insufficient-evidence semantics."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
-latest_ai_contract_slice:
-  status: COMPLETED
-  base_commit: 41ad3ca288347c58c93899072c3f8b1fc3b17650
-  implementation_branch: feat/wire-ai-trading-judgment-assembly
-  implementation_head: 51921040a4686fde1ed255bf56cef3e08598e486
-  pull_request: 1322
-  merge_commit: cd0a14f73bf717c48cce2e9dd3fdb78c96b46e93
-  exact_head_ci: "6/6 PASS (CI run 33370894124; protected workflow runs on exact head)"
-  scope: "Assemble the existing multi-agent DecisionResult into the validated AiTradingJudgment contract without fabricating market scenarios, returns, risk framing, or execution authority."
-  validation: "Focused assembly tests 10/10; architecture, safety, AI-zero-authority, lifecycle, type-safety, and build validations PASS; exact-head protected workflows 6/6 PASS."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "AI output remains proposal/analysis only; scenarios and risk framing require caller-owned evidence and no LIVE or production mutation path is added."
-latest_runtime_proof_slice:
-  status: COMPLETED
-  base_commit: ae57de2886d31819b313e44e6e8aabae44f369ec
-  implementation_branch: test/1288-runtime-proof-classifications
-  implementation_head: 8604702e83e49a7b8657bca7f50b26f4ba613753
-  pull_request: 1325
-  merge_commit: 5c30e2d401ceb54fedc55cbaa7c021e73e628eb9
-  exact_head_ci: "6/6 PASS (CI run 33373028629; protected workflow runs on exact head)"
-  scope: "Direct regression coverage for proof_not_scheduled and proof_scheduled_late classifications in the existing Cloudflare runtime-proof verifier."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "GitHub scheduled-event delivery remains external evidence; two consecutive fresh scheduled proofs are still pending."
-
-latest_ux_telemetry_slice:
-  status: COMPLETED
-  base_commit: cd171a387b31b19b74f1dcf5d531b65330980a30
-  implementation_branch: feat/ux-telemetry-route-and-client
-  implementation_head: be2d36987066c8e809dda6191966e2d683eb5db4
-  pull_request: 1327
-  merge_commit: 5b6e5163826d5ac34d5cd7039182a1a9dd300412
-  exact_head_ci: "7/7 PASS (CI run 33374206183; Mobile Native 33374206226; protected workflows on exact head)"
-  scope: "Register the existing opt-in UX telemetry HTTP handler and add a best-effort secure mobile emitter; no screen emission, trading, LIVE, account-mutation, or authority path."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Telemetry remains opt-in and is not wired into screens until an explicit settings/consent state exists."
-
-latest_mobile_settings_slice:
-  status: COMPLETED
-  base_commit: 2933fb48c5b497a9465f36b2d1617a632f70fa14
-  implementation_branch: feat/usage-telemetry-settings-toggle
-  implementation_head: 80565b7c01d0765030b48e2ba76a3bddc52c7ad8
-  pull_request: 1329
-  merge_commit: b014900179414faf52e857d0394b658cd9a3b72f
-  exact_head_ci: "7/7 PASS (CI 33375653456; Mobile Native 33375653518; protected workflows on exact head)"
-  scope: "Persist the explicit usageTelemetry opt-in setting with a disabled-by-default, backward-compatible normalization path."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  follow_up: "AIPOS state was recorded by the subsequent documentation merge; no runtime telemetry emission is enabled by default."
-
-latest_home_terminal_slice:
-  status: COMPLETED
-  base_commit: 9c69e0bd1a144a3fa69901270196460314e0a1f9
-  implementation_branch: dev/594-home-dense-terminal
-  implementation_head: 8eb3cec63dc159dced69c2aa754871ffcebf84a4
-  pull_request: 1360
-  merge_commit: c34793dec2ce89b73ab423db0592221b386fc573
-  exact_head_ci: "7/7 PASS (CI 33452154257; Mobile Native 33452154222; protected workflows on exact head)"
-  scope: "Increase Home information density using canonical market, PAPER, portfolio, learning, AI, risk, and authority data while preserving unavailable-state and accounting-isolation semantics."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Physical Galaxy visual acceptance remains HUMAN_ENVIRONMENT_ONLY."
-
-latest_event_bridge_oidc_slice:
-  status: COMPLETED
-  base_commit: 9c69e0bd1a144a3fa69901270196460314e0a1f9
-  implementation_branch: autopilot/oidc-event-bridge
-  implementation_head: c80e13340e9bdb6171bca99cc99d91688b1ac980
-  pull_request: 1361
-  merge_commit: c323e6d4155576ea5c7755d24cc9f13e1f011c9b
-  exact_head_ci: "6/6 PASS (CI 33451207265; protected workflows on exact head)"
-  scope: "Authenticate the existing GitHub event bridge with strict repository/workflow/event-bound OIDC while preserving fail-closed HMAC compatibility."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "NUSA_WEBHOOK_SECRET/OIDC runtime delivery and control-plane receipt remain external deployment evidence; no unauthenticated fallback is allowed."
-
-current_research_follow_up:
-  work_order: WO-ISSUE-1094-RESEARCH-FACTORY
-  status: REVIEW_CORRECTIONS_APPLIED_PENDING_FRESH_CI
-  base_commit: 0cc2f8cd47978c10373797d34ef6d1daa8aa0313
-  implementation_branch: fix/1094-research-universe-provenance
-  pull_request: 2411
-  scope: "Point-in-time universe/survivorship provenance over the existing Research Integrity and Run Factory path."
-  review_corrections: "Canonical real-market multi-market runner now passes the complete precommitted market cohort; universe availability is bound at/before historical selection start; every evidence dataset ID/hash is constituent-bound for the full evaluated period; optional eligibility fields are normalized before hashing; market IDs use deterministic ASCII grammar; AIPOS state/work-order are synchronized."
-  validation: "Prior head 8deaac13 exact-head CI 6/6 PASS and deterministic Audit PASS; Release merge was correctly blocked by unresolved review threads. Fresh exact-head CI/Audit required after corrections."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Fresh exact-head CI -> independent Audit -> Release -> merge -> protected-main verification."
-latest_portfolio_risk_data_quality_slice:
-  status: COMPLETED
-  base_commit: e400a0329f269a122483e7b4f17e244d0d28639c
-  implementation_branch: fix/mobile-risk-reject-zero-mark
-  implementation_head: d900071637a32030b8d9e86c0b67861ad4eea398
-  pull_request: 1369
-  merge_commit: a2fcce0df984ec5180882ed5a1c7c1f9a3dcc280
-  scope: "Reject zero mark prices in the existing multi-position portfolio risk adapter as unavailable; preserve UNKNOWN != zero valuation."
-  validation: "Exact-head protected workflows passed; CI, coverage, typecheck/build/lint, Actual PAPER, Restricted LIVE, and Read-only Broker passed. Android release-candidate and iOS checks were SKIPPED_NOT_APPLICABLE."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "External account credentials, Cloudflare/runtime proof, physical Galaxy acceptance, and human LIVE gate remain unchanged."
-
-base_branch: main
-active_branch: main
-active_successor_branch: null
-active_pull_request: null
-current_non_live_work_order:
-  id: WO-0070
-  # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
-  # never sufficient to resolve the active scope; automation must use this scope-qualified
-  # canonical lineage instead.
-  scope_id: WO-0070.deterministic-remediation-prioritization
-  canonical_work_order: .aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml
-  canonical_pull_request: 738
-  canonical_implementation_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
-  canonical_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
-  status: IN_PROGRESS
-  branch: agent/wo-0070-deterministic-remediation-prioritization
-  base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
-  implementation_commit: 3711390a
-  implementation_commit_status: PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED
-  focused_tests: PASS_5_OF_5
-  full_isolated_suite: PASS_581_FILES
-  repository_gates: PASS
-  scope: "Deterministic read-only prioritization of verified remediation proposals with bounded advisory output; no execution, Git, broker, Risk, LIVE, or AI authority."
-wo_0071_validation:
-  work_order: WO-0071
-  pull_request: 744
-  branch: agent/wo-0071-remediation-readiness-and-aipos-reconciliation
-  starting_head: 208944181ba81ea82ce85c8f4a963c8331ae3858
-  implementation_commit: 0620c1315f5e700f982c2f7ec80301b117ddcae1
-  status: COMPLETED
-  evidence: .aipos/evidence/WO-0071-completion.json
-  remediation_readiness: PASS_13_OF_13
-  provenance_reconciliation: PASS_7_OF_7_NON_DESTRUCTIVE
-  full_isolated_suite: PASS_586_FILES
-  exact_head_ci: PASS_6_OF_6
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-base_commit: f875980e4ff9111ab576f1e93294fae510d07167
-repository_maintenance:
-  issue: 210
-  objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
-  branch: agent/issue-210-visual-redesign
-  pull_request: 532
-  head_commit: 0c890ea92ce37bb3e9e3442d742d51c63ab8f1f2
-  base_commit: 616d7a5737c49f79fcf4cba3e7d3fcad7b72fdb7
-  status: MERGED
-  merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
-  safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  previous_follow_up:
-    pull_request: 530
-    head_commit: a83dc5864fb50a0f122b07e21242a81ff30b323d
-    merge_commit: 1b744111da16b320cbd52af25cd44114df9c8435
-    status: MERGED
-    scope: "Truthful Home signal trace derived from PAPER readiness state; stable logo asset and authority boundaries unchanged."
-  latest_follow_up:
-    pull_request: 532
-    head_commit: 0c890ea92ce37bb3e9e3442d742d51c63ab8f1f2
-    merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
-    status: MERGED
-    scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
-claimed_state:
-  work_order: WO-0051
-  status: IN_PROGRESS
-  branch: main
-  base_commit: 57952f14485e816a7ac88e11ba5f8f3e11dba34c
-  scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
-  safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: "57952f14485e816a7ac88e11ba5f8f3e11dba34c; PR #1313 exact head 11d6f8bc9f7fb0d10433c3854c7e1eaed8373d3d merged with post-merge main gates PASS."
-  pull_request: null
-  validation: "PR #1313 exact-head protected checks PASS; merge 57952f14485e816a7ac88e11ba5f8f3e11dba34c; post-merge main CI 33363161756, Sandbox Guard 33363161696, and Actual PAPER Runtime 33363161755 PASS; WO-0051 remains human/environment only."
-previous_claimed_state:
-  work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-  status: COMPLETED
-  branch: main
-  base_commit: 51f3b584435fbe0fdf76f856803508a3f0a0cddd
-  scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
-verified_state:
-  work_order: WO-AI-010
-  status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-010-completion.json"
-latest_verified_slice:
-  id: wo-ai-010-claim-evidence-faithfulness-complete
-  evidence: ".aipos/evidence/WO-AI-010-completion.json"
-  summary: "WO-AI-010 enforces deterministic claim-evidence support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with unchanged read-only zero authority."
-recent_repository_evidence:
-  production_mobile_enrollment:
-    work_order: WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP
-    branch: feat/cloud-paper-zero-config-autoconnect-v2
-    base_commit: 5709dc2e2b48e0a82c9c1c795d91398b847a56a3
-    implementation_status: IMPLEMENTATION_VALIDATED_PENDING_PR
-    canonical_origin: DEPLOYMENT_CONFIG_PENDING
-    focused_enrollment_tests: PASS_12_OF_12
-    startup_restore_tests: PASS_2_OF_2
-    typecheck: PASS
-    build: PASS
-    lint: PASS
-    architecture_truth: PASS
-    architecture_check: PASS
-    safety_architecture: PASS
-    safety_invariants: PASS
-    ai_zero_authority: PASS
-    restricted_live_governance: PASS
-    restricted_live_readiness: PASS
-    read_only_broker: PASS
-    aipos_conformance: PASS
-    secret_scan: PASS_SECRETS_0
-    full_isolated_suite: FAIL_LOCAL_CLOUD_RUNTIME_BOOTSTRAP_HTTP_401
-    local_paper_regression: PASS_BY_EXISTING_SUITE_CONTRACT
-    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-    scope: "Authenticated active-user self-enrollment, device-bound PAPER bootstrap, Android Keystore refresh persistence, canonical HTTPS origin validation, and fail-closed session recovery; no LIVE or broker mutation authority."
-  persistent_diagnostics_memory:
-    work_order: WO-0064
-    branch: agent/wo-0064-persistent-diagnostics-memory
-    base_commit: 8e7302fe0745f919fc15f8dd5d58d5d25e387e47
-    implementation_commit: a0ecad6047a096a1266a1d353a0700698f6c283d
-    focused_tests: PASS_20_OF_20
-    full_isolated_suite: PASS_568_FILES
-    repository_gates: PASS
-    migration: 016_improvement_candidate_memory
-    durability: PASS_CHECKSUM_RECOVERY_BOUNDED_RETENTION
-    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-    scope: "Durable bounded read-only diagnostic candidate memory with stable fingerprint recurrence, restart recovery, duplicate idempotency, checksum fail-closed behavior, and no remediation or execution authority."
-  root_cause_evidence_correlation:
-    work_order: WO-0065
-    branch: agent/wo-0065-root-cause-evidence-correlation
-    base_commit: 40d6ce10df574764330bd60427ffa6d89165efdd
-    implementation_commit: a8634d32fe8b1adb1785150c76a6dab393ef9a76
-    focused_tests: PASS_6_OF_6
-    full_isolated_suite: PASS_570_FILES
-    repository_gates: PASS
-    correlation: DETERMINISTIC_PROVENANCE_CONTRADICTION_BOUNDED
-    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-    scope: "Read-only root-cause evidence bundles correlate persisted diagnostic recurrence by stable fingerprint, preserve provenance, fail closed on contradiction or missing evidence, and bound fan-out without remediation or execution authority."
-  root_cause_evidence_ranking:
-    work_order: WO-0066
-    branch: agent/wo-0066-deterministic-evidence-ranking
-    base_commit: c6fb0e907a32dc24c9f0119cb9cdec8588d665d2
-    implementation_commit: ed3173cdea8b5df15f10080d0356508fd3407938
-    focused_tests: PASS_7_OF_7
-    full_isolated_suite: PASS_571_FILES
-    repository_gates: PASS
-    ranking: DETERMINISTIC_EXPLICIT_FACTORS_STABLE_TIE_BREAKING
-    hypotheses: BOUNDED_EVIDENCE_BOUND_UNRESOLVED_CAUSALITY
-    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-    scope: "Read-only evidence ranking uses observable diagnostic factors and stable tie-breaking; bounded hypotheses preserve provenance and fail closed on contradiction or insufficiency without causal certainty, remediation, or execution authority."
-  remediation_proposals:
-    work_order: WO-0067
-    branch: agent/wo-0067-read-only-remediation-proposals
-    base_commit: 6faa69df665df25262d7f9de13ffe93275d6aa5e
-    implementation_commit: 892da407ef8fbd6bccb9102e4bd95c802f83ce47
-    focused_tests: PASS_4_OF_4
-    full_isolated_suite: PASS_572_FILES
-    repository_gates: PASS
-    proposal_contract: DETERMINISTIC_EVIDENCE_BOUND_READ_ONLY
-    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-    scope: "Read-only remediation proposals carry exact evidence references, explicit rationale, bounded change surface and risk, reversibility and verification plans; contradiction, insufficiency and unsupported scope fail closed without executable mutation authority."
-  autonomous_improvement_observer:
-    work_order: WO-0063
-    branch: agent/wo-0063-autonomous-improvement-observer
-    commit: b54c1a22
-    evidence: .aipos/evidence/WO-0063-completion.json
-    focused_tests: PASS_6_OF_6
-    full_isolated_suite: PASS_567_FILES
-    repository_gates: PASS
-    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-    scope: "Read-only reconnect-instability observation, deterministic fingerprints, thresholded aggregation, bounded candidate backlog, and existing EventBus projection; no runtime mutation authority."
-  android_successor:
-    work_order: WO-0053
-    pull_request: 442
-    head_commit: 6c876ea9f090895d7bf9523464607e11bde65dc7
-    merge_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
-    repository_gates: PASS
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  access_approval_identity:
-    issue: 445
-    pull_request: 448
-    head_commit: 129d5d85e5f69175dff4a56e2d0ec0fea5869042
-    merge_commit: 00727a4298413b567b6d9552c3cb656c260bc112
-    full_ci_coverage: PASS
-    restricted_live_readonly_workflows: PASS_4_OF_4
-    summary: "Stable authenticated ordinary-user identities register PENDING, explicit approval enables protected PAPER access, suspension blocks the same bearer immediately, and users:manage remains OWNER-only."
-  android_ui_reconciliation:
-    pull_request: 455
-    head_commit: 9e802edf1290aeed30593639d03bf3981e5ff633
-    merge_commit: 398153a25258afd30b932b08a18bcca7277041e5
-    full_ci_coverage: PASS
-    mobile_native: PASS
-    restricted_live_readonly_workflows: PASS_4_OF_4
-    focused_mobile_tests: PASS_214_OF_214
-    android_rc:
-      workflow_run_id: 31657804534
-      run_number: 841
-      artifact: nusa-android-rc-398153a25258afd30b932b08a18bcca7277041e5-841
-      apk_sha256: 7f161874507d63a015d1e21b21e8c34d7507cd274101ed0d04828ee91f0a1e31
-      source_sha: 398153a25258afd30b932b08a18bcca7277041e5
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  paper_writer_clock_takeover_hardening:
-    work_order: WO-0053
-    evidence: docs/audits/paper-writer-clock-takeover-hardening-2026-08-13.md
-    focused_tests: PASS_17_OF_17
-    migration_tests: PASS_11_OF_11
-    typecheck: PASS
-    lint: PASS
-    build: PASS
-    architecture_security_aipos: PASS
-    full_isolated_suite: BLOCKED_WINDOWS_SYMLINK_PRIVILEGE
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    protected_main_post_merge:
-      commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
-      ci: PASS
-      mobile_native: PASS
-      android_rc:
-        workflow_run_id: 31659684774
-        run_number: 843
-        artifact: nusa-android-rc-53cf6f185f512ac24b760ca1b39cdef066ed9595-843
-        apk_sha256: 4038de344fcbe49e730cce213e8a63850828342742537b63b7cb8eb31e8bfed2
-        source_sha: 53cf6f185f512ac24b760ca1b39cdef066ed9595
-      physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-    concept1_brand_reconciliation:
-      pull_request: 458
-      head_commit: 9572ec4d8e52e5f1b695131fc34e610b59255097
-      merge_commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
-      status: MERGED_REPOSITORY_GATES_PASS
-      base_commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
-      scope: "Concept 1 peak/reflection geometry, adaptive/monochrome/notification/splash resources, and mobile mark alignment; no authority or execution changes."
-      full_ci: PASS
-      mobile_native: PASS
-      restricted_live_readonly_workflows: PASS_4_OF_4
-      focused_mobile_tests: PASS_192_OF_192
-      physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-    latest_protected_main_post_merge:
-      commit: d22885657b9c95feb52159886f4292ba526fc2e7
-      ci: PASS
-      mobile_native: PASS
-      post_merge_ci: PASS
-      post_merge_mobile_native: PASS
-      android_persistent_preview_release: NOT_TRIGGERED_AIPOS_ONLY_SUCCESSOR
-      android_rc:
-        workflow_run_id: 31661081267
-        run_number: 845
-        artifact: nusa-android-rc-b112a7691bbfeba00b5b0dd74e6a311272e7a890-845
-        apk_sha256: c526d8add2129cc15e237a19ae8a3e62edbef2678ea028c9bee76200de74b6d0
-        source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
-        provenance_source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
-      physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  operator_authorization_hardening:
-    work_order: WO-0053
-    evidence: docs/audits/operator-authz-lifecycle-hardening-2026-08-13.md
-    focused_tests: PASS_35_OF_35
-    transition_validation: PASS
-    identity_collision_protection: PASS
-    typecheck: PASS
-    lint: PASS
-    build: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  http_input_boundary_hardening:
-    work_order: WO-0053
-    evidence: docs/audits/http-input-boundary-hardening-2026-08-13.md
-    focused_tests: PASS_21_OF_21
-    body_limit: PASS_UTF8_BYTES
-    oversized_response: PASS_413
-    typecheck: PASS
-    lint: PASS
-    build: PASS
-    architecture_security_aipos: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  paper_order_risk_boundary_hardening:
-    work_order: WO-0053
-    evidence: docs/audits/paper-order-risk-boundary-hardening-2026-08-13.md
-    focused_tests: PASS_68_OF_68
-    malformed_command_rejection: PASS_NO_MUTATION
-    typecheck: PASS
-    lint: PASS
-    build: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  persistence_recovery_audit:
-    work_order: WO-0053
-    evidence: docs/audits/persistence-recovery-hardening-2026-08-13.md
-    focused_tests: PASS_41_OF_41
-    migration_recovery_tests: PASS_28_OF_29_WINDOWS_SYMLINK_PRIVILEGE_BLOCKED
-    checksum_corruption_quarantine: PASS
-    migration_checksum_and_unknown_version: PASS
-    transaction_atomicity: PASS
-    restart_recovery: PASS
-    crash_takeover: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  runtime_fail_closed_hardening:
-    work_order: WO-0053
-    evidence: docs/audits/runtime-fail-closed-hardening-2026-08-13.md
-    focused_tests: PASS_56_OF_56
-    canonical_paper_boundary: PASS
-    injected_loop_bypass: REMOVED
-    startup_failure: FAIL_CLOSED
-    p0_kill_switch_recovery: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  security_hardening_audit:
-    work_order: WO-0053
-    evidence: docs/audits/security-hardening-2026-08-13.md
-    focused_tests: PASS_71_OF_71
-    log_redaction: PASS_BEARER_AND_SECRET_VALUE
-    secret_scan: PASS
-    credential_persistence: PASS_FAIL_CLOSED
-    ai_zero_authority: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  observability_audit:
-    work_order: WO-0053
-    evidence: docs/audits/observability-audit-2026-08-13.md
-    focused_tests: PASS_22_OF_22
-    http_audit_projection: PASS_ACTOR_CORRELATION_EVIDENCE
-    secret_minimization: PASS_HASHED_ACTOR_NO_TOKEN
-    durable_domain_audits: PASS_APPEND_ONLY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  rate_limit_abuse_audit:
-    work_order: WO-0053
-    evidence: docs/audits/rate-limit-abuse-hardening-2026-08-13.md
-    focused_tests: PASS_BOUNDED_BUCKETS_REQUEST_IDS_AND_HTTP_REGRESSION
-    request_body_and_queue_bounds: PASS
-    duplicate_request_id_suppression: PASS
-    clock_rollback_fail_closed: PASS
-    typecheck: PASS
-    build: PASS
-    diff_check: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  state_consistency_audit:
-    work_order: WO-0053
-    evidence: docs/audits/state-consistency-reconciliation-2026-08-13.md
-    focused_tests: PASS_63_OF_63
-    order_fill_idempotency_reconciliation: PASS
-    accounting_projection_reconciliation: PASS
-    restart_recovery: PASS
-    typecheck: PASS
-    build: PASS
-    diff_check: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  firebase_transition_readiness_audit:
-    work_order: WO-0053
-    evidence: docs/audits/firebase-transition-readiness-2026-08-13.md
-    focused_tests: PASS_21_OF_21
-    firestore_rules_static_validation: PASS
-    emulator: BLOCKED_FIREBASE_CLI_UNAVAILABLE
-    sqlite_authority: PRESERVED
-    dual_write: NOT_STARTED
-    cutover: NOT_AUTHORIZED
-    secret_scan: PASS
-    typecheck: PASS
-    diff_check: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  ci_regression_hardening_audit:
-    work_order: WO-0053
-    evidence: docs/audits/ci-regression-hardening-2026-08-13.md
-    focused_tests: PASS_87_OF_87
-    explicit_firebase_validation_step: PASS
-    exact_head_required_workflows: REQUIRED
-    typecheck: PASS
-    lint: PASS
-    build: PASS
-    diff_check: PASS
-    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  deployment_readiness_audit:
-    work_order: WO-0053
-    evidence: docs/audits/deployment-readiness-audit-2026-08-13.md
-    release_check: TECHNICAL_CHECKS_PASS
-    focused_readiness_tests: PASS_102_OF_104_WINDOWS_SYMLINK_PRIVILEGE_BLOCKED
-    config_health_shutdown_backup: PASS
-    firebase_deploy: BLOCKED_EXTERNAL_PROJECT_AND_CLI
-    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  final_backend_grill_audit:
-    work_order: WO-0053
-    evidence: docs/audits/final-backend-grill-audit-2026-08-13.md
-    protected_main: 1300e286c10107dcfb93902a12a41d3add28e908
-    architecture_safety_aipos_security: PASS
-    post_merge_ci: PASS
-    post_merge_mobile_native: PASS
-    repository_p0_p1: NONE_FOUND
-    external_blockers: PHYSICAL_ANDROID_FIREBASE_TRUSTED_HTTPS_WINDOWS_SYMLINK_ENV
-planning_gates:
-  - id: WO-AI-011
-    status: PLANNED
-    merged_pr: 421
-    merge_commit: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
-    hardening_prs:
-      - 425
-      - 427
-      - 428
-      - 429
-      - 430
-      - 431
-      - 432
-    latest_hardening_merge: b6ab5c05d24e6fb921d455f8671198eea1949050
-    uncertainty_effective_sample_validity:
-      planning_pr: 436
-      merge_commit: 84d425e6433e6e72193c80067d1e067e7cd21d57
-      evidence: docs/audits/wo-ai-011-uncertainty-effective-sample-validity-test-contract.md
-      runtime_implementation_started: false
-    implementation_started: false
-    serialization: HUMAN_ENVIRONMENT_ONLY
-    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
-completed:
-  - id: WO-ISSUE-905-READY-WORK-SUPPLY
-    evidence: ".aipos/work-orders/WO-ISSUE-905-READY-WORK-SUPPLY.yaml"
-    summary: "Issue #905 READY work starvation fix merged in PR #1313 at exact head 11d6f8bc9f7fb0d10433c3854c7e1eaed8373d3d as 57952f14485e816a7ac88e11ba5f8f3e11dba34c; all protected PR checks and post-merge main CI, Sandbox Guard, and Actual PAPER Runtime passed with zero authority unchanged."
-  - id: WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER
-    evidence: ".aipos/work-orders/WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER.yaml"
-    summary: "Bounded canonical SQLite evolution learning ledger merged in PR #1043 at exact head ffead4811f5f60848c7574cee1e36ea626792d7e as bfd7af3f2748fe7c499b489a1cf32ffb0f812ba5; required CI and repository validation passed with zero authority."
-  - id: WO-ISSUE-881-PAPER-PORTFOLIO-ADVISORY
-    evidence: ".aipos/work-orders/WO-ISSUE-881-PAPER-PORTFOLIO-ADVISORY.yaml"
-    summary: "Evidence-bound PAPER portfolio allocation advisory merged in PR #1040 at head fa2caa624130e98f8ff7eae1eb766be19f6e1c4f and merge adc74b132aea172b9d2e15456be82500b9899e17; required exact-head checks 6/6 passed, with no capital, accounting, broker, or LIVE authority."
-  - id: WO-ISSUE-880-STRATEGY-CONTAINMENT
-    evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-CONTAINMENT.yaml"
-    summary: "Evidence-driven strategy containment advisory merged in PR #1039 at exact head f35bbe38a52900393bfd9ed8e373b51a5469d561 and merge 949b8dd66073baca863a680149c7c62331bbc04c; required exact-head checks passed after stale-run recovery, with no lifecycle or execution mutation."
-  - id: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
-    evidence: ".aipos/work-orders/WO-ISSUE-889-COST-EVIDENCE-PROVENANCE.yaml"
-    summary: "Issue #889 cost-evidence provenance slice merged in PR #995 at exact head 4137044923c633165fffda8b81fa39d37b7dcb46 as f72dba72dbfc6475ee08d8cc9f429ea5cd579e23; focused 76/76 and repository gates passed, while missing benchmark and incomplete friction remain fail-closed."
-  - id: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
-    evidence: ".aipos/work-orders/WO-ISSUE-882-PAPER-CHAOS-RECOVERY.yaml"
-    summary: "Issue #882 deterministic chaos/recovery slice merged in PR #942 as 864274b9; remaining long-duration and physical/runtime acceptance is separately tracked."
-  - id: WO-0067
-    evidence: ".aipos/evidence/WO-0067-completion.json"
-    summary: "Deterministic read-only remediation proposals completed on agent/wo-0067-read-only-remediation-proposals at 892da407ef8fbd6bccb9102e4bd95c802f83ce47; focused 4/4 and full 572 isolated files pass, with explicit evidence/rationale, bounded scope and risk, reversibility/verification plans, fail-closed contradiction/insufficiency handling, and unchanged PAPER-only zero authority."
-  - id: WO-0066
-    evidence: ".aipos/evidence/WO-0066-completion.json"
-    summary: "Deterministic diagnostic evidence ranking and bounded root-cause hypothesis preparation completed on agent/wo-0066-deterministic-evidence-ranking at ed3173cdea8b5df15f10080d0356508fd3407938; focused 7/7 and full 571 isolated files pass, with explicit observable factors, stable identities, contradiction/insufficiency fail-closed behavior, and unchanged PAPER-only zero authority."
-  - id: WO-0065
-    evidence: ".aipos/evidence/WO-0065-completion.json"
-    summary: "Deterministic read-only root-cause evidence correlation completed on agent/wo-0065-root-cause-evidence-correlation at a8634d32fe8b1adb1785150c76a6dab393ef9a76; provenance, contradiction handling, bounded fan-out, restart recovery and idempotency are covered by focused 6/6 and full 570 isolated files, with LIVE and AI authority unchanged."
-  - id: WO-0064
-    evidence: ".aipos/evidence/WO-0064-completion.json"
-    summary: "Persistent diagnostic candidate memory completed on agent/wo-0064-persistent-diagnostics-memory at a0ecad6047a096a1266a1d353a0700698f6c283d; migration 016 provides checksum-verified durable history, stable recurrence, restart recovery, duplicate idempotency, and bounded retention. Focused 20/20, full 568 isolated files, architecture/safety/AIPOS gates PASS, with liveAuthority=NONE and AI ZERO_AUTHORITY unchanged."
-  - id: WO-0063
-    evidence: ".aipos/evidence/WO-0063-completion.json"
-    summary: "Deterministic read-only MarketConnectionSupervisor improvement observer completed on agent/wo-0063-autonomous-improvement-observer at b54c1a22; bounded signals/candidates, focused 6/6, full 567 isolated files, architecture/safety/AIPOS gates PASS, with liveAuthority=NONE and AI ZERO_AUTHORITY unchanged."
-  - id: WO-0057
-    evidence: ".aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml"
-    summary: "Desktop Cloud canonical PAPER authority migration completed in PR #552 at exact head 03eef24c4abbba91920c0063a3e2af95088eb9d0 and merged as f875980e4ff9111ab576f1e93294fae510d07167 with exact-head CI and required read-only/restricted-LIVE companion workflows PASS; PAPER-only and LIVE/real-money prohibitions remain unchanged."
-  - id: WO-AI-010
-    evidence: ".aipos/evidence/WO-AI-010-completion.json"
-    summary: "Deterministic claim-evidence verification enforces support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with read-only zero authority."
-  - id: WO-AI-009
-    evidence: ".aipos/evidence/WO-AI-009-completion.json"
-    summary: "Governed post-outcome attribution and immutable learning memory are merged and verified with exact lineage, unresolved-first ambiguity handling, advisory-only retrieval, shared WO-AI-006 replay resources, net-benefit gating, and unchanged zero authority."
-  - id: WO-AI-008
-    evidence: ".aipos/evidence/WO-AI-008-completion.json"
-    summary: "Governed scenario/counterfactual reasoning is merged and verified with immutable observed evidence, explicit BASELINE/HYPOTHETICAL provenance, one enclosing resource budget, disagreement abstention, deterministic replay, and unchanged zero authority."
-  - id: WO-AI-007
-    evidence: ".aipos/evidence/WO-AI-007-completion.json"
-    summary: "Independent OpenAI/Anthropic comparison is explicitly opt-in, bounded by one shared inference ledger, rejects correlated fake independence, and suppresses trusted confidence on disagreement without acquiring execution authority."
-  - id: WO-AI-006
-    evidence: ".aipos/evidence/WO-AI-006-completion.json"
-    summary: "Inference resources are governed by one immutable run-level budget with shared attempt accounting, truthful usage evidence, and fail-closed exhaustion under unchanged zero authority."
-  - id: WO-AI-005
-    evidence: ".aipos/evidence/WO-AI-005-completion.json"
-    summary: "Durable calibration memory survives restart, preserves exact cohort truth, expires stale pending predictions without credit, and makes corrupt or failed persistence unavailable rather than trusted."
-  - id: WO-AI-004
-    evidence: ".aipos/evidence/WO-AI-004-completion.json"
-    summary: "Outcome-linked calibration separates raw model probability from empirically supported confidence using hash-bound verified-runtime observations and fail-closed resolution windows while preserving zero authority."
-  - id: WO-AI-003
-    evidence: ".aipos/evidence/WO-AI-003-completion.json"
-    summary: "The grounded AI runtime supports an explicit real-model challenger with strict structured output, bounded timeout, usage metadata, fail-closed provider errors, and unchanged zero execution authority."
-  - id: WO-AI-002
-    evidence: ".aipos/evidence/WO-AI-002-completion.json"
-    summary: "AI model runs are grounded in digest-bound sanitized evidence and exact prompt artifacts, replay/correlation semantics are truthful, and bounded asynchronous Cloud AI exposes only fresh validated read-only results with zero execution authority."
-  - id: WO-AI-001
-    evidence: ".aipos/evidence/WO-AI-001-completion.json"
-    summary: "Provider-agnostic model inference is connected below deterministic governance with zero execution, transfer, production-mutation, or LIVE authority."
-  - id: WO-0050
-    evidence: ".aipos/evidence/WO-0050-completion.json"
-    summary: "Terminal automated safe review packet and human transition runbook completed; current real-world transition remains INCOMPLETE."
-  - id: WO-0049
-    evidence: ".aipos/evidence/WO-0049-completion.json"
-    summary: "Added validation-only two-human scale-change governance without applying risk changes."
-  - id: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
-    evidence: ".aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON.yaml"
-    summary: "Independent provenance-identical PAPER calibration comparison merged in PR #1036 at c3b94e6b; exact-head protected checks passed and no authority was added."
-in_progress:
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-serialized_human_environment_gate:
-  work_order: WO-0051
-  evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-  status: IN_PROGRESS
-  mode: HUMAN_ENVIRONMENT_ONLY
-  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
-  allowed_under_gate:
-    - PAPER_ONLY
-    - READ_ONLY
-    - MOBILE_AUTH_AND_SECURE_SESSION
-    - UI_UX_AND_NON_LIVE_ARCHITECTURE
-  blocked_under_gate:
-    - LIVE_ACTIVATION
-    - REAL_MONEY_MUTATION
-    - LIVE_RISK_ENVELOPE_EXPANSION
-  reason: "WO-0051 remains mandatory for LIVE and real-money transition; non-LIVE successors cannot satisfy, weaken, or bypass it."
-blocked:
-  - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
-  - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
-  - "SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE"
-  - "ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS"
-scope_reclassified:
-  - id: SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED
-    status: NOT_APPLICABLE_PERSONAL_USE
-    reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
-next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Issue #905 READY work supply successor completed and is recorded in completed; continue WO-0051 as the mandatory human/environment gate for LIVE and real-money transition."
-verification:
-  wo_0057:
-    parent_pull_request: 552
-    exact_head: 03eef24c4abbba91920c0063a3e2af95088eb9d0
-    merge_commit: f875980e4ff9111ab576f1e93294fae510d07167
-    ci: PASS
-    read_only_broker_credential_integration: PASS
-    restricted_live_activation_rehearsal: PASS
-    restricted_live_transport_credential_readiness: PASS
-    restricted_live_capability_surface_guard: PASS
-  required:
-    - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
-    - "Treat WO-AI-011 as PLANNED only; no runtime implementation before the human/environment serialization clears"
-    - "Preserve PAPER-only, liveAuthority=NONE, productionMutationAllowed=false, and AI ZERO_AUTHORITY boundaries"
-    - "Preserve real-user PENDING -> APPROVED/SUSPENDED server-side authorization and OWNER-only users:manage"
-    - "Physical Android device install, cold start, PAPER flow, retry/no-double-fill, recovery, reinstall, and logcat evidence"
-    - "Operator-authorized external read-only broker preflight"
-    - "Actual OWNER approval evidence bound to exact code/config/scope/risk/rollback"
-    - "Separate explicit OWNER constitutional production/LIVE decision"
-    - "Post-LIVE validation only after any separately authorized tiny LIVE session"
-    - "Separate explicit OWNER approval for any later risk or scale increase"
-  last_result: "WO-0057 parent PR #552 exact head 03eef24c4abbba91920c0063a3e2af95088eb9d0 passed CI, Read-only Broker Credential Integration, and all three Restricted LIVE companion workflows, then merged to protected main as f875980e4ff9111ab576f1e93294fae510d07167. No LIVE or real-money authority was introduced."
-  current_commit: "Protected main f875980e4ff9111ab576f1e93294fae510d07167 contains the completed Desktop Cloud canonical PAPER authority cutover; this closeout branch changes AIPOS governance/evidence only."
-human_authority:
-  project_classification: PRIVATE_PERSONAL_USE
-  sole_final_human_authority: OWNER
-  live_trading_mutation: prohibited
-  live_authority: human_only
-  constitutional_production_decision: OWNER_ONLY
-  owner_approval_required_for:
-    - production_transition
-    - restricted_live_activation
-    - rollback
-    - risk_envelope_change
-    - scale_change
-    - constitutional_decision
-  owner_approval_bindings_required:
-    - exact_code_sha
-    - exact_configuration
-    - exact_scope
-    - exact_risk_envelope
-    - rollback_procedure
-    - timestamp
-    - explicit_approval_statement
-  absent_owner_evidence: fail_closed
-  automatic_live_activation: prohibited
-  automatic_scale_up: prohibited
-  automatic_production_transition: prohibited
-  ai_live_authority: prohibited
-  meta_ai_live_authority: prohibited
-constitutional_transition_review:
-  mode: EVIDENCE_AGGREGATION_ONLY
-  current_real_world_status: INCOMPLETE
-  synthetic_evidence_cannot_satisfy_real_world_gate: true
-  signed_production_artifact_verified: false
-  actual_external_readonly_preflight_completed: false
-  actual_human_activation_ceremony_completed: false
-  actual_tiny_live_session_completed: false
-  actual_post_live_validation_completed: false
-  actual_scale_governance_approval_completed: false
-  constitutional_decision_authority: false
-  deployment_authority: false
-  activation_authority: false
-  scale_up_authority: false
-  order_authorization: false
-  execution_authority: false
-  authorizes_live: false
-  mutation_performed: false
-  real_money_execution_allowed: false
-terminal_human_environment_gate:
-  mode: HUMAN_ENVIRONMENT_ONLY
-  automated_completion: prohibited
-  synthetic_ci_completion: prohibited
-  chat_consent_as_live_authority: prohibited
-  execution_transport_connected: false
-  credential_execution_use: prohibited
-  real_money_execution_allowed: false
-controlled_scale_up_governance:
-  mode: VALIDATION_ONLY
-  actual_human_approval_in_ci: false
-  scale_up_authority: false
-  authorizes_live: false
-post_live_validation:
-  mode: EVIDENCE_VALIDATION_ONLY
-  actual_live_session_in_ci: false
-  scale_up_authority: false
-  authorizes_live: false
-external_readonly_environment_preflight:
-  mode: OPERATOR_GATED_READ_ONLY
-  actual_external_probe_in_ci: false
-  authorizes_live: false
-tiny_bounded_live_envelope:
-  mode: POLICY_VALIDATION_ONLY
-  automatic_scale_up: prohibited
-  authorizes_live: false
-restricted_live_authority:
-  default_state: DISABLED
-  execution_transport_connected: false
-  credential_execution_use: prohibited
-  real_money_execution: prohibited
-  safety_critical_unknown: fail_closed
-hard_risk_gateway:
-  authority: deterministic_hard_risk
-  learned_override: prohibited
-  unknown_semantics: fail_closed
-kill_switch:
-  mode: LATCHED
-  automatic_release: prohibited
-  release_authorizes_live: false
-capability_surface_guard:
-  mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
-  prohibited_live_permissions_enforced: true
-  unknown_permission_semantics: fail_closed
-safety_authority:
-  hard_risk_override: prohibited
-  kill_switch_override: prohibited
-  halt_override: prohibited
-continuity:
-  prior_chat_dependency: prohibited
-  hidden_chain_of_thought_dependency: prohibited
-  provider_private_context_dependency: prohibited
-
-latest_engineering_os_slice:
-  work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
-  issue: 905
-  status: FOLLOW_UP_PR_PENDING_EXACT_HEAD_VALIDATION
-  base_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
-  implementation_branch: codex/905-outcome-feedback-observability-v2
-  scope: "Require independent exact-head receipt provenance for engineering outcome comparisons while preserving the existing read-only Engineering OS projection."
-  focused: PASS_28_OF_28
-  engineering_os_regression: PASS_81_OF_81
-  control_plane_regression: PASS_39_OF_39
-  full_isolated_suite: PASS_813_FILES
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  external_telemetry: INSUFFICIENT
-  implementation_commit: ae7eeae699fd221132a2f4c78c75f32f42d72773
-  remote_pr: NOT_CREATED
-  integrated_main_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
-  remote_required_checks: PENDING_EXACT_HEAD
-  prior_hardening_pr: 1291
-  prior_hardening_merge: d955cdc0e6d27023a89890b6a5efbf283eab6f09
-  deploy_automation_pr: 1292
-  deploy_automation_merge: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
-  outcome_feedback: STRUCTURAL_HARDENING_VERIFIED
-  pre_post_optimization_outcome: INSUFFICIENT_EVIDENCE
-  next: "Publish the independent-provenance follow-up through an exact-head PR; retain INSUFFICIENT_EVIDENCE until independent pre/post telemetry exists."
-
-issue_661_paper_learning_visibility:
-  issue: 661
-  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
-  base_sha: e77582417f88efcd07e0806b5fc49c2e488730b0
-  branch: feat/issue-661-paper-learning-visibility
-  implementation_commit: 527686ee2fb8c9fb6233229cae07c25363b15068
-  scope: "Connect canonical PAPER learning/runtime observations to the authenticated GET-only /api/paper-operations projection and the existing React Native PAPER learning monitor; add Home/Trade/Portfolio entry points."
-  canonical_sources:
-    runtime: apps/cloud/src/runtime.ts
-    recorder: apps/cloud/src/paperLearningObservability.ts
-    projection: apps/cloud/src/paperLearningReadOnlyProjection.ts
-    transport_contract: packages/contracts/src/paperLearningReadOnly.ts
-    mobile_screen: apps/mobile/src/paperLearningScreen.ts
-    mobile_view: apps/mobile/src/paperLearningMonitorView.tsx
-  local_validation:
-    typecheck: PASS
-    build: PASS
-    lint: PASS
-    architecture_truth: PASS
-    package_validate: PASS
-    full_isolated_suite: PASS_574_FILES
-    diff_check: PASS
-  safety:
-    mode: PAPER
-    read_only_projection: true
-    live_authority: NONE
-    production_mutation_allowed: false
-    ai_authority: ZERO_AUTHORITY
-  external_validation: PENDING_EXACT_HEAD_CI_AND_ANDROID_PREVIEW
-
-issue_661_paper_learning_code_gap_closure:
-  issue: 661
-  work_order: WO-ISSUE-661-FINAL-CODE-GAP-CLOSURE
-  status: CODE_COMPLETE_HUMAN_DEVICE_PENDING
-  base_sha: ea363ca068e94d01e644f595a6ac495a34f52948
-  branch: feat/issue-661-code-gap-closure
-  scope: "Persist the existing sanitized PAPER learning timeline in the canonical Cloud state database and expose canonical risk observations without changing execution authority."
-  local_validation:
-    typecheck: PASS
-    build: PASS
-    lint: PASS
-    focused_paper_learning: PASS
-    focused_runtime_persistence: PASS
-    architecture: PASS
-    safety: PASS
-    security: PASS_SECRETS_0
-    full_isolated_suite: FAIL_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
-  safety:
-    mode: PAPER
-    read_only_projection: true
-    live_authority: NONE
-    production_mutation_allowed: false
-    ai_authority: ZERO_AUTHORITY
-  implementation_commit: 852592229e1dfc089ce713d25d835943a24934a0
-  merge_sha: 92894f962c845009cdfa29dbf248e463b8c9f05e
-  android_preview_pointer_merge_sha: 3427861ef0ae283ecdfdf898bc09f77174f2d954
-  android_preview_workflow: 32634946830
-  android_preview_source_sha: 92894f962c845009cdfa29dbf248e463b8c9f05e
-  android_preview_version: 1.0.69-92894f96
-  android_preview_version_code: 69
-  android_preview_sha256: 987ed80fb06c9daacaf2fc1085169c05952f5e8624a4aadf387452018e468b97
-  external_validation: "PR #718 and #719 exact-head checks PASS; post-merge Actual PAPER Runtime Evidence PASS; physical Galaxy/ADB acceptance HUMAN_ENVIRONMENT_ONLY."
-
-production_cloud_origin_android_acceptance:
-  work_order: WO-PRODUCTION-CLOUD-ORIGIN-ANDROID-ACCEPTANCE
-  status: IMPLEMENTATION_VALIDATED_PENDING_PR
-  base_sha: 50b68722173f5a8f1a7087b2fe915a227febc13f
-  branch: codex/production-cloud-origin-android
-  canonical_origin: https://nusa-api.duckdns.org
-  origin_source: "GitHub variable NUSA_MOBILE_API_BASE_URL"
-  origin_health: PASS_200_OK_TRUE
-  implementation_scope: "Release-safe generated origin config, strict origin validation, and Mobile Native/build workflow sealing; no credential or authority change."
-  validation:
-    focused_mobile_tests: PASS_14_OF_14
-    full_isolated_suite: PASS_580_FILES
-    typecheck: PASS
-    build: PASS
-    lint: PASS
-    security_gate: PASS_SECRETS_0
-    architecture_truth: PASS
-    aipos_conformance: PASS
-    aipos_drift: PASS
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  physical_device_acceptance: PENDING_HUMAN_ENVIRONMENT
-
-issue_661_shadow_transport_unified_monitor:
-  work_order: WO-ISSUE-661-SHADOW-TRANSPORT-UNIFIED-MONITOR
-  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
-  base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
-  branch: agent/issue-661-shadow-transport-unified-monitor
-  scope: "Authenticated GET-only Shadow observability transport, verified sealed archive replay, and unified read-only PAPER/SHADOW mobile monitor using existing Shadow evidence and authority boundaries."
-  local_validation:
-    typecheck: PASS
-    build: PASS
-    lint: PASS
-    focused_shadow_archive_and_transport: PASS_17_OF_17
-    diff_check: PASS
-  safety:
-    mode: PAPER_AND_SHADOW_READ_ONLY
-    live_authority: NONE
-    production_mutation_allowed: false
-    ai_authority: ZERO_AUTHORITY
-    broker_mutation: NONE
-  external_validation: PENDING_EXACT_HEAD_CI_AND_REVIEW
-
-issue_661_live_readiness_production_source:
-  work_order: WO-ISSUE-661-LIVE-READINESS-PRODUCTION-SOURCE
-  issue: 661
-  status: COMPLETED
-  base_sha: 83f312fb4bc1cd1a35cf53071556671a93913ca0
-  branch: agent/live-readiness-production-source
-  scope: "Canonical production read-only LiveReadinessSourceSnapshot provider and runtime accessor; no LIVE_READY transport/UI in this slice."
-  implementation_status: MERGED_PR_769
-  pull_request: 769
-  implementation_commit: 25188c7575a2c42421b40dd1eeb21f0892baa519
-  merge_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
-  local_validation:
-    focused_provider: PASS_7_OF_7
-    existing_readiness: PASS_16_OF_16
-    full_isolated_suite: PASS_589_FILES
-    typecheck: PASS
-    build: PASS
-    lint: PASS
-    architecture: PASS
-    safety: PASS
-    security: PASS
-    aipos: PASS
-    package_validation: PASS_AFTER_MAP_FREE_PACKAGED_FILE_SET
-  safety:
-    live_authority: NONE
-    production_mutation_allowed: false
-    ai_authority: ZERO_AUTHORITY
-    activation: READ_ONLY_UNAVAILABLE_BY_DEFAULT
-  remote_validation: PASS_6_OF_6_EXACT_HEAD
-
-issue_661_live_ready_observability:
-  work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-  issue: 661
-  status: COMPLETED
-  base_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
-  branch: agent/issue-661-live-ready-observability
-  scope: "GET-only canonical LIVE preparation observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
-  canonical_source: apps/cloud/src/liveReadinessSourceProvider.ts
-  evaluator: apps/cloud/src/liveReadinessGate.ts
-  transport: GET_ONLY_API_LIVE_READINESS
-  mobile_client: apps/mobile/src/liveReadinessOperationsClient.ts
-  safety:
-    live_authority: NONE
-    production_mutation_allowed: false
-    ai_authority: ZERO_AUTHORITY
-    order_cancel_withdraw_transfer: NONE
-    activation: NONE
-  implementation_status: MERGED_PR_770
-  implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
-  pull_request: 770
-  validation_head: 7e925445055d14d877baa1476291a9108e832bff
-  exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS
-  local_full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
-  actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
-  safety_boundary: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
-  next: "None. PR #770 merged as 51f3b584435fbe0fdf76f856803508a3f0a0cddd; Issue #661 is closed and this is historical read-only evidence."
-
-redesign_truthful_home_state:
-  work_order: WO-REDESIGN-TRUTHFUL-HOME-001
-  status: LOCAL_VALIDATED_PENDING_PUBLICATION
-  branch: codex/truthful-home-operating-states
-  base_sha: a3291d808361e80b60908b1b21e634c423f8ff34
-  scope: "Fail-close mobile HOME status when retained Cloud PAPER evidence cannot be refreshed; no runtime or authority change."
-  focused_validation: PASS_29_OF_29_PLUS_CI_SHARD_UI_CONTRACT_AFTER_LATEST_MAIN_INTEGRATION
-  ci_shard_regression: PASS_SHARD_2_OF_4_AFTER_UI_CONTRACT_UPDATE
-  mobile_typecheck: PASS
-  mobile_lint: PASS
-  architecture: PASS
-  preflight: PASS
-  build: PASS
-  security_gate: PASS
-  aipos_conformance: PASS
-  aipos_drift: PASS
-  diff_check: PASS
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  latest_main_integration: PASS
-  next: "Push exact local head and require fresh exact-head CI before review or merge."
-issue_1288_cloudflare_runtime_proof:
-  issue: 1288
-  work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
-  status: STRUCTURAL_FIX_PENDING_EXACT_HEAD_AND_EXTERNAL_PROOFS
-  base_commit: 0167a07021cfda1277124995b862bf9002a2de85
-  implementation_branch: codex/1288-runtime-proof-provenance/
-  implementation_commit: a1f3a0ab6b917cf4fdf22eaf2ae54297997ff5fa
-  pull_request: 1301
-  scope: "Classified read-only Cloudflare runtime-proof evidence with bounded artifact retention, exact workflow provenance, trigger classification, deterministic identity, and bounded transient retry."
-  acceptance: "Two consecutive fresh post-merge scheduled proof executions remain required; push/manual/old-head receipts cannot satisfy this acceptance."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
-issue_903_event_bridge:
-  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
-  issue: 903
-  status: INGRESS_CONNECTED_WAITING_EXECUTION
-  base_sha: db9067754e12c2e462579f5b39b0ebc99a182d19
-  branch: codex/903-github-event-bridge
-  implementation_commit: 53263fb1caffe48632b3a5e4abc43997475ad1b7
-  pull_request: 1304
-  merged_main: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
-  latest_main: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
-  main_integration_commit: 8d448f8a
-  validation_head: aa3d99a879c8a3ecfad1532c81fd32f0f1e77dd9
-  remote_required_checks: MERGED_CODE_HEAD_PASS_6_OF_6_AIPOS_FOLLOWUP_NOT_RUN
-  merge_state: MERGED_RUNTIME_PROOF_BLOCKED_BY_MISSING_SECRET
-  scope: "Signed GitHub push, pull_request_target, and canonical CI workflow_run ingress into the existing read-only Autopilot webhook spine; no second queue, scheduler, executor, or mutation path."
-  canonical_spine: EXISTING_AUTOPILOT_WEBHOOK_PLANNER_EXECUTION
-  runtime_activation: INGRESS_CONNECTED_WAITING_MISSING_SECRET_AND_ARTIFACT_BACKED_EXECUTION
-  local_validation:
-    focused_bridge: PASS_7_OF_7
-    affected_autopilot_regression: PASS_20_OF_20
-    full_isolated_suite: PASS_818_FILES
-    typecheck: PASS
-    build: PASS
-    architecture_truth: PASS
-    architecture_check: PASS
-    safety_architecture: PASS
-    safety_invariants: PASS
-    restricted_live_check: PASS
-    restricted_live_readiness: PASS
-    read_only_broker: PASS
-    ai_zero_authority: PASS
-    security_gate: PASS_SECRETS_0
-    aipos_drift: PASS
-    aipos_provenance: PASS
-    diff_check: PASS
-    lint: PASS
-  event_delivery: "Post-merge push proof run 33354759806 on main 259b98f21ebe4d28644ac406e26aeb4b3a19648c completed successfully; the bridge logged INTERFACE_READY with attempts=0 and no response because NUSA_WEBHOOK_SECRET was empty. No canonical Worker request or control-plane execution occurred."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  post_merge_runtime_proof:
-    workflow_run: 33354759806
-    trigger: push
-    source_sha: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
-    workflow_conclusion: SUCCESS
-    bridge_result: INTERFACE_READY
-    webhook_request: NOT_SENT_MISSING_NUSA_WEBHOOK_SECRET
-    control_plane_receipt: NOT_PROVEN
-  next: "Owner must configure NUSA_WEBHOOK_SECRET in GitHub Actions without exposing its value; then a fresh push/workflow_run proof must show canonical Worker delivery and control-plane receipt before #903 can become ACTIVE."
-
-latest_mobile_safety_slice:
-  status: COMPLETED
-  base_commit: ff1a9a9a5af63541eb5d1da57bdbe7b50f051353
-  implementation_branch: fix/mobile-home-live-authority-boundary
-  implementation_head: ca05e9468f34a1d4a4eac52bad4006fe2b22b7ee
-  pull_request: 1364
-  merge_commit: 5b68e4710720eef97ccd35e0ee092193d2f6053a
-  exact_head_ci: "7/7 PASS (CI 33453433094; Mobile Native 33453433235; Actual PAPER 33453433032; protected workflows on exact head)"
-  scope: "Close the legacy mobile home projection safety gap by keeping canTrade PAPER-only; LIVE mode no longer implies production trading authority even when AI and risk inputs are favorable."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "No LIVE activation or production mutation capability was added; physical-device acceptance and external runtime evidence remain separate HUMAN_ENVIRONMENT_ONLY gates."
-
-latest_portfolio_risk_bridge_slice:
-  status: COMPLETED
-  base_commit: 5b68e4710720eef97ccd35e0ee092193d2f6053a
-  implementation_branch: feat/portfolio-risk-from-trading-snapshot
-  implementation_head: 30fe8e6f51aefacc03247627d31019957e4b7310
-  pull_request: 1366
-  merge_commit: 2c04e7e9611308735a813579620c6c1c62beeeca
-  exact_head_ci: "7/7 PASS (CI 33454398865; Mobile Native 33454398900; Actual PAPER 33454398836; protected workflows on exact head)"
-  scope: "Bridge the existing multi-position TradingSnapshot into the canonical portfolioRiskIntelligence summary with explicit unavailable-price omission; no fabricated price, capital deployment, broker mutation, or LIVE authority."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Rendering the multi-position risk summary in a mobile surface is a separate UI slice; this bridge does not alter accounting or execution."
-
-latest_independent_audit_slice:
-  status: COMPLETED
-  base_commit: ff1a9a9a5af63541eb5d1da57bdbe7b50f051353
-  implementation_branch: dev/903-independent-audit-executor
-  implementation_head: 02ad474c15b5cd58a682af2866f6180399deb4f2
-  pull_request: 1363
-  merge_commit: bd1f2661f606351ec83a2da13b36d229f47e1563
-  exact_head_ci: "6/6 PASS (CI 33453676888; Actual PAPER 33453676878; Restricted LIVE Activation 33453676894; Restricted LIVE Capability 33453676957; Restricted LIVE Transport 33453676876; Read-only Broker 33453676904)"
-  scope: "Add an independent read-only Audit execution boundary for exact PR/head/base/CI evidence, strict verdict validation, GitHub OIDC authentication, bounded idempotency, and no coding/mutation path."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "External Audit runner availability and credentials remain deployment evidence; no LIVE, broker, order, Git, or merge authority is granted to the Audit runner."
-
-latest_portfolio_risk_evidence_completeness_slice:
-  status: COMPLETED
-  base_commit: a7fd2f8a536d213ed5fe6e3f394096f427220fe5
-  implementation_branch: codex/portfolio-risk-evidence-fail-closed
-  implementation_head: 43488904544470c111ef648eda64268a6a4e47e9
-  pull_request: 1372
-  merge_commit: 91b245221e97c9ea0b1d1a8927e8a3e5c519f62c
-  scope: "Portfolio risk intelligence now rejects incomplete pairwise correlation evidence and invalid volatility/correlation inputs instead of treating unknown risk inputs as neutral."
-  validation: "Exact-head protected workflows passed: test, coverage, coverage shards, type/validation, Actual PAPER, Restricted LIVE, Read-only Broker, bridge, readiness, and safety guard workflows all succeeded."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Longitudinal PAPER evidence, real-account credentials/relay, Cloudflare runtime proof, physical-device acceptance, and human LIVE approval remain fail-closed."
-
-latest_portfolio_risk_drawdown_validation_slice:
-  status: COMPLETED
-  base_commit: 5d2a907067771eecec612ec3151db2a5186b64c9
-  implementation_branch: codex/portfolio-risk-drawdown-validation
-  implementation_head: 9cab25b013301e8652a333d861a76047c0211d10
-  pull_request: 1374
-  merge_commit: 7eaf4814c05c1c76a940205b187099c4b6a6dc75
-  scope: "Portfolio drawdown now rejects non-finite, negative, or no-positive-base equity curves rather than emitting NaN or fabricated drawdown."
-  validation: "Exact-head workflow checks passed: test, coverage, coverage shards, validation, Actual PAPER, Restricted LIVE, Read-only Broker, bridge, readiness, safety guard, and rehearsal all succeeded."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Longitudinal PAPER evidence, real-account credentials/relay, Cloudflare runtime proof, physical-device acceptance, and human LIVE approval remain fail-closed."
-
-latest_portfolio_risk_current_drawdown_slice:
-  status: COMPLETED
-  base_commit: e30ec49ec4ec54b0a504e09bc8bbc54bb4504a7e
-  implementation_branch: codex/portfolio-risk-current-drawdown
-  implementation_head: bc218ee8a6e7e2d42e410ee0202c5beb33303b79
-  pull_request: 1376
-  merge_commit: aaa82d526d0439c7b7de0dcc1533d6c959dcb9e9
-  scope: "Correct PortfolioRiskSummary.currentDrawdown from historical maximum drawdown to documented peak-to-current drawdown after recovery."
-  validation: "Exact-head workflow checks passed: test, coverage, coverage shards, validation, Actual PAPER, Restricted LIVE, Read-only Broker, bridge, readiness, safety guard, and rehearsal all succeeded."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Longitudinal PAPER evidence, real-account credentials/relay, Cloudflare runtime proof, physical-device acceptance, and human LIVE approval remain fail-closed."
-
-latest_paper_chaos_bound_runtime_evidence_slice:
-  status: IN_PROGRESS
-  issue: 882
-  base_commit: 1e085360dc057ed8c097d28de36d40c71cb1cc5c
-  implementation_branch: codex/paper-chaos-bound-runtime-evidence
-  scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
-current_audit_structured_output_recovery:
-  status: EXACT_HEAD_CI_PASS_PENDING_MERGED_MAIN_DEPLOYMENT_AND_FRESH_AUDIT
-  base_sha: 45e4c653e89644f176c2398a007ca26b99014bda
-  implementation_branch: codex/audit-json-output-hardening
-  implementation_head: 8748cd6cc203fd80de3ec7d3f34dbeffe6497047
-  scope: "Make the independent Audit Workerâ€™s provider-facing JSON schema compatible with Workers AI while preserving strict local verdict validation and exact-head revalidation."
-  finding: "Fresh Audit run 35057987820 reached the existing Worker and failed closed with 409 AUDIT_VERDICT_SAFETY_INVALID after the model returned a safetyInvariantResult shape rejected by the strict validator."
-  remediation: "Use one flat required JSON Schema for provider reliability, explicitly require the safety result to be the uppercase JSON string PASS or FAIL, and retain the unchanged semantic validator, bounded retries, and exact-head evidence checks."
-  local_validation: "Targeted Audit tests 24/24 PASS; pnpm run build PASS; pnpm run validate:full PASS; pnpm run lint PASS with 4 pre-existing warnings and 0 errors; pnpm run security:gate PASS; pnpm run architecture:check PASS; pnpm test PASS across 986 isolated test files; git diff --check PASS."
-  exact_head_ci: "PR #1928 exact head 8748cd6cc203fd80de3ec7d3f34dbeffe6497047; canonical CI 35059260683 and required PAPER/read-only/Restricted LIVE workflows 35059260664, 35059260672, 35059260684, 35059260766, 35059260795, plus Cloudflare preflight 35059260699 and bridge 35059260690 all completed success."
-  follow_up_finding: "Exact-head preflight 35060300788 failed closed because its non-paginated first page contained 141 completed runs and omitted successful deploy run 35050583254; credential, Wrangler, account, and Worker safety checks were already successful."
-  follow_up_remediation: "Read all exact-main Actions-run pages with gh api --paginate --slurp and flatten workflow_runs before selecting the newest successful deploy evidence; retain bounded polling and fail-closed behavior."
-  follow_up_status: BRANCH_PREFLIGHT_PASS_PENDING_TRUSTED_MAIN_PROMOTION_AND_FRESH_AUDIT
-  follow_up_branch: codex/audit-json-output-hardening
-  follow_up_exact_head: 92eb62d62ec9a4ee438e51f562c79e5e116cc11f
-  follow_up_exact_head_ci: "Canonical CI 35061465031 and required PAPER/read-only/Restricted LIVE workflows 35061463863, 35061465021, 35061465014, 35061465038, 35061465064, 35061465020 all PASS. Protected pull_request_target preflight 35061463878 used the trusted main workflow and failed because main still has the pre-pagination selector; branch workflow_dispatch preflight 35061869720 executed the pagination fix at this exact head and PASSed credential, account, Wrangler, Free-tier, exact-main deploy, and runtime revision checks."
-  follow_up_next_permitted_action: "Promote the pagination fix through the existing protected Release path; only after the trusted main workflow contains it may the protected pull_request_target preflight be expected to PASS. Then deploy the exact merged main revision and request a fresh independent Audit."
-  next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
-current_comparable_evaluator_failure_slice:
-  status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
-  issue: 1887
-  base_commit: 3ddc9dc5ab7f4e41da9acc7f37c263457b0add62
-  implementation_branch: codex/issue-1887-comparable-evaluator
-  work_order: .aipos/work-orders/WO-ISSUE-1887-COMPARABLE-EVALUATOR-FAILURES.yaml
-  scope: "Resolve lifecycle failure, structural-domination, and promotion-support facts from canonical hash-chain-validated Research Memory; only CURRENT canonical empirical evidence with exact evaluator semantics and independence groups may affect advisory RETIRE/PROMOTE."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
-current_cloudflare_runtime_github_credential_preflight:
-  work_order: WO-20260927-PR2067-RUNTIME-GITHUB-CREDENTIAL
-  status: READY_FOR_REVIEW
-  pull_request: 2067
-  branch: fix/2029-credential-preflight-current-main
-  base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
-  implementation_code_head: f283111a9d92b53c93e27e88e9f6df6ad3b1a6b6
-  finding: "Deployed Cloudflare scheduled receipts abstain with GITHUB_HTTP_401/headSha=null even though NUSA_AUTOPILOT_GITHUB_TOKEN is present and synced."
-  remediation: "Keep secret-bearing preflight read-only, isolate issue mutation, and require a redacted read-only GitHub exact-repository API probe before Worker secret sync."
-  validation: "Fresh exact-head CI required. Actual credential replacement remains HUMAN_ONLY because secret material is not repository code."
-  next: "Exact-head CI -> independent Audit/Release for code guard; separately rotate/authorize the runtime GitHub credential, deploy, then require a fresh scheduled Runtime Proof receipt with non-null exact head."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
-current_research_replay_segmented_persistence:
-  work_order: WO-ISSUE-1543-RESEARCH-REPLAY-SEGMENTED-PERSISTENCE
-  status: READY_FOR_REVIEW
-  pull_request: 1842
-  branch: fix/research-replay-segmented-persistence-1543
-  base_sha: 3596397971acd93d3da383d08344f7dfffdff77f
-  implementation_code_head: 8715a491c8942b995ed5fb68c3443baa7a83a5ea
-  finding: "Oracle nusa-research.service still reproduces V8 heap OOM/SIGABRT on 2026-09-28; the existing segmented replay persistence correction remains the single canonical successor."
-  remediation: "Preserve immutable segmented replay, canonical-history loss rejection, pre-commit downgrade guard, legacy deployment/rollback fence, and worker state-key fencing; reconverge unchanged code on latest main."
-  validation: "Prior exact-head CI passed on 8715a491c8942b995ed5fb68c3443baa7a83a5ea; that evidence is stale after protected-main drift. Fresh exact-head CI is required on the reconverged head."
-  blocker: "None before fresh CI terminal; production recovery remains gated on independent Audit/Release and Oracle deployment."
-  next: "Fresh exact-head CI -> independent Audit/Release -> merge -> Oracle exact-main deployment -> successful Research workload/restart evidence."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
-current_pr1991_review_hardening:
-  work_order: WO-20260927-PR1991-REVIEW-HARDENING
-  status: IN_PROGRESS
-  pull_request: 1991
-  branch: fix/1892-qualification-survival-gates
-  base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
-  previous_verified_head: fd0ea0d345bc3574a37b292d082026cdfd4d42f9
-  finding: "Protected main advanced after the prior exact-head PASS; stale acceptance evidence cannot be reused."
-  remediation: "Reapply the frozen qualification-integrity delta onto latest protected main while preserving current research learning/runtime changes."
-  validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
-  next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_autopilot_zero_credit_mode:
-  work_order: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
-  status: IN_PROGRESS
-  pull_request: 2393
-  branch: fix/autopilot-zero-credit-mode
-  base_sha: 61aaa2c47dcd6d92d15a39eba627a11542f2bfef
-  implementation_code_head: fa9b7f682d5c0279a8d1180dfa30b0416eda227e
-  objective: "Continue deterministic Autopilot work without paid coding-provider fallback while minimizing Cloudflare idle spend."
-  validation: "Reconciled unchanged zero-credit functional delta onto protected main 61aaa2c47dcd6d92d15a39eba627a11542f2bfef with functional overlap 0; fresh exact-head CI is required on the new branch head."
-  next: "Fresh exact-head CI -> independent Audit -> nusa/release-authorized -> canonical merge -> exact-main Cloudflare deploy -> health zeroCreditMode=ENFORCED -> ZERO_CREDIT runtime proof."
-
-current_paper_orderbook_snapshot_refresh:
-  work_order: WO-PAPER-ORDERBOOK-SNAPSHOT-REFRESH
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-  base_sha: 2661e812d769db6f977093d9646a1196ca531a64
-  pull_request: 2409
-  duplicate_coordination: "PR 2410 covers the same defect; canonical owner remains the earlier PR 2409. Do not stack both refresh implementations."
-  finding: "Persistent public connections outlive the 30-second REST snapshot validity and cannot recover without reconnecting."
-  remediation: "Coalesced snapshot refresh on unreconciled stream frames, bounded backoff and timeout, reconnect generation fencing."
-  validation: "25 focused reconciliation, real runtime wiring, liveness, restart and health tests PASS; TypeScript compile/typecheck, preflight, targeted lint and repository validate PASS."
-  diagnostic_recovery: "Fresh valid quotes for every configured market clear only orderbook diagnostics; failure timestamp and accepted-market receipt health gate remain intact. Prior exact-head actual PAPER artifact remained INCOMPLETE with no actionable signal."
-  next: "Exact-head CI, independent Audit, canonical Release, then long-lived Oracle runtime proof."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_mobile_decision_rings:
-  work_order: WO-UI-20261001-DECISION-RINGS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-home-field-cleanup
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_paper_fill_lineage:
-  work_order: WO-TEST-20261001-PAPER-FILL-LINEAGE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-lineage-test
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge; open gaps are market-observation id and decision-reason retention in the intent
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_mobile_logo_contour_n:
-  work_order: WO-UI-20261001-LOGO-CONTOUR-N
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-logo-contour-n
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge; owner plans a later logo renewal
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_mobile_paper_tabs:
-  work_order: WO-UI-20261001-PAPER-TABS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-paper-tabs
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge; renewal slices done for HOME, LIVE, More and PAPER tab chrome
-current_mobile_live_gates:
-  work_order: WO-UI-20261001-LIVE-GATES
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-live-redesign
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are HOME below the rings, PAPER and More
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_mobile_fast_startup:
-  work_order: WO-UI-20261001-FAST-STARTUP
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-fast-startup
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_paper_daily_loss_streak:
-  work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-daily-loss-streak
-  authority_impact: paper_risk_policy
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-deploy_then-health-recheck
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_mobile_recovering_quiet:
-  work_order: WO-UI-20261001-RECOVERING-QUIET
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-recovering-home
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
-current_mobile_contour_core:
-  work_order: WO-UI-20261001-CONTOUR-CORE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-contour-core
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
-current_mobile_home_plain:
-  work_order: WO-UI-20261001-HOME-PLAIN
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-home-below
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are PAPER and More
-current_mobile_more_groups:
-  work_order: WO-UI-20261001-MORE-GROUPS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-more-renewal
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slice is the PAPER tab
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_mobile_recovery_bound:
-  work_order: WO-UI-20261001-RECOVERY-BOUND
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-recovery-bound
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
-current_mobile_hermes_clone:
-  work_order: WO-UI-20261001-HERMES-CLONE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-structuredclone
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
-current_mobile_tab_contour:
-  work_order: WO-UI-20261001-TAB-CONTOUR
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-tabs-contour
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
-current_mobile_paper_body:
-  work_order: WO-UI-20261001-PAPER-BODY
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-paper-body
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
-current_mobile_more_contour:
-  work_order: WO-UI-20261001-MORE-CONTOUR
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-more-contour
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
-current_ui_whole_app_rule:
-  work_order: WO-DOC-20261001-UI-WHOLE-APP
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-ui-whole-app
-  authority_impact: none
-  rule: "UI/UX changes apply to the whole app (owner, 2026-10-01)."
-current_mobile_attractor:
-  work_order: WO-UI-20261001-ATTRACTOR
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-attractor
-  authority_impact: none
-  remaining: exact-head-CI_incl_mobile-native_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
-current_mobile_plain_labels:
-  work_order: WO-UI-20261001-PLAIN-LABELS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-plain-labels
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-More-detail-screen-copy-pass
-current_mobile_detail_copy:
-  work_order: WO-UI-20261001-DETAIL-COPY
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-detail-copy
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge
-current_mobile_session_timeout:
-  work_order: WO-UI-20261001-SESSION-TIMEOUT
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-session-timeout
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
-current_mobile_holo_sphere:
-  work_order: WO-UI-20261002-HOLO-SPHERE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-holo-sphere
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-four-tab-layout-redesign
-current_mobile_safety_line:
-  work_order: WO-UI-20261002-SAFETY-LINE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-safety-line
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-server-journal-and-equity-history-projections
-current_mobile_performance:
-  work_order: WO-UI-20261002-PERFORMANCE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-performance
-current_mobile_journal:
-  work_order: WO-UI-20261002-JOURNAL
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-journal
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge
-current_mobile_home_simplify:
-  work_order: WO-UI-20261002-HOME-SIMPLIFY
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-home-simplify
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge
-current_ops_preflight_runtime_unchanged:
-  work_order: WO-OPS-20261002-PREFLIGHT-RUNTIME-UNCHANGED
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-preflight-delta
-  authority_impact: deployment-control
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-trusted-preflight-closes-P0-1461
-current_mobile_event_banner:
-  work_order: WO-UI-20261002-EVENT-BANNER
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-event-banner
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-decision-on-FCM-push
-current_mobile_resume_grace:
-  work_order: WO-UI-20261002-RESUME-GRACE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-resume-grace
-current_mobile_safety_truth:
-  work_order: WO-UI-20261002-SAFETY-TRUTH
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-safety-truth
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge
-current_mobile_warm_resume:
-  work_order: WO-UI-20261002-WARM-RESUME
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-warm-resume
-  authority_impact: session-projection
-  remaining: exact-head-CI_then-Audit_then-Release-merge
-current_mobile_grace_notice:
-  work_order: WO-UI-20261002-GRACE-NOTICE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-grace-notice
-current_ci_robustness:
-  work_order: WO-OPS-20261002-CI-ROBUSTNESS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-ci-robustness
-  authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge
-current_daily_reset:
-  work_order: WO-UI-20261002-DAILY-RESET
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-daily-reset
-  authority_impact: none
-current_learning_line:
-  work_order: WO-UI-20261002-LEARNING-LINE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-learning-line
-  authority_impact: none
-current_research_continuous_experiments:
-  work_order: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-  status: PLANNED
-  branch: claude/nusa-repository-j93sd8-research-scheduler
-  authority_impact: research-evidence-only
-  remaining: stage_2_composition_then_stage_3_tests_then_owner_approved_deploy
-current_optimizer_core:
-  work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-optimizer-core
-  authority_impact: none
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-current_research_session_planner:
-  work_order: WO-RESEARCH-20261002-SESSION-PLANNER
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-research-planner
-  authority_impact: none
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-  depends_on: claude/nusa-repository-j93sd8-optimizer-core
-current_research_candle_aggregator:
-  work_order: WO-RESEARCH-20261002-CANDLE-AGGREGATOR
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-candle-aggregator
-  authority_impact: none
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-current_research_candle_store:
-  work_order: WO-RESEARCH-20261002-CANDLE-STORE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-candle-store
-  authority_impact: persistence-schema-additive
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-  deploy: not_deployed_owner_approval_required
-current_research_candle_collector:
-  work_order: WO-RESEARCH-20261002-CANDLE-COLLECTOR
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-candle-collector
-  authority_impact: none
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-current_research_provenance_design:
-  work_order: WO-RESEARCH-20261002-PROVENANCE-DESIGN
-  status: DESIGN_PROPOSED
-  branch: claude/nusa-repository-j93sd8-provenance-design
-  authority_impact: none
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-  decisions: D1_to_D5_taken_as_proposed_by_owner_delegation_2026-10-02_see_WO-RESEARCH-20261002-PROVENANCE-BUILDER
-current_research_provenance_builder:
-  work_order: WO-RESEARCH-20261002-PROVENANCE-BUILDER
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-provenance-builder
-  authority_impact: none
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-current_research_wf_windows:
-  work_order: WO-RESEARCH-20261002-WF-WINDOWS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-wf-windows
-  authority_impact: none
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-current_research_holdout_ledger:
-  work_order: WO-RESEARCH-20261002-HOLDOUT-LEDGER
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-holdout-ledger
-  authority_impact: persistence-schema-additive
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-  deploy: not_deployed_owner_approval_required
-current_research_evaluator_runner:
-  work_order: WO-RESEARCH-20261002-EVALUATOR-RUNNER
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-evaluators
-  authority_impact: none
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-current_research_orchestrator_composition:
-  work_order: WO-RESEARCH-20261002-ORCHESTRATOR-COMPOSITION
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-evaluators
-  authority_impact: research-evidence-only
-  parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
-  deploy: not_deployed_flag_default_off_owner_approval_required
-current_ops_release_prune:
-  work_order: WO-OPS-20261002-RELEASE-PRUNE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-release-main-drift
-  authority_impact: release-pipeline-hygiene
-  finding: "Release runs 88/89 failed in the host backup step: No space left on device. No workflow pruned old releases."
-  deploy: not_deployed_owner_approval_required
-current_ui_buy_signal_line:
-  work_order: WO-UI-20261002-BUY-SIGNAL-LINE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-buy-signal-line
-  authority_impact: none
-  deploy: not_deployed_owner_approval_required
-current_ui_launch_grace:
-  work_order: WO-UI-20261002-LAUNCH-GRACE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-cold-start
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_ui_launch_grace_verified:
-  work_order: WO-UI-20261003-LAUNCH-GRACE-VERIFIED
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-launch-verified
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_ui_window_counts:
-  work_order: WO-UI-20261003-WINDOW-COUNTS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-window-counts
-  authority_impact: none
-  deploy: not_deployed_server_and_app_build_required
-current_ui_feed_diagnostics:
-  work_order: WO-UI-20261003-FEED-DIAGNOSTICS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-feed-diagnostics
-  authority_impact: none
-  deploy: not_deployed_server_and_app_build_required
-current_ui_why_no_trade:
-  work_order: WO-UI-20261003-WHY-NO-TRADE
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-why-no-trade
-  authority_impact: none
-  deploy: not_deployed_server_and_app_build_required
-current_ui_cached_launch:
-  work_order: WO-UI-20261003-CACHED-LAUNCH
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-cached-launch
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_paper_baseline_multi_market:
-  work_order: WO-PAPER-20261003-BASELINE-MULTI-MARKET
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-baseline-markets
-  authority_impact: execution_exposure_paper_only
-  deploy: not_deployed_server_deploy_required
-current_ui_research_progress:
-  work_order: WO-UI-20261003-RESEARCH-PROGRESS
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-research-progress
-  authority_impact: none
-  deploy: not_deployed_server_and_app_build_required
-current_ui_korean_connection_label:
-  work_order: WO-UI-20261003-KOREAN-CONNECTION-LABEL
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-ui-labels
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_paper_orderbook_renew:
-  work_order: WO-PAPER-20261003-ORDERBOOK-RENEW
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-orderbook-renew
-  authority_impact: market_data_health_paper_only
-current_research_candle_backfill:
-  work_order: WO-RESEARCH-20261003-CANDLE-BACKFILL
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-candle-backfill
-  authority_impact: research_evidence_only
-  deploy: not_deployed_server_deploy_required
-current_ui_traded_coin:
-  work_order: WO-UI-20261003-TRADED-COIN
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-traded-coin
-  authority_impact: none
-  deploy: not_deployed_server_and_app_build_required
-current_ui_home_polish:
-  work_order: WO-UI-20261003-HOME-POLISH
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-design-polish
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_paper_observation_cap:
-  work_order: WO-PAPER-20261003-OBSERVATION-CAP
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-observation-cap
-  authority_impact: execution_exposure_paper_only
-  deploy: not_deployed_server_deploy_required
-current_autopilot_reconverge:
-  work_order: WO-AUTOPILOT-20261003-RECONVERGE
-  status: READY_FOR_REVIEW
-  branch: claude/autopilot-productivity
-  authority_impact: autopilot_pr_branch_maintenance_only
-  deploy: none_needed
-current_autopilot_codex_hourly:
-  work_order: WO-AUTOPILOT-20261003-CODEX-HOURLY
-  status: READY_FOR_REVIEW
-  branch: claude/autopilot-codex-hourly
-  authority_impact: autopilot_schedule_only
-  deploy: none_needed
-current_ui_motion_reveal:
-  work_order: WO-UI-20261003-MOTION-REVEAL
-  status: READY_FOR_REVIEW
-  branch: claude/ui-motion-polish
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_autopilot_codex_on_close:
-  work_order: WO-AUTOPILOT-20261003-CODEX-ON-CLOSE
-  status: READY_FOR_REVIEW
-  branch: claude/autopilot-codex-on-close
-  authority_impact: autopilot_schedule_only
-  deploy: none_needed
-current_paper_owner_markets:
-  work_order: WO-PAPER-20261003-OWNER-MARKETS
-  status: READY_FOR_REVIEW
-  branch: claude/paper-markets-config
-  authority_impact: execution_exposure_paper_only
-  deploy: not_deployed_server_deploy_required
-current_autopilot_codex_state_wording:
-  work_order: WO-AUTOPILOT-20261003-CODEX-STATE-WORDING
-  status: READY_FOR_REVIEW
-  branch: claude/autopilot-contract-state-wording
-  authority_impact: autopilot_prompt_only
-  deploy: none_needed
-current_ui_halt_reason:
-  work_order: WO-UI-20261005-HALT-REASON
-  status: READY_FOR_REVIEW
-  branch: claude/paper-halt-reason
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_ops_host_diagnose:
-  work_order: WO-OPS-20261005-HOST-DIAGNOSE
-  status: READY_FOR_REVIEW
-  branch: claude/oracle-host-diagnose
-  authority_impact: production_host_read_only
-  deploy: none_needed
-current_ui_hanji_ink:
-  work_order: WO-UI-20261005-HANJI-INK
-  status: SUPERSEDED_BY_WO-UI-20261005-COLD-FUTURE
-  branch: claude/ui-hanji-ink
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_ui_cold_future:
-  work_order: WO-UI-20261005-COLD-FUTURE
-  status: READY_FOR_REVIEW
-  branch: claude/ui-cold-future
-  authority_impact: none
-  supersedes: WO-UI-20261005-HANJI-INK
-  deploy: not_deployed_new_app_build_required
-current_ui_motion_orbit:
-  work_order: WO-UI-20261005-MOTION-ORBIT
-  status: READY_FOR_REVIEW
-  branch: claude/ui-motion-orbit
-  authority_impact: none
-  depends_on: PR 2509 (cold-future skin)
-  deploy: not_deployed_new_app_build_required
-current_ui_crystal_glass:
-  work_order: WO-UI-20261005-CRYSTAL-GLASS
-  status: READY_FOR_REVIEW
-  branch: claude/ui-crystal-glass
-  authority_impact: none
-  depends_on: PR 2510 (motion)
-  deploy: not_deployed_new_app_build_required
-current_ui_crystal_followup:
-  work_order: WO-UI-20261005-CRYSTAL-FOLLOWUP
-  status: READY_FOR_REVIEW
-  branch: claude/ui-crystal-followup
-  authority_impact: none
-  follows: PR 2512
-  deploy: not_deployed_new_app_build_required
-current_ui_liquid_rings:
-  work_order: WO-UI-20261005-LIQUID-RINGS
-  status: READY_FOR_REVIEW
-  branch: claude/ui-liquid-rings
-  authority_impact: none
-  supersedes: crystal hero (WO-UI-20261005-CRYSTAL-GLASS figure)
-  depends_on: PR 2513
-  deploy: not_deployed_new_app_build_required
-current_ui_startup_timing:
-  work_order: WO-UI-20261005-STARTUP-TIMING
-  status: READY_FOR_REVIEW
-  branch: claude/startup-timing
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_research_refresh_memory:
-  work_order: WO-PAPER-20261005-RESEARCH-REFRESH-MEMORY
-  status: READY_FOR_REVIEW
-  branch: claude/research-refresh-memory
-  authority_impact: resource_guard_threshold_only
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_learning_collection_reason:
-  work_order: WO-PAPER-20261005-LEARNING-COLLECTION-REASON
-  status: READY_FOR_REVIEW
-  branch: claude/learning-collection-reason
-  authority_impact: diagnostics_only
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_persistence_failure_detail:
-  work_order: WO-PAPER-20261005-PERSISTENCE-FAILURE-DETAIL
-  status: READY_FOR_REVIEW
-  branch: claude/persistence-failure-detail
-  authority_impact: diagnostics_only
-current_ui_core_burst:
-  work_order: WO-UI-20261005-CORE-BURST
-  status: READY_FOR_REVIEW
-  branch: claude/ui-core-burst
-  authority_impact: none
-  supersedes: liquid rings hero (WO-UI-20261005-LIQUID-RINGS figure)
-  deploy: not_deployed_new_app_build_required
-current_ui_hero_harmony:
-  work_order: WO-UI-20261005-HERO-HARMONY
-  status: READY_FOR_REVIEW
-  branch: claude/ui-hero-harmony
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_enable_research_collection:
-  work_order: WO-PAPER-20261005-ENABLE-RESEARCH-COLLECTION
-  status: READY_FOR_REVIEW
-  branch: claude/enable-research-collection
-  authority_impact: research_collection_enablement
-  owner_approval: "2026-10-05 in chat"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_ui_hero_emerald:
-  work_order: WO-UI-20261005-HERO-EMERALD
-  status: READY_FOR_REVIEW
-  branch: claude/ui-hero-emerald
-  authority_impact: none
-  deploy: not_deployed_new_app_build_required
-current_ledger_reconciliation_detail:
-  work_order: WO-PAPER-20261006-LEDGER-RECONCILIATION-DETAIL
-  status: READY_FOR_REVIEW
-  branch: claude/ledger-reconciliation
-  authority_impact: diagnostics_only
-  finding: "PAPER halt cause read from the owner's screen 2026-10-05: persistence failed with PAPER_LEDGER_RECONCILIATION_REQUIRED (account state vs fill ledger)"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_ledger_rounding_tolerance:
-  work_order: WO-PAPER-20261006-LEDGER-ROUNDING-TOLERANCE
-  status: READY_FOR_REVIEW
-  branch: claude/ledger-rounding-tolerance
-  authority_impact: accounting_integrity_tolerance
-  owner_approval: "2026-10-05 in chat"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_diagnose_health_probe:
-  work_order: WO-OPS-20261006-DIAGNOSE-HEALTH-PROBE
-  status: READY_FOR_REVIEW
-  branch: claude/diagnose-health-probe
-  authority_impact: none
-  deploy: no_runtime_change
-current_fill_remainder_tolerance:
-  work_order: WO-PAPER-20261006-FILL-REMAINDER-TOLERANCE
-  status: READY_FOR_REVIEW
-  branch: claude/order-fill-remainder-tolerance
-  authority_impact: execution_order_lifecycle_tolerance
-  owner_approval: "2026-10-05 in chat"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_fill_lifecycle_match:
-  work_order: WO-PAPER-20261006-FILL-LIFECYCLE-MATCH
-  status: READY_FOR_REVIEW
-  branch: claude/order-fill-lifecycle-match
-  authority_impact: execution_order_lifecycle_tolerance
-  finding: "#2526 caused a new halt (paper order lifecycle reconciliation mismatch) because the settled lifecycle did not equal the saved order record; corrected here"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_stall_metrics:
-  work_order: WO-OPS-20261006-STALL-METRICS
-  status: READY_FOR_REVIEW
-  branch: claude/health-stall-metrics
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat"
-  finding: "PAPER halted with PAPER_WRITER_LEASE_LOST: a process stall above the 30 s writer lease loses it until restart; the stall source is unknown, measurement only"
-current_health_error_class:
-  work_order: WO-OPS-20261006-HEALTH-ERROR-CLASS
-  status: READY_FOR_REVIEW
-  branch: claude/health-error-class
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_security_dep_patches:
-  work_order: WO-OPS-20261006-SECURITY-DEP-PATCHES
-  status: READY_FOR_REVIEW
-  branch: claude/security-dep-patches
-  authority_impact: none
-  finding: "Security gate failed on two newly published high advisories (source-map-js, compression); pinned to the patched releases"
-  deploy: no_runtime_change
-current_diagnose_light:
-  work_order: WO-OPS-20261006-DIAGNOSE-LIGHT
-  status: READY_FOR_REVIEW
-  branch: claude/diagnose-light
-  authority_impact: none
-  finding: "Host diagnosis walked the 11 GB release directory (over a minute of disk I/O) on the host it measures; removed so stall readings are not inflated by the probe"
-  deploy: no_runtime_change
-current_research_health_not_paper:
-  work_order: WO-PAPER-20261006-RESEARCH-HEALTH-NOT-PAPER
-  status: READY_FOR_REVIEW
-  branch: claude/research-health-not-paper
-  authority_impact: health_classification_display
-  owner_approval: "2026-10-06 in chat"
-  finding: "Research DEGRADED/STALE (still gathering data) made the whole PAPER snapshot DEGRADED, a permanent amber banner after #2520; only research FAIL_CLOSED may affect PAPER health"
-current_health_research_status:
-  work_order: WO-OPS-20261006-HEALTH-RESEARCH-STATUS
-  status: READY_FOR_REVIEW
-  branch: claude/health-research-status
-  authority_impact: none
-  finding: "Learning tile still shows no reason; the server's own research collection status is not readable from outside; publish a fixed code plus two counts on /health"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_research_progress_time_validation:
-  work_order: WO-PAPER-20261006-RESEARCH-PROGRESS-TIME-VALIDATION
-  status: READY_FOR_REVIEW
-  branch: claude/research-progress-time-validation
-  authority_impact: none
-  finding: "Research progress times (epoch ms) were validated against the 100,000,000 count cap, so every real progress object was dropped by the app and the learning tile showed plain 'not received' while the server collected 18265 of 15840 candles"
-  deploy: not_deployed_new_app_build_required
-current_ui_hero_flow_field:
-  work_order: WO-UI-20261006-HERO-FLOW-FIELD
-  status: SUPERSEDED_BY_WO-UI-20261006-HERO-RIDGE
-  branch: claude/hero-flow-field
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (second reference video, option 1: replace only the hero)"
-  note: "The hero component is shared: HOME hero, field header mark and More-menu mark all change; no screen keeps the old figure. Only the hero figure changes; the rest of the app's colours and layout are untouched by the owner's choice."
-  deploy: not_deployed_new_app_build_required
-current_ui_startup_warmup:
-  work_order: WO-UI-20261006-STARTUP-WARMUP
-  status: READY_FOR_REVIEW
-  branch: claude/startup-warmup
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
-  finding: "Cold start 3.3 s from abroad, sign-in 2.4 s: warm the connection during the saved-session read (a credential-free GET of /health) and show the sign-in split in Settings; the authentication flow itself is untouched"
-current_decision_funnel:
-  work_order: WO-PAPER-20261006-DECISION-FUNNEL
-  status: READY_FOR_REVIEW
-  branch: claude/decision-funnel
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (master directive: PAPER performance and closed-loop convergence, P0-B/P0-C)"
-  finding: "No stage or reason totals existed: the stage recorder keeps 250 events. Cumulative funnel counters over its events are published on /health; the first reading after deploy names FIRST_BROKEN_TRANSITION. #2357 is a different task (risk sizing and a mobile display) and is not duplicated"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_ui_hero_batched_drawing:
-  work_order: WO-UI-20261006-HERO-BATCHED-DRAWING
-  status: READY_FOR_REVIEW
-  branch: claude/hero-batched-drawing
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
-  finding: "The flow-field hero made about 550 draw calls per frame; batching by look reduces it to about 25 without changing the picture. Not measured on a device"
-  deploy: not_deployed_new_app_build_required
-current_ui_calm_redesign:
-  work_order: WO-UI-20261006-CALM-REDESIGN
-  status: IN_PROGRESS
-  branch: claude/ux-redesign-plan
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat ('ê·¸ëƒ¥ ë‹¤ ìƒˆë¡œ ë‹¤ì‹œ í•´ì¤˜ ê°œì„ í•˜ì§€ë§ê³ ', 'ë‹ˆê°€ ìƒˆë¡­ê²Œ ë””ìžì¸í•´ë´', 'ì§„í–‰í•´')"
-  finding: "Four primary tabs replaced by calm-v1 presenters (ì§€ê¸ˆ/í•™ìŠµ/ì•ˆì „/ê¸°ë¡) over existing screen models; detail screens still field-v1 and named in the work order"
-current_ui_hero_ridge:
-  work_order: WO-UI-20261006-HERO-RIDGE
-  status: SUPERSEDED_BY_WO-UI-20261007-HERO-FLOW-FIELD
-  branch: claude/hero-ridge
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat ('ì´ê±°ë¡œ í• ê²Œ' on the ridge prototype)"
-  finding: "Hero replaced by a ridge landscape; decisions roll a wave from the horizon, a PAPER order raises a lime peak and beam"
-current_paper_loss_session_counts:
-  work_order: WO-PAPER-20261006-LOSS-SESSION-COUNTS
-  status: READY_FOR_REVIEW
-  branch: claude/risk-loss-session
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (master directive step 6, 'ì•Œì•„ì„œí•´ì¤˜')"
-  finding: "FIRST_BROKEN_TRANSITION = DECISION(BUY) -> ORDER_INTENT (0/29; 18 CONSECUTIVE_LOSS_LIMIT, 11 STRATEGY_APPROVAL_REJECTED). Publishes today's completed/losing sell counts behind the loss limit; no limit changed"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_paper_loss_attribution:
-  work_order: WO-PAPER-20261006-LOSS-ATTRIBUTION
-  status: READY_FOR_REVIEW
-  branch: claude/loss-attribution
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (master directive step 6, 'ê³„ì†í•´')"
-  finding: "10:53 UTC: todayCompletedSells=3, todayLosingSells=3, streak=limit 3. Publishes today's completed/losing sells per opening strategy family (fixed codes) from the fill ledger; risk gate untouched"
-current_paper_wait_reason_codes:
-  work_order: WO-PAPER-20261006-WAIT-REASON-CODES
-  status: READY_FOR_REVIEW
-  branch: claude/wait-reason-codes
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (master directive step 5, 'ê³„ì†í•´')"
-  finding: "WAIT ~96% of decisions under one code; each WAIT now carries one fixed reason code (RISK_REGIME, TRADING_DISABLED, INSUFFICIENT_HISTORY, LOW_CONFIDENCE, NO_SIGNAL, ALREADY_IN_POSITION, NO_POSITION_TO_SELL); no threshold changed"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_research_experiment_counts:
-  work_order: WO-RESEARCH-20261006-EXPERIMENT-COUNTS
-  status: READY_FOR_REVIEW
-  branch: claude/research-experiment-counts
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (91% -> 100% master directive, 'ê³„ì†í•´')"
-  finding: "Experiment outcomes were journal-only; publishes bounded cumulative outcome counts so the Research -> Candidate N+1 link can be located in runtime evidence"
-current_paper_minute_bar_strategy:
-  work_order: WO-PAPER-20261006-MINUTE-BAR-STRATEGY
-  status: READY_FOR_REVIEW
-  branch: claude/minute-bar-strategy
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat ('2ë²ˆìœ¼ë¡œ ì§„í–‰í•´')"
-  finding: "SMA 5/20 ran on every ticker event (12 s holds; tick replay 0.5% wins, -51% net after fees). The candidate strategy now uses completed 1-minute closes from the persisted ticker store; no parameter or threshold changed"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_ui_touch_visual_calm:
-  work_order: WO-UI-20261006-TOUCH-VISUAL-CALM
-  status: READY_FOR_REVIEW
-  branch: claude/fix-touch-visual-calm
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (master directive; regression from #2541)"
-  finding: "touch-visual failed on every PR since #2541 because it waited for replaced testIDs; re-keyed on the calm-v1 screens and tied to the presenters"
-current_ops_deploy_receipt_result:
-  work_order: WO-OPS-20261006-DEPLOY-RECEIPT-RESULT
-  status: READY_FOR_REVIEW
-  branch: claude/deploy-receipt-result
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (master directive section 27, P1)"
-  finding: "A superseded release skipped all host steps but showed success; the final step now records deploymentResult (DEPLOYED / SKIPPED_MAIN_MOVED / FAILED / FAILED_ACTIVATION_IDENTITY)"
-current_learning_loop_status:
-  work_order: WO-LEARNING-20261006-LOOP-STATUS
-  status: READY_FOR_REVIEW
-  branch: claude/closed-learning-loop-status
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (91% -> 100% master directive, 'ê³„ì†í•´')"
-  finding: "Closed-learning loop step results were log-only; publishes bootstrap/rollover step codes and evaluated-cycle/deployment counts so the stalled learning transition can be named from runtime evidence"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_learning_stalled_period_reopen:
-  work_order: WO-LEARNING-20261006-STALLED-PERIOD-REOPEN
-  status: READY_FOR_REVIEW
-  branch: claude/closed-learning-stall-reopen
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (91% -> 100% master directive, 'ê³„ì†í•´')"
-  finding: "Runtime closedLearningLoop showed rollover NO_OPEN_PERIOD with realized history: a period closed without a successor and nothing reopened one. Rollover now continues the latest realized candidate from the canonical account boundary"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_research_longer_timeframes_proposal:
-  work_order: WO-RESEARCH-20261006-LONGER-TIMEFRAMES
-  status: PROPOSED
-  branch: claude/research-timeframe-proposal
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat ('ì œì•ˆì„œ ì¨ì¤˜'); implementation not approved"
-  finding: "All tested families lose on 1-minute bars after costs; proposes a walk-forward Research comparison over 15/60/240-minute bars"
-current_research_timeframe_comparison:
-  work_order: WO-RESEARCH-20261006-TIMEFRAME-COMPARISON
-  status: READY_FOR_REVIEW
-  branch: claude/research-timeframe-comparison
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat ('ì œì•ˆì„œ êµ¬í˜„ ìŠ¹ì¸')"
-  finding: "Research experiments now also run on 15m/60m bars aggregated from stored 1m candles (research evidence only)"
-current_ops_clear_recovered_market_reject:
-  work_order: WO-OPS-20261006-CLEAR-RECOVERED-MARKET-REJECT
-  status: READY_FOR_REVIEW
-  branch: claude/clear-recovered-market-reject
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (ì „ì²´ì—…ë¬´ ì™„ì „ìˆ˜ë ´ ë§ˆìŠ¤í„° ìž‘ì—…ì§€ì‹œì„œ)"
-  finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_sec_shell_quote_advisory:
-  work_order: WO-SEC-20261006-SHELL-QUOTE-ADVISORY
-  status: READY_FOR_REVIEW
-  branch: claude/shell-quote-advisory
-  authority_impact: none
-  owner_approval: "2026-10-06 in chat (ì „ì²´ì—…ë¬´ ì™„ì „ìˆ˜ë ´ ë§ˆìŠ¤í„° ìž‘ì—…ì§€ì‹œì„œ)"
-  finding: "CI Security gate red on all heads: new critical shell-quote advisory 1241332; overridden to patched 1.11.0"
-current_ops_rollover_reason_codes:
-  work_order: WO-OPS-20261007-ROLLOVER-REASON-CODES
-  status: READY_FOR_REVIEW
-  branch: claude/rollover-reason-codes
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat ('ë‹ˆ íŒë‹¨ìœ¼ë¡œ ëˆ„ì‚¬ë¥¼ ìµœê³ ë¡œ ì—…ê·¸ë ˆì´ë“œ ì‹œì¼œì¤˜')"
-  finding: "/health showed rollover BLOCKED without a reason; blocked reasons now lead with the error code so rolloverReason is published"
-current_learning_period_market_binding:
-  work_order: WO-LEARNING-20261007-PERIOD-MARKET-BINDING
-  status: READY_FOR_REVIEW
-  branch: claude/period-benchmark-evidence
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (Learning Period Benchmark Evidence Break ì™„ì „ìˆ˜ë ´)"
-  finding: "First real fill reached period close but the open period was bound to KRW-BTC while only KRW-XRP is streamed (MISSING_BENCHMARK_EVIDENCE); unstreamed-market periods are retired and the owner baseline restarts on the streamed market"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_ops_health_research_intervals:
-  work_order: WO-OPS-20261007-HEALTH-RESEARCH-INTERVALS
-  status: READY_FOR_REVIEW
-  branch: claude/health-research-intervals
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat ('ë‹ˆ íŒë‹¨ìœ¼ë¡œ ëˆ„ì‚¬ë¥¼ ìµœê³ ë¡œ ì—…ê·¸ë ˆì´ë“œ ì‹œì¼œì¤˜', 'ë‹¤ìŒ')"
-  finding: "/health now reports research experiment ticks per bar length so 15m/60m production runs are verifiable"
-current_ops_health_source_sha:
-  work_order: WO-OPS-20261007-HEALTH-SOURCE-SHA
-  status: READY_FOR_REVIEW
-  branch: claude/health-source-sha
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat ('ë‹ˆ íŒë‹¨ìœ¼ë¡œ ëˆ„ì‚¬ë¥¼ ìµœê³ ë¡œ ì—…ê·¸ë ˆì´ë“œ ì‹œì¼œì¤˜', 'ë‹¤ìŒ')"
-  finding: "/health now states the running build commit so MAIN = DEPLOYED = RUNTIME can be read directly"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_learning_evidence_correlation:
-  work_order: WO-LEARNING-20261007-EVIDENCE-CORRELATION
-  status: READY_FOR_REVIEW
-  branch: claude/health-learning-correlation
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (Learning Loop í•µì‹¬ 7ë‹¨ê³„ ì™„ì „ìˆ˜ë ´ ìž‘ì—…ì§€ì‹œì„œ, 'í•´')"
-  finding: "/health closedLearningLoop.evidence now carries period/market/candidate, realized outcome fingerprint and Research cycle/decision/deployment identities"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_research_interval_recovery:
-  work_order: WO-RESEARCH-20261007-INTERVAL-RECOVERY
-  status: READY_FOR_REVIEW
-  branch: claude/research-interval-recovery
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (Learning Loop 7ë‹¨ê³„ ìž‘ì—…ì§€ì‹œì„œ, 'ê³„ì†í•´')"
-  finding: "/health showed 15m/60m research RECOVERY_NOT_READY; only the first orchestrator was recovered, now all are recovered at start"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_ops_health_ledger_fingerprint:
-  work_order: WO-OPS-20261007-HEALTH-LEDGER-FINGERPRINT
-  status: READY_FOR_REVIEW
-  branch: claude/health-ledger-fingerprint
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (Ledger ê¸ˆì•¡ ê¸°ì¤€ restart/recovery ì¦ëª…)"
-  finding: "/health now carries a PAPER ledger fingerprint (no amounts) so restart/recovery can be checked for an identical accounting state"
-current_research_candle_gap_fill:
-  work_order: WO-RESEARCH-20261007-CANDLE-GAP-FILL
-  status: READY_FOR_REVIEW
-  branch: claude/research-candle-gap-fill
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat ('ì•Œì•„ì„œ ì œì¼ ì¢‹ì€ ê²°ì •í•´')"
-  finding: "15m/60m research skipped every window for holdout gaps; restart/feed gaps inside recent 1m history are now refilled from the public candle endpoint"
-  deploy: requires_paper_deploy_after_merge_owner_standing_approval
-current_autopilot_codex_outcome:
-  work_order: WO-AUTOPILOT-20261007-CODEX-OUTCOME
-  status: READY_FOR_REVIEW
-  branch: claude/autopilot-codex-outcome
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat ('ë‹¤ë¥¸ ìµœìš°ì„  ìž‘ì—…')"
-  finding: "Scheduled Codex runs ended green with no patch (weekly ChatGPT limit, host deferral); each run now records its outcome so zero-completion runs are visible"
-current_ui_motion_fast_light:
-  work_order: WO-UI-20261007-MOTION-FAST-LIGHT
-  status: READY_FOR_REVIEW
-  branch: claude/ui-motion-fast-light
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (chose option 'a' on the motion preview)"
-  finding: "App-wide animation retuned to the faster, lighter fieldMotion set; device feel is HUMAN_ENVIRONMENT_ONLY"
-current_ui_hero_flow_streams:
-  work_order: WO-UI-20261007-HERO-FLOW-FIELD
-  status: READY_FOR_REVIEW
-  branch: claude/hero-flow-field
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (reference videos, then 'í•´' on the prototype)"
-  finding: "The shared hero becomes a flow field of hairline streams into particle clusters for the canonical chain; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
-current_research_rsi_family:
-  work_order: WO-RESEARCH-20261007-RSI-FAMILY
-  status: READY_FOR_REVIEW
-  branch: claude/research-strategy-breadth
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat ('1ë²ˆí•´')"
-  finding: "Research tested only SMA crossover variants and all failed after costs; an RSI mean-reversion family (pre-committed grid) now runs under the same gates as its own experiment family"
-current_research_failure_reasons:
-  work_order: WO-RESEARCH-20261007-FAILURE-REASONS
-  status: READY_FOR_REVIEW
-  branch: claude/failed-strategy-memory
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (master directive section 14; reply 'í•´')"
-  finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
-current_ui_app_icon_flow:
-  work_order: WO-UI-20261007-APP-ICON-FLOW
-  status: READY_FOR_REVIEW
-  branch: claude/app-icon-flow
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (icon comparison, reply 'ìƒˆ ì•„ì´ì½˜')"
-  finding: "The app icon family (Android adaptive, themed, splash, legacy PNGs, desktop SVG/PNG/ICO) is redrawn as hairline streams funnelling into a glowing cluster; the desktop icon moves off the retired flame design; device look is HUMAN_ENVIRONMENT_ONLY"
-current_research_donchian_family:
-  work_order: WO-RESEARCH-20261007-DONCHIAN-FAMILY
-  status: READY_FOR_REVIEW
-  branch: claude/research-donchian
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat ('í•´' after the short-term trading question)"
-  finding: "A Donchian breakout (momentum) family with a pre-committed grid now runs beside SMA and RSI under the same Research gates; DONCHIAN_BREAKOUT is a new research DSL entry rule with no look-ahead"
-current_ui_hero_flow_dynamic:
-  work_order: WO-UI-20261007-HERO-FLOW-DYNAMIC
-  status: READY_FOR_REVIEW
-  branch: claude/hero-flow-dynamic
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (v2 prototype, reply 'ì¢‹ì•„')"
-  finding: "The flow hero gains comets with tails, differential swirl and breathing clusters, landing rings and order sparks as pure functions of time; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
-current_autopilot_runner_failure_identity:
-  work_order: WO-AUTOPILOT-20261007-RUNNER-FAILURE-IDENTITY
-  status: READY_FOR_REVIEW
-  branch: claude/coding-runner-named-failure-reason
-  authority_impact: none
-  owner_approval: "2026-10-07 in chat (Autopilot completion convergence master work order)"
-  finding: "The evolve discovery failure reason carries no run id, so the coding runner rejected a really failed run as not successful; the named identity is now accepted when commit and failed conclusion match the GitHub-verified run"
-current_learning_rollover_wall_clock:
-  work_order: WO-LEARNING-20261007-ROLLOVER-WALL-CLOCK
-  status: READY_FOR_REVIEW
-  branch: claude/rollover-wall-clock
-  authority_impact: closed-learning-period-close-trigger
-  owner_approval: "2026-10-07 in chat (rollover basis changed to the clock)"
-  finding: "A consecutive-loss halt stops fills so the canonical account updatedAt never crossed the KST day and the rollover waited; the wall clock now only decides the day passed, the period still closes at the canonical account boundary"
-current_learning_retire_mixed_binding_period:
-  work_order: WO-LEARNING-20261007-RETIRE-MIXED-BINDING-PERIOD
-  status: READY_FOR_REVIEW
-  branch: claude/retire-mixed-binding-period
-  authority_impact: closed-learning-period-lifecycle
-  owner_approval: "2026-10-07 in chat (option 1: retire the mixed period unscored and start a fresh one)"
-  finding: "After the wall-clock rollover the open KRW-XRP period reached the reconciler and failed CANDIDATE_BINDING_MIXED, which fail-closed correctly but blocked the loop forever; the period is now retired unscored and the loop continues in a fresh period"
-current_risk_kst_trading_day:
-  work_order: WO-RISK-20261007-KST-TRADING-DAY
-  status: READY_FOR_REVIEW
-  branch: claude/risk-kst-trading-day
-  authority_impact: risk-trading-day-definition-and-display-evidence
-  owner_approval: "2026-10-07 in chat ('ë” ì¢‹ì€ ìª½' delegating the UTC-vs-KST choice)"
-  finding: "The cloud PAPER risk adapter used a local UTC day while CanonicalRiskSafetyGate and the learning rollover use Asia/Seoul; it now uses the canonical tradingDayKey, the threshold stays 3, and the loss session publishes period identity, start and last increment on /health (issue 2575 items 2-4)"
-current_learning_durable_cycle_health:
-  work_order: WO-LEARNING-20261008-DURABLE-CYCLE-HEALTH
-  status: READY_FOR_REVIEW
-  branch: claude/health-durable-learning-cycle
-  authority_impact: none
-  finding: "cyclesEvaluated, lastCycleStatus/Outcome and the cycle identities on /health were process memory, so a deploy erased the proof of the last lap; the cycle identities, lastCycleOutcome and two new integers (cyclesRecorded, lastCycleRecordedAt) are now also read from the durable ledger (display only, one replay, withdrawn if the ledger is unreadable). lastCycleStatus, deployments and cyclesEvaluated stay per-process and are not restored"
-current_learning_last_blocked_reason:
-  work_order: WO-LEARNING-20261008-LAST-BLOCKED-REASON
-  status: READY_FOR_REVIEW
-  branch: claude/health-last-blocked-reason
-  authority_impact: none
-  finding: "After #2581 the replacement period closed (realizedPeriods=2) but the durable ledger holds no cycle (cyclesRecorded=0); the BLOCKED reason of the failed cycle was overwritten within one tick. /health now keeps lastBlockedReason/lastBlockedAt (per process, code only)"
-current_strategy_baseline_code_identity:
-  work_order: WO-STRATEGY-20261008-BASELINE-CODE-IDENTITY
-  status: READY_FOR_REVIEW
-  branch: claude/baseline-code-identity
-  authority_impact: strategy-identity-in-binding-fingerprint
-  owner_approval: "2026-10-08 in chat ('2')"
-  finding: "The owner baseline strategy codeSha was the deployed commit, so every deploy changed the binding fingerprint and mixed the open learning period; it is now a fixed implementation identity (the first deploy changes the fingerprint once; the reconciler guard and Risk 3/3 are untouched)"
-current_autopilot_runner_readiness:
-  work_order: WO-AUTOPILOT-20261008-RUNNER-READINESS
-  status: READY_FOR_REVIEW
-  branch: claude/autopilot-runner-preflight
-  authority_impact: none
-  finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
-current_learning_pending_order_attribution_test:
-  work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
-  status: READY_FOR_REVIEW
-  branch: claude/pending-order-attribution-test
-  authority_impact: none
-  finding: "Tests pin that a continued working order keeps its creating binding (no silent relabel); the cross-period fill gap for a continued order with no current decision remains open and needs a design decision"
-current_learning_durable_blocked_reason:
-  work_order: WO-LEARNING-20261008-DURABLE-BLOCKED-REASON
-  status: READY_FOR_REVIEW
-  branch: claude/durable-cycle-failure
-  authority_impact: none
-  finding: "The last closed-learning BLOCKED/ERROR reason is now also written as a bare code beside the Cloud state and seeds /health after a restart; the unrecorded cycle's own cause is still unknown and this makes the next failure readable"
-current_issue_2589_closed_learning_failure_evidence:
-  work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
-  issue: 2589
-  parent_issue: 1605
-  status: MERGED_INCREMENT_RUNTIME_EVIDENCE_PENDING
-  authority_impact: none
-  first_broken_transition: "closed PAPER Performance Evidence N -> closed-learning cycle/Feedback N"
-  scope: "Persist bounded immutable deterministic failure receipts in the existing hash-chained cycle ledger after a prepared CYCLE/FINALIZE failure; restart-safe read-only health exposes latest failure separately from latest success; oversized, non-canonical, malformed, or tampered receipt replay fails closed."
-  validation: "PR #2597 and #2598 merged with exact-head workflow/release authorization; actual exact-main PAPER failure receipt and replay evidence remains unverified."
-  merged_increments: "PR #2597 -> cccaad7e0ad21fed89561b0c5342e229c2fe59454; PR #2598 -> 29f341a254ea71a19050c6815566382260def9fc."
-  remaining: "Actual exact-main PAPER failure-receipt/replay evidence remains pending; restart-safe unrecorded-cycle re-execution is tracked under WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_issue_2589_restart_safe_resume:
-  work_order: WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME
-  issue: 2589
-  parent_work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
-  status: LOCAL_VALIDATED_GOVERNED_GATES_PENDING
-  branch: fix/2589-restart-safe-cycle-resume
-  base_sha: 5bc350c8dae8e7b633a7d18944fc760998b7019f
-  implementation_head: e844d4369b4600432a20a1ae647178048caf1119
-  first_broken_transition: "durable realized-period close -> process restart -> unrecorded cycle resume"
-  evidence: "#2594 retries only cycles remembered in its in-memory awaitingCycle Map; after restart that marker is absent. Restart resume is guarded by the exact canonical account boundary and same KST day, with no open successor."
-  validation: "pnpm build and typecheck pass; focused scheduler/wiring regression passes 8/8 files; architecture check passes with zero findings; all AIPOS YAML parses. preflight/validate:full are blocked in this sandbox because validator spawnSync git returns EPERM."
-  remaining: "Exact-head CI, Independent Review/Audit, canonical Release and merge; then exact-main PAPER recovery and deterministic replay evidence."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-current_research_failure_history:
-  work_order: WO-RESEARCH-20261008-FAILURE-HISTORY
-  status: READY_FOR_REVIEW
-  branch: claude/research-failure-history
-  authority_impact: none
-  finding: "Failed Research challengers now have a deterministic per-variant failure history and a REPEAT_<reason> display count recomputed from the durable ledger; this informs Research N+1 but does not steer it (adaptive scheduling was offered and declined by the owner)"
-current_research_sma_cost_note:
-  work_order: WO-RESEARCH-20261008-SMA-COST-NOTE
-  status: READY_FOR_REVIEW
-  branch: claude/research-note-sma-cost-screen
-  authority_impact: none
-  finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
-current_learning_resume_failed_cycle:
-  work_order: WO-LEARNING-20261008-RESUME-FAILED-CYCLE
-  status: MERGED_INCREMENT_LIMITATION_RECORDED
-  branch: claude/cycle-failure-reproduction
-  pull_request: 2594
-  merge_commit: 893e264ffccf7c41b72670d7da88235727089b19
-  authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
-  finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
-  limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
-current_learning_baseline_shadow:
-  work_order: WO-LEARNING-20261008-BASELINE-SHADOW
-  status: READY_FOR_REVIEW
-  branch: claude/risk-blocked-shadow
-  authority_impact: display-and-analysis-only-no-order-no-ledger-no-risk-input
-  finding: "While the consecutive-loss halt censors the PAPER ledger, a shadow of the baseline rule on the same minute bars keeps producing hypothetical round trips with fees (counts and basis points on /health) so learning and the 3/4/5 limit comparison have uncensored outcomes; not PAPER evidence"
-
-
-current_autopilot_2595_bounded_remediation:
-  work_order: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
-  issue: 2595
-  pull_request: 2596
-  branch: autopilot/p0-2595-bounded-remediation
-  implementation_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
-  status: MERGED_INCREMENT_POST_MERGE_RUNTIME_VERIFIED_RESIDUAL_OPEN
-  merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
-  authority_impact: bounded-coding-runner-failure-classification-and-http-evidence-only
-  first_broken_transition: "failed workflow identity -> remediation eligibility"
-  exact_head_ci: "GitHub Actions run 37907989197 PASS for exact head 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94"
-  independent_review: "Exact-head Codex review comment 6077782732 on PR #2596 reviewed 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94 and reported no major issues."
-  independent_review_comment_id: 6077782732
-  independent_review_summary_comment_id: 6058378290
-  independent_reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
-  audit_release_run_id: 37908729659
-  audit_job_id: 113749521583
-  release_job_id: 113749522793
-  audited_pr_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
-  audited_base_sha: 2019d0245ae228ca61ce416ee0cd0950b368ec91
-  canonical_merge_commit_sha: 21e632ace23bc2ee64778855ce49e0a083706c84
-  deterministic_audit: "Canonical audit workflow run 37908729659, job 113749521583, PASS bound to PR #2596 head 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94 and base 2019d0245ae228ca61ce416ee0cd0950b368ec91."
-  release_authorization_and_merge: "Canonical Release workflow run 37908729659, job 113749522793, SUCCESS; expected-head merge produced 21e632ace23bc2ee64778855ce49e0a083706c84."
-  post_merge_ci: "GitHub Actions run 37909190312 PASS on merge SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
-  deployment: "Cloudflare Deploy run 37909190345 PASS; deployed exact merge SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
-  runtime_proof: "Runtime Proof run 37909862299 PASS; exactHeadVerified=true and deploymentRevision=sourceSha=21e632ace23bc2ee64778855ce49e0a083706c84. Scheduled ingress ABSTAINED because exact-main canonical CI was not found."
-  paper_canary: "Actual PAPER run 37909797419 classified INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; no completion claim."
-  invalid_canary_non_eligible_workflow: "INVALID_CANARY_NON_ELIGIBLE_WORKFLOW: consumer run 38030591763 received a dispatch citing Oracle PAPER Release run 38027432366; worker artifact recorded FAILED_TO_REMEDIATE after exactly three SANDBOX_PATCH_* proposal rejections. Preserve as evidence of worker consumption, retry cap enforcement, and the eligibility boundary defect only; do not count as Verified Useful Completion."
-  remaining: "Under #2595, add fail-closed workflow identity and actionable-step eligibility to the existing #903 worker; then obtain a real eligible coding-failure completion, governed verification, runtime evidence, and durable receipt."
-  successor_branch: autopilot/codex/issue-2595-37995487274
-  successor_base_sha: ba6bfa3ec948af52e2b61a9f1de44f921c287b78
-  successor_pull_request: 2601
-  successor_status: BOUNDARY_IMPLEMENTATION_IN_PROGRESS
-  successor_first_broken_transition: "failed workflow identity -> remediation eligibility"
-  next_permitted_action: "Complete exact workflow/run/SHA and actionable-step admission checks in the existing canonical worker, pass focused regression tests and exact-head CI, then Independent Audit and governed Release."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORI[žØ§z\m®éÜj××=÷FòµëTÔÈšYÝ\™JBˆ\[™×ÛÛŽˆˆLLÂˆ\ÞNˆ›ÝÙ\ÞYYÛ™]×Ø\ØZ[Ü™\]Z\™Y˜Ý\œ™[ÝZWÜÝ\\Ý[Z[™Î‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒLKTÕT•TUSRS‘ÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜÝ\\][Z[™Âˆ]]Üš]WÚ[\XÝˆ›Û™Bˆ\ÞNˆ›ÝÙ\ÞYYÛ™]×Ø\ØZ[Ü™\]Z\™Y˜Ý\œ™[Ü™\ÙX\˜ÚÜ™Yœ™\ÚÛY[[ÜžN‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒLKT‘TÑPTÒT‘Q”‘TÒSQSSÔ–BˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜Ú\™Yœ™\Ú[Y[[ÜžBˆ]]Üš]WÚ[\XÝˆ™\ÛÝ\˜ÙWÙÝX\™Ý™\ÚÛÛÛ›Bˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÛX\›š[™×ØÛÛXÝ[Û—Ü™X\ÛÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒLKSPT“’S‘ËPÓÓPÕSÓ‹T‘PTÓÓ‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÛX\›š[™ËXÛÛXÝ[Û‹\™X\ÛÛ‚ˆ]]Üš]WÚ[\XÝˆXYÛ›ÜÝXÜ×ÛÛ›Bˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[Ü\œÚ\Ý[˜ÙWÙ˜Z[\™WÙ]Z[‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒLKTT”ÒTÕSÑKQRST‘KQURSˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ\œÚ\Ý[˜ÙKY˜Z[\™KY]Z[ˆ]]Üš]WÚ[\XÝˆXYÛ›ÜÝXÜ×ÛÛ›B˜Ý\œ™[ÝZWØÛÜ™WØ\œÝ‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒLKPÓÔ‘KP•T”ÕˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÝZKXÛÜ™KX\œÝˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝ\\œÙY\Îˆ\]ZYš[™ÜÈ\›È
+ÓËURKLŒŒLKSTURQT’S‘ÔÈšYÝ\™JBˆ\ÞNˆ›ÝÙ\ÞYYÛ™]×Ø\ØZ[Ü™\]Z\™Y˜Ý\œ™[ÝZWÚ\›×Ú\›[ÛžN‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒLKRT“ËRT“SÓ–BˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÝZKZ\›ËZ\›[ÛžBˆ]]Üš]WÚ[\XÝˆ›Û™Bˆ\ÞNˆ›ÝÙ\ÞYYÛ™]×Ø\ØZ[Ü™\]Z\™Y˜Ý\œ™[Ù[˜X›WÜ™\ÙX\˜ÚØÛÛXÝ[ÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒLKQSP“KT‘TÑPTÒPÓÓPÕSÓ‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÙ[˜X›K\™\ÙX\˜ÚXÛÛXÝ[Û‚ˆ]]Üš]WÚ[\XÝˆ™\ÙX\˜ÚØÛÛXÝ[Û—Ù[˜X›[Y[ˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLH[ˆÚ]‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÝZWÚ\›×Ù[Y\˜[‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒLKRT“ËQSQTSˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÝZKZ\›ËY[Y\˜[ˆ]]Üš]WÚ[\XÝˆ›Û™Bˆ\ÞNˆ›ÝÙ\ÞYYÛ™]×Ø\ØZ[Ü™\]Z\™Y˜Ý\œ™[ÛYÙ\—Ü™XÛÛ˜Ú[X][Û—Ù]Z[‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹SQÑT‹T‘PÓÓÒSPUSÓ‹QURSˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÛYÙ\‹\™XÛÛ˜Ú[X][Û‚ˆ]]Üš]WÚ[\XÝˆXYÛ›ÜÝXÜ×ÛÛ›Bˆš[™[™Îˆ”TTˆ[Ø]\ÙH™XYœ›ÛHHÝÛ™\‰ÜÈØÜ™Y[ˆŒ‹LLLNˆ\œÚ\Ý[˜ÙH˜Z[YÚ]TT—ÓQÑT—Ô‘PÓÓÒSPUSÓ—Ô‘TURT‘Q
+XØÛÝ[Ý]HœÈš[YÙ\ŠH‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÛYÙ\—Ü›Ý[™[™×ÝÛ\˜[˜ÙN‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹SQÑT‹T“ÕS‘S‘ËUÓTSÑBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÛYÙ\‹\›Ý[™[™Ë]Û\˜[˜ÙBˆ]]Üš]WÚ[\XÝˆXØÛÝ[[™×Ú[YÜš]WÝÛ\˜[˜ÙBˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLH[ˆÚ]‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÙXYÛ›ÜÙWÚX[Ü›Ø™N‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒL‹QPQÓ“ÔÑKRPST“Ð‘BˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÙXYÛ›ÜÙKZX[\›Ø™Bˆ]]Üš]WÚ[\XÝˆ›Û™Bˆ\ÞNˆ›×Ü[[YWØÚ[™ÙB˜Ý\œ™[Ùš[Ü™[XZ[™\—ÝÛ\˜[˜ÙN‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹Q’ST‘SPRS‘T‹UÓTSÑBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÛÜ™\‹Yš[\™[XZ[™\‹]Û\˜[˜ÙBˆ]]Üš]WÚ[\XÝˆ^XÝ][Û—ÛÜ™\—ÛY™XÞXÛWÝÛ\˜[˜ÙBˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLH[ˆÚ]‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[Ùš[ÛY™XÞXÛWÛX]Ú‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹Q’SSQ‘PÖPÓKSPUÒˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÛÜ™\‹Yš[[Y™XÞXÛK[X]Úˆ]]Üš]WÚ[\XÝˆ^XÝ][Û—ÛÜ™\—ÛY™XÞXÛWÝÛ\˜[˜ÙBˆš[™[™ÎˆˆÌLˆØ]\ÙYH™]È[
+\\ˆÜ™\ˆY™XÞXÛH™XÛÛ˜Ú[X][ÛˆZ\ÛX]Ú
+H™XØ]\ÙHHÙ]YY™XÞXÛHY›Ý\]X[HØ]™YÜ™\ˆ™XÛÜ™ÈÛÜœ™XÝY\™H‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÜÝ[ÛY]šXÜÎ‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒL‹TÕSSQU’PÔÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[\Ý[[Y]šXÜÂˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]‚ˆš[™[™Îˆ”TTˆ[YÚ]TT—ÕÔ’UT—ÓPTÑWÓÔÕˆH›ØÙ\ÜÈÝ[X›Ý™HHÌÈÜš]\ˆX\ÙHÜÙ\È][[™\Ý\ÈHÝ[ÛÝ\˜ÙH\È[šÛ›ÝÛ‹YX\Ý\™[Y[Û›H‚˜Ý\œ™[ÚX[Ù\œ›Ü—ØÛ\ÜÎ‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒL‹RPSQT”“Ô‹PÓTÔÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[Y\œ›Ü‹XÛ\ÜÂˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÜÙXÝ\š]WÙ\Ü]Ú\Î‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒL‹TÑPÕT’UKQTTUÒTÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜÙXÝ\š]KY\\]Ú\Âˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ”ÙXÝ\š]HØ]H˜Z[YÛˆÛÈ™]ÛHX›\ÚYYÚYš\ÛÜšY\È
+ÛÝ\˜ÙK[X\ZœËÛÛ\™\ÜÚ[ÛŠNÈ[›™YÈH]ÚY™[X\Ù\È‚ˆ\ÞNˆ›×Ü[[YWØÚ[™ÙB˜Ý\œ™[ÙXYÛ›ÜÙWÛYÚ‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒL‹QPQÓ“ÔÑKSQÒˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÙXYÛ›ÜÙK[YÚˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ’ÜÝXYÛ›ÜÚ\ÈØ[ÙYHLHÐˆ™[X\ÙH\™XÝÜžH
+Ý™\ˆHZ[]HÙˆ\ÚÈKÓÊHÛˆHÜÝ]YX\Ý\™\ÎÈ™[[Ý™YÛÈÝ[™XY[™ÜÈ\™H›Ý[™›]YžHH›Ø™H‚ˆ\ÞNˆ›×Ü[[YWØÚ[™ÙB˜Ý\œ™[Ü™\ÙX\˜ÚÚX[Û›ÝÜ\\Ž‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹T‘TÑPTÒRPSS“ÕTTT‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜ÚZX[[›Ý\\\‚ˆ]]Üš]WÚ[\XÝˆX[ØÛ\ÜÚYšXØ][Û—Ù\Ü^BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]‚ˆš[™[™Îˆ”™\ÙX\˜ÚQÔQQÔÕSH
+Ý[Ø]\š[™È]JHXYHHÚÛHTTˆÛ˜\ÚÝQÔQQH\›X[™[[X™\ˆ˜[›™\ˆY\ˆÌLŒÈÛ›H™\ÙX\˜ÚRSÐÓÔÑQX^HY™™XÝTTˆX[‚˜Ý\œ™[ÚX[Ü™\ÙX\˜ÚÜÝ]\Î‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒL‹RPST‘TÑPTÒTÕUTÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[\™\ÙX\˜Ú\Ý]\Âˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ“X\›š[™È[HÝ[ÚÝÜÈ›È™X\ÛÛŽÈHÙ\™\‰ÜÈÝÛˆ™\ÙX\˜ÚÛÛXÝ[ÛˆÝ]\È\È›Ý™XYX›Hœ›ÛHÝ]ÚYNÈX›\ÚHš^YÛÙH\ÈÛÈÛÝ[ÈÛˆÚX[‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[Ü™\ÙX\˜ÚÜ›ÙÜ™\Ü×Ý[YWÝ˜[Y][ÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹T‘TÑPTÒT“ÑÔ‘TÔËUSQKUSQUSÓ‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜Ú\›ÙÜ™\ÜË][YK]˜[Y][Û‚ˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ”™\ÙX\˜Ú›ÙÜ™\ÜÈ[Y\È
+\ØÚ\ÊHÙ\™H˜[Y]YYØZ[œÝHLÛÝ[Ø\ÛÈ]™\žH™X[›ÙÜ™\ÜÈØš™XÝØ\È›ÜYžHH\[™HX\›š[™È[HÚÝÙYZ[ˆ	Û›Ý™XÙZ]™Y	ÈÚ[HHÙ\™\ˆÛÛXÝYNHÙˆMNØ[™\È‚ˆ\ÞNˆ›ÝÙ\ÞYYÛ™]×Ø\ØZ[Ü™\]Z\™Y˜Ý\œ™[ÝZWÚ\›×Ù›Ý×ÙšY[‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒL‹RT“ËQ“ÕËQ’QSˆÝ]\ÎˆÕTT”ÑQQÐ–WÕÓËURKLŒŒL‹RT“ËT’QÑBˆœ˜[˜ÚˆÛ]YKÚ\›ËY›ÝËYšY[ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+ÙXÛÛ™™Y™\™[˜ÙHšY[ËÜ[ÛˆNˆ™\XÙHÛ›HH\›ÊH‚ˆ›ÝNˆ•H\›ÈÛÛ\Û™[\ÈÚ\™YˆÓQH\›ËšY[XY\ˆX\šÈ[™[Ü™K[Y[HX\šÈ[Ú[™ÙNÈ›ÈØÜ™Y[ˆÙY\ÈHÛšYÝ\™KˆÛ›HH\›ÈšYÝ\™HÚ[™Ù\ÎÈH™\ÝÙˆH\	ÜÈÛÛÝ\œÈ[™^[Ý]\™H[ÝXÚYžHHÝÛ™\‰ÜÈÚÚXÙKˆ‚ˆ\ÞNˆ›ÝÙ\ÞYYÛ™]×Ø\ØZ[Ü™\]Z\™Y˜Ý\œ™[ÝZWÜÝ\\ÝØ\›]\‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒL‹TÕT•TUÐT“UTˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜÝ\\]Ø\›]\ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+\™›Ü›X[˜ÙH›ÝØ]\ÙžZ[™ÈÛˆZ[KŒMJH‚ˆš[™[™ÎˆÛÛÝ\ËŒÈÈœ›ÛHXœ›ØYÚYÛ‹Z[ˆ‹ÎˆØ\›HHÛÛ›™XÝ[Ûˆ\š[™ÈHØ]™Y\Ù\ÜÚ[Ûˆ™XY
+HÜ™Y[X[Yœ™YHÑUÙˆÚX[
+H[™ÚÝÈHÚYÛ‹Z[ˆÜ][ˆÙ][™ÜÎÈH]][XØ][Ûˆ›ÝÈ]Ù[ˆ\È[ÝXÚY‚˜Ý\œ™[ÙXÚ\Ú[Û—Ù[›™[‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹QPÒTÒSÓ‹Q•S“‘SˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÙXÚ\Ú[Û‹Y[›™[ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+X\Ý\ˆ\™XÝ]™NˆTTˆ\™›Ü›X[˜ÙH[™ÛÜÙY[ÛÜÛÛ™\™Ù[˜ÙKP‹ÔPÊH‚ˆš[™[™Îˆ“›ÈÝYÙHÜˆ™X\ÛÛˆÝ[È^\ÝYˆHÝYÙH™XÛÜ™\ˆÙY\ÈL]™[ËˆÝ[][]]™H[›™[ÛÝ[\œÈÝ™\ˆ]È]™[È\™HX›\ÚYÛˆÚX[ÈHš\œÝ™XY[™ÈY\ˆ\ÞH˜[Y\È’T”ÕÐ”“ÒÑS—ÕS”ÒUSÓ‹ˆÌŒÍMÈ\ÈHY™™\™[\ÚÈ
+š\ÚÈÚ^š[™È[™H[Øš[H\Ü^JH[™\È›Ý\XØ]Y‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÝZWÚ\›×Ø˜]ÚYÙ˜]Ú[™Î‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒL‹RT“ËPUÒQQUÒS‘ÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚ\›ËX˜]ÚYY˜]Ú[™Âˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+\™›Ü›X[˜ÙH›ÝØ]\ÙžZ[™ÈÛˆZ[KŒMJH‚ˆš[™[™Îˆ•H›ÝËYšY[\›ÈXYHX›Ý]ML˜]ÈØ[È\ˆœ˜[YNÈ˜]Ú[™ÈžHÛÚÈ™YXÙ\È]ÈX›Ý]HÚ]Ý]Ú[™Ú[™ÈHXÝ\™Kˆ›ÝYX\Ý\™YÛˆH]šXÙH‚ˆ\ÞNˆ›ÝÙ\ÞYYÛ™]×Ø\ØZ[Ü™\]Z\™Y˜Ý\œ™[ÝZWØØ[WÜ™Y\ÚYÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒL‹PÐSKT‘QTÒQÓ‚ˆÝ]\ÎˆS—Ô“ÑÔ‘TÔÂˆœ˜[˜ÚˆÛ]YKÝ^\™Y\ÚYÛ‹\[‚ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+	ú­î:àéH:âé; â:èg:âé;"ç;em;)&:¬';!(;ef;)à:éä:¬è	Ë	úââ:¬ ; â:èkz¬£:å%;'¤;'n;em:í$	Ë	û)á;e¢{em	ÊH‚ˆš[™[™Îˆ‘›Ý\ˆš[X\žHXœÈ™\XÙYžHØ[K]ŒH™\Ù[\œÈ
+;)à:®"ûef{"­Kû%b;(!ú®,:ègJHÝ™\ˆ^\Ý[™ÈØÜ™Y[ˆ[Ù[ÎÈ]Z[ØÜ™Y[œÈÝ[šY[]ŒH[™˜[YY[ˆHÛÜšÈÜ™\ˆ‚˜Ý\œ™[ÝZWÚ\›×ÜšYÙN‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒL‹RT“ËT’QÑBˆÝ]\ÎˆÕTT”ÑQQÐ–WÕÓËURKLŒŒLËRT“ËQ“ÕËQ’QSˆœ˜[˜ÚˆÛ]YKÚ\›Ë\šYÙBˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+	û'm:¬l:èg;eh:¬£	ÈÛˆHšYÙH›ÝÝ\JH‚ˆš[™[™Îˆ’\›È™\XÙYžHHšYÙH[™ØØ\NÈXÚ\Ú[ÛœÈ›ÛHØ]™Hœ›ÛHHÜš^›Û‹HTTˆÜ™\ˆ˜Z\Ù\ÈH[YHXZÈ[™™X[H‚˜Ý\œ™[Ü\\—ÛÜÜ×ÜÙ\ÜÚ[Û—ØÛÝ[Î‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹SÔÔËTÑTÔÒSÓ‹PÓÕS•ÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜš\ÚË[ÜÜË\Ù\ÜÚ[Û‚ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+X\Ý\ˆ\™XÝ]™HÝ\‹	û%c;%a;!';em;)&	ÊH‚ˆš[™[™Îˆ‘’T”ÕÐ”“ÒÑS—ÕS”ÒUSÓˆHPÒTÒSÓŠ•VJHOˆÔ‘T—ÒS•S•
+ÌŽNÈNÓÓ”ÑPÕUU‘WÓÔÔ×ÓSRULHÕUQÖWÐT“ÕSÔ‘R‘PÕQ
+KˆX›\Ú\ÈÙ^IÜÈÛÛ\]YÛÜÚ[™ÈÙ[ÛÝ[È™Z[™HÜÜÈ[Z]È›È[Z]Ú[™ÙY‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[Ü\\—ÛÜÜ×Ø]šX][ÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹SÔÔËPU’P•USÓ‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÛÜÜËX]šX][Û‚ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+X\Ý\ˆ\™XÝ]™HÝ\‹	ú¬á;!£{em	ÊH‚ˆš[™[™ÎˆŒLLÈUÎˆÙ^PÛÛ\]YÙ[ÏLËÙ^SÜÚ[™ÔÙ[ÏLËÝ™XZÏ[[Z]ËˆX›\Ú\ÈÙ^IÜÈÛÛ\]YÛÜÚ[™ÈÙ[È\ˆÜ[š[™ÈÝ˜]YÞH˜[Z[H
+š^YÛÙ\ÊHœ›ÛHHš[YÙ\ŽÈš\ÚÈØ]H[ÝXÚY‚˜Ý\œ™[Ü\\—ÝØZ]Ü™X\ÛÛ—ØÛÙ\Î‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹UÐRUT‘PTÓÓ‹PÓÑTÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÝØZ]\™X\ÛÛ‹XÛÙ\Âˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+X\Ý\ˆ\™XÝ]™HÝ\K	ú¬á;!£{em	ÊH‚ˆš[™[™Îˆ•ÐRUŽM‰HÙˆXÚ\Ú[ÛœÈ[™\ˆÛ™HÛÙNÈXXÚÐRU›ÝÈØ\œšY\ÈÛ™Hš^Y™X\ÛÛˆÛÙH
+’TÒ×Ô‘QÒSQKQS‘×ÑTÐP“QS”ÕQ‘’PÒQS•ÒTÕÔ–KÕ×ÐÓÓ‘’QSÑK“×ÔÒQÓSS‘PQWÒS—ÔÔÒUSÓ‹“×ÔÔÒUSÓ—Õ×ÔÑS
+NÈ›È™\ÚÛÚ[™ÙY‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[Ü™\ÙX\˜ÚÙ^\š[Y[ØÛÝ[Î‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒL‹QVT’SQS•PÓÕS•ÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜ÚY^\š[Y[XÛÝ[Âˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+LIHOˆL	HX\Ý\ˆ\™XÝ]™K	ú¬á;!£{em	ÊH‚ˆš[™[™Îˆ‘^\š[Y[Ý]ÛÛY\ÈÙ\™H›Ý\›˜[[Û›NÈX›\Ú\È›Ý[™YÝ[][]]™HÝ]ÛÛYHÛÝ[ÈÛÈH™\ÙX\˜ÚOˆØ[™Y]HŠÌH[šÈØ[ˆ™HØØ]Y[ˆ[[YH]šY[˜ÙH‚˜Ý\œ™[Ü\\—ÛZ[]WØ˜\—ÜÝ˜]YÞN‚ˆÛÜš×ÛÜ™\ŽˆÓËTTT‹LŒŒL‹SRS•UKPT‹TÕUQÖBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÛZ[]KX˜\‹\Ý˜]YÞBˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+	Ìºì¢;'/:èg;)á;e¢{em	ÊH‚ˆš[™[™Îˆ”ÓPHKÌŒ˜[ˆÛˆ]™\žHXÚÙ\ˆ]™[
+LˆÈÛÎÈXÚÈ™\^HIHÚ[œËMLIH™]Y\ˆ™Y\ÊKˆHØ[™Y]HÝ˜]YÞH›ÝÈ\Ù\ÈÛÛ\]YK[Z[]HÛÜÙ\Èœ›ÛHH\œÚ\ÝYXÚÙ\ˆÝÜ™NÈ›È\˜[Y]\ˆÜˆ™\ÚÛÚ[™ÙY‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÝZWÝÝXÚÝš\ÝX[ØØ[N‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒL‹UÕPÒU’TÕPSPÐSBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÙš^]ÝXÚ]š\ÝX[XØ[Bˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+X\Ý\ˆ\™XÝ]™NÈ™YÜ™\ÜÚ[Ûˆœ›ÛHÌMJH‚ˆš[™[™ÎˆÝXÚ]š\ÝX[˜Z[YÛˆ]™\žHˆÚ[˜ÙHÌMH™XØ]\ÙH]ØZ]Y›Üˆ™\XÙY\ÝQÎÈ™KZÙ^YYÛˆHØ[K]ŒHØÜ™Y[œÈ[™YYÈH™\Ù[\œÈ‚˜Ý\œ™[ÛÜ×Ù\ÞWÜ™XÙZ\Ü™\Ý[‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒL‹QTÖKT‘PÑRTT‘TÕSˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÙ\ÞK\™XÙZ\\™\Ý[ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+X\Ý\ˆ\™XÝ]™HÙXÝ[ÛˆËJH‚ˆš[™[™ÎˆHÝ\\œÙYY™[X\ÙHÚÚ\Y[ÜÝÝ\È]ÚÝÙYÝXØÙ\ÜÎÈHš[˜[Ý\›ÝÈ™XÛÜ™È\Þ[Y[™\Ý[
+TÖQQÈÒÒTQÓPRS—ÓSÕ‘QÈRSQÈRSQÐPÕUUSÓ—ÒQS•UJH‚˜Ý\œ™[ÛX\›š[™×ÛÛÜÜÝ]\Î‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒL‹SÓÔTÕUTÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKØÛÜÙY[X\›š[™Ë[ÛÜ\Ý]\Âˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+LIHOˆL	HX\Ý\ˆ\™XÝ]™K	ú¬á;!£{em	ÊH‚ˆš[™[™ÎˆÛÜÙY[X\›š[™ÈÛÜÝ\™\Ý[ÈÙ\™HÙË[Û›NÈX›\Ú\È›ÛÝÝ˜\Ü›ÛÝ™\ˆÝ\ÛÙ\È[™]˜[X]YXÞXÛKÙ\Þ[Y[ÛÝ[ÈÛÈHÝ[YX\›š[™È˜[œÚ][ÛˆØ[ˆ™H˜[YYœ›ÛH[[YH]šY[˜ÙH‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÛX\›š[™×ÜÝ[YÜ\š[ÙÜ™[Ü[Ž‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒL‹TÕSQTT’SÑT‘SÔS‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKØÛÜÙY[X\›š[™Ë\Ý[\™[Ü[‚ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+LIHOˆL	HX\Ý\ˆ\™XÝ]™K	ú¬á;!£{em	ÊH‚ˆš[™[™Îˆ”[[YHÛÜÙYX\›š[™ÓÛÜÚÝÙY›ÛÝ™\ˆ“×ÓÔS—ÔT’SÑÚ]™X[^™Y\ÝÜžNˆH\š[ÙÛÜÙYÚ]Ý]HÝXØÙ\ÜÛÜˆ[™›Ý[™È™[Ü[™YÛ™Kˆ›ÛÝ™\ˆ›ÝÈÛÛ[Y\ÈH]\Ý™X[^™YØ[™Y]Hœ›ÛHHØ[›ÛšXØ[XØÛÝ[›Ý[™\žH‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[Ü™\ÙX\˜ÚÛÛ™Ù\—Ý[YYœ˜[Y\×Ü›ÜÜØ[‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒL‹SÓ‘ÑT‹USQQ”SQTÂˆÝ]\Îˆ“ÔÔÑQˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜Ú][YYœ˜[YK\›ÜÜØ[ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+	û(';%b;!';#j;)&	ÊNÈ[\[Y[][Ûˆ›Ý\›Ý™Y‚ˆš[™[™Îˆ[\ÝY˜[Z[Y\ÈÜÙHÛˆK[Z[]H˜\œÈY\ˆÛÜÝÎÈ›ÜÜÙ\ÈHØ[ËY›ÜØ\™™\ÙX\˜ÚÛÛ\\š\ÛÛˆÝ™\ˆMKÍŒÌ[Z[]H˜\œÈ‚˜Ý\œ™[Ü™\ÙX\˜ÚÝ[YYœ˜[YWØÛÛ\\š\ÛÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒL‹USQQ”SQKPÓÓTT’TÓÓ‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜Ú][YYœ˜[YKXÛÛ\\š\ÛÛ‚ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+	û(';%b;!':­k;f!;"®{'n	ÊH‚ˆš[™[™Îˆ”™\ÙX\˜Ú^\š[Y[È›ÝÈ[ÛÈ[ˆÛˆM[KÍŒH˜\œÈYÙÜ™YØ]Yœ›ÛHÝÜ™Y[HØ[™\È
+™\ÙX\˜Ú]šY[˜ÙHÛ›JH‚˜Ý\œ™[ÛÜ×ØÛX\—Ü™XÛÝ™\™YÛX\šÙ]Ü™Z™XÝ‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒL‹PÓPT‹T‘PÓÕ‘T‘QSPT’ÑUT‘R‘PÕˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKØÛX\‹\™XÛÝ™\™Y[X\šÙ]\™Z™XÝˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+;(!;,­;%ázë-;&a;(!;"&:è-:éâ;"©;a,;'¤{%á{)à;"ç;!'
+H‚ˆš[™[™Îˆ‹ÚX[Ý^YYQÔQQœ›ÛHÛ™HÝ[HXÚÈÚ[HH™YYØ\Èœ™\ÚÈH™Z™XÝ[ÛˆXYÛ›ÜÝXÈ›ÝÈÛX\œÈÚ[ˆHØ[YHX\šÙ]™XÛÝ™\œÈ‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÜÙX×ÜÚ[Ü][ÝWØYš\ÛÜžN‚ˆÛÜš×ÛÜ™\ŽˆÓËTÑPËLŒŒL‹TÒSTUSÕKPQ’TÓÔ–BˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜÚ[\][ÝKXYš\ÛÜžBˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLˆ[ˆÚ]
+;(!;,­;%ázë-;&a;(!;"&:è-:éâ;"©;a,;'¤{%á{)à;"ç;!'
+H‚ˆš[™[™ÎˆÒHÙXÝ\š]HØ]H™YÛˆ[XYÎˆ™]ÈÜš]XØ[Ú[\][ÝHYš\ÛÜžHLLÌÌŽÈÝ™\œšY[ˆÈ]ÚYKŒLKŒ‚˜Ý\œ™[ÛÜ×Ü›ÛÝ™\—Ü™X\ÛÛ—ØÛÙ\Î‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒLËT“ÓÕ‘T‹T‘PTÓÓ‹PÓÑTÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ›ÛÝ™\‹\™X\ÛÛ‹XÛÙ\Âˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+	úââ;c$:âê;'/:èg:â!; «:éo;-g:¬è:èg;%áz­î:è";'m:äç;"ç;/';)&	ÊH‚ˆš[™[™Îˆ‹ÚX[ÚÝÙY›ÛÝ™\ˆ“ÐÒÑQÚ]Ý]H™X\ÛÛŽÈ›ØÚÙY™X\ÛÛœÈ›ÝÈXYÚ]H\œ›ÜˆÛÙHÛÈ›ÛÝ™\”™X\ÛÛˆ\ÈX›\ÚY‚˜Ý\œ™[ÛX\›š[™×Ü\š[ÙÛX\šÙ]Øš[™[™Î‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLËTT’SÑSPT’ÑUP’S‘S‘ÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ\š[ÙX™[˜ÚX\šËY]šY[˜ÙBˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+X\›š[™È\š[Ù™[˜ÚX\šÈ]šY[˜ÙHœ™XZÈ;&a;(!;"&:è-
+H‚ˆš[™[™Îˆ‘š\œÝ™X[š[™XXÚY\š[ÙÛÜÙH]HÜ[ˆ\š[ÙØ\È›Ý[™ÈÔ•ËP•ÈÚ[HÛ›HÔ•ËV”\ÈÝ™X[YY
+RTÔÒS‘×Ð‘SÒPT’×ÑU’QSÑJNÈ[œÝ™X[YY[X\šÙ]\š[ÙÈ\™H™]\™Y[™HÝÛ™\ˆ˜\Ù[[™H™\Ý\ÈÛˆHÝ™X[YYX\šÙ]‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÛÜ×ÚX[Ü™\ÙX\˜ÚÚ[\˜[Î‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒLËRPST‘TÑPTÒRS•T•SÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[\™\ÙX\˜ÚZ[\˜[Âˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+	úââ;c$:âê;'/:èg:â!; «:éo;-g:¬è:èg;%áz­î:è";'m:äç;"ç;/';)&	Ë	úâé;'c	ÊH‚ˆš[™[™Îˆ‹ÚX[›ÝÈ™\ÜÈ™\ÙX\˜Ú^\š[Y[XÚÜÈ\ˆ˜\ˆ[™ÝÛÈM[KÍŒH›ÙXÝ[Ûˆ[œÈ\™H™\šYšXX›H‚˜Ý\œ™[ÛÜ×ÚX[ÜÛÝ\˜ÙWÜÚN‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒLËRPSTÓÕTÑKTÒBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[\ÛÝ\˜ÙK\ÚBˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+	úââ;c$:âê;'/:èg:â!; «:éo;-g:¬è:èg;%áz­î:è";'m:äç;"ç;/';)&	Ë	úâé;'c	ÊH‚ˆš[™[™Îˆ‹ÚX[›ÝÈÝ]\ÈH[›š[™ÈZ[ÛÛ[Z]ÛÈPRSˆHTÖQQH•S•SQHØ[ˆ™H™XY\™XÝH‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÛX\›š[™×Ù]šY[˜ÙWØÛÜœ™[][ÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLËQU’QSÑKPÓÔ”‘SUSÓ‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[[X\›š[™ËXÛÜœ™[][Û‚ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+X\›š[™ÈÛÜ;em{"ëúâê:¬á;&a;(!;"&:è-;'¤{%á{)à;"ç;!'	ûem	ÊH‚ˆš[™[™Îˆ‹ÚX[ÛÜÙYX\›š[™ÓÛÜ™]šY[˜ÙH›ÝÈØ\œšY\È\š[ÙÛX\šÙ]ØØ[™Y]K™X[^™YÝ]ÛÛYHš[™Ù\œš[[™™\ÙX\˜ÚÞXÛKÙXÚ\Ú[Û‹Ù\Þ[Y[Y[]Y\È‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[Ü™\ÙX\˜ÚÚ[\˜[Ü™XÛÝ™\žN‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒLËRS•T•ST‘PÓÕ‘T–BˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜ÚZ[\˜[\™XÛÝ™\žBˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+X\›š[™ÈÛÜúâê:¬á;'¤{%á{)à;"ç;!'	ú¬á;!£{em	ÊH‚ˆš[™[™Îˆ‹ÚX[ÚÝÙYM[KÍŒH™\ÙX\˜Ú‘PÓÕ‘T–WÓ“ÕÔ‘PQNÈÛ›HHš\œÝÜ˜Ú\Ý˜]ÜˆØ\È™XÛÝ™\™Y›ÝÈ[\™H™XÛÝ™\™Y]Ý\‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[ÛÜ×ÚX[ÛYÙ\—Ùš[™Ù\œš[‚ˆÛÜš×ÛÜ™\ŽˆÓËSÔËLŒŒLËRPSSQÑT‹Q’S‘ÑT”’S•ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[[YÙ\‹Yš[™Ù\œš[ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+YÙ\ˆ:®";%hH:®,;) ™\Ý\Ü™XÛÝ™\žH;)§zê¡JH‚ˆš[™[™Îˆ‹ÚX[›ÝÈØ\œšY\ÈHTTˆYÙ\ˆš[™Ù\œš[
+›È[[Ý[ÊHÛÈ™\Ý\Ü™XÛÝ™\žHØ[ˆ™HÚXÚÙY›Üˆ[ˆY[XØ[XØÛÝ[[™ÈÝ]H‚˜Ý\œ™[Ü™\ÙX\˜ÚØØ[™WÙØ\Ùš[‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒLËPÐS‘KQÐTQ’SˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜ÚXØ[™KYØ\Yš[ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+	û%c;%a;!';(';'o;(¢û'`:¬¬;(%{em	ÊH‚ˆš[™[™ÎˆŒM[KÍŒH™\ÙX\˜ÚÚÚ\Y]™\žHÚ[™ÝÈ›ÜˆÛÝ]Ø\ÎÈ™\Ý\Ù™YYØ\È[œÚYH™XÙ[[H\ÝÜžH\™H›ÝÈ™Yš[Yœ›ÛHHX›XÈØ[™H[™Ú[‚ˆ\ÞNˆ™\]Z\™\×Ü\\—Ù\ÞWØY\—ÛY\™ÙWÛÝÛ™\—ÜÝ[™[™×Ø\›Ý˜[˜Ý\œ™[Ø]]Ü[ÝØÛÙ^ÛÝ]ÛÛYN‚ˆÛÜš×ÛÜ™\ŽˆÓËPUUÔSÕLŒŒLËPÓÑVSÕUÓÓQBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKØ]]Ü[ÝXÛÙ^[Ý]ÛÛYBˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+	úâé:én;-g;&¬;!(;'¤{%áIÊH‚ˆš[™[™Îˆ”ØÚY[YÛÙ^[œÈ[™YÜ™Y[ˆÚ]›È]Ú
+ÙYZÛHÚ]Ô[Z]ÜÝY™\œ˜[
+NÈXXÚ[ˆ›ÝÈ™XÛÜ™È]ÈÝ]ÛÛYHÛÈ™\›ËXÛÛ\][Ûˆ[œÈ\™Hš\ÚX›H‚˜Ý\œ™[ÝZWÛ[Ý[Û—Ù˜\ÝÛYÚ‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒLËSSÕSÓ‹QTÕSQÒˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÝZK[[Ý[Û‹Y˜\Ý[YÚˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+ÚÜÙHÜ[Ûˆ	ØIÈÛˆH[Ý[Ûˆ™]šY]ÊH‚ˆš[™[™Îˆ\]ÚYH[š[X][Ûˆ™][™YÈH˜\Ý\‹YÚ\ˆšY[[Ý[ÛˆÙ]È]šXÙH™Y[\ÈSPS—ÑS•’T“Ó“QS•ÓÓ“H‚˜Ý\œ™[ÝZWÚ\›×Ù›Ý×ÜÝ™X[\Î‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒLËRT“ËQ“ÕËQ’QSˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚ\›ËY›ÝËYšY[ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+™Y™\™[˜ÙHšY[ÜË[ˆ	ûem	ÈÛˆH›ÝÝ\JH‚ˆš[™[™Îˆ•HÚ\™Y\›È™XÛÛY\ÈH›ÝÈšY[ÙˆZ\›[™HÝ™X[\È[È\XÛHÛ\Ý\œÈ›ÜˆHØ[›ÛšXØ[ÚZ[ŽÈ]šXÙHÛÚÈ[™œ˜[YH[YH\™HSPS—ÑS•’T“Ó“QS•ÓÓ“H‚˜Ý\œ™[Ü™\ÙX\˜ÚÜœÚWÙ˜[Z[N‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒLËT”ÒKQSRSBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜Ú\Ý˜]YÞKXœ™XYˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+	Ìzì¢;em	ÊH‚ˆš[™[™Îˆ”™\ÙX\˜Ú\ÝYÛ›HÓPHÜ›ÜÜÛÝ™\ˆ˜\šX[È[™[˜Z[YY\ˆÛÜÝÎÈ[ˆ”ÒHYX[‹\™]™\œÚ[Ûˆ˜[Z[H
+™KXÛÛ[Z]YÜšY
+H›ÝÈ[œÈ[™\ˆHØ[YHØ]\È\È]ÈÝÛˆ^\š[Y[˜[Z[H‚˜Ý\œ™[Ü™\ÙX\˜ÚÙ˜Z[\™WÜ™X\ÛÛœÎ‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒLËQRST‘KT‘PTÓÓ”ÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÙ˜Z[Y\Ý˜]YÞK[Y[[ÜžBˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+X\Ý\ˆ\™XÝ]™HÙXÝ[ÛˆMÈ™\H	ûem	ÊH‚ˆš[™[™Îˆ“›Û‹]Ú[›š[™È™\ÙX\˜Ú˜[Y][ÛœÈ\™H›ÝÈÛÝ[Y[™\ˆÛ™H›Ý[™Y˜Z[\™H™X\ÛÛˆ\š]™Yœ›ÛHYÙ\ˆ]šY[˜ÙNÈ™\X]]XÝ[ÛˆYØZ[œÝX\›Y\ˆ[œÈ\ÈH›ÛÝË]\‚˜Ý\œ™[ÝZWØ\ÚXÛÛ—Ù›ÝÎ‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒLËPTRPÓÓ‹Q“ÕÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKØ\ZXÛÛ‹Y›ÝÂˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+XÛÛˆÛÛ\\š\ÛÛ‹™\H	û â;%a;'m;/f	ÊH‚ˆš[™[™Îˆ•H\XÛÛˆ˜[Z[H
+[™›ÚYY\]™K[YYÜ\ÚYØXÞH‘ÜË\ÚÝÜÕ‘ËÔ‘ËÒPÓÊH\È™Y˜]Ûˆ\ÈZ\›[™HÝ™X[\È[›™[[™È[ÈHÛÝÚ[™ÈÛ\Ý\ŽÈH\ÚÝÜXÛÛˆ[Ý™\ÈÙ™ˆH™]\™Y›[YH\ÚYÛŽÈ]šXÙHÛÚÈ\ÈSPS—ÑS•’T“Ó“QS•ÓÓ“H‚˜Ý\œ™[Ü™\ÙX\˜ÚÙÛ˜ÚX[—Ù˜[Z[N‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒLËQÓÒPS‹QSRSBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜ÚYÛ˜ÚX[‚ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+	ûem	ÈY\ˆHÚÜ]\›H˜Y[™È]Y\Ý[ÛŠH‚ˆš[™[™ÎˆHÛ˜ÚX[ˆœ™XZÛÝ]
+[ÛY[[JH˜[Z[HÚ]H™KXÛÛ[Z]YÜšY›ÝÈ[œÈ™\ÚYHÓPH[™”ÒH[™\ˆHØ[YH™\ÙX\˜ÚØ]\ÎÈÓÒPS—Ð”‘PRÓÕU\ÈH™]È™\ÙX\˜ÚÓ[žH[HÚ]›ÈÛÚËXZXY‚˜Ý\œ™[ÝZWÚ\›×Ù›Ý×Ù[˜[ZXÎ‚ˆÛÜš×ÛÜ™\ŽˆÓËURKLŒŒLËRT“ËQ“ÕËQSSRPÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚ\›ËY›ÝËY[˜[ZXÂˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+Œˆ›ÝÝ\K™\H	û(¢û%a	ÊH‚ˆš[™[™Îˆ•H›ÝÈ\›ÈØZ[œÈÛÛY]ÈÚ]Z[ËY™™\™[X[ÝÚ\›[™œ™X][™ÈÛ\Ý\œË[™[™Èš[™ÜÈ[™Ü™\ˆÜ\šÜÈ\È\™H[˜Ý[ÛœÈÙˆ[YNÈ]šXÙHÛÚÈ[™œ˜[YH[YH\™HSPS—ÑS•’T“Ó“QS•ÓÓ“H‚˜Ý\œ™[Ø]]Ü[ÝÜ[›™\—Ù˜Z[\™WÚY[]N‚ˆÛÜš×ÛÜ™\ŽˆÓËPUUÔSÕLŒŒLËT•S“‘T‹QRST‘KRQS•UBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKØÛÙ[™Ë\[›™\‹[˜[YYY˜Z[\™K\™X\ÛÛ‚ˆ]]Üš]WÚ[\XÝˆ›Û™BˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+]]Ü[ÝÛÛ\][ÛˆÛÛ™\™Ù[˜ÙHX\Ý\ˆÛÜšÈÜ™\ŠH‚ˆš[™[™Îˆ•H]›Û™H\ØÛÝ™\žH˜Z[\™H™X\ÛÛˆØ\œšY\È›È[ˆYÛÈHÛÙ[™È[›™\ˆ™Z™XÝYH™X[H˜Z[Y[ˆ\È›ÝÝXØÙ\ÜÙ[ÈH˜[YYY[]H\È›ÝÈXØÙ\YÚ[ˆÛÛ[Z][™˜Z[YÛÛ˜Û\Ú[ÛˆX]ÚHÚ]X‹]™\šYšYY[ˆ‚˜Ý\œ™[ÛX\›š[™×Ü›ÛÝ™\—ÝØ[ØÛØÚÎ‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLËT“ÓÕ‘T‹UÐSPÓÐÒÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ›ÛÝ™\‹]Ø[XÛØÚÂˆ]]Üš]WÚ[\XÝˆÛÜÙY[X\›š[™Ë\\š[ÙXÛÜÙK]šYÙÙ\‚ˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+›ÛÝ™\ˆ˜\Ú\ÈÚ[™ÙYÈHÛØÚÊH‚ˆš[™[™ÎˆHÛÛœÙXÝ]]™K[ÜÜÈ[ÝÜÈš[ÈÛÈHØ[›ÛšXØ[XØÛÝ[\]Y]™]™\ˆÜ›ÜÜÙYHÔÕ^H[™H›ÛÝ™\ˆØZ]YÈHØ[ÛØÚÈ›ÝÈÛ›HXÚY\ÈH^H\ÜÙYH\š[ÙÝ[ÛÜÙ\È]HØ[›ÛšXØ[XØÛÝ[›Ý[™\žH‚˜Ý\œ™[ÛX\›š[™×Ü™]\™WÛZ^YØš[™[™×Ü\š[Ù‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLËT‘UT‘KSRVQP’S‘S‘ËTT’SÑˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™]\™K[Z^YXš[™[™Ë\\š[Ùˆ]]Üš]WÚ[\XÝˆÛÜÙY[X\›š[™Ë\\š[Ù[Y™XÞXÛBˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+Ü[ÛˆNˆ™]\™HHZ^Y\š[Ù[œØÛÜ™Y[™Ý\Hœ™\ÚÛ™JH‚ˆš[™[™ÎˆY\ˆHØ[XÛØÚÈ›ÛÝ™\ˆHÜ[ˆÔ•ËV”\š[Ù™XXÚYH™XÛÛ˜Ú[\ˆ[™˜Z[YÐS‘QUWÐ’S‘S‘×ÓRVQÚXÚ˜Z[XÛÜÙYÛÜœ™XÝH]›ØÚÙYHÛÜ›Ü™]™\ŽÈH\š[Ù\È›ÝÈ™]\™Y[œØÛÜ™Y[™HÛÜÛÛ[Y\È[ˆHœ™\Ú\š[Ù‚˜Ý\œ™[Üš\Ú×ÚÜÝÝ˜Y[™×Ù^N‚ˆÛÜš×ÛÜ™\ŽˆÓËT’TÒËLŒŒLËRÔÕUQS‘ËQVBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜš\ÚËZÜÝ]˜Y[™ËY^Bˆ]]Üš]WÚ[\XÝˆš\ÚË]˜Y[™ËY^KYYš[š][Û‹X[™Y\Ü^KY]šY[˜ÙBˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLLÈ[ˆÚ]
+	úãe;(¢û'`;*¯IÈ[YØ][™ÈHUË]œËRÔÕÚÚXÙJH‚ˆš[™[™Îˆ•HÛÝYTTˆš\ÚÈY\\ˆ\ÙYHØØ[UÈ^HÚ[HØ[›ÛšXØ[š\ÚÔØY™]QØ]H[™HX\›š[™È›ÛÝ™\ˆ\ÙH\ÚXKÔÙ[Ý[È]›ÝÈ\Ù\ÈHØ[›ÛšXØ[˜Y[™Ñ^RÙ^KH™\ÚÛÝ^\ÈË[™HÜÜÈÙ\ÜÚ[ÛˆX›\Ú\È\š[ÙY[]KÝ\[™\Ý[˜Ü™[Y[ÛˆÚX[
+\ÜÝYHMÍH][\È‹M
+H‚˜Ý\œ™[ÛX\›š[™×Ù\˜X›WØÞXÛWÚX[‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLQTP“KPÖPÓKRPSˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[Y\˜X›K[X\›š[™ËXÞXÛBˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ˜ÞXÛ\Ñ]˜[X]Y\ÝÞXÛTÝ]\ËÓÝ]ÛÛYH[™HÞXÛHY[]Y\ÈÛˆÚX[Ù\™H›ØÙ\ÜÈY[[ÜžKÛÈH\ÞH\˜\ÙYH›ÛÙˆÙˆH\Ý\ÈHÞXÛHY[]Y\Ë\ÝÞXÛSÝ]ÛÛYH[™ÛÈ™]È[YÙ\œÈ
+ÞXÛ\Ô™XÛÜ™Y\ÝÞXÛT™XÛÜ™Y]
+H\™H›ÝÈ[ÛÈ™XYœ›ÛHH\˜X›HYÙ\ˆ
+\Ü^HÛ›KÛ™H™\^KÚ]˜]ÛˆYˆHYÙ\ˆ\È[œ™XYX›JKˆ\ÝÞXÛTÝ]\Ë\Þ[Y[È[™ÞXÛ\Ñ]˜[X]YÝ^H\‹\›ØÙ\ÜÈ[™\™H›Ý™\ÝÜ™Y‚˜Ý\œ™[ÛX\›š[™×Û\ÝØ›ØÚÙYÜ™X\ÛÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLSTÕP“ÐÒÑQT‘PTÓÓ‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÚX[[\ÝX›ØÚÙY\™X\ÛÛ‚ˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™ÎˆY\ˆÌNHH™\XÙ[Y[\š[ÙÛÜÙY
+™X[^™Y\š[ÙÏLŠH]H\˜X›HYÙ\ˆÛÈ›ÈÞXÛH
+ÞXÛ\Ô™XÛÜ™YL
+NÈH“ÐÒÑQ™X\ÛÛˆÙˆH˜Z[YÞXÛHØ\ÈÝ™\Üš][ˆÚ][ˆÛ™HXÚËˆÚX[›ÝÈÙY\È\Ý›ØÚÙY™X\ÛÛ‹Û\Ý›ØÚÙY]
+\ˆ›ØÙ\ÜËÛÙHÛ›JH‚˜Ý\œ™[ÜÝ˜]YÞWØ˜\Ù[[™WØÛÙWÚY[]N‚ˆÛÜš×ÛÜ™\ŽˆÓËTÕUQÖKLŒŒLPTÑSS‘KPÓÑKRQS•UBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKØ˜\Ù[[™KXÛÙKZY[]Bˆ]]Üš]WÚ[\XÝˆÝ˜]YÞKZY[]KZ[‹Xš[™[™ËYš[™Ù\œš[ˆÝÛ™\—Ø\›Ý˜[ˆŒŒ‹LLL[ˆÚ]
+	Ì‰ÊH‚ˆš[™[™Îˆ•HÝÛ™\ˆ˜\Ù[[™HÝ˜]YÞHÛÙTÚHØ\ÈH\ÞYYÛÛ[Z]ÛÈ]™\žH\ÞHÚ[™ÙYHš[™[™Èš[™Ù\œš[[™Z^YHÜ[ˆX\›š[™È\š[ÙÈ]\È›ÝÈHš^Y[\[Y[][ÛˆY[]H
+Hš\œÝ\ÞHÚ[™Ù\ÈHš[™Ù\œš[Û˜ÙNÈH™XÛÛ˜Ú[\ˆÝX\™[™š\ÚÈËÌÈ\™H[ÝXÚY
+H‚˜Ý\œ™[Ø]]Ü[ÝÜ[›™\—Ü™XY[™\ÜÎ‚ˆÛÜš×ÛÜ™\ŽˆÓËPUUÔSÕLŒŒLT•S“‘T‹T‘PQS‘TÔÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKØ]]Ü[Ý\[›™\‹\™Y›YÚˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ’S•T‘PÑWÔ‘PQH™\Ý[È›ÝÈ˜[YHÚ]H[›™\ˆXÚÜÈ
+[™Ú[™K™\›ËXÜ™Y][ÙKÚ]XˆÚÙ[ŠHšXHH™\Ù[˜ÙK[Û›H™XY[™\ÜÈÚXÚÎÈ›È™Z]š[ÜˆÚ[™ÙH
+Ý\ÎÈ›Ý[™Y™XÛÝ™\žKÚXÚÜÚ[Ü™\Ý[YKØ[˜\žH[™™XÙZ\È™[XZ[ŠH‚˜Ý\œ™[ÛX\›š[™×Ü[™[™×ÛÜ™\—Ø]šX][Û—Ý\Ý‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLTS‘S‘ËSÔ‘T‹PU’P•USÓ‹UTÕˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ[™[™Ë[Ü™\‹X]šX][Û‹]\Ýˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ•\ÝÈ[ˆ]HÛÛ[YYÛÜšÚ[™ÈÜ™\ˆÙY\È]ÈÜ™X][™Èš[™[™È
+›ÈÚ[[™[X™[
+NÈHÜ›ÜÜË\\š[Ùš[Ø\›ÜˆHÛÛ[YYÜ™\ˆÚ]›ÈÝ\œ™[XÚ\Ú[Ûˆ™[XZ[œÈÜ[ˆ[™™YYÈH\ÚYÛˆXÚ\Ú[Ûˆ‚˜Ý\œ™[ÛX\›š[™×Ù\˜X›WØ›ØÚÙYÜ™X\ÛÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLQTP“KP“ÐÒÑQT‘PTÓÓ‚ˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÙ\˜X›KXÞXÛKY˜Z[\™Bˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ•H\ÝÛÜÙY[X\›š[™È“ÐÒÑQÑT”“Ôˆ™X\ÛÛˆ\È›ÝÈ[ÛÈÜš][ˆ\ÈH˜\™HÛÙH™\ÚYHHÛÝYÝ]H[™ÙYYÈÚX[Y\ˆH™\Ý\ÈH[œ™XÛÜ™YÞXÛIÜÈÝÛˆØ]\ÙH\ÈÝ[[šÛ›ÝÛˆ[™\ÈXZÙ\ÈH™^˜Z[\™H™XYX›H‚˜Ý\œ™[Ú\ÜÝYWÌNWØÛÜÙYÛX\›š[™×Ù˜Z[\™WÙ]šY[˜ÙN‚ˆÛÜš×ÛÜ™\ŽˆÓËRTÔÕQKLNKPÓÔÑQSPT“’S‘ËQRST‘KQU’QSÑBˆ\ÜÝYNˆNBˆ\™[Ú\ÜÝYNˆMŒBˆÝ]\ÎˆQT‘ÑQÒSÔ‘SQS•Ô•S•SQWÑU’QSÑWÔS‘S‘Âˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš\œÝØœ›ÚÙ[—Ý˜[œÚ][ÛŽˆ˜ÛÜÙYTTˆ\™›Ü›X[˜ÙH]šY[˜ÙHˆOˆÛÜÙY[X\›š[™ÈÞXÛKÑ™YY˜XÚÈˆ‚ˆØÛÜNˆ”\œÚ\Ý›Ý[™Y[[]]X›H]\›Z[š\ÝXÈ˜Z[\™H™XÙZ\È[ˆH^\Ý[™È\ÚXÚZ[™YÞXÛHYÙ\ˆY\ˆH™\\™YÖPÓKÑ’SSV‘H˜Z[\™NÈ™\Ý\\ØY™H™XY[Û›HX[^ÜÙ\È]\Ý˜Z[\™HÙ\\˜][Hœ›ÛH]\ÝÝXØÙ\ÜÎÈÝ™\œÚ^™Y›Û‹XØ[›ÛšXØ[X[›Ü›YYÜˆ[\\™Y™XÙZ\™\^H˜Z[ÈÛÜÙYˆ‚ˆ˜[Y][ÛŽˆ”ˆÌNMÈ[™ÌNNY\™ÙYÚ]^XÝZXYÛÜšÙ›ÝËÜ™[X\ÙH]]Üš^˜][ÛŽÈXÝX[^XÝ[XZ[ˆTTˆ˜Z[\™H™XÙZ\[™™\^H]šY[˜ÙH™[XZ[œÈ[™\šYšYYˆ‚ˆY\™ÙYÚ[˜Ü™[Y[Îˆ”ˆÌNMÈOˆØØØXYÙLYŒY™YMMŒXŒÍLÍ™LŒŽXÌ™™MNMMÈˆÌNNOˆŽYŒÍXLMXMÌXLNLLÍŽMMMŒÎŒŒYŽY˜Ëˆ‚ˆ™[XZ[š[™ÎˆXÝX[^XÝ[XZ[ˆTTˆ˜Z[\™K\™XÙZ\Ü™\^H]šY[˜ÙH™[XZ[œÈ[™[™ÎÈ™\Ý\\ØY™H[œ™XÛÜ™YXÞXÛH™KY^XÝ][Ûˆ\È˜XÚÙY[™\ˆÓËRTÔÕQKLNKT‘TÕT•TÐQ‘KPÖPÓKT‘TÕSQKˆ‚ˆØY™]NˆTT—ÓÓ“WÓU‘WÓ“Ó‘WÔ“ÑPÕSÓ—ÓUUUSÓ—ÑSÑWÐRWÖ‘T“×ÐUUÔ’UB˜Ý\œ™[Ú\ÜÝYWÌNWÜ™\Ý\ÜØY™WÜ™\Ý[YN‚ˆÛÜš×ÛÜ™\ŽˆÓËRTÔÕQKLNKT‘TÕT•TÐQ‘KPÖPÓKT‘TÕSQBˆ\ÜÝYNˆNBˆ\™[ÝÛÜš×ÛÜ™\ŽˆÓËRTÔÕQKLNKPÓÔÑQSPT“’S‘ËQRST‘KQU’QSÑBˆÝ]\ÎˆÐÐSÕSQUQÑÓÕ‘T“‘QÑÐUT×ÔS‘S‘Âˆœ˜[˜Úˆš^ÌNK\™\Ý\\ØY™KXÞXÛK\™\Ý[YBˆ˜\ÙWÜÚNˆX˜ÌÍLÎYNMØŒÌØMÙNM˜ÍÍŒNNÌNY‚ˆ[\[Y[][Û—ÚXYˆNÍŽXŒÌ˜LŒLXYMÌMÎØYŒLLNBˆš\œÝØœ›ÚÙ[—Ý˜[œÚ][ÛŽˆ™\˜X›H™X[^™Y\\š[ÙÛÜÙHOˆ›ØÙ\ÜÈ™\Ý\Oˆ[œ™XÛÜ™YÞXÛH™\Ý[YH‚ˆ]šY[˜ÙNˆˆÌNM™]šY\ÈÛ›HÞXÛ\È™[Y[X™\™Y[ˆ]È[‹[Y[[ÜžH]ØZ][™ÐÞXÛHX\ÈY\ˆ™\Ý\]X\šÙ\ˆ\ÈXœÙ[ˆ™\Ý\™\Ý[YH\ÈÝX\™YžHH^XÝØ[›ÛšXØ[XØÛÝ[›Ý[™\žH[™Ø[YHÔÕ^KÚ]›ÈÜ[ˆÝXØÙ\ÜÛÜ‹ˆ‚ˆ˜[Y][ÛŽˆœœHZ[[™\XÚXÚÈ\ÜÎÈ›ØÝ\ÙYØÚY[\‹ÝÚ\š[™È™YÜ™\ÜÚ[Ûˆ\ÜÙ\ÈÎš[\ÎÈ\˜Ú]XÝ\™HÚXÚÈ\ÜÙ\ÈÚ]™\›Èš[™[™ÜÎÈ[RTÔÈPSS\œÙ\Ëˆ™Y›YÚÝ˜[Y]N™[\™H›ØÚÙY[ˆ\ÈØ[™›Þ™XØ]\ÙH˜[Y]ÜˆÜ]Û”Þ[˜ÈÚ]™]\›œÈTT“Kˆ‚ˆ™[XZ[š[™Îˆ‘^XÝZXYÒK[™\[™[™]šY]ËÐ]Y]Ø[›ÛšXØ[™[X\ÙH[™Y\™ÙNÈ[ˆ^XÝ[XZ[ˆTTˆ™XÛÝ™\žH[™]\›Z[š\ÝXÈ™\^H]šY[˜ÙKˆ‚ˆØY™]NˆTT—ÓÓ“WÓU‘WÓ“Ó‘WÔ“ÑPÕSÓ—ÓUUUSÓ—ÑSÑWÐRWÖ‘T“×ÐUUÔ’UB˜Ý\œ™[Ü™\ÙX\˜ÚÙ˜Z[\™WÚ\ÝÜžN‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒLQRST‘KRTÕÔ–BˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜ÚY˜Z[\™KZ\ÝÜžBˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™Îˆ‘˜Z[Y™\ÙX\˜ÚÚ[[™Ù\œÈ›ÝÈ]™HH]\›Z[š\ÝXÈ\‹]˜\šX[˜Z[\™H\ÝÜžH[™H‘TPUÏ™X\ÛÛˆ\Ü^HÛÝ[™XÛÛ\]Yœ›ÛHH\˜X›HYÙ\ŽÈ\È[™›Ü›\È™\ÙX\˜ÚŠÌH]Ù\È›ÝÝY\ˆ]
+Y\]™HØÚY[[™ÈØ\ÈÙ™™\™Y[™XÛ[™YžHHÝÛ™\ŠH‚˜Ý\œ™[Ü™\ÙX\˜ÚÜÛXWØÛÜÝÛ›ÝN‚ˆÛÜš×ÛÜ™\ŽˆÓËT‘TÑPTÒLŒŒLTÓPKPÓÔÕS“ÕBˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜ™\ÙX\˜Ú[›ÝK\ÛXKXÛÜÝ\ØÜ™Y[‚ˆ]]Üš]WÚ[\XÝˆ›Û™Bˆš[™[™ÎˆHœ›Þ™[‹Z[œ]™\›ÙXÚX›HX›XËXØ[™H™\^HÚÝÜÈH\ÝYÓPHÙ][™ÜÈÜÝ™Y›Ü™H[™Y\ˆ™Y\È[ˆHÌ‹MÎHÝ\ˆ˜[[™ÈÚ[™ÝÈ
+K[Z[]H˜\œÈÛÜœÝ™XØ]\ÙHÙˆ™Y\ÊNÈH›ÝHÙY\ÈHš\ÚËYØ]HØœÙ\˜][ÛˆÙ\\˜]H[™™XÛÜ™ÈÚ]Ø\È›Ý]\›Z[™Y‚˜Ý\œ™[ÛX\›š[™×Ü™\Ý[YWÙ˜Z[YØÞXÛN‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLT‘TÕSQKQRSQPÖPÓBˆÝ]\ÎˆQT‘ÑQÒSÔ‘SQS•ÓSRUUSÓ—Ô‘PÓÔ‘Qˆœ˜[˜ÚˆÛ]YKØÞXÛKY˜Z[\™K\™\›ÙXÝ[Û‚ˆ[Ü™\]Y\ÝˆNMˆY\™ÙWØÛÛ[Z]ˆLÙL™˜ØÙØÍXÌÌÙNŒÍMÌÌXŒNBˆ]]Üš]WÚ[\XÝˆX\›š[™Ë[ÛÜXÛÛ›ÛY›ÝË[›Ë[Ü™\‹[›Ë\š\ÚË[›Ë[YÙ\‹]Üš]KX™^[Û™Y^\Ý[™ËXÞXÛK\™XÛÜ™ˆš[™[™Îˆ•HY\™ÙYØÚY[\ˆ™]šY\ÈØ\È™[Y[X™\™YžH]ÈÝ\œ™[›ØÙ\ÜË›Ý[™YÈHXÚÜÈ\ˆ\š[ÙÈHÜšYÚ[˜[[[YH˜Z[\™H™X\ÛÛˆ™[XZ[œÈ[šÛ›ÝÛ‹ˆ‚ˆ[Z]][ÛŽˆ•H[‹[Y[[ÜžH]ØZ][™ÐÞXÛHX\šÙ\ˆ\ÈÜÝÛˆ™\Ý\È™\Ý\\ØY™HÛÛ[X][Ûˆ\È˜XÚÙYžHÓËRTÔÕQKLNKT‘TÕT•TÐQ‘KPÖPÓKT‘TÕSQKˆ‚˜Ý\œ™[ÛX\›š[™×Ø˜\Ù[[™WÜÚYÝÎ‚ˆÛÜš×ÛÜ™\ŽˆÓËSPT“’S‘ËLŒŒLPTÑSS‘KTÒQÕÂˆÝ]\Îˆ‘PQWÑ“Ô—Ô‘U’QUÂˆœ˜[˜ÚˆÛ]YKÜš\ÚËX›ØÚÙY\ÚYÝÂˆ]]Üš]WÚ[\XÝˆ\Ü^KX[™X[˜[\Ú\Ë[Û›K[›Ë[Ü™\‹[›Ë[YÙ\‹[›Ë\š\ÚËZ[œ]ˆš[™[™Îˆ•Ú[HHÛÛœÙXÝ]]™K[ÜÜÈ[Ù[œÛÜœÈHTTˆYÙ\‹HÚYÝÈÙˆH˜\Ù[[™H[HÛˆHØ[YHZ[]H˜\œÈÙY\È›ÙXÚ[™È\Ý]XØ[›Ý[™š\ÈÚ]™Y\È
+ÛÝ[È[™˜\Ú\ÈÚ[ÈÛˆÚX[
+HÛÈX\›š[™È[™HËÍÍH[Z]ÛÛ\\š\ÛÛˆ]™H[˜Ù[œÛÜ™YÝ]ÛÛY\ÎÈ›ÝTTˆ]šY[˜ÙH‚‚‚˜Ý\œ™[Ø]]Ü[ÝÌNMWØ›Ý[™YÜ™[YYX][ÛŽ‚ˆÛÜš×ÛÜ™\ŽˆÓËPUUÔSÕLŒŒLKP“ÕS‘QT‘SQQPUSÓ‚ˆ\ÜÝYNˆNMBˆ[Ü™\]Y\ÝˆNM‚ˆœ˜[˜Úˆ]]Ü[ÝÜLNMKX›Ý[™Y\™[YYX][Û‚ˆ[\[Y[][Û—ÚXYˆØXÙYYŒ™˜™L˜NNŒM™˜™L™MŽL™NMˆÝ]\ÎˆQT‘ÑQÒSÔ‘SQS•ÔÔÕÓQT‘ÑWÔ•S•SQWÕ‘T’Q’QQÔ‘TÒQPSÓÔS‚ˆY\™ÙWØÛÛ[Z]ˆŒYMŒÌ˜XÙLŒØ˜Ì™YMÍÎMXÙMYLLÍÌ˜Îˆ]]Üš]WÚ[\XÝˆ›Ý[™YXÛÙ[™Ë\[›™\‹Y˜Z[\™KXÛ\ÜÚYšXØ][Û‹X[™ZY]šY[˜ÙK[Û›Bˆš\œÝØœ›ÚÙ[—Ý˜[œÚ][ÛŽˆ™˜Z[YÛÜšÙ›ÝÈY[]HOˆ™[YYX][Ûˆ[YÚXš[]H‚ˆ^XÝÚXYØÚNˆ‘Ú]XˆXÝ[ÛœÈ[ˆÍÎLÎNLNMÈTÔÈ›Üˆ^XÝXYØXÙYYŒ™˜™L˜NNŒM™˜™L™MŽL™NM‚ˆ[™\[™[Ü™]šY]Îˆ‘^XÝZXYÛÙ^™]šY]ÈÛÛ[Y[ŒÍÍÎÌÌˆÛˆˆÌNMˆ™]šY]ÙYØXÙYYŒ™˜™L˜NNŒM™˜™L™MŽL™NM[™™\ÜY›ÈXZ›Üˆ\ÜÝY\Ëˆ‚ˆ[™\[™[Ü™]šY]×ØÛÛ[Y[ÚYˆŒÍÍÎÌÌ‚ˆ[™\[™[Ü™]šY]×ÜÝ[[X\žWØÛÛ[Y[ÚYˆŒNÍÎŽLˆ[™\[™[Ü™]šY]ÙYÚXYˆØXÙYYŒ™˜™L˜NNŒM™˜™L™MŽL™NMˆ]Y]Ü™[X\ÙWÜ[—ÚYˆÍÎLÌŽMNBˆ]Y]Ú›Ø—ÚYˆLLÍÍMLŒMNÂˆ™[X\ÙWÚ›Ø—ÚYˆLLÍÍMLŒÎLÂˆ]Y]YÜ—ÚXYˆØXÙYYŒ™˜™L˜NNŒM™˜™L™MŽL™NMˆ]Y]YØ˜\ÙWÜÚNˆŒNYXYLŒŽØMŒXÙMM™YLÙMLŒÍŽXÎLBˆØ[›ÛšXØ[ÛY\™ÙWØÛÛ[Z]ÜÚNˆŒYMŒÌ˜XÙLŒØ˜Ì™YMÍÎMXÙMYLLÍÌ˜Îˆ]\›Z[š\ÝX×Ø]Y]ˆØ[›ÛšXØ[]Y]ÛÜšÙ›ÝÈ[ˆÍÎLÌŽMNK›ØˆLLÍÍMLŒMNËTÔÈ›Ý[™ÈˆÌNMˆXYØXÙYYŒ™˜™L˜NNŒM™˜™L™MŽL™NM[™˜\ÙHŒNYXYLŒŽØMŒXÙMM™YLÙMLŒÍŽXÎLKˆ‚ˆ™[X\ÙWØ]]Üš^˜][Û—Ø[™ÛY\™ÙNˆØ[›ÛšXØ[™[X\ÙHÛÜšÙ›ÝÈ[ˆÍÎLÌŽMNK›ØˆLLÍÍMLŒÎLËÕPÐÑTÔÎÈ^XÝYZXYY\™ÙH›ÙXÙYŒYMŒÌ˜XÙLŒØ˜Ì™YMÍÎMXÙMYLLÍÌ˜Îˆ‚ˆÜÝÛY\™ÙWØÚNˆ‘Ú]XˆXÝ[ÛœÈ[ˆÍÎLLNLÌLˆTÔÈÛˆY\™ÙHÒHŒYMŒÌ˜XÙLŒØ˜Ì™YMÍÎMXÙMYLLÍÌ˜Îˆ‚ˆ\Þ[Y[ˆÛÝY›\™H\ÞH[ˆÍÎLLNLÍHTÔÎÈ\ÞYY^XÝY\™ÙHÒHŒYMŒÌ˜XÙLŒØ˜Ì™YMÍÎMXÙMYLLÍÌ˜Îˆ‚ˆ[[YWÜ›ÛÙŽˆ”[[YH›ÛÙˆ[ˆÍÎLNŒŒŽNHTÔÎÈ^XÝXY™\šYšYY]YH[™\Þ[Y[™]š\Ú[Û\ÛÝ\˜ÙTÚOLŒYMŒÌ˜XÙLŒØ˜Ì™YMÍÎMXÙMYLLÍÌ˜ÎˆØÚY[Y[™Ü™\ÜÈP”ÕRS‘Q™XØ]\ÙH^XÝ[XZ[ˆØ[›ÛšXØ[ÒHØ\È›Ý›Ý[™ˆ‚ˆ\\—ØØ[˜\žNˆXÝX[TTˆ[ˆÍÎLMÎMÍNHÛ\ÜÚYšYYSÓÓTUWÓ“×ÐUUÓ“ÓSÕT×ÓÔ‘T—Ñ’SÔ“È›ÈÛÛ\][ÛˆÛZ[Kˆ‚ˆ[˜[YØØ[˜\žWÛ›Û—Ù[YÚX›WÝÛÜšÙ›ÝÎˆ’S•SQÐÐST–WÓ“Ó—ÑSQÒP“WÕÓÔ’Ñ“ÕÎˆÛÛœÝ[Y\ˆ[ˆÎÌNLMÍŒÈ™XÙZ]™YH\Ü]ÚÚ][™ÈÜ˜XÛHTTˆ™[X\ÙH[ˆÎÍÌŒÍŽÈÛÜšÙ\ˆ\Y˜XÝ™XÛÜ™YRSQÕ×Ô‘SQQPUHY\ˆ^XÝH™YHÐS‘“ÖÔUÒÊˆ›ÜÜØ[™Z™XÝ[ÛœËˆ™\Ù\™H\È]šY[˜ÙHÙˆÛÜšÙ\ˆÛÛœÝ[\[Û‹™]žHØ\[™›Ü˜Ù[Y[[™H[YÚXš[]H›Ý[™\žHY™XÝÛ›NÈÈ›ÝÛÝ[\È™\šYšYY\ÙY[ÛÛ\][Û‹ˆ‚ˆ™[XZ[š[™Îˆ•[™\ˆÌNMKY˜Z[XÛÜÙYÛÜšÙ›ÝÈY[]H[™XÝ[Û˜X›K\Ý\[YÚXš[]HÈH^\Ý[™ÈÎLÈÛÜšÙ\ŽÈ[ˆØZ[ˆH™X[[YÚX›HÛÙ[™ËY˜Z[\™HÛÛ\][Û‹ÛÝ™\›™Y™\šYšXØ][Û‹[[YH]šY[˜ÙK[™\˜X›H™XÙZ\ˆ‚ˆÝXØÙ\ÜÛÜ—Øœ˜[˜Úˆ]]Ü[ÝØÛÙ^Ú\ÜÝYKLNMKLÍÎNMMÌÍˆÝXØÙ\ÜÛÜ—Ø˜\ÙWÜÚNˆ˜M˜™˜LÙXÎMYL™L˜ŒXNYŒYMŽLŒXÌŽØÎˆÝXØÙ\ÜÛÜ—Ü[Ü™\]Y\ÝˆŒBˆÝXØÙ\ÜÛÜ—ÜÝ]\Îˆ“ÕS‘T–WÒSTSQS•USÓ—ÒS—Ô“ÑÔ‘TÔÂˆÝXØÙ\ÜÛÜ—Ùš\œÝØœ›ÚÙ[—Ý˜[œÚ][ÛŽˆ™˜Z[YÛÜšÙ›ÝÈY[]HOˆ™[YYX][Ûˆ[YÚXš[]H‚ˆ™^Ü\›Z]YØXÝ[ÛŽˆÛÛ\]H^XÝÛÜšÙ›ÝËÜ[‹ÔÒH[™XÝ[Û˜X›K\Ý\YZ\ÜÚ[ÛˆÚXÚÜÈ[ˆH^\Ý[™ÈØ[›ÛšXØ[ÛÜšÙ\‹\ÜÈ›ØÝ\ÙY™YÜ™\ÜÚ[Ûˆ\ÝÈ[™^XÝZXYÒK[ˆ[™\[™[]Y][™ÛÝ™\›™Y™[X\ÙKˆ‚ˆØY™]NˆTT—ÓÓ“WÓU‘WÓ“Ó‘WÔ“ÑPÕSÓ—ÓUUUSÓ—ÑSÑWÐRWÖ‘T“×ÐUUÔ’UB‚˜Ý\œ™[Ø]]Ü[ÝÌNLWÝÛÜšÙ›Ý×ØXÝ[Û˜Xš[]N‚ˆÛÜš×ÛÜ™\ŽˆÓËPUUÔSÕLŒŒLLUÓÔ’Ñ“ÕËPPÕSÓP’SUBˆ\ÜÝYNˆNLBˆ[Ü™\]Y\ÝˆNMˆœ˜[˜Úˆš^Ù]›Û™K]ÛÜšÙ›ÝËXXÝ[Û˜Xš[]KLNLBˆÛÝ\˜ÙWÛXZ[—ÜÚNˆNNYMÌÍXÙXŒŒXŒÎLÌØNNY˜MYX™XÌ™‚ˆÝ]\ÎˆÐÐSÕSQUQÑÓÕ‘T“‘QÑÐUT×ÔS‘S‘Âˆš\œÝØœ›ÚÙ[—Ý˜[œÚ][ÛŽˆ™^XÝÛÜšÙ›ÝÈ˜Z[\™HY[]HOˆØ]\Ø[XÝ[Û˜Xš[]HOˆÛÙ[™Ô[›™\ˆYZ\ÜÚ[Ûˆ‚ˆ˜[Y][ÛŽˆ”ÝšXÝ\™Ù]Y\TØÜš\ÛÛ\[HTÔÎÈLËÍLÈ›ØÝ\ÙYÛÙ[™È[™Ø[›ÛšXØ[™[X\ÙHÛÛ˜XÝ\ÝÈTÔÎÈÎMRTÔÈPSSš[\È[™ÛÜšË[Ü™\ˆ›Ý™[˜[˜ÙH˜[Y][ÛˆTÔËˆ‚ˆ^XÝÚXYØÚNˆS‘S‘Âˆ[™\[™[Ø]Y]ˆS‘S‘Âˆ™[X\ÙWØ]]Üš^˜][ÛŽˆS‘S‘Âˆ™[XZ[š[™Îˆ‘^XÝZXYÒKÐ]Y]Ô™[X\ÙHÛˆ\]YÌNMÈH™[X\ÙH]]Üš^˜][Û‹\›ÜYØ][ÛˆÛÜ™\Z\ˆ\È[ˆ\ÈØ[™Y]H[™Ý[™\]Z\™\È^XÝZXYÒH[™[™\[™[]Y]ˆ‚ˆØY™]NˆTT—ÓÓ“WÓU‘WÓ“Ó‘WÔ“ÑPÕSÓ—ÓUUUSÓ—ÑSÑWÐRWÖ‘T“×ÐUUÔ’UB
