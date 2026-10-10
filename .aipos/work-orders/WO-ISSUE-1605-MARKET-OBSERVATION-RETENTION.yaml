@@ -1,0 +1,31 @@
+id: WO-ISSUE-1605-MARKET-OBSERVATION-RETENTION
+title: "Protect canonical public-market observations across pending PAPER period lifetime"
+status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+priority: P0
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 1605
+pull_request: 2617
+base_branch: main
+base_commit: a99da735cdd5b040b24ab24d7933a99fa5ebec2f
+objective: "Prevent ordinary market-observation retention pruning from deleting benchmark inputs required by an active canonical pending PAPER forward period."
+first_broken_transition: "public market observation persistence -> durable retention across pending/open-period lifetime"
+scope:
+  - "Protect observations at or after the earliest canonical research_paper_forward_period_pending.period_start_at."
+  - "Release protection when no pending PAPER period remains."
+  - "Fail closed by skipping pruning if the pending-period protection floor is unreadable or malformed."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - "Canonical pending-period storage, not a legacy OPEN-period table, determines the protection floor."
+  - "Retention survives restart and periods longer than the ordinary row cap."
+  - "Multiple pending periods use the earliest floor and malformed protection evidence cannot cause deletion."
+  - "Exact-head CI and Independent Audit pass before merge."
+validation:
+  initial_exact_head_ci: "38044178206 PASS on 3b534a8fd52f6411ccc93d4cd827baae196f219a before review repair."
+  review: "Codex identified canonical pending table mismatch and missing durable AIPOS evidence; both are addressed on the same PR branch."
+remaining: "Fresh exact-head CI, Independent Audit, canonical Release/merge, then exact-main runtime retention/restart evidence."
+next: "Push review repair; require fresh exact-head CI and independent review on the new head."

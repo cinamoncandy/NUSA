@@ -90,7 +90,7 @@ test("open PAPER period protects benchmark observations beyond the ordinary rete
     const repository = new SqlitePaperMarketObservationRepository(first, 2);
     repository.append(observation(10, 90));
     repository.append(observation(20, 91));
-    first.connection.prepare("INSERT INTO paper_realized_periods (period_id, period_index, lifecycle_state, period_start_at, period_end_at, payload_json, checksum) VALUES (?, ?, 'OPEN', ?, NULL, ?, ?)")
+    first.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
       .run("protected-period", 0, 100, "{}", "checksum");
     for (let observedAt = 100; observedAt <= 600; observedAt += 100) repository.append(observation(observedAt, 100 + observedAt));
 
@@ -103,7 +103,7 @@ test("open PAPER period protects benchmark observations beyond the ordinary rete
     const repository = new SqlitePaperMarketObservationRepository(restarted, 2);
     repository.append(observation(700, 800));
     assert.deepEqual(repository.readWindow("KRW-BTC", 100, 700).map((item) => item.observedAt), [100, 200, 300, 400, 500, 600, 700]);
-    restarted.connection.prepare("UPDATE paper_realized_periods SET lifecycle_state = 'REALIZED', period_end_at = ? WHERE period_id = ?").run(700, "protected-period");
+    restarted.connection.prepare("DELETE FROM research_paper_forward_period_pending WHERE period_id = ?").run("protected-period");
     repository.append(observation(800, 900));
     assert.deepEqual(repository.list().map((item) => item.observedAt), [700, 800]);
   } finally { restarted.close(); }
@@ -113,9 +113,9 @@ test("multiple open periods use the earliest protection floor across markets", (
   const db = new SqliteDatabase(":memory:");
   try {
     const repository = new SqlitePaperMarketObservationRepository(db, 2);
-    db.connection.prepare("INSERT INTO paper_realized_periods (period_id, period_index, lifecycle_state, period_start_at, period_end_at, payload_json, checksum) VALUES (?, ?, 'OPEN', ?, NULL, ?, ?)")
+    db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
       .run("period-late", 1, 300, "{}", "late");
-    db.connection.prepare("INSERT INTO paper_realized_periods (period_id, period_index, lifecycle_state, period_start_at, period_end_at, payload_json, checksum) VALUES (?, ?, 'OPEN', ?, NULL, ?, ?)")
+    db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
       .run("period-early", 0, 100, "{}", "early");
     repository.append(observation(50, 50));
     repository.append(observation(100, 100));
@@ -130,7 +130,7 @@ test("unverifiable protection floor fails closed without deleting observations",
   const db = new SqliteDatabase(":memory:");
   try {
     const repository = new SqlitePaperMarketObservationRepository(db, 2);
-    db.connection.prepare("INSERT INTO paper_realized_periods (period_id, period_index, lifecycle_state, period_start_at, period_end_at, payload_json, checksum) VALUES (?, ?, 'OPEN', ?, NULL, ?, ?)")
+    db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
       .run("malformed-floor", 0, "not-a-time", "{}", "checksum");
     repository.append(observation(100, 100));
     repository.append(observation(200, 200));
