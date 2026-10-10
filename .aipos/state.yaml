@@ -2960,8 +2960,8 @@ current_autopilot_2595_bounded_remediation:
   work_order: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
   issue: 2595
   pull_request: 2596
-  branch: autopilot/p0-2595-bounded-remediation
-  implementation_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+  branch: autopilot/p0-2595-worker-wiring
+  implementation_head: LOCAL_UNCOMMITTED
   status: MERGED_INCREMENT_POST_MERGE_RUNTIME_VERIFIED_RESIDUAL_OPEN
   merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
   authority_impact: bounded-coding-runner-failure-classification-and-http-evidence-only
@@ -2984,5 +2984,10 @@ current_autopilot_2595_bounded_remediation:
   runtime_proof: "Runtime Proof run 37909862299 PASS; exactHeadVerified=true and deploymentRevision=sourceSha=21e632ace23bc2ee64778855ce49e0a083706c84. Scheduled ingress ABSTAINED because exact-main canonical CI was not found."
   paper_canary: "Actual PAPER run 37909797419 classified INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; no completion claim."
   remaining: "Under #2595: wire the remediation decision into the existing #903 canonical worker, persist a durable completion receipt, then pass a real allowlisted actionable-failure canary through the governed chain."
-  next_permitted_action: "Continue #2595 in the existing #903 control plane: canonical worker wiring and focused deterministic validation; do not create another queue, scheduler, or coding runner."
+  successor_base_sha: 07f350dc8c4c5fbc2681991cbe61fbc3f6756a05
+  successor_implementation_head: LOCAL_UNCOMMITTED
+  successor_status: LOCAL_VALIDATED_PENDING_CANONICAL_PR
+  successor_first_broken_transition: "worker remediation decision -> existing #903 consumer bounded execution and provider wait"
+  successor_validation: "TypeScript; codingRunnerRemediation; worker; codingRunner; control-plane-wiring PASS. Dispatch suite 36/38; two temp git integration cases blocked by host EPERM on git init. preflight component checks and strict AIPOS YAML parsing PASS; pnpm wrapper blocked creating /root/.local."
+  next_permitted_action: "Validate temporary git integration cases in canonical CI, then publish this single successor through exact-head CI, Independent Audit, and governed Release; durable completion receipt and real canary remain open."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

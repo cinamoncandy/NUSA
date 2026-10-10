@@ -164,7 +164,7 @@ export interface CodingRunnerExecutionOptions {
    * still verifying evidence when another execution recorded a provider stop does not then spend a
    * call inside that window. It does not serialize calls already in flight when a stop lands.
    */
-  readonly providerWaitUntil?: () => Promise<number | null>;
+  readonly providerWaitUntil?: (provider: string) => Promise<number | null>;
 }
 
 export interface CodingRunnerResult {
@@ -978,7 +978,45 @@ export async function executeCodingRunner(
   // configured endpoint must not shadow the canonical Worker AI binding in production.
   const useConfiguredEngine = Boolean(!zeroCreditMode && endpoint && token && !env.AI);
   if (useConfiguredEngine) {
+    if (options.providerWaitUntil) {
+      let waitUntil: number | null;
+      try {
+        waitUntil = await options.providerWaitUntil("configured-coding-engine");
+      } catch {
+        return { status: "EXECUTION_FAILED", reason: "PROVIDER_CAPACITY_STATE_UNAVAILABLE", proposalAttempts: 0, failureStage: "proposal-parse" };
+      }
+      const current = now();
+      if (waitUntil !== null && current < waitUntil) {
+        return {
+          status: "BLOCKED_RATE_LIMIT",
+          reason: "WAITING_PROVIDER_CAPACITY",
+          proposalAttempts: 0,
+          failureStage: "proposal-parse",
+          provider: "configured-coding-engine",
+          retryAfterMs: waitUntil - current,
+          nextRetryAt: waitUntil,
+          stopReason: "WAITING_PROVIDER_CAPACITY",
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        };
+      }
+    }
     const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!, Boolean(request.proposalContext)));
+    if (response.status === 429) {
+      const current = now();
+      const retryAfterMs = MAX_RATE_LIMIT_BACKOFF_MS;
+      return {
+        status: "BLOCKED_RATE_LIMIT",
+        reason: "WAITING_PROVIDER_CAPACITY",
+        httpStatus: response.status,
+        proposalAttempts: 1,
+        failureStage: "proposal-parse",
+        provider: "configured-coding-engine",
+        retryAfterMs,
+        nextRetryAt: current + retryAfterMs,
+        stopReason: "PROVIDER_RATE_LIMITED",
+        resumeCondition: "provider-capacity-and-exact-head-revalidation",
+      };
+    }
     if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: "coding-engine-request-failed" };
     if (!runtime) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status };
     try {
@@ -1019,7 +1057,7 @@ export async function executeCodingRunner(
     if (options.providerWaitUntil) {
       let waitUntil: number | null;
       try {
-        waitUntil = await options.providerWaitUntil();
+        waitUntil = await options.providerWaitUntil("workers-ai");
       } catch {
         return { status: "EXECUTION_FAILED", reason: "PROVIDER_CAPACITY_STATE_UNAVAILABLE", proposalAttempts: attempt - 1, failureStage: "proposal-parse" };
       }

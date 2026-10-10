@@ -38,10 +38,6 @@ export const UNWIRED_CONTROL_PLANE_DEBT: readonly string[] = Object.freeze([
   "autonomousExecutionState.ts#clearExecutionHold",
   "autonomousExecutionState.ts#isDuplicateExecution",
   "autonomousExecutionState.ts#recoverExpiredLease",
-  // #2595 deliberately lands the bounded no-action/remediation decision before production wiring.
-  // It grants no authority and performs no retry. Remove this entry only when the existing canonical
-  // worker/control-plane caller consumes it and produces real remediation/completion evidence.
-  "codingRunnerRemediation.ts#decideCodingRunnerNoAction",
   "evolveAutonomousSelector.ts#selectNonConflictingEvolutionOpportunities",
   "evolveCircuitBreaker.ts#canAttemptCircuitRecovery",
   "evolveCircuitBreaker.ts#resetCircuitBreaker",

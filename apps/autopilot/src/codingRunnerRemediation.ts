@@ -19,7 +19,7 @@ export interface CodingRunnerRemediationDecision {
 export function decideCodingRunnerNoAction(
   reason: unknown,
   attempt: number,
-  maxAttempts = 2,
+  maxAttempts = 3,
   httpStatus?: number,
 ): CodingRunnerRemediationDecision {
   if (!Number.isSafeInteger(attempt) || attempt < 0 || !Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) {
