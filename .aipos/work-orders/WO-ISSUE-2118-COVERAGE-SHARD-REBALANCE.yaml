@@ -1,50 +1,54 @@
 id: WO-ISSUE-2118-COVERAGE-SHARD-REBALANCE
 title: "Balance measured core coverage shards without reducing coverage"
-status: REVIEW_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI
+status: MERGED_INCREMENT_POST_MERGE_VERIFIED
 priority: P0
 owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2118
 base_branch: main
 base_commit: 8237e563a78f762a9848f6559d2c3137202d64a8
+implementation_head: 7df48273ab71d08bf035cc73ea6716c2a146863c
+pull_request: 2606
+merge_commit: 456c2e9bc4e237c0cc0d88cca4e386595614ee0a
 objective: "Use measured test-file cost evidence to deterministically rebalance the existing four core coverage shards while preserving the exact test universe and coverage gates."
 scope:
-  - "Assign the existing discovered test inventory by deterministic longest-processing-time using the checked-in p70 profile from four successful main CI runs."
-  - "Keep four shards, all discovered tests, existing coverage collection/merge/thresholds, and required CI gates unchanged."
+  - "Use deterministic cost-aware LPT assignment on the discovered test inventory."
+  - "Keep four shards, all tests, coverage collection/merge/thresholds, and required CI gates unchanged."
   - "Persist malformed cost-profile failures in the existing isolated-test diagnostic artifact."
-  - "Record exact-head implementation, validation and observed performance evidence in this work order and AIPOS state."
-evidence:
-  baseline_runs:
-    - "38017943817 @ 002db578d6e5f01843e3675ef784a6ee428f2152: total 357s; isolated max 157s; core job max 252s"
-    - "38027359182 @ 341fefdd39d820456e43b3ab2caedc52fa9064d3: total 325s; isolated max 138s; core job max 226s"
-    - "38032093469 @ ba6bfa3ec948af52e2b61a9f1de44f921c287b78: total 342s; isolated max 144s; core job max 234s"
-    - "38033675522 @ 8237e563a78f762a9848f6559d2c3137202d64a8: total 337s; isolated max 159s; core job max 247s"
-  baseline_summary: "Total CI median 339.5s; isolated max median 150.5s; isolated shard-spread median 52.25s; queue 1–4s."
-  first_exact_head_run: "38040401563 on 605c1c7d13e1fceee4769abdacf6d16d18732115 PASS; 1,189 tests assigned 297/296/298/298; coverage merge PASS; total 305s; isolated max 121s; isolated spread 43s; core job max 209s. One optimized sample only; core-job spread widened to 71s and no stable performance-success claim is made from a single run."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
 acceptance:
-  - "Same test inventory is executed exactly once across four deterministic shards."
-  - "Malformed shard-cost evidence fails closed and writes isolated-test-failure.txt for artifact upload."
-  - "Existing coverage semantics and required gates remain unchanged."
-  - "At least two comparable actual optimized CI runs and post-merge current-main CI evidence are reviewed before declaring performance completion."
-verification_commands:
-  - "node --test tests/deterministic-test-shard.test.js tests/run-tests-isolated.test.js tests/ci-efficiency.test.js"
+  - "Every discovered test executes exactly once across four deterministic shards."
+  - "Malformed shard-cost evidence fails closed and emits isolated-test-failure.txt."
+  - "Coverage semantics and required gates remain unchanged."
+  - "At least two optimized exact-head runs and post-merge main CI show actual performance evidence."
+evidence:
+  baseline_runs:
+    - "38017943817 @ 002db578d6e5f01843e3675ef784a6ee428f2152: total 357s; isolated max 157s; core job max 252s."
+    - "38027359182 @ 341fefdd39d820456e43b3ab2caedc52fa9064d3: total 325s; isolated max 138s; core job max 226s."
+    - "38032093469 @ ba6bfa3ec948af52e2b61a9f1de44f921c287b78: total 342s; isolated max 144s; core job max 234s."
+    - "38033675522 @ 8237e563a78f762a9848f6559d2c3137202d64a8: total 337s; isolated max 159s; core job max 247s."
+  baseline_summary: "Total CI median 339.5s; isolated max median 150.5s; isolated spread median 52.25s; queue 1–4s."
+  optimized_exact_head_runs:
+    - "38040401563 @ 605c1c7d13e1fceee4769abdacf6d16d18732115 PASS: total 305s; shard durations 93/120/121/78s; max 121s; spread 43s; 1,189 tests; all four shards and coverage merge PASS."
+    - "38040967264 @ 7df48273ab71d08bf035cc73ea6716c2a146863c PASS: total 324s; shard durations 109.1/120.7/120.8/116.4s; max 120.8s; spread 11.7s; 1,190 tests; all required checks and coverage merge/floors PASS."
+  post_merge:
+    main_sha: 456c2e9bc4e237c0cc0d88cca4e386595614ee0a
+    workflow_run: 38041368100
+    result: "PASS; total 286s; core job max 204s; shard durations 112.3/117.4/115.4/83.2s; max 117.4s; spread 34.2s; 1,190 tests; four shards, coverage merge, and floors PASS."
+    audit_release: "Independent Audit and canonical Release run 38041292552 PASS; PR #2606 merged as 456c2e9bc4e237c0cc0d88cca4e386595614ee0a."
+    deployment_scope: "Cloudflare run 38041652669 PASS and explicitly skipped Worker deploy because no runtime-input delta; promotion runs 38041652723 and 38041668101 PASS and found no deployment-relevant tree difference. CI-only change; no Oracle application deployment required."
+  performance_summary: "Post-merge total CI 15.8% below baseline median; max core job 15.2% below baseline median; isolated max 22.0% below baseline median; spread 34.5% below baseline median. Coverage/test scope preserved."
 validation:
-  status: LOCAL_PASS
-  commands:
-    - "node --test tests/deterministic-test-shard.test.js tests/run-tests-isolated.test.js tests/ci-efficiency.test.js — PASS 11/11"
-    - "pnpm run preflight — PASS"
-    - "pnpm run aipos:yaml — PASS (393 files)"
-    - "pnpm run aipos:provenance — PASS"
-    - "pnpm run aipos:drift — PASS"
-    - "git diff --check — PASS"
-  exact_head_ci: "38040401563 PASS on prior head 605c1c7d13e1fceee4769abdacf6d16d18732115; invalidated by review repair"
-  independent_audit: "38040709695 audit job PASS; two review findings repaired on this head, fresh Audit pending"
-  release: "38040709695 blocked before merge because the two review threads were unresolved; authorization revoked"
-  local: "Review repairs validated; focused tests 11/11, preflight, AIPOS YAML/provenance/drift, and diff check PASS"
-pull_request: 2606
-next_permitted_action: "Run focused tests and AIPOS validators, commit/push the repairs to PR #2606, then require fresh exact-head CI, independent Audit, and canonical Release."
+  status: MERGED_AND_POST_MERGE_VERIFIED
+  focused_tests: "11/11 PASS: deterministic assignment, malformed evidence artifact, and workflow contract regression."
+  local: "pnpm preflight, aipos:yaml (393 files), aipos:provenance, aipos:drift, and git diff --check PASS."
+  exact_head_ci: "38040967264 PASS on 7df48273ab71d08bf035cc73ea6716c2a146863c; prior run 38040401563 is retained as the first implementation-head measurement."
+  independent_audit: "Canonical Audit PASS in run 38041292552 on the exact PR head."
+  release: "Canonical Release PASS in run 38041292552; merged as 456c2e9bc4e237c0cc0d88cca4e386595614ee0a."
+  post_merge_ci: "Run 38041368100 PASS on exact protected main 456c2e9bc4e237c0cc0d88cca4e386595614ee0a."
+remaining: "This coverage-shard increment is complete. Issue #2118 remains open for broader CI p50/p95 and owner-latency work; worker-pool WIP/throughput runtime evidence remains with canonical #2117/#903 ownership. No WIP increase is inferred from short CI queue time."
+next: "Continue remaining Issue #2118/#2117 work only from fresh current-main measurements; do not change worker WIP based on this shard result."

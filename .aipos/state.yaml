@@ -149,16 +149,21 @@ current_issue_2118_coverage_shard_rebalance:
   issue: 2118
   pull_request: 2606
   branch: ci/2118-cost-aware-coverage
-  status: REVIEW_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: MERGED_INCREMENT_POST_MERGE_VERIFIED
   base_sha: 8237e563a78f762a9848f6559d2c3137202d64a8
-  prior_implementation_head: 605c1c7d13e1fceee4769abdacf6d16d18732115
-  prior_exact_head_ci: "38040401563 PASS; invalidated by review repair"
+  implementation_head: 7df48273ab71d08bf035cc73ea6716c2a146863c
+  merge_sha: 456c2e9bc4e237c0cc0d88cca4e386595614ee0a
   baseline_total_ci_median_seconds: 339.5
   baseline_isolated_max_median_seconds: 150.5
   baseline_isolated_spread_median_seconds: 52.25
-  observed_first_head: "run 38040401563: total 305s; isolated max 121s; isolated spread 43s; core job max 209s; core job spread 71s; 1,189 files across 4 passing shards. Single sample only."
-  local_validation: "Review repairs: focused tests 11/11; pnpm preflight; AIPOS YAML (393 files), provenance, drift, and diff check PASS."
-  remaining: "Fresh exact-head CI, Independent Audit, and canonical Release are pending after the review repair. Require post-merge CI and a second comparable optimized timing before performance completion."
+  optimized_exact_head_runs:
+    - "38040401563 @ 605c1c7d13e1fceee4769abdacf6d16d18732115 PASS: total 305s; isolated max 121s; spread 43s; 1,189 tests."
+    - "38040967264 @ 7df48273ab71d08bf035cc73ea6716c2a146863c PASS: total 324s; isolated max 120.8s; spread 11.7s; 1,190 tests."
+  post_merge_ci: "38041368100 @ 456c2e9bc4e237c0cc0d88cca4e386595614ee0a PASS: total 286s; core job max 204s; isolated max 117.4s; spread 34.2s; 1,190 tests; coverage merge/floors PASS."
+  audit_release: "38041292552 PASS; canonical merge 456c2e9bc4e237c0cc0d88cca4e386595614ee0a."
+  coverage_preservation: "Four shards retained; every discovered test executes once; coverage collection, merge, floors, and required checks unchanged."
+  deployment: "CI-only diff; Cloudflare exact-main scope had no runtime delta and skipped Worker deploy; no Oracle application deployment required."
+  remaining: "Coverage-shard rebalance subincrement complete. Broader CI p50/p95 and owner-latency plus worker WIP/throughput telemetry remain separate #2118/#2117/#903 work; do not infer WIP expansion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_worker_deploy_scope:
   work_order: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
