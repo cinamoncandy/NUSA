@@ -1,6 +1,6 @@
 id: WO-ISSUE-1605-MARKET-OBSERVATION-RETENTION
 title: "Protect canonical public-market observations across pending PAPER period lifetime"
-status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+status: REVIEW_REPAIR_PUSHED_CI_PENDING
 priority: P0
 owner: nusa-development
 repository: cinamoncandy/NUSA
@@ -11,9 +11,11 @@ base_commit: a99da735cdd5b040b24ab24d7933a99fa5ebec2f
 objective: "Prevent ordinary market-observation retention pruning from deleting benchmark inputs required by an active canonical pending PAPER forward period."
 first_broken_transition: "public market observation persistence -> durable retention across pending/open-period lifetime"
 scope:
-  - "Protect observations at or after the earliest canonical research_paper_forward_period_pending.period_start_at."
+  - "Protect observations at or after the earliest verified canonical research_paper_forward_period_pending.period_start_at."
+  - "Validate pending checksum, canonical payload, and period identity before trusting the protection floor."
+  - "Treat an absent optional pending table as no active protection so standalone repositories retain the configured row cap."
   - "Release protection when no pending PAPER period remains."
-  - "Fail closed by skipping pruning if the pending-period protection floor is unreadable or malformed."
+  - "Fail closed by skipping pruning if an existing pending-period protection state is unreadable or malformed."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -21,11 +23,16 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 acceptance:
   - "Canonical pending-period storage, not a legacy OPEN-period table, determines the protection floor."
+  - "Pending checksum/payload/identity tampering cannot move the retention floor or delete benchmark evidence."
+  - "Standalone observation repositories without the optional pending table continue ordinary bounded retention."
   - "Retention survives restart and periods longer than the ordinary row cap."
-  - "Multiple pending periods use the earliest floor and malformed protection evidence cannot cause deletion."
+  - "Multiple verified pending periods use the earliest floor and malformed protection evidence cannot cause deletion."
   - "Exact-head CI and Independent Audit pass before merge."
 validation:
   initial_exact_head_ci: "38044178206 PASS on 3b534a8fd52f6411ccc93d4cd827baae196f219a before review repair."
-  review: "Codex identified canonical pending table mismatch and missing durable AIPOS evidence; both are addressed on the same PR branch."
+  prior_exact_head_ci: "All six workflows PASS on 085e097ebb49feb3a7d092059695044deff2446a before current review repair."
+  review_repair_code: "48f543b5d3769144e3180a43cf0147afcfe76333 validates pending checksum/canonical payload/identity and distinguishes absent optional table from malformed existing state."
+  review_repair_tests: "e5246bc4b645e65049eb6dec049387db4c424da1 adds standalone-table, verified-floor, identity-tamper, checksum-tamper, restart, multi-period, and malformed-state coverage."
+  current_exact_head: "Fresh CI/checks pending on the post-repair head; do not treat prior green checks as acceptance."
 remaining: "Fresh exact-head CI, Independent Audit, canonical Release/merge, then exact-main runtime retention/restart evidence."
-next: "Push review repair; require fresh exact-head CI and independent review on the new head."
+next: "Require fresh exact-head CI and independent review on the post-repair head; resolve review threads only after evidence passes."
