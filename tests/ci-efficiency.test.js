@@ -76,3 +76,17 @@ test("CI optimization preserves critical safety gates", () => {
   assert.match(workflow, /run: pnpm run release:check:prepared/);
   assert.match(workflow, /test:\n\s+name: test\n\s+needs: \[validation, coverage\]/);
 });
+
+
+test("core shard runner consumes validated multi-run timing evidence", () => {
+  const runner = read("scripts/run-tests-isolated.js");
+  const evidence = JSON.parse(read("scripts/lib/deterministic-test-shard-costs.json"));
+  assert.match(runner, /deterministic-test-shard-costs\.json/);
+  assert.match(runner, /selectDeterministicShard\(allFiles, shard, shardCostEvidence\)/);
+  assert.equal(evidence.schemaVersion, 1);
+  assert.equal(evidence.sourceRuns.length, 4);
+  assert.ok(Object.keys(evidence.costsMs).length > 300);
+  assert.ok(Object.keys(evidence.costsMs).length < 1189);
+  assert.equal(evidence.defaultDurationMs, 245);
+  assert.ok(evidence.costsMs["tests/research-experiment-composition.test.js"] > 1000);
+});
