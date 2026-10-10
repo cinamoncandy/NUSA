@@ -10,7 +10,7 @@ const {
   evaluateUpbitCandleFreshness,
 } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
 const { createHistoricalDatasetManifest, candlesToBacktestPoints, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
-const { SmaCrossoverStrategy, RsiMeanReversionStrategy, DonchianBreakoutStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { SmaCrossoverStrategy, RsiMeanReversionStrategy, DonchianBreakoutStrategy, BollingerBreakoutStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
 const { qualifyResearchFactoryRun } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
 const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
@@ -34,7 +34,8 @@ const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desk
 const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
 const DONCHIAN_FAMILY_ID = "donchian-breakout";
-const SUPPORTED_RESEARCH_FAMILIES = Object.freeze([SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID]);
+const BOLLINGER_FAMILY_ID = "bollinger-breakout";
+const SUPPORTED_RESEARCH_FAMILIES = Object.freeze([SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID, BOLLINGER_FAMILY_ID]);
 const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
 const DEFAULT_PRIMARY_MARKET = "KRW-BTC";
 // Availability-only cohort: each predeclared market had at least 2000 completed public
@@ -189,6 +190,11 @@ const DONCHIAN_PARAMETER_NEIGHBORHOOD = Object.freeze(
   [10, 20, 30, 40, 55].map((channelPeriod) => Object.freeze({ channelPeriod }))
 );
 
+// Frozen in #1798 before canonical Bollinger OOS evaluation.
+const BOLLINGER_PARAMETER_NEIGHBORHOOD = Object.freeze(
+  [10, 20, 30].flatMap((period) => [1.5, 2, 2.5].map((multiplier) => Object.freeze({ period, multiplier })))
+);
+
 // The learning evidence computed at the end of each run orders the precommitted families for the
 // next run (unexplored first). It used to be printed only; this file is how the next run consumes
 // it. Family order is attention only: every family keeps its own precommitted grid and faces the
@@ -212,6 +218,13 @@ function writeNextResearchFamily(file, nextFamily, ledgerLength, generatedAt) {
   const temporary = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(temporary, `${JSON.stringify({ schemaVersion: 1, nextFamily, ledgerLength, generatedAt })}\n`, { mode: 0o600 });
   fs.renameSync(temporary, file);
+}
+
+function assertConfirmatoryFamilyScope(familyId, { timeframe = TIMEFRAME, market = MARKET } = {}) {
+  if (familyId !== BOLLINGER_FAMILY_ID) return;
+  if (timeframe !== "1d" || market !== "KRW-BTC") {
+    throw new Error("bollinger-breakout confirmatory scope is frozen to KRW-BTC + 1d");
+  }
 }
 
 /** Explicit NUSA_RESEARCH_STRATEGY_FAMILY wins; otherwise the learning-ordered next family; otherwise SMA. */
@@ -240,10 +253,18 @@ function researchLearningLedgerPath(env = process.env) {
   return path.join(path.dirname(path.resolve(stateDbPath)), "research-investment-learning.jsonl");
 }
 
+function precommitReferenceFor(familyId) {
+  if (familyId === DONCHIAN_FAMILY_ID) return "precommit:#1799:donchian-breakout";
+  if (familyId === BOLLINGER_FAMILY_ID) return "precommit:#1798:bollinger-breakout";
+  if (familyId === RSI_FAMILY_ID) return "precommit:#1791:rsi-mean-reversion";
+  return "precommit:#1791:sma-crossover";
+}
+
 function candidateIdFor(familyId, parameters) {
   if (familyId === SMA_FAMILY_ID) return `sma-${parameters.shortPeriod}-${parameters.longPeriod}`;
   if (familyId === RSI_FAMILY_ID) return `rsi-${parameters.period}-${parameters.oversold}-${parameters.overbought}`;
   if (familyId === DONCHIAN_FAMILY_ID) return `donchian-${parameters.channelPeriod}`;
+  if (familyId === BOLLINGER_FAMILY_ID) return `bollinger-${parameters.period}-${Number(parameters.multiplier).toFixed(1)}`;
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
 
@@ -251,6 +272,7 @@ function strategyFactoryFor(familyId, parameters) {
   if (familyId === SMA_FAMILY_ID) return () => new SmaCrossoverStrategy(Number(parameters.shortPeriod), Number(parameters.longPeriod));
   if (familyId === RSI_FAMILY_ID) return () => new RsiMeanReversionStrategy(Number(parameters.period), Number(parameters.oversold), Number(parameters.overbought));
   if (familyId === DONCHIAN_FAMILY_ID) return () => new DonchianBreakoutStrategy(Number(parameters.channelPeriod));
+  if (familyId === BOLLINGER_FAMILY_ID) return () => new BollingerBreakoutStrategy(Number(parameters.period), Number(parameters.multiplier));
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
 
@@ -269,6 +291,11 @@ function familyDefinition(familyId) {
     familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: DONCHIAN_PARAMETER_NEIGHBORHOOD,
     thesis: "A close breaking a precommitted prior-price channel may identify a reproducible directional persistence edge after explicit execution costs.",
     mechanism: "The strategy measures each close against a channel formed only from prior closes and trades only when state transitions into a new above-channel or below-channel breakout, preventing current-tick self-confirmation and lookahead.",
+  });
+  if (familyId === BOLLINGER_FAMILY_ID) return Object.freeze({
+    familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: BOLLINGER_PARAMETER_NEIGHBORHOOD,
+    thesis: "A close breaking a precommitted Bollinger envelope may identify a reproducible volatility-normalized directional persistence edge after explicit execution costs.",
+    mechanism: "The strategy compares each close with a mean and standard-deviation envelope under a frozen period/multiplier grid and trades only on state transitions.",
   });
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
@@ -309,6 +336,30 @@ function buildDonchianRobustnessGrid() {
     entries[index].neighbors.sort();
     Object.freeze(entries[index].neighbors);
     Object.freeze(entries[index]);
+  }
+  return Object.freeze(entries);
+}
+
+function buildBollingerRobustnessGrid() {
+  const entries = BOLLINGER_PARAMETER_NEIGHBORHOOD.map((parameters) => ({
+    key: candidateIdFor(BOLLINGER_FAMILY_ID, parameters),
+    parameters,
+    neighbors: []
+  }));
+  const by = (period, multiplier) => entries.find((entry) => entry.parameters.period === period && entry.parameters.multiplier === multiplier);
+  const periods = [10, 20, 30];
+  const multipliers = [1.5, 2, 2.5];
+  for (let pi = 0; pi < periods.length; pi += 1) {
+    for (let mi = 0; mi < multipliers.length; mi += 1) {
+      const entry = by(periods[pi], multipliers[mi]);
+      for (const [dp, dm] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const neighbor = by(periods[pi + dp], multipliers[mi + dm]);
+        if (neighbor) entry.neighbors.push(neighbor.key);
+      }
+      entry.neighbors.sort();
+      Object.freeze(entry.neighbors);
+      Object.freeze(entry);
+    }
   }
   return Object.freeze(entries);
 }
@@ -386,6 +437,18 @@ function buildParameterRobustnessRequest({ candles, manifest, strategyFamily = S
       referenceParameters: [
         { source: "PRODUCTION_DEFAULT", candidateKey: "donchian-20", parameters: { channelPeriod: 20 } },
         { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "donchian-55", parameters: { channelPeriod: 55 } }
+      ]
+    };
+  }
+  if (strategyFamily === BOLLINGER_FAMILY_ID) {
+    const candidateGrid = buildBollingerRobustnessGrid();
+    return {
+      ...common,
+      strategyFamily,
+      candidateGrid,
+      referenceParameters: [
+        { source: "PRODUCTION_DEFAULT", candidateKey: "bollinger-20-2.0", parameters: { period: 20, multiplier: 2 } },
+        { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "bollinger-10-1.5", parameters: { period: 10, multiplier: 1.5 } }
       ]
     };
   }
@@ -603,6 +666,7 @@ async function main() {
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
   const selectedFamily = researchStrategyFamily(process.env.NUSA_RESEARCH_STRATEGY_FAMILY, readNextResearchFamily(nextResearchFamilyPath()));
+  assertConfirmatoryFamilyScope(selectedFamily, { timeframe: TIMEFRAME, market: MARKET });
   const definition = familyDefinition(selectedFamily);
   const hypothesis = buildResearchHypothesis({
     hypothesisId: `real-run:${manifest.datasetId}:${definition.familyId}`,
@@ -641,7 +705,7 @@ async function main() {
           author: "nusa-real-market-research",
           sourceReferences: [
             `market-set:${RESEARCH_MARKET_SET_VERSION}`,
-            `precommit:#${definition.familyId === DONCHIAN_FAMILY_ID ? 1799 : 1791}:${definition.familyId}`,
+            precommitReferenceFor(definition.familyId),
             ...marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
           ]
         },
@@ -992,7 +1056,10 @@ module.exports = {
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  BOLLINGER_PARAMETER_NEIGHBORHOOD,
   SUPPORTED_RESEARCH_FAMILIES,
+  precommitReferenceFor,
+  assertConfirmatoryFamilyScope,
   researchStrategyFamily,
   readNextResearchFamily,
   writeNextResearchFamily,
