@@ -203,6 +203,28 @@ export class SqlitePaperMarketObservationRepository {
   }
 
   private pruneWithinTransaction(): void {
-    this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE observation_id IN (SELECT observation_id FROM ${TABLE} ORDER BY observed_at_ms DESC, market DESC, observation_id DESC LIMIT -1 OFFSET ?)`).run(this.maximumRows);
+    // A still-open PAPER period may outlive the ordinary row cap. Its benchmark
+    // window is canonical evidence, so observations at/after the earliest open
+    // period boundary are protected until that period is finalized or retired.
+    // If the protection state cannot be read or validated, fail closed by not
+    // pruning: losing evidence is worse than temporarily exceeding the cap.
+    let protectedFloor: number | undefined;
+    try {
+      const row = this.db.connection.prepare(`SELECT MIN(period_start_at) AS protected_floor FROM paper_realized_periods WHERE lifecycle_state = 'OPEN'`).get() as { protected_floor?: unknown } | undefined;
+      const value = row?.protected_floor;
+      if (value !== null && value !== undefined) {
+        if (!Number.isSafeInteger(value) || Number(value) < 0) return;
+        protectedFloor = Number(value);
+      }
+    } catch {
+      return;
+    }
+
+    if (protectedFloor === undefined) {
+      this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE observation_id IN (SELECT observation_id FROM ${TABLE} ORDER BY observed_at_ms DESC, market DESC, observation_id DESC LIMIT -1 OFFSET ?)`).run(this.maximumRows);
+      return;
+    }
+
+    this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE observation_id IN (SELECT observation_id FROM ${TABLE} WHERE observed_at_ms < ? ORDER BY observed_at_ms DESC, market DESC, observation_id DESC LIMIT -1 OFFSET ?)`).run(protectedFloor, this.maximumRows);
   }
 }
