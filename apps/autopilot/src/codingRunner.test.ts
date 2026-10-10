@@ -47,6 +47,7 @@ const verifiedGithubFetch = async (url: string) => {
 
 const verifiedFailureGithubFetch = async (url: string) => {
   if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+  if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
   if (url.includes("/jobs?")) {
     return response(200, {
       total_count: 1,
@@ -459,6 +460,7 @@ describe("coding runner", () => {
     const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
     await verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
       return response(200, {
         id: request.workflowRunId,
         workflow_id: 311000286,
@@ -477,6 +479,7 @@ describe("coding runner", () => {
   describe("evolve discovery failure reason without a run id (gha:<workflow>:<sha>:<conclusion>)", () => {
     const fetchFor = (conclusion: string, name = "CI") => async (url: string) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
       return response(200, { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name, event: "push", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion, repository: { full_name: request.repository } });
     };
     const named = (suffix = "failure", sha = request.headSha, name = "ci") => ({ ...request, reason: `evolve:discovery:gha:${name}:${sha}:${suffix}:Canonical workflow CI concluded failure for ${sha}.` });
@@ -561,6 +564,26 @@ describe("coding runner", () => {
     );
   });
 
+  it("rejects an otherwise valid failure run when current main has moved", async () => {
+    const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        if (url.includes("/branches/main")) return response(200, { commit: { sha: "b".repeat(40) } });
+        return response(200, {
+          id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI",
+          event: "push", head_sha: request.headSha, head_branch: "main", status: "completed",
+          conclusion: "failure", repository: { full_name: request.repository },
+        });
+      }),
+      /CODING_RUNNER_WORKFLOW_HEAD_STALE/,
+    );
+    const decision = classifyCodingRunnerFailure("CODING_RUNNER_WORKFLOW_HEAD_STALE");
+    assert.equal(decision.failureClass, "EVIDENCE_MISMATCH");
+    assert.equal(decision.recovery, "REDISPATCH_FRESH_EVIDENCE");
+    assert.equal(decision.retryable, false);
+  });
+
   it("fails closed when workflow identity is missing or mismatched", async () => {
     const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
     for (const run of [
@@ -590,6 +613,7 @@ describe("coding runner", () => {
     const failureRequest = { ...request, reason: `evolve:discovery:gha:ci:${request.headSha}:failure:CI failed` };
     const fetch = async (url: string) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
       if (url.includes("/jobs?")) return response(200, {
         jobs: [{ run_id: request.workflowRunId, name: "validation", conclusion: "failure", steps: [{ name: "Typecheck", conclusion: "failure" }] }],
       });
@@ -611,6 +635,7 @@ describe("coding runner", () => {
     const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
     const fetch = async (url: string) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
       if (url.includes("/jobs?")) {
         jobLookups += 1;
         return response(200, { jobs: [{ run_id: request.workflowRunId, name: "validation", conclusion: "failure", steps: [

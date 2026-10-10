@@ -669,6 +669,19 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
         headSha: request.headSha.toLowerCase(),
       });
     }
+    const mainResponse = await githubEvidenceGet(
+      `${GITHUB_API_ORIGIN}/repos/${repository}/branches/main`,
+      githubToken,
+      fetchImpl,
+    );
+    if (mainResponse.status !== 200) {
+      throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_MAIN_SHA_UNVERIFIED", mainResponse.status);
+    }
+    const mainPayload = object(await mainResponse.json());
+    const mainCommit = object(mainPayload.commit);
+    if (typeof mainCommit.sha !== "string" || mainCommit.sha.toLowerCase() !== request.headSha.toLowerCase()) {
+      throw new Error("CODING_RUNNER_WORKFLOW_HEAD_STALE");
+    }
   }
   if (typeof run.head_branch !== "string" || !run.head_branch.trim()) throw new Error("CODING_RUNNER_WORKFLOW_BRANCH_INVALID");
   return Object.freeze({
