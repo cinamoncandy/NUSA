@@ -613,7 +613,10 @@ describe("coding runner", () => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
       if (url.includes("/jobs?")) {
         jobLookups += 1;
-        return response(200, { jobs: [{ run_id: request.workflowRunId, name: "validation", conclusion: "failure", steps: [{ name: "Preflight", conclusion: "failure" }] }] });
+        return response(200, { jobs: [{ run_id: request.workflowRunId, name: "validation", conclusion: "failure", steps: [
+          ...Array.from({ length: 16 }, () => ({ name: "Typecheck", conclusion: "failure" })),
+          { name: "Preflight", conclusion: "failure" },
+        ] }] });
       }
       return response(200, {
         id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI",

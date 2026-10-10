@@ -756,7 +756,9 @@ async function verifiedJevCodingFailureEvidence(
   } catch {
     throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
   }
-  if (!Array.isArray(payload.jobs)) throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
+  if (!Array.isArray(payload.jobs) || (Number.isSafeInteger(payload.total_count) && Number(payload.total_count) > 100)) {
+    throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
+  }
 
   const failedJobs: string[] = [];
   const failedSteps: string[] = [];
@@ -777,12 +779,11 @@ async function verifiedJevCodingFailureEvidence(
       const stepConclusion = typeof step.conclusion === "string" ? step.conclusion : "";
       const stepName = safeFailureLabel(step.name);
       if (FAILURE_CONCLUSIONS.has(stepConclusion)) {
-        if (stepName) failedSteps.push(stepName);
+        if (!stepName) unclassifiedFailedStep = true;
+        else if (failedSteps.length < 16) failedSteps.push(stepName);
         else unclassifiedFailedStep = true;
       }
-      if (failedSteps.length >= 16) break;
     }
-    if (failedJobs.length >= 8 && failedSteps.length >= 16) break;
   }
   if (failedSteps.length === 0
     || unclassifiedFailedStep
