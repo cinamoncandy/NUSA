@@ -446,11 +446,21 @@ function classify(
  * for initial League qualification. This result is research eligibility only and carries no
  * execution, capital, broker or LIVE authority.
  */
-export function qualifyResearchFactoryRun(run: ResearchRunLeagueResult): ResearchFactoryQualificationResult {
+export function qualifyResearchFactoryRun(
+  run: ResearchRunLeagueResult,
+  currentDatasetIdentity?: Readonly<{ readonly datasetId: string; readonly datasetFingerprint: string; readonly status: "CURRENT" }>,
+): ResearchFactoryQualificationResult {
   if (run.schemaVersion !== 1 || run.evidenceMode !== "RESEARCH_TIER_ONLY") {
     throw new Error("unsupported research run league result");
   }
   validateRunProvenance(run);
+  if (currentDatasetIdentity != null) {
+    if (currentDatasetIdentity.status !== "CURRENT"
+      || currentDatasetIdentity.datasetId !== run.provenance.dataset.datasetId
+      || currentDatasetIdentity.datasetFingerprint.toLowerCase() !== run.provenance.dataset.contentSha256.toLowerCase()) {
+      throw new Error("current research dataset identity does not match qualification provenance");
+    }
+  }
   const reports = new Map(run.evidenceReport.map((report) => [report.candidateId, report] as const));
   if (reports.size !== run.standing.entries.length || reports.size !== run.evidenceReport.length) {
     throw new Error("research evidence report coverage mismatch");
