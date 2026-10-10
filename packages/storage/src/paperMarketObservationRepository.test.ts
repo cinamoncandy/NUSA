@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { SqliteDatabase } from "./index";
+import { SqlitePersistedPaperPeriodStore } from "./persistedPaperPeriodStore";
 import { PaperMarketObservationStoreError, SqlitePaperMarketObservationRepository } from "./paperMarketObservationRepository";
 
 const observation = (observedAt: number, price: number) => ({
@@ -27,6 +28,7 @@ test("public PAPER market observations are durable, deterministic, deduplicated,
   const filename = join(mkdtempSync(join(tmpdir(), "nusa-market-observations-")), "state.db");
   const first = new SqliteDatabase(filename);
   try {
+    new SqlitePersistedPaperPeriodStore(first);
     const repository = new SqlitePaperMarketObservationRepository(first, 2);
     assert.equal(repository.append(observation(100, 100)), "RECORDED");
     assert.equal(repository.append(observation(200, 110)), "RECORDED");
@@ -39,6 +41,7 @@ test("public PAPER market observations are durable, deterministic, deduplicated,
 
   const restarted = new SqliteDatabase(filename);
   try {
+    new SqlitePersistedPaperPeriodStore(restarted);
     const repository = new SqlitePaperMarketObservationRepository(restarted, 2);
     assert.deepEqual(repository.list().map((item) => [item.observedAt, item.price]), [[200, 110], [300, 120]]);
     assert.deepEqual(repository.readWindow("krw-btc", 200, 300).map((item) => item.observedAt), [200, 300]);
@@ -87,6 +90,7 @@ test("open PAPER period protects benchmark observations beyond the ordinary rete
   const filename = join(mkdtempSync(join(tmpdir(), "nusa-market-protected-retention-")), "state.db");
   const first = new SqliteDatabase(filename);
   try {
+    new SqlitePersistedPaperPeriodStore(first);
     const repository = new SqlitePaperMarketObservationRepository(first, 2);
     repository.append(observation(10, 90));
     repository.append(observation(20, 91));
@@ -100,6 +104,7 @@ test("open PAPER period protects benchmark observations beyond the ordinary rete
 
   const restarted = new SqliteDatabase(filename);
   try {
+    new SqlitePersistedPaperPeriodStore(restarted);
     const repository = new SqlitePaperMarketObservationRepository(restarted, 2);
     repository.append(observation(700, 800));
     assert.deepEqual(repository.readWindow("KRW-BTC", 100, 700).map((item) => item.observedAt), [100, 200, 300, 400, 500, 600, 700]);
@@ -112,6 +117,7 @@ test("open PAPER period protects benchmark observations beyond the ordinary rete
 test("multiple open periods use the earliest protection floor across markets", () => {
   const db = new SqliteDatabase(":memory:");
   try {
+    new SqlitePersistedPaperPeriodStore(db);
     const repository = new SqlitePaperMarketObservationRepository(db, 2);
     db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
       .run("period-late", 1, 300, "{}", "late");
