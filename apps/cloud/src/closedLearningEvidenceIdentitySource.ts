@@ -3,6 +3,7 @@ import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/s
 import type { ResearchRunReplaySnapshotReader } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { validateResearchCandidateSpecification } from "../../desktop/src/cloud/researchCandidateSpecification";
 import type { ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
+import type { PaperCanonicalBenchmarkEvidence } from "./paperRealizedPeriodProducer";
 import { closedLearningPaperPeriodReference } from "./closedLearningLineageReplayInputSource";
 import type { PaperChallengerBindingLedger, PaperChallengerActivationReceipt } from "./paperChallengerBindingLedger";
 import { samePaperResearchLineage, validatePaperResearchLineage, type PaperResearchLineage } from "./paperResearchLineage";
@@ -17,6 +18,8 @@ export interface ClosedLearningEvidenceIdentitySourceOptions {
   readonly replaySnapshots: ResearchRunReplaySnapshotReader;
   /** Exact fingerprint of the production PAPER risk policy that produced these periods. */
   readonly readRiskConfigHash: () => string;
+  /** Reconstructs legacy benchmark provenance only from the canonical durable ticker-observation store. */
+  readonly readCanonicalBenchmarkEvidence?: (market: string, periodStartAt: number, periodEndAt: number) => PaperCanonicalBenchmarkEvidence | undefined;
 }
 
 const SHA64 = /^[a-f0-9]{64}$/;
@@ -64,6 +67,37 @@ function lineageFor(period: PersistedPaperPeriodEnvelope, bindings: Pick<PaperCh
     throw new Error("closed-learning evidence dataset provenance conflicts with PAPER binding");
   }
   return lineage;
+}
+
+function benchmarkFingerprintFor(
+  period: PersistedPaperPeriodEnvelope,
+  market: string,
+  readCanonicalBenchmarkEvidence: ClosedLearningEvidenceIdentitySourceOptions["readCanonicalBenchmarkEvidence"],
+): string | null {
+  const record = period.record;
+  if (record.status !== "COMPLETED" && record.benchmarkInputFingerprintSha256 === undefined) return null;
+  if (!record.benchmarkEvidenceId?.trim()) throw new Error("closed-learning benchmark evidence identity is unavailable");
+  const stored = record.benchmarkInputFingerprintSha256;
+  if (stored !== undefined) {
+    if (!SHA64.test(stored)) throw new Error("closed-learning benchmark input fingerprint is invalid");
+    return stored;
+  }
+
+  const reconstructed = readCanonicalBenchmarkEvidence?.(market, record.periodStartAt, record.periodEndAt);
+  if (
+    reconstructed == null
+    || reconstructed.source !== "UPBIT_PUBLIC_TICKER"
+    || reconstructed.evidenceId !== record.benchmarkEvidenceId
+    || reconstructed.market.trim().toUpperCase() !== market
+    || reconstructed.startObservedAt < record.periodStartAt
+    || reconstructed.endObservedAt > record.periodEndAt
+    || reconstructed.startObservedAt >= reconstructed.endObservedAt
+    || reconstructed.benchmarkReturn !== record.benchmarkReturn
+    || !SHA64.test(reconstructed.inputFingerprintSha256)
+  ) {
+    throw new Error("closed-learning canonical benchmark provenance cannot be reconstructed");
+  }
+  return reconstructed.inputFingerprintSha256;
 }
 
 function stablePeriods(periods: readonly PersistedPaperPeriodEnvelope[]): readonly PersistedPaperPeriodEnvelope[] {
@@ -140,6 +174,8 @@ export class ClosedLearningEvidenceIdentitySource {
         periodStartAt: period.record.periodStartAt,
         periodEndAt: period.record.periodEndAt,
         realizedReturns: period.record.realizedReturns,
+        benchmarkEvidenceId: period.record.benchmarkEvidenceId ?? null,
+        benchmarkInputFingerprintSha256: benchmarkFingerprintFor(period, market, this.options.readCanonicalBenchmarkEvidence),
         benchmarkReturn: period.record.benchmarkReturn,
         turnoverCostRate: period.record.turnoverCostRate,
         costEvidenceFingerprintSha256: period.record.costEvidence.evidenceFingerprintSha256,
