@@ -1,10 +1,10 @@
 id: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
 title: "Close actionable coding-runner failure to bounded remediation transition"
-status: PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
+status: MERGED_INCREMENT_RESIDUAL_OPEN
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-branch: autopilot/p0-2595-bounded-remediation
+branch: autopilot/p0-2595-worker-wiring
 issue: 2595
 authority_impact: none
 safety:
@@ -19,32 +19,69 @@ scope:
     - "Distinct VALID_NO_ACTION, FAILED_TO_REMEDIATE, and FAILED_CLOSED decisions."
     - "Hard remediation retry budget capped at three attempts."
     - "Provider HTTP 5xx evidence can classify a concrete transient provider failure as bounded-retryable."
-    - "Declare the decision primitive in UNWIRED_CONTROL_PLANE_DEBT until the canonical worker consumes it."
+    - "Consume the bounded remediation decision in the existing canonical /coding/propose worker and GitHub Actions consumer, with explicit proposal-repair retry and persistent provider-capacity wait."
+    - "HTTP 429 maps to provider capacity and never spends code-remediation retry budget; configured provider cooldown is durable and suppresses calls until resume."
   exclude:
     - "Any merge, release, secret, production, LIVE, Risk PASS, order, accounting, or strategy-promotion authority."
-    - "Automatic retry wiring in this increment."
+    - "New queue, scheduler, coding runner, or worker admission surface."
 acceptance:
   - "Authority, production mutation, unknown, request-invalid, stale/mismatched evidence and unavailable capacity state fail closed."
   - "Future or repeated proposal reason prefixes do not become retryable without an explicit allowlist entry."
   - "Actionable known proposal/provider failures are retryable only inside the fixed budget."
   - "VALID_NO_ACTION requires an explicit successful abstention reason."
   - "Exact-head CI passes and independent review has no unresolved findings before Release consideration."
-  - "Production wiring is a later bounded increment and must remove the corresponding unwired-debt entry."
+  - "The worker and existing dispatch consumer use the decision primitive; no parallel recovery loop exists."
+  - "Provider 429/capacity waits without spending the deterministic code retry budget; persistent wait suppresses duplicate provider calls."
 verification:
   - "npx tsc -p tsconfig.json"
   - "node --test dist/apps/autopilot/src/codingRunnerRemediation.test.js"
+  - "node --test dist/apps/autopilot/src/worker.test.js"
+  - "node --test dist/apps/autopilot/src/codingRunner.test.js"
   - "node --test tests/autopilot-control-plane-wiring.test.js"
+  - "node tests/autopilot-dispatch-retry.test.js (36/38 passed; two git-temp-repository integration cases blocked by host EPERM on spawning git init)"
+  - "preflight component checks: check-runtime, portability, platform-independent-tests, android-release-contract PASS; strict YAML parser PASS for 392 AIPOS files"
 
-implementation_commit: 7f1f7fc7ee17fd25652fef21bbbfdbb10c9f05ee
-reviewed_head: 1d5fec754fca44b9ca9724975299319c91d80244
-review_status: FINDINGS_RECEIVED_AND_CORRECTED_IN_SUBSEQUENT_COMMITS
-next_permitted_action: "Run exact-head CI and independent review for the current PR head; resolve only findings verified fixed there."
-validation_status: PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
+successor_increment:
+  base_sha: 07f350dc8c4c5fbc2681991cbe61fbc3f6756a05
+  implementation_head: 47fc495c9784273b78019ff72d606aed2d79d956
+  pull_request: 2602
+  status: DRAFT_PR_EXACT_HEAD_CI_PENDING
+  first_broken_transition: "worker remediation decision -> existing #903 consumer bounded execution and provider wait"
+  validation_summary: "PR #2602 draft at code commit 47fc495c9784273b78019ff72d606aed2d79d956; exact-head CI is running. TypeScript and remediation, worker, coding-runner, and wiring tests pass. Dispatch suite: 36/38; two isolated temporary-git-repository cases could not spawn git init due host EPERM. preflight subchecks pass; full pnpm wrapper cannot create /root/.local under this sandbox."
+  changed_areas:
+    - "apps/autopilot/src/codingRunnerFailureClass.ts"
+    - "apps/autopilot/src/codingRunnerRemediation.ts"
+    - "apps/autopilot/src/codingRunner.ts"
+    - "apps/autopilot/src/worker.ts"
+    - "scripts/autopilot-dispatch-retry.js"
+    - "tests/autopilot-dispatch-retry.test.js"
+    - "tests/autopilot-consumer-failure-classification.test.js"
+  remaining:
+    - "Finish dispatch git subprocess integration validation in a permitted runner environment."
+    - "Run canonical preflight and exact-head CI on the published successor head."
+    - "Independent Audit and required Release authorization."
+    - "Durable completion receipt and real allowlisted failure canary through runtime verification."
+  next_permitted_action: "Resolve the two environment-blocked dispatch integration cases in canonical CI, then publish this single successor change set through the governed PR/Audit/Release chain."
+
+implementation_commit: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
+reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+review_status: "INDEPENDENT_REVIEW_PASS_ON_EXACT_HEAD; PR #2596 comment 6077782732 reviewed 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94"
+independent_review_comment_id: 6077782732
+independent_review_summary_comment_id: 6058378290
+independent_reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+audit_release_run_id: 37908729659
+audit_job_id: 113749521583
+release_job_id: 113749522793
+audited_pr_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+audited_base_sha: 2019d0245ae228ca61ce416ee0cd0950b368ec91
+next_permitted_action: "Continue #2595 under the existing #903 control plane: wire the decision primitive into the canonical worker and run focused deterministic validation; preserve Release/Audit authority and do not create a second scheduler or runner."
+validation_status: "MERGED; exact-head CI 37907989197 PASS; deterministic Audit run 37908729659 job 113749521583 PASS; canonical Release run 37908729659 job 113749522793 SUCCESS and merged as 21e632ace23bc2ee64778855ce49e0a083706c84; post-merge CI 37909190312 PASS; Cloudflare Deploy 37909190345 PASS; Runtime Proof 37909862299 PASS with exact source/deployment SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
 review_findings_resolved_in_increment:
   - "Preserve GitHub commit/workflow lookup HTTP status in typed failure evidence across /coding/execute, /coding/propose, and /coding/publish; preserve configured-engine 429/5xx result status through /coding/propose."
   - "Normalize colon-delimited details only for explicitly allowlisted SANDBOX failure codes."
   - "Treat configured coding-engine HTTP 429 as provider capacity; only 5xx is remediation-retryable."
 remaining:
-  - "Run exact-head CI and independent review after configured-engine status propagation and reviewed-head AIPOS handoff updates."
-  - "Obtain fresh independent review and resolve only findings verified fixed on the reviewed head."
-  - "Keep worker/control-plane wiring, durable completion receipt, and real canary as explicit follow-up under #2595."
+  - "Complete the remaining #2595 work in a successor increment: canonical #903 worker wiring, durable completion receipt, and one real allowlisted actionable-failure canary through CI, Independent Audit, governed Release/merge, and runtime evidence."
+  - "Runtime Proof scheduled ingress abstained because exact-main canonical CI was not found; the deployment identity itself was exact and verified."
+  - "Actual PAPER run 37909797419 was INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; it is not a remediation completion receipt."

@@ -2906,12 +2906,26 @@ current_issue_2589_closed_learning_failure_evidence:
   work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
   issue: 2589
   parent_issue: 1605
-  status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+  status: MERGED_INCREMENT_RUNTIME_EVIDENCE_PENDING
   authority_impact: none
   first_broken_transition: "closed PAPER Performance Evidence N -> closed-learning cycle/Feedback N"
   scope: "Persist bounded immutable deterministic failure receipts in the existing hash-chained cycle ledger after a prepared CYCLE/FINALIZE failure; restart-safe read-only health exposes latest failure separately from latest success; oversized, non-canonical, malformed, or tampered receipt replay fails closed."
-  validation: "The published increment is committed and workflow-validated by the delegated publish job: build, typecheck, validate:full, work-order index check, tests/*.test.js and isolated co-located tests pass."
-  remaining: "Exact-head CI, independent Audit and Release; then protected-main merge, exact-main PAPER deployment/runtime proof that durable failure evidence survives restart/recovery or a successful reproduced cycle is recorded, and replay proof that no duplicate failure or cycle record is produced."
+  validation: "PR #2597 and #2598 merged with exact-head workflow/release authorization; actual exact-main PAPER failure receipt and replay evidence remains unverified."
+  merged_increments: "PR #2597 -> cccaad7e0ad21fed89561b0c5342e229c2fe59454; PR #2598 -> 29f341a254ea71a19050c6815566382260def9fc."
+  remaining: "Actual exact-main PAPER failure-receipt/replay evidence remains pending; restart-safe unrecorded-cycle re-execution is tracked under WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_issue_2589_restart_safe_resume:
+  work_order: WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME
+  issue: 2589
+  parent_work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
+  status: LOCAL_VALIDATED_GOVERNED_GATES_PENDING
+  branch: fix/2589-restart-safe-cycle-resume
+  base_sha: 5bc350c8dae8e7b633a7d18944fc760998b7019f
+  implementation_head: e844d4369b4600432a20a1ae647178048caf1119
+  first_broken_transition: "durable realized-period close -> process restart -> unrecorded cycle resume"
+  evidence: "#2594 retries only cycles remembered in its in-memory awaitingCycle Map; after restart that marker is absent. Restart resume is guarded by the exact canonical account boundary and same KST day, with no open successor."
+  validation: "pnpm build and typecheck pass; focused scheduler/wiring regression passes 8/8 files; architecture check passes with zero findings; all AIPOS YAML parses. preflight/validate:full are blocked in this sandbox because validator spawnSync git returns EPERM."
+  remaining: "Exact-head CI, Independent Review/Audit, canonical Release and merge; then exact-main PAPER recovery and deterministic replay evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_failure_history:
   work_order: WO-RESEARCH-20261008-FAILURE-HISTORY
@@ -2927,10 +2941,13 @@ current_research_sma_cost_note:
   finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
 current_learning_resume_failed_cycle:
   work_order: WO-LEARNING-20261008-RESUME-FAILED-CYCLE
-  status: READY_FOR_REVIEW
+  status: MERGED_INCREMENT_LIMITATION_RECORDED
   branch: claude/cycle-failure-reproduction
+  pull_request: 2594
+  merge_commit: 893e264ffccf7c41b72670d7da88235727089b19
   authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
-  finding: "A period closed durably and its cycle threw was never retried (the next tick only reopened a continuation), so its learning was lost; the scheduler now resumes the latest unrecorded cycle in the stalled state, bounded to 5 ticks per period. The original production failure reason is unknown, so this is a confirmed hole matching the symptom, not a proven cause"
+  finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
+  limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
 current_learning_baseline_shadow:
   work_order: WO-LEARNING-20261008-BASELINE-SHADOW
   status: READY_FOR_REVIEW
@@ -2938,18 +2955,41 @@ current_learning_baseline_shadow:
   authority_impact: display-and-analysis-only-no-order-no-ledger-no-risk-input
   finding: "While the consecutive-loss halt censors the PAPER ledger, a shadow of the baseline rule on the same minute bars keeps producing hypothetical round trips with fees (counts and basis points on /health) so learning and the 3/4/5 limit comparison have uncensored outcomes; not PAPER evidence"
 
+
 current_autopilot_2595_bounded_remediation:
   work_order: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
   issue: 2595
   pull_request: 2596
   branch: autopilot/p0-2595-bounded-remediation
-  reviewed_head: 1d5fec754fca44b9ca9724975299319c91d80244
-  implementation_head: 7f1f7fc7ee17fd25652fef21bbbfdbb10c9f05ee
-  status: FINDINGS_ADDRESSED_PENDING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW
+  implementation_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+  status: MERGED_INCREMENT_POST_MERGE_RUNTIME_VERIFIED_RESIDUAL_OPEN
+  merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
   authority_impact: bounded-coding-runner-failure-classification-and-http-evidence-only
-  first_broken_transition: "verified GitHub lookup or sandbox/provider failure -> durable bounded remediation decision"
-  review_state: "Exact-head review 1d5fec754fca44b9ca9724975299319c91d80244 identified proposal-engine HTTP-status loss and exact-head handoff gaps; fixes are committed after that reviewed head. Review current PR head before acceptance."
-  validation: "Regression coverage now includes 429/5xx propagation through /coding/propose, 503 lookup status through /coding/propose and /coding/publish, /coding/execute status propagation, allowlisted sandbox suffix normalization, and configured-engine 429 capacity classification. Exact-head CI after these corrections and handoff refresh is pending."
-  remaining: "Run exact-head CI and fresh independent review for the current branch head; resolve only findings verified fixed on that head; then use governed Release/merge. Control-plane wiring, durable completion receipt, and real canary remain follow-up."
-  next_permitted_action: "Exact-head CI, then independent review; no Release/merge until verified findings are resolved."
+  first_broken_transition: "classified actionable coding-runner failure -> actual bounded remediation"
+  exact_head_ci: "GitHub Actions run 37907989197 PASS for exact head 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94"
+  independent_review: "Exact-head Codex review comment 6077782732 on PR #2596 reviewed 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94 and reported no major issues."
+  independent_review_comment_id: 6077782732
+  independent_review_summary_comment_id: 6058378290
+  independent_reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+  audit_release_run_id: 37908729659
+  audit_job_id: 113749521583
+  release_job_id: 113749522793
+  audited_pr_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+  audited_base_sha: 2019d0245ae228ca61ce416ee0cd0950b368ec91
+  canonical_merge_commit_sha: 21e632ace23bc2ee64778855ce49e0a083706c84
+  deterministic_audit: "Canonical audit workflow run 37908729659, job 113749521583, PASS bound to PR #2596 head 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94 and base 2019d0245ae228ca61ce416ee0cd0950b368ec91."
+  release_authorization_and_merge: "Canonical Release workflow run 37908729659, job 113749522793, SUCCESS; expected-head merge produced 21e632ace23bc2ee64778855ce49e0a083706c84."
+  post_merge_ci: "GitHub Actions run 37909190312 PASS on merge SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
+  deployment: "Cloudflare Deploy run 37909190345 PASS; deployed exact merge SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
+  runtime_proof: "Runtime Proof run 37909862299 PASS; exactHeadVerified=true and deploymentRevision=sourceSha=21e632ace23bc2ee64778855ce49e0a083706c84. Scheduled ingress ABSTAINED because exact-main canonical CI was not found."
+  paper_canary: "Actual PAPER run 37909797419 classified INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; no completion claim."
+  remaining: "Under #2595: wire the remediation decision into the existing #903 canonical worker, persist a durable completion receipt, then pass a real allowlisted actionable-failure canary through the governed chain."
+  successor_branch: autopilot/p0-2595-worker-wiring
+  successor_base_sha: 07f350dc8c4c5fbc2681991cbe61fbc3f6756a05
+  successor_implementation_head: 47fc495c9784273b78019ff72d606aed2d79d956
+  successor_pull_request: 2602
+  successor_status: DRAFT_PR_EXACT_HEAD_CI_PENDING
+  successor_first_broken_transition: "worker remediation decision -> existing #903 consumer bounded execution and provider wait"
+  successor_validation: "TypeScript; codingRunnerRemediation; worker; codingRunner; control-plane-wiring PASS. Dispatch suite 36/38; two temp git integration cases blocked by host EPERM on git init. preflight component checks and strict AIPOS YAML parsing PASS; pnpm wrapper blocked creating /root/.local."
+  next_permitted_action: "Validate temporary git integration cases on a runner that permits git subprocesses, then publish one successor PR for exact-head CI, Independent Audit, and governed Release; durable completion receipt and real canary remain open."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

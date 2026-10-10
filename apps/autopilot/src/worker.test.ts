@@ -244,14 +244,14 @@ describe("/coding/propose provider-capacity gating", () => {
 describe("configured coding-engine failure status evidence", () => {
   it("preserves HTTP 429 capacity and 5xx status through /coding/propose", async () => {
     const original = globalThis.fetch;
-    const env = {
-      ...baseEnv(memoryNamespace()),
-      NUSA_AI_CODING_ENDPOINT: "https://coding.invalid/generate",
-      NUSA_AI_CODING_TOKEN: "engine-token",
-    } as unknown as WorkerEnv;
 
     try {
       for (const httpStatus of [429, 503]) {
+        const env = {
+          ...baseEnv(memoryNamespace()),
+          NUSA_AI_CODING_ENDPOINT: "https://coding.invalid/generate",
+          NUSA_AI_CODING_TOKEN: "engine-token",
+        } as unknown as WorkerEnv;
         globalThis.fetch = (async (input: RequestInfo | URL) => {
           const url = String(input);
           if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: HEAD }), { status: 200 });
@@ -274,10 +274,81 @@ describe("configured coding-engine failure status evidence", () => {
 
         const response = await handleCodingProposal(proposalRequest(), env);
         assert.equal(response.status, 409);
-        const body = await response.json() as { error: string; httpStatus?: number };
-        assert.equal(body.error, "coding-engine-request-failed");
-        assert.equal(body.httpStatus, httpStatus);
+        const body = await response.json() as {
+          error: string;
+          httpStatus?: number;
+          provider?: string | null;
+          providerStopReason?: string | null;
+          nextRetryAt?: number | null;
+          remediationDecision?: { outcome: string; failureClass: string; recovery: string; retryable: boolean; attempt: number; maxAttempts: number };
+        };
+        if (httpStatus === 429) {
+          assert.equal(body.error, "WAITING_PROVIDER_CAPACITY");
+          assert.equal(body.provider, "configured-coding-engine");
+          assert.equal(body.providerStopReason, "PROVIDER_RATE_LIMITED");
+          assert.ok(Number.isSafeInteger(body.nextRetryAt));
+          assert.equal(body.remediationDecision, undefined);
+        } else {
+          assert.equal(body.error, "coding-engine-request-failed");
+          assert.equal(body.httpStatus, 503);
+          assert.deepEqual(body.remediationDecision, {
+            outcome: "FAILED_TO_REMEDIATE",
+            failureClass: "PROVIDER_FAILURE",
+            recovery: "RETRY_BOUNDED",
+            retryable: true,
+            attempt: 0,
+            maxAttempts: 3,
+          });
+        }
       }
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it("persists configured-provider 429 capacity and suppresses later coding calls", async () => {
+    const original = globalThis.fetch;
+    const coordinator = memoryNamespace();
+    const env = {
+      ...baseEnv(coordinator),
+      NUSA_AI_CODING_ENDPOINT: "https://coding.invalid/generate",
+      NUSA_AI_CODING_TOKEN: "engine-token",
+    } as unknown as WorkerEnv;
+    let codingCalls = 0;
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: HEAD }), { status: 200 });
+        if (url.includes("/actions/runs/")) return new Response(JSON.stringify({
+          id: request.workflowRunId,
+          head_sha: HEAD,
+          head_branch: "main",
+          repository: { full_name: request.repository },
+          event: "workflow_dispatch",
+          status: "completed",
+          conclusion: "success",
+        }), { status: 200 });
+        if (url === "https://coding.invalid/generate") {
+          codingCalls += 1;
+          return new Response(JSON.stringify({ error: "provider failure" }), { status: 429 });
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }) as typeof fetch;
+
+      const first = await handleCodingProposal(proposalRequest(), env);
+      const firstBody = await first.json() as { error: string; provider: string; providerStopReason: string; nextRetryAt: number };
+      const stored = await readProviderCapacityWait(coordinator, "configured-coding-engine");
+      assert.equal(firstBody.error, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(firstBody.provider, "configured-coding-engine");
+      assert.equal(stored?.provider, "configured-coding-engine");
+      assert.equal(stored?.nextRetryAt, firstBody.nextRetryAt);
+
+      const replay = await handleCodingProposal(proposalRequest(), env);
+      const replayBody = await replay.json() as { error: string; provider: string; nextRetryAt: number };
+      assert.equal(replayBody.error, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(replayBody.provider, "configured-coding-engine");
+      assert.equal(replayBody.nextRetryAt, firstBody.nextRetryAt);
+      assert.equal(codingCalls, 1);
     } finally {
       globalThis.fetch = original;
     }

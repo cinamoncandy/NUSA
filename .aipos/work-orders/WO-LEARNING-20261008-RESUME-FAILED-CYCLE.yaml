@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261008-RESUME-FAILED-CYCLE
 title: "Resume a closed period's learning cycle when it threw after the durable close"
-status: READY_FOR_REVIEW
+status: MERGED_INCREMENT_LIMITATION_RECORDED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -34,12 +34,16 @@ verification_commands:
   - "npx tsc -p tsconfig.json"
   - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js tests/closed-learning-governance-wiring.test.js tests/closed-learning-http-event-loop-regression.test.js tests/closed-learning-loop-status.test.js tests/integration-paper-lifecycle-production-root.test.js tests/paper-minute-bars.test.js tests/repository-truth.test.js tests/start-cloud-runtime-supervision.test.js"
 evidence:
+  canonical_merge:
+    pull_request: 2594
+    merge_commit: 893e264ffccf7c41b72670d7da88235727089b19
+    limitation: "The merged increment retries only a gap remembered by the current scheduler instance; a process restart loses that in-memory marker."
   local_validation:
     environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
     commands:
       - "npx tsc -p tsconfig.json -> clean"
       - "the scheduler test file (35 tests, 7 new) plus the cycle-complete predicate test and the seven closed-learning wiring tests above -> pass, 0 fail (exact counts in the PR body)"
-  remaining: "Exact-head CI, independent Audit and Release; a deploy restarts the runtime once."
+  remaining: "Restart-safe recovery is tracked by successor WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME; this merged increment is historical and must not be reopened."
 safety:
   paper_only: true
   liveAuthority: NONE

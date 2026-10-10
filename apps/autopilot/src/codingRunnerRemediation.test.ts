@@ -57,7 +57,10 @@ test("canonical proposal allowlist is admitted but repeated and future prefixes 
 test("unverified GitHub lookup retries only with transient HTTP evidence", () => {
   for (const reason of ["CODING_RUNNER_HEAD_SHA_UNVERIFIED", "CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED"]) {
     assert.equal(decideCodingRunnerNoAction(reason, 0, 2, 503).retryable, true, reason);
-    assert.equal(decideCodingRunnerNoAction(reason, 0, 2, 429).retryable, true, reason);
+    const rateLimited = decideCodingRunnerNoAction(reason, 0, 2, 429);
+    assert.equal(rateLimited.retryable, false, reason);
+    assert.equal(rateLimited.failureClass, "PROVIDER_CAPACITY", reason);
+    assert.equal(rateLimited.recovery, "WAIT_FOR_PROVIDER", reason);
     assert.equal(decideCodingRunnerNoAction(reason, 0, 2, 401).retryable, false, reason);
     assert.equal(decideCodingRunnerNoAction(reason, 0, 2, 404).retryable, false, reason);
     assert.equal(decideCodingRunnerNoAction(reason, 0, 2).retryable, false, reason);
