@@ -2,6 +2,7 @@ const { readdirSync, writeFileSync, rmSync, existsSync } = require("node:fs");
 const { join, relative } = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { resolveShardConfig, selectDeterministicShard } = require("./lib/deterministic-test-shard.js");
+const shardCostEvidence = require("./lib/deterministic-test-shard-costs.json");
 
 const testsDirectory = join(process.cwd(), "tests");
 const distDirectory = join(process.cwd(), "dist");
@@ -52,7 +53,7 @@ try {
   console.error(message);
   process.exit(1);
 }
-const files = selectDeterministicShard(allFiles, shard);
+const files = selectDeterministicShard(allFiles, shard, shardCostEvidence);
 if (files.length === 0) {
   const message = `EMPTY_TEST_SHARD ${shard.index + 1}/${shard.count} from ${allFiles.length} test files`;
   writeFileSync(diagnosticPath, message, "utf8");
