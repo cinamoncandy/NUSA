@@ -66,9 +66,9 @@ const verifiedFailureGithubFetch = async (url: string) => {
     workflow_id: 311000286,
     path: ".github/workflows/ci.yml",
     name: "CI",
-    event: "pull_request",
+    event: "push",
     head_sha: request.headSha,
-    head_branch: "feature/failing-ci",
+    head_branch: "main",
     status: "completed",
     conclusion: "failure",
     repository: { full_name: request.repository },
@@ -477,7 +477,7 @@ describe("coding runner", () => {
   describe("evolve discovery failure reason without a run id (gha:<workflow>:<sha>:<conclusion>)", () => {
     const fetchFor = (conclusion: string, name = "CI") => async (url: string) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
-      return response(200, { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name, event: "pull_request", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion, repository: { full_name: request.repository } });
+      return response(200, { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name, event: "push", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion, repository: { full_name: request.repository } });
     };
     const named = (suffix = "failure", sha = request.headSha, name = "ci") => ({ ...request, reason: `evolve:discovery:gha:${name}:${sha}:${suffix}:Canonical workflow CI concluded failure for ${sha}.` });
 
@@ -566,6 +566,8 @@ describe("coding runner", () => {
     for (const run of [
       { id: request.workflowRunId, workflow_id: 311000286, name: "CI", event: "push", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion: "failure", repository: { full_name: request.repository } },
       { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/other.yml", name: "CI", event: "push", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion: "failure", repository: { full_name: request.repository } },
+      { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI", event: "pull_request", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion: "failure", repository: { full_name: request.repository } },
+      { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI", event: "push", head_sha: request.headSha, head_branch: "feature/old-head", status: "completed", conclusion: "failure", repository: { full_name: request.repository } },
     ]) {
       await assert.rejects(
         () => verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) =>

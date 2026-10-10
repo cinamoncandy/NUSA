@@ -690,7 +690,7 @@ const FAILURE_CONCLUSIONS = new Set(["failure", "cancelled", "timed_out"]);
 const CODING_REMEDIATION_WORKFLOW_ALLOWLIST = new Map([
   [311000286, Object.freeze({ name: "CI", path: ".github/workflows/ci.yml" })],
 ]);
-const CODING_REMEDIATION_EVENTS = new Set(["push", "pull_request", "workflow_dispatch"]);
+const CODING_REMEDIATION_EVENTS = new Set(["push", "workflow_dispatch"]);
 const CODING_REMEDIATION_FAILURE_STEPS = new Set(["Typecheck", "Build", "Lint"]);
 
 function normalizeWorkflowLabel(value: string): string {
@@ -719,7 +719,7 @@ function assertCodingRemediationWorkflowIdentity(
   const allowlisted = CODING_REMEDIATION_WORKFLOW_ALLOWLIST.get(Number(run.workflow_id));
   if (!allowlisted) throw new Error(workflowFailureStopCode(run));
   if (run.path !== allowlisted.path || run.name !== allowlisted.name
-    || !CODING_REMEDIATION_EVENTS.has(run.event)) {
+    || !CODING_REMEDIATION_EVENTS.has(run.event) || run.head_branch !== "main") {
     throw new Error("WORKFLOW_IDENTITY_MISMATCH");
   }
   if (failureReason
