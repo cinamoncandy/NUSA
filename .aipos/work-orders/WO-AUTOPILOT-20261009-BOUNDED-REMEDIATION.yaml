@@ -43,10 +43,11 @@ verification:
 
 successor_increment:
   base_sha: 07f350dc8c4c5fbc2681991cbe61fbc3f6756a05
-  implementation_head: LOCAL_UNCOMMITTED
-  status: LOCAL_VALIDATED_PENDING_CANONICAL_PR
+  implementation_head: 47fc495c9784273b78019ff72d606aed2d79d956
+  pull_request: 2602
+  status: DRAFT_PR_EXACT_HEAD_CI_PENDING
   first_broken_transition: "worker remediation decision -> existing #903 consumer bounded execution and provider wait"
-  validation_summary: "TypeScript and remediation, worker, coding-runner, and wiring tests pass. Dispatch suite: 36/38; two isolated temporary-git-repository cases could not spawn git init due host EPERM. preflight subchecks pass; full pnpm wrapper cannot create /root/.local under this sandbox."
+  validation_summary: "PR #2602 draft at code commit 47fc495c9784273b78019ff72d606aed2d79d956; exact-head CI is running. TypeScript and remediation, worker, coding-runner, and wiring tests pass. Dispatch suite: 36/38; two isolated temporary-git-repository cases could not spawn git init due host EPERM. preflight subchecks pass; full pnpm wrapper cannot create /root/.local under this sandbox."
   changed_areas:
     - "apps/autopilot/src/codingRunnerFailureClass.ts"
     - "apps/autopilot/src/codingRunnerRemediation.ts"
