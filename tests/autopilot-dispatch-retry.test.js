@@ -533,8 +533,44 @@ test("worker remediation exhaustion is a failure, never successful NO_ACTION", a
     assert.equal(result.reason, "CODING_EDIT_ANCHOR_NOT_FOUND");
     assert.equal(result.summary.noAction, 0);
     assert.equal(result.summary.failedClosed, 1);
+    assert.equal(result.proposalRejected, 2, "terminal rejected proposal attempts remain in remediation metrics");
+    assert.equal(result.summary.proposalRejected, 2);
     assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "FAILED_CLOSED"]);
     assert.equal(proposalCalls, 2);
+  });
+});
+
+test("provider-capacity state lookup failure stays FAILED_CLOSED instead of becoming a rate-limit wait", async () => {
+  await withOidcEnvironment(async () => {
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) return response(409, {
+          status: "CODING_PROPOSAL_FAILED_CLOSED",
+          error: "PROVIDER_CAPACITY_STATE_UNAVAILABLE",
+          httpStatus: 409,
+          remediationDecision: {
+            outcome: "FAILED_CLOSED",
+            failureClass: "PROVIDER_CAPACITY",
+            recovery: "STOP",
+            retryable: false,
+            attempt: 0,
+            maxAttempts: 3,
+          },
+        });
+        throw new Error("publish must not run after failed-closed capacity-state lookup");
+      },
+      { initialProposalContext: () => null },
+    );
+
+    assert.equal(result.status, "FAILED_CLOSED");
+    assert.equal(result.reason, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
+    assert.equal(result.blockedRateLimit, false);
+    assert.equal(result.summary.failedClosed, 1);
+    assert.equal(result.rateLimitEvents?.length ?? 0, 0);
   });
 });
 

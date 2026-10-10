@@ -170,6 +170,7 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
         accepted: false,
         status: "CODING_PROPOSAL_FAILED_CLOSED",
         error: result.reason ?? "WAITING_PROVIDER_CAPACITY",
+        httpStatus: result.httpStatus ?? null,
         provider: result.provider ?? null,
         providerStopReason: result.stopReason ?? null,
         nextRetryAt: result.nextRetryAt ?? null,
