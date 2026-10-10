@@ -363,7 +363,13 @@ test("normalizes a non-2xx worker rate-limit stop into waiting without proposal 
         if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
         if (value.endsWith("/coding/propose")) {
           proposalCalls += 1;
-          return response(409, { status: "CODING_PROPOSAL_FAILED_CLOSED", error: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" });
+          return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "WAITING_PROVIDER_CAPACITY",
+            provider: "workers-ai",
+            providerStopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+            nextRetryAt: 90_001_000,
+          });
         }
         if (value.endsWith("/coding/publish")) {
           publishCalls += 1;
@@ -386,9 +392,9 @@ test("normalizes a non-2xx worker rate-limit stop into waiting without proposal 
     assert.equal(result.summary.failedClosed, 0);
     assert.equal(result.provider, "workers-ai");
     assert.equal(result.lastRateLimitAt, 1000);
-    assert.equal(result.nextRetryAt, 2_000);
-    assert.equal(result.retrySource, "bounded-exponential-backoff-jitter");
-    assert.equal(result.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+    assert.equal(result.nextRetryAt, 90_001_000);
+    assert.equal(result.retrySource, "provider-nextRetryAt");
+    assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
     assert.equal(proposalCalls, 1);
     assert.equal(publishCalls, 0);
   });
@@ -426,6 +432,133 @@ test("normalizes a non-2xx shared provider-capacity stop without failing the con
     assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
     // The shared wait's absolute resume time (~100s out) is reported, not the 60s local-retry cap.
     assert.equal(result.rateLimitEvents?.[0]?.nextRetryAt ?? result.nextRetryAt, 1_700_000_100_000);
+    assert.equal(proposalCalls, 1);
+  });
+});
+
+test("consumes the Worker's remediation verdict and regenerates a rejected proposal on the same identity", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let publishCalls = 0;
+    const proposalBodies = [];
+    const remediationDecision = {
+      outcome: "FAILED_TO_REMEDIATE",
+      failureClass: "PROPOSAL_REJECTED",
+      recovery: "REGENERATE_PROPOSAL",
+      retryable: true,
+      attempt: 0,
+      maxAttempts: 3,
+    };
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url, init = {}) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          proposalBodies.push(JSON.parse(init.body));
+          if (proposalCalls === 1) return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "CODING_EDIT_ANCHOR_NOT_FOUND",
+            remediationDecision,
+          });
+          return response(200, { status: "PROPOSAL_READY", patch: "repaired-patch" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          publishCalls += 1;
+          return response(200, {
+            status: "EXECUTION_ACCEPTED",
+            proposalValidated: true,
+            publisher: "github-validated-patch",
+            branch: "autopilot/remediation-test",
+            commitSha: "d".repeat(40),
+            pullRequestNumber: 79,
+            pullRequestUrl: "https://github.com/cinamoncandy/NUSA/pull/79",
+          });
+        }
+        throw new Error("unexpected URL " + value);
+      },
+      {
+        initialProposalContext: () => null,
+        validatePatch(_value, patch) {
+          assert.equal(patch, "repaired-patch");
+          return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
+        },
+      },
+    );
+    assert.equal(result.status, "DISPATCHED");
+    assert.equal(result.codeChanged, true);
+    assert.equal(result.proposalAttempts, 2);
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "DISPATCHED"]);
+    assert.equal(proposalCalls, 2);
+    assert.equal(publishCalls, 1);
+    assert.equal(proposalBodies[0].executionId, request.executionId);
+    assert.equal(proposalBodies[1].executionId, request.executionId);
+    assert.equal(proposalBodies[1].dedupeKey, request.dedupeKey);
+    assert.equal(proposalBodies[1].headSha, request.headSha);
+    assert.match(proposalBodies[1].proposalFeedback, /CODING_EDIT_ANCHOR_NOT_FOUND/);
+  });
+});
+
+test("worker remediation exhaustion is a failure, never successful NO_ACTION", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "CODING_EDIT_ANCHOR_NOT_FOUND",
+            remediationDecision: {
+              outcome: "FAILED_TO_REMEDIATE",
+              failureClass: "PROPOSAL_REJECTED",
+              recovery: "REGENERATE_PROPOSAL",
+              retryable: true,
+              attempt: 0,
+              maxAttempts: 3,
+            },
+          });
+        }
+        throw new Error("publish must not run after failed remediation");
+      },
+      { initialProposalContext: () => null, maxProposalAttempts: 2 },
+    );
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
+    assert.equal(result.reason, "CODING_EDIT_ANCHOR_NOT_FOUND");
+    assert.equal(result.summary.noAction, 0);
+    assert.equal(result.summary.failedClosed, 1);
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "FAILED_CLOSED"]);
+    assert.equal(proposalCalls, 2);
+  });
+});
+
+test("malformed worker remediation verdict fails closed without retry", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    await assert.rejects(
+      () => executeGithubActionsRunner(
+        request,
+        "https://runner.example.test/coding/execute",
+        async (url) => {
+          const value = String(url);
+          if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+          proposalCalls += 1;
+          return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "CODING_EDIT_ANCHOR_NOT_FOUND",
+            remediationDecision: { outcome: "FAILED_TO_REMEDIATE", retryable: true, maxAttempts: 99 },
+          });
+        },
+        { initialProposalContext: () => null },
+      ),
+      /CODING_REMEDIATION_DECISION_INVALID/,
+    );
     assert.equal(proposalCalls, 1);
   });
 });
@@ -552,7 +685,7 @@ test("still bounds a generic transient rate limit's reported resume time to the 
   assert.deepEqual(hint, { delayMs: MAX_RETRY_DELAY_MS, source: "provider-nextRetryAt" });
 });
 
-test("retries a temporary provider rate limit using provider retry metadata", async () => {
+test("stops on provider capacity and preserves provider retry metadata", async () => {
   await withOidcEnvironment(async () => {
     const waits = [];
     let proposalCalls = 0;
@@ -565,8 +698,13 @@ test("retries a temporary provider rate limit using provider retry metadata", as
         if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
         if (value.endsWith("/coding/propose")) {
           proposalCalls += 1;
-          if (proposalCalls === 1) return response(429, { error: "WORKERS_AI_RATE_LIMITED", retryAfterMs: 25 });
-          return response(200, { status: "PROPOSAL_READY", patch: "valid-patch" });
+          return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "WAITING_PROVIDER_CAPACITY",
+            provider: "configured-coding-engine",
+            providerStopReason: "PROVIDER_RATE_LIMITED",
+            retryAfterMs: 25,
+          });
         }
         if (value.endsWith("/coding/publish")) {
           publishCalls += 1;
@@ -581,13 +719,14 @@ test("retries a temporary provider rate limit using provider retry metadata", as
         jitter: () => 0.5,
       },
     );
-    assert.equal(result.status, "DISPATCHED");
-    assert.deepEqual(waits, [25]);
-    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "DISPATCHED"]);
-    assert.equal(result.proposalAttempts, 2);
-    assert.equal(result.codeChanged, true);
-    assert.equal(proposalCalls, 2);
-    assert.equal(publishCalls, 1);
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.deepEqual(waits, []);
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["NO_ACTION"]);
+    assert.equal(result.proposalAttempts, 1);
+    assert.equal(result.codeChanged, false);
+    assert.equal(proposalCalls, 1);
+    assert.equal(publishCalls, 0);
+    assert.equal(result.nextRetryAt, 1_025);
   });
 });
 
@@ -721,7 +860,7 @@ test("hunk-count normalization does not fuzz or accept mismatched source context
   }
 });
 
-test("classifies only bounded proposal validation failures as no-action", () => {
+test("classifies only allowlisted proposal validation failures for bounded remediation", () => {
   assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID"), "CODING_PROPOSAL_JSON_INVALID");
   assert.equal(proposalFailureCode("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: malformed diff"), "SANDBOX_PATCH_APPLY_CHECK_FAILED");
   assert.equal(
@@ -899,13 +1038,13 @@ test("stops after one correction repeats the same deterministic apply-check fail
       },
     );
 
-    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
     assert.equal(result.reason, "SANDBOX_PATCH_APPLY_CHECK_FAILED");
     assert.equal(result.proposalAttempts, 2);
     assert.equal(result.proposalRetries, 1);
     assert.equal(result.codeChanged, false);
     assert.equal(proposalCalls, 2);
-    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "NO_ACTION"]);
+    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "FAILED_CLOSED"]);
   });
 });
 
@@ -931,12 +1070,12 @@ test("stops on a repeated deterministic proposal validation failure before anoth
       },
     );
 
-    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
     assert.equal(result.reason, "CODING_PROPOSAL_JSON_INVALID");
     assert.equal(result.proposalAttempts, 2);
     assert.equal(result.proposalRetries, 1);
     assert.equal(proposalCalls, 2);
-    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "NO_ACTION"]);
+    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "FAILED_CLOSED"]);
   });
 });
 
@@ -964,7 +1103,7 @@ test("terminates when the AI repeats the same rejected patch", async () => {
       },
     );
 
-    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
     assert.equal(result.reason, "CODING_PROPOSAL_REPEATED");
     assert.equal(result.proposalAttempts, 2);
     assert.equal(proposalCalls, 2);

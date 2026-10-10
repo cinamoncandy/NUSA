@@ -17,6 +17,7 @@ import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
 import { verifyGithubActionsOidcToken, verifyGithubReleaseControlOidcToken } from "./githubActionsOidc";
 import { AUDIT_PROVIDER, executeIndependentAudit, executeProviderGatedAudit, validateAuditRunnerRequest } from "./auditRunner";
 import { classifyAiBudgetState } from "./aiBudgetState";
+import { decideCodingRunnerNoAction } from "./codingRunnerRemediation";
 
 export { ExecutionCoordinator };
 
@@ -140,17 +141,17 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
       // budget as independent Audit; without this, a proposal request never saw a provider stop
       // recorded by the other entry points, and never recorded its own, so the shared budget kept
       // taking real calls from whichever entry point a distinct task happened to arrive through.
-      ...(coordinator ? { providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null } : {}),
+      ...(coordinator ? { providerWaitUntil: async (provider: string) => (await readProviderCapacityWait(coordinator, provider))?.nextRetryAt ?? null } : {}),
     });
     if (result.status === "BLOCKED_RATE_LIMIT") {
-      if (coordinator && result.provider === "workers-ai" && result.stopReason && result.stopReason !== "WAITING_PROVIDER_CAPACITY" && Number.isSafeInteger(result.nextRetryAt)) {
+      if (coordinator && result.provider && result.stopReason && result.stopReason !== "WAITING_PROVIDER_CAPACITY" && Number.isSafeInteger(result.nextRetryAt)) {
         const stoppedAt = Date.now();
         try {
           await recordProviderCapacityWait(coordinator, {
             schemaVersion: 1,
             taskId: `proposal:${runnerRequest.dedupeKey}`,
             executionId: runnerRequest.executionId,
-            provider: "workers-ai",
+            provider: result.provider,
             headSha: runnerRequest.headSha,
             stopReason: result.stopReason,
             stoppedAt,
@@ -169,6 +170,7 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
         accepted: false,
         status: "CODING_PROPOSAL_FAILED_CLOSED",
         error: result.reason ?? "WAITING_PROVIDER_CAPACITY",
+        provider: result.provider ?? null,
         providerStopReason: result.stopReason ?? null,
         nextRetryAt: result.nextRetryAt ?? null,
         liveAuthority: "NONE",
@@ -209,12 +211,17 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
       aiAuthority: "ZERO_AUTHORITY",
     });
   } catch (error) {
+    const reason = error instanceof Error ? error.message : "CODING_PROPOSAL_FAILED";
+    const decisionReason = reason === "NO_ACTION_WARRANTED" ? "CODING_RUNNER_NO_ACTION_EVIDENCE_MISSING" : reason;
+    const httpStatus = error instanceof CodingRunnerHttpEvidenceError ? error.httpStatus : null;
+    const remediationDecision = decideCodingRunnerNoAction(decisionReason, 0, 3, httpStatus ?? undefined);
     return json({
       accepted: false,
       status: "CODING_PROPOSAL_FAILED_CLOSED",
-      error: error instanceof Error ? error.message : "CODING_PROPOSAL_FAILED",
+      error: reason,
       failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
-      httpStatus: error instanceof CodingRunnerHttpEvidenceError ? error.httpStatus : null,
+      httpStatus,
+      remediationDecision,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",

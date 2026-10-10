@@ -56,7 +56,7 @@ const RETRYABLE_PROPOSAL_FAILURES = new Set([
 ]);
 
 function transientHttpStatus(httpStatus?: number): boolean {
-  return httpStatus === 429 || (Number.isSafeInteger(httpStatus) && httpStatus! >= 500 && httpStatus! <= 599);
+  return Number.isSafeInteger(httpStatus) && httpStatus! >= 500 && httpStatus! <= 599;
 }
 
 function transientProviderFailureHttpStatus(httpStatus?: number): boolean {
@@ -76,6 +76,9 @@ export function classifyCodingRunnerFailure(reason: unknown, httpStatus?: number
   if (/AUTHORITY|PRODUCTION_MUTATION/.test(code)) return make("AUTHORITY_VIOLATION", "STOP", false);
   if (code === "PROVIDER_CAPACITY_STATE_UNAVAILABLE") return make("PROVIDER_CAPACITY", "STOP", false);
   if (CAPACITY.has(code)) return make("PROVIDER_CAPACITY", "WAIT_FOR_PROVIDER", false);
+  // HTTP 429 is provider backpressure for every coding endpoint. It must never spend the
+  // repository-remediation retry budget, including when the request was a GitHub evidence lookup.
+  if (httpStatus === 429) return make("PROVIDER_CAPACITY", "WAIT_FOR_PROVIDER", false);
   if (code === "CODING_RUNNER_WORKFLOW_NOT_COMPLETED") return make("EVIDENCE_UNVERIFIED", "RETRY_BOUNDED", true);
   if (UNVERIFIED_GITHUB_LOOKUP.has(code)) {
     return transientHttpStatus(httpStatus)

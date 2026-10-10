@@ -249,7 +249,7 @@ export async function handleCodingExecute(
     try {
       const coordinator = env.NUSA_EXECUTION_COORDINATOR;
       result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher, {
-        providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null,
+        providerWaitUntil: async (provider: string) => (await readProviderCapacityWait(coordinator, provider))?.nextRetryAt ?? null,
       });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : "CODING_RUNNER_EXECUTION_FAILED";
