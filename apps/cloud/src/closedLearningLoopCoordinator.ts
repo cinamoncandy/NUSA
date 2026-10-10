@@ -138,6 +138,14 @@ function validateDeployment(input: ClosedLearningPaperDeploymentReceipt, decisio
   return Object.freeze({ ...input, deploymentId: required(input.deploymentId, "deploymentId"), candidateId: decision.candidateId, candidateVersion: decision.candidateVersion });
 }
 
+/**
+ * A recorded cycle is complete unless it is a QUALIFIED_FOR_LEAGUE decision whose PAPER deployment receipt is missing: the
+ * coordinator resumes exactly that record when it is run again (deployment threw, or Governance approval is still pending).
+ */
+export function isCompleteClosedLearningCycle(record: Pick<ClosedLearningCycleRecord, "decision" | "paperDeployment"> | undefined): boolean {
+  return record != null && (record.decision.outcome !== "QUALIFIED_FOR_LEAGUE" || record.paperDeployment != null);
+}
+
 export function closedLearningCycleId(input: ClosedLearningEvidenceIdentity): string {
   const identity = normalizeIdentity(input);
   return `closed-learning:${sha256(canonical(identity))}`;

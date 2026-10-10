@@ -1,0 +1,36 @@
+id: WO-STRATEGY-20261008-BASELINE-CODE-IDENTITY
+title: "Owner baseline strategy identity must not change on every deploy"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/baseline-code-identity
+authority_impact: strategy-identity-in-binding-fingerprint
+scope_note: "The strategy spec's codeSha was the deployed commit, so every deploy changed bindingFingerprintSha256 and left the open learning period CANDIDATE_BINDING_MIXED. Full persistence-evidence rigor applies because the fingerprint is stored on fills. Owner chose this root fix in chat ('2', 2026-10-08)."
+objective: "Derive codeSha from a fixed implementation version so deploys keep the same binding; the SMA 5/20 behaviour itself is unchanged."
+first_broken_transition: "deploy -> new codeSha -> new bindingFingerprintSha256 -> mixed period -> reconciler CANDIDATE_BINDING_MIXED -> loop retired the period"
+scope:
+  include:
+    - "OWNER_BASELINE_IMPLEMENTATION_VERSION and OWNER_BASELINE_CODE_IDENTITY (sha256 of the version, 40 hex); ownerBaselineStrategySpec uses it as codeSha; the source commit is still required fail-closed."
+    - "Tests: fingerprint equal across commits, codeSha constant, invalid commit throws, golden BUY/SELL decision that fails if SMA behaviour changes without a version bump."
+  exclude:
+    - "Reconciler mixed-binding validation (not weakened), Risk threshold 3, capital, limits, live authority, generic bindPaperCandidateForExecution."
+known_effects:
+  - "The first deploy changes the baseline fingerprint once (commit-derived -> constant); the then-open period is retired as mixed once more. Later deploys do not mix."
+  - "paperPerformanceFromLedger records for baseline fills carry the implementation identity instead of the deploy commit."
+  - "Ledger fills, fillCount and accounting are untouched."
+acceptance:
+  - "Bindings for different commits have identical fingerprints; codeSha is the constant."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/ownerBaselinePaperStrategy.test.js dist/apps/cloud/src/ownerBaselinePaperPeriod.test.js dist/apps/cloud/src/closedLearningRolloverScheduler.test.js dist/apps/cloud/src/closedLearningInitialPaperBootstrap.test.js"
+evidence:
+  local_validation: "see PR body (Node 22 sandbox; validate:full left to CI)."
+  remaining: "Exact-head CI, independent Audit and Release; deploy once, timed relative to the 15:00 UTC rollover."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

@@ -129,3 +129,50 @@ test("the setting is on by default, and anything but ENABLED turns it off", () =
   assert.equal(readResearchExperimentSettings({ ...base, NUSA_RESEARCH_BACKFILL: "enabled" }).settings.backfill, false, "a typo fails closed");
   assert.equal(readResearchExperimentSettings({ NUSA_RESEARCH_MARKETS: "KRW-XRP" }).status, "DISABLED", "research off means no backfill");
 });
+
+const { fillRecentGaps } = require("../dist/apps/cloud/src/researchCandleBackfill.js");
+const stored = (closeMs, price = 10) => ({ closeTimeMs: closeMs, open: price, high: price + 1, low: price - 1, close: price });
+
+test("gap fill writes only the minutes missing inside the stored history and never touches stored candles", async () => {
+  const store = newStore();
+  const first = ANCHOR - 600 * M;
+  const live = [];
+  for (let close = first; close <= ANCHOR; close += M) if (!(close > ANCHOR - 400 * M && close <= ANCHOR - 380 * M) && close !== ANCHOR - 10 * M) live.push(stored(close, 5));
+  store.append(MARKET, M, live);
+  const before = store.read(MARKET, M, first, ANCHOR).find((c) => c.closeTimeMs === ANCHOR - 100 * M);
+  const ex = exchange(ANCHOR - 24 * 3_600_000);
+  const result = await fillRecentGaps({ market: MARKET, windowMs: 600 * M, nowMs: NOW, store, fetchPage: ex.fetchPage, sleep: async () => undefined });
+  assert.equal(result.missing, 21);
+  assert.equal(result.recorded, 21);
+  assert.equal(result.status, "FILLED");
+  assert.equal(store.count(MARKET, M), 601, "every minute in the window now exists");
+  assert.deepEqual(store.read(MARKET, M, first, ANCHOR).find((c) => c.closeTimeMs === ANCHOR - 100 * M), before, "stored candles are unchanged");
+  assert.equal(store.read(MARKET, M, ANCHOR - 390 * M, ANCHOR - 390 * M)[0].close, 1000.5 + ((ANCHOR - 391 * M) / M % 7), "filled from the exchange candle that started one minute earlier");
+});
+
+test("gap fill does nothing without gaps and leaves exchange-missing minutes missing", async () => {
+  const store = newStore();
+  const all = [];
+  for (let close = ANCHOR - 60 * M; close <= ANCHOR; close += M) all.push(stored(close));
+  store.append(MARKET, M, all);
+  let calls = 0;
+  const none = await fillRecentGaps({ market: MARKET, windowMs: 60 * M, nowMs: NOW, store, fetchPage: async () => { calls += 1; return []; }, sleep: async () => undefined });
+  assert.equal(none.status, "NO_GAPS");
+  assert.equal(calls, 0);
+
+  const sparse = newStore();
+  sparse.append(MARKET, M, [stored(ANCHOR - 30 * M), stored(ANCHOR)]);
+  const quiet = await fillRecentGaps({ market: MARKET, windowMs: 30 * M, nowMs: NOW, store: sparse, fetchPage: async () => [], sleep: async () => undefined });
+  assert.equal(quiet.status, "PARTIAL");
+  assert.equal(quiet.recorded, 0);
+  assert.equal(sparse.count(MARKET, M), 2, "nothing is invented when the exchange has no candle either");
+});
+
+test("gap fill stops on a rate limit without retrying", async () => {
+  const store = newStore();
+  store.append(MARKET, M, [stored(ANCHOR - 5 * M), stored(ANCHOR)]);
+  let calls = 0;
+  const result = await fillRecentGaps({ market: MARKET, windowMs: 10 * M, nowMs: NOW, store, fetchPage: async () => { calls += 1; throw new BackfillRateLimitedError(); }, sleep: async () => undefined });
+  assert.equal(result.status, "RATE_LIMITED");
+  assert.equal(calls, 1);
+});

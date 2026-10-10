@@ -114,6 +114,14 @@ test("a stale ticker in one market cannot erase fresh accepted evidence from ano
     assert.ok(afterStale.dashboard.decisions.some((decision) => decision.symbol === "KRW-BTC"));
     assert.equal(afterStale.dashboard.decisions.some((decision) => decision.symbol === "NO_MARKET_DATA"), false);
     assert.equal(afterStale.orders.length, 0, "unbound generic CIO decisions remain advisory");
+
+    onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100_000_100, trade_timestamp: Date.now() - 500, signed_change_rate: 0.01, acc_trade_volume: 2, acc_trade_price_24h: 1_000_000_000 });
+    const otherMarketFresh = await loadPaperOperations(port, token);
+    assert.equal(otherMarketFresh.operations.heartbeat.lastError, "PUBLIC_MARKET_EVENT_REJECTED:FEED_STALE", "a different market recovering does not clear DOGE's rejection");
+
+    onTicker({ type: "ticker", code: "KRW-DOGE", trade_price: 124, trade_timestamp: Date.now() - 500, signed_change_rate: -0.01, acc_trade_volume: 2, acc_trade_price_24h: 1_000_000_000 });
+    const recovered = await loadPaperOperations(port, token);
+    assert.equal(recovered.operations.heartbeat.lastError, null, "the rejected market's accepted tick clears its rejection diagnostic");
   } finally {
     if (handle) await handle.stop();
     rmSync(directory, { recursive: true, force: true });

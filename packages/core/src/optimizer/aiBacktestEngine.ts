@@ -132,6 +132,13 @@ function entrySignal(strategy: GeneratedStrategy, candles: readonly BacktestCand
   const rule = strategy.dsl.entry;
   if (rule.type === "PRICE_THRESHOLD") return candles[index]!.close > rule.price;
   if (rule.type === "RSI_THRESHOLD") { const current = rsi(closes, index, rule.period); return current != null && current < rule.threshold; }
+  if (rule.type === "DONCHIAN_BREAKOUT") {
+    // Breakout: the close is above the highest HIGH of the previous `period` bars (the current bar is excluded, so no look-ahead).
+    if (index < rule.period) return false;
+    let highest = -Infinity;
+    for (let back = index - rule.period; back < index; back += 1) highest = Math.max(highest, candles[back]!.high);
+    return candles[index]!.close > highest;
+  }
   const currentFast = simpleAverage(closes, index, rule.fastPeriod); const currentSlow = simpleAverage(closes, index, rule.slowPeriod);
   const previousFast = simpleAverage(closes, index - 1, rule.fastPeriod); const previousSlow = simpleAverage(closes, index - 1, rule.slowPeriod);
   if (currentFast == null || currentSlow == null || previousFast == null || previousSlow == null) return false;

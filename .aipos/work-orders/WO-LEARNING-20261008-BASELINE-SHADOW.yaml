@@ -1,0 +1,44 @@
+id: WO-LEARNING-20261008-BASELINE-SHADOW
+title: "Uncensored shadow of the baseline rule: hypothetical round trips whether or not Risk allowed an order"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/risk-blocked-shadow
+authority_impact: display-and-analysis-only-no-order-no-ledger-no-risk-input
+owner_approval: "2026-10-08 in chat ('다 해' on the list of learning-capability tasks; shadow was recommended item 1)"
+scope_note: "Pure observer on the completed minute bars the strategy already reads. It places no order, writes no PAPER ledger, creates no fill and feeds no Risk, Governance or Research decision. Its totals are NOT PAPER evidence. Persistence is one small best-effort file of totals beside the Cloud state."
+objective: "While the consecutive-loss halt blocks every BUY the PAPER ledger is censored and learning has no data. The shadow keeps producing the round trips the baseline rule would have made, with fees, so loss decomposition and the 3/4/5 limit comparison (issue 2575 item 5) can use uncensored outcomes."
+scope:
+  include:
+    - "paperBaselineShadow.ts: single hypothetical position per market, enter on BUY when flat and exit on SELL (the baseline's own rule via evaluatePaperCandidateStrategy), 0.05% fee per side, no slippage; totals in whole basis points (gross gain, gross loss, fee drag) and counts; idempotent per bar; never throws."
+    - "paperBaselineShadowRecord.ts: atomic best-effort file of totals and the last processed completed minute per market (bars are deduplicated by minute, not by closing-tick time); the write reports success so a failure is retried."
+    - "closedLearningProductionRuntime.ts: the shadow observes the same completed minute bars the strategy reads, publishes totals to the loop status, persists on change."
+    - "closedLearningLoopStatus.ts and server.ts: six non-negative integer evidence keys (shadowSince, shadowTrades, shadowWins, shadowGrossGainBp, shadowGrossLossBp, shadowFeeBp); no amount or price."
+  exclude:
+    - "Any order, fill, ledger write, Risk, threshold, capital or Governance input; promotion of any shadow figure; persisting the open hypothetical position; slippage; the PAPER executor's depth model."
+limitations:
+  - "Hypothetical and optimistic: fills at the bar close with fee only (no spread, slippage, depth or latency). Not PAPER evidence."
+  - "A restart drops the open hypothetical position; the shadow re-enters on the next BUY bar, so the first round trip after a restart can have a different entry than the uninterrupted run."
+  - "It follows the baseline rule only (SMA 5/20 on minute closes), not challenger bindings."
+  - "A fraction of ticks can be skipped when the strategy is not evaluated; the shadow only sees the bars the strategy reads."
+acceptance:
+  - "On the frozen public candles the shadow reproduces the offline replay trade counts (XRP 133, ETH 149, SOL 141, DOGE 260; BTC 132 vs 133)."
+  - "Idempotent per completed minute, restart-safe totals; relationally inconsistent persisted state is rejected; a win is any positive after-fee return decided before rounding; /health publishes only the six integer keys."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/paperBaselineShadow.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js"
+evidence:
+  local_validation:
+    environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
+    commands:
+      - "npx tsc -p tsconfig.json -> clean"
+      - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/paperBaselineShadow.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js tests/closed-learning-governance-wiring.test.js tests/closed-learning-http-event-loop-regression.test.js tests/integration-paper-lifecycle-production-root.test.js tests/start-cloud-runtime-supervision.test.js tests/repository-truth.test.js -> 67 pass, 0 fail (before the review fixes); the same set plus tests/paper-minute-bars.test.js after them -> see the PR body"
+  remaining: "Exact-head CI, independent Audit and Release; a deploy restarts the runtime once."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

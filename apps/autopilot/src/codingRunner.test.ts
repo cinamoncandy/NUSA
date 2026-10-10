@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { buildDeterministicCodingPatch, CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
+import { classifyCodingRunnerFailure } from "./codingRunnerFailureClass";
 
 const request = {
   kind: "REPOSITORY_AUTOPILOT" as const,
@@ -32,6 +33,10 @@ const verifiedGithubFetch = async (url: string) => {
   if (url.includes("/commits/")) return response(200, { sha: request.headSha });
   return response(200, {
     id: request.workflowRunId,
+    workflow_id: 311000286,
+    path: ".github/workflows/ci.yml",
+    name: "CI",
+    event: "pull_request",
     head_sha: request.headSha,
     head_branch: "main",
     status: "completed",
@@ -42,6 +47,7 @@ const verifiedGithubFetch = async (url: string) => {
 
 const verifiedFailureGithubFetch = async (url: string) => {
   if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+  if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
   if (url.includes("/jobs?")) {
     return response(200, {
       total_count: 1,
@@ -51,18 +57,19 @@ const verifiedFailureGithubFetch = async (url: string) => {
         conclusion: "failure",
         steps: [
           { name: "Checkout", conclusion: "success" },
-          { name: "Preflight", conclusion: "failure" },
-          { name: ["gh", "p_", "12345678901234567890"].join(""), conclusion: "failure" },
+          { name: "Typecheck", conclusion: "failure" },
         ],
       }],
     });
   }
   return response(200, {
     id: request.workflowRunId,
+    workflow_id: 311000286,
+    path: ".github/workflows/ci.yml",
     name: "CI",
-    event: "pull_request",
+    event: "push",
     head_sha: request.headSha,
-    head_branch: "feature/failing-ci",
+    head_branch: "main",
     status: "completed",
     conclusion: "failure",
     repository: { full_name: request.repository },
@@ -185,6 +192,30 @@ describe("coding runner", () => {
     assert.equal(result.reason, "CODING_EDIT_PATH_FORBIDDEN");
   });
 
+  it("preserves the HTTP status for non-200 GitHub commit and workflow lookups", async () => {
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(request, undefined, async () => response(503, {})),
+      (error: unknown) => {
+        assert.equal((error as Error).message, "CODING_RUNNER_HEAD_SHA_UNVERIFIED");
+        assert.equal((error as { httpStatus?: number }).httpStatus, 503);
+        return true;
+      },
+    );
+
+    let call = 0;
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(request, undefined, async () => {
+        call += 1;
+        return call === 1 ? response(200, { sha: request.headSha }) : response(429, {});
+      }),
+      (error: unknown) => {
+        assert.equal((error as Error).message, "CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED");
+        assert.equal((error as { httpStatus?: number }).httpStatus, 429);
+        return true;
+      },
+    );
+  });
+
   it("accepts only the fail-closed repository contract with lifecycle identity", () => {
     assert.deepEqual(validateCodingRunnerRequest(request), request);
   });
@@ -284,6 +315,10 @@ describe("coding runner", () => {
         if (url.includes("/commits/")) return response(200, { sha: request.headSha });
         if (url.includes("/actions/runs/")) return response(200, {
           id: request.workflowRunId,
+          workflow_id: 311000286,
+          path: ".github/workflows/ci.yml",
+          name: "CI",
+          event: "pull_request",
           head_sha: request.headSha,
           head_branch: "main",
           status: "completed",
@@ -425,8 +460,13 @@ describe("coding runner", () => {
     const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
     await verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
       return response(200, {
         id: request.workflowRunId,
+        workflow_id: 311000286,
+        path: ".github/workflows/ci.yml",
+        name: "CI",
+        event: "push",
         head_sha: request.headSha,
         head_branch: "main",
         status: "completed",
@@ -434,6 +474,190 @@ describe("coding runner", () => {
         repository: { full_name: request.repository },
       });
     });
+  });
+
+  describe("evolve discovery failure reason without a run id (gha:<workflow>:<sha>:<conclusion>)", () => {
+    const fetchFor = (conclusion: string, name = "CI") => async (url: string) => {
+      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
+      return response(200, { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name, event: "push", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion, repository: { full_name: request.repository } });
+    };
+    const named = (suffix = "failure", sha = request.headSha, name = "ci") => ({ ...request, reason: `evolve:discovery:gha:${name}:${sha}:${suffix}:Canonical workflow CI concluded failure for ${sha}.` });
+
+    it("treats a verified failed run of the same workflow and commit as a failure-repair request", async () => {
+      const evidence = await verifyCodingRunnerRequestAgainstGitHub(named(), "github-token", fetchFor("failure"));
+      assert.equal(evidence.workflowConclusion, "failure");
+    });
+
+    it("rejects a reason workflow label that does not match the verified workflow identity", async () => {
+      await assert.rejects(
+        () => verifyCodingRunnerRequestAgainstGitHub(named("failure", request.headSha, "mobile-native"), "github-token", fetchFor("failure", "CI")),
+        /WORKFLOW_IDENTITY_MISMATCH/,
+      );
+      await assert.rejects(
+        () => verifyCodingRunnerRequestAgainstGitHub(named("failure", request.headSha, "ci"), "github-token", fetchFor("failure", "Android Stable Release")),
+        /WORKFLOW_IDENTITY_MISMATCH/,
+      );
+    });
+
+    it("rejects a different commit or a run that is not actually failed", async () => {
+      await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub(named("failure", "b".repeat(40)), "github-token", fetchFor("failure")), /CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH/);
+      await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub(named(), "github-token", fetchFor("success")), /CODING_RUNNER_FAILURE_EVIDENCE_INVALID/);
+    });
+
+    it("still requires a successful run when the reason carries no failure identity", async () => {
+      await assert.rejects(() => verifyCodingRunnerRequestAgainstGitHub({ ...request, reason: "evolve:discovery:github-issue-2118" }, "github-token", fetchFor("failure")), /CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL/);
+    });
+  });
+
+  it("blocks governance and unknown workflows before spending coding remediation attempts", async () => {
+    const cases = [
+      { path: ".github/workflows/oracle-paper-release.yml", name: "Oracle PAPER Release", workflowId: 360101484, code: "RELEASE_BLOCKED", failureClass: "RELEASE_BLOCKED" },
+      { path: ".github/workflows/autopilot-deterministic-audit-release.yml", name: "Autopilot Deterministic Audit Release", workflowId: 348514628, code: "AUDIT_BLOCKED", failureClass: "AUDIT_BLOCKED" },
+      { path: ".github/workflows/autopilot-cloudflare-deploy.yml", name: "Autopilot Cloudflare Deploy", workflowId: 344586670, code: "DEPLOYMENT_FAILURE", failureClass: "DEPLOYMENT_FAILURE" },
+      { path: ".github/workflows/credential-preflight.yml", name: "Credential Preflight", workflowId: 123456789, code: "PERMISSION_FAILURE", failureClass: "PERMISSION_FAILURE" },
+      { path: ".github/workflows/unlisted.yml", name: "Unlisted workflow", workflowId: 999999999, code: "WORKFLOW_NOT_ELIGIBLE", failureClass: "WORKFLOW_NOT_ELIGIBLE" },
+    ] as const;
+    for (const item of cases) {
+      let aiCalls = 0;
+      let jobLookups = 0;
+      const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
+      const fetch = async (url: string) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        if (url.includes("/jobs?")) { jobLookups += 1; return response(200, { jobs: [] }); }
+        return response(200, {
+          id: request.workflowRunId, workflow_id: item.workflowId, path: item.path, name: item.name,
+          event: "push", head_sha: request.headSha, head_branch: "main", status: "completed",
+          conclusion: "failure", repository: { full_name: request.repository },
+        });
+      };
+      await assert.rejects(
+        () => executeCodingRunner(failureRequest, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, fetch),
+        (error: unknown) => {
+          assert.ok(error instanceof CodingRunnerEvidenceError);
+          assert.equal(error.message, item.code);
+          const decision = classifyCodingRunnerFailure(error.message);
+          assert.equal(decision.failureClass, item.failureClass);
+          assert.equal(decision.recovery, "STOP");
+          assert.equal(decision.retryable, false);
+          return true;
+        },
+      );
+      assert.equal(aiCalls, 0, item.path);
+      assert.equal(jobLookups, 0, item.path);
+    }
+  });
+
+  it("rejects a workflow run whose exact commit SHA is stale", async () => {
+    const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) =>
+        url.includes("/commits/")
+          ? response(200, { sha: "b".repeat(40) })
+          : response(200, {
+            id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI",
+            event: "push", head_sha: request.headSha, head_branch: "main", status: "completed",
+            conclusion: "failure", repository: { full_name: request.repository },
+          })),
+      /CODING_RUNNER_HEAD_SHA_MISMATCH/,
+    );
+  });
+
+  it("rejects an otherwise valid failure run when current main has moved", async () => {
+    const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        if (url.includes("/branches/main")) return response(200, { commit: { sha: "b".repeat(40) } });
+        return response(200, {
+          id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI",
+          event: "push", head_sha: request.headSha, head_branch: "main", status: "completed",
+          conclusion: "failure", repository: { full_name: request.repository },
+        });
+      }),
+      /CODING_RUNNER_WORKFLOW_HEAD_STALE/,
+    );
+    const decision = classifyCodingRunnerFailure("CODING_RUNNER_WORKFLOW_HEAD_STALE");
+    assert.equal(decision.failureClass, "EVIDENCE_MISMATCH");
+    assert.equal(decision.recovery, "REDISPATCH_FRESH_EVIDENCE");
+    assert.equal(decision.retryable, false);
+  });
+
+  it("fails closed when workflow identity is missing or mismatched", async () => {
+    const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
+    for (const run of [
+      { id: request.workflowRunId, workflow_id: 311000286, name: "CI", event: "push", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion: "failure", repository: { full_name: request.repository } },
+      { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/other.yml", name: "CI", event: "push", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion: "failure", repository: { full_name: request.repository } },
+      { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI", event: "pull_request", head_sha: request.headSha, head_branch: "main", status: "completed", conclusion: "failure", repository: { full_name: request.repository } },
+      { id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI", event: "push", head_sha: request.headSha, head_branch: "feature/old-head", status: "completed", conclusion: "failure", repository: { full_name: request.repository } },
+    ]) {
+      await assert.rejects(
+        () => verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) =>
+          url.includes("/commits/") ? response(200, { sha: request.headSha }) : response(200, run)),
+        (error: unknown) => {
+          assert.ok(error instanceof CodingRunnerEvidenceError);
+          assert.ok(["WORKFLOW_IDENTITY_MISSING", "WORKFLOW_IDENTITY_MISMATCH"].includes(error.message));
+          assert.equal(classifyCodingRunnerFailure(error.message).retryable, false);
+          return true;
+        },
+      );
+    }
+  });
+
+  it("admits only exact-main-identity CI failures with allowlisted actionable steps", async () => {
+    let aiCalls = 0;
+    const ai: WorkersAiBinding = {
+      async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; },
+    };
+    const failureRequest = { ...request, reason: `evolve:discovery:gha:ci:${request.headSha}:failure:CI failed` };
+    const fetch = async (url: string) => {
+      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
+      if (url.includes("/jobs?")) return response(200, {
+        jobs: [{ run_id: request.workflowRunId, name: "validation", conclusion: "failure", steps: [{ name: "Typecheck", conclusion: "failure" }] }],
+      });
+      return response(200, {
+        id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI",
+        event: "push", head_sha: request.headSha, head_branch: "main", status: "completed",
+        conclusion: "failure", repository: { full_name: request.repository },
+      });
+    };
+    const result = await executeCodingRunner(failureRequest, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, fetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(aiCalls, 1);
+  });
+
+  it("does not spend a coding retry on an unallowlisted CI failure step", async () => {
+    let aiCalls = 0;
+    let jobLookups = 0;
+    const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+    const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
+    const fetch = async (url: string) => {
+      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
+      if (url.includes("/jobs?")) {
+        jobLookups += 1;
+        return response(200, { jobs: [{ run_id: request.workflowRunId, name: "validation", conclusion: "failure", steps: [
+          ...Array.from({ length: 16 }, () => ({ name: "Typecheck", conclusion: "failure" })),
+          { name: "Preflight", conclusion: "failure" },
+        ] }] });
+      }
+      return response(200, {
+        id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI",
+        event: "push", head_sha: request.headSha, head_branch: "main", status: "completed",
+        conclusion: "failure", repository: { full_name: request.repository },
+      });
+    };
+    await assert.rejects(
+      () => executeCodingRunner(failureRequest, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, fetch),
+      /ACTIONABLE_FAILURE_NOT_ALLOWLISTED/,
+    );
+    assert.equal(jobLookups, 1);
+    assert.equal(aiCalls, 0);
+    const decision = classifyCodingRunnerFailure("ACTIONABLE_FAILURE_NOT_ALLOWLISTED");
+    assert.equal(decision.failureClass, "WORKFLOW_NOT_ELIGIBLE");
+    assert.equal(decision.retryable, false);
   });
 
   it("falls back to public GitHub evidence when a scoped token masks a public resource as not found", async () => {
@@ -525,7 +749,7 @@ describe("coding runner", () => {
     assert.equal(jevCalls, 1);
     const evidence = observedFailureEvidence as { failedJobs?: string[]; failedSteps?: string[] } | null;
     assert.deepEqual(evidence?.failedJobs, ["validation"]);
-    assert.deepEqual(evidence?.failedSteps, ["Preflight"]);
+    assert.deepEqual(evidence?.failedSteps, ["Typecheck"]);
   });
 
   it("prefers the canonical Workers AI binding over a configured legacy endpoint", async () => {
@@ -973,6 +1197,7 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch);
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "ai-coding-engine-not-configured");
+    assert.deepEqual(result.readinessBlockers, ["CODING_ENGINE_NOT_CONFIGURED"], "names exactly what is missing; the GitHub token is present");
   });
 
   it("zero-credit mode disables a configured external coding engine without spending a call", async () => {
@@ -983,6 +1208,7 @@ describe("coding runner", () => {
     });
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "zero-credit-paid-engine-disabled");
+    assert.deepEqual(result.readinessBlockers, ["ZERO_CREDIT_PAID_ENGINE_DISABLED"]);
     assert.equal(paidEngineCalls, 0);
   });
 

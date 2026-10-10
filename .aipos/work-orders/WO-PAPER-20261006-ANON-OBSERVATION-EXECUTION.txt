@@ -1,0 +1,10 @@
+NEXT_CANONICAL_TRANSITION
+Run: node scripts/wire-anonymous-paper-observation.mjs
+Then: pnpm run build
+Then focused tests:
+- tests/cloud-anonymous-observation-scope-contract.test.js
+- tests/mobile-anonymous-observation-client.test.js
+- tests/anonymous-paper-observation-wiring.test.js
+- tests/anonymous-paper-observation-helper.test.js
+Commit only apps/cloud/src/server.ts and apps/mobile/App.tsx if validation passes.
+Do not merge on helper/test-only state.

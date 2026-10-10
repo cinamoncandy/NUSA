@@ -1,0 +1,7 @@
+POST_MERGE_RUNTIME_PROOF
+1. Deploy exact protected-main SHA through canonical Oracle PAPER release.
+2. Enable NUSA_CLOUD_ANONYMOUS_OBSERVATION=1 only after exact-main code is active.
+3. Unauthenticated GET /api/paper-operations must return 200 with validated PAPER projection.
+4. Unauthenticated POST /api/paper-orders, /api/operator/* and /api/real-readonly-operations must remain 401.
+5. /health runtimeHealth process/workload must remain HEALTHY and counters must advance.
+6. Android visible projection must advance beyond the stale screenshot and clear the false connection warning.

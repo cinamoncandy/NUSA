@@ -1,0 +1,26 @@
+id: WO-RESEARCH-20261007-CANDLE-GAP-FILL
+title: "Refill restart and feed gaps inside the recent research 1m history"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/research-candle-gap-fill
+authority_impact: none
+owner_approval: "2026-10-07 in chat: '알아서 제일 좋은 결정해' (Complete-Convergence directive)"
+objective: "Runtime 84bfb8b: 15m/60m research now run (#2561) but every experiment is SKIPPED_WINDOWS_TOO_MANY_GAPS_HOLDOUT. Longer bars need every 1m candle; the live collector skips minutes lost to restarts or feed gaps and never revisits them, and the history backfill only writes candles older than the earliest stored one, so gaps inside recent history are permanent."
+scope:
+  - "researchCandleBackfill.ts: fillRecentGaps() writes only minutes absent from the store, between the earliest and latest stored close within the window, from the same public Upbit 1m endpoint; existing keys are re-checked at each append and never touched; minutes the exchange has no candle for stay missing; rate limit or error stops the run."
+  - "researchExperimentComposition.ts: runs the gap fill after the startup history backfill and every 6 hours (only when backfill is enabled); exposes fillGaps() and logs one line per market."
+  - "tests: only missing minutes written and stored candles unchanged; no-gap no-op; exchange-missing minutes stay missing; rate limit stops; composition fills through the fetcher."
+exclusions:
+  - "Missing-data threshold (maxMissingRatio 0.05), windows, grids, candidates, PAPER execution, risk and LIVE are unchanged. No candle is synthesized."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Gaps the exchange cannot fill remain missing and the holdout gate still skips those windows."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-candle-backfill.test.js tests/research-experiment-composition.test.js
+residual: "Requires a PAPER deploy; /health researchExperimentTicksByInterval should then show 15m/60m experiments completing instead of SKIPPED_WINDOWS_TOO_MANY_GAPS_HOLDOUT."

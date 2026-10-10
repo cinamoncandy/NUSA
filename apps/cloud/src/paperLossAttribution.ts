@@ -1,7 +1,8 @@
 import type { PaperFillRecord } from "./paperTradingExecutionLoop";
+import { paperTradingDayKey } from "./paperTradingDay";
 
 /**
- * Display-only attribution of today's (UTC) completed sell orders to the strategy family that opened the position.
+ * Display-only attribution of today's (Asia/Seoul trading day, the same one the risk loss session uses) completed sell orders to the strategy family that opened the position.
  * Each sell is attributed to the family bound to the most recent BUY fill that built the position in that market.
  * Families are published only as fixed codes; anything else is OTHER_FAMILY, and a position opened without a
  * candidate binding is UNATTRIBUTED. Integers only: no money, market, price or identifier leaves this module.
@@ -18,7 +19,7 @@ export interface PaperLossAttribution {
   readonly byFamily: Readonly<Partial<Record<LossAttributionCode, { readonly completedSells: number; readonly losingSells: number }>>>;
 }
 
-const dayOf = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
+const dayOf = (timestamp: number): string => paperTradingDayKey(timestamp);
 
 function familyCode(fill: PaperFillRecord): LossAttributionCode {
   const familyId = fill.candidateProvenance?.binding?.candidateStrategy?.familyId;

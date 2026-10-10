@@ -49,8 +49,9 @@ function build(filename, state = { now: T_END }) {
     collect: () => {}, candles: store, holdout, now: () => state.now, sourceCommitSha: "a".repeat(40),
     models: { fill: "fill-close-v1", fee: "fee-0.0005-v1", slippage: "slip-5bps-v1" }, evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
     featurePipeline: { version: "closed-candle-agg-v1", config: { intervalMs: M } }, experimentFamilyPrefix: "sma-family",
+    failureEvidence: () => ledger.list().filter((record) => record.provenance?.windowRole === "VALIDATION" && record.provenance.interval === "1m"),
   });
-  return { db, store, sessions, orchestrator, holdout, state };
+  return { db, store, sessions, orchestrator, holdout, state, ledger };
 }
 const fresh = () => join(mkdtempSync(join(tmpdir(), "nusa-orch-")), "o.db");
 const seed = (s, count = 400, end = T_END) => s.store.append("KRW-BTC", M, candles(count, end));
@@ -164,8 +165,11 @@ test("experiment tick counts accumulate as fixed codes and integers for /health"
     assert.equal(summary.counts.NOT_DUE, 2, "the second OK tick found nothing due");
     const validation = Object.keys(summary.counts).filter((k) => k.startsWith("VALIDATION_"));
     assert.ok(validation.length >= 1, "each completed experiment records its validation result");
+    const notBetter = validation.filter((k) => k !== "VALIDATION_CHALLENGER_BETTER").reduce((n, k) => n + summary.counts[k], 0);
+    const failed = Object.keys(summary.counts).filter((k) => k.startsWith("FAIL_")).reduce((n, k) => n + summary.counts[k], 0);
+    assert.equal(failed, notBetter, "every validation that did not beat the champion is counted under exactly one bounded failure reason");
     for (const [key, value] of Object.entries(summary.counts)) { assert.match(key, /^[A-Z][A-Z0-9_]{1,47}$/); assert.ok(Number.isSafeInteger(value)); }
-  } finally { s.db.close(); }
+  } finally { try { s.db.close(); } catch { /* already closed by the restart check */ } }
 });
 
 test("skipped experiments are counted under their stable reason code", () => {
@@ -177,4 +181,36 @@ test("skipped experiments are counted under their stable reason code", () => {
     assert.equal(counts.SKIPPED, 2);
     assert.ok(Object.keys(counts).some((k) => /^SKIPPED_WINDOWS_/.test(k)), JSON.stringify(counts));
   } finally { s.db.close(); }
+});
+
+test("failure reasons are recomputed from the ledger records, so a brand-new orchestrator reports history it never counted", () => {
+  const s = build(fresh()); seed(s);
+  try {
+    const failed = (result, extra = {}) => ({ result, reason: "MULTI_METRIC_COMPARISON", champion: { metrics: { netReturn: 0.01, maximumDrawdown: 0.1, executionQuality: 0.9 } }, challenger: { metrics: { netReturn: 0.02, maximumDrawdown: 0.1, executionQuality: 0.9 } }, ...extra });
+    const history = [failed("CHAMPION_BETTER"), failed("INCONCLUSIVE", { challenger: { metrics: { netReturn: 0.05, maximumDrawdown: 0.5, executionQuality: 0.9 } } }), failed("CHALLENGER_BETTER")];
+    const fresh2 = new (s.orchestrator.constructor)({ ...s.orchestrator.options, failureEvidence: () => history });
+    fresh2.recover();
+    fresh2.tick();
+    const counts = fresh2.experimentTicks().counts;
+    assert.equal(counts.FAIL_NO_EDGE, 1);
+    assert.equal(counts.FAIL_EXCESSIVE_DRAWDOWN, 1);
+    assert.equal(Object.keys(counts).filter((k) => k.startsWith("FAIL_")).length, 2, "the winner is not a failure");
+    fresh2.tick();
+    assert.equal(fresh2.experimentTicks().counts.FAIL_NO_EDGE, 1, "recomputed each tick, never double counted");
+  } finally { s.db.close(); }
+});
+
+test("ordinary outcome count keys are capped at 30 so the derived FAIL_ and REPEAT_ keys always fit within /health's 40", () => {
+  const { addOutcomeCount, MAX_ORDINARY_COUNT_KEYS } = require("../dist/apps/cloud/src/researchExperimentOrchestrator.js");
+  assert.equal(MAX_ORDINARY_COUNT_KEYS, 30);
+  const counts = { FAIL_NO_EDGE: 4, REPEAT_NO_EDGE: 1 };
+  for (let index = 0; index < 60; index += 1) addOutcomeCount(counts, `OUTCOME_${index}`);
+  const ordinary = Object.keys(counts).filter((key) => !key.startsWith("FAIL_") && !key.startsWith("REPEAT_"));
+  assert.equal(ordinary.length, 30, "stale derived keys do not consume ordinary slots, and ordinary keys stop at the cap");
+  addOutcomeCount(counts, "OUTCOME_0");
+  assert.equal(counts.OUTCOME_0, 2, "an existing key still counts after the cap");
+  addOutcomeCount(counts, "FAIL_INJECTED");
+  addOutcomeCount(counts, "bad key");
+  assert.equal(counts.FAIL_INJECTED, undefined, "derived keys are never written by the ordinary path");
+  assert.equal(counts["bad key"], undefined);
 });

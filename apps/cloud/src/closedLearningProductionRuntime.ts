@@ -9,10 +9,14 @@ import { PaperMinuteBarSource } from "./paperMinuteBars";
 import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
+import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
+import { readClosedLearningBlocked, recordClosedLearningBlocked } from "./closedLearningBlockedRecord";
+import { PaperBaselineShadow } from "./paperBaselineShadow";
+import { readBaselineShadowRecord, writeBaselineShadowRecord } from "./paperBaselineShadowRecord";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
 import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
-import { OwnerBaselinePaperBindingProvider, isOwnerBaselineSourceCommitSha, ownerBaselineStrategyEnabled } from "./ownerBaselinePaperStrategy";
+import { OwnerBaselinePaperBindingProvider, isOwnerBaselineSourceCommitSha, ownerBaselineStrategyEnabled, ownerBaselineStrategySpec } from "./ownerBaselinePaperStrategy";
 import { buildOwnerBaselinePaperPeriodInput, isOwnerBaselinePeriodStartAt } from "./ownerBaselinePaperPeriod";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
@@ -27,7 +31,7 @@ import { FileQualifiedPaperChallengerArtifactStore } from "./qualifiedPaperChall
 import { ClosedLearningLineageReplayInputSource } from "./closedLearningLineageReplayInputSource";
 import { ClosedLearningProductionResearchAdapter } from "./closedLearningProductionResearchAdapter";
 import { ClosedLearningEvolutionLedgerRepository } from "./closedLearningEvolutionLedgerRepository";
-import { ClosedLearningLoopCoordinator, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
+import { ClosedLearningLoopCoordinator, closedLearningCycleId, isCompleteClosedLearningCycle, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { PaperChallengerDeploymentRuntime } from "./paperChallengerDeploymentRuntime";
 import { ClosedLearningPendingPeriodReader } from "./closedLearningPendingPeriodReader";
 import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceIdentitySource";
@@ -92,7 +96,21 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // The candidate strategy reads completed 1-minute closes from the persisted public-ticker store (owner decision 2026-10-06).
   const minuteObservationReader = new SqlitePaperMarketObservationRepository(database);
   const minuteBars = new PaperMinuteBarSource((market, startAt, endAt) => minuteObservationReader.readWindow(market, startAt, endAt));
-  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider, paperCandidateMinuteCloses: (market, now) => minuteBars.read(market, now) });
+  // Uncensored shadow of the baseline rule on the same completed minute bars (display/analysis only; no order, ledger or Risk input).
+  const shadowSourceCommit = env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "";
+  const restoredShadow = readBaselineShadowRecord(config.cloudStateDbPath);
+  // 0.0005 is the PAPER execution loop's default fee per side, the rate its own fills are charged.
+  const baselineShadow = ownerBaselineStrategyEnabled(env) && isOwnerBaselineSourceCommitSha(shadowSourceCommit)
+    ? new PaperBaselineShadow({ spec: ownerBaselineStrategySpec(shadowSourceCommit), feeRate: 0.0005, now: Date.now, ...(restoredShadow === undefined ? {} : { restore: restoredShadow }) })
+    : undefined;
+  const dashboardHydrator = new CloudRuntimeDashboardHydrator({
+    paperCandidateBindingProvider,
+    paperCandidateMinuteCloses: (market, now) => {
+      const bars = minuteBars.read(market, now);
+      baselineShadow?.observe(market, bars);
+      return bars;
+    },
+  });
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
@@ -106,6 +124,15 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
   const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line) });
   const loopStatus = new ClosedLearningLoopStatusTracker();
+  // The last BLOCKED/ERROR reason survives a restart (display only; a reason seen by this process always wins).
+  loopStatus.seedLastBlocked(readClosedLearningBlocked(config.cloudStateDbPath));
+  let persistedBlockedAt = loopStatus.lastBlockedRecord()?.at;
+  const persistLastBlocked = (): void => {
+    const current = loopStatus.lastBlockedRecord();
+    if (current == null || current.at === persistedBlockedAt) return;
+    // Advance the marker only after a successful write, so a transient failure is retried on a later tick.
+    if (recordClosedLearningBlocked(config.cloudStateDbPath, current)) persistedBlockedAt = current.at;
+  };
   const baseHandle = startCloudRuntime(
     env,
     undefined,
@@ -123,6 +150,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     undefined,
     undefined,
     () => loopStatus.snapshot(),
+    () => researchExperiments?.experimentTicksByInterval() ?? null,
   );
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
@@ -142,6 +170,9 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
     retireOpenPeriodForReplacement: (periodId: string, reason: string) => baseHandle.retirePaperRealizedPeriodForReplacement(periodId, reason),
     retireOpenPeriodForAccountChange: (periodId: string) => baseHandle.retirePaperRealizedPeriodForAccountChange(periodId),
+    retireOpenPeriodForUnstreamedMarket: (periodId: string, streamedMarkets: readonly string[]) => baseHandle.retirePaperRealizedPeriodForUnstreamedMarket(periodId, streamedMarkets),
+    retireOpenPeriodForMixedBinding: (periodId: string) => baseHandle.retirePaperRealizedPeriodForMixedBinding(periodId),
+    inspectOpenPeriodForMixedBinding: (periodId: string) => baseHandle.inspectPaperRealizedPeriodForMixedBinding(periodId),
   });
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
@@ -185,16 +216,39 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     bindings: challengerBindings,
     replaySnapshots,
     readRiskConfigHash: () => CLOUD_PAPER_RISK_POLICY_FINGERPRINT,
+    readCanonicalBenchmarkEvidence: (market, periodStartAt, periodEndAt) => readCanonicalPaperTickerBenchmark(minuteObservationReader, market, periodStartAt, periodEndAt),
   });
   const rollover = new ClosedLearningRolloverScheduler({
     listOpenPeriods: periods.listOpenPeriods,
     listRealizedPeriods: periods.listRealizedPeriods,
     readCanonicalPaperAccount,
+    now: () => Date.now(),
     closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
     retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,
     retireOpenPeriodForReplacement: periods.retireOpenPeriodForReplacement,
+    retireOpenPeriodForUnstreamedMarket: periods.retireOpenPeriodForUnstreamedMarket,
+    retireOpenPeriodForMixedBinding: periods.retireOpenPeriodForMixedBinding,
+    inspectOpenPeriodForMixedBinding: periods.inspectOpenPeriodForMixedBinding,
+    streamedMarkets: () => config.upbitMarkets,
+    buildOwnerBaselinePeriod: ({ periodIndex, periodStartAt }) => {
+      const sourceCommitSha = env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "";
+      const market = config.upbitMarkets[0];
+      if (!ownerBaselineStrategyEnabled(env) || market == null || !isOwnerBaselineSourceCommitSha(sourceCommitSha) || !isOwnerBaselinePeriodStartAt(periodStartAt)) return undefined;
+      return buildOwnerBaselinePaperPeriodInput({ market, periodIndex, periodStartAt, sourceCommitSha });
+    },
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
+    // "Recorded" means complete: a qualified decision without its deployment receipt is resumed by running the coordinator again.
+    isCycleRecorded: (identity) => isCompleteClosedLearningCycle(cycleRepository.get(closedLearningCycleId(identity))),
+    recordCycleFailure: ({ closedPeriodId, identity, stage, code }) => cycleRepository.appendFailure({
+      closedPeriodId,
+      evidenceId: identity.evidenceId,
+      evidenceFingerprintSha256: identity.evidenceFingerprintSha256,
+      sourceCommitSha: identity.sourceCommitSha,
+      runtimeSourceCommitSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim().toLowerCase(),
+      stage,
+      code,
+    }),
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
   });
@@ -278,7 +332,14 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const runClosedLearningTick = (): Promise<void> => {
     if (stopping) return Promise.resolve();
     if (closedLearningTick != null) return closedLearningTick;
+    // Durable cycle history is read first, so /health still shows the last lap while the bootstrap or rollover below is failing,
+    // and withdrawn whole if the ledger cannot be read (never stale evidence presented as current).
+    const refreshDurableCycles = (): void => {
+      try { loopStatus.observeDurableCycles(cycleRepository.summary()); } catch { loopStatus.clearDurableCycles(); }
+      try { loopStatus.observeDurableFailures(cycleRepository.failureSummary()); } catch { loopStatus.clearDurableFailures(); }
+    };
     const task = (async () => {
+      refreshDurableCycles();
       const bootstrap = await runClosedLearningBootstrapAsync();
       loopStatus.observeBootstrap(bootstrap);
       // If Research has no deployable snapshot, preserve the canonical PAPER loop by opening one
@@ -289,7 +350,15 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         ensureOwnerBaselinePeriod();
       }
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
-    })().catch((error: unknown) => { loopStatus.observeError(Date.now()); throw error; });
+      persistLastBlocked();
+      if (baselineShadow != null) {
+        loopStatus.observeShadow(baselineShadow.summary());
+        const persistable = baselineShadow.takePersistable();
+        if (persistable != null && !writeBaselineShadowRecord(config.cloudStateDbPath, persistable)) baselineShadow.markUnpersisted();
+      }
+      refreshDurableCycles();
+      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
+    })().catch((error: unknown) => { loopStatus.observeError(Date.now()); persistLastBlocked(); throw error; });
     closedLearningTick = task;
     task.then(
       () => { if (closedLearningTick === task) closedLearningTick = undefined; },

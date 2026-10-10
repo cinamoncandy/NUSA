@@ -1,0 +1,42 @@
+id: WO-RESEARCH-20261008-SMA-COST-NOTE
+title: "Research note: SMA cost decomposition on public candles and Research failure status"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-note-sma-cost-screen
+authority_impact: none
+owner_approval: "2026-10-08 in chat ('다 해' after the question about few fills and no profit)"
+scope_note: "Documentation plus a read-only offline analysis script and two frozen data files. No runtime code, config, threshold or strategy change; it is not promotion evidence."
+objective: "Answer 'many decisions, few fills, no profit' with separated observations and a reproducible, frozen-input replay, and record what could not be determined."
+scope:
+  include:
+    - "docs/RESEARCH_NOTE_2026-10-08_SMA_COST_SCREEN.md"
+    - "scripts/offline-sma-cost-screen.js (reads the frozen file, prints the tables, no network, no writes)"
+    - "docs/research-data/2026-10-08-upbit-1m-closes.json (sha256 556fe5318a85f8ea4d707ed661112f9c7a1e098cb64845ea842e445c50a5b28a) and docs/research-data/2026-10-08-health-snapshot.json (sha256 89800e25d9068c3e9e37984600c45c99a687edfcddefb55bd4d25bec7ee0de4d, bound to runtime sourceCommitSha 70b998487336781734ced0b504a7281a00b2dee2)"
+  exclude:
+    - "Any runtime, config or threshold change; the 240m research interval (needs longer windows and its own decision); changing the running baseline strategy."
+limitations:
+  - "Public-candle approximation, one falling 72-79 hour window, a few SMA settings, in-sample; the replay model differs from the PAPER executor. Not promotion evidence."
+  - "Not determined: counterfactual outcomes of the 190 blocked BUY signals, why the 5 actual completed sells lost, and Research challenger wins (the /health metric shows failures only)."
+acceptance:
+  - "The script reproduces the note's tables from the frozen input; hashes match; the note separates the risk-gate observation from the replay observation and states no causal claim across them."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/offline-sma-cost-screen.js"
+  - "sha256sum docs/research-data/2026-10-08-upbit-1m-closes.json docs/research-data/2026-10-08-health-snapshot.json"
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  local_validation:
+    environment: "Node 22 sandbox"
+    commands:
+      - "node scripts/offline-sma-cost-screen.js -> reproduces the Python-computed figures exactly (for example XRP 1m SMA 5/20: 133 trades, 14% win, -5.98% gross, -17.69% net)"
+      - "validate-aipos-yaml, repository-truth, safety-architecture, ai-zero-authority, repository-portability, platform-independent-tests -> ok"
+  remaining: "Exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

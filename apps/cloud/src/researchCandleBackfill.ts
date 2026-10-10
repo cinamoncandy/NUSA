@@ -153,3 +153,88 @@ export function createUpbitMinuteCandleFetcher(fetchImpl: typeof fetch = fetch):
     }
   };
 }
+
+export interface GapFillStore extends BackfillStore {
+  latestCloseTime(market: string, intervalMs: number): number | undefined;
+  read(market: string, intervalMs: number, fromCloseMs: number, toCloseMs: number): readonly StoredResearchCandle[];
+}
+
+export interface GapFillResult {
+  readonly market: string;
+  readonly status: "NO_GAPS" | "FILLED" | "PARTIAL" | "RATE_LIMITED" | "ERROR";
+  /** Missing 1m closes inside the window before this run. */
+  readonly missing: number;
+  readonly recorded: number;
+  readonly rejected: number;
+  readonly pages: number;
+  readonly errorCode?: string;
+}
+
+/**
+ * Fills missing closed 1-minute candles INSIDE the recent stored history (restart and feed gaps the live collector
+ * skips and never revisits) from the same public Upbit 1-minute endpoint the history backfill uses. Only minutes
+ * that are absent from the store, older than the latest stored close and fully closed are written; keys that
+ * exist are never touched, re-checked synchronously at each append, so it cannot conflict with or replace any
+ * stored candle or race the live collector. A minute the exchange also has no candle for stays missing.
+ */
+export async function fillRecentGaps(input: {
+  readonly market: string;
+  readonly windowMs: number;
+  readonly nowMs: number;
+  readonly store: GapFillStore;
+  readonly fetchPage: BackfillInput["fetchPage"];
+  readonly sleep: BackfillInput["sleep"];
+  readonly pageDelayMs?: number;
+  readonly maxPages?: number;
+}): Promise<GapFillResult> {
+  const { market, store } = input;
+  if (!MARKET.test(market)) throw new Error("gap fill market is invalid");
+  if (!Number.isSafeInteger(input.nowMs) || input.nowMs <= 0) throw new Error("gap fill clock is invalid");
+  if (!Number.isSafeInteger(input.windowMs) || input.windowMs < MINUTE_MS) throw new Error("gap fill window is invalid");
+  const latest = store.latestCloseTime(market, MINUTE_MS);
+  const anchor = Math.floor(input.nowMs / MINUTE_MS) * MINUTE_MS;
+  if (latest === undefined) return Object.freeze({ market, status: "NO_GAPS", missing: 0, recorded: 0, rejected: 0, pages: 0 });
+  const top = Math.min(latest, anchor);
+  const bottom = Math.max(top - input.windowMs + MINUTE_MS, store.earliestCloseTime(market, MINUTE_MS) ?? top);
+  const present = new Set(store.read(market, MINUTE_MS, bottom, top).map((candle) => candle.closeTimeMs));
+  const missingCloses: number[] = [];
+  for (let close = top; close >= bottom; close -= MINUTE_MS) if (!present.has(close)) missingCloses.push(close);
+  if (missingCloses.length === 0) return Object.freeze({ market, status: "NO_GAPS", missing: 0, recorded: 0, rejected: 0, pages: 0 });
+  const oldestMissing = missingCloses[missingCloses.length - 1]!;
+  const delay = input.pageDelayMs ?? 150;
+  const maxPages = input.maxPages ?? Math.ceil((top - oldestMissing) / (BACKFILL_PAGE_SIZE * MINUTE_MS)) + 2;
+  let recorded = 0;
+  let rejected = 0;
+  let pages = 0;
+  // The page ending before `to` holds candles that START before it; start just after the newest missing close.
+  let cursor: string | undefined = iso(missingCloses[0]!);
+  const done = (status: GapFillResult["status"], errorCode?: string): GapFillResult =>
+    Object.freeze({ market, status, missing: missingCloses.length, recorded, rejected, pages, ...(errorCode === undefined ? {} : { errorCode }) });
+  while (pages < maxPages) {
+    let raw: unknown;
+    try { raw = await input.fetchPage(market, cursor); } catch (error) {
+      if (error instanceof BackfillRateLimitedError) return done("RATE_LIMITED", "RATE_LIMITED");
+      return done("ERROR", typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "REQUEST_FAILED");
+    }
+    pages += 1;
+    const parsed = parseUpbitMinuteCandles(raw, market);
+    rejected += parsed.rejected;
+    if (parsed.oldestStartMs === undefined) break;
+    try {
+      const wanted = parsed.candles.filter((candle) => candle.closeTimeMs >= oldestMissing && candle.closeTimeMs <= top);
+      if (wanted.length > 0) {
+        const lo = wanted[0]!.closeTimeMs;
+        const hi = wanted[wanted.length - 1]!.closeTimeMs;
+        const existing = new Set(store.read(market, MINUTE_MS, lo, hi).map((candle) => candle.closeTimeMs));
+        const fresh = wanted.filter((candle) => !existing.has(candle.closeTimeMs));
+        if (fresh.length > 0) recorded += store.append(market, MINUTE_MS, fresh);
+      }
+    } catch (error) {
+      return done("ERROR", typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "STORE_FAILED");
+    }
+    if (parsed.oldestStartMs + MINUTE_MS <= oldestMissing) break;
+    cursor = iso(parsed.oldestStartMs);
+    await input.sleep(delay);
+  }
+  return done(recorded >= missingCloses.length ? "FILLED" : "PARTIAL");
+}
