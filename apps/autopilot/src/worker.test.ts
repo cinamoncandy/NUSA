@@ -284,6 +284,7 @@ describe("configured coding-engine failure status evidence", () => {
         };
         if (httpStatus === 429) {
           assert.equal(body.error, "WAITING_PROVIDER_CAPACITY");
+          assert.equal(body.httpStatus, 429);
           assert.equal(body.provider, "configured-coding-engine");
           assert.equal(body.providerStopReason, "PROVIDER_RATE_LIMITED");
           assert.ok(Number.isSafeInteger(body.nextRetryAt));

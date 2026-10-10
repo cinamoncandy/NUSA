@@ -161,7 +161,7 @@ function providerRateLimitCodeFromPayload(payload) {
 function rateLimitEvidence(response, payload, observedAt = Date.now()) {
   const remediationDecision = boundedRemediationDecision(payload?.remediationDecision);
   const code = providerRateLimitCodeFromPayload(payload)
-    || (remediationDecision?.failureClass === "PROVIDER_CAPACITY" ? "PROVIDER_RATE_LIMITED" : null)
+    || (remediationDecision?.failureClass === "PROVIDER_CAPACITY" && remediationDecision.recovery === "WAIT_FOR_PROVIDER" ? "PROVIDER_RATE_LIMITED" : null)
     || (response?.status === 429 ? "RATE_LIMITED" : null);
   if (!code) return null;
   // A daily-quota stop is never locally retried (see decision logic below), so reporting its real
@@ -900,7 +900,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   const finish = (status, reason, httpStatus, workerStatus, extra = {}) => {
     const base = resultSummary(request, attempts, status, reason, httpStatus, workerStatus);
     const proposalRetries = attempts.filter((entry) => entry.decision === "RETRY").length;
-    const proposalRejected = attempts.filter((entry) => entry.decision === "RETRY" || entry.decision === "NO_ACTION").length;
+    const proposalRejected = attempts.filter((entry) => entry.decision === "RETRY" || entry.decision === "NO_ACTION" || entry.decision === "FAILED_CLOSED").length;
     const changedFiles = Array.isArray(extra.changedFiles) ? extra.changedFiles : [];
     const codeChanged = status === "DISPATCHED" && changedFiles.length > 0;
     const blockedRateLimit = status === "BLOCKED_RATE_LIMIT";
