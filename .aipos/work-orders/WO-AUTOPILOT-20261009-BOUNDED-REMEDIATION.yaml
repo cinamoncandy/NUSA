@@ -55,6 +55,7 @@ successor_increment:
     - "apps/autopilot/src/worker.ts"
     - "scripts/autopilot-dispatch-retry.js"
     - "tests/autopilot-dispatch-retry.test.js"
+    - "tests/autopilot-consumer-failure-classification.test.js"
   remaining:
     - "Finish dispatch git subprocess integration validation in a permitted runner environment."
     - "Run canonical preflight and exact-head CI on the published successor head."

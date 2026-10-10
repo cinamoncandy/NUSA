@@ -33,12 +33,13 @@ test('autopilot consumer has no undefined runtime identifiers', () => {
   );
 });
 
-test('autopilot consumer timestamps main execution before failure classification', () => {
+test('autopilot consumer timestamps execution and reports exhausted remediation as failure', () => {
   assert.match(
     source,
     /async function main\(\) \{\s*const startedAt = Date\.now\(\);\s*let request;\s*try \{\s*request = readDispatchRequest\(\);/s,
   );
-  assert.match(source, /attemptRecord\(\{[\s\S]*?startedAt,[\s\S]*?decision: safeProposalFailure \? "NO_ACTION" : "FAILED_CLOSED"/);
+  assert.match(source, /attemptRecord\(\{[\s\S]*?startedAt,[\s\S]*?decision: "FAILED_CLOSED"/);
+  assert.match(source, /resultSummary\(request, attempts, safeProposalFailure \? "FAILED_TO_REMEDIATE" : "FAILED_CLOSED"/);
 });
 
 test('top-level consumer rejection is not silently swallowed', () => {
