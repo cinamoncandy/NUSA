@@ -2984,11 +2984,12 @@ current_autopilot_2595_bounded_remediation:
   runtime_proof: "Runtime Proof run 37909862299 PASS; exactHeadVerified=true and deploymentRevision=sourceSha=21e632ace23bc2ee64778855ce49e0a083706c84. Scheduled ingress ABSTAINED because exact-main canonical CI was not found."
   paper_canary: "Actual PAPER run 37909797419 classified INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; no completion claim."
   invalid_canary_non_eligible_workflow: "INVALID_CANARY_NON_ELIGIBLE_WORKFLOW: consumer run 38030591763 received a dispatch citing Oracle PAPER Release run 38027432366; worker artifact recorded FAILED_TO_REMEDIATE after exactly three SANDBOX_PATCH_* proposal rejections. Preserve as evidence of worker consumption, retry cap enforcement, and the eligibility boundary defect only; do not count as Verified Useful Completion."
-  remaining: "Under #2595, add fail-closed workflow identity and actionable-step eligibility to the existing #903 worker; then obtain a real eligible coding-failure completion, governed verification, runtime evidence, and durable receipt."
   successor_branch: autopilot/codex/issue-2595-37995487274
   successor_base_sha: ba6bfa3ec948af52e2b61a9f1de44f921c287b78
   successor_pull_request: 2601
-  successor_status: BOUNDARY_IMPLEMENTATION_IN_PROGRESS
+  successor_status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
   successor_first_broken_transition: "failed workflow identity -> remediation eligibility"
-  next_permitted_action: "Complete exact workflow/run/SHA and actionable-step admission checks in the existing canonical worker, pass focused regression tests and exact-head CI, then Independent Audit and governed Release."
+  delegated_increment: "The published increment is committed and workflow-validated. The existing #903 worker now fails closed before coding inference when canonical CI job evidence includes any terminal job with a mismatched run id or unsafe/missing identity, even beside an allowlisted Typecheck, Build, or Lint failure; focused deterministic coverage proves zero coding-model calls."
+  remaining: "Exact-head CI on the published commit, independent Audit and governed Release; then exact-main deployment and Oracle/Autopilot runtime SHA and health proof; then one real allowlisted actionable coding-failure canary through patch, focused validation, PR, exact-head CI, independent exact-head Audit, governed Release/merge, applicable runtime evidence, and a durable completion receipt."
+  next_permitted_action: "Run exact-head CI, independent Audit, and governed Release for the published evidence-integrity increment; keep #2595 open through exact-main runtime proof and a real eligible completion canary."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

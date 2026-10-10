@@ -775,15 +775,16 @@ async function verifiedJevCodingFailureEvidence(
 
   const failedJobs: string[] = [];
   const failedSteps: string[] = [];
+  let unclassifiedFailedJob = false;
   let unclassifiedFailedStep = false;
   for (const rawJob of payload.jobs.slice(0, 100)) {
     if (!rawJob || typeof rawJob !== "object" || Array.isArray(rawJob)) continue;
     const job = rawJob as Record<string, unknown>;
-    if (Number.isSafeInteger(job.run_id) && job.run_id !== request.workflowRunId) continue;
     const conclusion = typeof job.conclusion === "string" ? job.conclusion : "";
     const jobName = safeFailureLabel(job.name);
-    if (FAILURE_CONCLUSIONS.has(conclusion) && jobName) {
-      failedJobs.push(jobName);
+    if (FAILURE_CONCLUSIONS.has(conclusion)) {
+      if (job.run_id !== request.workflowRunId || !jobName) unclassifiedFailedJob = true;
+      else failedJobs.push(jobName);
     }
     if (!Array.isArray(job.steps)) continue;
     for (const rawStep of job.steps) {
@@ -799,6 +800,7 @@ async function verifiedJevCodingFailureEvidence(
     }
   }
   if (failedSteps.length === 0
+    || unclassifiedFailedJob
     || unclassifiedFailedStep
     || failedSteps.some((step) => !CODING_REMEDIATION_FAILURE_STEPS.has(step))) {
     throw new Error("ACTIONABLE_FAILURE_NOT_ALLOWLISTED");

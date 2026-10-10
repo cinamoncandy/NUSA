@@ -660,6 +660,35 @@ describe("coding runner", () => {
     assert.equal(decision.retryable, false);
   });
 
+  it("fails closed on contradictory terminal job identity before coding inference", async () => {
+    for (const contradictoryJob of [
+      { run_id: request.workflowRunId + 1, name: "other run", conclusion: "failure", steps: [] },
+      { run_id: request.workflowRunId, name: "unsafe\njob", conclusion: "failure", steps: [] },
+    ]) {
+      let aiCalls = 0;
+      const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
+      const fetch = async (url: string) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        if (url.includes("/branches/main")) return response(200, { commit: { sha: request.headSha } });
+        if (url.includes("/jobs?")) return response(200, { jobs: [
+          { run_id: request.workflowRunId, name: "validation", conclusion: "failure", steps: [{ name: "Typecheck", conclusion: "failure" }] },
+          contradictoryJob,
+        ] });
+        return response(200, {
+          id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI",
+          event: "push", head_sha: request.headSha, head_branch: "main", status: "completed",
+          conclusion: "failure", repository: { full_name: request.repository },
+        });
+      };
+      await assert.rejects(
+        () => executeCodingRunner(failureRequest, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, fetch),
+        /ACTIONABLE_FAILURE_NOT_ALLOWLISTED/,
+      );
+      assert.equal(aiCalls, 0);
+    }
+  });
+
   it("falls back to public GitHub evidence when a scoped token masks a public resource as not found", async () => {
     const calls: string[] = [];
     await verifyCodingRunnerRequestAgainstGitHub(request, "scoped-token", async (url, init) => {

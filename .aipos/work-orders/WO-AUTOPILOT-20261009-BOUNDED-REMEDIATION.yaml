@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
 title: "Close actionable coding-runner failure to bounded remediation transition"
-status: BOUNDARY_FIX_IN_PROGRESS_RESIDUAL_OPEN
+status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED_RESIDUAL_OPEN
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -49,14 +49,20 @@ successor_increment:
   base_sha: ba6bfa3ec948af52e2b61a9f1de44f921c287b78
   pull_request: 2601
   branch: autopilot/codex/issue-2595-37995487274
-  status: BOUNDARY_IMPLEMENTATION_IN_PROGRESS
+  status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
   first_broken_transition: "failed workflow identity -> remediation eligibility"
   remaining:
-    - "Pass focused tests, exact-head CI, Independent Audit, and governed Release."
+    - "Pass exact-head CI, Independent Audit, and governed Release."
     - "Deploy latest protected main and verify Oracle and Autopilot runtime SHA/health."
     - "Observe a real allowlisted actionable coding failure; complete governed repair and durable receipt."
-  next_permitted_action: "Keep this single #2595 successor; complete the eligibility boundary before attempting any canary."
-  verified: false
+  next_permitted_action: "Run exact-head CI, Independent Audit, and governed Release for the published evidence-integrity increment before attempting any canary."
+  verified: true
+
+delegated_evidence_integrity_increment:
+  status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+  scope: "Fail closed before coding inference when the canonical CI jobs response contains any terminal job with a mismatched run id or unsafe/missing job identity, even when another job reports an allowlisted Typecheck, Build, or Lint failure."
+  validation: "The published increment is committed and workflow-validated. Focused deterministic coverage proves contradictory terminal job evidence returns ACTIONABLE_FAILURE_NOT_ALLOWLISTED and makes zero coding-model calls."
+  remaining: "Exact-head CI, independent Audit and governed Release; then exact-main deployment and Oracle/Autopilot runtime SHA and health proof; then one real allowlisted actionable coding-failure canary through patch, focused validation, PR, exact-head CI, independent exact-head Audit, governed Release/merge, applicable runtime evidence, and a durable completion receipt."
 
 implementation_commit: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
 merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
@@ -70,7 +76,7 @@ audit_job_id: 113749521583
 release_job_id: 113749522793
 audited_pr_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
 audited_base_sha: 2019d0245ae228ca61ce416ee0cd0950b368ec91
-next_permitted_action: "Implement exact workflow identity and actionable failure admission in the existing #903 worker; preserve the invalid Oracle Release canary evidence and keep #2595 open."
+next_permitted_action: "Verify the published evidence-integrity increment through exact-head CI, independent Audit, and governed Release; preserve the invalid Oracle Release canary evidence and keep #2595 open through exact-main runtime proof and a real eligible completion canary."
 validation_status: "MERGED; exact-head CI 37907989197 PASS; deterministic Audit run 37908729659 job 113749521583 PASS; canonical Release run 37908729659 job 113749522793 SUCCESS and merged as 21e632ace23bc2ee64778855ce49e0a083706c84; post-merge CI 37909190312 PASS; Cloudflare Deploy 37909190345 PASS; Runtime Proof 37909862299 PASS with exact source/deployment SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
 review_findings_resolved_in_increment:
   - "Preserve GitHub commit/workflow lookup HTTP status in typed failure evidence across /coding/execute, /coding/propose, and /coding/publish; preserve configured-engine 429/5xx result status through /coding/propose."
@@ -84,7 +90,7 @@ invalid_canary_non_eligible_workflow:
   proposal_attempts: 3
   evidence_meaning: "Canonical worker consumed a remediation decision and enforced retry cap; this governance failure was ineligible and is not a successful canary or verified completion."
 remaining:
-  - "Close eligibility boundary, verify it through exact-head CI/Audit/Release, then deploy and verify exact-main runtime."
+  - "Verify the committed, workflow-validated evidence-integrity increment through exact-head CI, independent Audit, and governed Release, then deploy and verify exact-main runtime."
   - "Complete one real allowlisted actionable coding-failure canary and durable completion receipt through governed verification and runtime evidence."
   - "Runtime Proof scheduled ingress abstained because exact-main canonical CI was not found; the deployment identity itself was exact and verified."
   - "Actual PAPER run 37909797419 was INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; it is not a remediation completion receipt."
