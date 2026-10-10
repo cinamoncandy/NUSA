@@ -9,6 +9,7 @@ import { PaperMinuteBarSource } from "./paperMinuteBars";
 import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
+import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { readClosedLearningBlocked, recordClosedLearningBlocked } from "./closedLearningBlockedRecord";
 import { PaperBaselineShadow } from "./paperBaselineShadow";
 import { readBaselineShadowRecord, writeBaselineShadowRecord } from "./paperBaselineShadowRecord";
@@ -215,6 +216,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     bindings: challengerBindings,
     replaySnapshots,
     readRiskConfigHash: () => CLOUD_PAPER_RISK_POLICY_FINGERPRINT,
+    readCanonicalBenchmarkEvidence: (market, periodStartAt, periodEndAt) => readCanonicalPaperTickerBenchmark(minuteObservationReader, market, periodStartAt, periodEndAt),
   });
   const rollover = new ClosedLearningRolloverScheduler({
     listOpenPeriods: periods.listOpenPeriods,

@@ -432,6 +432,7 @@ export class PaperRealizedPeriodProducer {
           costEvidence: { evidenceId: "paper-canonical-outcome:" + receipt.receiptFingerprint, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: receipt.executionCostEvidenceKind, evidenceFingerprintSha256: receipt.executionCostEvidenceFingerprint, observedAt: periodEndAt, feeRate: receipt.feeRate, spreadRate: receipt.spreadRate, slippageRate: receipt.slippageRate },
           status: "COMPLETED",
           benchmarkEvidenceId: validatedBenchmark.evidenceId,
+          benchmarkInputFingerprintSha256: validatedBenchmark.inputFingerprintSha256,
           canonicalOutcomeReceiptFingerprint: receipt.receiptFingerprint,
         },
         candidateProvenance: current.candidateProvenance,
