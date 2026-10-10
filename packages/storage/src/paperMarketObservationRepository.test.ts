@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +16,23 @@ const observation = (observedAt: number, price: number) => ({
   accumulatedVolume: 10,
   accumulatedPrice: 1_000_000,
 });
+
+function canonical(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean" || typeof value === "number") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
+}
+
+function pending(periodId: string, periodIndex: number, periodStartAt: number) {
+  const plan = { schemaVersion: 1, periodId, periodIndex, periodStartAt };
+  const payloadJson = canonical(plan);
+  return { periodId, periodIndex, periodStartAt, payloadJson, checksum: createHash("sha256").update(payloadJson, "utf8").digest("hex") };
+}
+
+function insertPending(db: SqliteDatabase, row: ReturnType<typeof pending>): void {
+  db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
+    .run(row.periodId, row.periodIndex, row.periodStartAt, row.payloadJson, row.checksum);
+}
 
 function code(action: () => unknown): string {
   try { action(); } catch (error) {
@@ -48,6 +66,17 @@ test("public PAPER market observations are durable, deterministic, deduplicated,
   } finally { restarted.close(); }
 });
 
+test("standalone observation repository retains its row cap when the optional pending table is absent", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const repository = new SqlitePaperMarketObservationRepository(db, 2);
+    repository.append(observation(100, 100));
+    repository.append(observation(200, 200));
+    repository.append(observation(300, 300));
+    assert.deepEqual(repository.list().map((item) => item.observedAt), [200, 300]);
+  } finally { db.close(); }
+});
+
 test("malformed persisted public evidence is rejected before it can be projected", () => {
   const db = new SqliteDatabase(":memory:");
   try {
@@ -69,7 +98,6 @@ test("unexpected credential-shaped input is not persisted or returned", () => {
     assert.doesNotMatch(String(row?.payload_json ?? ""), /do-not-persist|access_token/);
   } finally { db.close(); }
 });
-
 
 test("canonical source fingerprint is preserved, validated, and covered by evidence checksum", () => {
   const db = new SqliteDatabase(":memory:");
@@ -94,8 +122,7 @@ test("open PAPER period protects benchmark observations beyond the ordinary rete
     const repository = new SqlitePaperMarketObservationRepository(first, 2);
     repository.append(observation(10, 90));
     repository.append(observation(20, 91));
-    first.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
-      .run("protected-period", 0, 100, "{}", "checksum");
+    insertPending(first, pending("protected-period", 0, 100));
     for (let observedAt = 100; observedAt <= 600; observedAt += 100) repository.append(observation(observedAt, 100 + observedAt));
 
     assert.deepEqual(repository.readWindow("KRW-BTC", 100, 600).map((item) => item.observedAt), [100, 200, 300, 400, 500, 600]);
@@ -114,15 +141,13 @@ test("open PAPER period protects benchmark observations beyond the ordinary rete
   } finally { restarted.close(); }
 });
 
-test("multiple open periods use the earliest protection floor across markets", () => {
+test("multiple verified open periods use the earliest protection floor across markets", () => {
   const db = new SqliteDatabase(":memory:");
   try {
     new SqlitePersistedPaperPeriodStore(db);
     const repository = new SqlitePaperMarketObservationRepository(db, 2);
-    db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
-      .run("period-late", 1, 300, "{}", "late");
-    db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
-      .run("period-early", 0, 100, "{}", "early");
+    insertPending(db, pending("period-late", 1, 300));
+    insertPending(db, pending("period-early", 0, 100));
     repository.append(observation(50, 50));
     repository.append(observation(100, 100));
     repository.append({ ...observation(200, 200), market: "KRW-XRP" });
@@ -132,15 +157,42 @@ test("multiple open periods use the earliest protection floor across markets", (
   } finally { db.close(); }
 });
 
-test("unverifiable protection floor fails closed without deleting observations", () => {
+test("tampered pending period identity fails closed without deleting observations", () => {
   const db = new SqliteDatabase(":memory:");
   try {
     new SqlitePersistedPaperPeriodStore(db);
     const repository = new SqlitePaperMarketObservationRepository(db, 2);
+    insertPending(db, pending("protected-period", 0, 100));
+    db.connection.prepare("UPDATE research_paper_forward_period_pending SET period_start_at = ? WHERE period_id = ?").run(250, "protected-period");
+    repository.append(observation(100, 100));
+    repository.append(observation(200, 200));
+    repository.append(observation(300, 300));
+    assert.equal(repository.count(), 3);
+  } finally { db.close(); }
+});
+
+test("tampered pending period checksum fails closed without deleting observations", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    new SqlitePersistedPaperPeriodStore(db);
+    const repository = new SqlitePaperMarketObservationRepository(db, 2);
+    insertPending(db, pending("protected-period", 0, 100));
+    db.connection.prepare("UPDATE research_paper_forward_period_pending SET checksum = ? WHERE period_id = ?").run("0".repeat(64), "protected-period");
+    repository.append(observation(100, 100));
+    repository.append(observation(200, 200));
+    repository.append(observation(300, 300));
+    assert.equal(repository.count(), 3);
+  } finally { db.close(); }
+});
+
+test("malformed pending protection state fails closed without deleting observations", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    new SqlitePersistedPaperPeriodStore(db);
+    const repository = new SqlitePaperMarketObservationRepository(db, 2);
+    insertPending(db, pending("valid-floor", 0, 250));
     db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
-      .run("valid-floor", 0, 250, "{}", "valid-checksum");
-    db.connection.prepare("INSERT INTO research_paper_forward_period_pending (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)")
-      .run("malformed-floor", 1, "not-a-time", "{}", "checksum");
+      .run("malformed-floor", 1, "not-a-time", "{}", "0".repeat(64));
     repository.append(observation(100, 100));
     repository.append(observation(200, 200));
     repository.append(observation(300, 300));
