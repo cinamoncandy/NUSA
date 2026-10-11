@@ -3086,6 +3086,18 @@ current_iterative_investment_learning_20261011:
   next: "Actual Stage1 retained observation range/checksum/benchmark consumption receipt; existing PR2068 ticker regression successor has its own state entry below."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_market_data_ticker_rejection_2068:
+  canonical_pr: 2068
+  branch: market-data/2022-2034-evidence
+  work_order: WO-DATA-2068-TICKER-PERSISTENCE-REGRESSION
+  base_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  status: REVIEW_REPAIR_PENDING_CURRENT_HEAD_GATES
+  first_broken_transition: rejected_ticker_to_durable_canonical_observation_regression_evidence
+  repair: "Bind surviving row timestamp/price and exact canonical source fingerprint to the accepted fixture; rejected future/foreign fixtures cannot substitute for it."
+  evidence_scope: "Synthetic regression fixtures only; no actual acceptance claim."
+  next: "Focused regression, exact-head CI, Independent Audit and governed Release/merge."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_family_identity:
   work_order: WO-20260919-STRATEGY-FAMILY-IDENTITY
   status: READY_FOR_EXACT_HEAD_REVIEW_AFTER_REPAIR
