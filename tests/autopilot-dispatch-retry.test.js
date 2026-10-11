@@ -101,6 +101,46 @@ test("invalid decision after a bounded retry preserves the full attempt history"
   });
 });
 
+test("terminal attempts record STOP independently of rejected Worker recovery", () => {
+  for (const diagnostics of [null, { failureClass: "FUTURE_CLASS", recovery: "RETRY_BOUNDED" }]) {
+    const error = new Error("CODING_REMEDIATION_DECISION_INVALID");
+    error.decisionDiagnostics = diagnostics;
+    const result = terminalFailureResult(request, error, 10, () => 20);
+    assert.equal(result.attempts[0].recovery, "STOP");
+    assert.equal(result.attempts[0].retryable, false);
+    assert.equal(result.decisionDiagnostics, diagnostics);
+  }
+});
+
+test("valid provider retry and exhaustion preserve transport and upstream status", async () => {
+  await withOidcEnvironment(async () => {
+    let proposals = 0;
+    const result = await executeGithubActionsRunner(request, "https://runner.example.test/coding/execute", async (url) => {
+      if (String(url).startsWith("https://oidc.example.test/token")) return oidcSuccess();
+      assert.equal(new URL(url).pathname, "/coding/propose");
+      proposals += 1;
+      return response(409, { error: "CODING_PROVIDER_UNAVAILABLE", httpStatus: 503, remediationDecision: {
+        outcome: "FAILED_TO_REMEDIATE", failureClass: "PROVIDER_FAILURE", recovery: "RETRY_BOUNDED", retryable: true, attempt: 0, maxAttempts: 3,
+      } });
+    }, {
+      validatePatch: () => { throw new Error("unexpected patch"); },
+      publish: () => { throw new Error("unexpected publish"); },
+      sleep: async () => {},
+    });
+    assert.equal(proposals, 3);
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
+    assert.equal(result.httpStatus, 409);
+    assert.equal(result.workerHttpStatus, 503);
+    assert.deepEqual(result.attempts.map((item) => item.http_status), [409, 409, 409]);
+    assert.deepEqual(result.attempts.map((item) => item.worker_http_status), [503, 503, 503]);
+    assert.deepEqual(result.attempts.map((item) => item.worker_http_class), ["5xx", "5xx", "5xx"]);
+    assert.deepEqual(result.attempts.map((item) => item.recovery), ["RETRY_BOUNDED", "RETRY_BOUNDED", "STOP"]);
+    assert.deepEqual(result.attempts.map((item) => item.retryable), [true, true, false]);
+    assert.equal(result.summary.productionMutationAllowed, false);
+    assert.equal(result.summary.aiAuthority, "ZERO_AUTHORITY");
+  });
+});
+
 test("actual Worker decisions retain governance and credential STOP while admitting bounded repair", () => {
   const { decideCodingRunnerNoAction } = require("../dist/apps/autopilot/src/codingRunnerRemediation.js");
   for (const [reason, httpStatus] of [
