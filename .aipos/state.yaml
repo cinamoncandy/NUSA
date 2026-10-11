@@ -3059,10 +3059,10 @@ current_iterative_investment_learning_20261011:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_strategy_family_identity:
   work_order: WO-20260919-STRATEGY-FAMILY-IDENTITY
-  status: IMPLEMENTED_LOCAL
+  status: READY_FOR_REVIEW_DRAFT_DURING_P0_DEPLOYMENT
   branch: codex/strategy-family-integrity
   scope: "Existing generic robustness family inputs and independent evidence identity; no new strategy or qualification policy."
   findings: "Duplicate parameter tuples under distinct names inflated the grid; whitespace parameter aliases overwrote values; malformed grids threw; references sharing a source were conflated."
-  validation: "Focused regressions 88/88 and full isolated suite 1011 files PASS; typecheck/build/lint/preflight/validate:full/security (0 secrets)/diff check PASS."
+  validation: "Fresh current-main 60/60 focused tests, preflight/full architecture/safety/AIPOS validators and security PASS; focused lint 0 errors/2 warnings. New exact-head full type/build/test CI required; prior validation is historical."
   next: "Independent PR/CI governance; preserve the existing qualification hold."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

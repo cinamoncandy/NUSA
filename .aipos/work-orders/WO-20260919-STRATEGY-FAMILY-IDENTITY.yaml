@@ -1,6 +1,6 @@
 id: WO-20260919-STRATEGY-FAMILY-IDENTITY
 title: Strategy family parameter and evidence identity integrity
-status: IMPLEMENTED_LOCAL
+status: READY_FOR_REVIEW
 authority_impact: none
 scope: "Existing research robustness input validation and independent evidence verification only."
 owner_request: "Implement strategy families to a high standard; preserve existing canonical engines."
@@ -31,3 +31,17 @@ results:
   full_isolated: "1011 test files PASS"
   local_gates: "typecheck, build, lint, preflight, validate:full, security (0 secrets), diff check PASS"
   remote_ci: PENDING
+
+current_main_reconvergence_20261011:
+  protected_main: be703b22e5272d39509352322a4c1264da481a8e
+  canonical_pr: 1994
+  prior_head: 5a63a665cbcac560dabb3c2dcd6627a6e194039e
+  mode: existing_branch_normal_merge
+  state_conflict_resolution: "Retained complete fresh protected-main state and existing strategy-family work-order entry; no source conflict."
+  focused_validation: "60/60 parameter-robustness tests PASS, including semantic duplicates, malformed grids, candidate/source receipt binding, cost monotonicity, deterministic replay and prior-only OOS warmup."
+  evidence_scope: "Synthetic unit fixtures only; no real OOS exposure, PAPER fill, strategy improvement or promotion evidence."
+  source_dependency: "Tests use unchanged compiled core dependency closure built in isolated PR2395 worktree; PR1994 source delta is JavaScript input/verifier code."
+  remaining: "Full local validators, existing branch push, exact-head CI, Independent Audit and governed Release."
+
+current_local_gate_result: "60/60 PASS; exact package preflight and full architecture/truth/research/safety/AI/AIPOS validators PASS; security PASS with 0 secrets and 0 unmitigated high/critical findings; focused JavaScript lint has 0 errors and 2 warnings. New exact-head whole-project type/build/test acceptance remains CI, not claimed from a previous head."
+release_serialization: "Existing PR1994 remains Draft during canonical Oracle PAPER Release38112518939 so this independent P1 cannot move main during P0 deployment. Mark ready only after exact-head gates and stable P0 runtime verification."
