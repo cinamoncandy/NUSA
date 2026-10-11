@@ -44,7 +44,7 @@ function verifyGenericParameterRobustnessResult(request, result) {
   if (expectedReferences.size !== actualReferences.size || [...actualReferences.keys()].some((key) => !expectedReferences.has(key))) errors.push("reference identity set mismatch");
   for (const ref of request.referenceParameters ?? []) {
     if (!expected.has(ref.candidateKey)) errors.push(`reference ${ref.source} (${ref.candidateKey}) is not present in candidateGrid`);
-    else if (canonicalHash(ref.parameters) !== canonicalHash(expected.get(ref.candidateKey).parameters)) errors.push("reference parameters do not match its candidate");
+    else if (canonicalHash(canonicalFamilyParameters(request.strategyFamily, ref.parameters)) !== canonicalHash(canonicalFamilyParameters(request.strategyFamily, expected.get(ref.candidateKey).parameters))) errors.push("reference parameters do not match its candidate");
     const reported = actualReferences.get(referenceIdentity(ref));
     if (!reported) errors.push(`reference result missing: ${ref.source}`);
     else {
@@ -68,6 +68,37 @@ function verifyGenericParameterRobustnessResult(request, result) {
   if (result.aggregate && Math.abs(positiveRatio - result.aggregate.positiveRatio) > 1e-9) errors.push(`aggregate.positiveRatio mismatch: recomputed ${positiveRatio}, result reports ${result.aggregate.positiveRatio}`);
   if (result.aggregate && returns.length && Math.abs(returns[0] - result.aggregate.worstReturn) > 1e-9) errors.push("aggregate.worstReturn mismatch");
   if (result.aggregate && returns.length && Math.abs(returns[returns.length - 1] - result.aggregate.bestReturn) > 1e-9) errors.push("aggregate.bestReturn mismatch");
+  // Re-derive diagnostics independently from the bound candidate and declared edges.
+  const selectedBenchmark = (candidate) => prefersOos
+    ? (candidate.costResults.BASE.oos?.benchmarkExcessReturn ?? 0)
+    : (candidate.costResults.BASE.fullSample?.benchmarkExcessReturn ?? 0);
+  const edges = [];
+  for (const [key, candidate] of expected) {
+    if (!Array.isArray(candidate.neighbors)) throw new Error("invalid adjacency");
+    for (const neighbor of candidate.neighbors) {
+      if (!expected.has(neighbor) || neighbor === key || !expected.get(neighbor).neighbors.includes(key)) throw new Error("invalid adjacency");
+      if (key < neighbor) edges.push([key, neighbor]);
+    }
+    if (new Set(candidate.neighbors).size !== candidate.neighbors.length) throw new Error("duplicate adjacency");
+  }
+  const signRatio = edges.length ? edges.filter(([a, b]) => (selectedReturn(actual.get(a)) > 0) !== (selectedReturn(actual.get(b)) > 0)).length / edges.length : 0;
+  for (const ref of request.referenceParameters) {
+    const candidate = actual.get(ref.candidateKey);
+    const reported = actualReferences.get(referenceIdentity(ref));
+    if (!candidate || !reported) continue;
+    const neighbors = expected.get(ref.candidateKey).neighbors.map(key => actual.get(key));
+    const referenceReturn = selectedReturn(candidate);
+    const directionRatio = neighbors.length ? neighbors.filter(c => (selectedReturn(c) > 0) === (referenceReturn > 0)).length / neighbors.length : 0;
+    const benchmarkRatio = neighbors.length ? neighbors.filter(c => selectedBenchmark(c) > 0).length / neighbors.length : 0;
+    const assessment = signRatio >= 0.5 ? "UNSTABLE" : referenceReturn <= 0 ? "FLAT_WEAK"
+      : directionRatio >= 0.75 && benchmarkRatio >= 0.5 ? "BROAD_PLATEAU" : directionRatio >= 0.5 ? "NARROW_PLATEAU" : "ISOLATED_PEAK";
+    const diagnostics = { referenceReturn, immediateNeighborCount: neighbors.length,
+      immediateNeighborPositiveRatio: directionRatio, immediateNeighborBenchmarkOutperformRatio: benchmarkRatio,
+      allCandidatePositiveRatio: positiveRatio, signReversalRatio: signRatio, assessment };
+    for (const [field, value] of Object.entries(diagnostics)) {
+      if (reported[field] !== value) errors.push("reference " + ref.source + " (" + ref.candidateKey + ") " + field + " mismatch");
+    }
+  }
   if (result.hashes) {
     if (canonicalHash(request) !== result.hashes.requestSha256) errors.push("requestSha256 mismatch");
     if (canonicalHash(request.referenceParameters) !== result.hashes.referenceParametersSha256) errors.push("referenceParametersSha256 mismatch");

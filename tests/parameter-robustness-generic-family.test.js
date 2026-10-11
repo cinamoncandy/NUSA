@@ -45,6 +45,12 @@ test("generic robustness evaluates the exact precommitted RSI grid and verifies 
   assert.equal(result.status, "PASS", result.failures.join(","));
   assert.equal(result.strategyFamily, "rsi-mean-reversion");
   assert.equal(result.candidates.length, 4);
+  for (const candidate of result.candidates) {
+    for (const cost of Object.values(candidate.costResults)) {
+      assert.ok(Number.isFinite(cost.oos.compoundedBenchmarkReturn));
+      assert.equal(cost.oos.benchmarkExcessReturn, cost.oos.compoundedReturn - cost.oos.compoundedBenchmarkReturn);
+    }
+  }
   assert.deepEqual(result.candidates.map((candidate) => candidate.candidateKey), ["rsi-14-25-75", "rsi-14-30-70", "rsi-7-25-75", "rsi-7-30-70"]);
   assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
 });
@@ -186,4 +192,59 @@ test("rehashing a duplicate family configuration cannot make its evidence valid"
   const verification = verifyParameterRobustnessResult(input, result);
   assert.equal(verification.status, "FAIL");
   assert.ok(verification.errors.includes("request contains duplicate strategy parameters"));
+});
+
+test("SMA reference aliases match the candidate's semantic parameters", () => {
+  const input = request();
+  input.strategyFamily = "sma-crossover";
+  input.candidateGrid = [{ key: "sma", parameters: { shortPeriod: 5, longPeriod: 20 }, neighbors: [] }];
+  input.referenceParameters = [{ source: "PRODUCTION_DEFAULT", candidateKey: "sma", parameters: { shortWindow: 5, longWindow: 20 } }];
+  const result = runParameterRobustnessRequest(input);
+  assert.equal(result.status, "PASS", result.failures.join(";"));
+  assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+});
+
+test("rehashed invalid strategy domains fail closed in runner and verifier", () => {
+  for (const [family, invalid] of [
+    ["rsi-mean-reversion", { period: 1, oversold: 30, overbought: 70 }],
+    ["rsi-mean-reversion", { period: 2.5, oversold: 30, overbought: 70 }],
+    ["rsi-mean-reversion", { period: 14, oversold: 70, overbought: 30 }],
+    ["rsi-mean-reversion", { period: 14, oversold: 0, overbought: 100 }],
+    ["sma-crossover", { shortPeriod: 1, longPeriod: 20 }],
+    ["sma-crossover", { shortPeriod: 5.5, longPeriod: 20 }],
+    ["sma-crossover", { shortPeriod: 20, longPeriod: 5 }],
+    ["donchian-breakout", { channelPeriod: 1 }],
+    ["donchian-breakout", { channelPeriod: 2.5 }],
+  ]) {
+    const input = request();
+    input.strategyFamily = family;
+    const validParameters = family === "rsi-mean-reversion" ? { period: 14, oversold: 30, overbought: 70 }
+      : family === "sma-crossover" ? { shortPeriod: 5, longPeriod: 20 } : { channelPeriod: 20 };
+    input.candidateGrid = [{ key: "bound", parameters: validParameters, neighbors: [] }];
+    input.referenceParameters = [{ source: "PRODUCTION_DEFAULT", candidateKey: "bound", parameters: validParameters }];
+    const result = runParameterRobustnessRequest(input);
+    assert.equal(result.status, "PASS");
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+    input.candidateGrid[0].parameters = result.candidates[0].parameters = invalid;
+    input.referenceParameters[0].parameters = result.references[0].parameters = invalid;
+    result.hashes.requestSha256 = canonicalHash(input);
+    result.hashes.neighborhoodGridSha256 = canonicalHash(input.candidateGrid);
+    result.hashes.referenceParametersSha256 = canonicalHash(input.referenceParameters);
+    result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+    result.hashes.referencesSha256 = canonicalHash(result.references);
+    assert.equal(runParameterRobustnessRequest(input).status, "FAIL", family);
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", family);
+  }
+});
+
+test("rehashed reference diagnostics remain bound to candidate returns and adjacency", () => {
+  const input = request();
+  const valid = runParameterRobustnessRequest(input);
+  for (const field of ["referenceReturn", "immediateNeighborCount", "immediateNeighborPositiveRatio",
+    "immediateNeighborBenchmarkOutperformRatio", "allCandidatePositiveRatio", "signReversalRatio", "assessment"]) {
+    const result = structuredClone(valid);
+    result.references[0][field] = field === "assessment" ? "FABRICATED" : result.references[0][field] + 0.123;
+    result.hashes.referencesSha256 = canonicalHash(result.references);
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", field);
+  }
 });

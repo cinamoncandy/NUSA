@@ -134,7 +134,7 @@ function validateRequest(request, modules) {
       if (typeof ref?.candidateKey !== "string" || !gridByKey.has(ref.candidateKey)) errors.push(`referenceParameters entry has an unknown candidateKey: ${ref?.candidateKey}`);
       try {
         const expected = gridByKey.get(ref?.candidateKey)?.parameters;
-        if (canonicalHash(canonicalParameters(ref?.parameters)) !== canonicalHash(canonicalParameters(expected))) errors.push(`referenceParameters ${ref?.source} parameters do not match candidateGrid`);
+        if (canonicalHash(canonicalFamilyParameters(request.strategyFamily, ref?.parameters)) !== canonicalHash(canonicalFamilyParameters(request.strategyFamily, expected))) errors.push(`referenceParameters ${ref?.source} parameters do not match candidateGrid`);
       } catch (error) { errors.push(`referenceParameters ${ref?.source} parameters are invalid`); }
     }
   } else {
@@ -280,7 +280,7 @@ function runGenericParameterRobustnessRequest(request, modules, candles, points)
           for (const point of result.equityCurve) curve.push({ timestamp: point.timestamp, equity: base * (point.equity / windowInitial) });
           base *= (1 + result.metrics.totalReturn);
         }
-        oosResult = { windowCount: plan.length, compoundedReturn, maxDrawdown: curve.length ? computeMaxDrawdownFromCurve(curve) : 0, profitableWindowRatio: plan.length ? testResults.filter((result) => result.metrics.totalReturn > 0).length / plan.length : 0, totalTrades: testResults.reduce((sum, result) => sum + result.performance.trades, 0) };
+        oosResult = { windowCount: plan.length, compoundedReturn, compoundedBenchmarkReturn, benchmarkExcessReturn: compoundedReturn - compoundedBenchmarkReturn, maxDrawdown: curve.length ? computeMaxDrawdownFromCurve(curve) : 0, profitableWindowRatio: plan.length ? testResults.filter((result) => result.metrics.totalReturn > 0).length / plan.length : 0, totalTrades: testResults.reduce((sum, result) => sum + result.performance.trades, 0) };
       }
     }
     return { fullSample: fullSampleResult ? summarizeFullSample(fullSampleResult) : null, oos: oosResult };

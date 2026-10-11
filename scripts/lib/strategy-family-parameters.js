@@ -21,6 +21,9 @@ function canonicalFamilyParameters(familyId, value) {
     normalized[field] = parameter;
   }
   if (fields.some((field) => !Object.hasOwn(normalized, field))) throw new Error("missing explicit strategy parameters");
+  if (familyId === "sma-crossover" && (!Number.isInteger(normalized.shortPeriod) || !Number.isInteger(normalized.longPeriod) || normalized.shortPeriod < 2 || normalized.longPeriod <= normalized.shortPeriod)) throw new Error("invalid SMA periods");
+  if (familyId === "rsi-mean-reversion" && (!Number.isInteger(normalized.period) || normalized.period < 2 || !(normalized.oversold > 0 && normalized.oversold < normalized.overbought && normalized.overbought < 100))) throw new Error("invalid RSI parameters");
+  if (familyId === "donchian-breakout" && (!Number.isInteger(normalized.channelPeriod) || normalized.channelPeriod < 2)) throw new Error("invalid Donchian period");
   return normalized;
 }
 
