@@ -15,6 +15,15 @@ function verifyGenericParameterRobustnessResult(request, result) {
   if (![request.candidateGrid, request.referenceParameters, result.candidates, result.references, result.costConditions].every(Array.isArray)) {
     return { status: "FAIL", errors: ["generic family evidence arrays are missing or malformed"] };
   }
+  if (!["sma-crossover", "rsi-mean-reversion", "donchian-breakout"].includes(request.strategyFamily)) errors.push("unsupported strategyFamily");
+  if (request.candidateGrid.length === 0 || request.referenceParameters.length === 0) errors.push("generic grid and references must be non-empty");
+  const canonicalKey = value => typeof value === "string" && value.length > 0 && value === value.trim();
+  for (const candidate of request.candidateGrid) if (!canonicalKey(candidate?.key)) errors.push("candidateGrid requires canonical keys");
+  for (const candidate of result.candidates) if (!canonicalKey(candidate?.candidateKey)) errors.push("result requires canonical candidate keys");
+  for (const ref of [...request.referenceParameters, ...result.references]) {
+    if (!canonicalKey(ref?.candidateKey)) errors.push("reference requires canonical candidate key");
+    if (!["PRODUCTION_DEFAULT", "WALK_FORWARD_SELECTED", "MANUAL_RESEARCH_REFERENCE"].includes(ref?.source)) errors.push("reference source invalid");
+  }
   if (result.strategyFamily !== request.strategyFamily) errors.push("result strategyFamily mismatch");
   if (result.requestId !== request.id || result.schemaVersion !== request.schemaVersion) errors.push("result request identity mismatch");
   if (canonicalHash(result.costConditions) !== canonicalHash(request.costConditions)) errors.push("costConditions request mismatch");
@@ -72,7 +81,8 @@ function verifyGenericParameterRobustnessResult(request, result) {
         const oos = evidence?.oos;
         if (!oos || ![oos.compoundedReturn, oos.compoundedBenchmarkReturn, oos.benchmarkExcessReturn].every(value => typeof value === "number" && Number.isFinite(value))) throw new Error("missing or non-finite OOS benchmark evidence");
         if (oos.benchmarkExcessReturn !== oos.compoundedReturn - oos.compoundedBenchmarkReturn) throw new Error("OOS benchmark excess mismatch");
-      } else {
+      }
+      if (request.evaluation.mode !== "WALK_FORWARD_OOS_WINDOWS") {
         const full = evidence?.fullSample;
         if (!full || ![full.totalReturn, full.benchmarkReturn, full.benchmarkExcessReturn].every(value => typeof value === "number" && Number.isFinite(value))) throw new Error("missing or non-finite full-sample evidence");
         if (full.benchmarkExcessReturn !== full.totalReturn - full.benchmarkReturn) throw new Error("full-sample benchmark excess mismatch");

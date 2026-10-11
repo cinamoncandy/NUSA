@@ -300,3 +300,51 @@ test("one canonical candidate cannot emit ambiguous multi-source qualification r
   assert.equal(result.status, "FAIL");
   assert.match(result.failures.join(";"), /one reference per candidate/);
 });
+
+test("resealed noncanonical generic identities fail closed", () => {
+  for (const kind of ["padded-key", "unknown-source"]) {
+    const input = request();
+    const result = runParameterRobustnessRequest(input);
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+    if (kind === "padded-key") {
+      const old = input.candidateGrid[0].key;
+      const key = " " + old + " ";
+      for (const candidate of input.candidateGrid) {
+        if (candidate.key === old) candidate.key = key;
+        candidate.neighbors = candidate.neighbors.map(item => item === old ? key : item);
+      }
+      for (const candidate of result.candidates) {
+        if (candidate.candidateKey === old) candidate.candidateKey = key;
+        candidate.neighbors = candidate.neighbors.map(item => item === old ? key : item);
+      }
+      for (const ref of [...input.referenceParameters, ...result.references]) if (ref.candidateKey === old) ref.candidateKey = key;
+    } else {
+      input.referenceParameters[0].source = result.references[0].source = "UNKNOWN";
+    }
+    result.hashes.requestSha256 = canonicalHash(input);
+    result.hashes.neighborhoodGridSha256 = canonicalHash(input.candidateGrid);
+    result.hashes.referenceParametersSha256 = canonicalHash(input.referenceParameters);
+    result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+    result.hashes.referencesSha256 = canonicalHash(result.references);
+    assert.equal(runParameterRobustnessRequest(input).status, "FAIL");
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", kind);
+  }
+});
+
+test("BOTH receipts require full-sample evidence independently of OOS", () => {
+  const input = request();
+  input.evaluation.mode = "BOTH";
+  const valid = runParameterRobustnessRequest(input);
+  assert.equal(verifyParameterRobustnessResult(input, valid).status, "PASS");
+  for (const kind of ["missing", "arithmetic"]) {
+    const result = structuredClone(valid);
+    for (const candidate of result.candidates) {
+      for (const evidence of Object.values(candidate.costResults)) {
+        if (kind === "missing") delete evidence.fullSample;
+        else evidence.fullSample.benchmarkExcessReturn += 0.25;
+      }
+    }
+    result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", kind);
+  }
+});

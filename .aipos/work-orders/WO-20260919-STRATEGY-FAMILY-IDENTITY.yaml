@@ -68,3 +68,10 @@ qualification_boundary_review_repair_20261011:
   validation: "67/67 robustness plus25/25 production qualification/wiring regressions PASS; no policy or threshold changes."
   existing_helper_convergence: "Removed unused generic parameter copier; shared canonicalFamilyParameters is the sole family-input contract."
   next: "New exact-head CI and Independent Audit; prior review/CI superseded."
+
+review_identity_both_repair_20261011:
+  base_sha: 722b487383fe19a8c4e025bb82a6a63da43601f2
+  findings: "Independent review on7a18: resealed noncanonical generic keys/sources accepted; BOTH skipped full-sample evidence."
+  validation: "Two new regressions reproduced PASS instead of FAIL; repaired verifier69/69 robustness tests PASS. Preflight/lint/diff PASS."
+  remaining: "Fresh exact-head CI and independent acceptance; GitHub Codex review capacity currently exhausted on1818. No acceptance inferred."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
