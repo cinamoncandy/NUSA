@@ -628,6 +628,36 @@ describe("coding runner", () => {
     assert.equal(aiCalls, 1);
   });
 
+  it("does not admit cancelled or timed-out CI runs as actionable repository failures", async () => {
+    for (const conclusion of ["cancelled", "timed_out"] as const) {
+      let jobLookups = 0;
+      let aiCalls = 0;
+      const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:${conclusion}` };
+      const fetch = async (url: string) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        if (url.includes("/jobs?")) {
+          jobLookups += 1;
+          return response(200, { jobs: [] });
+        }
+        return response(200, {
+          id: request.workflowRunId, workflow_id: 311000286, path: ".github/workflows/ci.yml", name: "CI",
+          event: "push", head_sha: request.headSha, head_branch: "main", status: "completed",
+          conclusion, repository: { full_name: request.repository },
+        });
+      };
+      const ai: WorkersAiBinding = {
+        async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; },
+      };
+
+      await assert.rejects(
+        () => executeCodingRunner(failureRequest, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, fetch),
+        /CODING_RUNNER_FAILURE_EVIDENCE_INVALID/,
+      );
+      assert.equal(jobLookups, 0, conclusion);
+      assert.equal(aiCalls, 0, conclusion);
+    }
+  });
+
   it("does not spend a coding retry on an unallowlisted CI failure step", async () => {
     let aiCalls = 0;
     let jobLookups = 0;
