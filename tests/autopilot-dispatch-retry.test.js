@@ -100,6 +100,28 @@ test("invalid decision after a bounded retry preserves the full attempt history"
   });
 });
 
+test("actual Worker decisions retain governance and credential STOP while admitting bounded repair", () => {
+  const { decideCodingRunnerNoAction } = require("../dist/apps/autopilot/src/codingRunnerRemediation.js");
+  for (const [reason, httpStatus] of [
+    ["AUDIT_BLOCKED", 503], ["RELEASE_BLOCKED", 503], ["DEPLOYMENT_FAILURE", 503],
+    ["PERMISSION_FAILURE", 429], ["CREDENTIAL_UNAVAILABLE", 401], ["HUMAN_ONLY", 403],
+    ["EXTERNAL_DEPENDENCY", 503], ["CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN", 429],
+    ["WORKFLOW_NOT_ELIGIBLE", 503], ["ACTIONABLE_FAILURE_NOT_ALLOWLISTED", 503],
+  ]) {
+    const decision = decideCodingRunnerNoAction(reason, 0, 3, httpStatus);
+    assert.equal(decision.outcome, "FAILED_CLOSED", reason);
+    assert.equal(decision.recovery, "STOP", reason);
+    assert.equal(decision.retryable, false, reason);
+    assert.deepEqual(boundedRemediationDecision(decision), decision, reason);
+  }
+  const repair = decideCodingRunnerNoAction("SANDBOX_BUILD_FAILED", 0, 3);
+  assert.equal(boundedRemediationDecision(repair).retryable, true);
+  const exhausted = decideCodingRunnerNoAction("SANDBOX_BUILD_FAILED", 3, 3);
+  assert.equal(exhausted.retryable, false);
+  assert.equal(boundedRemediationDecision(exhausted), null, "the canonical Worker emits attempt zero; dispatcher owns the retry counter");
+  assert.equal(boundedRemediationDecision({ ...repair, attempt: 1 }), null);
+});
+
 test("Worker terminal vocabulary is accepted only as fail-closed STOP", () => {
   for (const failureClass of ["AUDIT_BLOCKED", "RELEASE_BLOCKED", "DEPLOYMENT_FAILURE", "PERMISSION_FAILURE", "WORKFLOW_NOT_ELIGIBLE", "AUTHORITY_VIOLATION", "REQUEST_INVALID", "UNKNOWN"]) {
     const value = { outcome: "FAILED_CLOSED", failureClass, recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3 };
