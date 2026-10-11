@@ -178,7 +178,7 @@ test("rejected future and foreign tickers never become durable PAPER evidence", 
   const directory = mkdtempSync(join(tmpdir(), "nusa-paper-market-rejection-persistence-"));
   const database = join(directory, "state.sqlite");
   const token = ["paper", "market", "rejection", "persistence", "fixture"].join("-");
-  const port = 42_987;
+  const port = 43_192;
   let onTicker;
   let handle;
   try {
