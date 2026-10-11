@@ -44,6 +44,7 @@ export interface ResearchPortfolioDiversificationEvidence {
   readonly candidateIds: readonly string[];
   readonly familyIds: readonly string[];
   readonly pairs: readonly ResearchPortfolioDiversificationPair[];
+  readonly series: readonly ResearchPortfolioDiversificationSeries[];
   readonly maximumAbsolutePairwiseCorrelation: number | null;
   readonly maximumSimultaneousDrawdownOverlap: number | null;
   readonly provenance: Readonly<{
@@ -233,6 +234,7 @@ export function buildResearchPortfolioDiversificationEvidence(
     candidateIds: freeze(series.map((entry) => entry.candidateId)),
     familyIds: freeze([...new Set(series.map((entry) => entry.familyId))].sort()),
     pairs: freeze(pairs),
+    series: freeze(series.map(entry => freeze({ ...entry, returns: freeze(entry.returns.map(point => freeze({ ...point }))) }))),
     maximumAbsolutePairwiseCorrelation: pairs.length === 0 ? null : Math.max(...pairs.map((pair) => pair.absoluteCorrelation)),
     maximumSimultaneousDrawdownOverlap: pairs.length === 0 ? null : Math.max(...pairs.map((pair) => pair.simultaneousDrawdownOverlap)),
     provenance: freeze({ candidates: provenanceCandidates }),
@@ -253,6 +255,11 @@ function validateEvidence(evidence: ResearchPortfolioDiversificationEvidence): v
   const { evidenceFingerprintSha256, ...withoutFingerprint } = evidence;
   if (!SHA256.test(evidenceFingerprintSha256) || fingerprint(evidencePayload(withoutFingerprint)) !== evidenceFingerprintSha256) {
     throw new ResearchPortfolioDiversificationError("DIVERSIFICATION_EVIDENCE_FINGERPRINT_MISMATCH", "diversification evidence fingerprint does not match content");
+  }
+  if (!Array.isArray(evidence.series)) throw new ResearchPortfolioDiversificationError("PAIRWISE_EVIDENCE_INVALID", "retained OOS paths are missing");
+  const reconstructed = buildResearchPortfolioDiversificationEvidence(evidence.series);
+  if (reconstructed.evidenceFingerprintSha256 !== evidence.evidenceFingerprintSha256) {
+    throw new ResearchPortfolioDiversificationError("PAIRWISE_EVIDENCE_INVALID", "diversification statistics do not reconstruct from retained OOS paths");
   }
   if (
     evidence.candidateCount !== evidence.candidateIds.length
@@ -360,6 +367,9 @@ export function adviseCorrelationAwareLeagueCapitalAllocation(
   const standingById = new Map(standing.entries.map((entry) => [entry.id, entry] as const));
   for (const provenance of evidence.provenance.candidates) {
     const candidate = standingById.get(provenance.candidateId);
+    if (candidate != null && !candidate.sourceDatasetIds.includes(provenance.datasetId)) {
+      throw new ResearchPortfolioDiversificationError("DATASET_IDENTITY_MISMATCH", "candidate dataset differs between League and diversification evidence");
+    }
     if (candidate != null && candidate.familyId !== provenance.familyId) {
       throw new ResearchPortfolioDiversificationError("CANDIDATE_FAMILY_MISMATCH", `candidate ${provenance.candidateId} family differs between League and diversification evidence`);
     }

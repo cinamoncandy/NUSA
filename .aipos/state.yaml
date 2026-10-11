@@ -563,7 +563,9 @@ current_mobile_self_service_paper_upbit_readonly:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
 current_correlation_aware_research_portfolio:
   work_order: WO-ISSUE-1815-CORRELATION-AWARE-RESEARCH-PORTFOLIO
-  status: READY_FOR_PR
+  status: READY_FOR_EXISTING_EXACT_HEAD_REVIEW
+  canonical_pr: 1818
+  validation: "Strict focused TypeScript build and10/10 tests PASS; source-bound actual OOS acceptance unverified."
   branch: research/correlation-aware-portfolio-1815
   base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
   scope: "Research-only OOS correlation/drawdown-overlap evidence and dependence gate reusing canonical League allocation."
@@ -3064,33 +3066,30 @@ current_autopilot_2595_decision_diagnostics:
   VERIFIED: false
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
-current_data_2002_dataset_identity:
+completed_data_2002_dataset_identity:
   work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
   pull_request: 2395
   branch: research/current-dataset-identity-2002
-  status: EXACT_HEAD_CI_PENDING
-  source_main_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
-  reconvergence_commit: 8899471c3fdbe812abdb8e3d9cc0535aca1bb7ca
-  first_broken_transition: "current-main reconvergence -> applicable exact-head Independent Audit"
-  evidence: "Prior Audit 38095582184 returned NO_ACTION authority=NONE due stale base. Prior PAPER artifact is INCOMPLETE and cannot prove dataset integrity acceptance."
-  remaining: "Local scoped TypeScript, focused 23/23, preflight/index/provenance PASS; actual public 20-candle currentness/replay receipt recorded. Refreshed exact-head CI/Audit/Release, merge and exact-main runtime evidence remain; #2068 follows."
+  status: COMPLETED_IMPLEMENTATION
+  protected_merge_sha: be703b22e5272d39509352322a4c1264da481a8e
+  evidence: "Exact-head CI/Audit/Release and protected merge complete; actual deployed dataset handoff recorded. Historical receipts are not current Learning acceptance."
+  remaining: "No active PR2395 implementation gate. Actual Learning retention/benchmark acceptance belongs to #1605."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_iterative_investment_learning_20261011:
   owner: nusa-data-integrity
-  canonical_pr: 2395
+  completed_pr: 2395
   canonical_learning_issue: 1605
-  source_main_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
-  prior_head: be6702f1667433c2bdf1b310c36c9891f900afe2
+  source_main_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  runtime_sha: ca4f897dd476d1238682a38d618c9569bac19e52
   work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
-  status: REVIEW_REPAIR_LOCAL_PASS_PENDING_EXACT_HEAD_GATES
-  first_broken_transition: current_dataset_identity_to_full_qualification_provenance_binding
-  root_cause: "Qualification previously compared only dataset id/hash, allowing source/market/interval/end-close substitution. Release also stopped on four unresolved review threads."
-  validation: "Scoped TypeScript compiler PASS; focused integrity/qualification 40/40 plus wiring 4/4 PASS; baseline/current red-green regression PASS; preflight, architecture truth, safety, AI and work-order provenance PASS."
-  runtime_evidence: .aipos/evidence/learning-current-chain-20261011.json
+  status: DATA_IDENTITY_IMPLEMENTATION_DEPLOYED_ACTUAL_LEARNING_UNVERIFIED
+  first_broken_transition: pending_period_retained_observations_to_post_restart_benchmark_reconstruction
+  validation: "PR2395 exact-head and protected-main CI/Audit/Release completed; latest-main CI38130954313 and Oracle release38131375100 PASS; current actual runtime SHA matches."
+  runtime_evidence: "Fresh health 2026-10-11T16:09:43.875Z: Ledger81 fills, fingerprint9be0aea43ee8063f9a3027dd4586338c4c9d8413b5bd99f8966e3946f19d2254; realized periods5, rolloverWAITING_FOR_CANONICAL_BOUNDARY, cycles0. Prior CANONICAL_FILL_LEDGER_UNAVAILABLE is not current."
   learning_acceptance_verified: 0
   learning_acceptance_remaining: 7
   improvement: IMPROVEMENT_UNVERIFIED
   verified: false
-  next: "Existing PR2395 fresh exact-head CI/Audit/Release; then exact-main current dataset handoff and real Stage1 retention/benchmark/recovery evidence."
+  next: "Actual Stage1 retained observation range/checksum/benchmark consumption receipt; existing PR2068 ticker regression successor has its own state entry below."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

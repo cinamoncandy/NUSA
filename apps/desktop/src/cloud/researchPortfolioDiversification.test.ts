@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 import type { LeagueRankedEntry, LeagueStanding } from "./nusaLeague";
 import {
@@ -163,4 +164,24 @@ describe("Research portfolio diversification evidence", () => {
     }
     assert.ok(evidence.reasons.includes("NO_EXECUTION_AUTHORITY"));
   });
+  it("rejects resealed statistics unrelated to the retained OOS paths", () => {
+    const evidence = buildResearchPortfolioDiversificationEvidence([series("a", "trend", a), series("b", "breakout", sameDirection)]);
+    const tampered = JSON.parse(JSON.stringify(evidence));
+    tampered.pairs[0].correlation = 0;
+    tampered.pairs[0].absoluteCorrelation = 0;
+    tampered.maximumAbsolutePairwiseCorrelation = 0;
+    const sortKeys = (value: unknown): unknown => Array.isArray(value) ? value.map(sortKeys)
+      : value != null && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([x], [y]) => x.localeCompare(y)).map(([key, v]) => [key, sortKeys(v)])) : value;
+    delete tampered.evidenceFingerprintSha256;
+    tampered.evidenceFingerprintSha256 = createHash("sha256").update(JSON.stringify(sortKeys(tampered))).digest("hex");
+    assert.throws(() => adviseCorrelationAwareLeagueCapitalAllocation(standing([entry("a", "trend", 1, 120), entry("b", "breakout", 2, 100)]), tampered, { maximumCandidateWeight: 0.5 }, 0.7),
+      (error) => error instanceof ResearchPortfolioDiversificationError && error.code === "PAIRWISE_EVIDENCE_INVALID");
+  });
+
+  it("rejects a dataset substitution under the same candidate and family", () => {
+    const evidence = buildResearchPortfolioDiversificationEvidence([series("a", "trend", a, { datasetId: "substituted" }), series("b", "breakout", lowDependence)]);
+    assert.throws(() => adviseCorrelationAwareLeagueCapitalAllocation(standing([entry("a", "trend", 1, 120), entry("b", "breakout", 2, 100)]), evidence, { maximumCandidateWeight: 0.5 }, 0.7),
+      (error) => error instanceof ResearchPortfolioDiversificationError && error.code === "DATASET_IDENTITY_MISMATCH");
+  });
+
 });
