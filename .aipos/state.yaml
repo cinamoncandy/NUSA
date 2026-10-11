@@ -3046,7 +3046,8 @@ current_autopilot_2595_decision_diagnostics:
   branch: fix/2595-remediation-decision-diagnostics
   base_sha: be703b22e5272d39509352322a4c1264da481a8e
   implementation_commit: c608fb11c645787b30d5afadcef53f6f512907a3
-  focused_validation_head: c1f59727db893d9c5aaa40653e986dcf02f7c1d4
+  focused_validation_head: c8dcf638710b9c7dc6fed9b97404397416ee6d8e
+  current_main_build_typecheck_validation_head: c1f59727db893d9c5aaa40653e986dcf02f7c1d4
   published_head_binding: REQUIRE_FRESH_EXACT_HEAD_CI_AUDIT_RELEASE_IN_CANONICAL_PR_RECEIPT
   prior_increment_head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
   status: LOCAL_VALIDATION_PASS_EXACT_HEAD_GATES_PENDING
