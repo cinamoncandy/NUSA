@@ -32,12 +32,14 @@ function verifyGenericParameterRobustnessResult(request, result) {
   for (const [key, candidate] of expected) {
     const recorded = actual.get(key);
     if (!recorded) { errors.push(`missing candidate in result: ${key}`); continue; }
-    if (canonicalHash(candidate.parameters) !== canonicalHash(recorded.parameters)) errors.push(`candidate ${key} parameter mismatch`);
+    if (canonicalHash(canonicalFamilyParameters(request.strategyFamily, candidate.parameters)) !== canonicalHash(canonicalFamilyParameters(request.strategyFamily, recorded.parameters))) errors.push(`candidate ${key} parameter mismatch`);
     if (canonicalHash([...candidate.neighbors].sort()) !== canonicalHash([...(recorded.neighbors ?? [])].sort())) errors.push(`candidate ${key} adjacency mismatch`);
+    if (recorded.status !== "EVALUATED") errors.push("candidate " + key + " status must be EVALUATED");
     if (recorded.familyId !== request.strategyFamily) errors.push(`candidate ${key} family mismatch`);
   }
   const referenceIdentity = (ref) => JSON.stringify([ref.source, ref.candidateKey]);
   const expectedReferences = new Set(request.referenceParameters.map(referenceIdentity));
+  if (new Set(request.referenceParameters.map(ref => ref.candidateKey)).size !== request.referenceParameters.length) errors.push("request requires one reference per candidate");
   const actualReferences = new Map(result.references.map((ref) => [referenceIdentity(ref), ref]));
   if (expectedReferences.size !== request.referenceParameters.length) errors.push("request contains duplicate reference identity");
   if (actualReferences.size !== result.references.length) errors.push("result contains duplicate reference identity");
@@ -50,7 +52,7 @@ function verifyGenericParameterRobustnessResult(request, result) {
     else {
       if (reported.familyId !== request.strategyFamily) errors.push("reference family mismatch");
       if (reported.candidateKey !== ref.candidateKey) errors.push(`reference ${ref.source} candidateKey mismatch`);
-      if (canonicalHash(reported.parameters) !== canonicalHash(ref.parameters)) errors.push(`reference ${ref.source} parameters mismatch`);
+      if (canonicalHash(canonicalFamilyParameters(request.strategyFamily, reported.parameters)) !== canonicalHash(canonicalFamilyParameters(request.strategyFamily, ref.parameters))) errors.push(`reference ${ref.source} parameters mismatch`);
       if (reported.assessment === "BROAD_PLATEAU" && !(reported.referenceReturn > 0)) errors.push(`reference ${ref.source}: BROAD_PLATEAU requires a positive referenceReturn`);
       if (reported.assessment === "FLAT_WEAK" && reported.referenceReturn > 0) errors.push(`reference ${ref.source}: FLAT_WEAK should not have a positive referenceReturn`);
     }
@@ -58,7 +60,7 @@ function verifyGenericParameterRobustnessResult(request, result) {
   const byName = Object.fromEntries((result.costConditions ?? []).map((condition) => [condition.name, condition]));
   if (byName.BASE && byName.MODERATE && (byName.MODERATE.feeRate < byName.BASE.feeRate || byName.MODERATE.slippageBps < byName.BASE.slippageBps)) errors.push("recorded costConditions.MODERATE is less stressful than BASE");
   if (byName.MODERATE && byName.SEVERE && (byName.SEVERE.feeRate < byName.MODERATE.feeRate || byName.SEVERE.slippageBps < byName.MODERATE.slippageBps)) errors.push("recorded costConditions.SEVERE is less stressful than MODERATE");
-  const validCandidates = (result.candidates ?? []).filter((candidate) => candidate.status === "EVALUATED");
+  const validCandidates = result.candidates;
   const prefersOos = request.evaluation.mode !== "FULL_SAMPLE";
   const selectedReturn = (candidate) => prefersOos
     ? (candidate.costResults.BASE.oos?.compoundedReturn ?? 0)
@@ -70,7 +72,11 @@ function verifyGenericParameterRobustnessResult(request, result) {
         const oos = evidence?.oos;
         if (!oos || ![oos.compoundedReturn, oos.compoundedBenchmarkReturn, oos.benchmarkExcessReturn].every(value => typeof value === "number" && Number.isFinite(value))) throw new Error("missing or non-finite OOS benchmark evidence");
         if (oos.benchmarkExcessReturn !== oos.compoundedReturn - oos.compoundedBenchmarkReturn) throw new Error("OOS benchmark excess mismatch");
-      } else if (!evidence?.fullSample || ![evidence.fullSample.totalReturn, evidence.fullSample.benchmarkExcessReturn].every(value => typeof value === "number" && Number.isFinite(value))) throw new Error("missing or non-finite full-sample evidence");
+      } else {
+        const full = evidence?.fullSample;
+        if (!full || ![full.totalReturn, full.benchmarkReturn, full.benchmarkExcessReturn].every(value => typeof value === "number" && Number.isFinite(value))) throw new Error("missing or non-finite full-sample evidence");
+        if (full.benchmarkExcessReturn !== full.totalReturn - full.benchmarkReturn) throw new Error("full-sample benchmark excess mismatch");
+      }
     }
   }
   const returns = validCandidates.map(selectedReturn).sort((a, b) => a - b);
@@ -81,7 +87,7 @@ function verifyGenericParameterRobustnessResult(request, result) {
   // Re-derive diagnostics independently from the bound candidate and declared edges.
   const selectedBenchmark = (candidate) => prefersOos
     ? (candidate.costResults.BASE.oos.compoundedReturn - candidate.costResults.BASE.oos.compoundedBenchmarkReturn)
-    : (candidate.costResults.BASE.fullSample?.benchmarkExcessReturn ?? 0);
+    : (candidate.costResults.BASE.fullSample.totalReturn - candidate.costResults.BASE.fullSample.benchmarkReturn);
   const edges = [];
   for (const [key, candidate] of expected) {
     if (!Array.isArray(candidate.neighbors)) throw new Error("invalid adjacency");

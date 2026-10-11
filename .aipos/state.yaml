@@ -3058,16 +3058,14 @@ current_autopilot_2595_decision_diagnostics:
   VERIFIED: false
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
-current_data_2002_dataset_identity:
+completed_data_2002_dataset_identity:
   work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
   pull_request: 2395
   branch: research/current-dataset-identity-2002
-  status: EXACT_HEAD_CI_PENDING
-  source_main_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
-  reconvergence_commit: 8899471c3fdbe812abdb8e3d9cc0535aca1bb7ca
-  first_broken_transition: "current-main reconvergence -> applicable exact-head Independent Audit"
-  evidence: "Prior Audit 38095582184 returned NO_ACTION authority=NONE due stale base. Prior PAPER artifact is INCOMPLETE and cannot prove dataset integrity acceptance."
-  remaining: "Local scoped TypeScript, focused 23/23, preflight/index/provenance PASS; actual public 20-candle currentness/replay receipt recorded. Refreshed exact-head CI/Audit/Release, merge and exact-main runtime evidence remain; #2068 follows."
+  status: COMPLETED_IMPLEMENTATION
+  protected_merge_sha: be703b22e5272d39509352322a4c1264da481a8e
+  evidence: "Exact-head CI/Audit/Release and protected merge complete; actual deployed dataset handoff recorded. Historical receipts are not current Learning acceptance."
+  remaining: "No active PR2395 implementation gate. Actual Learning retention/benchmark acceptance belongs to #1605."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_iterative_investment_learning_20261011:
@@ -3094,6 +3092,6 @@ current_strategy_family_identity:
   branch: codex/strategy-family-integrity
   scope: "Existing generic robustness family inputs and independent evidence identity; no new strategy or qualification policy."
   findings: "Duplicate parameter tuples under distinct names inflated the grid; whitespace parameter aliases overwrote values; malformed grids threw; references sharing a source were conflated."
-  validation: "Final review repair 64/64 focused tests PASS, including rehashed OOS benchmark omissions/contradictions; preflight/truth/research/safety/AI/AIPOS validators PASS; current repaired exact-head full CI and independent acceptance required; prior 209cd9d CI is historical."
+  validation: "Final review repair67/67 robustness plus25/25 qualification/wiring PASS; status bypass/full-sample arithmetic and canonical alias/cardinality repaired; preflight/truth/research/safety/AI/AIPOS validators PASS; current repaired exact-head full CI and independent acceptance required; prior 209cd9d CI is historical."
   next: "Independent PR/CI governance; preserve the existing qualification hold."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

@@ -202,6 +202,7 @@ test("SMA reference aliases match the candidate's semantic parameters", () => {
   const result = runParameterRobustnessRequest(input);
   assert.equal(result.status, "PASS", result.failures.join(";"));
   assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+  assert.deepEqual(result.references[0].parameters, { shortPeriod: 5, longPeriod: 20 });
 });
 
 test("rehashed invalid strategy domains fail closed in runner and verifier", () => {
@@ -262,4 +263,40 @@ test("rehashed OOS benchmark omissions and contradictions fail closed", () => {
       assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", field + ":" + String(value));
     }
   }
+});
+
+test("candidate status cannot bypass cost validation after resealing", () => {
+  const input = request();
+  const result = runParameterRobustnessRequest(input);
+  for (const candidate of result.candidates) {
+    candidate.status = "FABRICATED";
+    delete candidate.costResults.MODERATE.oos.compoundedBenchmarkReturn;
+    delete candidate.costResults.SEVERE.oos.compoundedBenchmarkReturn;
+  }
+  result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+  assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL");
+});
+
+test("full-sample benchmark/excess omissions and contradictions fail closed", () => {
+  const input = request();
+  input.evaluation.mode = "FULL_SAMPLE";
+  const valid = runParameterRobustnessRequest(input);
+  assert.equal(verifyParameterRobustnessResult(input, valid).status, "PASS");
+  for (const field of ["benchmarkReturn", "benchmarkExcessReturn"]) {
+    for (const value of [undefined, NaN, valid.candidates[0].costResults.BASE.fullSample[field] + 0.25]) {
+      const result = structuredClone(valid);
+      if (value === undefined) delete result.candidates[0].costResults.BASE.fullSample[field];
+      else result.candidates[0].costResults.BASE.fullSample[field] = value;
+      result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+      assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL");
+    }
+  }
+});
+
+test("one canonical candidate cannot emit ambiguous multi-source qualification references", () => {
+  const input = request();
+  input.referenceParameters.push({ ...structuredClone(input.referenceParameters[0]), source: "WALK_FORWARD_SELECTED" });
+  const result = runParameterRobustnessRequest(input);
+  assert.equal(result.status, "FAIL");
+  assert.match(result.failures.join(";"), /one reference per candidate/);
 });

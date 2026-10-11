@@ -38,17 +38,6 @@ function isFiniteNonNegative(value) { return typeof value === "number" && Number
 
 function isPlainObject(value) { return value != null && typeof value === "object" && !Array.isArray(value); }
 function isGenericFamilyRequest(request) { return typeof request?.strategyFamily === "string" || Array.isArray(request?.candidateGrid); }
-function canonicalParameters(value) {
-  if (!isPlainObject(value)) throw new Error("strategy parameters must be an object");
-  const entries = Object.entries(value).sort(([a], [b]) => a.localeCompare(b));
-  if (entries.length === 0) throw new Error("strategy parameters must not be empty");
-  const normalized = {};
-  for (const [name, parameter] of entries) {
-    if (!name.trim() || name !== name.trim() || typeof parameter !== "number" || !Number.isFinite(parameter)) throw new Error("strategy parameters must be finite numeric values with canonical names");
-    normalized[name.trim()] = parameter;
-  }
-  return normalized;
-}
 function strategyFactoryFor(modules, familyId, parameters) {
   if (familyId === "sma-crossover") {
     const shortPeriod = parameters.shortPeriod ?? parameters.shortWindow;
@@ -126,16 +115,19 @@ function validateRequest(request, modules) {
     errors.push(...validateGenericCandidateGrid(request, modules));
     const gridByKey = new Map((Array.isArray(request.candidateGrid) ? request.candidateGrid : []).filter(isPlainObject).map((candidate) => [candidate.key, candidate]));
     const referenceIdentities = new Set();
+    const referencedCandidates = new Set();
     for (const ref of references) {
       const identity = JSON.stringify([ref?.source, ref?.candidateKey]);
       if (referenceIdentities.has(identity)) errors.push("referenceParameters contains duplicate source/candidate identity");
       referenceIdentities.add(identity);
+      if (referencedCandidates.has(ref?.candidateKey)) errors.push("referenceParameters requires one reference per candidate");
+      referencedCandidates.add(ref?.candidateKey);
       if (!["PRODUCTION_DEFAULT", "WALK_FORWARD_SELECTED", "MANUAL_RESEARCH_REFERENCE"].includes(ref?.source)) errors.push(`referenceParameters entry has an invalid source: ${ref?.source}`);
       if (typeof ref?.candidateKey !== "string" || !gridByKey.has(ref.candidateKey)) errors.push(`referenceParameters entry has an unknown candidateKey: ${ref?.candidateKey}`);
       try {
         const expected = gridByKey.get(ref?.candidateKey)?.parameters;
         if (canonicalHash(canonicalFamilyParameters(request.strategyFamily, ref?.parameters)) !== canonicalHash(canonicalFamilyParameters(request.strategyFamily, expected))) errors.push(`referenceParameters ${ref?.source} parameters do not match candidateGrid`);
-      } catch (error) { errors.push(`referenceParameters ${ref?.source} parameters are invalid`); }
+      } catch { errors.push(`referenceParameters ${ref?.source} parameters are invalid`); }
     }
   } else {
     for (const ref of references) {
@@ -250,14 +242,14 @@ function runOosFixed(modules, points, param, execConfig, oosWindows) {
 }
 
 function summarizeFullSample(result) {
-  return { totalReturn: result.metrics.totalReturn, maxDrawdown: result.metrics.maxDrawdown, profitFactor: result.performance.profitFactor ?? null, tradeCount: result.performance.trades, benchmarkExcessReturn: result.benchmark.outperformance };
+  return { totalReturn: result.metrics.totalReturn, maxDrawdown: result.metrics.maxDrawdown, profitFactor: result.performance.profitFactor ?? null, tradeCount: result.performance.trades, benchmarkReturn: result.benchmark.buyAndHoldReturn, benchmarkExcessReturn: result.metrics.totalReturn - result.benchmark.buyAndHoldReturn };
 }
 
 function runGenericParameterRobustnessRequest(request, modules, candles, points) {
   const grid = request.candidateGrid.map((candidate) => ({
     candidateKey: candidate.key,
     familyId: request.strategyFamily,
-    parameters: canonicalParameters(candidate.parameters),
+    parameters: canonicalFamilyParameters(request.strategyFamily, candidate.parameters),
     neighbors: [...candidate.neighbors].sort(),
     valid: true,
     isReference: request.referenceParameters.some((ref) => ref.candidateKey === candidate.key)
@@ -317,7 +309,7 @@ function runGenericParameterRobustnessRequest(request, modules, candles, points)
     const referenceCandidate = byKey.get(ref.candidateKey);
     if (!referenceCandidate) {
       failures.push(`reference ${ref.source} (${ref.candidateKey}) could not be evaluated`);
-      return { source: ref.source, familyId: request.strategyFamily, candidateKey: ref.candidateKey, parameters: canonicalParameters(ref.parameters), assessment: "INVALID" };
+      return { source: ref.source, familyId: request.strategyFamily, candidateKey: ref.candidateKey, parameters: canonicalFamilyParameters(request.strategyFamily, ref.parameters), assessment: "INVALID" };
     }
     const neighbors = referenceCandidate.neighbors.map((key) => byKey.get(key)).filter(Boolean);
     const referenceReturn = baseReturn(referenceCandidate);
@@ -329,7 +321,7 @@ function runGenericParameterRobustnessRequest(request, modules, candles, points)
     else if (matchingDirectionRatio >= 0.75 && benchmarkOutperformRatio >= 0.5) assessment = "BROAD_PLATEAU";
     else if (matchingDirectionRatio >= 0.5) assessment = "NARROW_PLATEAU";
     else assessment = "ISOLATED_PEAK";
-    return { source: ref.source, familyId: request.strategyFamily, candidateKey: ref.candidateKey, parameters: canonicalParameters(ref.parameters), referenceReturn, immediateNeighborCount: neighbors.length, immediateNeighborPositiveRatio: matchingDirectionRatio, immediateNeighborBenchmarkOutperformRatio: benchmarkOutperformRatio, allCandidatePositiveRatio: positiveRatioAll, signReversalRatio, assessment };
+    return { source: ref.source, familyId: request.strategyFamily, candidateKey: ref.candidateKey, parameters: canonicalFamilyParameters(request.strategyFamily, ref.parameters), referenceReturn, immediateNeighborCount: neighbors.length, immediateNeighborPositiveRatio: matchingDirectionRatio, immediateNeighborBenchmarkOutperformRatio: benchmarkOutperformRatio, allCandidatePositiveRatio: positiveRatioAll, signReversalRatio, assessment };
   });
   const validReturns = [...allReturns].sort((a, b) => a - b);
   const median = validReturns.length ? (validReturns.length % 2 === 1 ? validReturns[(validReturns.length - 1) / 2] : (validReturns[validReturns.length / 2 - 1] + validReturns[validReturns.length / 2]) / 2) : 0;

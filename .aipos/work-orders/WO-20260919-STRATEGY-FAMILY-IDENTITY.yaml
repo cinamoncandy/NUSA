@@ -61,3 +61,10 @@ benchmark_review_repair_20261011:
   repair: "Require finite bound OOS returns for every cost condition, enforce exact net-minus-benchmark excess, derive the diagnostic from those returns."
   validation: "64/64 focused tests PASS including red-green missing/rehashed contradictory/non-finite OOS benchmark regression; synthetic fixtures only."
   next: "Current repaired exact-head CI, Independent Audit, governed Release/merge."
+
+qualification_boundary_review_repair_20261011:
+  reviewed_head: 78fecbdea2654bb51775d65a01d21ce4b394324f
+  repair: "Every grid result must be EVALUATED; all bound cost records validated regardless of mutable status; full-sample net/benchmark/excess arithmetic bound; emit canonical family parameters; reject multiple references for one candidate before evaluation to match existing qualification cardinality."
+  validation: "67/67 robustness plus25/25 production qualification/wiring regressions PASS; no policy or threshold changes."
+  existing_helper_convergence: "Removed unused generic parameter copier; shared canonicalFamilyParameters is the sole family-input contract."
+  next: "New exact-head CI and Independent Audit; prior review/CI superseded."
