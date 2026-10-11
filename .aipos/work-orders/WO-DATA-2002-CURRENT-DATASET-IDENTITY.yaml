@@ -54,3 +54,13 @@ review_repair_20261011:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_base_reconvergence: "15692d6 main moves only Autopilot tests/state; strict protection requires normal merge. Replayed 44/44 focused tests PASS after merge. Downloaded raw CI artifact moved outside worktree to keep repository portability checks truthful."
+
+ticker_regression_followup_2068_20261011:
+  canonical_pr: 2068
+  protected_main: be703b22e5272d39509352322a4c1264da481a8e
+  existing_branch: market-data/2022-2034-evidence
+  inventory_result: "Not superseded: latest-main runtime wiring tests lack durable rejection coverage for future/foreign tickers."
+  repair: "Normal merge of latest protected main; retained only existing minimal regression and source fingerprint assertions."
+  focused_validation: "4/4 PASS against the actual current deployed exact-main compiled runtime; fixture events are tests, not actual-market acceptance evidence."
+  guards: "Repository portability, platform-independent tests and diff check PASS."
+  remaining: "New exact-head CI, Independent Audit, Release/protected merge; no runtime source modification."
