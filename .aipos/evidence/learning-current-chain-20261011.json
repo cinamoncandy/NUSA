@@ -80,5 +80,35 @@
     "deployedSymlinkSha": "7cf6a722c0004362698fc146f3ad546c1e541d1c",
     "healthAccepted": false
   },
-  "nextTransition": "Repair full current dataset identity binding at qualification in existing PR2395; new exact-head CI/audit/release gates required."
+  "nextTransition": "Repair full current dataset identity binding at qualification in existing PR2395; new exact-head CI/audit/release gates required.",
+  "currentProtectedMainSha": "15692d6cc870ff1dd126a902e577a95cad91e9dc",
+  "actualOraclePublicHealth": {
+    "observedAt": "2026-10-11T04:30:23.947Z",
+    "endpoint": "https://nusa-api.duckdns.org/health",
+    "runtimeSha": "7cf6a722c0004362698fc146f3ad546c1e541d1c",
+    "processState": "DEGRADED",
+    "workloadState": "DEGRADED",
+    "lastError": "PAPER_ACCOUNT_PERSISTENCE_FAILED",
+    "ledgerFingerprintSha256": "042f69a2ce12d809d43277d14e5911e4764d4c07db7f805cb08ecabf8dba950f",
+    "ledgerFillCount": 76,
+    "openPositionCount": 0,
+    "runtimePaperOrderCount": 2,
+    "runtimePaperFillCount": 2,
+    "cyclesEvaluated": 0,
+    "cyclesRecorded": 0,
+    "deployments": 0,
+    "rollover": "BLOCKED",
+    "rolloverReason": "CANONICAL_FILL_LEDGER_UNAVAILABLE",
+    "openPeriodId": "closed-learning-rollover:4:1791673595045",
+    "openMarket": "KRW-XRP",
+    "openCandidateId": "owner-baseline-sma-5-20",
+    "openPeriodStartAt": 1791673595045,
+    "openObservations": 131,
+    "openFilledObservations": 1,
+    "realizedPeriods": 4,
+    "stage1RetentionRestartAcceptance": false,
+    "stage2FullSignalFillLedgerContinuityAcceptance": false,
+    "drift": true,
+    "acceptance": "UNVERIFIED"
+  }
 }

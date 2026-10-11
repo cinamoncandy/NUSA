@@ -3043,7 +3043,7 @@ current_iterative_investment_learning_20261011:
   owner: nusa-data-integrity
   canonical_pr: 2395
   canonical_learning_issue: 1605
-  source_main_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+  source_main_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
   prior_head: be6702f1667433c2bdf1b310c36c9891f900afe2
   work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
   status: REVIEW_REPAIR_LOCAL_PASS_PENDING_EXACT_HEAD_GATES

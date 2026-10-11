@@ -5,7 +5,7 @@ owner: nusa-data-integrity
 issue: 2002
 pull_request: 2395
 branch: research/current-dataset-identity-2002
-source_main_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+source_main_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
 prior_head_sha: 73bf8956e733e8d430706c1a04df6abe8bbccd2f
 reconvergence_commit: 8899471c3fdbe812abdb8e3d9cc0535aca1bb7ca
 authority_impact: none
@@ -52,3 +52,5 @@ review_repair_20261011:
   validation: "Scoped TypeScript compiler PASS; integrity/qualification 40/40 and wiring 4/4 PASS; preflight, truth, safety, AI authority, provenance and diff checks PASS. Baseline rejects regression with Missing expected exception: source; repaired regression PASS. Prior-head acceptance is not transferred."
   runtime_read_limit: "Public /health reads timed out twice; process active and deployed symlink 7cf6a722 verified only. No new runtime health/cycle acceptance claimed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_base_reconvergence: "15692d6 main moves only Autopilot tests/state; strict protection requires normal merge. Replayed 44/44 focused tests PASS after merge. Downloaded raw CI artifact moved outside worktree to keep repository portability checks truthful."
