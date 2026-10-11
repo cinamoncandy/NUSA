@@ -1,0 +1,39 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../../dist",
+    "rootDir": "../..",
+    "noEmit": false,
+    "types": [
+      "node"
+    ],
+    "typeRoots": [
+      "../../node_modules/@types"
+    ],
+    "tsBuildInfoFile": "../../node_modules/.cache/data-2395-scoped.tsbuildinfo"
+  },
+  "include": [
+    "../../apps/desktop/src/cloud/investmentLearningEvidence.ts",
+    "../../apps/desktop/src/cloud/researchCandidateSpecification.ts",
+    "../../apps/desktop/src/cloud/researchDataset.ts",
+    "../../apps/desktop/src/cloud/researchFactoryQualification.ts",
+    "../../apps/desktop/src/cloud/researchHypothesis.ts",
+    "../../apps/desktop/src/cloud/researchIntegrity.ts",
+    "../../apps/desktop/src/cloud/researchInvestmentLearningLedger.ts",
+    "../../apps/desktop/src/cloud/researchRunDsrEvidence.ts",
+    "../../apps/desktop/src/cloud/researchRunFactory.ts",
+    "../../apps/desktop/src/cloud/researchRunLeagueBridge.ts",
+    "../../apps/desktop/src/cloud/researchRunPboEvidence.ts",
+    "../../apps/desktop/src/cloud/researchRunRegimeEvidence.ts",
+    "../../apps/desktop/src/cloud/researchRunRobustnessEvidence.ts",
+    "../../apps/desktop/src/cloud/researchRunTimeline.ts",
+    "../../apps/desktop/src/exchange/upbitCandleAdapter.ts",
+    "../../apps/desktop/src/strategy/executionCostStress.ts",
+    "../../apps/desktop/src/strategy/strategyEngine.ts",
+    "../../packages/contracts/src/researchHypothesisContract.ts"
+  ],
+  "exclude": [
+    "../../node_modules",
+    "../../dist"
+  ]
+}
