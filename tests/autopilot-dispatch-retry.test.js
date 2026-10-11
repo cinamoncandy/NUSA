@@ -33,7 +33,7 @@ test("invalid Worker decision preserves HTTP and bounded identity through termin
       status: "CODING_PROPOSAL_FAILED_CLOSED",
       httpStatus: 503,
       remediationDecision: { outcome: "FAILED_CLOSED", failureClass: "FUTURE_CLASS", recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3, secret: "must-not-retain" },
-      failureEvidence: { code: "WORKFLOW_NOT_ELIGIBLE", workflowRunId: 123, headSha: "a".repeat(40), workflowName: "Oracle PAPER Release", workflowEvent: "push", token: "must-not-retain" },
+      failureEvidence: { code: "WORKFLOW_NOT_ELIGIBLE", workflowRunId: 123, headSha: "a".repeat(40), workflowName: "Oracle PAPER Release", workflowEvent: "push", token: "example-key" },
     };
     let calls = 0;
     await assert.rejects(() => authorizedJsonPost("https://runner.example.test/coding/propose", { request }, async (url) => {
@@ -60,6 +60,7 @@ test("invalid Worker decision preserves HTTP and bounded identity through termin
       assert.equal(result.summary.productionMutationAllowed, false);
       assert.equal(result.summary.aiAuthority, "ZERO_AUTHORITY");
       assert.equal(JSON.stringify(result).includes("must-not-retain"), false);
+      assert.equal(JSON.stringify(result).includes("example-key"), false);
       return true;
     });
     assert.equal(calls, 1);
