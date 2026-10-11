@@ -1,0 +1,32 @@
+version: 1
+id: WO-20260927-PR1991-REVIEW-HARDENING
+title: "Restore qualification evidence integrity after latest-main reconvergence"
+status: IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+pull_request: 1991
+implementation_branch: fix/1892-qualification-survival-gates
+base_commit: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+objective: "Restore the six independently reported qualification-integrity fixes without changing frozen thresholds or rerunning protected OOS."
+scope:
+  - "Preserve schema-v1 replay compatibility while missing new evidence bindings remain INSUFFICIENT."
+  - "Recompute PBO from current aligned OOS returns before admitting the supplied scalar."
+  - "Bind cost-stress scenario outcomes to a canonical result digest."
+  - "Carry and revalidate independently verified parameter-result hashes and reference diagnostics."
+  - "Grade BOTH-mode parameter robustness from OOS returns/benchmark excess."
+  - "Add adversarial regressions for forged PBO, cost outcomes, and parameter diagnostics."
+constraints:
+  - "No protected OOS rerun."
+  - "No threshold tuning."
+  - "No duplicate implementation or PR."
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  implementation_code_head: 188da05c1efff002041bc7cdf8217e8d3854795f
+  test_correction_head: b21048dafa26f2123cad74f1fc6181efca1543be
+  exact_head_ci: PENDING_FRESH_EXACT_HEAD_CI
+  independent_audit: PENDING_AFTER_EXACT_HEAD_CI
+next_permitted_action: "Fresh exact-head CI on the latest-main convergence head; on PASS request independent Audit, then canonical Release. No protected OOS rerun, threshold tuning, or gate bypass."

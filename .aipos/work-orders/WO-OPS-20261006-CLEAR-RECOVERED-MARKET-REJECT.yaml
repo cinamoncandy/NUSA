@@ -1,0 +1,25 @@
+id: WO-OPS-20261006-CLEAR-RECOVERED-MARKET-REJECT
+title: "Clear a recovered market's tick-rejection diagnostic so /health is not latched DEGRADED"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/clear-recovered-market-reject
+authority_impact: none
+owner_approval: "2026-10-06 in chat: NUSA 전체업무 완전수렴 마스터 작업지시서 (P0 runtime identity/health truth)"
+objective: "Production /health reported PAPER_PROCESS and PAPER_WORKLOAD DEGRADED (EVIDENCE_DEGRADED) while ticks were 1-5 s fresh and decisions flowed: lastError held PUBLIC_MARKET_EVENT_REJECTED:FEED_STALE from one earlier rejected tick and was only cleared on a connection-state change."
+scope:
+  - "apps/cloud/src/runtime.ts: remember which market's rejected tick set the PUBLIC_MARKET_EVENT_REJECTED diagnostic; clear it when that same market delivers an accepted tick. Other markets and all other error codes are untouched."
+  - "tests/cloud-runtime-paper-market-observation-wiring.test.js: another market's fresh tick does not clear it; the rejected market's accepted tick does."
+exclusions:
+  - "No change to tick acceptance thresholds, freshness gates, kill switch, risk, orders or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Rejected ticks still never enter observations; durable-evidence and connection errors are not cleared by this path."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/cloud-runtime-paper-market-observation-wiring.test.js tests/paper-market-observation-rejection-diagnostic.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "Requires a PAPER deploy."

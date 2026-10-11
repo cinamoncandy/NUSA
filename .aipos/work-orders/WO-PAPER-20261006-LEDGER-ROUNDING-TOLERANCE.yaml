@@ -1,0 +1,25 @@
+id: WO-PAPER-20261006-LEDGER-ROUNDING-TOLERANCE
+title: "Accept last-decimal rounding drift in the PAPER ledger reconciliation"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ledger-rounding-tolerance
+authority_impact: accounting_integrity_tolerance
+owner_approval: "2026-10-05 in chat ('1번으로 승인'): rounding tolerance option for the frozen PAPER account"
+objective: "The PAPER account is frozen: the account state accumulates PnL rounded to 8 decimals per fill while the fill-ledger projection replays exactly, so after 38 fills they differ by 1e-8 (realized state -154.31476926 vs ledger -154.31476925) and the strict equality refuses every save. Treat a difference of a few units of the 8th decimal as rounding, not an accounting error."
+scope:
+  - "apps/cloud/src/paperAccountingLedger.ts: assertPaperAccountingReconciled compares cash, realized PnL and per-position average entry price, realized and unrealized PnL within 1e-7 + 2e-8 per fill (position values scaled by quantity). Quantity, mark price and market set stay exact. The mismatch error is still PaperLedgerReconciliationError with the exact message PAPER_LEDGER_RECONCILIATION_REQUIRED."
+  - "tests/cloud-paper-accounting-ledger.test.js: 1e-8 drift accepted; 1e-4 realized and 0.01 cash drift, quantity drift, wrong market and NaN refused; tolerance stays small."
+exclusions:
+  - "No change to the ledger data, the halt latch, capital, risk, execution, thresholds, LIVE, credentials or AI authority. Real discrepancies (missing or duplicated fill, wrong fee) are many orders of magnitude larger and still halt."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Anything beyond rounding, any non-finite number, or any quantity/market difference still refuses the save."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/cloud-paper-accounting-ledger.test.js tests/cloud-paper-fill-ledger.test.js tests/paper-ledger-projection.test.js tests/paper-ledger-verifier.test.js dist/apps/cloud/src/module10XS.test.js dist/apps/cloud/src/paperTradingExecutionLoop.requalification.test.js
+residual: "After merge and PAPER deploy the next save should succeed; confirm on the PAPER tab that the halt line clears. The halt is not cleared by hand."

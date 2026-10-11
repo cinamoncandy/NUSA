@@ -39,9 +39,11 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.match(app, /testID="dashboard-open-settings"/);
   assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
-  assert.match(app, /<TradingView error=\{readOnlyError\}/);
-  assert.match(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
-  assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
+  assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/);
+  assert.match(app, /<HomeView[^>]*readOnlyError/s);
+  assert.doesNotMatch(app, /<TradingView error=\{readOnlyError\}/);
+  assert.doesNotMatch(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
+  assert.doesNotMatch(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
 test("Home hierarchy follows the Intelligence OS state-to-learning flow while preserving verified safety", () => {
@@ -61,7 +63,8 @@ test("Home hierarchy follows the Intelligence OS state-to-learning flow while pr
   assert.match(home, /DECISION BASIS/);
   assert.match(home, /QUICK ACCESS/);
   assert.match(home, />PORTFOLIO<\/Text>/);
-  assert.match(home, />RISK<\/Text>/);
+  assert.match(home, /HOME_DETAIL_LABELS\.risk/);
+  assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../apps/mobile/src/homeDetailCopy.ts"), "utf8"), /risk: "위험"/);
   assert.match(home, /buildHomeStatusRail/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);

@@ -1,0 +1,35 @@
+id: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
+title: "Pin pending-order attribution across a candidate transition (test only, mixed-binding upstream investigation)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/pending-order-attribution-test
+authority_impact: none
+scope_note: "Test-only. No production code changes; no behavior change."
+objective: "Establish by deterministic test what the execution boundary does with an open strategy working order when the candidate binding changes, so the upstream mixed-binding question is answered from code evidence."
+findings:
+  - "Replacement decision present for the market: the superseded working order is cancelled and produces no fill (already tested in cloud-paper-execution-boundary.test.js)."
+  - "No current decision for the market: the order continues, and its fill keeps the binding that created the order (new test). Attribution is never silently relabelled to the current candidate."
+  - "OPEN GAP, not fixed here: because a continued order keeps its original binding, a fill that lands after a new learning period opened carries a different binding fingerprint, and the reconciler then correctly fails CANDIDATE_BINDING_MIXED. Closing it needs the current binding to be known independently of per-tick decisions (a design change); no real retirement-receipt binding identities were read in this session, so this is a plausible, not confirmed, source."
+scope:
+  include:
+    - "tests/cloud-paper-execution-boundary.test.js: one test."
+  exclude:
+    - "Any production change, Risk, threshold, reconciler validation."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test tests/cloud-paper-execution-boundary.test.js"
+evidence:
+  local_validation:
+    environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
+    commands:
+      - "npx tsc -p tsconfig.json -> clean"
+      - "node -r ./tests/register-dist.cjs --test tests/cloud-paper-execution-boundary.test.js -> 18 pass, 0 fail"
+  remaining: "Exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

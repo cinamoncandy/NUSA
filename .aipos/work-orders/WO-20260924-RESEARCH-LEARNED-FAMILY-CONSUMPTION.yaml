@@ -1,0 +1,36 @@
+id: WO-20260924-RESEARCH-LEARNED-FAMILY-CONSUMPTION
+title: "Next research run consumes the learning-ordered family"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-research-family
+authority_impact: none
+authority_impact_note: "Research attention order only. No new hypothesis, no parameter change, no qualification threshold change; every family keeps its precommitted grid and all gates."
+objective: "Unblock the PAPER learning loop's first transition (Research -> qualified candidate) by evaluating the already-precommitted families production never ran."
+finding: "PAPER Learning Closed-Loop preflight (main 828d5cc9): FIRST_BROKEN_TRANSITION Research -> qualified candidate (0 qualified). research-real-market-run.js computes orderResearchFamiliesByLearning (unexplored first) at the end of each run but only prints it; the next run reads NUSA_RESEARCH_STRATEGY_FAMILY only, defaulting to SMA, and nusa-research.service does not set it. Production therefore re-evaluated the same 9 SMA cells daily (the recorded '9 REJECTED'), while precommitted RSI (#1791, 9 cells) and Donchian (#1799, 5 cells) were never evaluated. Learning evidence produced but never consumed."
+owner_decision: "2026-09-24 owner: every non-LIVE decision is autonomous."
+scope:
+  include:
+    - "research-real-market-run.js: persist nextResearchAttention[0] to research-next-family.json beside the learning ledger; the next run uses it when no explicit family is set"
+    - "tests/research-next-family-consumption.test.js"
+  exclude:
+    - "No new strategy family, parameter, threshold or gate change"
+acceptance:
+  - "With learning evidence persisted and no explicit env, the run selects the learned next family."
+  - "Explicit NUSA_RESEARCH_STRATEGY_FAMILY still wins; SMA stays the default without evidence."
+  - "Corrupt/unsupported learning files are ignored; only precommitted families are selectable."
+verification_commands:
+  - "node --test tests/research-next-family-consumption.test.js tests/research-real-market-*.test.js scripts/*.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  runtime_evidence_required: "After deploy, next nusa-research.timer runs select rsi-mean-reversion / donchian-breakout per the learning order; closed-learning bootstrap status on the Oracle host."
+  external_validation: "REQUIRED: exact-head CI, Audit, Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Exact-head CI, Audit, Release; observe the next scheduled research run's selected family."

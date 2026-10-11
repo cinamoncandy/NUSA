@@ -1,0 +1,24 @@
+id: WO-UI-20261001-RECOVERING-QUIET
+title: "HOME while the PAPER session recovers: no placeholder ₩10,000,000, one quiet message"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-recovering-home
+authority_impact: none
+objective: "Owner screenshot (2026-10-01) after the fast-startup change: while the configured server session recovered, HOME showed LOCAL PAPER CAPITAL ₩10,000,000 (the on-device ledger default the owner had asked to hide), a very large 'no decision record yet' headline, the recovery banner and a status rail repeating PAPER 미연결 / RISK 확인 불가."
+scope:
+  - "homeView.tsx: the on-device ledger is used only when no PAPER server endpoint is configured; during recovery the capital reads — instead of ₩10,000,000."
+  - "decisionRings.tsx: the unknown-count sentence is a small muted line, and is omitted entirely when the fault/recovery banner is shown."
+  - "homeView.tsx: the one-line status rail is visually hidden while that banner is shown (it stays mounted for its contract)."
+exclusions:
+  - "No change to session recovery, credentials, the local ledger itself or server code."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-home-recovering-quiet.test.js tests/mobile-local-paper-ledger-issue-637.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

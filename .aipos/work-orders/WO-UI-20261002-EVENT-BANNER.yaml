@@ -1,0 +1,24 @@
+id: WO-UI-20261002-EVENT-BANNER
+title: "In-app banner for new PAPER fills and halts on every tab (push notifications step 1)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-event-banner
+authority_impact: none
+objective: "While the app is open, a new PAPER fill or halt shows a short banner under the safety line on every tab, using the read-only PAPER events the server already sends."
+scope:
+  - "eventBannerModel.ts (import-free): the first confirmed snapshot (even empty) only sets an id-based baseline; then the newest unseen fill, or a halt when the runtime status turns HALTED (halt wins). The whole bounded server stream is scanned."
+  - "Re-baselines when the PAPER endpoint changes; ignores pending or failed loads. Assertive live region and PAPER in the accessible name."
+  - "eventBanner.tsx: shown for six seconds, tap to dismiss, labelled PAPER. Mounted once in App.tsx under SafetyLine, so it applies to every tab."
+exclusions:
+  - "OS push notifications while the app is closed need FCM, a Firebase project and a server secret; they wait for an owner decision. No dependency, server or secret is added here."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-event-banner.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."

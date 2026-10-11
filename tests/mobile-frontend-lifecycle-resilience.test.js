@@ -31,7 +31,7 @@ test("automatic PAPER polling runs only while signed in and foregrounded and nev
   assert.match(app, /authStatus !== "SIGNED_IN" \|\| appState !== "active"/);
   assert.match(app, /PAPER_REFRESH_INTERVAL_MS = 5000/);
   assert.match(app, /timer = setTimeout\(\(\) => \{/);
-  assert.match(app, /void refresh\(\)\.catch\(\(\) => undefined\)\.finally\(scheduleNext\)/);
+  assert.ok(app.includes('void refresh().catch(() => undefined).finally(() => { setInitialPaperProjectionResolved(true); scheduleNext(); });'));
   assert.doesNotMatch(app, /setInterval\(/);
   assert.match(app, /refreshGenerationRef\.current \+= 1/);
 });

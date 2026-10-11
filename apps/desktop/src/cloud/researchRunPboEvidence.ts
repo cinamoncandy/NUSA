@@ -1,4 +1,10 @@
+import { createHash } from "node:crypto";
+import { canonicalResearchJson } from "../../../../packages/contracts/src/researchRuntime";
 import type { ResearchExperimentResult } from "./researchDataset";
+import {
+  validateResearchCandidateSpecification,
+  type ResearchCandidateSpecification,
+} from "./researchCandidateSpecification";
 import { estimateProbabilityBacktestOverfitting, type PboCscvEvidence } from "./researchSearchAdjustedEvidence";
 
 export class ResearchRunPboEvidenceError extends Error {
@@ -10,7 +16,9 @@ export class ResearchRunPboEvidenceError extends Error {
 
 export interface ResearchRunPboCandidate {
   readonly id: string;
+  readonly familyId: string;
   readonly experiment: ResearchExperimentResult;
+  readonly candidateSpecification: ResearchCandidateSpecification;
 }
 
 export interface ResearchRunOosReturn {
@@ -18,7 +26,28 @@ export interface ResearchRunOosReturn {
   readonly value: number;
 }
 
+export interface ResearchRunPboEvidence extends PboCscvEvidence {
+  readonly provenance: Readonly<{
+    readonly schemaVersion: 1;
+    readonly datasetId: string;
+    readonly datasetContentSha256: string;
+    readonly market: string;
+    readonly interval: string;
+    readonly candleCount: number;
+    readonly startOpenTime: number;
+    readonly endCloseTime: number;
+    readonly candidateIds: readonly string[];
+    readonly familyIds: readonly string[];
+    readonly candidateSpecificationHashes: readonly string[];
+    readonly candidateConfigurationSha256: string;
+    readonly evaluationSha256: string;
+    readonly oosTimestampSha256: string;
+    readonly oosReturnMatrixSha256: string;
+  }>;
+}
+
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
+const hashCanonical = (value: unknown): string => createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
 const PARTITION_PREFERENCE = Object.freeze([16, 14, 12, 10, 8, 6, 4] as const);
 
 export function researchRunOosReturns(candidate: ResearchRunPboCandidate): readonly ResearchRunOosReturn[] {
@@ -81,18 +110,44 @@ function choosePartitions(observationCount: number): number {
  * each window resets its backtest equity, so the first point of a window is only a baseline and
  * no synthetic cross-window return is created.
  */
-export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboCandidate[]): PboCscvEvidence {
+export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboCandidate[]): ResearchRunPboEvidence {
   if (candidates.length < 2) throw new ResearchRunPboEvidenceError("INSUFFICIENT_CANDIDATES", "real-run PBO requires at least two candidates");
   const ids = candidates.map((candidate) => candidate.id.trim());
   if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
     throw new ResearchRunPboEvidenceError("INVALID_CANDIDATE_IDS", "candidate ids must be unique and non-empty");
   }
 
+  const specificationHashes = new Map<string, string>();
+  for (const candidate of candidates) {
+    if (!candidate.familyId.trim()) {
+      throw new ResearchRunPboEvidenceError("INVALID_FAMILY_ID", `candidate ${candidate.id} family id is required`);
+    }
+  }
+
   const firstManifest = candidates[0]!.experiment.manifest;
+  const firstEvaluationSha256 = hashCanonical({
+    walkForward: candidates[0]!.experiment.experimentConfig.walkForward,
+    executionCosts: candidates[0]!.experiment.experimentConfig.executionCosts,
+  });
   for (const candidate of candidates.slice(1)) {
     const manifest = candidate.experiment.manifest;
-    if (manifest.datasetId !== firstManifest.datasetId || manifest.contentSha256 !== firstManifest.contentSha256) {
+    if (
+      manifest.datasetId !== firstManifest.datasetId
+      || manifest.contentSha256 !== firstManifest.contentSha256
+      || manifest.market !== firstManifest.market
+      || manifest.interval !== firstManifest.interval
+      || manifest.candleCount !== firstManifest.candleCount
+      || manifest.startOpenTime !== firstManifest.startOpenTime
+      || manifest.endCloseTime !== firstManifest.endCloseTime
+    ) {
       throw new ResearchRunPboEvidenceError("DATASET_PROVENANCE_MISMATCH", "all PBO candidates must use the same verified dataset");
+    }
+    const evaluationSha256 = hashCanonical({
+      walkForward: candidate.experiment.experimentConfig.walkForward,
+      executionCosts: candidate.experiment.experimentConfig.executionCosts,
+    });
+    if (evaluationSha256 !== firstEvaluationSha256) {
+      throw new ResearchRunPboEvidenceError("EVALUATION_PROVENANCE_MISMATCH", "all PBO candidates must use the same walk-forward and execution-cost policy");
     }
   }
 
@@ -109,12 +164,75 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
     }
   }
 
+  for (const candidate of candidates) {
+    const specification = candidate.candidateSpecification;
+    const decision = validateResearchCandidateSpecification(
+      specification,
+      Date.parse(specification.evaluationEndedAt),
+    );
+    const configured = candidate.experiment.experimentConfig.candidates;
+    const manifest = candidate.experiment.manifest;
+    if (
+      decision.status !== "VERIFIED"
+      || specification.candidateId !== candidate.id
+      || specification.familyId !== candidate.familyId
+      || specification.datasetId !== manifest.datasetId
+      || specification.datasetContentSha256.toLowerCase() !== manifest.contentSha256.toLowerCase()
+      || canonicalResearchJson(configured[0]?.parameters ?? {}) !== canonicalResearchJson(specification.parameters)
+    ) {
+      throw new ResearchRunPboEvidenceError(
+        "CANDIDATE_SPECIFICATION_MISMATCH",
+        `candidate ${candidate.id} PBO evidence must bind to its verified canonical specification`,
+      );
+    }
+    specificationHashes.set(candidate.id, decision.specificationHash);
+  }
+
+  const candidateConfigurationSha256 = hashCanonical(
+    candidates
+      .map((candidate) => ({
+        candidateId: candidate.id,
+        familyId: candidate.familyId,
+        specificationHash: specificationHashes.get(candidate.id),
+        parameters: candidate.experiment.experimentConfig.candidates[0]?.parameters ?? null,
+      }))
+      .sort((left, right) => left.candidateId.localeCompare(right.candidateId)),
+  );
   const partitions = choosePartitions(reference.length);
-  return estimateProbabilityBacktestOverfitting({
+  const evidence = estimateProbabilityBacktestOverfitting({
     strategies: series.map((candidate) => ({
       strategyId: candidate.id,
       returns: Object.freeze(candidate.returns.map((entry) => entry.value)),
     })),
     partitions,
+  });
+  return freeze({
+    ...evidence,
+    provenance: freeze({
+      schemaVersion: 1 as const,
+      datasetId: firstManifest.datasetId,
+      datasetContentSha256: firstManifest.contentSha256,
+      market: firstManifest.market,
+      interval: firstManifest.interval,
+      candleCount: firstManifest.candleCount,
+      startOpenTime: firstManifest.startOpenTime,
+      endCloseTime: firstManifest.endCloseTime,
+      candidateIds: freeze([...ids].sort()),
+      familyIds: freeze([...new Set(candidates.map((candidate) => candidate.familyId))].sort()),
+      candidateSpecificationHashes: freeze(
+        candidates.map((candidate) => specificationHashes.get(candidate.id)!).sort(),
+      ),
+      candidateConfigurationSha256,
+      evaluationSha256: firstEvaluationSha256,
+      oosTimestampSha256: hashCanonical(reference.map((entry) => entry.timestamp)),
+      oosReturnMatrixSha256: hashCanonical(
+        series
+          .map((candidate) => ({
+            candidateId: candidate.id,
+            returns: candidate.returns.map((entry) => ({ timestamp: entry.timestamp, value: entry.value })),
+          }))
+          .sort((left, right) => left.candidateId.localeCompare(right.candidateId)),
+      ),
+    }),
   });
 }

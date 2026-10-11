@@ -1,0 +1,27 @@
+id: WO-PAPER-20261006-LEDGER-RECONCILIATION-DETAIL
+title: "Name what disagrees when the PAPER ledger reconciliation fails"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ledger-reconciliation
+authority_impact: diagnostics_only
+objective: "After WO-PAPER-20261005-PERSISTENCE-FAILURE-DETAIL reached the server, the owner's PAPER tab showed the real cause of the halt: 'paper account persistence failed: PAPER_LEDGER_RECONCILIATION_REQUIRED'. PAPER_LEDGER_RECONCILIATION_REQUIRED means the account state (cash, realized PnL, positions) disagrees with the state recomputed from the fill ledger, and every save is refused. The account value has stayed at 9,905 / -95 for hours, so the account is frozen, not intermittently failing. The code alone cannot say which part disagrees or by how much, and the host diagnosis account cannot read the state database. Make the disagreement visible."
+scope:
+  - "apps/cloud/src/paperAccountingLedger.ts: PaperLedgerReconciliationError (message stays exactly PAPER_LEDGER_RECONCILIATION_REQUIRED, so every caller and test that compares it still holds) with a detail naming the disagreeing part (cash, realized PnL, a position field, a market missing in state or in the ledger) with the state and ledger values and the fill count."
+  - "apps/cloud/src/paperTradingExecutionLoop.ts: describePersistenceFailure appends that detail (letters, digits, space, underscore, dot, hyphen only, at most 170 characters). The PAPER_ADAPTER source blob pin and its re-qualification test are re-bound to the changed source (same procedure as before); qualification stays TARGET_ONLY."
+  - "apps/mobile/src/haltReasonModel.ts: the advanced line is bounded at 260 characters (was 160) so the cause is not cut; 'reconciliation' now matches the ledger hint."
+  - "tests: reconciliation detail for cash, realized PnL, quantity, a market missing in state and a market missing in the ledger, the exact code preserved, the sanitised line; the long cause kept whole in the app; existing pins updated."
+exclusions:
+  - "This does not change when PAPER halts, repair or reset the account, or touch the ledger. Repairing it is an owner decision after the cause is known (see the account recovery and retirement procedures). No risk, execution, accounting formula, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Diagnostics only; the halt stays in force and the account is neither cleared nor hidden."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/paper-persistence-failure-detail.test.js tests/mobile-halt-reason.test.js dist/apps/cloud/src/module10XS.test.js dist/apps/cloud/src/paperTradingExecutionLoop.requalification.test.js
+  - node scripts/lint-mobile.js
+residual: "The disagreement itself is still unknown until the server runs this version and the next save fails (within seconds). It appears in the app on the PAPER tab, advanced diagnostic line."

@@ -4,9 +4,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
-const { readLease, resetPaperWriterLease, resolveEndpoint, resolveStateDbPath } = require("../scripts/reset-paper-writer-lease.js");
+const { readLease, resetPaperWriterLease, resolveAccountId, resolveEndpoint, resolveStateDbPath } = require("../scripts/reset-paper-writer-lease.js");
 
-const ACCOUNT_ID = "paper-default";
+// The launcher runs the owner-decided account (deploy/oracle/paper-account.json).
+const ACCOUNT_ID = resolveAccountId({});
 const neverResponds = async () => { throw new Error("connection refused"); };
 const responds = async () => ({ ok: true });
 
@@ -113,4 +114,11 @@ test("the target database and endpoint follow the same configuration the runtime
   assert.equal(resolveStateDbPath({ NUSA_CLOUD_STATE_DB_PATH: "   " }), path.join(os.homedir(), ".nusa", "cloud", "state.sqlite"));
   assert.equal(resolveEndpoint({ NUSA_CLOUD_DASHBOARD_HOST: "0.0.0.0", NUSA_CLOUD_DASHBOARD_PORT: "9999" }), "http://0.0.0.0:9999");
   assert.equal(resolveEndpoint({}), "http://127.0.0.1:41731");
+});
+
+test("lease recovery targets the account the launcher will run", () => {
+  assert.equal(resolveAccountId({}, { initialCapitalKrw: 5000 }), "paper-krw-5000");
+  assert.equal(resolveAccountId({ NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000" }, { initialCapitalKrw: 5000 }), "paper-krw-5000");
+  assert.equal(resolveAccountId({ NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000" }, null), "paper-default");
+  assert.equal(resolveAccountId({}, null), "paper-krw-5000");
 });

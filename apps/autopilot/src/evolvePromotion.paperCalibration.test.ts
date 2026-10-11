@@ -12,6 +12,19 @@ function validation(status: "PASS" | "FAIL" | "INSUFFICIENT" | "ABSTAIN" = "PASS
     status,
     exactHeadSha: head,
     evidence: [{ check: "exact-head", reference: `commit:${head}`, passed: status === "PASS" }],
+    heldOutEvidence: [{ check: "held-out/generalization", reference: "heldout:1", passed: true }],
+    benefitCostEvidence: [{
+      telemetryReference: "telemetry:1",
+      budgetState: "NORMAL",
+      baselineBenefit: 1,
+      observedBenefit: 2,
+      baselineCost: 1,
+      observedCost: 1,
+      benefitDelta: 1,
+      costDelta: 0,
+      netBenefitDelta: 1,
+      passed: true,
+    }],
     reason: `validation:${status.toLowerCase()}`,
   });
 }

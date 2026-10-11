@@ -1,0 +1,101 @@
+/**
+ * Field headers for the PAPER and LIVE tabs, in the same visual language as the HOME
+ * Intelligence Field. Pure projections of canonical read-only state: no authority, no
+ * synthetic values, and uncertainty always renders as a non-green tone.
+ */
+import type { FieldPose, FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
+import type { PaperLearningScreenState } from "./paperLearningScreen";
+import type { LiveReadinessObservabilitySnapshot } from "../../../packages/contracts/src/liveReadinessObservability";
+
+export interface FieldHeaderModel {
+  readonly eyebrow: string;
+  readonly statusWord: string;
+  readonly tone: FieldTone;
+  readonly headline: string;
+  readonly detail: string;
+  readonly subsystem: FieldSubsystem;
+  readonly facts: readonly { readonly label: string; readonly value: string }[];
+}
+
+const count = (value: number) => (Number.isFinite(value) ? Math.max(0, Math.trunc(value)).toLocaleString("en-US") : "—");
+
+export function buildPaperFieldHeader(paper: PaperLearningScreenState): FieldHeaderModel {
+  const perf = paper.performance;
+  const facts = Object.freeze([
+    { label: "사이클", value: count(perf.completedCycles) },
+    { label: "체결 사이클", value: count(perf.filledCycles) },
+    { label: "데이터", value: paper.dataSource === "SERVER_STREAM" ? "서버" : paper.dataSource === "LOCAL_FALLBACK" ? "기기" : "확인 필요" },
+  ]);
+  const base = { eyebrow: "PAPER", facts } as const;
+  if (paper.dataSource === "NOT_CONFIGURED" || paper.dataSource === "UNAVAILABLE") {
+    return Object.freeze({ ...base, statusWord: "OFFLINE", tone: "amber", headline: "PAPER 기록을\n불러오지 못했습니다", detail: "서버 연결이 확인되면 실행 기록이 표시됩니다.", subsystem: "governance" });
+  }
+  if (paper.status === "HALTED") {
+    return Object.freeze({ ...base, statusWord: "HALTED", tone: "red", headline: "PAPER 정지", detail: "리스크 경계가 실행을 멈췄습니다. 원장은 보존됩니다.", subsystem: "risk" });
+  }
+  if (paper.status === "ERROR") {
+    return Object.freeze({ ...base, statusWord: "ERROR", tone: "amber", headline: "PAPER 상태 확인 필요", detail: "최근 사이클에서 오류가 기록되었습니다.", subsystem: "governance" });
+  }
+  if (paper.status === "PAUSED") {
+    return Object.freeze({ ...base, statusWord: "PAUSED", tone: "dim", headline: "PAPER 일시정지", detail: "새 사이클을 시작하지 않고 대기 중입니다.", subsystem: "paper" });
+  }
+  if (paper.dataSource !== "SERVER_STREAM") {
+    // Absent/empty projections and local fallback are not server-runtime evidence: never green.
+    return Object.freeze({ ...base, statusWord: "UNVERIFIED", tone: "amber", headline: "서버 실행 기록이\n확인되지 않았습니다", detail: "표시 중인 내용은 서버 실행 증거가 아닙니다.", subsystem: "governance" });
+  }
+  if (perf.filledCycles > 0) {
+    return Object.freeze({ ...base, statusWord: "RUNNING", tone: "green", headline: "PAPER 실행 중", detail: `가상 체결이 있었던 사이클 ${count(perf.filledCycles)}개가 기록되었습니다.`, subsystem: "paper" });
+  }
+  return Object.freeze({ ...base, statusWord: "RUNNING", tone: "green", headline: "관측은 하지만\n체결이 없습니다", detail: "사이클은 진행되지만 가상 체결이 있었던 사이클은 아직 없습니다.", subsystem: "paper" });
+}
+
+/** Why LIVE readiness is missing; decides whether the owner must act (setup) or simply wait. */
+export type LiveUnavailableKind = "SETUP" | "PENDING" | "FAILED";
+
+/** The lead sentence for a missing LIVE readiness projection. Setup states name the action. */
+export function liveUnavailableMessage(kind: LiveUnavailableKind): string {
+  if (kind === "SETUP") return "PAPER 서버 연결을 먼저 설정해야 LIVE 준비도를 볼 수 있습니다. 설정에서 서버를 연결하세요.";
+  if (kind === "PENDING") return "서버 상태를 확인하는 중입니다.";
+  return "서버에서 LIVE 준비도를 받지 못했습니다. LIVE는 계속 잠겨 있으며 잠시 후 다시 확인합니다.";
+}
+
+/** Plain words for a PAPER risk status; the raw code stays in the 권한 / 위험 section. */
+export function paperRiskWord(status: string | null | undefined): string {
+  if (status == null) return "확인 불가";
+  const normalized = status.toUpperCase();
+  if (normalized.includes("PASS") || normalized.includes("OK") || normalized.includes("ALLOW")) return "통과";
+  if (normalized.includes("BLOCK") || normalized.includes("HALT") || normalized.includes("FAIL") || normalized.includes("REJECT")) return "차단";
+  return "주의";
+}
+
+export function paperSourceWord(source: PaperLearningScreenState["dataSource"]): string {
+  return source === "SERVER_STREAM" ? "서버 실시간" : source === "LOCAL_FALLBACK" ? "기기 대체 관측" : "확인 필요";
+}
+
+export function buildLiveFieldHeader(snapshot: LiveReadinessObservabilitySnapshot | null, unavailableReason?: string, unavailableKind: LiveUnavailableKind = "FAILED"): FieldHeaderModel {
+  if (snapshot == null) {
+    return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "dim", headline: "LIVE는 봉인되어 있습니다", detail: unavailableReason ? liveUnavailableMessage(unavailableKind) : "준비도 정보를 불러오지 못했습니다.", subsystem: "governance", facts: Object.freeze([{ label: "실거래 권한", value: "없음" }]) });
+  }
+  const s = snapshot.runtimeSafety;
+  const hardStop = snapshot.status === "HALTED" || s.killSwitchActive || s.exchangeError || s.staleMarketData || s.riskBudgetBreached || s.reconciliationMismatch || s.abnormalBalanceDrift || s.strategyInvalidated || s.latencyOrSlippageBreached;
+  const facts = Object.freeze([
+    { label: "남은 차단", value: count(snapshot.blockers.length) },
+    { label: "상태", value: snapshot.status.replace(/_/g, " ") },
+    { label: "실거래 권한", value: snapshot.liveAuthority === "NONE" ? "없음" : snapshot.liveAuthority },
+  ]);
+  if (hardStop) {
+    return Object.freeze({ eyebrow: "LIVE", statusWord: "HALTED", tone: "red", headline: "안전 정지 신호", detail: "런타임 안전 조건이 위반되어 LIVE 후보에서 제외됩니다.", subsystem: "risk", facts });
+  }
+  if (snapshot.status === "READY_FOR_MANUAL_ENABLE" && snapshot.blockers.length === 0) {
+    // Readiness is evidence only; enabling LIVE remains an explicit owner decision outside the app.
+    return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "amber", headline: "승인 대기", detail: "모든 준비 조건이 통과했습니다. LIVE 활성화는 소유자 승인으로만 가능합니다.", subsystem: "governance", facts });
+  }
+  return Object.freeze({ eyebrow: "LIVE", statusWord: "SEALED", tone: "dim", headline: "LIVE는 봉인되어 있습니다", detail: snapshot.blockers.length > 0 ? `남은 차단 조건 ${count(snapshot.blockers.length)}개` : "준비도 증거를 수집하고 있습니다.", subsystem: "governance", facts });
+}
+
+/** Same pose grammar as HOME: a red stop collapses the field, unverified states scatter and fade. */
+export function fieldHeaderPose(model: FieldHeaderModel): FieldPose {
+  if (model.tone === "red") return Object.freeze({ spread: 0.3, presence: 1 });
+  if (model.statusWord === "OFFLINE" || model.statusWord === "UNVERIFIED" || model.statusWord === "ERROR") return Object.freeze({ spread: 1.12, presence: 0.45 });
+  return Object.freeze({ spread: 1, presence: 1 });
+}

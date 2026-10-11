@@ -67,6 +67,8 @@ function validateEnvelope(envelope: PersistedPaperPeriodEnvelope): void {
   if (advisoryAt >= record.periodStartAt) throw new PersistedPaperPeriodStoreError("LOOKAHEAD_ADVISORY_SNAPSHOT", "PAPER advisory must predate the realized period it is persisted against", record.recordId);
   if (!(record.status === "COMPLETED" || record.status === "REJECTED" || record.status === "HALTED")) throw new PersistedPaperPeriodStoreError("INVALID_STATUS", "PAPER period status is unsupported", record.recordId);
   if (record.benchmarkEvidenceId !== undefined && (typeof record.benchmarkEvidenceId !== "string" || !record.benchmarkEvidenceId.trim() || FORBIDDEN_KEY.test(record.benchmarkEvidenceId))) throw new PersistedPaperPeriodStoreError("INVALID_BENCHMARK_PROVENANCE", "benchmark evidence identity is invalid", record.recordId);
+  if (record.benchmarkInputFingerprintSha256 !== undefined && !SHA256.test(record.benchmarkInputFingerprintSha256)) throw new PersistedPaperPeriodStoreError("INVALID_BENCHMARK_PROVENANCE", "benchmark input fingerprint is invalid", record.recordId);
+  if (record.benchmarkInputFingerprintSha256 !== undefined && record.benchmarkEvidenceId === undefined) throw new PersistedPaperPeriodStoreError("INVALID_BENCHMARK_PROVENANCE", "benchmark input fingerprint requires an evidence identity", record.recordId);
   if (record.canonicalOutcomeReceiptFingerprint !== undefined && !SHA256.test(record.canonicalOutcomeReceiptFingerprint)) throw new PersistedPaperPeriodStoreError("INVALID_OUTCOME_PROVENANCE", "canonical PAPER outcome fingerprint is invalid", record.recordId);
   if (record.costEvidence?.source !== "PAPER_EXECUTION_RECEIPT" || typeof record.costEvidence.evidenceId !== "string" || !record.costEvidence.evidenceId.trim() || (record.costEvidence.evidenceKind !== "OBSERVED" && record.costEvidence.evidenceKind !== "CONSERVATIVE_MODEL") || !SHA256.test(record.costEvidence.evidenceFingerprintSha256) || !Number.isSafeInteger(record.costEvidence.observedAt) || record.costEvidence.observedAt < record.periodStartAt) throw new PersistedPaperPeriodStoreError("MISSING_COST_PROVENANCE", "PAPER period requires attributable execution cost evidence", record.recordId);
   for (const [field, value] of Object.entries({ benchmarkReturn: record.benchmarkReturn, turnoverCostRate: record.turnoverCostRate, ...record.realizedReturns, "costEvidence.feeRate": record.costEvidence.feeRate, "costEvidence.spreadRate": record.costEvidence.spreadRate, "costEvidence.slippageRate": record.costEvidence.slippageRate })) {
@@ -181,6 +183,18 @@ export class SqlitePersistedPaperPeriodStore {
       const stored = this.append(envelope);
       this.db.connection.prepare(`DELETE FROM ${PENDING_TABLE} WHERE period_id = ? AND checksum = ?`).run(periodId, expectedChecksum);
       return stored;
+    });
+  }
+
+  /**
+   * Removes a pending (never realized) period whose checksum still matches. Used only when the
+   * canonical PAPER account it was opened against has been replaced; realized periods are never
+   * touched.
+   */
+  public retirePending(periodId: string, expectedChecksum: string): void {
+    this.db.transaction(() => {
+      const result = this.db.connection.prepare(`DELETE FROM ${PENDING_TABLE} WHERE period_id = ? AND checksum = ?`).run(periodId, expectedChecksum) as { changes?: number };
+      if (Number(result.changes ?? 0) !== 1) throw new PersistedPaperPeriodStoreError("PENDING_IDENTITY_CONFLICT", "pending PAPER period evidence is unavailable or changed", periodId);
     });
   }
 

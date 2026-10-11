@@ -77,7 +77,7 @@ test("challenge bytes separate registration/authentication and bind context, dev
   } finally { db.close(); }
 });
 
-test("authentication rejects replay, wrong device, and revoked credentials, then uses existing rotating MobileSessionTokens", () => {
+test("DeviceKey sessions reject bearer refresh and require a fresh signed challenge", () => {
   const { db, credentials, mobile } = setup();
   try {
     const pair = keyPair(); register(credentials, pair);
@@ -85,9 +85,14 @@ test("authentication rejects replay, wrong device, and revoked credentials, then
     assert.equal(credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: "nusa-install-wrong-device-0001", challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 51 }), undefined);
     const tokens = credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 52 });
     assert.ok(tokens); assert.equal(mobile.verifyAccess(tokens.accessToken, 53).userId, "owner");
-    assert.equal(credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 54 }), undefined);
-    assert.equal(credentials.revoke({ actorUserId: "owner", actorScopes: ["users:manage"], credentialId: CREDENTIAL_ID, now: 55 }), true);
-    assert.equal(credentials.startAuthentication({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, now: 56 }), undefined);
+    assert.equal(mobile.refresh(tokens.refreshToken, 54, DEVICE), undefined, "stolen bearer refresh plus device id cannot renew a DeviceKey session");
+    assert.equal(credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 54 }), undefined, "challenge replay is rejected");
+    const renewalChallenge = credentials.startAuthentication({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, now: 55 }); assert.ok(renewalChallenge);
+    const renewed = credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: renewalChallenge.challengeId, signature: sign(pair, renewalChallenge.challenge), now: 56 });
+    assert.ok(renewed); assert.equal(mobile.verifyAccess(renewed.accessToken, 57).userId, "owner");
+    assert.equal(credentials.revoke({ actorUserId: "owner", actorScopes: ["users:manage"], credentialId: CREDENTIAL_ID, now: 58 }), true);
+    assert.equal(mobile.verifyAccess(renewed.accessToken, 59), undefined, "credential revoke cascades to device-bound session families");
+    assert.equal(credentials.startAuthentication({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, now: 59 }), undefined);
   } finally { db.close(); }
 });
 
@@ -97,6 +102,10 @@ test("source boundaries expose only public key and signature operations, never p
   const bridge = fs.readFileSync(path.join(root, "apps/mobile/src/ownerDeviceCredential.ts"), "utf8");
   const service = fs.readFileSync(path.join(root, "apps/cloud/src/ownerCredential/ownerDeviceCredentialService.ts"), "utf8");
   assert.match(native, /AndroidKeyStore/); assert.match(native, /BIOMETRIC_STRONG/);
+  assert.match(native, /createSilentDeviceCredential/);
+  assert.match(native, /signSilentChallenge/);
+  assert.match(native, /setUserAuthenticationRequired\(false\)/);
+  assert.match(native, /isSilentHardwareBacked/);
   assert.doesNotMatch(native, /Authenticators\.DEVICE_CREDENTIAL|AUTH_DEVICE_CREDENTIAL/);
   assert.doesNotMatch(native, /getPrivateKey|exportPrivate|PrivateKey\.getEncoded/);
   assert.doesNotMatch(bridge, /privateKey|export.*key/i);

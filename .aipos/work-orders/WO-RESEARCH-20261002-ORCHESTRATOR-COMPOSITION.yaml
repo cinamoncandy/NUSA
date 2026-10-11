@@ -1,0 +1,31 @@
+id: WO-RESEARCH-20261002-ORCHESTRATOR-COMPOSITION
+title: "Experiment orchestrator and flagged production composition (Stage 2b-9; disabled by default; not deployed)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-evaluators
+authority_impact: research-evidence-only
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "Make the continuous research experiments runnable end to end behind an explicit environment flag that is OFF by default, so that deploying the build changes nothing until the owner enables it."
+scope:
+  - "apps/cloud/src/researchExperimentOrchestrator.ts: tick-driven driver (collect, plan one session per variant per KST trading day, resume paused sessions after a restart, stop the previous day's sessions, run due experiments, spacing by session.lastEvidenceAt) that also satisfies the cloud runtime's research-automation interface (recover / onMarketData no-op / statusProjection for the app's LEARNING line)."
+  - "apps/cloud/src/researchExperimentComposition.ts: composeResearchExperiments. Disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS is exactly 1; invalid settings or a missing 40-hex NUSA_SOURCE_COMMIT_SHA keep it disabled with one logged reason; explicit cost assumptions (fee 0.05 percent, slippage 5 bps); candidate-gate eligibility is only logged, nothing is registered or promoted; one timer, unref'd, stopped on shutdown."
+  - "apps/cloud/src/closedLearningProductionRuntime.ts: compose, pass the orchestrator as researchAutomation, start after the runtime starts, stop with it. With the flag off the call is unchanged apart from passing undefined."
+  - "apps/cloud/src/researchSessionPlanner.ts: optional per-variant session ids."
+  - "docs/RESEARCH_EXPERIMENTS_OPERATIONS.md: enable, tune, limits, rollback. Proposal doc corrected: the daily Research timer already exists in production; what was missing is the research session path and its projection."
+  - "tests/research-experiment-orchestrator.test.js (7) and tests/research-experiment-composition.test.js (5) on real SQLite stores, coordinator and automation runtime."
+exclusions:
+  - "No change to trading, PAPER execution, capital, minimum order, risk, LIVE, credentials or AI authority; no paid AI; no approval authority; no promotion. No deploy and the flag is not set anywhere by this change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Recovery not ready, invalid settings, missing commit, insufficient or gappy history, provenance problems and a used holdout all stop or skip the experiment; nothing is retried or forced."
+rollback: "Unset NUSA_CLOUD_RESEARCH_EXPERIMENTS and restart, or revert the build. Stored candles and evidence are append-only and harmless."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-experiment-orchestrator.test.js tests/research-experiment-composition.test.js tests/research-experiment-pipeline.test.js tests/backtest-research-evaluator.test.js
+  - node scripts/run-tests-isolated.js
+  - pnpm run validate
+residual: "Owner must enable the flag on the host and approve any server deploy. Not run: pnpm run validate (sandbox Node 22); individual validators run instead."

@@ -1,0 +1,31 @@
+id: WO-PAPER-20260929-OWNER-BASELINE-STRATEGY
+title: "Trade PAPER with an owner-approved baseline strategy until a challenger qualifies"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-owner-baseline
+authority_impact: paper_strategy_execution
+owner_decision: "2026-09-29 owner: start PAPER trading with the default strategy (\"기본 전략으로 매매 시작해\") even though no Research candidate has passed qualification. PAPER only; LIVE approval remains the only owner gate and is untouched."
+objective: "Automatic PAPER execution follows only a qualified Research/League challenger. The latest Research runs rejected every candidate, so PAPER placed zero orders and produced no fills to learn from."
+scope:
+  - "apps/cloud/src/ownerBaselinePaperStrategy.ts: OwnerBaselinePaperBindingProvider returns the bound challenger when one exists, otherwise a deterministic SMA 5/20 baseline binding (candidate owner-baseline-sma-5-20, per market and UTC day) built through the canonical bindPaperCandidateForExecution contract."
+  - "closedLearningProductionRuntime wires it as the hydrator's paper candidate binding provider. NUSA_PAPER_OWNER_BASELINE_STRATEGY=DISABLED is the off switch; a typo or any non-PAPER mode disables it."
+exclusions:
+  - "No change to qualification gates, challenger deployment, the execution boundary, canonical risk gateway, kill switch, P0 gate, accounting, credentials or LIVE. The baseline passes the same boundary checks (binding validation, confidence >= 0.55, leverage 1, risk gate) as a challenger."
+  - "The baseline is never recorded as a qualified or promoted strategy and cannot become a LIVE candidate."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "apps/cloud/src/ownerBaselinePaperStrategy.test.ts: binding passes validatePaperCandidateExecutionBinding and stays PAPER-only; deterministic per UTC day; produces a BUY with confidence >= 0.55; challenger precedence; disabled switch, typo and non-PAPER fail closed; invalid source identity fails closed."
+  - "Live 240s run on public Upbit data: first automatic PAPER order and fill (paperOrderCount 1, paperFillCount 1), cash 10,000,000 -> 9,399,700 with an open position, one supervisor start, lastError null."
+residual: "The baseline is unqualified by design; its PAPER results are learning evidence only. A qualified challenger replaces it automatically."

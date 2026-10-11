@@ -1,0 +1,35 @@
+id: WO-20260924-PAPER-LEDGER-PRESERVATION
+title: "A PAPER projection gap must never erase the canonical PAPER ledger"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-ledger-preserve
+parent_work_order: null
+authority_impact: persistence
+authority_impact_note: "Removes a destructive delete of durable PAPER state from a presentation fail-closed path. No LIVE, execution, risk, credential or AI-authority change; the explicit repository reset method is unchanged."
+objective: "Opus P0-5 ledger replay audit: after update/reconnect/restart, duplicate fill posting = 0, lost canonical fill = 0, unexplained NAV divergence = 0."
+finding: "FIRST_UNSAFE_LEDGER_BOUNDARY: startCloudRuntime.clearPaperProjection() called effectivePaperRepository.clear(), which deletes cloud_paper_accounts, cloud_paper_account_history and cloud_paper_fill_ledger. It ran whenever a tick found no dashboard state (stale/missing market data closes the kill switch and clears the provider), when applyToDashboard threw, at startup when the provider was empty, and when an execution result was FAILED. An ordinary market-data gap therefore destroyed canonical PAPER truth; the in-memory loop kept going but the durable ledger lost history and every fill beyond the bounded 1,000 kept in state, and the next restart loaded no account and reset NAV to initial capital. The rest of the ledger path is sound: save() writes the snapshot and the append-only, checksummed fill ledger in one transaction; fill_id is unique and a changed duplicate is refused; processedIdempotencyKeys is never truncated; a writer lease prevents two writers."
+scope:
+  include:
+    - "apps/cloud/src/runtime.ts: clearPaperProjection withholds the dashboard projection only"
+    - "tests/cloud-runtime-ledger-preservation.test.js"
+acceptance:
+  - "An empty dashboard projection on a tick does not call the PAPER repository's clear()."
+verification_commands:
+  - "node --test tests/cloud-runtime-ledger-preservation.test.js"
+  - "node --test tests/cloud-*.test.js tests/research-runtime-*.test.js tests/personal-paper-order-command.test.js"
+  - "pnpm run typecheck && pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "new test on the unfixed runtime.ts -> 1 failure (clear called)"
+  local_validation: "new test 1/1 PASS; cloud/research/paper suites 284/284 PASS; typecheck (both tsconfigs) PASS."
+  external_validation: "REQUIRED: exact-head CI, Audit, Release; production host still runs 9/21 code, so a PAPER release is needed before this protects live PAPER data."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Exact-head CI, Audit, Release."

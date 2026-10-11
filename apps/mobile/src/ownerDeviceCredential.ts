@@ -4,6 +4,10 @@ export interface OwnerDeviceCredentialStatus {
   readonly hardwareBacked: boolean;
   readonly status: string;
   readonly credentialId: string | null;
+  /** Fixed, non-secret diagnostic classification supplied only when status inspection failed. */
+  readonly reasonCode?: string;
+  /** Opaque per-inspection identifier for correlating native and session recovery evidence. */
+  readonly correlationId?: string;
 }
 
 export interface OwnerDeviceCredentialNative {
@@ -11,6 +15,10 @@ export interface OwnerDeviceCredentialNative {
   createCredential(): Promise<Readonly<{ credentialId: string; publicKeySpki: string; hardwareBacked: boolean }>>;
   signChallenge(credentialId: string, challengeBase64: string, promptMessage: string): Promise<string>;
   deleteCredential(credentialId: string): Promise<void>;
+  getSilentDeviceStatus(): Promise<OwnerDeviceCredentialStatus>;
+  createSilentDeviceCredential(): Promise<Readonly<{ credentialId: string; publicKeySpki: string; hardwareBacked: boolean }>>;
+  signSilentChallenge(credentialId: string, challengeBase64: string): Promise<string>;
+  deleteSilentDeviceCredential(credentialId: string): Promise<void>;
 }
 
 interface ReactNativeBridge {
@@ -29,7 +37,7 @@ function nativeModule(): OwnerDeviceCredentialNative | null {
   const value = bridge();
   if (value == null || value.Platform.OS !== "android") return null;
   const module = value.NativeModules.NusaOwnerDeviceCredential as Partial<OwnerDeviceCredentialNative> | undefined;
-  if (module == null || typeof module.getStatus !== "function" || typeof module.createCredential !== "function" || typeof module.signChallenge !== "function" || typeof module.deleteCredential !== "function") return null;
+  if (module == null || typeof module.getStatus !== "function" || typeof module.createCredential !== "function" || typeof module.signChallenge !== "function" || typeof module.deleteCredential !== "function" || typeof module.getSilentDeviceStatus !== "function" || typeof module.createSilentDeviceCredential !== "function" || typeof module.signSilentChallenge !== "function" || typeof module.deleteSilentDeviceCredential !== "function") return null;
   return module as OwnerDeviceCredentialNative;
 }
 

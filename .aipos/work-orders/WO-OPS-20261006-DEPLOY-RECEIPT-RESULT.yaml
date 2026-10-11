@@ -1,0 +1,24 @@
+id: WO-OPS-20261006-DEPLOY-RECEIPT-RESULT
+title: "Name the Oracle PAPER release outcome so a skipped deploy is not read as deployed"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/deploy-receipt-result
+authority_impact: none
+owner_approval: "2026-10-06 in chat: '91% -> 100%' master directive section 27 (deployment receipt: distinguish DEPLOYED / SKIPPED_MAIN_MOVED / FAILED, priority P1) and '계속해'"
+objective: "A release run whose source was superseded (protected main moved after the build) skips every host step yet concludes success, so a green run was not proof of a deploy (seen on 2026-10-06). The final always-run step now names the outcome."
+scope:
+  - ".github/workflows/oracle-paper-release.yml: the existing 'Record deployed identity and fail-closed authority' step computes deploymentResult = SKIPPED_MAIN_MOVED (source not fresh) | FAILED (job not successful) | DEPLOYED (current resolves to the requested SHA) | FAILED_ACTIVATION_IDENTITY (steps succeeded but current does not resolve to the SHA; the step then fails). It prints the result, adds a notice annotation and writes a one-row table to the job summary."
+  - "tests/oracle-paper-release-workflow.test.js: asserts the four outcomes, the freshness input and the identity comparison."
+exclusions:
+  - "No new step, permission, secret, host command or change to the release verbs, rollback or freshness rule. A superseded release stays a non-terminal success by design; only its receipt changes."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "An activation that reports success while current does not resolve to the requested SHA now fails the run."
+rollback: "Revert the change."
+verification_commands:
+  - node --test tests/oracle-paper-release-workflow.test.js tests/workflow-action-pinning.test.js tests/workflow-action-inputs.test.js
+residual: "The step's shell was exercised locally on all four outcomes with a scratch symlink; the real receipt appears on the next release run."

@@ -1,0 +1,25 @@
+id: WO-OPS-20261007-ROLLOVER-REASON-CODES
+title: "Name why the closed-learning rollover is blocked on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/rollover-reason-codes
+authority_impact: none
+owner_approval: "2026-10-07 in chat: '니 판단으로 누사를 최고로 업그레이드 시켜줘'"
+objective: "On 2026-10-07 /health showed closedLearningLoop.rollover BLOCKED with no reason: the blocked reason was the error's free-text message, which the code-only status drops, so the cause (MISSING_BENCHMARK_EVIDENCE) had to be traced from source."
+scope:
+  - "closedLearningRolloverScheduler.ts: a BLOCKED reason leads with the failing step's stable error code (CODE:message); errors without a code keep their message."
+  - "tests: coded reason reaches the loop status as rolloverReason; uncoded errors unchanged."
+exclusions:
+  - "No change to rollover behaviour, periods, benchmark rules, risk, orders or LIVE. /health allowlist unchanged (rolloverReason already allowlisted as a code)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; the status still publishes only the leading upper-case code, never free text."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "Requires a PAPER deploy."

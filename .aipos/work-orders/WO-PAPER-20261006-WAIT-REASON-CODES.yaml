@@ -1,0 +1,26 @@
+id: WO-PAPER-20261006-WAIT-REASON-CODES
+title: "Classify every WAIT decision with one bounded reason code in the decision funnel"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/wait-reason-codes
+authority_impact: none
+owner_approval: "2026-10-06 in chat: master directive step 5 (if WAIT dominates, do not relax thresholds; give NO_ACTIONABLE_PAPER_DECISION bounded deterministic reason codes) and '계속해'"
+objective: "WAIT is about 96% of PAPER decisions but was recorded under one code, NO_ACTIONABLE_PAPER_DECISION. Each WAIT now also carries exactly one fixed code derived from the canonical decision's own fields, so the funnel shows why decisions wait."
+scope:
+  - "apps/cloud/src/paperWaitReason.ts (new): classifyPaperWait over action, risk, allocation and the candidate strategy's action/reason; codes RISK_REGIME, TRADING_DISABLED, INSUFFICIENT_HISTORY, LOW_CONFIDENCE, NO_SIGNAL, ALREADY_IN_POSITION, NO_POSITION_TO_SELL."
+  - "apps/cloud/src/runtime.ts: a WAIT DECISION event's reason is NO_ACTIONABLE_PAPER_DECISION:WAIT:<code>; other actions are recorded as before."
+  - "tests/paper-wait-reason.test.js: every WAIT path maps to one funnel-safe code, non-WAIT gets none, the funnel counts per code, and the runtime wiring."
+exclusions:
+  - "No change to any threshold, strategy, decision, risk, order path, accounting or LIVE. The canonical decision engine and strategy sources are untouched."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Evidence only; an unrecognised shape falls back to NO_SIGNAL and never alters the decision."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/paper-wait-reason.test.js tests/paper-funnel-counters.test.js dist/apps/cloud/src/paperLearningObservability.test.js
+residual: "Requires a PAPER deploy; the funnel restarts on deploy, so the first reading after it gives the WAIT breakdown."

@@ -1,0 +1,416 @@
+import { createHash } from "node:crypto";
+import type { PaperAccountPosition, PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
+
+const SCALE = 100_000_000n;
+const round8 = (value: number): number => Number(value.toFixed(8));
+const scaled = (value: number): bigint => {
+  if (!Number.isFinite(value)) throw new Error("paper ledger amount must be finite");
+  const negative = value < 0;
+  const text = Math.abs(value).toFixed(12);
+  const [whole, fraction = ""] = text.split(".");
+  const raw = BigInt((whole + fraction.padEnd(12, "0")).replace(/^0+(?=\d)/, "") || "0");
+  const value8 = (raw + 5000n) / 10000n;
+  return negative ? -value8 : value8;
+};
+const unscaled = (value: bigint): number => Number(value) / Number(SCALE);
+
+export interface PaperAccountingJournalEntry {
+  readonly sequence: number;
+  readonly fillId: string;
+  readonly orderId: string;
+  readonly market: string;
+  readonly side: "BUY" | "SELL";
+  readonly quantity: number;
+  readonly price: number;
+  readonly fee: number;
+  readonly cashAfter: number;
+  readonly positionQuantityAfter: number;
+  readonly averageEntryPriceAfter: number;
+  readonly realizedPnLAfter: number;
+  readonly occurredAt: number;
+}
+
+export interface PaperAccountingProjection {
+  readonly cash: number;
+  readonly realizedPnL: number;
+  readonly positions: readonly PaperAccountPosition[];
+  readonly journal: readonly PaperAccountingJournalEntry[];
+  readonly fingerprintSha256: string;
+}
+
+interface MutablePosition {
+  market: string;
+  quantity: bigint;
+  costBasis: bigint;
+  realizedPnL: bigint;
+  markPrice: number;
+}
+
+function canonicalFillOrder(fills: readonly PaperFillRecord[]): readonly PaperFillRecord[] {
+  const ids = new Set<string>();
+  const ordered = [...fills].sort((a, b) => a.filledAt - b.filledAt || a.id.localeCompare(b.id));
+  for (const fill of ordered) {
+    if (!fill.id.trim() || ids.has(fill.id)) throw new Error("PAPER_LEDGER_DUPLICATE_FILL");
+    ids.add(fill.id);
+    if (!fill.orderId.trim() || !fill.market.trim() || !Number.isSafeInteger(fill.filledAt) || fill.filledAt < 0) throw new Error("PAPER_LEDGER_INVALID_FILL");
+    if (![fill.quantity, fill.price, fill.fee].every(Number.isFinite) || fill.quantity <= 0 || fill.price <= 0 || fill.fee < 0) throw new Error("PAPER_LEDGER_INVALID_FILL");
+  }
+  return ordered;
+}
+
+export function projectPaperAccounting(initialCapital: number, fills: readonly PaperFillRecord[], marks: Readonly<Record<string, number>> = {}): PaperAccountingProjection {
+  if (!Number.isFinite(initialCapital) || initialCapital <= 0) throw new Error("PAPER_LEDGER_INVALID_INITIAL_CAPITAL");
+  let cash = scaled(initialCapital);
+  let realized = 0n;
+  const positions = new Map<string, MutablePosition>();
+  const journal: PaperAccountingJournalEntry[] = [];
+
+  for (const [index, fill] of canonicalFillOrder(fills).entries()) {
+    const quantity = scaled(fill.quantity);
+    const price = scaled(fill.price);
+    const fee = scaled(fill.fee);
+    const notional = (quantity * price) / SCALE;
+    const previous = positions.get(fill.market) ?? { market: fill.market, quantity: 0n, costBasis: 0n, realizedPnL: 0n, markPrice: fill.price };
+
+    if (fill.side === "BUY") {
+      if (notional + fee > cash) throw new Error("PAPER_LEDGER_INSUFFICIENT_CASH");
+      cash -= notional + fee;
+      previous.quantity += quantity;
+      previous.costBasis += notional + fee;
+    } else {
+      if (quantity > previous.quantity) throw new Error("PAPER_LEDGER_INSUFFICIENT_POSITION");
+      const average = previous.quantity === 0n ? 0n : (previous.costBasis * SCALE) / previous.quantity;
+      const pnl = ((price - average) * quantity) / SCALE - fee;
+      cash += notional - fee;
+      realized += pnl;
+      previous.realizedPnL += pnl;
+      previous.costBasis -= (average * quantity) / SCALE;
+      previous.quantity -= quantity;
+      if (previous.quantity === 0n) previous.costBasis = 0n;
+    }
+    previous.markPrice = marks[fill.market] ?? fill.price;
+    positions.set(fill.market, previous);
+    const averageAfter = previous.quantity === 0n ? 0 : unscaled((previous.costBasis * SCALE) / previous.quantity);
+    journal.push(Object.freeze({
+      sequence: index + 1, fillId: fill.id, orderId: fill.orderId, market: fill.market, side: fill.side,
+      quantity: fill.quantity, price: fill.price, fee: fill.fee, cashAfter: unscaled(cash),
+      positionQuantityAfter: unscaled(previous.quantity), averageEntryPriceAfter: averageAfter,
+      realizedPnLAfter: unscaled(realized), occurredAt: fill.filledAt
+    }));
+  }
+
+  const projectedPositions = [...positions.values()].sort((a, b) => a.market.localeCompare(b.market)).map((position) => {
+    const quantity = unscaled(position.quantity);
+    const averageEntryPrice = position.quantity === 0n ? 0 : unscaled((position.costBasis * SCALE) / position.quantity);
+    const markPrice = marks[position.market] ?? position.markPrice;
+    if (!Number.isFinite(markPrice) || markPrice < 0) throw new Error("PAPER_LEDGER_INVALID_MARK");
+    return Object.freeze({
+      market: position.market,
+      quantity,
+      averageEntryPrice,
+      realizedPnL: unscaled(position.realizedPnL),
+      unrealizedPnL: round8(quantity * (markPrice - averageEntryPrice)),
+      markPrice
+    });
+  });
+  const canonical = JSON.stringify({ version: 1, initialCapital: round8(initialCapital), journal, positions: projectedPositions, cash: unscaled(cash), realizedPnL: unscaled(realized) });
+  return Object.freeze({
+    cash: unscaled(cash),
+    realizedPnL: unscaled(realized),
+    positions: Object.freeze(projectedPositions),
+    journal: Object.freeze(journal),
+    fingerprintSha256: createHash("sha256").update(canonical, "utf8").digest("hex")
+  });
+}
+
+
+export const LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION = "legacy-round8-weighted-entry-v1" as const;
+
+/**
+ * Migration-only replay of the pre-2026-08-14 PAPER arithmetic.
+ *
+ * Historical snapshots rounded the weighted BUY average to 8 decimals after
+ * every fill. Current canonical accounting deliberately retains fixed-point
+ * cost basis instead. This function exists only to recognize that exact
+ * historical shape; it must never become an execution or performance source.
+ */
+export function projectLegacyRound8WeightedEntryPaperAccountingV1(
+  initialCapital: number,
+  fills: readonly PaperFillRecord[],
+  marks: Readonly<Record<string, number>> = {},
+): PaperAccountingProjection {
+  if (!Number.isFinite(initialCapital) || initialCapital <= 0) throw new Error("PAPER_LEGACY_LEDGER_INVALID_INITIAL_CAPITAL");
+  let cash = round8(initialCapital);
+  let realizedPnL = 0;
+  const positions = new Map<string, PaperAccountPosition>();
+  const journal: PaperAccountingJournalEntry[] = [];
+
+  for (const [index, fill] of canonicalFillOrder(fills).entries()) {
+    const previous = positions.get(fill.market) ?? Object.freeze({
+      market: fill.market,
+      quantity: 0,
+      averageEntryPrice: 0,
+      realizedPnL: 0,
+      unrealizedPnL: 0,
+      markPrice: fill.price,
+    });
+    const notional = round8(fill.quantity * fill.price);
+    let next: PaperAccountPosition;
+    if (fill.side === "BUY") {
+      if (round8(notional + fill.fee) > cash) throw new Error("PAPER_LEGACY_LEDGER_INSUFFICIENT_CASH");
+      const quantity = round8(previous.quantity + fill.quantity);
+      const averageEntryPrice = round8((previous.averageEntryPrice * previous.quantity + notional + fill.fee) / quantity);
+      cash = round8(cash - notional - fill.fee);
+      next = Object.freeze({
+        ...previous,
+        quantity,
+        averageEntryPrice,
+        markPrice: marks[fill.market] ?? fill.price,
+        unrealizedPnL: 0,
+      });
+    } else {
+      if (fill.quantity > previous.quantity) throw new Error("PAPER_LEGACY_LEDGER_INSUFFICIENT_POSITION");
+      const realized = round8((fill.price - previous.averageEntryPrice) * fill.quantity - fill.fee);
+      const quantity = round8(previous.quantity - fill.quantity);
+      realizedPnL = round8(realizedPnL + realized);
+      cash = round8(cash + notional - fill.fee);
+      next = Object.freeze({
+        ...previous,
+        quantity,
+        averageEntryPrice: quantity === 0 ? 0 : previous.averageEntryPrice,
+        realizedPnL: round8(previous.realizedPnL + realized),
+        markPrice: marks[fill.market] ?? fill.price,
+        unrealizedPnL: 0,
+      });
+    }
+    const withMark = Object.freeze({
+      ...next,
+      unrealizedPnL: round8(next.quantity * ((marks[fill.market] ?? next.markPrice) - next.averageEntryPrice)),
+      markPrice: marks[fill.market] ?? next.markPrice,
+    });
+    positions.set(fill.market, withMark);
+    journal.push(Object.freeze({
+      sequence: index + 1,
+      fillId: fill.id,
+      orderId: fill.orderId,
+      market: fill.market,
+      side: fill.side,
+      quantity: fill.quantity,
+      price: fill.price,
+      fee: fill.fee,
+      cashAfter: cash,
+      positionQuantityAfter: withMark.quantity,
+      averageEntryPriceAfter: withMark.averageEntryPrice,
+      realizedPnLAfter: realizedPnL,
+      occurredAt: fill.filledAt,
+    }));
+  }
+
+  const projectedPositions = Object.freeze([...positions.values()].sort((a, b) => a.market.localeCompare(b.market)));
+  const canonical = JSON.stringify({
+    migrationVersion: LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION,
+    initialCapital: round8(initialCapital),
+    journal,
+    positions: projectedPositions,
+    cash,
+    realizedPnL,
+  });
+  return Object.freeze({
+    cash,
+    realizedPnL,
+    positions: projectedPositions,
+    journal: Object.freeze(journal),
+    fingerprintSha256: createHash("sha256").update(canonical, "utf8").digest("hex"),
+  });
+}
+
+export function assertRecognizedLegacyPaperAccountingV1(input: {
+  readonly initialCapital: number;
+  readonly fills: readonly PaperFillRecord[];
+  readonly cash: number;
+  readonly realizedPnL: number;
+  readonly positions: readonly PaperAccountPosition[];
+}): PaperAccountingProjection {
+  const marks = Object.fromEntries(input.positions.map((position) => [position.market, position.markPrice]));
+  const projection = projectLegacyRound8WeightedEntryPaperAccountingV1(input.initialCapital, input.fills, marks);
+  const actual = [...input.positions].sort((a, b) => a.market.localeCompare(b.market));
+  if (
+    input.cash !== projection.cash ||
+    input.realizedPnL !== projection.realizedPnL ||
+    JSON.stringify(actual) !== JSON.stringify(projection.positions)
+  ) {
+    throw new Error("PAPER_LEDGER_LEGACY_ACCOUNTING_UNRECOGNIZED");
+  }
+  return projection;
+}
+
+export function assertPaperAccountingReconciled(input: {
+  readonly initialCapital: number;
+  readonly fills: readonly PaperFillRecord[];
+  readonly cash: number;
+  readonly realizedPnL: number;
+  readonly positions: readonly PaperAccountPosition[];
+}): PaperAccountingProjection {
+  const marks = Object.fromEntries(input.positions.map((position) => [position.market, position.markPrice]));
+  const projection = projectPaperAccounting(input.initialCapital, input.fills, marks);
+  const actual = [...input.positions].sort((a, b) => a.market.localeCompare(b.market));
+  if (!reconcilesWithinRounding(input, actual, projection)) {
+    throw new PaperLedgerReconciliationError(describeReconciliationMismatch(input, projection));
+  }
+  return projection;
+}
+
+/**
+ * The account state accumulates PnL with decimal arithmetic rounded to 8 places at every fill, while this projection replays the
+ * same fills in exact fixed point. After a few dozen fills the two can differ in the last (8th) decimal place. That is rounding,
+ * not an accounting error, and an exact comparison turned it into a permanent halt (owner screen 2026-10-05: realized state
+ * -154.31476926 vs ledger -154.31476925 over 38 fills). Money fields may therefore differ by a few units of the 8th decimal place
+ * per fill; quantity and mark price must still match exactly, the markets must be the same, and any real discrepancy (a missing
+ * or duplicated fill, a wrong fee) is many orders of magnitude larger and is still refused. Owner approved this tolerance in chat.
+ */
+export const RECONCILIATION_BASE_TOLERANCE = 1e-7;
+export const RECONCILIATION_TOLERANCE_PER_FILL = 2e-8;
+export const reconciliationTolerance = (fillCount: number): number => RECONCILIATION_BASE_TOLERANCE + RECONCILIATION_TOLERANCE_PER_FILL * Math.max(0, fillCount);
+
+function within(a: number, b: number, tolerance: number): boolean {
+  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(round8(a) - round8(b)) <= tolerance + 1e-12;
+}
+
+function reconcilesWithinRounding(
+  input: { readonly fills: readonly PaperFillRecord[]; readonly cash: number; readonly realizedPnL: number },
+  actual: readonly PaperAccountPosition[],
+  projection: PaperAccountingProjection,
+): boolean {
+  const tolerance = reconciliationTolerance(input.fills.length);
+  if (!within(input.cash, projection.cash, tolerance) || !within(input.realizedPnL, projection.realizedPnL, tolerance)) return false;
+  if (actual.length !== projection.positions.length) return false;
+  return projection.positions.every((expected, index) => {
+    const state = actual[index]!;
+    // Per position the average entry price and the PnL derived from it scale with the quantity.
+    const scaled = tolerance * (1 + Math.max(1, expected.quantity));
+    return state.market === expected.market
+      && round8(state.quantity) === round8(expected.quantity)
+      && round8(state.markPrice) === round8(expected.markPrice)
+      && within(state.averageEntryPrice, expected.averageEntryPrice, scaled)
+      && within(state.realizedPnL, expected.realizedPnL, scaled)
+      && within(state.unrealizedPnL, expected.unrealizedPnL, scaled);
+  });
+}
+
+/**
+ * The stable failure code stays the message (callers compare it exactly). The detail says which part of the account state
+ * disagrees with the fill ledger and by how much, for the owner's advanced diagnostic line. Numbers and market codes only.
+ */
+export class PaperLedgerReconciliationError extends Error {
+  public constructor(public readonly detail: string) {
+    super("PAPER_LEDGER_RECONCILIATION_REQUIRED");
+    this.name = "PaperLedgerReconciliationError";
+  }
+}
+
+function describeReconciliationMismatch(
+  input: { readonly fills: readonly PaperFillRecord[]; readonly cash: number; readonly realizedPnL: number; readonly positions: readonly PaperAccountPosition[] },
+  projection: PaperAccountingProjection,
+): string {
+  const parts: string[] = [];
+  if (round8(input.cash) !== round8(projection.cash)) parts.push(`cash state ${round8(input.cash)} ledger ${round8(projection.cash)}`);
+  if (round8(input.realizedPnL) !== round8(projection.realizedPnL)) parts.push(`realized state ${round8(input.realizedPnL)} ledger ${round8(projection.realizedPnL)}`);
+  const stateByMarket = new Map(input.positions.map((position) => [position.market, position]));
+  for (const expected of projection.positions) {
+    const actual = stateByMarket.get(expected.market);
+    if (actual == null) { parts.push(`${expected.market} missing in state`); continue; }
+    for (const key of ["quantity", "averageEntryPrice", "realizedPnL", "unrealizedPnL", "markPrice"] as const) {
+      if (actual[key] !== expected[key]) { parts.push(`${expected.market} ${key} state ${actual[key]} ledger ${expected[key]}`); break; }
+    }
+  }
+  for (const actual of input.positions) if (!projection.positions.some((expected) => expected.market === actual.market)) parts.push(`${actual.market} not in ledger`);
+  parts.push(`${input.fills.length} fills`);
+  return parts.join(" ");
+}
+
+
+export interface DurablePaperAccountingSource {
+  readonly durableCompleteJournal: true;
+  readonly reconciled: true;
+  readonly historyStartAt: number;
+  readonly historyEndAt: number;
+  readonly fills: readonly PaperFillRecord[];
+  readonly projection: PaperAccountingProjection;
+  readonly ledgerFingerprintSha256: string;
+}
+
+function fillIdentity(fill: PaperFillRecord): string {
+  return JSON.stringify(fill);
+}
+
+export function buildDurablePaperAccountingSource(
+  history: readonly PaperAccountState[],
+  throughAt?: number,
+  durableFills?: readonly PaperFillRecord[],
+): DurablePaperAccountingSource {
+  if (!Array.isArray(history) || history.length === 0) throw new Error("PAPER_LEDGER_HISTORY_UNAVAILABLE");
+  const ordered = [...history]
+    .filter((state) => throughAt === undefined || state.updatedAt <= throughAt)
+    .sort((left, right) => left.updatedAt - right.updatedAt);
+  if (ordered.length === 0) throw new Error("PAPER_LEDGER_HISTORY_BOUNDARY_MISSING");
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (ordered[index]!.updatedAt <= ordered[index - 1]!.updatedAt) throw new Error("PAPER_LEDGER_HISTORY_CHRONOLOGY_INVALID");
+  }
+  const end = ordered.at(-1)!;
+  if (throughAt !== undefined && end.updatedAt !== throughAt) throw new Error("PAPER_LEDGER_HISTORY_BOUNDARY_MISSING");
+  if (ordered.some((state) => state.version !== 1 || state.initialCapital !== end.initialCapital)) throw new Error("PAPER_LEDGER_HISTORY_ACCOUNT_IDENTITY_MISMATCH");
+
+  const idempotencyToOrderId = new Map<string, string>();
+  const fillsById = new Map<string, PaperFillRecord>();
+  const fillIdentityById = new Map<string, string>();
+  for (const state of ordered) {
+    for (const order of [...state.orders, ...(state.workingOrders ?? [])]) {
+      const previous = idempotencyToOrderId.get(order.idempotencyKey);
+      if (previous != null && previous !== order.id) throw new Error("PAPER_LEDGER_HISTORY_IDEMPOTENCY_CONFLICT");
+      idempotencyToOrderId.set(order.idempotencyKey, order.id);
+    }
+    for (const fill of state.fills) {
+      const identity = fillIdentity(fill);
+      const previous = fillIdentityById.get(fill.id);
+      if (previous != null && previous !== identity) throw new Error("PAPER_LEDGER_HISTORY_FILL_CONFLICT");
+      fillIdentityById.set(fill.id, identity);
+      fillsById.set(fill.id, fill);
+    }
+  }
+  if (end.processedIdempotencyKeys.some((key: string) => !idempotencyToOrderId.has(key))) throw new Error("PAPER_LEDGER_HISTORY_INCOMPLETE");
+
+  let fills: readonly PaperFillRecord[];
+  if (durableFills === undefined) {
+    fills = Object.freeze([...fillsById.values()].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id)));
+  } else {
+    const durableById = new Map<string, PaperFillRecord>();
+    const durableIdentityById = new Map<string, string>();
+    for (const fill of durableFills) {
+      if (fill.filledAt > end.updatedAt) continue;
+      const identity = fillIdentity(fill);
+      if (durableIdentityById.has(fill.id)) throw new Error("PAPER_LEDGER_DURABLE_DUPLICATE_FILL");
+      durableIdentityById.set(fill.id, identity);
+      durableById.set(fill.id, fill);
+    }
+    for (const [fillId, identity] of fillIdentityById) {
+      if (durableIdentityById.get(fillId) !== identity) throw new Error("PAPER_LEDGER_DURABLE_HISTORY_MISMATCH");
+    }
+    fills = Object.freeze([...durableById.values()].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id)));
+  }
+  const projection = assertPaperAccountingReconciled({
+    initialCapital: end.initialCapital,
+    fills,
+    cash: end.cash,
+    realizedPnL: end.realizedPnL,
+    positions: end.positions,
+  });
+  return Object.freeze({
+    durableCompleteJournal: true as const,
+    reconciled: true as const,
+    historyStartAt: ordered[0]!.updatedAt,
+    historyEndAt: end.updatedAt,
+    fills,
+    projection,
+    ledgerFingerprintSha256: projection.fingerprintSha256,
+  });
+}

@@ -1,0 +1,26 @@
+id: WO-UI-20261005-COLD-FUTURE
+title: "Cold-future skin replacing the rejected 먹과 한지 skin"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ui-cold-future
+authority_impact: none
+objective: "The owner rejected the Korean-style skin merged in #2508 ('한국스타일 말고') and chose the cold futuristic direction. Replace only the colours; keep the bloom, breath and smooth tint-fade motion from #2508, which is style-neutral."
+scope:
+  - "apps/mobile/src/designSystem.ts: one token change. Ground #02050A deep blue-black, text #E8F1FA, muted #93A8BE, primary and selection accent ice cyan #5CE1FF, periwinkle focus/info #8AA2FF, cool hairlines. Green, amber and red status colours unchanged."
+  - "apps/mobile/src/holoModel.ts + holoSphere.tsx: sphere ramp back to cyan, violet, magenta, mint; cool glass ring."
+  - "tests/mobile-hanji-ink-palette.test.js renamed to tests/mobile-cold-future-palette.test.js; token pins updated."
+exclusions:
+  - "No layout, copy, data, safety, risk, execution, LIVE, credential or AI-authority change. Native launcher icon and splash keep the owner-chosen lime N monogram (named exception)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Status meaning unchanged; tests keep decorative colours far from status colours and enforce contrast floors."
+rollback: "Revert the change; the palette is one token block."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "Not seen on a device here; taste is the owner's call on the new build."

@@ -38,7 +38,7 @@ test("primary screens share Intelligence OS truth grammar while PAPER specialize
   assert.match(portfolio, /AuthorityRail/);
   assert.match(paper, /PaperLearningMonitorView/);
   assert.match(paperMonitor, /PAPER LEARNING · READ ONLY/);
-  assert.match(paperMonitor, /DATA SOURCE/);
+  assert.match(paperMonitor, /데이터 출처/);
   assert.match(os, /minHeight: 48/);
   assert.match(os, /fontVariant: \["tabular-nums"\]/);
   assert.match(spec, /3 seconds/);
@@ -54,7 +54,7 @@ test("market observation is explicitly separated from strategy and order authori
 });
 
 test("REAL_READ_ONLY is never presented as PAPER performance", () => {
-  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
+  assert.match(portfolio, /실계좌 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
   assert.match(spec, /REAL_READ_ONLY account data is never summed into PAPER performance/);
 });
 

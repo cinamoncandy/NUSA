@@ -1,0 +1,28 @@
+id: WO-UI-20261005-HALT-REASON
+title: "Show why the server reports PAPER as HALTED on the PAPER screen"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/paper-halt-reason
+authority_impact: none
+objective: "The owner's phone showed 'PAPER 정지 / 리스크 경계가 실행을 멈췄습니다' with no cause, and the owner has no host access, so the app was the only window and could not answer why. The server already sends runtimeHaltReasons (KILL_SWITCH_ACTIVE, AI_P0_OPEN, AI_P0_UNVERIFIABLE, DASHBOARD_FAULTED), killSwitchActive and heartbeat.lastError; the app displayed none of them."
+scope:
+  - "apps/mobile/src/haltReasonModel.ts: pure buildHaltExplanation, only while status is HALTED; plain Korean per known reason, unknown reasons stated generically (never a raw code), the server's lastError translated to task-level Korean with the raw value kept only as a bounded advanced diagnostic line, per-tick market-rejection diagnostics not treated as a cause, missing cause stated as unknown, malformed input ignored; also a short summary for space-constrained surfaces."
+  - "apps/mobile/src/paperLearningScreen.ts: optional 4th argument and a halt field (null unless HALTED)."
+  - "apps/mobile/App.tsx passes the server's own fields; paperLearningMonitorView.tsx renders a 정지 사유 notice under the data-source row."
+  - "HOME: homeFieldInput computes haltCause from the same server fields; the Intelligence Field HALTED headline detail and the HOME status rail (PAPER 중단(<사유>)) show it, so HOME and PAPER agree."
+  - "tests/mobile-halt-reason.test.js (8, behavioural through the compiled screen/field/rail models, no presenter source matching); the #755 source-pin test accepts the extra argument."
+exclusions:
+  - "Read-only display. Does not clear, hide, soften or decide a halt, never calls a control, and does not change the server, risk, execution, LIVE, credentials or AI authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "When the server sends no cause the screen says so instead of guessing one."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js
+residual: "Shows only what the server sends. If the server sends HALTED with no reason fields the screen says the cause is unavailable; deeper causes need host logs. Needs a new app build to reach the phone."

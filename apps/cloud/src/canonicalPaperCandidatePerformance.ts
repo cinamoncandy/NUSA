@@ -102,7 +102,7 @@ function executionQualityScore(fills: readonly PaperFillRecord[], account: Paper
     notional += weight;
   }
   if (!(notional > 0)) return undefined;
-  return finite(weighted / notional, "candidate PAPER execution quality");
+  return finite((weighted / notional) * 100, "candidate PAPER execution quality");
 }
 
 /**

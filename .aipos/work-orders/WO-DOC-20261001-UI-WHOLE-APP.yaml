@@ -1,0 +1,21 @@
+id: WO-DOC-20261001-UI-WHOLE-APP
+title: "Owner rule: UI/UX changes apply to the whole app"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-ui-whole-app
+authority_impact: none
+objective: "Owner instruction (2026-10-01): from now on every UI/UX change is applied app-wide as a principle, after a redesign first shipped on HOME only."
+scope:
+  - "AGENTS.md: UI/UX rule section."
+  - "docs/UI_ARCHITECTURE.md: the rule at the top of How to ship a redesign."
+exclusions:
+  - "Documentation only; no code change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run validate
+residual: "None."

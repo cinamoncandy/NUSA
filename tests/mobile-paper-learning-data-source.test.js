@@ -95,7 +95,7 @@ test("#755: App supplies the real upstream condition rather than a placeholder",
   assert.match(app, /operations\.status === "NOT_CONFIGURED"/);
   assert.match(app, /operations\.status === "UNAVAILABLE"/);
   assert.match(app, /snapshot\?\.paperLearning == null/);
-  assert.match(app, /buildPaperLearningScreen\(snapshot\?\.paperLearning\?\.events \?\? \[\], paperLearningRuntimeStatus, paperLearningServerSource\)/);
+  assert.match(app, /buildPaperLearningScreen\(snapshot\?\.paperLearning\?\.events \?\? \[\], paperLearningRuntimeStatus, paperLearningServerSource(, snapshot == null \? null : \{[^}]*\})?\)/);
 });
 
 test("#755: no LIVE or production-mutation authority is introduced by the data-source surface", () => {

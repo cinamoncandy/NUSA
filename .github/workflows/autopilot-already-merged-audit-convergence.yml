@@ -55,6 +55,31 @@ jobs:
             exit 0
           fi
 
+          # This observer never creates or upgrades Release provenance.  A
+          # concurrent canonical Release can close the PR before this
+          # repository_dispatch consumer starts, though.  In that case the
+          # exact-head, App-authored authorization is already durable evidence
+          # and the observer must converge instead of emitting a false RED.
+          for poll in $(seq 1 5); do
+            authorizations="$(gh api "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses?per_page=100")"
+            authorization_id="$(jq -r --arg pr "$PR_NUMBER" '
+              .[] | select(
+                .context == "nusa/release-authorized" and
+                .state == "success" and
+                .creator.login == "nusa-release-authority[bot]" and
+                (.description | startswith("canonical Audit PASS; pr=" + $pr + "; base="))
+              ) | .id
+            ' <<<"$authorizations" | head -n 1)"
+            if [ -n "$authorization_id" ]; then
+              echo "CONVERGED existing exact-head dedicated Release authorization: pr=$PR_NUMBER head=$EXPECTED_HEAD status=$authorization_id"
+              echo 'liveAuthority=NONE'
+              echo 'productionMutationAllowed=false'
+              echo 'aiAuthority=ZERO_AUTHORITY'
+              exit 0
+            fi
+            sleep 1
+          done
+
           echo "::error::RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded to deterministic Audit/Release PASS."
           echo "pr=$PR_NUMBER head=$EXPECTED_HEAD ci=$WORKFLOW_RUN_ID"
           echo "Canonical Release completion requires exact-head Audit authority, App-bound nusa/release-authorized, canonical expected-head/base merge, post-merge CI, and exact merged-SHA runtime/deployment provenance."

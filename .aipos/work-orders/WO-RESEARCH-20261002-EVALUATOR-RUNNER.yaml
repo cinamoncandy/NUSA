@@ -1,0 +1,27 @@
+id: WO-RESEARCH-20261002-EVALUATOR-RUNNER
+title: "Backtest research evaluator and experiment runner joined to the real coordinator (Stage 2b-8; not wired)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-evaluators
+authority_impact: none
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "Provide the champion/challenger evaluators and the one-experiment runner that tie together the candle store, walk-forward windows, provenance builder and holdout ledger, and prove with real SQLite stores, the real coordinator and the real automation runtime that a provenance-carrying experiment is accepted."
+scope:
+  - "apps/cloud/src/backtestResearchEvaluator.ts: BacktestResearchEvaluator over runDslBacktest and buildSmaResearchStrategy. It reads the exact candles from the candle source and refuses unless they match the input point for point; fee, slippage and cash are explicit with no defaults; it returns netReturn, costAdjustedReturn, maximumDrawdown, sharpeRatio (null treated as 0), executionQuality (filled entries / attempted entries, 1 when none) plus counts. It is a research proxy: the DSL cannot express every behaviour of the live PAPER strategy, so results are research evidence and never PAPER fills."
+  - "apps/cloud/src/researchExperimentRunner.ts: runResearchExperiment. VALIDATION window first; the HOLDOUT window only when validation favours the challenger and the durable holdout claim succeeds (the claim is made before the holdout run, so a failure afterwards still counts the holdout as used, which is the contamination-safe choice). Every problem becomes SKIPPED or ERROR with a stable reason; nothing is retried or forced."
+  - "apps/cloud/src/researchProvenanceBuilder.ts: export canonicalSha256 so callers hash configurations identically."
+  - "tests/backtest-research-evaluator.test.js (6) and tests/research-experiment-pipeline.test.js (3, real stores + coordinator + automation runtime)."
+exclusions:
+  - "Not wired: no timer, no composition, no production reads or writes. No deploy."
+  - "No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change. Candidate registration still happens only through the existing automation runtime and candidate gate."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/backtest-research-evaluator.test.js tests/research-experiment-pipeline.test.js
+  - pnpm run validate
+residual: "Scheduler and flagged production composition not started. Not run: pnpm run validate (sandbox Node 22)."
