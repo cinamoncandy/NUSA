@@ -172,7 +172,7 @@ export function validateRealReadOnlyEvent(event: RealReadOnlyEvent): RealReadOnl
   safeText(event.reason, "event.reason");
   if (!Array.isArray(event.reasonCodes) || event.reasonCodes.some((reason) => typeof reason !== "string" || !reason.trim() || FORBIDDEN_VALUE.test(reason))) throw new Error("REAL_READ_ONLY reason codes are invalid");
   assertSafeObject(event);
-  return Object.freeze(structuredClone(event));
+  return Object.freeze(JSON.parse(JSON.stringify(event)));
 }
 
 const MAX_EVENTS = 500;
@@ -308,5 +308,5 @@ export function validateRealReadOnlyObservabilitySnapshot(
   }
 
   assertSafeObject(snapshot);
-  return Object.freeze(structuredClone(snapshot));
+  return Object.freeze(JSON.parse(JSON.stringify(snapshot)));
 }

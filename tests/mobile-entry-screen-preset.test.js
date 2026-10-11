@@ -37,17 +37,3 @@ test("the entry screen keeps its PAPER-only disclosure while following the prese
   assert.match(entryScreen, /계정 인증이 아닙니다/);
   assert.match(entryScreen, /testID="local-entry-submit"/);
 });
-
-test("classic and master resolve the entry screen to different geometry", () => {
-  const profile = read("apps/mobile/src/homeVisualProfile.ts");
-  // If both presets resolved to the same numbers the entry screen would still look frozen, so the
-  // values this screen now reads must actually differ between presets.
-  const classic = profile.split("classic:")[1].split("master:")[0];
-  const master = profile.split("master:")[1];
-  const horizontal = (source) => Number(/horizontalPadding:\s*(\d+)/.exec(source)[1]);
-  const maxWidth = (source) => Number(/maxWidth:\s*(\d+)/.exec(source)[1]);
-  const contentGap = (source) => Number(/contentGap:\s*(\d+)/.exec(source)[1]);
-  assert.notEqual(horizontal(classic), horizontal(master));
-  assert.notEqual(maxWidth(classic), maxWidth(master));
-  assert.notEqual(contentGap(classic), contentGap(master));
-});

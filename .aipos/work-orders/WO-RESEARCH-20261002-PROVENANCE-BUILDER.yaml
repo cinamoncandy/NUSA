@@ -1,0 +1,31 @@
+id: WO-RESEARCH-20261002-PROVENANCE-BUILDER
+title: "Pure research provenance builder with D2 input-core hash (Stage 2b-5; not wired)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-provenance-builder
+authority_impact: none
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "Implement the field mapping from docs/DESIGN_RESEARCH_EXPERIMENT_PROVENANCE.md as a pure builder that recomputes every hash from the data it describes and throws a stable error code instead of producing a provenance with any placeholder or unverifiable field."
+decisions:
+  note: "Owner instruction 2026-10-02: stop asking and finish. Design decisions D1-D5 are taken as the values proposed in the design document; they are research-evidence design choices and touch no capital, minimum-order, risk, execution, LIVE or credential setting."
+  D1: "One experiment = one (market, window set, challenger parameter set), submitted by a scheduler inside the daily budget; the per-tick onMarketData entry stays unused."
+  D2: "Provenance canonicalInputHash = SHA-256 of the experiment input without its provenance key (hashResearchInputCore); the coordinator keeps its whole-input hash as the evidence hash."
+  D3: "Windows: train 7 days, validation 2 days, holdout 2 days of 1-minute closed candles (configurable constants in the later composition stage)."
+  D4: "Backtest cost assumptions must be explicit ids (fill, fee, slippage); the builder refuses empty values. Concrete values are set where the evaluators are composed (Upbit KRW fee tier and a conservative slippage in bps)."
+  D5: "attempt is recorded and never reset so multiple testing is countable; no promotion path is added by this work, so the existing 30-day / 50-trade candidate gate and PAPER evidence remain the only route."
+scope:
+  - "apps/cloud/src/researchProvenanceBuilder.ts: buildResearchProvenance and hashResearchInputCore. Windows must be non-empty, strictly increasing, on interval boundaries, disjoint and in time order; commit must be 40 lowercase hex; attempt positive; explicit model ids; HOLDOUT role refuses a contaminated holdout; result is checked with validateResearchProvenance and validateResearchTemporalIntegrity."
+  - "tests/research-provenance-builder.test.js: recomputed hashes, determinism and sensitivity, per-role windows, window validation codes, fail-closed inputs, D2 hash without circularity."
+exclusions:
+  - "Not wired: nothing builds provenance in production yet. No deploy. No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-provenance-builder.test.js
+  - pnpm run validate
+residual: "Window/holdout bookkeeping (persisted), evaluators, scheduler and flagged production composition not started. Not run: pnpm run validate (sandbox Node 22)."

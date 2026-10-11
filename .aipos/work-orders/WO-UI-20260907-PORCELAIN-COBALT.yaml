@@ -1,6 +1,9 @@
 id: WO-UI-20260907-PORCELAIN-COBALT
 title: "Apply approved porcelain/cobalt mobile design and release Android"
-status: IN_PROGRESS
+status: COMPLETED
+residual_gates_work_order: WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES
+closed_by_pull_request: 1757
+closure_note: "Closed 2026-09-23 under WO-20260924-AIPOS-STALE-WORK-ORDER-CLOSURE after verifying PR #1757 merged into main (main commit a3291d80). Code scope only; any physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY and is not claimed here."
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -37,7 +40,7 @@ validation:
   validate_full: PASS
   security: PASS
   diff_check: PASS
-  exact_head_ci: PENDING
-  android_release: PENDING
+  exact_head_ci: "MOOT_MERGED_PR_1757 (per-head result not recorded in this order)"
+  android_release: "MOVED_TO_WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES"
   physical_device: HUMAN_ENVIRONMENT_ONLY
-next_permitted_action: "Implement visual-only changes, validate locally, then protected CI and canonical Audit/Release; verify APK provenance and Firebase outcome."
+next_permitted_action: "None in this order; remaining Android release/device gates are tracked open in WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES."

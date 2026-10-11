@@ -1,0 +1,26 @@
+id: WO-RESEARCH-20261002-CANDLE-AGGREGATOR
+title: "Deterministic closed-candle aggregation from stored public ticker observations (Stage 2b-1; not wired)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-candle-aggregator
+authority_impact: none
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "The server already stores public ticker observations but only hours of them, and research needs closed 1-minute candles. Provide the pure aggregation step with honest gap handling and a content checksum usable as dataset identity."
+scope:
+  - "apps/cloud/src/closedCandleAggregator.ts: closed-bucket-only OHLC from ordered observations; candle timestamp is the CLOSE time (availability time) so point-in-time consumers never see it early; a bucket is emitted only with proven coverage (starts at or after coverageStartMs, and no gap between bucket start, ticks and bucket end above maxInternalGapMs, default 30 s) otherwise it is dropped and counted as incompleteBuckets; empty buckets counted, never filled; invalid or out-of-order observations skipped and counted; volume always 0 (ticker has no per-candle volume); SHA-256 checksum of the canonical candle list."
+  - "tests/closed-candle-aggregator.test.js: OHLC with close-time stamp, closed-bucket boundary (exact end included, one ms earlier excluded), empty-bucket gaps, mid-minute window start, feed outage / late first tick / early last tick, rejection, checksum determinism, bad configuration."
+  - "docs/PROPOSAL_CONTINUOUS_RESEARCH_EXPERIMENTS.md: finding about the 50,000-row retention cap and the plan for a separate long-retention candle store."
+exclusions:
+  - "Not wired: nothing reads the observation table or stores candles yet. No storage schema change, no retention change, no deploy."
+  - "No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/closed-candle-aggregator.test.js
+  - pnpm run validate
+residual: "Long-retention candle store (storage schema change), input builder with full provenance, evaluators, production composition and owner-approved deploy not started. Not run: pnpm run validate (sandbox Node 22)."

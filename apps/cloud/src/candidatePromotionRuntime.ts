@@ -28,9 +28,14 @@ export interface OwnerAuthorizationPort {
   authorize(command: PromotionCommand): OwnerAuthorizationContext | null;
 }
 
+export interface CandidateFamilyMembershipPort {
+  requireMembership(strategyId: string, version: string, familyId: string): unknown;
+}
+
 export interface CandidatePromotionRuntimeOptions {
   readonly repository: CandidatePromotionRepository;
   readonly evaluationLedger: ResearchEvaluationLedger;
+  readonly familyMembership: CandidateFamilyMembershipPort;
   readonly ownerAuthorization?: OwnerAuthorizationPort;
   /** @deprecated A string allow-list is not an authentication boundary and cannot authorize promotion. */
   readonly ownerActorRefs?: readonly string[];
@@ -74,6 +79,8 @@ export class CandidatePromotionRuntime {
 
   public registerCandidate(identity: ResearchCandidateIdentity, lifecycle: StrategyLifecycle = "PAPER_CANDIDATE"): CandidateLifecycleRecord {
     validateCandidateIdentity(identity);
+    if (!identity.familyId?.trim()) throw new Error("FAMILY_BINDING_REQUIRED");
+    this.options.familyMembership.requireMembership(identity.strategyId, identity.strategyVersion, identity.familyId);
     if (!["DRAFT", "RESEARCHING", "VALIDATED", "PAPER_CANDIDATE"].includes(lifecycle)) throw new Error("candidate registration lifecycle is not eligible");
     const record = freeze({ identity: freeze({ ...identity }), lifecycle });
     const existing = this.options.repository.getCandidate(identity.candidateId);
@@ -97,6 +104,8 @@ export class CandidatePromotionRuntime {
   public evaluatePromotionEligibility(candidateId: string, evaluationId: string): { eligible: boolean; reason: string; evidence?: ResearchComparisonEvidence } {
     const candidate = this.requireCandidate(candidateId);
     try {
+      if (!candidate.identity.familyId?.trim()) return { eligible: false, reason: "FAMILY_BINDING_REQUIRED" };
+      this.options.familyMembership.requireMembership(candidate.identity.strategyId, candidate.identity.strategyVersion, candidate.identity.familyId);
       const records = this.options.evaluationLedger.list();
       const evidence = records.find((item) => item.evaluationId === evaluationId);
       if (evidence == null) return { eligible: false, reason: "MISSING_EVIDENCE" };

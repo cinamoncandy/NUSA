@@ -30,12 +30,18 @@ function observations(prices: readonly number[]): readonly IntelligenceObservati
 
 describe("PAPER candidate strategy semantics", () => {
   it("uses the bound SMA parameters to produce a deterministic direction", () => {
-    const rising = evaluatePaperCandidateStrategy(spec, observations([100, 101, 103]), 10, "KRW-BTC");
-    const falling = evaluatePaperCandidateStrategy(spec, observations([103, 101, 100]), 10, "KRW-BTC");
+    const rising = evaluatePaperCandidateStrategy(spec, observations([99, 100, 101, 103]), 10, "KRW-BTC");
+    const falling = evaluatePaperCandidateStrategy(spec, observations([104, 103, 101, 100]), 10, "KRW-BTC");
     assert.equal(rising.action, "BUY");
     assert.equal(falling.action, "SELL");
     assert.equal(rising.reason, "SMA_CROSSOVER:2/3:short=102:long=101.3333");
-    assert.deepEqual(rising, evaluatePaperCandidateStrategy(spec, [...observations([100, 101, 103])].reverse().reverse(), 10, "KRW-BTC"));
+    assert.deepEqual(rising, evaluatePaperCandidateStrategy(spec, [...observations([99, 100, 101, 103])].reverse().reverse(), 10, "KRW-BTC"));
+  });
+
+  it("does not emit an actionable signal below the canonical execution confidence", () => {
+    const result = evaluatePaperCandidateStrategy(spec, observations([100, 101, 103]), 10, "KRW-BTC");
+    assert.equal(result.confidence, 0.5);
+    assert.equal(result.action, "WAIT");
   });
 
   it("waits without fabricating a signal until the exact lookback is available", () => {
@@ -51,13 +57,13 @@ describe("PAPER candidate strategy semantics", () => {
       candidateId: "rsi-2-40-60",
       familyId: "rsi-mean-reversion",
       lineageId: "rsi-v1",
-      parameters: Object.freeze({ period: 2, oversold: 40, overbought: 60 }),
+      parameters: Object.freeze({ period: 2, oversold: 20, overbought: 80 }),
     });
-    const recovered = evaluatePaperCandidateStrategy(rsiSpec, observations([100, 90, 80, 100]), 10, "KRW-BTC");
-    const rejected = evaluatePaperCandidateStrategy(rsiSpec, observations([100, 110, 120, 100]), 10, "KRW-BTC");
+    const recovered = evaluatePaperCandidateStrategy(rsiSpec, observations([40, 20, 20, 60]), 10, "KRW-BTC");
+    const rejected = evaluatePaperCandidateStrategy(rsiSpec, observations([60, 80, 80, 40]), 10, "KRW-BTC");
     assert.equal(recovered.action, "BUY");
     assert.equal(rejected.action, "SELL");
-    assert.match(recovered.reason, /^RSI_MEAN_REVERSION:2:40\/60:/);
+    assert.match(recovered.reason, /^RSI_MEAN_REVERSION:2:20\/80:/);
   });
 
   it("RSI waits until enough point-in-time observations exist", () => {
@@ -78,8 +84,8 @@ describe("PAPER candidate strategy semantics", () => {
       parameters: Object.freeze({ channelPeriod: 2 }),
     });
     const baseline = evaluatePaperCandidateStrategy(donchianSpec, observations([100, 101, 102]), 10, "KRW-BTC");
-    const breakout = evaluatePaperCandidateStrategy(donchianSpec, observations([100, 101, 101, 103]), 10, "KRW-BTC");
-    const breakdown = evaluatePaperCandidateStrategy(donchianSpec, observations([103, 102, 102, 100]), 10, "KRW-BTC");
+    const breakout = evaluatePaperCandidateStrategy(donchianSpec, observations([100, 110, 105, 130]), 10, "KRW-BTC");
+    const breakdown = evaluatePaperCandidateStrategy(donchianSpec, observations([130, 120, 125, 100]), 10, "KRW-BTC");
     assert.equal(baseline.action, "HOLD", "first eligible observation establishes the same stateful baseline as the core strategy");
     assert.equal(breakout.action, "BUY");
     assert.equal(breakdown.action, "SELL");

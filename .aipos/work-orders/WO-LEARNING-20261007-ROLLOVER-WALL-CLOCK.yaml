@@ -1,0 +1,33 @@
+id: WO-LEARNING-20261007-ROLLOVER-WALL-CLOCK
+title: "Closed-learning rollover also counts the wall-clock KST day while the PAPER account is idle"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/rollover-wall-clock
+authority_impact: closed-learning-period-close-trigger
+owner_approval: "2026-10-07 in chat (rollover basis changed to the clock)"
+objective: "Stop the closed-learning rollover from waiting forever when a risk halt (consecutive-loss limit) leaves the canonical PAPER account unchanged across the KST day boundary."
+first_broken_transition: "KST day boundary passes with an idle PAPER account -> period close (account.updatedAt never crosses the day, rollover stays WAITING_FOR_KST_DAY_ROLLOVER, cyclesEvaluated=0)"
+scope:
+  include:
+    - "ClosedLearningRolloverPort gains optional now(); the day gate passes when the wall clock is on a later KST day than the period start and not behind the account."
+    - "Production wiring passes Date.now."
+  exclude:
+    - "Period end, account snapshot, fills, returns, PnL, evidence requirements, Risk, thresholds, capital, LIVE. The period still closes only at the exact canonical account updatedAt and still needs a real FILLED observation."
+acceptance:
+  - "Idle account + clock on a later KST day closes at the canonical account updatedAt; successor opens at that boundary."
+  - "Same-day, absent or behind-the-account clock keeps waiting; a clock-crossed period without a FILLED observation writes nothing."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js dist/apps/cloud/src/closedLearningProductionRuntime.test.js"
+evidence:
+  local_validation: "tsc clean; rollover scheduler 24 pass / 0 fail (3 new); production runtime 8 pass; portability, platform-independent-tests, aipos-yaml, repository-truth, safety-architecture, ai-zero-authority validators ok (Node 22 sandbox)."
+  remaining: "Exact-head CI, independent Audit and Release; after merge deploy exact main and verify the 15:00 UTC rollover reaches CLOSED_AND_EVALUATED with no synthetic fill/PnL."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

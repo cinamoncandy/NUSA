@@ -4,11 +4,12 @@ import worker, {
   classifyGithubEvent,
   computeGithubWebhookSignature,
   handleCodingExecute,
+  handleScheduledRuntimeTick,
   verifyGithubWebhookSignature,
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
-import type { CodingRuntime } from "./codingRunner";
-import { ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import type { CodingRuntime, WorkersAiBinding } from "./codingRunner";
+import { acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, ExecutionCoordinator, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -74,6 +75,20 @@ describe("NUSA autopilot GitHub webhook", () => {
 
     const verified = await worker.fetch(new Request("https://example.test/health"), { NUSA_DEPLOYMENT_REVISION: "a".repeat(40) });
     assert.equal((await verified.json() as { deploymentRevision: string }).deploymentRevision, "a".repeat(40));
+  });
+
+  it("protects the persistent scheduled runtime tick with a dedicated bearer secret", async () => {
+    const request = () => new Request("https://example.test/scheduled/run", { method: "POST" });
+    const missing = await handleScheduledRuntimeTick(request(), {});
+    assert.equal(missing.status, 503);
+    assert.equal((await missing.json() as { reason: string }).reason, "AUTOPILOT_RUNTIME_TOKEN_NOT_CONFIGURED");
+
+    const wrong = await handleScheduledRuntimeTick(new Request("https://example.test/scheduled/run", { method: "POST", headers: { authorization: "Bearer wrong" } }), { NUSA_AUTOPILOT_RUNTIME_TOKEN: "correct" });
+    assert.equal(wrong.status, 401);
+
+    const unavailable = await handleScheduledRuntimeTick(new Request("https://example.test/scheduled/run", { method: "POST", headers: { authorization: "Bearer correct" } }), { NUSA_AUTOPILOT_RUNTIME_TOKEN: "correct" });
+    assert.equal(unavailable.status, 503);
+    assert.equal((await unavailable.json() as { reason: string }).reason, "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
   });
 
   it("verifies the exact request body with HMAC SHA-256", async () => {
@@ -161,6 +176,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       headSha: "a".repeat(40),
       prNumber: null,
       workflowRunId: null,
+      workflowRunAttempt: null,
       reason: "continue-from:main_push",
       mutationAllowed: false,
     });
@@ -285,6 +301,7 @@ describe("NUSA autopilot GitHub webhook", () => {
     const originalFetch = globalThis.fetch;
     const dispatched: unknown[] = [];
     let draft = true;
+    let auditPublished = false;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({
@@ -312,10 +329,11 @@ describe("NUSA autopilot GitHub webhook", () => {
         head: { sha: headSha },
       }), { status: 200 });
       if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
-        return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+        return new Response(JSON.stringify({ workflow_runs: auditPublished ? [{ display_title: `audit:1955:${workflowRunId}:${headSha}`, status: "in_progress", conclusion: null }] : [] }), { status: 200, headers: { "content-type": "application/json" } });
       }
       if (url.endsWith("/dispatches")) {
         dispatched.push(JSON.parse(String(init?.body)));
+        auditPublished = true;
         return new Response(null, { status: 204 });
       }
       return new Response(null, { status: 404 });
@@ -362,6 +380,149 @@ describe("NUSA autopilot GitHub webhook", () => {
       assert.equal(dispatched.length, 1);
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("releases a retryable Audit executor lease so the same CI identity can dispatch after recovery", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const headSha = "d".repeat(40);
+    const workflowRunId = 35195500002;
+    const workflowBody = JSON.stringify({
+      action: "completed",
+      workflow_run: {
+        id: workflowRunId,
+        name: "CI",
+        head_sha: headSha,
+        head_branch: "feature/audit-retry",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 1956 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    const signature = await computeGithubWebhookSignature("secret", workflowBody);
+    const request = (delivery: string) => new Request("https://example.test/github/webhook", {
+      method: "POST",
+      headers: { "x-github-delivery": delivery, "x-github-event": "workflow_run", "x-hub-signature-256": signature },
+      body: workflowBody,
+    });
+    const originalFetch = globalThis.fetch;
+    const dispatched: unknown[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/pulls/1956")) return new Response(JSON.stringify({
+        state: "open",
+        draft: false,
+        labels: [],
+        head: { sha: headSha },
+      }), { status: 200 });
+      if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+        return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.endsWith("/dispatches")) {
+        dispatched.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 204 });
+      }
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const baseEnv = { NUSA_WEBHOOK_SECRET: "secret", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+      const unavailable = await worker.fetch(request("audit-retry-unavailable"), baseEnv);
+      const unavailablePayload = await unavailable.json() as { executor: { status: string; reason: string } };
+      assert.equal(unavailablePayload.executor.status, "INTERFACE_READY");
+      assert.equal(unavailablePayload.executor.reason, "github-executor-token-not-configured");
+      assert.equal(dispatched.length, 0);
+
+      const recovered = await worker.fetch(request("audit-retry-recovered"), { ...baseEnv, NUSA_GITHUB_TOKEN: "token" });
+      const recoveredPayload = await recovered.json() as { executor: { status: string } };
+      assert.equal(recoveredPayload.executor.status, "DISPATCHED");
+      assert.equal(dispatched.length, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("recovers one accepted Audit dispatch when GitHub never materializes its exact workflow run", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const headSha = "e".repeat(40);
+    const workflowRunId = 35195500003;
+    const workflowBody = JSON.stringify({
+      action: "completed",
+      workflow_run: {
+        id: workflowRunId,
+        name: "CI",
+        head_sha: headSha,
+        head_branch: "feature/audit-recovery",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 1957 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    const signature = await computeGithubWebhookSignature("secret", workflowBody);
+    const request = (delivery: string) => new Request("https://example.test/github/webhook", {
+      method: "POST",
+      headers: { "x-github-delivery": delivery, "x-github-event": "workflow_run", "x-hub-signature-256": signature },
+      body: workflowBody,
+    });
+    const originalFetch = globalThis.fetch;
+    const originalNow = Date.now;
+    const dispatched: unknown[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/pulls/1957")) return new Response(JSON.stringify({
+        state: "open",
+        draft: false,
+        labels: [],
+        head: { sha: headSha },
+      }), { status: 200 });
+      if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+        // The first dispatch was accepted but never became a visible Audit run.
+        return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.endsWith("/dispatches")) {
+        dispatched.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 204 });
+      }
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+      let now = 1_000_000;
+      Date.now = () => now;
+      const initial = await worker.fetch(request("audit-recovery-initial"), env);
+      const pending = await worker.fetch(request("audit-recovery-pending"), env);
+      now += AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS;
+      const recovered = await worker.fetch(request("audit-recovery-replay"), env);
+      const exhausted = await worker.fetch(request("audit-recovery-exhausted"), env);
+      const initialPayload = await initial.json() as { executor: { status: string } };
+      const pendingPayload = await pending.json() as { status: string; executor: { reason: string } };
+      const recoveredPayload = await recovered.json() as { status: string; executor: { status: string } };
+      const exhaustedPayload = await exhausted.json() as { status: string; executor: { status: string; reason: string } };
+
+      assert.equal(initialPayload.executor.status, "DISPATCHED");
+      assert.equal(pendingPayload.status, "DUPLICATE_EXECUTION_SUPPRESSED");
+      assert.equal(pendingPayload.executor.reason, "github-executor-duplicate-execution-suppressed");
+      assert.equal(recoveredPayload.status, "AUDIT_DISPATCH_RECOVERED");
+      assert.equal(recoveredPayload.executor.status, "DISPATCHED");
+      assert.equal(exhaustedPayload.status, "DUPLICATE_EXECUTION_SUPPRESSED");
+      assert.equal(exhaustedPayload.executor.reason, "github-executor-duplicate-execution-suppressed");
+      assert.equal(dispatched.length, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+      Date.now = originalNow;
     }
   });
 
@@ -451,6 +612,13 @@ describe("NUSA autopilot GitHub webhook", () => {
         NUSA_AI_CODING_TOKEN: "ai-token",
         NUSA_EXECUTION_COORDINATOR: namespace,
       };
+      const now = Date.now();
+      await acquirePersistentExecution(namespace, {
+        dedupeKey: codingRequest.dedupeKey,
+        executionId: codingRequest.executionId,
+        now,
+        leaseExpiresAt: now + 60_000,
+      });
       const first = await handleCodingExecute(request(), env, runtime);
       const second = await handleCodingExecute(request(), env, runtime);
       assert.equal(first.status, 202);
@@ -508,6 +676,117 @@ describe("NUSA autopilot GitHub webhook", () => {
       assert.equal(first.status, 502);
       assert.equal(second.status, 502);
       assert.equal(codingEngineCalls, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("persists a Worker rate-limit stop and suppresses replay until the same WIP is due", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    let codingEngineCalls = 0;
+    const ai: WorkersAiBinding = {
+      async run() {
+        codingEngineCalls += 1;
+        throw new Error("429 too many requests");
+      },
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: codingRequest.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({
+        id: codingRequest.workflowRunId,
+        head_sha: codingRequest.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: codingRequest.repository },
+      }), { status: 200 });
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const request = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify(codingRequest),
+      });
+      const env = {
+        NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_GITHUB_TOKEN: "github-token",
+        NUSA_EXECUTION_COORDINATOR: namespace,
+        AI: ai,
+      };
+      const first = await handleCodingExecute(request(), env);
+      const firstPayload = await first.json() as { status: string; nextRetryAt: number; stopReason: string; resumeCondition: string };
+      assert.equal(first.status, 202);
+      assert.equal(firstPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(firstPayload.stopReason, "WORKERS_AI_RATE_LIMITED");
+      assert.equal(firstPayload.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+      assert.ok(firstPayload.nextRetryAt > Date.now());
+
+      const stopped = await readPersistentExecution(namespace, codingRequest.dedupeKey);
+      assert.equal(stopped?.state, "WAITING_RATE_LIMIT");
+      assert.equal(stopped?.executionId, codingRequest.executionId);
+      assert.equal(stopped?.stop?.dedupeKey, codingRequest.dedupeKey);
+      assert.equal(stopped?.stop?.headSha, codingRequest.headSha);
+
+      // The same stop is also recorded against the provider, which is what keeps later executions on
+      // a different main from dispatching inside the wait window.
+      const providerWait = await readProviderCapacityWait(namespace, "workers-ai");
+      assert.equal(providerWait?.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(providerWait?.dedupeKey, codingRequest.dedupeKey);
+      assert.equal(providerWait?.stopReason, "WORKERS_AI_RATE_LIMITED");
+
+      const replay = await handleCodingExecute(request(), env);
+      const replayPayload = await replay.json() as { status: string; reason: string; nextRetryAt: number };
+      assert.equal(replay.status, 202);
+      assert.equal(replayPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(replayPayload.reason, "WAITING_RATE_LIMIT");
+      assert.equal(replayPayload.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(codingEngineCalls, 1);
+
+      // A different execution identity passes its own lease and GitHub verification, but the provider
+      // wait is re-read immediately before the Workers AI call, so no call is spent inside the window.
+      const otherRequest = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify({ ...codingRequest, executionId: `${codingRequest.executionId}-other`, dedupeKey: `${codingRequest.dedupeKey}-other` }),
+      });
+      const other = await handleCodingExecute(otherRequest(), env);
+      const otherPayload = await other.json() as { status: string; reason: string; nextRetryAt: number };
+      assert.equal(otherPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(otherPayload.reason, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(otherPayload.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(codingEngineCalls, 1, "no provider call for any execution inside the provider wait");
+      // That identity now waits on its own record too, so its replay is suppressed by the lease path.
+      const otherRecord = await readPersistentExecution(namespace, `${codingRequest.dedupeKey}-other`);
+      assert.equal(otherRecord?.state, "WAITING_RATE_LIMIT");
+      assert.equal(otherRecord?.stop?.nextRetryAt, firstPayload.nextRetryAt);
+
+      // Unreadable provider state fails closed before any provider call.
+      const unreadable: ExecutionCoordinatorNamespace = {
+        idFromName: (name: string) => ({ name }),
+        get: (id: unknown) => ({
+          fetch: (input: RequestInfo | URL, init?: RequestInit) => String((id as { name?: string }).name ?? "").startsWith("provider-capacity-wait:")
+            ? Promise.resolve(new Response("unavailable", { status: 503 }))
+            : coordinator.fetch(new Request(input, init)),
+        }),
+      };
+      const thirdRequest = new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify({ ...codingRequest, executionId: `${codingRequest.executionId}-third`, dedupeKey: `${codingRequest.dedupeKey}-third` }),
+      });
+      const closed = await handleCodingExecute(thirdRequest, { ...env, NUSA_EXECUTION_COORDINATOR: unreadable });
+      const closedPayload = await closed.json() as { status: string; reason?: string; error?: string };
+      assert.notEqual(closedPayload.status, "EXECUTION_ACCEPTED");
+      assert.equal(closedPayload.reason ?? closedPayload.error, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
+      assert.equal(codingEngineCalls, 1);
     } finally {
       globalThis.fetch = originalFetch;
     }

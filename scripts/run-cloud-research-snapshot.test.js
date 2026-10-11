@@ -16,6 +16,7 @@ test("maps exact deployed source SHA and durable snapshot path into canonical Re
   assert.equal(env.NUSA_SOURCE_COMMIT_SHA, SHA);
   assert.equal(env.NUSA_RESEARCH_COST_MODEL_VERSION, DEFAULT_COST_MODEL_VERSION);
   assert.equal(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, path.resolve("/var/lib/nusa/research-replay-snapshots.json"));
+  assert.equal(env.NUSA_RESEARCH_LEARNING_LEDGER_PATH, path.resolve("/var/lib/nusa/research-investment-learning.jsonl"));
 });
 
 test("accepts matching deployed source commit identities", () => {
@@ -33,9 +34,11 @@ test("preserves an explicit cost-model identity and absolute snapshot path", () 
     NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite"),
     NUSA_RESEARCH_COST_MODEL_VERSION: "declared-cost-v9",
     NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: path.resolve("/srv/nusa/research.json"),
+    NUSA_RESEARCH_LEARNING_LEDGER_PATH: path.resolve("/srv/nusa/learning.jsonl"),
   });
   assert.equal(env.NUSA_RESEARCH_COST_MODEL_VERSION, "declared-cost-v9");
   assert.equal(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, path.resolve("/srv/nusa/research.json"));
+  assert.equal(env.NUSA_RESEARCH_LEARNING_LEDGER_PATH, path.resolve("/srv/nusa/learning.jsonl"));
 });
 
 test("fails closed when deployed source commit identities disagree", () => {
@@ -50,6 +53,7 @@ test("fails closed on missing source identity or non-durable state", () => {
   assert.throws(() => buildResearchEnv({ NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") }), /exact NUSA_SOURCE_COMMIT/);
   assert.throws(() => buildResearchEnv({ NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: ":memory:" }), /durable Cloud state/);
   assert.throws(() => buildResearchEnv({ NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite"), NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: "relative.json" }), /absolute and durable/);
+  assert.throws(() => buildResearchEnv({ NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite"), NUSA_RESEARCH_LEARNING_LEDGER_PATH: "relative.jsonl" }), /learning ledger path must be absolute and durable/);
 });
 
 test("runs only the canonical preload + real public-market Research script", () => {
@@ -64,6 +68,7 @@ test("runs only the canonical preload + real public-market Research script", () 
     },
   });
   assert.equal(result.status, "COMPLETED");
+  assert.equal(result.learningLedgerPath, path.resolve("/var/lib/nusa/research-investment-learning.jsonl"));
   assert.equal(observed.executable, path.resolve("/usr/bin/node"));
   assert.deepEqual(observed.args, ["-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"]);
   assert.equal(observed.options.shell, false);

@@ -1,0 +1,2 @@
+EXECUTOR_HANDOFF
+Apply only scripts/wire-anonymous-paper-observation.mjs on this existing branch. Do not create another branch or PR. If the helper fails because latest-main structure drifted, stop at the first unmatched marker and reconverge that marker only. After focused validation, commit the two generated integration files and continue exact-head CI -> Independent Audit. No release or runtime mutation before merge.

@@ -19,14 +19,16 @@ function setup() {
   return { db, users, session, dependencies };
 }
 
-test("normal password sign-in infers exactly one owner and never accepts userId over HTTP", () => {
+test("normal password sign-in infers the one password-configured active owner and never accepts userId over HTTP", () => {
   const { db, users, session, dependencies } = setup();
   try {
     session.setOwnerPassword("owner", phrase, 1);
     const response = handleOwnerPasswordSignInHttp(request({ password: phrase, deviceId: device, userId: "not-used" }), dependencies);
     assert.equal(response.status, 200);
     users.ensureOwner({ id: "other-owner", email: "other@nusa.local" }, 2);
-    assert.equal(session.signInWithOwnerPassword({ password: phrase, deviceId: device, now: 3 }).status, "AMBIGUOUS_OWNER");
+    assert.equal(session.signInWithOwnerPassword({ password: phrase, deviceId: device, now: 3 }).status, "ISSUED");
+    session.setOwnerPassword("other-owner", ["another", "owner", "password", "phrase"].join(" "), 4);
+    assert.equal(session.signInWithOwnerPassword({ password: phrase, deviceId: device, now: 5 }).status, "AMBIGUOUS_OWNER");
   } finally { db.close(); }
 });
 

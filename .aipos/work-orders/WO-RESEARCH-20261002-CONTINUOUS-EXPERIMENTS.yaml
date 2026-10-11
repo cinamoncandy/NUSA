@@ -1,0 +1,28 @@
+id: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+title: "Continuous walk-forward research experiments in production (staged; Stage 1 is documentation only)"
+status: PLANNED
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-research-scheduler
+authority_impact: research-evidence-only
+objective: "Owner decisions 2026-10-02: keep PAPER capital unchanged; proceed with continuous research experiments; no paid AI calls. Code reading shows production passes undefined for researchRuntime, researchRecoveryCoordinator and researchAutomation to startCloudRuntime and nothing starts a research session, so no experiment runs from market data. Stage 2 will compose the existing ResearchAutomationRuntime in production."
+stage_1_scope:
+  - "docs/PROPOSAL_CONTINUOUS_RESEARCH_EXPERIMENTS.md: finding, owner decisions, staged plan."
+  - "This work order and its AIPOS state entry. No code change."
+stage_2_scope_planned:
+  - "Production composition of the existing ResearchAutomationRuntime with durable session storage, recovery gating and deterministic input building."
+  - "One RUNNING session per KST day with a bounded experiment budget; automatic next-day restart; fail closed on any recovery or data uncertainty."
+prohibited:
+  - "Lowering the 30-day / 50-trade promotion thresholds or any gate."
+  - "Any capital, minimum-order, risk-limit or execution change."
+  - "Paid AI provider calls; any AI authority; LIVE, credential or production mutation."
+  - "Server/Worker deploy without explicit owner approval."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+  - pnpm run validate
+residual: "Stage 2 and 3 not started. Live server behavior was not observed; the finding comes from code reading."

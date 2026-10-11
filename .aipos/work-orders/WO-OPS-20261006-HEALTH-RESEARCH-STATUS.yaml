@@ -1,0 +1,26 @@
+id: WO-OPS-20261006-HEALTH-RESEARCH-STATUS
+title: "Publish the research collection status on /health as a fixed code and two counts"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/health-research-status
+authority_impact: none
+owner_approval: "2026-10-06 in chat (repeated instruction to resolve the learning 'not received' line; option A style coarse code on the public /health)"
+objective: "The owner's HOME learning tile still reads 'aggregation not received' with no reason after research collection was enabled (#2520) and reasons were added to the app (#2519). The app reads the status from the authenticated heartbeat, which the host diagnosis cannot reach, and the installed app build is unknown. Make the server's own view of the collection status readable from outside so the cause is decided from evidence."
+scope:
+  - "apps/cloud/src/runtime.ts: the liveness source adds researchCollectionStatus (COLLECTING when collection progress exists, otherwise DISABLED / INVALID / UNAVAILABLE from the same settings read the app path uses) and, when collecting, the candle count and the required candle count."
+  - "apps/cloud/src/server.ts: /health publishes researchCollectionStatus only when it is one of the four fixed codes, and the two counts only as non-negative integers. No market, time, setting value or detail is published; unknown values are dropped."
+  - "tests/cloud-runtime-liveness-health.test.js: published as a code plus counts, the three non-collecting codes, unknown status dropped, extra fields (market, detail) never published."
+exclusions:
+  - "No change to whether research runs, to its settings, or to the app. No trading, risk, accounting, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Anything that is not a fixed code or a non-negative count is omitted."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/cloud-runtime-liveness-health.test.js
+residual: "After deploy, read researchCollectionStatus and the counts through the host diagnosis. If the server reports COLLECTING but the app still shows no reason, the installed app build predates #2519 and needs the current APK; if it reports DISABLED/INVALID/UNAVAILABLE, fix that cause."

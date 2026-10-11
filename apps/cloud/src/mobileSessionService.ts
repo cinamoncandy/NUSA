@@ -187,8 +187,9 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
 
   /**
    * Password sign-in is deliberately identity-free for the normal phone path.
-   * A test/internal caller may provide userId, but a public caller can proceed
-   * only when the durable user registry contains exactly one OWNER.
+   * A test/internal caller may provide userId. With multiple owners, public
+   * sign-in remains fail-closed unless exactly one active owner has configured
+   * the server-side password; that password is the unambiguous enrollment owner.
    */
   public signInWithOwnerPassword(input: Readonly<{
     password: unknown;
@@ -263,15 +264,18 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
   }
 
   public ownerPasswordConfigured(): boolean {
-    const row = this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM nusa_owner_password").get() as Record<string, unknown>;
-    return Number(row.count) > 0;
+    return this.passwordConfiguredOwners().length === 1;
   }
 
   /** Keeps hardware proof inside the existing rotating mobile-session namespace. */
   public issueOwnerDeviceCredentialSession(input: Readonly<{ userId: string; deviceId: string; now?: number }>): MobileSessionTokens {
     const user = this.mobileUsers.get(input.userId.trim());
     if (user?.role !== "OWNER" || !isUserAllowed(user)) throw new Error("active owner required");
-    return this.createDeviceBoundSession({ targetUserId: user.id, deviceId: this.validateDeviceId(input.deviceId), scopes: ["dashboard:read", "paper:trade", "users:manage"], now: input.now, auditEvent: "OWNER_DEVICE_CREDENTIAL_SESSION_ISSUED" });
+    return this.createDeviceBoundSession({ targetUserId: user.id, deviceId: this.validateDeviceId(input.deviceId), scopes: ["dashboard:read", "paper:trade", "users:manage"], now: input.now, auditEvent: "OWNER_DEVICE_CREDENTIAL_SESSION_ISSUED", proofBound: true });
+  }
+
+  public revokeOwnerDeviceSessions(input: Readonly<{ userId: string; deviceIdHash: string; now?: number }>): number {
+    return this.revokeDeviceSessions({ userId: input.userId, deviceIdHash: input.deviceIdHash, reason: "OWNER_DEVICE_CREDENTIAL_REVOKED", now: input.now });
   }
 
   private ownerForPasswordSignIn(explicitUserId: string | undefined): string | "AMBIGUOUS_OWNER" | "INVALID_OWNER" {
@@ -279,8 +283,14 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
       const user = this.mobileUsers.get(explicitUserId.trim());
       return user?.role === "OWNER" ? user.id : "INVALID_OWNER";
     }
-    const owners = this.mobileUsers.list().filter((user) => user.role === "OWNER");
-    return owners.length === 1 ? owners[0].id : owners.length === 0 ? "INVALID_OWNER" : "AMBIGUOUS_OWNER";
+    const owners = this.mobileUsers.list().filter((user) => user.role === "OWNER" && isUserAllowed(user));
+    if (owners.length === 1) return owners[0].id;
+    const configured = this.passwordConfiguredOwners(owners);
+    return configured.length === 1 ? configured[0].id : owners.length === 0 ? "INVALID_OWNER" : "AMBIGUOUS_OWNER";
+  }
+
+  private passwordConfiguredOwners(owners = this.mobileUsers.list().filter((user) => user.role === "OWNER" && isUserAllowed(user))): readonly { readonly id: string }[] {
+    return owners.filter((user) => this.storedPasswordHash(user.id) != null).map((user) => Object.freeze({ id: user.id }));
   }
 
   private storedPasswordHash(userId: string): string | undefined {

@@ -11,7 +11,7 @@ test("HOME presents truthful PAPER equity and cumulative PnL basis in the canoni
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /krw\(account\?\.equity\)/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /총 손익/);
   assert.match(home, /signedMoney\(totalPnl\)/);
   assert.match(home, /CASH/);
   assert.match(home, /EXPOSURE/);

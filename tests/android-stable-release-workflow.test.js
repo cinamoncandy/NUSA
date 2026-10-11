@@ -25,7 +25,9 @@ test("manual Android stable release resolves CI through the canonical workflow e
     /actions\/workflows\/ci\.yml\/runs\?head_sha=\$SOURCE_SHA&status=completed&per_page=100/,
   );
   assert.match(workflow, /\.path == "\.github\/workflows\/ci\.yml"/);
-  assert.match(workflow, /\.head_sha == .*SOURCE_SHA/);
+  assert.match(workflow, /--arg sha "\$SOURCE_SHA"/);
+  assert.match(workflow, /\.head_sha == \$sha/);
+  assert.doesNotMatch(workflow, /gh api[\s\S]{0,300}--jq '\[\.workflow_runs/);
   assert.doesNotMatch(workflow, /actions\/runs\?head_sha=\$SOURCE_SHA/);
 });
 

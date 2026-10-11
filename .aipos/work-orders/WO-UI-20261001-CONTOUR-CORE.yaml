@@ -1,0 +1,26 @@
+id: WO-UI-20261001-CONTOUR-CORE
+title: "Replace the HOME decision spiral with the contour core the owner chose"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-contour-core
+authority_impact: none
+supersedes_in_part: WO-UI-20261001-DECISION-RINGS
+objective: "Owner reviewed motion prototypes and chose the contour core for HOME. The decision count, fault banner and order count stay; the spiral of dots is replaced by concentric rings that drift out of round and align once per new decision."
+scope:
+  - "New apps/mobile/src/contourCore.tsx: 12 rings with native-driver scale/rotate drift, an alignment pulse played only when the real heartbeat decisionCount increases, nothing animated under reduce-motion or when the count is unknown."
+  - "decisionRings.tsx renders ContourCore in place of the spiral, spin, radar sweep and ripple; legend text explains the alignment."
+exclusions:
+  - "The drift is ambient motion, not a market or volatility measurement; no new data is invented."
+  - "No new dependency; plain React Native Views and Animated only."
+  - "No server, strategy, risk, execution, credential or LIVE change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/mobile-contour-core.test.js tests/mobile-decision-rings.test.js
+  - pnpm run validate
+residual: "Physical Android device visual and motion acceptance is HUMAN_ENVIRONMENT_ONLY."

@@ -1,0 +1,37 @@
+id: WO-SECURITY-20260929-FAST-URI
+title: "Patch the fast-uri v3 security override that blocks post-merge CI"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 6de0b9e61557b58d94301ed17ecc530210c0976a
+implementation_branch: codex/security-fast-uri-3-1-8
+authority_impact: none
+objective: "Restore the fail-closed dependency security gate without weakening advisory handling."
+evidence:
+  ci_run: "36499696763"
+  failed_step: "validation / Security gate"
+  root_cause: "fast-uri@3.1.6 is pulled by electron-builder through app-builder-lib and ajv, and npm audit reports high advisories 1239943 and 1239946."
+scope:
+  - "Advance the existing fast-uri v3 override to the patched v3.1.8 release."
+  - "Update the regression assertion to reject the vulnerable v3.1.6 release."
+exclusions:
+  - "No advisory allowlist or security-gate weakening."
+  - "No runtime, trading, credential, or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm install --lockfile-only
+  - node --test tests/security-gate.test.js
+  - pnpm run security:gate
+  - pnpm run typecheck
+  - pnpm run validate:full
+next_permitted_action: "Commit the validated minimal dependency override and create one exact-head CI-bound PR."
+validation:
+  - "node --test tests/security-gate.test.js: PASS (10/10)"
+  - "pnpm run security:gate: PASS (0 unmitigated high/critical advisories)"
+  - "pnpm run typecheck: PASS"
+  - "pnpm run validate:full: PASS"

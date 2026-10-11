@@ -1,25 +1,36 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 
-const source = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/paperAccessModel.ts"), "utf8");
+// Behavioural contract for resolvePaperAccess (replaces source-text assertions, structural review item 3).
+const { resolvePaperAccess } = require("../dist/apps/mobile/src/paperAccessModel.js");
 
 test("public observation stays available without a device session", () => {
-  assert.match(source, /publicObservationAllowed:\s*true/);
-  assert.match(source, /paperMutationAllowed:\s*verified/);
-  assert.match(source, /DEVICE_APPROVAL_REQUIRED/);
+  const access = resolvePaperAccess({ deviceSessionVerified: false });
+  assert.equal(access.state, "DEVICE_APPROVAL_REQUIRED");
+  assert.equal(access.publicObservationAllowed, true);
+  assert.equal(access.paperMutationAllowed, false);
+  assert.equal(access.deviceSessionVerified, false);
 });
 
 test("PAPER mutation requires a verified non-blocked device session", () => {
-  assert.match(source, /input\.deviceSessionVerified\s*&&\s*!blocked/);
-  assert.match(source, /SECURE_SESSION/);
-  assert.match(source, /BLOCKED/);
+  const verified = resolvePaperAccess({ deviceSessionVerified: true });
+  assert.equal(verified.state, "SECURE_SESSION");
+  assert.equal(verified.paperMutationAllowed, true);
+
+  const blocked = resolvePaperAccess({ deviceSessionVerified: true, sessionBlocked: true });
+  assert.equal(blocked.state, "BLOCKED");
+  assert.equal(blocked.paperMutationAllowed, false, "a blocked session never mutates, even when verified");
+  assert.equal(blocked.deviceSessionVerified, false);
+  assert.equal(blocked.publicObservationAllowed, true);
 });
 
-test("PAPER session never creates LIVE or AI authority", () => {
-  assert.match(source, /liveAuthority:\s*"NONE"/);
-  assert.match(source, /productionMutationAllowed:\s*false/);
-  assert.match(source, /aiAuthority:\s*"ZERO_AUTHORITY"/);
+test("PAPER session never creates LIVE or AI authority, in any state", () => {
+  for (const input of [{ deviceSessionVerified: false }, { deviceSessionVerified: true }, { deviceSessionVerified: true, sessionBlocked: true }]) {
+    const access = resolvePaperAccess(input);
+    assert.equal(access.liveAuthority, "NONE");
+    assert.equal(access.productionMutationAllowed, false);
+    assert.equal(access.aiAuthority, "ZERO_AUTHORITY");
+    assert.ok(Object.isFrozen(access));
+  }
 });

@@ -1,0 +1,23 @@
+id: WO-UI-20261001-PAPER-BODY
+title: "PAPER tab body follows the HOME layout: no repeated status band, flat metric row"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-paper-body
+authority_impact: none
+objective: "Owner report (2026-10-01): below the new PAPER header the tab still showed the old NUSA PAPER ONLY rail, a large PAPER 학습 상태 title and a boxed metric card, repeating what the header already says."
+scope:
+  - "paperLearningMonitorView.tsx: the AuthorityRail and ScreenLead are removed (the header states PAPER and its status; the tab shows 읽기 전용); a small PAPER LEARNING · READ ONLY label stays above the metrics."
+  - "intelligenceOs.tsx: MetricStrip is a flat hairline row instead of a rounded card (applies to every screen using it)."
+exclusions:
+  - "No change to data, models, authority markers or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-field-screens.test.js tests/mobile-intelligence-os-v1.test.js tests/mobile-paper-real-use-ui.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."

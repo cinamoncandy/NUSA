@@ -1,0 +1,25 @@
+id: WO-UI-20261001-ATTRACTOR
+title: "NUSA attractor replaces the contour core on every tab"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-attractor
+authority_impact: none
+objective: "Owner chose the strange-attractor prototype (2026-10-01) and asked that decisions and fills drive the motion. Applied app-wide per the UI/UX whole-app rule."
+scope:
+  - "Dependency: @shopify/react-native-skia 2.12.0 (MIT), approved by the owner on 2026-10-01; pinned two weeks old so the pnpm minimum release age needs no exception. reanimated/worklets peers are optional and not added."
+  - "attractorModel.ts (import-free, deterministic): each new decision moves the figure one step, each new PAPER order locks a symmetric form and blooms green, held/halted runtimes tint amber/red."
+  - "attractorField.tsx: Skia point cloud, 30 fps cap, no redraw once settled, still under reduce-motion or unknown count."
+  - "HOME hero, PAPER/LIVE headers (still, tinted by state) and the More mark all use the attractor; contourCore.tsx is removed."
+exclusions:
+  - "No change to data, risk, execution, credentials or LIVE authority. The HOME fill signal is the existing PAPER order count."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-attractor.test.js tests/mobile-field-screens.test.js
+  - pnpm run validate
+residual: "Native Android build and on-device rendering/performance are verified by CI mobile-native and HUMAN_ENVIRONMENT_ONLY device acceptance; no Android SDK in this environment."

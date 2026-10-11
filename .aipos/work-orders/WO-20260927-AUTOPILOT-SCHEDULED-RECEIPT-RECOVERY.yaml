@@ -1,0 +1,40 @@
+id: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY
+title: Recover malformed scheduled runtime receipt state
+status: IN_PROGRESS
+priority: P0
+canonical_owner: evolve-autopilot
+canonical_pr: 2436
+prior_canonical_pr: 2434
+canonical_successor_branch: codex/autopilot-cron-propagation-proof
+supersedes_pr: 2335
+base_main: a8a24ec1cccd6063927fce6e4ab0a4212c70f401
+implementation_head: PENDING_EXACT_HEAD_CI
+first_broken_transition: "deployed cron trigger propagation -> fresh scheduled receipt"
+root_cause: "Two defects: proof window omitted the next five-minute cron interval after propagation; zero-credit provider wait emitted headSha=null, which receipt recovery removes. Preserve WAITING_RATE_LIMIT while reading only fresh main identity, never reuse the historical wait head or claim provider recovery."
+dependency: "exact-head CI, independent Audit, Release, protected-main deploy, Runtime Proof"
+acceptance:
+  - "Legacy null-head scheduled receipts are removed deterministically before replay."
+  - "Malformed-head recovery rejects duplicate scheduledTime identities fail-closed."
+  - "All other corruption and authority drift remain fail-closed."
+  - "A fresh valid receipt can be appended after recovery."
+  - "An un-deployed pull request is never reported as Cloudflare runtime acceptance or recovery failure."
+  - "After exact-main deployment, bounded proof retries allow the Worker up to the documented Cloudflare cron-trigger propagation window to persist a fresh receipt."
+  - "Post-merge deploy and Runtime Proof produce canonical successful workload/recovery evidence."
+evidence:
+  local_validation: "Successor PR #2436: runtime proof controller 20/20, preflight, TypeScript build, validate:full, security gate, AIPOS YAML, and git diff --check PASS. Legacy null-head removal, malformed-head recovery, duplicate scheduledTime fail-closed, append-after-recovery, authority drift, and deterministic replay remain covered."
+  observed_deploy_run: 36295228144
+  observed_runtime_proof_run: 36295263408
+  failure: SCHEDULED_RECEIPT_HEAD_INVALID
+  review_findings_addressed:
+    - "legacy headSha=null was incorrectly bypassing recovery"
+    - "duplicate scheduledTime was not checked for discarded malformed-head entries"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next_permitted_action: "Focused validation -> create canonical successor PR -> fresh exact-head CI -> independent Audit -> Release -> merge -> deploy -> Runtime Proof recovery evidence."
+review_repair:
+  validation: "Runtime-proof tests 20/20 and compiled scheduled runtime regression PASS; build PASS. Final metadata validation and fresh exact-head gates required."
+  window: "20 attempts, 19 waits of 70 seconds; 26-minute workflow timeout."
+  review_status: "Implementation addresses propagation-margin and durable-validation findings; independent review resolution remains required, no forced resolution."

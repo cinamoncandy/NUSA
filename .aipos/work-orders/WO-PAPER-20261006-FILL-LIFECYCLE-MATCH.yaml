@@ -1,0 +1,26 @@
+id: WO-PAPER-20261006-FILL-LIFECYCLE-MATCH
+title: "Close a settling PAPER order at what was actually filled so the saved record reconciles"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/order-fill-lifecycle-match
+authority_impact: execution_order_lifecycle_tolerance
+owner_approval: "2026-10-05 in chat (approved the fill-remainder tolerance; this corrects a defect in that change)"
+objective: "WO-PAPER-20261006-FILL-REMAINDER-TOLERANCE (#2526) settled a rounding-level last fill by setting the order lifecycle's filledQuantity to the REQUESTED quantity. validateState in paperTradingExecutionLoop.ts requires lifecycle.filledQuantity and requestedQuantity to equal the saved order record's quantity, which is the real total of its fills, exactly. After #2526 was deployed the owner's PAPER tab showed a new halt: 'paper account persistence failed: paper order lifecycle reconciliation mismatch'. The refused save was not persisted, so the account state was not corrupted. The defect was mine: I did not exercise the save-time check against the settled lifecycle."
+scope:
+  - "apps/cloud/src/paperOrderLifecycle.ts: a settling FILLED transition now sets filledQuantity to the actual total of the fills (rounded to 8 decimals like the order record), sets requestedQuantity to the same value and remaining to 0. Larger shortfalls/overshoots and partial-fill overshoots are still refused."
+  - "tests/paper-order-fill-remainder-tolerance.test.js: new case that replays the save-time comparisons (filled == requested == round8(sum of fills), remaining 0, lifecycle validates) for four rounding-level sequences."
+exclusions:
+  - "No change to capital, risk, sizing, thresholds, LIVE, credentials or AI authority. No ledger data is edited and the halt is not cleared by hand; it clears when saves succeed after the redeploy and restart."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Quantities beyond 1e-8 are still refused, and the save-time lifecycle reconciliation check is unchanged."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/paper-order-fill-remainder-tolerance.test.js
+  - node --test dist/apps/cloud/src/module10XS.test.js dist/apps/cloud/src/moduleReplacementPolicy10XS.test.js dist/apps/cloud/src/paperTradingExecutionLoop.requalification.test.js
+residual: "After deploy confirm on the app that the stuck SELL settles and the halt line is gone. A full execution-loop test of a settling working-order fill with a persisted save was not added; the new test replays the exact save-time comparisons only."

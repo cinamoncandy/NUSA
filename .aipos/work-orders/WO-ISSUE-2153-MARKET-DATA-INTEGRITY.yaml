@@ -1,0 +1,38 @@
+id: WO-ISSUE-2153-MARKET-DATA-INTEGRITY
+title: "Fail-closed public Upbit order-book reconciliation"
+status: LATEST_MAIN_RECONVERGED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P0
+owner: market-data
+repository: cinamoncandy/NUSA
+issue: 2153
+pull_request: 2225
+base_branch: main
+objective: "Prevent unproven public order-book data from becoming PAPER execution-cost evidence."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extends the existing Cloud PAPER market-data ingress with one per-connection snapshot gate; no execution engine, credential path, or authority boundary is added."
+scope:
+  - lossless-sequence-provenance-only
+  - no-timestamp-derived-transport-gap
+  - fresh-public-rest-snapshot-per-connection-generation
+  - fail-closed-stream-reconciliation
+prohibited:
+  - private_exchange_endpoint
+  - live_order_or_broker_mutation
+  - new_execution_engine
+  - authority_escalation
+acceptance:
+  - unsafe sequential_id is not exposed as lossless provenance
+  - quiet-market timestamp distance cannot fabricate a transport gap
+  - stream order-book quotes require a fresh same-market snapshot after every reconnect
+  - stale, future, malformed, mismatched, or failed snapshots cannot produce execution quotes
+  - runtime failures retain post-failure health evidence semantics
+validation:
+  status: LOCAL_PASS_PENDING_EXACT_HEAD_CI
+  commands: "Latest-main merge 19c00cf5: TypeScript build; focused canonical market-data, order-book reconciliation, and cloud runtime liveness tests 20/20; preflight, validate, security gate, AIPOS drift, architecture, safety invariants, and diff check passed."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Push only the existing PR #2225 branch, collect fresh exact-head CI, then independent Audit and canonical Release."

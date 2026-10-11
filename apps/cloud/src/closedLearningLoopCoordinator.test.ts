@@ -66,6 +66,44 @@ describe("ClosedLearningLoopCoordinator", () => {
     }
   });
 
+  it("waits without failing when Governance has not approved the qualified challenger, then resumes once it does", () => {
+    const repository = new MemoryRepository();
+    let approved = false;
+    let deployments = 0;
+    const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => decision("QUALIFIED_FOR_LEAGUE") }, {
+      deploy: (input) => {
+        if (!approved) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE");
+        deployments += 1;
+        return {
+          deploymentId: `${input.cycleId}:paper`,
+          candidateId: input.decision.candidateId,
+          candidateVersion: input.decision.candidateVersion,
+          authority: input.authority,
+          liveAuthority: input.liveAuthority,
+          productionMutationAllowed: input.productionMutationAllowed,
+          aiAuthority: input.aiAuthority,
+        };
+      },
+    }, () => 10_000);
+    const waiting = coordinator.run(evidence());
+    assert.equal(waiting.status, "WAITING_GOVERNANCE_APPROVAL");
+    assert.equal(waiting.record.decision.outcome, "QUALIFIED_FOR_LEAGUE");
+    assert.equal(waiting.record.paperDeployment, undefined, "nothing is deployed without approval");
+    assert.equal(coordinator.run(evidence()).status, "WAITING_GOVERNANCE_APPROVAL", "replay keeps waiting");
+    approved = true;
+    const resumed = coordinator.run(evidence());
+    assert.equal(resumed.status, "RESUMED");
+    assert.ok(resumed.record.paperDeployment);
+    assert.equal(deployments, 1);
+  });
+
+  it("still fails closed on any other deployment fault", () => {
+    const coordinator = new ClosedLearningLoopCoordinator(new MemoryRepository(), { evaluate: () => decision("QUALIFIED_FOR_LEAGUE") }, {
+      deploy: () => { throw new Error("PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH"); },
+    }, () => 10_000);
+    assert.throws(() => coordinator.run(evidence()), /PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH/);
+  });
+
   it("records qualification before deploying the challenger to PAPER-only authority", () => {
     const repository = new MemoryRepository();
     const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => decision("QUALIFIED_FOR_LEAGUE") }, {

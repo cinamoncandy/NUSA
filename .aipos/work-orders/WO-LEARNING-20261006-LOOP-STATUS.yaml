@@ -1,0 +1,28 @@
+id: WO-LEARNING-20261006-LOOP-STATUS
+title: "Publish the production closed-learning loop status on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/closed-learning-loop-status
+authority_impact: none
+owner_approval: "2026-10-06 in chat: '91% -> 100%' master directive (P0: prove Experience N -> Ledger -> Performance -> Feedback -> Research N+1 -> Candidate N+1 from runtime evidence) and '계속해'"
+objective: "The production closed-learning loop (bootstrap -> PAPER realized period -> rollover -> Research decision -> next PAPER deployment) already runs on a timer, but its step results were only logged, so the transition where the learning loop stalls could not be read from runtime evidence."
+scope:
+  - "apps/cloud/src/closedLearningLoopStatus.ts (new): ClosedLearningLoopStatusTracker keeps the latest bootstrap and rollover step codes, a reason code, the last cycle status/outcome codes, and tick, evaluated-cycle and deployment counts. Codes are reduced to their leading upper-case code or dropped; no ids, fingerprints, markets, prices or text."
+  - "apps/cloud/src/closedLearningProductionRuntime.ts: each loop tick feeds bootstrap and rollover results (and errors) into the tracker; the snapshot is handed to the runtime."
+  - "apps/cloud/src/runtime.ts: new optional closedLearningStatus provider parameter; /health liveness includes closedLearningLoop."
+  - "apps/cloud/src/server.ts: allowlist publishes only four non-negative integers and up to five fixed codes."
+  - "tests: tracker semantics and code reduction, composition wiring, /health allowlist."
+exclusions:
+  - "No change to the loop's behaviour, timing, Research, Governance, deployment, PAPER execution, risk or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; malformed values are dropped and an exception publishes nothing."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "Requires a PAPER deploy; status is since process start and appears after the first loop tick."

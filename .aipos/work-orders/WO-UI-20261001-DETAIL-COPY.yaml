@@ -1,0 +1,23 @@
+id: WO-UI-20261001-DETAIL-COPY
+title: "More detail screens speak plain Korean"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-detail-copy
+authority_impact: none
+objective: "Completes the plain-language pass (WO-UI-20261001-PLAIN-LABELS named these screens as the remaining exception)."
+scope:
+  - "Portfolio, order history, settings section headings, notifications and the More detail placeholder use Korean labels and titles."
+exclusions:
+  - "Authority markers stay verbatim on purpose because safety tests read them: PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY, the PAPER ONLY / LIVE NONE chips and READ ONLY."
+  - "Product terms PAPER, LIVE and LOCAL and market symbols stay as they are."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-portfolio-ui.test.js tests/mobile-settings-ui.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."

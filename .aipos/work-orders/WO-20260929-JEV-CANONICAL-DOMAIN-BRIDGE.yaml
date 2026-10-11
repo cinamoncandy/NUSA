@@ -1,0 +1,52 @@
+id: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
+title: "Bridge validated Jev SHADOW receipts into the canonical domain envelope"
+status: READY_FOR_REVIEW
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
+implementation_branch: codex/jev-domain-bridge
+authority_impact: none
+objective: "Make the existing Autopilot and Research Jev SHADOW consumers emit comparable, replay-identifiable canonical observations without enabling Jev routing or widening authority."
+canonical_owners:
+  - "AI Platform / Model Router: task policy and common observation contract"
+  - "Autopilot: workflow failure SHADOW receipt"
+  - "Research Intelligence Scout: attention SHADOW receipt"
+scope:
+  include:
+    - "Project existing validated workflow-failure and research-attention receipts into JevDomainObservation."
+    - "Expose projected observations only in existing receipt/result surfaces."
+    - "Preserve deterministic fallback and no-call behavior during provider capacity waits."
+  exclude:
+    - "No provider, scheduler, queue, durable evidence store, model routing, Audit, Release, merge, PAPER mutation, or LIVE capability."
+    - "No emission from registered domains without a deterministic task validator."
+acceptance:
+  - "Autopilot and Research outputs each include canonical SHADOW observations with bounded provenance and no secrets."
+  - "All observations retain usableForRouting=false, liveAuthority=NONE, productionMutationAllowed=false, and aiAuthority=ZERO_AUTHORITY."
+  - "Fallback, malformed provider output, and capacity-stop behavior preserve the existing deterministic path."
+  - "The unvalidated registry task types still fail closed and cannot emit observations."
+verification_commands:
+  - "pnpm run build"
+  - "node --test tests/jev-domain-observation.test.js tests/autopilot-jev-coding-failure-shadow.test.js tests/research-intelligence-attention-shadow.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run test"
+  - "git diff --check"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+verification_evidence:
+  code_commit: 7f3dd8e00d5fd9a0e4fc00c1831cae4335b1c24d
+  focused_tests: "26 passed: Autopilot capacity-stop/no-call and Research deterministic-handoff regression coverage"
+  build: PASS
+  validate_full: PASS
+  security_gate: PASS
+  typecheck: PASS
+  lint: "PASS with 13 pre-existing warnings and 0 errors"
+  full_test: "PASS 1090 isolated test files from a clean committed worktree"
+next_permitted_action: "Create a fresh PR from the exact validated head; require independent Audit and Release gate before any merge."

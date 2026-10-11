@@ -130,10 +130,12 @@ test("WO-0071: reconciliation is non-destructive and invents no completion metad
     if (scope.completion_evidence === null) assert.match(scope.completion_evidence_note, /no completion-evidence record exists/i);
   }
 
-  // The Mobile MASTER UX work order merged, but reconciling an id collision must not silently
-  // close a work order out -- that needs its own verification.
+  // Reconciling an id collision must not silently close a work order out -- that needs its own
+  // verification. The Mobile MASTER UX order was later closed on its own evidence (PR #619 merged),
+  // recorded in the order itself.
   const mobile = fs.readFileSync(path.join(root, ".aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml"), "utf8");
-  assert.equal(scalar(mobile, "status"), "IN_PROGRESS");
+  assert.equal(scalar(mobile, "status"), "COMPLETED");
+  assert.equal(scalar(mobile, "closed_by_pull_request"), "619");
 });
 
 test("WO-0071: unresolvable recorded commits are annotated rather than deleted or invented", () => {

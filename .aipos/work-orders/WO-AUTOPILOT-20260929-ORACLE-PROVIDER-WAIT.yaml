@@ -1,0 +1,33 @@
+id: WO-AUTOPILOT-20260929-ORACLE-PROVIDER-WAIT
+title: "Keep the Oracle Autopilot healthy during a canonical provider wait"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 4b15ff9501676cf5ff85ae958b625676ae34ad43
+implementation_branch: codex/autopilot-runtime-provider-wait
+pull_request: 2372
+authority_impact: none
+recovery_impact: "Classify the existing WAITING_RATE_LIMIT Worker response without retrying it."
+objective: "Remove false BLOCKED/failure/retry accumulation while the coding provider is legitimately capacity-limited."
+evidence:
+  oracle: "Active nusa-autopilot.service at /opt/nusa/releases/b05deec0a0a3f5ab60c70342f12a49f0ae1ed88c recorded AUTOPILOT_TICK_STATUS_UNSUPPORTED, failureCount 2239 and retryCount 4562."
+  worker: "Exact-main Cloudflare Runtime Proof run 36494464994 reported scheduledStatus WAITING_RATE_LIMIT and scheduledReason waiting-provider-capacity for deployment 4b15ff9501676cf5ff85ae958b625676ae34ad43."
+  root_cause: "scripts/autopilot-runtime.js treated WAITING_RATE_LIMIT, already in the canonical scheduled response union, as unsupported and retried three times per cycle."
+scope:
+  - "Treat WAITING_RATE_LIMIT as an idle, observable wait with zero retry, failure, or completed-work increment."
+  - "Do not advance lastSuccessfulWorkAt for a wait."
+  - "Keep unknown and EXECUTION_NOT_DISPATCHED outcomes fail-closed."
+exclusions:
+  - "No provider quota bypass, alternate credential, trading authority, or direct server mutation."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - node --test scripts/autopilot-runtime.test.js
+  - pnpm run typecheck
+  - pnpm run lint:scripts
+  - pnpm run validate:full
+next_permitted_action: "Fresh exact-head CI, independent Audit, canonical Release merge, exact-main Oracle PAPER Release, then observe runtime wait without counter growth and a later bounded coding dispatch when capacity returns."

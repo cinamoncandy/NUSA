@@ -1,7 +1,8 @@
 "use strict";
 const fs = require("node:fs");
+const path = require("node:path");
 
-const unit = process.env.NUSA_UNIT || "deploy/oracle/nusa.service";
+const unit = process.env.NUSA_UNIT || path.resolve(__dirname, "..", "deploy", "oracle", "nusa.service");
 const source = fs.readFileSync(unit, "utf8");
 for (const required of [
   "User=nusa",

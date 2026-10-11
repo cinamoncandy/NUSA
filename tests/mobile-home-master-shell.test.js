@@ -11,7 +11,7 @@ test("HOME uses one canonical Intelligence OS authority rail instead of the lega
   const home = read("apps/mobile/src/homeView.tsx");
   const os = read("apps/mobile/src/intelligenceOs.tsx");
 
-  assert.match(app, /const homeShellActive = utilityView === null && activeTab === "Home"/);
+  assert.match(app, /const homeShellActive = utilityView === null && detailSurface === null && activeTab === "Home"/);
   assert.match(app, /\{!homeShellActive \? <View style=\{\[styles\.header/);
   assert.match(home, /testID="home-status-rail"/);
   assert.match(home, /testID="home-master-rail"/);
@@ -24,13 +24,14 @@ test("HOME uses one canonical Intelligence OS authority rail instead of the lega
 
 test("bottom navigation is restrained and does not restore the legacy neon pill shell", () => {
   const app = read("apps/mobile/App.tsx");
+  const navigation = read("apps/mobile/src/primaryNavigation.tsx");
 
   assert.doesNotMatch(app, /backgroundColor: active \? appTheme\.colors\.neonGlow/);
   assert.doesNotMatch(app, /borderColor: active \? appTheme\.colors\.neonBlue/);
   assert.doesNotMatch(app, /shadowColor: active \? appTheme\.colors\.neonBlue/);
   assert.doesNotMatch(app, /color: active \? appTheme\.colors\.neonTeal/);
-  assert.match(app, /backgroundColor: active \? appTheme\.colors\.primarySoft : "transparent"/);
-  assert.match(app, /backgroundColor: active \? appTheme\.colors\.aiSignalEnd : appTheme\.colors\.border/);
-  assert.match(app, /navigationFrame/);
-  assert.match(app, /color: active \? appTheme\.colors\.text : appTheme\.colors\.textMuted/);
+  assert.match(navigation, /backgroundColor: active \? theme\.colors\.primarySoft : "transparent"/);
+  assert.match(navigation, /backgroundColor: active \? theme\.colors\.aiSignalEnd : ui\.color\.border/);
+  assert.match(navigation, /color: active \? ui\.color\.text : ui\.color\.textMuted/);
+  assert.match(navigation, /navigation/);
 });

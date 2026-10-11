@@ -1,0 +1,50 @@
+id: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
+title: "Keep a provider rate-limit wait in force after main moves"
+status: MERGED
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: af6a9f90cd090d4322cdd82566227320847fd613
+implementation_branch: claude/nusa-repository-j93sd8-waiting-identity
+objective: "A coding-provider wait must stop every new execution until nextRetryAt, not only the execution whose dedupe key it was recorded under."
+parent_work_order: WO-20260923-AUTOPILOT-STOP-RESUME-P0
+authority_impact: none
+finding: "scheduledEvolutionCoding keys the persistent execution by evolve-coding:<mainSha>:<work>. After any merge to main the lookup hits a new, empty record, so the WAITING_RATE_LIMIT stop and its nextRetryAt are not seen and the same logical work (#2118) is dispatched again inside the provider wait. Owner directive sections 7, 8 and 21 forbid a new execution, identity churn and repeated identical failures while waiting. Found by code inspection; the Worker's scheduled path is not observable from GitHub, so the runtime frequency was not measured."
+scope:
+  include:
+    - "Provider-keyed wait record in the existing ExecutionCoordinator Durable Object (id provider-capacity-wait:<provider>), monotonic in nextRetryAt"
+    - "Worker /coding/execute records the same stop against the provider when it records the execution stop"
+    - "Scheduled evolution coding reads the provider wait before dispatch; unreadable state fails closed"
+  exclude:
+    - "Execution identity, dedupe key, lease, or per-execution WAITING semantics (#2185/#2229) — unchanged"
+    - "Gating the repository_dispatch /coding/execute entry itself (follow-up)"
+    - "LIVE, production mutation, credentials, new queue/scheduler/agent"
+acceptance:
+  - "A wait recorded on an older main stops a new execution after main moves (no dispatch)."
+  - "After nextRetryAt the next dispatch proceeds and acts as the bounded capacity probe."
+  - "An unreadable provider wait fails closed (ABSTAINED, no dispatch)."
+  - "A late or replayed stop can never shorten a longer provider wait."
+  - "The wait is keyed by provider only and keeps the stopped execution's provenance."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "npx tsx --test apps/autopilot/src/scheduledEvolutionCoding.test.ts apps/autopilot/src/executionCoordinator.test.ts apps/autopilot/src/index.test.ts"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run safety:invariants"
+  - "pnpm run ai:architecture"
+evidence:
+  implementation_status: MERGED_PR_2234_d612756c
+  mutation_verification:
+    - "ignore the provider wait in the scheduler -> 1 failure"
+    - "fail open when the wait is unreadable -> 1 failure"
+    - "allow a shorter wait to replace a longer one -> 1 failure"
+    - "make the wait key unstable -> 2 failures"
+    - "worker does not record the provider wait -> 1 failure"
+  external_validation: "COMPLETED: exact-head protected CI passed on 5a2a5b1bdd0d33d6b2c305e814c5a59f8dff191f; independent Audit and Release gate passed; merged by nusa-release-authority[bot] as PR #2234 merge d612756c6eacf861cc26bfb037ec4bbca057e262; merged blobs verified byte-identical to the validated head."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Completed (PR #2234, merge d612756c6eacf861cc26bfb037ec4bbca057e262). No further action on this work order; follow-on work is tracked by its successor work order."

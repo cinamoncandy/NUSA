@@ -58,6 +58,7 @@ jobs:
           PROMOTE_RUN_ID="$(success_run_id "Autopilot Cloudflare Promote")"
           RUNTIME_PROOF_RUN_ID="$(success_run_id "Autopilot Cloudflare Runtime Proof")"
           PAPER_RUN_ID="$(success_run_id "Actual PAPER Public-Market Runtime Evidence")"
+          ORACLE_RUN_ID="$(success_run_id "Oracle PAPER Release")"
           ANDROID_RUN_ID="$(success_run_id "Android Stable Release")"
           WINDOWS_RUN_ID="$(success_run_id "Windows Desktop Stable Release")"
 
@@ -70,6 +71,7 @@ jobs:
           promote_ok=false
           runtime_proof_ok=false
           paper_ok=false
+          oracle_ok=false
           android_ok=false
           windows_ok=false
 
@@ -79,11 +81,12 @@ jobs:
           [ -n "$PROMOTE_RUN_ID" ] && promote_ok=true
           [ -n "$RUNTIME_PROOF_RUN_ID" ] && runtime_proof_ok=true
           [ -n "$PAPER_RUN_ID" ] && paper_ok=true
+          [ -n "$ORACLE_RUN_ID" ] && oracle_ok=true
           if [ -n "$ANDROID_RUN_ID" ] && [ "$ANDROID_TARGET" = "$EXPECTED_SHA" ]; then android_ok=true; fi
           if [ -n "$WINDOWS_RUN_ID" ] && [ "$WINDOWS_TARGET" = "$EXPECTED_SHA" ]; then windows_ok=true; fi
 
           CONVERGENCE_STATUS=CONVERGENCE_INCOMPLETE
-          if $main_exact && $ci_ok && $deploy_ok && $promote_ok && $runtime_proof_ok && $paper_ok && $android_ok && $windows_ok; then
+          if $main_exact && $ci_ok && $deploy_ok && $promote_ok && $runtime_proof_ok && $paper_ok && $oracle_ok && $android_ok && $windows_ok; then
             CONVERGENCE_STATUS=CONVERGED
           fi
 
@@ -104,6 +107,7 @@ jobs:
             --arg promote_run_id "$PROMOTE_RUN_ID" \
             --arg runtime_proof_run_id "$RUNTIME_PROOF_RUN_ID" \
             --arg paper_run_id "$PAPER_RUN_ID" \
+            --arg oracle_run_id "$ORACLE_RUN_ID" \
             --arg android_run_id "$ANDROID_RUN_ID" \
             --arg windows_run_id "$WINDOWS_RUN_ID" \
             --arg android_target "$ANDROID_TARGET" \
@@ -114,6 +118,7 @@ jobs:
             --argjson promote_ok "$promote_ok" \
             --argjson runtime_proof_ok "$runtime_proof_ok" \
             --argjson paper_ok "$paper_ok" \
+            --argjson oracle_ok "$oracle_ok" \
             --argjson android_ok "$android_ok" \
             --argjson windows_ok "$windows_ok" \
             '{
@@ -136,6 +141,7 @@ jobs:
                 cloudflare_promote: { pass: $promote_ok, run_id: $promote_run_id },
                 runtime_proof: { pass: $runtime_proof_ok, run_id: $runtime_proof_run_id },
                 actual_paper_runtime: { pass: $paper_ok, run_id: $paper_run_id },
+                oracle_paper_release: { pass: $oracle_ok, run_id: $oracle_run_id },
                 android_stable: { pass: $android_ok, run_id: $android_run_id, target_sha: $android_target },
                 windows_stable: { pass: $windows_ok, run_id: $windows_run_id, target_sha: $windows_target }
               }

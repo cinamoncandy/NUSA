@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { toCodingRunnerRequest, validateCodingExecutionEnvelope } from "./codingExecutionEnvelope";
+import { codingExecutionEnvelopeFingerprint, toCodingRunnerRequest, validateCodingExecutionEnvelope } from "./codingExecutionEnvelope";
 
 const envelope = {
   cycleId: "cycle-905-1",
@@ -54,6 +54,7 @@ describe("coding execution envelope", () => {
       reason: `work:${envelope.workItemId};execution:${envelope.executionId};origin:${envelope.origin};dedupe:${envelope.dedupeKey}`,
       executionId: envelope.executionId,
       dedupeKey: envelope.dedupeKey,
+      contractFingerprintSha256: codingExecutionEnvelopeFingerprint(envelope),
       mutationAllowed: false,
       liveAuthority: "NONE",
       productionMutationAllowed: false,

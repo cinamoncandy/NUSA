@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import type { SqliteDatabase } from "./index";
 
 const TABLE = "paper_public_market_observations";
+const PENDING_TABLE = "research_paper_forward_period_pending";
 const MARKET = /^KRW-[A-Z0-9-]+$/;
+const SHA256 = /^[a-f0-9]{64}$/;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 export interface PaperPublicMarketObservationInput {
@@ -12,6 +14,7 @@ export interface PaperPublicMarketObservationInput {
   readonly signedChangeRate?: number;
   readonly accumulatedVolume?: number;
   readonly accumulatedPrice?: number;
+  readonly sourceFingerprint?: string;
 }
 
 export interface PaperPublicMarketObservation {
@@ -24,6 +27,7 @@ export interface PaperPublicMarketObservation {
   readonly signedChangeRate?: number;
   readonly accumulatedVolume?: number;
   readonly accumulatedPrice?: number;
+  readonly sourceFingerprint?: string;
   readonly evidenceFingerprintSha256: string;
 }
 
@@ -84,6 +88,12 @@ function optionalNonNegative(value: unknown, name: string): number | undefined {
   return normalized;
 }
 
+function sourceFingerprint(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) throw new PaperMarketObservationStoreError("INVALID_SOURCE_FINGERPRINT", "public market observation source fingerprint is invalid");
+  return value;
+}
+
 function payload(input: PaperPublicMarketObservationInput): Record<string, unknown> {
   return {
     schemaVersion: 1,
@@ -94,6 +104,7 @@ function payload(input: PaperPublicMarketObservationInput): Record<string, unkno
     signedChangeRate: optionalFinite(input.signedChangeRate, "signedChangeRate") ?? null,
     accumulatedVolume: optionalNonNegative(input.accumulatedVolume, "accumulatedVolume") ?? null,
     accumulatedPrice: optionalNonNegative(input.accumulatedPrice, "accumulatedPrice") ?? null,
+    ...(sourceFingerprint(input.sourceFingerprint) === undefined ? {} : { sourceFingerprint: sourceFingerprint(input.sourceFingerprint) }),
   };
 }
 
@@ -112,6 +123,7 @@ export function normalizePaperPublicMarketObservation(input: PaperPublicMarketOb
     ...(normalized.signedChangeRate === null ? {} : { signedChangeRate: Number(normalized.signedChangeRate) }),
     ...(normalized.accumulatedVolume === null ? {} : { accumulatedVolume: Number(normalized.accumulatedVolume) }),
     ...(normalized.accumulatedPrice === null ? {} : { accumulatedPrice: Number(normalized.accumulatedPrice) }),
+    ...(normalized.sourceFingerprint === undefined ? {} : { sourceFingerprint: String(normalized.sourceFingerprint) }),
     evidenceFingerprintSha256: fingerprint,
   });
 }
@@ -131,6 +143,7 @@ function decodeRow(row: Record<string, unknown>): PaperPublicMarketObservation {
       signedChangeRate: parsed.signedChangeRate == null ? undefined : parsed.signedChangeRate as number,
       accumulatedVolume: parsed.accumulatedVolume == null ? undefined : parsed.accumulatedVolume as number,
       accumulatedPrice: parsed.accumulatedPrice == null ? undefined : parsed.accumulatedPrice as number,
+      sourceFingerprint: parsed.sourceFingerprint == null ? undefined : parsed.sourceFingerprint as string,
     });
     if (observation.observationId !== observationId || canonical(payloadFromObservation(observation)) !== String(row.payload_json) || observation.evidenceFingerprintSha256 !== String(row.evidence_fingerprint_sha256 ?? "")) {
       throw new PaperMarketObservationStoreError("OBSERVATION_CHECKSUM_MISMATCH", "persisted public market observation checksum mismatch", observationId);
@@ -142,6 +155,27 @@ function decodeRow(row: Record<string, unknown>): PaperPublicMarketObservation {
   } catch (error) {
     if (error instanceof PaperMarketObservationStoreError) throw error;
     throw new PaperMarketObservationStoreError("MALFORMED_OBSERVATION", "persisted public market observation is malformed", observationId);
+  }
+}
+
+function validatedPendingFloor(row: Record<string, unknown>): number | undefined {
+  const periodId = row.period_id;
+  const periodIndex = row.period_index;
+  const periodStartAt = row.period_start_at;
+  const payloadJson = row.payload_json;
+  const checksum = row.checksum;
+  if (typeof periodId !== "string" || periodId.trim().length === 0) return undefined;
+  if (!Number.isSafeInteger(periodIndex) || Number(periodIndex) < 0) return undefined;
+  if (!Number.isSafeInteger(periodStartAt) || Number(periodStartAt) < 0) return undefined;
+  if (typeof payloadJson !== "string" || typeof checksum !== "string" || !SHA256.test(checksum)) return undefined;
+  try {
+    const parsed = JSON.parse(payloadJson) as Record<string, unknown>;
+    if (parsed == null || typeof parsed !== "object" || parsed.schemaVersion !== 1) return undefined;
+    if (digest(parsed) !== checksum || canonical(parsed) !== payloadJson) return undefined;
+    if (parsed.periodId !== periodId || parsed.periodIndex !== periodIndex || parsed.periodStartAt !== periodStartAt) return undefined;
+    return Number(periodStartAt);
+  } catch {
+    return undefined;
   }
 }
 
@@ -192,6 +226,37 @@ export class SqlitePaperMarketObservationRepository {
   }
 
   private pruneWithinTransaction(): void {
-    this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE observation_id IN (SELECT observation_id FROM ${TABLE} ORDER BY observed_at_ms DESC, market DESC, observation_id DESC LIMIT -1 OFFSET ?)`).run(this.maximumRows);
+    // The pending-period table is optional for standalone observation repositories.
+    // If it is absent, ordinary retention still applies. Once the canonical table
+    // exists, unreadable or malformed protection state fails closed by skipping
+    // pruning so benchmark evidence cannot be silently destroyed.
+    let tablePresent = false;
+    try {
+      const table = this.db.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(PENDING_TABLE) as { name?: unknown } | undefined;
+      tablePresent = table?.name === PENDING_TABLE;
+    } catch {
+      return;
+    }
+
+    let protectedFloor: number | undefined;
+    if (tablePresent) {
+      try {
+        const rows = this.db.connection.prepare(`SELECT period_id, period_index, period_start_at, payload_json, checksum FROM ${PENDING_TABLE}`).all() as Array<Record<string, unknown>>;
+        for (const row of rows) {
+          const startAt = validatedPendingFloor(row);
+          if (startAt === undefined) return;
+          protectedFloor = protectedFloor === undefined ? startAt : Math.min(protectedFloor, startAt);
+        }
+      } catch {
+        return;
+      }
+    }
+
+    if (protectedFloor === undefined) {
+      this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE observation_id IN (SELECT observation_id FROM ${TABLE} ORDER BY observed_at_ms DESC, market DESC, observation_id DESC LIMIT -1 OFFSET ?)`).run(this.maximumRows);
+      return;
+    }
+
+    this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE observation_id IN (SELECT observation_id FROM ${TABLE} WHERE observed_at_ms < ? ORDER BY observed_at_ms DESC, market DESC, observation_id DESC LIMIT -1 OFFSET ?)`).run(protectedFloor, this.maximumRows);
   }
 }

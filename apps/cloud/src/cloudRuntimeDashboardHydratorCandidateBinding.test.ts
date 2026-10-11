@@ -36,7 +36,7 @@ const observation = Object.freeze({
   summary: "point-in-time market signal",
 });
 
-const pricedObservations = Object.freeze([100, 101, 103].map((price, index) => Object.freeze({
+const pricedObservations = Object.freeze([100, 101, 102, 103].map((price, index) => Object.freeze({
   ...observation,
   id: `priced-${index}`,
   price,

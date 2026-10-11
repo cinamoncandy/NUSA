@@ -64,13 +64,13 @@ test("Workers AI response schema makes verdict invariants structurally expressib
   const AI = {
     async run(_model: string, modelRequest: Record<string, unknown>) {
       captured = modelRequest;
-      return { response: { verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" } };
+      return { response: { verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true } };
     },
   };
 
   const result = await executeIndependentAudit(
     request,
-    { AI, NUSA_GITHUB_TOKEN: "github-token" },
+    { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" },
     fetchSequence() as never,
   );
   assert.equal(result.verdict, "PASS");
@@ -84,4 +84,5 @@ test("Workers AI response schema makes verdict invariants structurally expressib
   assert.deepEqual(responseFormat?.json_schema?.properties?.verdict?.enum, ["PASS", "PASS_WITH_NOTES", "FAIL"]);
   assert.deepEqual(responseFormat?.json_schema?.properties?.safetyInvariantResult?.enum, ["PASS", "FAIL"]);
   assert.equal(responseFormat?.json_schema?.properties?.safetyInvariantResult?.type, "string");
+  assert.equal(responseFormat?.json_schema?.properties?.mergeAllowed?.type, "boolean");
 });

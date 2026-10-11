@@ -1,0 +1,23 @@
+id: WO-UI-20261002-RESUME-GRACE
+title: "Opening the app no longer flashes 재연결 중 while a verified session re-proves itself"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-resume-grace
+authority_impact: none
+objective: "Owner: the app should already be connected when opened. Every foreground resume deliberately re-proves the device session and briefly projected RECOVERING, so a healthy connection looked broken on every open."
+scope:
+  - "sessionDisplayModel.ts (import-free): a session verified just before resume keeps its verified look for 5 s while re-proving (app launch counts like a resume); after that, or on failure, the real state shows."
+  - "App.tsx: only the HOME recovery notice reads the display state; the safety line keeps the real session state and words the grace window as 확인 중 (never 안전). Refresh, credentials and the runtime still use getPaperSessionState(). The safety line is shared, so this applies to every tab."
+exclusions:
+  - "The foreground re-proof itself is unchanged (security design in paperConnectionSession.ts)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-session-display.test.js
+  - pnpm run validate
+residual: "Physical Android acceptance is HUMAN_ENVIRONMENT_ONLY."

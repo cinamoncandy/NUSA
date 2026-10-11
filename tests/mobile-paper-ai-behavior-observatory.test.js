@@ -49,7 +49,7 @@ test("PAPER activity summary status is never more confident than the real runtim
 test("App wires the same paperLearningState already computed for the observatory into PAPER's summary, not a second source", () => {
   const app = read("apps/mobile/App.tsx");
   assert.match(app, /const paperLearningState = buildPaperLearningScreen\(/);
-  assert.match(app, /paperLearning=\{paperLearningState\}/);
+  assert.doesNotMatch(app, /paperLearning=\{paperLearningState\}/);
   assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/);
 });
 

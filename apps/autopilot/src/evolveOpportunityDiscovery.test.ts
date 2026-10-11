@@ -41,6 +41,12 @@ describe("discoverEvolutionOpportunities", () => {
     });
   });
 
+  it("preserves validated canonical ownership and conflict provenance", () => {
+    const result = discoverEvolutionOpportunities([signal({ canonicalOwner: "evolve", conflictKeys: ["module:apps/autopilot/src", "issue:903"] })], NOW);
+    assert.equal(result.opportunities[0]?.canonicalOwner, "evolve");
+    assert.deepEqual(result.opportunities[0]?.conflictKeys, ["module:apps/autopilot/src", "issue:903"]);
+  });
+
   it("rejects insufficient evidence and excessive risk fail closed", () => {
     const result = discoverEvolutionOpportunities([
       signal({ id: "weak", evidenceQuality: 0.49 }),

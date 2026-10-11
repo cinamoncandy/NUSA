@@ -1,0 +1,23 @@
+id: WO-UI-20261006-TOUCH-VISUAL-CALM
+title: "Re-key the Android touch acceptance gate on the calm-v1 screens"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/fix-touch-visual-calm
+authority_impact: none
+owner_approval: "2026-10-06 in chat: '91% -> 100%' master directive (fix failing CI directly; Android acceptance) and '계속해'; regression introduced by WO-UI-20261006-CALM-REDESIGN"
+objective: "Since the calm-v1 redesign (#2541) the touch-visual emulator gate has failed on every PR: it waited for testIDs the replaced presenters rendered (home-screen, more-view, live-field-header, paper-shadow-monitor-switcher) and expected the PAPER evidence detail to open directly on the full monitor."
+scope:
+  - ".github/workflows/android-product-ux-acceptance.yml: waits for now-screen; checks records-view, learning-view (or dashboard-connection-required), safety-view and now-screen; after opening PAPER evidence it taps learning-details (자세히 보기) and checks paper-learning-monitor. The flow, bounds, captures and report are otherwise unchanged."
+  - "tests/mobile-product-v5.test.js: pins the new keys and asserts each presenter actually renders the testID the gate waits for, so the two cannot drift silently again."
+exclusions:
+  - "No app code change; no change to emulator setup, timeouts or permissions."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+rollback: "Revert the change."
+verification_commands:
+  - node --test tests/mobile-product-v5.test.js tests/android-release-pipeline-hardening.test.js
+residual: "The emulator run itself only executes in CI (touch-visual); the failing run's UI dump confirmed the app renders now-screen and the calm tab bar."

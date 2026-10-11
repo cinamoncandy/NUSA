@@ -1,0 +1,25 @@
+id: WO-PAPER-20261003-ORDERBOOK-RENEW
+title: "Renew the PAPER orderbook REST snapshot before it expires so a steady feed does not fail reconciliation every 30 seconds"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-orderbook-renew
+authority_impact: market_data_health_paper_only
+objective: "Orders were repeatedly blocked by PAPER_EXECUTION_GATE_IS_CLOSED while health flapped HEALTHY/DEGRADED with PAPER_ORDERBOOK_UNRECONCILED. The reconciler accepts a stream orderbook only while the REST snapshot is at most 30 s old, but it fetched a new snapshot only after a reconcile had already failed, so even a perfectly steady stream failed once per validity window and the runtime recorded the failure each time."
+scope:
+  - "apps/cloud/src/upbitOrderBookReconciliation.ts: needsRefresh(market, nowMs, renewAfterMs) with SNAPSHOT_RENEW_AFTER_MS = 15 s. It only answers whether a snapshot should be renewed; reconcile() and MAX_SNAPSHOT_AGE_MS (30 s) are unchanged."
+  - "apps/cloud/src/runtime.ts: after a successful reconcile, and only while the market connection is CONNECTED, start the existing deduplicated, 5 s backed-off refresh when the snapshot is 15 s old. A failed renewal is ignored (the old snapshot keeps working until it expires); the existing unreconciled path and its failure recording are unchanged."
+  - "tests/upbit-orderbook-reconciliation.test.js (+4): renewal timing, a two-minute stream with zero failures, the same stream without renewal failing about once per 30 s, renewal never extends validity and a failed renewal keeps the old snapshot until expiry, runtime source pin."
+exclusions:
+  - "No change to the 30 s validity rule, the execution gate, the health model, decisions, risk, orders, capital, thresholds, LIVE, credentials or AI authority. One extra public REST orderbook read per market about every 15 s (the same endpoint already used)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "An expired or missing snapshot still makes reconcile() return null and the runtime still records PAPER_ORDERBOOK_UNRECONCILED; a failed renewal never installs anything."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/upbit-orderbook-reconciliation.test.js
+residual: "Whether this is the only cause of the HEALTHY/DEGRADED flapping is unconfirmed: the reconcile expiry is proven by test, but ticker gaps of 31-53 s (FEED_STALE) are a separate, still unexplained source. Confirmation is the live /health state and the app's feed row after a server deploy."

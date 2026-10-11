@@ -1,0 +1,29 @@
+id: WO-PAPER-20260928-CHALLENGER-POLICY-DEFAULT-ON
+title: "PAPER challenger policy approval on by default (ADR-0018 amendment)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-challenger-default
+authority_impact: paper-governance
+owner_decision: "2026-09-28: owner chose 'turn the code default on' after being told the production PAPER host never set NUSA_PAPER_CHALLENGER_POLICY_APPROVAL, so Research-qualified candidates never reached PAPER. Standing owner rule: everything automatic, the only owner decision is LIVE approval."
+objective: "Let Research-qualified candidates become PAPER challengers without a host configuration step, so the PAPER learning loop produces new strategies and fills."
+scope:
+  - "paperChallengerPolicyEnabled: absent or ENABLED -> on; exactly DISABLED -> off; any other value -> off (fail closed); NUSA_MODE set to anything but PAPER -> off."
+  - "ADR-0018 amendment, env example, composition comment and wiring-test message updated."
+exclusions:
+  - "No change to what the policy approves: qualified artifact, PAPER-only authority, identity and lineage checks are unchanged."
+  - "No CHAMPION promotion, capital allocation, LIVE, credential, broker or production-mutation change. AI authority stays ZERO."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  rollback: "Set NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED on the PAPER host, or revert this change."
+evidence:
+  unverified: "Whether qualified candidates are currently waiting on the production host is not observable from the repository; the effect is confirmed only by later PAPER cycles (HUMAN_ENVIRONMENT_ONLY observation)."
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - node --test dist/apps/cloud/src/paperChallengerPolicyApproval.test.js
+  - node --test tests/*.test.js
+  - pnpm run validate
