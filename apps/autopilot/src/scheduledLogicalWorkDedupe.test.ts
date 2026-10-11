@@ -218,6 +218,7 @@ test("concurrent replayed CI failures with distinct run ids dispatch one logical
         { name: "Read-only MCP gateway regression", conclusion: "failure" },
       ],
     }] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/search/issues?")) return new Response(JSON.stringify({ total_count: 0, items: [] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/dispatches")) {
       dispatches += 1;
@@ -336,4 +337,98 @@ test("a new issue revision after the prior merge can admit the next increment", 
   assert.equal(value.status, "EXECUTION_ACCEPTED");
   assert.equal(acquiredKeys.length, 1);
   assert.equal(dispatches, 1);
+});
+
+
+test("an open canonical work item for the same workflow failure suppresses CodingRunner before lease acquisition", async () => {
+  const seen = new Set<string>();
+  const acquiredKeys: string[] = [];
+  let dispatches = 0;
+  const marker = `NUSA-WORK-GHA-CI-${SHA.toUpperCase()}-FAILURE`;
+  const candidate = {
+    id: RUN_ID, name: "CI", status: "completed", conclusion: "failure", head_branch: "main",
+    head_sha: SHA, event: "push", completed_at: new Date(NOW - 1_000).toISOString(),
+  };
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith(`/actions/runs/${RUN_ID}`)) return new Response(JSON.stringify({
+      id: RUN_ID, path: ".github/workflows/ci.yml", head_branch: "main", head_sha: SHA,
+      repository: { full_name: "cinamoncandy/NUSA" }, status: "completed", conclusion: "failure", event: "push",
+    }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return new Response(JSON.stringify({ jobs: [{
+      name: "validation",
+      steps: [
+        { name: "Install locked dependencies", conclusion: "success" },
+        { name: "Preflight", conclusion: "success" },
+        { name: "Build", conclusion: "success" },
+        { name: "Read-only MCP gateway regression", conclusion: "failure" },
+      ],
+    }] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.startsWith("https://api.github.com/search/issues?")) {
+      const query = new URL(url).searchParams.get("q") ?? "";
+      assert.ok(query.includes(marker), `repository search must bind the exact stable work identity: ${url}`);
+      return new Response(JSON.stringify({
+        total_count: 1,
+        items: [{ state: "open", number: 1963, title: `Existing remediation ${marker}`, body: `Canonical work identity: ${marker}.`, pull_request: { url: "https://api.github.com/repos/cinamoncandy/NUSA/pulls/1963" } }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/dispatches")) {
+      dispatches += 1;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const value = await runScheduledEvolutionCoding(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(seen, acquiredKeys) },
+    { candidates: [candidate], backlogIssues: [], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    fetchImpl,
+  );
+
+  assert.equal(value.status, "DUPLICATE_SUPPRESSED", value.reason);
+  assert.equal(value.reason, "canonical-work-already-open");
+  assert.equal(acquiredKeys.length, 0);
+  assert.equal(dispatches, 0);
+});
+
+test("unavailable canonical-work search fails closed before CodingRunner", async () => {
+  const acquiredKeys: string[] = [];
+  let dispatches = 0;
+  const candidate = {
+    id: RUN_ID, name: "CI", status: "completed", conclusion: "failure", head_branch: "main",
+    head_sha: SHA, event: "push", completed_at: new Date(NOW - 1_000).toISOString(),
+  };
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith(`/actions/runs/${RUN_ID}`)) return new Response(JSON.stringify({
+      id: RUN_ID, path: ".github/workflows/ci.yml", head_branch: "main", head_sha: SHA,
+      repository: { full_name: "cinamoncandy/NUSA" }, status: "completed", conclusion: "failure", event: "push",
+    }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return new Response(JSON.stringify({ jobs: [{
+      name: "validation",
+      steps: [
+        { name: "Install locked dependencies", conclusion: "success" },
+        { name: "Preflight", conclusion: "success" },
+        { name: "Build", conclusion: "success" },
+        { name: "Read-only MCP gateway regression", conclusion: "failure" },
+      ],
+    }] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.startsWith("https://api.github.com/search/issues?")) return new Response("unavailable", { status: 503 });
+    if (url.endsWith("/dispatches")) {
+      dispatches += 1;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const value = await runScheduledEvolutionCoding(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
+    { candidates: [candidate], backlogIssues: [], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    fetchImpl,
+  );
+
+  assert.equal(value.status, "ABSTAINED");
+  assert.equal(value.reason, "canonical-work-identity-check-unavailable");
+  assert.equal(acquiredKeys.length, 0);
+  assert.equal(dispatches, 0);
 });

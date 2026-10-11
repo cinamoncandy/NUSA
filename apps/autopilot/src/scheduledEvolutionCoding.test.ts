@@ -86,6 +86,7 @@ test("scheduled evolution coding routes only an explicit trusted repository-code
     const url = String(input);
     if (url.endsWith(`/actions/runs/${RUN_ID}`)) return runMetadata();
     if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return trustedRegressionJobs();
+    if (url.includes("/search/issues?")) return new Response(JSON.stringify({ total_count: 0, items: [] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/dispatches")) {
       posted = true;
@@ -98,6 +99,7 @@ test("scheduled evolution coding routes only an explicit trusted repository-code
       assert.equal(body.client_payload.live_authority, "NONE");
       assert.equal(body.client_payload.production_mutation_allowed, false);
       assert.equal(body.client_payload.ai_authority, "ZERO_AUTHORITY");
+      assert.match(body.client_payload.reason, /NUSA-WORK-/);
       return new Response(null, { status: 204 });
     }
     return new Response("not found", { status: 404 });
@@ -239,6 +241,7 @@ test("scheduled evolution coding suppresses duplicate coding dispatch after trus
     const url = String(input);
     if (url.endsWith(`/actions/runs/${RUN_ID}`)) return runMetadata();
     if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return trustedRegressionJobs();
+    if (url.includes("/search/issues?")) return new Response(JSON.stringify({ total_count: 0, items: [] }), { status: 200, headers: { "content-type": "application/json" } });
     return new Response("not found", { status: 404 });
   }) as typeof fetch;
   const outcome = await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(false) }, {
@@ -351,6 +354,7 @@ function dispatchRecorder(): { fetchImpl: typeof fetch; posted: () => boolean } 
     const url = String(input);
     if (url.endsWith(`/actions/runs/${RUN_ID}`)) return runMetadata();
     if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return trustedRegressionJobs();
+    if (url.includes("/search/issues?")) return new Response(JSON.stringify({ total_count: 0, items: [] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/dispatches")) {
       posted = true;
@@ -477,4 +481,35 @@ test("active WIP conflict suppresses backlog coding before dispatch", async () =
   assert.equal(outcome.status, "DUPLICATE_SUPPRESSED");
   assert.equal(outcome.reason, "CONFLICT_KEY_ACTIVE");
   assert.equal(recorder.posted(), false);
+});
+
+
+test("a trusted Build failure after prerequisites passes still abstains without repository-code cause evidence", async () => {
+  let posted = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith(`/actions/runs/${RUN_ID}`)) return runMetadata();
+    if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return new Response(JSON.stringify({ jobs: [{
+      name: "validation",
+      steps: [
+        { name: "Install locked dependencies", conclusion: "success" },
+        { name: "Preflight", conclusion: "success" },
+        { name: "Build", conclusion: "failure" },
+      ],
+    }] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/dispatches")) posted = true;
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace() }, {
+    candidates,
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  }, fetchImpl);
+
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "workflow-not-code-actionable:UNKNOWN");
+  assert.equal(posted, false);
 });

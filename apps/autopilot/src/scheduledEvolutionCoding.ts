@@ -282,6 +282,34 @@ async function classifyWorkflowActionability(
   return hasTrustedCodeFailure(workflowPath, jobs) ? "CODE_ACTIONABLE" : "UNKNOWN";
 }
 
+function canonicalWorkflowWorkMarker(signal: EvolutionDiscoverySignal | undefined): string | null {
+  if (signal?.source !== "github-actions") return null;
+  const identity = signal.id.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!identity || identity.length > 160) return null;
+  return `NUSA-WORK-${identity}`;
+}
+
+async function existingOpenWorkflowWork(
+  repository: string,
+  marker: string,
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<"CLEAR" | "EXISTS" | "UNAVAILABLE"> {
+  const query = new URLSearchParams({ q: `repo:${repository} is:open "${marker}"`, per_page: "100", page: "1" });
+  const payload = await githubJson(`https://api.github.com/search/issues?${query.toString()}`, token, fetchImpl);
+  if (!payload || !Array.isArray(payload.items) || !Number.isSafeInteger(payload.total_count) || Number(payload.total_count) < 0 || Number(payload.total_count) > payload.items.length) return "UNAVAILABLE";
+  const items = payload.items;
+  if (Number(payload.total_count) === 0) return items.length === 0 ? "CLEAR" : "UNAVAILABLE";
+  if (items.length === 0) return "UNAVAILABLE";
+  const openMatchFound = items.some((value) => {
+    const item = object(value);
+    if (text(item?.state)?.toLowerCase() !== "open") return false;
+    const searchable = `${text(item?.title) ?? ""}\n${text(item?.body) ?? ""}`;
+    return searchable.includes(marker);
+  });
+  return openMatchFound ? "EXISTS" : "UNAVAILABLE";
+}
+
 /**
  * Existing #903/#905 composition: read-only repository evidence -> existing
  * discovery/selector -> existing CodingRunner dispatch spine. Fresh workflow
@@ -325,7 +353,14 @@ export async function runScheduledEvolutionCoding(
   const backlogSignals = failureSignals.length === 0
     ? deriveGithubIssueBacklogSignals(input.backlogIssues ?? [], input.openPulls ?? [], new Date(input.now))
     : Object.freeze([] as EvolutionDiscoverySignal[]);
-  const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
+  const rawSignals = failureSignals.length > 0 ? failureSignals : backlogSignals;
+  const workflowWorkMarker = failureSignals.length > 0 ? canonicalWorkflowWorkMarker(failureSignals[0]) : null;
+  const signals = workflowWorkMarker
+    ? Object.freeze(rawSignals.map((signal) => Object.freeze({
+      ...signal,
+      problem: `${signal.problem} Canonical work identity: ${workflowWorkMarker}.`,
+    })))
+    : rawSignals;
   const freshFailureCount = failureSignals.length;
   const workIdentity = logicalWorkIdentity(signals);
   if (signals[0]?.source === "github-issue-backlog") {
@@ -395,6 +430,7 @@ export async function runScheduledEvolutionCoding(
     if (actionability !== "CODE_ACTIONABLE") {
       return result("ABSTAINED", `workflow-not-code-actionable:${actionability}`, signals.map((signal) => signal.id));
     }
+    if (!workflowWorkMarker) return result("ABSTAINED", "workflow-work-identity-invalid", signals.map((signal) => signal.id));
   }
 
   const selectedSignal = signals[0];
@@ -418,6 +454,12 @@ export async function runScheduledEvolutionCoding(
     if (!activeWip.admitted) {
       return result("DUPLICATE_SUPPRESSED", activeWip.reason ?? "ACTIVE_WIP_REJECTED", signals.map((signal) => signal.id));
     }
+  }
+
+  if (failureSignals.length > 0) {
+    const existingWork = await existingOpenWorkflowWork(input.repository, workflowWorkMarker!, token, fetchImpl);
+    if (existingWork === "EXISTS") return result("DUPLICATE_SUPPRESSED", "canonical-work-already-open", signals.map((signal) => signal.id));
+    if (existingWork !== "CLEAR") return result("ABSTAINED", "canonical-work-identity-check-unavailable", signals.map((signal) => signal.id));
   }
 
   const persistent = await acquirePersistentExecution(coordinator, {
