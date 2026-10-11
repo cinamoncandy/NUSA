@@ -3044,15 +3044,46 @@ current_autopilot_2595_decision_diagnostics:
     meaning: PREDECESSOR_EVIDENCE_ONLY_NOT_CURRENT_DIAGNOSTICS_ACCEPTANCE
   work_order: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
   branch: fix/2595-remediation-decision-diagnostics
-  base_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
+  base_sha: be703b22e5272d39509352322a4c1264da481a8e
   implementation_commit: c608fb11c645787b30d5afadcef53f6f512907a3
   focused_validation_head: 202e2b976d334e02904a574c6452d7e9697ff943
   published_head_binding: REQUIRE_FRESH_EXACT_HEAD_CI_AUDIT_RELEASE_IN_CANONICAL_PR_RECEIPT
   prior_increment_head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
-  status: LOCAL_VALIDATION_PASS_EXACT_HEAD_GATES_PENDING
+  status: CURRENT_MAIN_RECONVERGED_LOCAL_REVALIDATION_PENDING
   first_broken_transition: "locally validated diagnostics increment -> fresh exact-head CI and independent Audit"
-  validation: "Dispatcher/consumer 50/50 PASS; canonical Autopilot compiled suite 93/93 PASS; full build, typecheck, validate:full, changed-file lint, YAML and provenance PASS."
+  validation: "Prior locally validated source: dispatcher/consumer 50/50 PASS; canonical Autopilot compiled suite 93/93 PASS; full build, typecheck, validate:full, changed-file lint, YAML and provenance PASS."
   next_permitted_action: "Publish the locally validated diagnostics residual on the existing diagnostics branch; independent Audit, canonical Release and naturally eligible canary remain required."
   AUTOPILOT_VERIFIED_COMPLETION_LOOP: false
   VERIFIED: false
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_data_2002_dataset_identity:
+  work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
+  pull_request: 2395
+  branch: research/current-dataset-identity-2002
+  status: EXACT_HEAD_CI_PENDING
+  source_main_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+  reconvergence_commit: 8899471c3fdbe812abdb8e3d9cc0535aca1bb7ca
+  first_broken_transition: "current-main reconvergence -> applicable exact-head Independent Audit"
+  evidence: "Prior Audit 38095582184 returned NO_ACTION authority=NONE due stale base. Prior PAPER artifact is INCOMPLETE and cannot prove dataset integrity acceptance."
+  remaining: "Local scoped TypeScript, focused 23/23, preflight/index/provenance PASS; actual public 20-candle currentness/replay receipt recorded. Refreshed exact-head CI/Audit/Release, merge and exact-main runtime evidence remain; #2068 follows."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_iterative_investment_learning_20261011:
+  owner: nusa-data-integrity
+  canonical_pr: 2395
+  canonical_learning_issue: 1605
+  source_main_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
+  prior_head: be6702f1667433c2bdf1b310c36c9891f900afe2
+  work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
+  status: REVIEW_REPAIR_LOCAL_PASS_PENDING_EXACT_HEAD_GATES
+  first_broken_transition: current_dataset_identity_to_full_qualification_provenance_binding
+  root_cause: "Qualification previously compared only dataset id/hash, allowing source/market/interval/end-close substitution. Release also stopped on four unresolved review threads."
+  validation: "Scoped TypeScript compiler PASS; focused integrity/qualification 40/40 plus wiring 4/4 PASS; baseline/current red-green regression PASS; preflight, architecture truth, safety, AI and work-order provenance PASS."
+  runtime_evidence: .aipos/evidence/learning-current-chain-20261011.json
+  learning_acceptance_verified: 0
+  learning_acceptance_remaining: 7
+  improvement: IMPROVEMENT_UNVERIFIED
+  verified: false
+  next: "Existing PR2395 fresh exact-head CI/Audit/Release; then exact-main current dataset handoff and real Stage1 retention/benchmark/recovery evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

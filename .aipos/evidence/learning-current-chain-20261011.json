@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-11T04:27:01.943286+00:00",
+  "sourceSha": "7cf6a722c0004362698fc146f3ad546c1e541d1c",
+  "artifactRunId": 38065570358,
+  "artifactDigest": "sha256:82ad18de04d05458a3d40aa67704df3478bbbfc7d1c7be27220c0e3238534f02",
+  "evidenceScope": "isolated GitHub CI PAPER runtime with real public ticker; not Oracle production evidence",
+  "artifactResult": "INCOMPLETE",
+  "execution": {
+    "status": "NO_ACTIONABLE_SIGNAL",
+    "order_count": 0,
+    "fill_count": 0
+  },
+  "certification": {
+    "status": "INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL",
+    "automatic_order_observed": false,
+    "automatic_fill_observed": false,
+    "account_or_pnl_change_observed": false
+  },
+  "learningStagesVerified": 0,
+  "learningStagesUnverified": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "improvement": "IMPROVEMENT_UNVERIFIED",
+  "verified": false,
+  "safety": {
+    "mode": "PAPER_ONLY",
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "wipInventory": {
+    "activeCanonical": [
+      2395,
+      1605,
+      1994,
+      1818,
+      1812,
+      1814
+    ],
+    "staleRequiresOwnerConvergence": [
+      2041,
+      1844,
+      2060,
+      1909,
+      2586
+    ],
+    "dependentShadowAdvisoryOnly": [
+      2321,
+      2333,
+      2337,
+      2339
+    ],
+    "queuedAfter2395": [
+      2068
+    ],
+    "completedImplementationNotRuntimeAcceptance": [
+      2617,
+      2604,
+      2600
+    ],
+    "notes": [
+      "Existing Bollinger core strategy does not establish runner/PAPER integration; PR1812 retained.",
+      "No new hypothesis, family, OOS run, governance promotion or replacement PR created.",
+      "PR2586 censored loss-limit comparison is not evidence to relax a risk threshold."
+    ]
+  },
+  "runtimeReadEvidence": {
+    "publicHealthAttempts": 2,
+    "publicResult": "TIMEOUT",
+    "loopbackHealthAttempts": 1,
+    "loopbackResult": "TIMEOUT",
+    "serviceActive": true,
+    "deployedSymlinkSha": "7cf6a722c0004362698fc146f3ad546c1e541d1c",
+    "healthAccepted": false
+  },
+  "nextTransition": "Repair full current dataset identity binding at qualification in existing PR2395; new exact-head CI/audit/release gates required.",
+  "currentProtectedMainSha": "15692d6cc870ff1dd126a902e577a95cad91e9dc",
+  "actualOraclePublicHealth": {
+    "observedAt": "2026-10-11T04:30:23.947Z",
+    "endpoint": "https://nusa-api.duckdns.org/health",
+    "runtimeSha": "7cf6a722c0004362698fc146f3ad546c1e541d1c",
+    "processState": "DEGRADED",
+    "workloadState": "DEGRADED",
+    "lastError": "PAPER_ACCOUNT_PERSISTENCE_FAILED",
+    "ledgerFingerprintSha256": "042f69a2ce12d809d43277d14e5911e4764d4c07db7f805cb08ecabf8dba950f",
+    "ledgerFillCount": 76,
+    "openPositionCount": 0,
+    "runtimePaperOrderCount": 2,
+    "runtimePaperFillCount": 2,
+    "cyclesEvaluated": 0,
+    "cyclesRecorded": 0,
+    "deployments": 0,
+    "rollover": "BLOCKED",
+    "rolloverReason": "CANONICAL_FILL_LEDGER_UNAVAILABLE",
+    "openPeriodId": "closed-learning-rollover:4:1791673595045",
+    "openMarket": "KRW-XRP",
+    "openCandidateId": "owner-baseline-sma-5-20",
+    "openPeriodStartAt": 1791673595045,
+    "openObservations": 131,
+    "openFilledObservations": 1,
+    "realizedPeriods": 4,
+    "stage1RetentionRestartAcceptance": false,
+    "stage2FullSignalFillLedgerContinuityAcceptance": false,
+    "drift": true,
+    "acceptance": "UNVERIFIED"
+  }
+}
