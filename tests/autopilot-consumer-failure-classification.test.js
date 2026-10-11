@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { Linter } = require('eslint');
+const { terminalFailureResult } = require('../scripts/autopilot-dispatch-retry.js');
 
 const source = fs.readFileSync('scripts/autopilot-dispatch-retry.js', 'utf8');
 
@@ -39,7 +40,26 @@ test('autopilot consumer timestamps execution and reports exhausted remediation 
     /async function main\(\) \{\s*const startedAt = Date\.now\(\);\s*let request;\s*try \{\s*request = readDispatchRequest\(\);/s,
   );
   assert.match(source, /attemptRecord\(\{[\s\S]*?startedAt,[\s\S]*?decision: "FAILED_CLOSED"/);
-  assert.match(source, /resultSummary\(request, attempts, safeProposalFailure \? "FAILED_TO_REMEDIATE" : "FAILED_CLOSED"/);
+  const request = {
+    executionId: 'github:classification-test', dedupeKey: 'ci:classification-test',
+    headSha: 'a'.repeat(40), workflowRunId: 123,
+    liveAuthority: 'NONE', productionMutationAllowed: false, aiAuthority: 'ZERO_AUTHORITY',
+  };
+  for (const [reason, expected] of [
+    ['SANDBOX_BUILD_FAILED', 'FAILED_TO_REMEDIATE'],
+    ['CODING_REMEDIATION_DECISION_INVALID', 'FAILED_CLOSED'],
+    ['AUTHORITY_VIOLATION', 'FAILED_CLOSED'],
+  ]) {
+    const error = Object.assign(new Error(reason), { httpStatus: 409 });
+    const result = terminalFailureResult(request, error, 10, () => 25);
+    assert.equal(result.status, expected);
+    assert.equal(result.httpStatus, 409);
+    assert.equal(result.attempts[0].latency_ms, 15);
+    assert.equal(result.attempts[0].http_class, '4xx');
+    assert.equal(result.summary.liveAuthority, 'NONE');
+    assert.equal(result.summary.productionMutationAllowed, false);
+    assert.equal(result.summary.aiAuthority, 'ZERO_AUTHORITY');
+  }
 });
 
 test('top-level consumer rejection is not silently swallowed', () => {
