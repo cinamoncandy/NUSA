@@ -3097,3 +3097,12 @@ current_market_data_ticker_rejection_2068:
   evidence_scope: "Synthetic regression fixtures only; no actual acceptance claim."
   next: "Focused regression, exact-head CI, Independent Audit and governed Release/merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_correlation_aware_research_portfolio:
+  work_order: WO-ISSUE-1815-CORRELATION-AWARE-RESEARCH-PORTFOLIO
+  status: READY_FOR_EXISTING_EXACT_HEAD_REVIEW
+  canonical_pr: 1818
+  validation: "Strict focused TypeScript build and10/10 tests PASS; source-bound actual OOS acceptance unverified."
+  branch: research/correlation-aware-portfolio-1815
+  base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
+  scope: "Research-only OOS correlation/drawdown-overlap evidence and dependence gate reusing canonical League allocation."
