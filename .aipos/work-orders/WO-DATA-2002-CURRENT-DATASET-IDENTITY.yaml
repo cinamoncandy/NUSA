@@ -1,6 +1,6 @@
 id: WO-DATA-2002-CURRENT-DATASET-IDENTITY
 title: "Converge existing current research dataset identity PR"
-status: READY_FOR_REVIEW
+status: COMPLETED
 owner: nusa-data-integrity
 issue: 2002
 pull_request: 2395
@@ -37,7 +37,7 @@ acceptance:
   - "PIT, train/OOS separation and deterministic replay preserved."
   - "Local validation, exact-head CI, independent Audit ACCEPTED and governed Release before merge."
   - "Exact-main actual dataset identity/provenance/currentness/replay evidence before completion."
-remaining: "Repair validated locally; publish on existing PR2395, fresh exact-head CI and Independent Audit; governed Release/merge; exact-main dataset runtime evidence; then #2068 coverage comparison."
+remaining: "PR2395 implementation/CI/Audit/Release/protected merge complete. Runtime Learning acceptance is owned by issue1605, not this completed PR."
 safety:
   mode: PAPER_ONLY
   liveAuthority: NONE
@@ -54,3 +54,20 @@ review_repair_20261011:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_base_reconvergence: "15692d6 main moves only Autopilot tests/state; strict protection requires normal merge. Replayed 44/44 focused tests PASS after merge. Downloaded raw CI artifact moved outside worktree to keep repository portability checks truthful."
+
+ticker_regression_followup_2068_20261011:
+  canonical_pr: 2068
+  protected_main: be703b22e5272d39509352322a4c1264da481a8e
+  existing_branch: market-data/2022-2034-evidence
+  inventory_result: "Not superseded: latest-main runtime wiring tests lack durable rejection coverage for future/foreign tickers."
+  repair: "Normal merge of latest protected main; retained only existing minimal regression and source fingerprint assertions."
+  focused_validation: "4/4 PASS against the actual current deployed exact-main compiled runtime; fixture events are tests, not actual-market acceptance evidence."
+  guards: "Repository portability, platform-independent tests and diff check PASS."
+  remaining: "New exact-head CI, Independent Audit, Release/protected merge; no runtime source modification."
+
+ticker_review_repair_20261011:
+  reviewed_head: 9dcdaa6e0df17a2149cd29de762ad45eb51369f4
+  current_base: ca4f897dd476d1238682a38d618c9569bac19e52
+  assertions: "Persisted timestamp/price and exact canonicalUpbitSourceFingerprint must match the accepted fresh fixture."
+  recovery: "Dedicated current_market_data_ticker_rejection_2068 state entry; PR2395 recorded completed/deployed rather than pending."
+  gates: "Fresh focused regression and exact-head CI/Audit/Release required."
