@@ -1,0 +1,21 @@
+id: WO-DATA-2068-TICKER-PERSISTENCE-REGRESSION
+title: "Converge existing rejected ticker persistence regression"
+status: READY_FOR_REVIEW
+owner: nusa-data-integrity
+issue: 2022
+pull_request: 2068
+branch: market-data/2022-2034-evidence
+base_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+authority_impact: none
+scope: "Test-only accepted ticker identity and future/foreign rejection persistence; no runtime or freshness semantics change."
+first_broken_transition: "rejected ticker -> durable canonical observation regression proof"
+predecessor: "PR2395 protected-merged and deployed; completed work-order WO-DATA-2002-CURRENT-DATASET-IDENTITY is historical."
+verification_commands:
+  - "node --test tests/cloud-runtime-paper-market-observation-wiring.test.js tests/cloud-runtime-source-sha-health.test.js"
+  - "pnpm run preflight"
+  - "node scripts/validate-aipos-yaml.js"
+  - "git diff --check"
+validation: "Final parallel runtime/source-SHA regression5/5 PASS; preflight/YAML/provenance/diff PASS. Unique port43192 absent other repository tests; current-head CI/Audit/Release required."
+evidence_scope: "Synthetic fixture tests only; not actual public-market or Learning acceptance."
+remaining: "Exact repaired head CI, Independent Audit, governed Release and protected merge."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
