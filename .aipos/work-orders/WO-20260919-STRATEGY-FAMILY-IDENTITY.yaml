@@ -1,0 +1,77 @@
+id: WO-20260919-STRATEGY-FAMILY-IDENTITY
+title: Strategy family parameter and evidence identity integrity
+status: READY_FOR_REVIEW
+authority_impact: none
+scope: "Existing research robustness input validation and independent evidence verification only."
+owner_request: "Implement strategy families to a high standard; preserve existing canonical engines."
+acceptance:
+  - Reject semantic duplicate parameter tuples before evaluation.
+  - Require explicit family parameters; reject unknown, ambiguous, or whitespace keys.
+  - Return FAIL for malformed grids without invoking backtests.
+  - Bind references by source and candidate identity; reject duplicate receipts.
+  - Preserve deterministic valid results and existing SMA alias compatibility.
+constraints:
+  - No new family or protected OOS run while qualification governance remains on hold.
+  - Do not modify the qualification policy owned by PR 1991.
+  - No threshold changes or performance claims from synthetic regression fixtures.
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - node --test tests/parameter-robustness-*.test.js
+  - pnpm run preflight
+  - pnpm run validate:full
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run security:gate
+results:
+  focused: "88/88 PASS"
+  full_isolated: "1011 test files PASS"
+  local_gates: "typecheck, build, lint, preflight, validate:full, security (0 secrets), diff check PASS"
+  remote_ci: PENDING
+
+current_main_reconvergence_20261011:
+  protected_main: be703b22e5272d39509352322a4c1264da481a8e
+  canonical_pr: 1994
+  prior_head: 5a63a665cbcac560dabb3c2dcd6627a6e194039e
+  mode: existing_branch_normal_merge
+  state_conflict_resolution: "Retained complete fresh protected-main state and existing strategy-family work-order entry; no source conflict."
+  focused_validation: "60/60 parameter-robustness tests PASS, including semantic duplicates, malformed grids, candidate/source receipt binding, cost monotonicity, deterministic replay and prior-only OOS warmup."
+  evidence_scope: "Synthetic unit fixtures only; no real OOS exposure, PAPER fill, strategy improvement or promotion evidence."
+  source_dependency: "Tests use unchanged compiled core dependency closure built in isolated PR2395 worktree; PR1994 source delta is JavaScript input/verifier code."
+  remaining: "Repaired exact-head CI, Independent Audit and governed Release."
+
+current_local_gate_result: "60/60 PASS; exact package preflight and full architecture/truth/research/safety/AI/AIPOS validators PASS; security PASS with 0 secrets and 0 unmitigated high/critical findings; focused JavaScript lint has 0 errors and 2 warnings. New exact-head whole-project type/build/test acceptance remains CI, not claimed from a previous head."
+release_serialization: "Existing PR1994 remains Draft during canonical Oracle PAPER Release38112518939 so this independent P1 cannot move main during P0 deployment. P0 exact-main deployment is now verified; mark ready only after repaired exact-head CI and independent review."
+
+exact_review_repair_20261011:
+  reviewed_head: 209cd9dbbd73bbaad059be27d8577786c28a247f
+  findings: "Rehashed diagnostics were not derived from bound cost results/adjacency; shared domains did not match constructors; reference SMA aliases compared raw names."
+  repair: "Independent diagnostic recomputation; existing constructor domains enforced in shared input semantics; semantic reference alias comparison; expose already-computed OOS benchmark and excess instead of implicit zero."
+  regression: "63/63 PASS after final repair, including rehashed diagnostic tampering, valid-then-invalid rehashed domain receipts, cross-spelling SMA reference, cost stress and deterministic replay."
+  actual_runtime_predecessor: "P0 Oracle release 38112518939 succeeded; protected main and actual runtime be703b22 agree. Ledger fingerprint/open period identity survived restart; Learning rollover still CANONICAL_FILL_LEDGER_UNAVAILABLE."
+  acceptance: "New exact-head CI and Independent Audit required. Synthetic regression output is not actual PAPER/OOS investment evidence."
+
+benchmark_review_repair_20261011:
+  reviewed_head: 51c5d8963c5c861bdaede74806d6435d6f51cf9b
+  current_base: ca4f897dd476d1238682a38d618c9569bac19e52
+  root_cause: "Verifier trusted reported OOS excess and defaulted missing benchmark values to zero."
+  repair: "Require finite bound OOS returns for every cost condition, enforce exact net-minus-benchmark excess, derive the diagnostic from those returns."
+  validation: "64/64 focused tests PASS including red-green missing/rehashed contradictory/non-finite OOS benchmark regression; synthetic fixtures only."
+  next: "Current repaired exact-head CI, Independent Audit, governed Release/merge."
+
+qualification_boundary_review_repair_20261011:
+  reviewed_head: 78fecbdea2654bb51775d65a01d21ce4b394324f
+  repair: "Every grid result must be EVALUATED; all bound cost records validated regardless of mutable status; full-sample net/benchmark/excess arithmetic bound; emit canonical family parameters; reject multiple references for one candidate before evaluation to match existing qualification cardinality."
+  validation: "67/67 robustness plus25/25 production qualification/wiring regressions PASS; no policy or threshold changes."
+  existing_helper_convergence: "Removed unused generic parameter copier; shared canonicalFamilyParameters is the sole family-input contract."
+  next: "New exact-head CI and Independent Audit; prior review/CI superseded."
+
+review_identity_both_repair_20261011:
+  base_sha: 722b487383fe19a8c4e025bb82a6a63da43601f2
+  findings: "Independent review on7a18: resealed noncanonical generic keys/sources accepted; BOTH skipped full-sample evidence."
+  validation: "Two new regressions reproduced PASS instead of FAIL; repaired verifier69/69 robustness tests PASS. Preflight/lint/diff PASS."
+  remaining: "Fresh exact-head CI and independent acceptance; GitHub Codex review capacity currently exhausted on1818. No acceptance inferred."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

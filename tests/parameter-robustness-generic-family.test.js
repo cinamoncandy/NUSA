@@ -3,6 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { runParameterRobustnessRequest } = require("../scripts/lib/parameter-robustness-runner.js");
 const { verifyParameterRobustnessResult } = require("../scripts/lib/parameter-robustness-verifier.js");
+const { canonicalHash } = require("../scripts/lib/canonical-hash.js");
 
 function candle(openTime, close) {
   return { market: "KRW-BTC", interval: "1m", openTime, closeTime: openTime + 60_000, open: close, high: close + 5, low: close - 5, close, volume: 1 };
@@ -44,6 +45,12 @@ test("generic robustness evaluates the exact precommitted RSI grid and verifies 
   assert.equal(result.status, "PASS", result.failures.join(","));
   assert.equal(result.strategyFamily, "rsi-mean-reversion");
   assert.equal(result.candidates.length, 4);
+  for (const candidate of result.candidates) {
+    for (const cost of Object.values(candidate.costResults)) {
+      assert.ok(Number.isFinite(cost.oos.compoundedBenchmarkReturn));
+      assert.equal(cost.oos.benchmarkExcessReturn, cost.oos.compoundedReturn - cost.oos.compoundedBenchmarkReturn);
+    }
+  }
   assert.deepEqual(result.candidates.map((candidate) => candidate.candidateKey), ["rsi-14-25-75", "rsi-14-30-70", "rsi-7-25-75", "rsi-7-30-70"]);
   assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
 });
@@ -80,4 +87,264 @@ test("generic robustness evaluates the exact precommitted Donchian grid and veri
   assert.equal(result.candidates.length, 5);
   assert.deepEqual(result.candidates.map((candidate) => candidate.candidateKey), ["donchian-10", "donchian-20", "donchian-30", "donchian-40", "donchian-55"]);
   assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+});
+
+test("different candidate names cannot multiply the same parameter evidence", () => {
+  const input = request();
+  input.candidateGrid.push({ ...structuredClone(input.candidateGrid[0]), key: "duplicate", neighbors: [] });
+  const result = runParameterRobustnessRequest(input);
+  assert.equal(result.status, "FAIL");
+  assert.equal(result.candidates.length, 0, "reject before evaluating any candidate");
+  assert.match(result.failures.join(";"), /duplicate.*parameters/i);
+});
+
+for (const [name, mutate] of [
+  ["missing parameter must not invoke a constructor default", (input) => { delete input.candidateGrid[0].parameters.period; }],
+  ["unknown parameter must not be ignored", (input) => { input.candidateGrid[0].parameters.unused = 1; }],
+  ["whitespace parameter must not be silently renamed", (input) => { input.candidateGrid[0].parameters[" period"] = 9; }],
+  ["non-finite parameter must fail closed", (input) => { input.candidateGrid[0].parameters.period = NaN; }],
+  ["numeric string must not become a parameter", (input) => { input.candidateGrid[0].parameters.period = "7"; }],
+  ["null grid row must fail closed", (input) => { input.candidateGrid.push(null); }],
+  ["non-array grid must fail closed", (input) => { input.candidateGrid = {}; }],
+  ["whitespace candidate key must not become another identity", (input) => { input.candidateGrid[0].key = " padded "; }],
+]) {
+  test(name, () => {
+    const input = request();
+    mutate(input);
+    // A matching reference must not conceal a missing/unused parameter contract.
+    if (Array.isArray(input.candidateGrid) && input.candidateGrid[0]?.parameters) {
+      input.referenceParameters[1].parameters = structuredClone(input.candidateGrid[0].parameters);
+    }
+    const result = runParameterRobustnessRequest(input);
+    assert.equal(result.status, "FAIL");
+    assert.equal(result.candidates.length, 0);
+  });
+}
+
+test("reference evidence binds source AND candidate, not the first matching source", () => {
+  const input = request();
+  input.referenceParameters[1].source = input.referenceParameters[0].source;
+  const result = runParameterRobustnessRequest(input);
+  assert.equal(result.status, "PASS");
+  assert.deepEqual(verifyParameterRobustnessResult(input, result), { status: "PASS", errors: [] });
+  result.references.push(structuredClone(result.references[0]));
+  assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL");
+});
+
+test("SMA aliases preserve valid input but cannot masquerade as a distinct candidate", () => {
+  const input = request();
+  input.strategyFamily = "sma-crossover";
+  input.candidateGrid = [
+    { key: "canonical", parameters: { shortPeriod: 5, longPeriod: 20 }, neighbors: ["legacy"] },
+    { key: "legacy", parameters: { shortWindow: 10, longWindow: 30 }, neighbors: ["canonical"] },
+  ];
+  input.referenceParameters = input.candidateGrid.map((entry) => ({ source: "MANUAL_RESEARCH_REFERENCE", candidateKey: entry.key, parameters: entry.parameters }));
+  const valid = runParameterRobustnessRequest(input);
+  assert.equal(valid.status, "PASS", valid.failures.join(";"));
+  assert.equal(verifyParameterRobustnessResult(input, valid).status, "PASS");
+  input.candidateGrid[1].parameters.shortWindow = 5;
+  input.candidateGrid[1].parameters.longWindow = 20;
+  const duplicate = runParameterRobustnessRequest(input);
+  assert.equal(duplicate.status, "FAIL");
+  assert.match(duplicate.failures.join(";"), /duplicate strategy parameters/);
+});
+
+test("SMA conflicting aliases and duplicate references are rejected before evaluation", () => {
+  const input = request();
+  input.strategyFamily = "sma-crossover";
+  input.candidateGrid = [{ key: "ambiguous", parameters: { shortPeriod: 5, shortWindow: 10, longPeriod: 20 }, neighbors: [] }];
+  const ref = { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "ambiguous", parameters: input.candidateGrid[0].parameters };
+  input.referenceParameters = [ref, structuredClone(ref)];
+  const result = runParameterRobustnessRequest(input);
+  assert.equal(result.status, "FAIL");
+  assert.match(result.failures.join(";"), /ambiguous strategy parameter/);
+  assert.match(result.failures.join(";"), /duplicate source\/candidate identity/);
+});
+
+test("independent verification rejects malformed and mismatched family receipts", () => {
+  const input = donchianRequest();
+  const valid = runParameterRobustnessRequest(input);
+  for (const mutate of [
+    (r) => { r.strategyFamily = "rsi-mean-reversion"; },
+    (r) => { r.requestId = "different-request"; },
+    (r) => { r.references[0].familyId = "sma-crossover"; },
+    (r) => { r.costConditions[2].feeRate *= 2; },
+    (r) => { r.candidates = null; },
+    (r) => { r.references.push(null); },
+    (r) => { r.references.pop(); },
+    (r) => { r.candidates[0].costResults = null; },
+  ]) {
+    const corrupted = structuredClone(valid);
+    mutate(corrupted);
+    assert.equal(verifyParameterRobustnessResult(input, corrupted).status, "FAIL");
+  }
+  assert.deepEqual(runParameterRobustnessRequest(input), valid, "unchanged input has deterministic output");
+});
+
+test("rehashing a duplicate family configuration cannot make its evidence valid", () => {
+  const input = request();
+  const result = runParameterRobustnessRequest(input);
+  input.candidateGrid[1].parameters = structuredClone(input.candidateGrid[0].parameters);
+  result.candidates.find((candidate) => candidate.candidateKey === input.candidateGrid[1].key).parameters = structuredClone(input.candidateGrid[1].parameters);
+  result.hashes.requestSha256 = canonicalHash(input);
+  result.hashes.neighborhoodGridSha256 = canonicalHash(input.candidateGrid);
+  result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+  const verification = verifyParameterRobustnessResult(input, result);
+  assert.equal(verification.status, "FAIL");
+  assert.ok(verification.errors.includes("request contains duplicate strategy parameters"));
+});
+
+test("SMA reference aliases match the candidate's semantic parameters", () => {
+  const input = request();
+  input.strategyFamily = "sma-crossover";
+  input.candidateGrid = [{ key: "sma", parameters: { shortPeriod: 5, longPeriod: 20 }, neighbors: [] }];
+  input.referenceParameters = [{ source: "PRODUCTION_DEFAULT", candidateKey: "sma", parameters: { shortWindow: 5, longWindow: 20 } }];
+  const result = runParameterRobustnessRequest(input);
+  assert.equal(result.status, "PASS", result.failures.join(";"));
+  assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+  assert.deepEqual(result.references[0].parameters, { shortPeriod: 5, longPeriod: 20 });
+});
+
+test("rehashed invalid strategy domains fail closed in runner and verifier", () => {
+  for (const [family, invalid] of [
+    ["rsi-mean-reversion", { period: 1, oversold: 30, overbought: 70 }],
+    ["rsi-mean-reversion", { period: 2.5, oversold: 30, overbought: 70 }],
+    ["rsi-mean-reversion", { period: 14, oversold: 70, overbought: 30 }],
+    ["rsi-mean-reversion", { period: 14, oversold: 0, overbought: 100 }],
+    ["sma-crossover", { shortPeriod: 1, longPeriod: 20 }],
+    ["sma-crossover", { shortPeriod: 5.5, longPeriod: 20 }],
+    ["sma-crossover", { shortPeriod: 20, longPeriod: 5 }],
+    ["donchian-breakout", { channelPeriod: 1 }],
+    ["donchian-breakout", { channelPeriod: 2.5 }],
+  ]) {
+    const input = request();
+    input.strategyFamily = family;
+    const validParameters = family === "rsi-mean-reversion" ? { period: 14, oversold: 30, overbought: 70 }
+      : family === "sma-crossover" ? { shortPeriod: 5, longPeriod: 20 } : { channelPeriod: 20 };
+    input.candidateGrid = [{ key: "bound", parameters: validParameters, neighbors: [] }];
+    input.referenceParameters = [{ source: "PRODUCTION_DEFAULT", candidateKey: "bound", parameters: validParameters }];
+    const result = runParameterRobustnessRequest(input);
+    assert.equal(result.status, "PASS");
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+    input.candidateGrid[0].parameters = result.candidates[0].parameters = invalid;
+    input.referenceParameters[0].parameters = result.references[0].parameters = invalid;
+    result.hashes.requestSha256 = canonicalHash(input);
+    result.hashes.neighborhoodGridSha256 = canonicalHash(input.candidateGrid);
+    result.hashes.referenceParametersSha256 = canonicalHash(input.referenceParameters);
+    result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+    result.hashes.referencesSha256 = canonicalHash(result.references);
+    assert.equal(runParameterRobustnessRequest(input).status, "FAIL", family);
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", family);
+  }
+});
+
+test("rehashed reference diagnostics remain bound to candidate returns and adjacency", () => {
+  const input = request();
+  const valid = runParameterRobustnessRequest(input);
+  for (const field of ["referenceReturn", "immediateNeighborCount", "immediateNeighborPositiveRatio",
+    "immediateNeighborBenchmarkOutperformRatio", "allCandidatePositiveRatio", "signReversalRatio", "assessment"]) {
+    const result = structuredClone(valid);
+    result.references[0][field] = field === "assessment" ? "FABRICATED" : result.references[0][field] + 0.123;
+    result.hashes.referencesSha256 = canonicalHash(result.references);
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", field);
+  }
+});
+
+test("rehashed OOS benchmark omissions and contradictions fail closed", () => {
+  const input = request();
+  const valid = runParameterRobustnessRequest(input);
+  assert.equal(verifyParameterRobustnessResult(input, valid).status, "PASS");
+  for (const field of ["compoundedReturn", "compoundedBenchmarkReturn", "benchmarkExcessReturn"]) {
+    for (const value of [undefined, NaN, Infinity, "0", valid.candidates[0].costResults.BASE.oos[field] + 0.25]) {
+      const result = structuredClone(valid);
+      if (value === undefined) delete result.candidates[0].costResults.BASE.oos[field];
+      else result.candidates[0].costResults.BASE.oos[field] = value;
+      result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+      assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", field + ":" + String(value));
+    }
+  }
+});
+
+test("candidate status cannot bypass cost validation after resealing", () => {
+  const input = request();
+  const result = runParameterRobustnessRequest(input);
+  for (const candidate of result.candidates) {
+    candidate.status = "FABRICATED";
+    delete candidate.costResults.MODERATE.oos.compoundedBenchmarkReturn;
+    delete candidate.costResults.SEVERE.oos.compoundedBenchmarkReturn;
+  }
+  result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+  assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL");
+});
+
+test("full-sample benchmark/excess omissions and contradictions fail closed", () => {
+  const input = request();
+  input.evaluation.mode = "FULL_SAMPLE";
+  const valid = runParameterRobustnessRequest(input);
+  assert.equal(verifyParameterRobustnessResult(input, valid).status, "PASS");
+  for (const field of ["benchmarkReturn", "benchmarkExcessReturn"]) {
+    for (const value of [undefined, NaN, valid.candidates[0].costResults.BASE.fullSample[field] + 0.25]) {
+      const result = structuredClone(valid);
+      if (value === undefined) delete result.candidates[0].costResults.BASE.fullSample[field];
+      else result.candidates[0].costResults.BASE.fullSample[field] = value;
+      result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+      assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL");
+    }
+  }
+});
+
+test("one canonical candidate cannot emit ambiguous multi-source qualification references", () => {
+  const input = request();
+  input.referenceParameters.push({ ...structuredClone(input.referenceParameters[0]), source: "WALK_FORWARD_SELECTED" });
+  const result = runParameterRobustnessRequest(input);
+  assert.equal(result.status, "FAIL");
+  assert.match(result.failures.join(";"), /one reference per candidate/);
+});
+
+test("resealed noncanonical generic identities fail closed", () => {
+  for (const kind of ["padded-key", "unknown-source"]) {
+    const input = request();
+    const result = runParameterRobustnessRequest(input);
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+    if (kind === "padded-key") {
+      const old = input.candidateGrid[0].key;
+      const key = " " + old + " ";
+      for (const candidate of input.candidateGrid) {
+        if (candidate.key === old) candidate.key = key;
+        candidate.neighbors = candidate.neighbors.map(item => item === old ? key : item);
+      }
+      for (const candidate of result.candidates) {
+        if (candidate.candidateKey === old) candidate.candidateKey = key;
+        candidate.neighbors = candidate.neighbors.map(item => item === old ? key : item);
+      }
+      for (const ref of [...input.referenceParameters, ...result.references]) if (ref.candidateKey === old) ref.candidateKey = key;
+    } else {
+      input.referenceParameters[0].source = result.references[0].source = "UNKNOWN";
+    }
+    result.hashes.requestSha256 = canonicalHash(input);
+    result.hashes.neighborhoodGridSha256 = canonicalHash(input.candidateGrid);
+    result.hashes.referenceParametersSha256 = canonicalHash(input.referenceParameters);
+    result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+    result.hashes.referencesSha256 = canonicalHash(result.references);
+    assert.equal(runParameterRobustnessRequest(input).status, "FAIL");
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", kind);
+  }
+});
+
+test("BOTH receipts require full-sample evidence independently of OOS", () => {
+  const input = request();
+  input.evaluation.mode = "BOTH";
+  const valid = runParameterRobustnessRequest(input);
+  assert.equal(verifyParameterRobustnessResult(input, valid).status, "PASS");
+  for (const kind of ["missing", "arithmetic"]) {
+    const result = structuredClone(valid);
+    for (const candidate of result.candidates) {
+      for (const evidence of Object.values(candidate.costResults)) {
+        if (kind === "missing") delete evidence.fullSample;
+        else evidence.fullSample.benchmarkExcessReturn += 0.25;
+      }
+    }
+    result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+    assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", kind);
+  }
 });
