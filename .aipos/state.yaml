@@ -3072,19 +3072,31 @@ current_data_2002_dataset_identity:
 
 current_iterative_investment_learning_20261011:
   owner: nusa-data-integrity
-  canonical_pr: 2395
+  completed_pr: 2395
   canonical_learning_issue: 1605
-  source_main_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
-  prior_head: be6702f1667433c2bdf1b310c36c9891f900afe2
+  source_main_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  runtime_sha: ca4f897dd476d1238682a38d618c9569bac19e52
   work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
-  status: REVIEW_REPAIR_LOCAL_PASS_PENDING_EXACT_HEAD_GATES
-  first_broken_transition: current_dataset_identity_to_full_qualification_provenance_binding
-  root_cause: "Qualification previously compared only dataset id/hash, allowing source/market/interval/end-close substitution. Release also stopped on four unresolved review threads."
-  validation: "Scoped TypeScript compiler PASS; focused integrity/qualification 40/40 plus wiring 4/4 PASS; baseline/current red-green regression PASS; preflight, architecture truth, safety, AI and work-order provenance PASS."
-  runtime_evidence: .aipos/evidence/learning-current-chain-20261011.json
+  status: DATA_IDENTITY_IMPLEMENTATION_DEPLOYED_ACTUAL_LEARNING_UNVERIFIED
+  first_broken_transition: pending_period_retained_observations_to_post_restart_benchmark_reconstruction
+  validation: "PR2395 exact-head and protected-main CI/Audit/Release completed; latest-main CI38130954313 and Oracle release38131375100 PASS; current actual runtime SHA matches."
+  runtime_evidence: "Fresh health 2026-10-11T16:09:43.875Z: Ledger81 fills, fingerprint9be0aea43ee8063f9a3027dd4586338c4c9d8413b5bd99f8966e3946f19d2254; realized periods5, rolloverWAITING_FOR_CANONICAL_BOUNDARY, cycles0. Prior CANONICAL_FILL_LEDGER_UNAVAILABLE is not current."
   learning_acceptance_verified: 0
   learning_acceptance_remaining: 7
   improvement: IMPROVEMENT_UNVERIFIED
   verified: false
-  next: "Existing PR2395 fresh exact-head CI/Audit/Release; then exact-main current dataset handoff and real Stage1 retention/benchmark/recovery evidence."
+  next: "Actual Stage1 retained observation range/checksum/benchmark consumption receipt; existing PR2068 ticker regression successor has its own state entry below."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_market_data_ticker_rejection_2068:
+  canonical_pr: 2068
+  branch: market-data/2022-2034-evidence
+  work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
+  work_order_section: ticker_regression_followup_2068_20261011
+  base_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  status: REVIEW_REPAIR_PENDING_CURRENT_HEAD_GATES
+  first_broken_transition: rejected_ticker_to_durable_canonical_observation_regression_evidence
+  repair: "Bind surviving row timestamp/price and exact canonical source fingerprint to the accepted fixture; rejected future/foreign fixtures cannot substitute for it."
+  evidence_scope: "Synthetic regression fixtures only; no actual acceptance claim."
+  next: "Focused regression, exact-head CI, Independent Audit and governed Release/merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

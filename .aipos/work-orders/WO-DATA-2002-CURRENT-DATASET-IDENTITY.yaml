@@ -64,3 +64,10 @@ ticker_regression_followup_2068_20261011:
   focused_validation: "4/4 PASS against the actual current deployed exact-main compiled runtime; fixture events are tests, not actual-market acceptance evidence."
   guards: "Repository portability, platform-independent tests and diff check PASS."
   remaining: "New exact-head CI, Independent Audit, Release/protected merge; no runtime source modification."
+
+ticker_review_repair_20261011:
+  reviewed_head: 9dcdaa6e0df17a2149cd29de762ad45eb51369f4
+  current_base: ca4f897dd476d1238682a38d618c9569bac19e52
+  assertions: "Persisted timestamp/price and exact canonicalUpbitSourceFingerprint must match the accepted fresh fixture."
+  recovery: "Dedicated current_market_data_ticker_rejection_2068 state entry; PR2395 recorded completed/deployed rather than pending."
+  gates: "Fresh focused regression and exact-head CI/Audit/Release required."
