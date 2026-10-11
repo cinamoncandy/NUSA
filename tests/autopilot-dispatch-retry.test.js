@@ -21,7 +21,185 @@ const {
   MAX_RETRY_DELAY_MS,
   retryHint,
   MAX_REPORTED_QUOTA_RETRY_DELAY_MS,
+  boundedRemediationDecision,
+  boundedDecisionDiagnostics,
+  terminalFailureResult,
+  authorizedJsonPost,
 } = require("../scripts/autopilot-dispatch-retry.js");
+
+test("invalid Worker decision preserves HTTP and bounded identity through terminal artifact", async () => {
+  await withOidcEnvironment(async () => {
+    const payload = {
+      status: "CODING_PROPOSAL_FAILED_CLOSED",
+      httpStatus: 503,
+      remediationDecision: { outcome: "FAILED_CLOSED", failureClass: "FUTURE_CLASS", recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3, secret: "must-not-retain" },
+      failureEvidence: { code: "WORKFLOW_NOT_ELIGIBLE", workflowRunId: 123, headSha: "a".repeat(40), workflowName: "Oracle PAPER Release", workflowEvent: "push", token: "example-key" },
+    };
+    let calls = 0;
+    await assert.rejects(() => authorizedJsonPost("https://runner.example.test/coding/propose", { request }, async (url) => {
+      if (String(url).startsWith("https://oidc.example.test/token")) return oidcSuccess();
+      calls += 1;
+      return response(409, payload);
+    }), (error) => {
+      const result = terminalFailureResult(request, error, 10, () => 20);
+      assert.equal(error.message, "CODING_REMEDIATION_DECISION_INVALID");
+      assert.equal(result.httpStatus, 409, "transport status cannot be replaced by payload status");
+      assert.equal(result.workerHttpStatus, 503);
+      assert.equal(result.attempts[0].http_class, "4xx");
+      assert.equal(result.failureEvidence.workflowRunId, 123);
+      assert.equal(result.failureEvidence.headSha, request.headSha);
+      assert.equal(result.failureEvidence.workflowName, "Oracle PAPER Release");
+      assert.equal(result.decisionDiagnostics.failureClass, "FUTURE_CLASS");
+      assert.equal(result.decisionDiagnostics.recovery, "STOP");
+      assert.equal(result.decisionValidationFailure, "SCHEMA_OR_ALLOWLIST_MISMATCH");
+      assert.equal(result.workerStatus, payload.status);
+      assert.equal(result.summary.execution_id, request.executionId);
+      assert.equal(result.summary.dedupe_key, request.dedupeKey);
+      assert.equal(result.status, "FAILED_CLOSED");
+      assert.equal(result.summary.liveAuthority, "NONE");
+      assert.equal(result.summary.productionMutationAllowed, false);
+      assert.equal(result.summary.aiAuthority, "ZERO_AUTHORITY");
+      assert.equal(JSON.stringify(result).includes("must-not-retain"), false);
+      assert.equal(JSON.stringify(result).includes("example-key"), false);
+      return true;
+    });
+    assert.equal(calls, 1);
+  });
+});
+
+test("invalid decision after a bounded retry preserves the full attempt history", async () => {
+  await withOidcEnvironment(async () => {
+    let proposals = 0;
+    const result = await executeGithubActionsRunner(request, "https://runner.example.test/coding/execute", async (url) => {
+      if (String(url).startsWith("https://oidc.example.test/token")) return oidcSuccess();
+      assert.equal(new URL(url).pathname, "/coding/propose");
+      proposals += 1;
+      return proposals === 1
+        ? response(503, { error: "CODING_PROPOSAL_INVALID", remediationDecision: {
+          outcome: "FAILED_TO_REMEDIATE", failureClass: "PROPOSAL_REJECTED",
+          recovery: "REGENERATE_PROPOSAL", retryable: true, attempt: 0, maxAttempts: 3,
+        } })
+        : response(409, { status: "FAILED_CLOSED", remediationDecision: {
+          outcome: "FAILED_CLOSED", failureClass: "FUTURE_CLASS", recovery: "STOP",
+          retryable: false, attempt: 1, maxAttempts: 3,
+        } });
+    }, {
+      validatePatch: () => { throw new Error("unexpected patch"); },
+      publish: () => { throw new Error("unexpected publish"); },
+      sleep: async () => { throw new Error("unexpected wait"); },
+    });
+    assert.equal(proposals, 2);
+    assert.equal(result.status, "FAILED_CLOSED");
+    assert.equal(result.summary.attempts, 2);
+    assert.deepEqual(result.attempts.map((item) => item.attempt), [1, 2]);
+    assert.deepEqual(result.attempts.map((item) => item.http_class), ["5xx", "4xx"]);
+    assert.deepEqual(result.attempts.map((item) => item.decision), ["RETRY", "FAILED_CLOSED"]);
+    assert.deepEqual(result.attempts.map((item) => item.recovery), ["REGENERATE_PROPOSAL", "STOP"]);
+    assert.deepEqual(result.attempts.map((item) => item.retryable), [true, false]);
+    assert.equal(result.attempts[1].failure_class, "FUTURE_CLASS");
+    assert.equal(result.decisionValidationFailure, "SCHEMA_OR_ALLOWLIST_MISMATCH");
+  });
+});
+
+test("terminal attempts record STOP independently of rejected Worker recovery", () => {
+  for (const diagnostics of [null, { failureClass: "FUTURE_CLASS", recovery: "RETRY_BOUNDED" }]) {
+    const error = new Error("CODING_REMEDIATION_DECISION_INVALID");
+    error.decisionDiagnostics = diagnostics;
+    const result = terminalFailureResult(request, error, 10, () => 20);
+    assert.equal(result.attempts[0].recovery, "STOP");
+    assert.equal(result.attempts[0].retryable, false);
+    assert.equal(result.decisionDiagnostics, diagnostics);
+  }
+});
+
+test("valid provider retry and exhaustion preserve transport and upstream status", async () => {
+  await withOidcEnvironment(async () => {
+    let proposals = 0;
+    const result = await executeGithubActionsRunner(request, "https://runner.example.test/coding/execute", async (url) => {
+      if (String(url).startsWith("https://oidc.example.test/token")) return oidcSuccess();
+      assert.equal(new URL(url).pathname, "/coding/propose");
+      proposals += 1;
+      return response(409, { error: "CODING_PROVIDER_UNAVAILABLE", httpStatus: 503, remediationDecision: {
+        outcome: "FAILED_TO_REMEDIATE", failureClass: "PROVIDER_FAILURE", recovery: "RETRY_BOUNDED", retryable: true, attempt: 0, maxAttempts: 3,
+      } });
+    }, {
+      validatePatch: () => { throw new Error("unexpected patch"); },
+      publish: () => { throw new Error("unexpected publish"); },
+      sleep: async () => {},
+    });
+    assert.equal(proposals, 3);
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
+    assert.equal(result.httpStatus, 409);
+    assert.equal(result.workerHttpStatus, 503);
+    assert.deepEqual(result.attempts.map((item) => item.http_status), [409, 409, 409]);
+    assert.deepEqual(result.attempts.map((item) => item.worker_http_status), [503, 503, 503]);
+    assert.deepEqual(result.attempts.map((item) => item.worker_http_class), ["5xx", "5xx", "5xx"]);
+    assert.deepEqual(result.attempts.map((item) => item.recovery), ["RETRY_BOUNDED", "RETRY_BOUNDED", "STOP"]);
+    assert.deepEqual(result.attempts.map((item) => item.retryable), [true, true, false]);
+    assert.equal(result.summary.productionMutationAllowed, false);
+    assert.equal(result.summary.aiAuthority, "ZERO_AUTHORITY");
+  });
+});
+
+test("actual Worker decisions retain governance and credential STOP while admitting bounded repair", () => {
+  const { decideCodingRunnerNoAction } = require("../dist/apps/autopilot/src/codingRunnerRemediation.js");
+  for (const [reason, httpStatus] of [
+    ["AUDIT_BLOCKED", 503], ["RELEASE_BLOCKED", 503], ["DEPLOYMENT_FAILURE", 503],
+    ["PERMISSION_FAILURE", 429], ["CREDENTIAL_UNAVAILABLE", 401], ["HUMAN_ONLY", 403],
+    ["EXTERNAL_DEPENDENCY", 503], ["CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN", 429],
+    ["WORKFLOW_NOT_ELIGIBLE", 503], ["ACTIONABLE_FAILURE_NOT_ALLOWLISTED", 503],
+  ]) {
+    const decision = decideCodingRunnerNoAction(reason, 0, 3, httpStatus);
+    assert.equal(decision.outcome, "FAILED_CLOSED", reason);
+    assert.equal(decision.recovery, "STOP", reason);
+    assert.equal(decision.retryable, false, reason);
+    assert.deepEqual(boundedRemediationDecision(decision), decision, reason);
+  }
+  const repair = decideCodingRunnerNoAction("SANDBOX_BUILD_FAILED", 0, 3);
+  assert.equal(boundedRemediationDecision(repair).retryable, true);
+  const exhausted = decideCodingRunnerNoAction("SANDBOX_BUILD_FAILED", 3, 3);
+  assert.equal(exhausted.retryable, false);
+  assert.equal(boundedRemediationDecision(exhausted), null, "the canonical Worker emits attempt zero; dispatcher owns the retry counter");
+  assert.equal(boundedRemediationDecision({ ...repair, attempt: 1 }), null);
+});
+
+test("Worker terminal vocabulary is accepted only as fail-closed STOP", () => {
+  for (const failureClass of ["AUDIT_BLOCKED", "RELEASE_BLOCKED", "DEPLOYMENT_FAILURE", "PERMISSION_FAILURE", "WORKFLOW_NOT_ELIGIBLE", "AUTHORITY_VIOLATION", "REQUEST_INVALID", "UNKNOWN"]) {
+    const value = { outcome: "FAILED_CLOSED", failureClass, recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3 };
+    assert.deepEqual(boundedRemediationDecision(value), value);
+    assert.equal(boundedRemediationDecision({ ...value, recovery: "RETRY_BOUNDED" }), null);
+    assert.equal(boundedRemediationDecision({ ...value, outcome: "FAILED_TO_REMEDIATE", retryable: true }), null);
+  }
+  assert.equal(boundedRemediationDecision({ outcome: "FAILED_CLOSED", failureClass: "EXTERNAL_DEPENDENCY", recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3 }), null);
+});
+
+test("diagnostic projection rejects arbitrary and credential-like response fields", () => {
+  const result = boundedDecisionDiagnostics({ outcome: "FAILED_CLOSED", failureClass: "TOKEN_SECRET", recovery: "Bearer credential", retryable: false, attempt: 99999, maxAttempts: 99, password: "private" });
+  assert.equal(result.failureClass, null);
+  assert.equal(result.recovery, null);
+  assert.equal(result.attempt, null);
+  assert.equal(result.maxAttempts, null);
+  assert.equal(Object.hasOwn(result, "password"), false);
+});
+
+test("terminal governance and permission decisions never propose again or publish", async () => {
+  await withOidcEnvironment(async () => {
+    for (const failureClass of ["AUDIT_BLOCKED", "RELEASE_BLOCKED", "DEPLOYMENT_FAILURE", "PERMISSION_FAILURE", "WORKFLOW_NOT_ELIGIBLE", "AUTHORITY_VIOLATION"]) {
+      let calls = 0;
+      const result = await executeGithubActionsRunner(request, "https://runner.example.test/coding/execute", async (url) => {
+        if (String(url).startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        assert.match(String(url), /coding\/propose$/);
+        calls += 1;
+        return response(403, { error: failureClass, status: "CODING_PROPOSAL_FAILED_CLOSED", remediationDecision: { outcome: "FAILED_CLOSED", failureClass, recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3 } });
+      }, { initialProposalContext: () => null });
+      assert.equal(calls, 1);
+      assert.equal(result.status, "FAILED_CLOSED");
+      assert.equal(result.httpStatus, 403);
+      assert.equal(result.attempts[0].failure_class, failureClass);
+      assert.equal(result.summary.aiAuthority, "ZERO_AUTHORITY");
+    }
+  });
+});
 
 const request = Object.freeze({
   kind: "REPOSITORY_AUTOPILOT",
@@ -363,7 +541,13 @@ test("normalizes a non-2xx worker rate-limit stop into waiting without proposal 
         if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
         if (value.endsWith("/coding/propose")) {
           proposalCalls += 1;
-          return response(409, { status: "CODING_PROPOSAL_FAILED_CLOSED", error: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" });
+          return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "WAITING_PROVIDER_CAPACITY",
+            provider: "workers-ai",
+            providerStopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+            nextRetryAt: 90_001_000,
+          });
         }
         if (value.endsWith("/coding/publish")) {
           publishCalls += 1;
@@ -386,9 +570,9 @@ test("normalizes a non-2xx worker rate-limit stop into waiting without proposal 
     assert.equal(result.summary.failedClosed, 0);
     assert.equal(result.provider, "workers-ai");
     assert.equal(result.lastRateLimitAt, 1000);
-    assert.equal(result.nextRetryAt, 2_000);
-    assert.equal(result.retrySource, "bounded-exponential-backoff-jitter");
-    assert.equal(result.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+    assert.equal(result.nextRetryAt, 90_001_000);
+    assert.equal(result.retrySource, "provider-nextRetryAt");
+    assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
     assert.equal(proposalCalls, 1);
     assert.equal(publishCalls, 0);
   });
@@ -426,6 +610,172 @@ test("normalizes a non-2xx shared provider-capacity stop without failing the con
     assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
     // The shared wait's absolute resume time (~100s out) is reported, not the 60s local-retry cap.
     assert.equal(result.rateLimitEvents?.[0]?.nextRetryAt ?? result.nextRetryAt, 1_700_000_100_000);
+    assert.equal(proposalCalls, 1);
+  });
+});
+
+test("consumes the Worker's remediation verdict and regenerates a rejected proposal on the same identity", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let publishCalls = 0;
+    const proposalBodies = [];
+    const remediationDecision = {
+      outcome: "FAILED_TO_REMEDIATE",
+      failureClass: "PROPOSAL_REJECTED",
+      recovery: "REGENERATE_PROPOSAL",
+      retryable: true,
+      attempt: 0,
+      maxAttempts: 3,
+    };
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url, init = {}) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          proposalBodies.push(JSON.parse(init.body));
+          if (proposalCalls === 1) return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "CODING_EDIT_ANCHOR_NOT_FOUND",
+            remediationDecision,
+          });
+          return response(200, { status: "PROPOSAL_READY", patch: "repaired-patch" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          publishCalls += 1;
+          return response(200, {
+            status: "EXECUTION_ACCEPTED",
+            proposalValidated: true,
+            publisher: "github-validated-patch",
+            branch: "autopilot/remediation-test",
+            commitSha: "d".repeat(40),
+            pullRequestNumber: 79,
+            pullRequestUrl: "https://github.com/cinamoncandy/NUSA/pull/79",
+          });
+        }
+        throw new Error("unexpected URL " + value);
+      },
+      {
+        initialProposalContext: () => null,
+        validatePatch(_value, patch) {
+          assert.equal(patch, "repaired-patch");
+          return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
+        },
+      },
+    );
+    assert.equal(result.status, "DISPATCHED");
+    assert.equal(result.codeChanged, true);
+    assert.equal(result.proposalAttempts, 2);
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "DISPATCHED"]);
+    assert.equal(proposalCalls, 2);
+    assert.equal(publishCalls, 1);
+    assert.equal(proposalBodies[0].executionId, request.executionId);
+    assert.equal(proposalBodies[1].executionId, request.executionId);
+    assert.equal(proposalBodies[1].dedupeKey, request.dedupeKey);
+    assert.equal(proposalBodies[1].headSha, request.headSha);
+    assert.match(proposalBodies[1].proposalFeedback, /CODING_EDIT_ANCHOR_NOT_FOUND/);
+  });
+});
+
+test("worker remediation exhaustion is a failure, never successful NO_ACTION", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "CODING_EDIT_ANCHOR_NOT_FOUND",
+            remediationDecision: {
+              outcome: "FAILED_TO_REMEDIATE",
+              failureClass: "PROPOSAL_REJECTED",
+              recovery: "REGENERATE_PROPOSAL",
+              retryable: true,
+              attempt: 0,
+              maxAttempts: 3,
+            },
+          });
+        }
+        throw new Error("publish must not run after failed remediation");
+      },
+      { initialProposalContext: () => null, maxProposalAttempts: 2 },
+    );
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
+    assert.equal(result.reason, "CODING_EDIT_ANCHOR_NOT_FOUND");
+    assert.equal(result.summary.noAction, 0);
+    assert.equal(result.summary.failedClosed, 1);
+    assert.equal(result.proposalRejected, 2, "terminal rejected proposal attempts remain in remediation metrics");
+    assert.equal(result.summary.proposalRejected, 2);
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "FAILED_CLOSED"]);
+    assert.equal(proposalCalls, 2);
+  });
+});
+
+test("provider-capacity state lookup failure stays FAILED_CLOSED instead of becoming a rate-limit wait", async () => {
+  await withOidcEnvironment(async () => {
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) return response(409, {
+          status: "CODING_PROPOSAL_FAILED_CLOSED",
+          error: "PROVIDER_CAPACITY_STATE_UNAVAILABLE",
+          httpStatus: 409,
+          remediationDecision: {
+            outcome: "FAILED_CLOSED",
+            failureClass: "PROVIDER_CAPACITY",
+            recovery: "STOP",
+            retryable: false,
+            attempt: 0,
+            maxAttempts: 3,
+          },
+        });
+        throw new Error("publish must not run after failed-closed capacity-state lookup");
+      },
+      { initialProposalContext: () => null },
+    );
+
+    assert.equal(result.status, "FAILED_CLOSED");
+    assert.equal(result.reason, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
+    assert.equal(result.blockedRateLimit, false);
+    assert.equal(result.summary.failedClosed, 1);
+    assert.equal(result.rateLimitEvents?.length ?? 0, 0);
+  });
+});
+
+test("malformed worker remediation verdict fails closed without retry", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    const result = await executeGithubActionsRunner(
+        request,
+        "https://runner.example.test/coding/execute",
+        async (url) => {
+          const value = String(url);
+          if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+          proposalCalls += 1;
+          return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "CODING_EDIT_ANCHOR_NOT_FOUND",
+            remediationDecision: { outcome: "FAILED_TO_REMEDIATE", retryable: true, maxAttempts: 99 },
+          });
+        },
+        { initialProposalContext: () => null },
+    );
+    assert.equal(result.status, "FAILED_CLOSED");
+    assert.equal(result.reason, "CODING_REMEDIATION_DECISION_INVALID");
+    assert.equal(result.httpStatus, 409);
+    assert.equal(result.summary.failedClosed, 1);
+    assert.equal(result.summary.retries, 0);
+    assert.equal(result.codeChanged, false);
     assert.equal(proposalCalls, 1);
   });
 });
@@ -552,7 +902,7 @@ test("still bounds a generic transient rate limit's reported resume time to the 
   assert.deepEqual(hint, { delayMs: MAX_RETRY_DELAY_MS, source: "provider-nextRetryAt" });
 });
 
-test("retries a temporary provider rate limit using provider retry metadata", async () => {
+test("stops on provider capacity and preserves provider retry metadata", async () => {
   await withOidcEnvironment(async () => {
     const waits = [];
     let proposalCalls = 0;
@@ -565,8 +915,13 @@ test("retries a temporary provider rate limit using provider retry metadata", as
         if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
         if (value.endsWith("/coding/propose")) {
           proposalCalls += 1;
-          if (proposalCalls === 1) return response(429, { error: "WORKERS_AI_RATE_LIMITED", retryAfterMs: 25 });
-          return response(200, { status: "PROPOSAL_READY", patch: "valid-patch" });
+          return response(409, {
+            status: "CODING_PROPOSAL_FAILED_CLOSED",
+            error: "WAITING_PROVIDER_CAPACITY",
+            provider: "configured-coding-engine",
+            providerStopReason: "PROVIDER_RATE_LIMITED",
+            retryAfterMs: 25,
+          });
         }
         if (value.endsWith("/coding/publish")) {
           publishCalls += 1;
@@ -581,13 +936,14 @@ test("retries a temporary provider rate limit using provider retry metadata", as
         jitter: () => 0.5,
       },
     );
-    assert.equal(result.status, "DISPATCHED");
-    assert.deepEqual(waits, [25]);
-    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "DISPATCHED"]);
-    assert.equal(result.proposalAttempts, 2);
-    assert.equal(result.codeChanged, true);
-    assert.equal(proposalCalls, 2);
-    assert.equal(publishCalls, 1);
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.deepEqual(waits, []);
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["NO_ACTION"]);
+    assert.equal(result.proposalAttempts, 1);
+    assert.equal(result.codeChanged, false);
+    assert.equal(proposalCalls, 1);
+    assert.equal(publishCalls, 0);
+    assert.equal(result.nextRetryAt, 1_025);
   });
 });
 
@@ -721,7 +1077,7 @@ test("hunk-count normalization does not fuzz or accept mismatched source context
   }
 });
 
-test("classifies only bounded proposal validation failures as no-action", () => {
+test("classifies only allowlisted proposal validation failures for bounded remediation", () => {
   assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID"), "CODING_PROPOSAL_JSON_INVALID");
   assert.equal(proposalFailureCode("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: malformed diff"), "SANDBOX_PATCH_APPLY_CHECK_FAILED");
   assert.equal(
@@ -899,13 +1255,13 @@ test("stops after one correction repeats the same deterministic apply-check fail
       },
     );
 
-    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
     assert.equal(result.reason, "SANDBOX_PATCH_APPLY_CHECK_FAILED");
     assert.equal(result.proposalAttempts, 2);
     assert.equal(result.proposalRetries, 1);
     assert.equal(result.codeChanged, false);
     assert.equal(proposalCalls, 2);
-    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "NO_ACTION"]);
+    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "FAILED_CLOSED"]);
   });
 });
 
@@ -931,12 +1287,12 @@ test("stops on a repeated deterministic proposal validation failure before anoth
       },
     );
 
-    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
     assert.equal(result.reason, "CODING_PROPOSAL_JSON_INVALID");
     assert.equal(result.proposalAttempts, 2);
     assert.equal(result.proposalRetries, 1);
     assert.equal(proposalCalls, 2);
-    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "NO_ACTION"]);
+    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "FAILED_CLOSED"]);
   });
 });
 
@@ -964,7 +1320,7 @@ test("terminates when the AI repeats the same rejected patch", async () => {
       },
     );
 
-    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.status, "FAILED_TO_REMEDIATE");
     assert.equal(result.reason, "CODING_PROPOSAL_REPEATED");
     assert.equal(result.proposalAttempts, 2);
     assert.equal(proposalCalls, 2);
@@ -1045,6 +1401,8 @@ test("preserves only bounded structured Worker workflow evidence", () => {
     endpoint: "/coding/propose",
     httpStatus: 409,
     workflowRunId: 35336423782,
+    workflowId: null,
+    workflowPath: null,
     workflowName: "Scheduled Autopilot",
     workflowEvent: "schedule",
     workflowStatus: "completed",
@@ -1052,4 +1410,37 @@ test("preserves only bounded structured Worker workflow evidence", () => {
     headSha: "b".repeat(40),
   });
   assert.equal(boundedWorkerFailureEvidence({ failureEvidence: { code: "BAD secret" } }, "https://example.test/coding/propose", 409), null);
+});
+
+
+test("terminal STOP takes precedence over capacity hints and 429", async () => {
+  await withOidcEnvironment(async () => {
+    for (const failureClass of ["AUTHORITY_VIOLATION", "PERMISSION_FAILURE", "AUDIT_BLOCKED", "RELEASE_BLOCKED", "WORKFLOW_NOT_ELIGIBLE", "UNKNOWN"]) {
+      let calls = 0;
+      const result = await executeGithubActionsRunner(request, "https://runner.example.test/coding/execute", async (url) => {
+        if (String(url).startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        calls += 1;
+        return response(429, { error: "PROVIDER_RATE_LIMITED", status: "WAITING_RATE_LIMIT", remediationDecision: { outcome: "FAILED_CLOSED", failureClass, recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3 } });
+      }, { initialProposalContext: () => null });
+      assert.equal(calls, 1);
+      assert.equal(result.status, "FAILED_CLOSED");
+      assert.equal(result.httpStatus, 429);
+      assert.equal(result.remediationDecision.failureClass, failureClass);
+      assert.equal(result.summary.retries, 0);
+    }
+  });
+});
+
+test("malformed non-object Worker response still retains the actual HTTP status", async () => {
+  await withOidcEnvironment(async () => {
+    for (const payload of [null, [], "untrusted response"]) {
+      await assert.rejects(() => authorizedJsonPost("https://runner.example.test/coding/propose", request, async (url) => {
+        return String(url).startsWith("https://oidc.example.test/token") ? oidcSuccess() : response(502, payload);
+      }), error => {
+        assert.equal(error.httpStatus, 502);
+        assert.equal(error.message, "AUTOPILOT_WORKER_HTTP_502");
+        return true;
+      });
+    }
+  });
 });

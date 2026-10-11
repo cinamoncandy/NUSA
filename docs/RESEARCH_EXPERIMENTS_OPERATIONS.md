@@ -37,10 +37,18 @@ full train + validation + holdout days (plus one day of margin) for live collect
 1. Every tick it turns stored public ticker observations into closed 1-minute candles and stores them durably
    (incomplete minutes are dropped; the oldest retained minute is skipped).
 2. Once enough history exists (train + validation + holdout, 11 days by default) it runs, per challenger variant
-   (four SMA parameter sets against an SMA 5/20 research proxy of the PAPER baseline), a VALIDATION experiment and,
+   (four SMA parameter sets, three RSI mean-reversion sets and three Donchian breakout sets, all against an SMA 5/20
+   research proxy of the PAPER baseline), a VALIDATION experiment and,
    only if the challenger wins and the holdout was never used for that configuration, one HOLDOUT experiment.
 3. Each experiment carries full provenance, is ledgered, and feeds the `research` status the app's LEARNING line shows.
 4. A new session per variant starts each KST trading day; the previous day's sessions are stopped.
+5. Strategy families: SMA crossover variants (`sma_<fast>_<slow>`, experiment family `sma-research[-Nm]`) and RSI
+   oversold mean-reversion variants (`rsi_<period>_<threshold>`: RSI 14<30, 14<25, 7<20, take-profit 3%, stop-loss 2%,
+   12-bar time limit; experiment family `rsi-research[-Nm]`). The grids are fixed in code before any result is seen;
+   nothing is tuned on validation or holdout evidence. Donchian breakout variants (`donchian_<period>`: buy when the close
+   breaks above the highest high of the previous 10, 20 or 30 bars, take-profit 3%, stop-loss 2%, 12-bar time limit;
+   experiment family `donchian-research[-Nm]`) are the momentum / breakout family. Each bar length (1m/15m/60m) runs all
+   ten variants.
 
 ## Expectations and limits
 - No experiment can run before about 11 days of candles exist, so the LEARNING line shows candles-driven progress only
@@ -57,7 +65,7 @@ affected. To undo the schema, revert the build; the two extra empty tables are h
 
 ## Verifying after enabling
 Check the service log, in this order:
-1. `[research-experiments] enabled: markets=... variants=4 tickMinutes=...` right after start. A
+1. `[research-experiments] enabled: markets=... variants=10 tickMinutes=...` right after start (4 SMA + 3 RSI + 3 Donchian). A
    `disabled: <reason>` line means a setting is invalid; fix it and restart (nothing ran).
 2. `[research-experiments] tick ...` lines every tick. `started=0 experiments=0` during the first ~11 days is expected
    (not enough candles yet), not a fault.

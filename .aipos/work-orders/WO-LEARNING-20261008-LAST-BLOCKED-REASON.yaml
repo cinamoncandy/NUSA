@@ -1,0 +1,33 @@
+id: WO-LEARNING-20261008-LAST-BLOCKED-REASON
+title: "Keep the last BLOCKED/ERROR reason of the closed-learning loop on /health after later ticks succeed"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/health-last-blocked-reason
+authority_impact: none
+scope_note: "Read-only observability of the loop status (process memory). No write, authority or decision input. The status path is exercised with full unit evidence below; validate:full is left to CI (Node 24 is required)."
+objective: "Make a transient closed-learning failure diagnosable. A blocked cycle is followed within one tick by the stalled-continuation reopen, so rolloverReason was overwritten before anyone could read it."
+first_broken_transition: "learning cycle fails after a durable period close -> /health (2026-10-08: the replacement period closed at 00:21 UTC, the ledger holds cyclesRecorded=0, and the reason the cycle did not complete was already gone from /health)"
+scope:
+  include:
+    - "ClosedLearningLoopStatusTracker keeps lastBlockedReason (fixed code, or BLOCKED_WITHOUT_CODE / TICK_ERROR) and lastBlockedAt of the most recent BLOCKED or ERROR tick of this process, rebuilt on every publish; a later block replaces it; free text never leaves."
+    - "/health publishes the pair only when the reason is a code and the time is a non-negative integer; an unpaired or malformed value is dropped."
+  exclude:
+    - "Any write, persistence, Risk/threshold/capital change, decision input. The value is per process and is not restored after a restart (stated, not claimed)."
+acceptance:
+  - "A BLOCKED reason survives later successful ticks; a later block replaces it; an uncoded block is labelled; an error tick (including the very first) is recorded."
+  - "/health accepts the code+time pair and drops anything unpaired or malformed."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js"
+evidence:
+  local_validation: "tsc clean; closed-learning-loop-status + liveness-health tests pass (Node 22 sandbox)."
+  remaining: "Exact-head CI, independent Audit and Release; after merge deploy once and then do NOT restart before the 15:00 UTC (KST day) rollover, so a failing cycle's reason is still readable on /health."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

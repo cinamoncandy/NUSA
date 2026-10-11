@@ -4,7 +4,7 @@ import {
   assertDeterministicReplay, assertFeatureBinding, assertSegmentIsolation, evidenceFingerprint,
   featureFingerprint, oosReuseFingerprint, validateEvidenceProvenance, validatePointInTimeBoundary,
   assertResearchUniverseDatasetBinding, assertResearchUniverseDatasetSetBinding, assertResearchUniverseReplay, researchUniverseFingerprint,
-  validateResearchUniverseProvenance
+  validateResearchUniverseProvenance, requireCurrentResearchDatasetIdentity
 } from "../apps/desktop/src/cloud/researchIntegrity.ts";
 
 const D = "a".repeat(64), G = "b".repeat(40);
@@ -61,7 +61,7 @@ test("real-market runner binds canonical integrity before factory qualification"
   assert.match(source,/datasetFingerprint:\s*manifest\.contentSha256/);
   assert.match(source,/featureFingerprint\(featureIdentity\)/);
   assert.match(source,/validateEvidenceProvenance\(provenance,\s*\{\s*promotionEligible:\s*true\s*\}\)/);
-  assert.match(source,/validateEvidenceProvenance[\s\S]*qualifyResearchFactoryRun\(league\)/);
+  assert.match(source,/validateEvidenceProvenance[\s\S]*qualifyResearchFactoryRun\(league, primaryDataset\.currentDatasetIdentity\)/);
   assert.match(source,/evidenceKind:\s*"REAL"/);
 });
 
@@ -166,4 +166,32 @@ test("universe dataset set must be available before evaluation and cover every e
     },manifests,{decisionAt:400}),
     /SURVIVORSHIP_BIAS:constituent_not_eligible_for_full_period/,
   );
+});
+
+
+test("current dataset identity accepts exact manifest-bound freshness evidence", () => {
+  const manifest = {
+    schemaVersion:1 as const, datasetId:"upbit_KRW-BTC_60m_current", source:"upbit-public-api", market:"KRW-BTC", interval:"60m" as const,
+    candleCount:2, startOpenTime:0, endCloseTime:7_200_000, timezone:"UTC" as const, ordering:"OPEN_TIME_ASC" as const,
+    missingCandlePolicy:"REJECT" as const, missingCandleCount:0, createdAt:"2026-09-30T00:00:00.000Z", contentSha256:D
+  };
+  const freshness = { source:"upbit-public-api" as const, market:"KRW-BTC", interval:"60m" as const, asOf:7_500_000,
+    expectedLatestCloseTime:7_200_000, actualLatestCloseTime:7_200_000, lagIntervals:0, fresh:true };
+  const identity = requireCurrentResearchDatasetIdentity({ manifest, freshness, observedAt:7_500_000 });
+  assert.equal(identity.status, "CURRENT");
+  assert.equal(identity.datasetFingerprint, D);
+});
+
+test("current dataset identity fails closed for unbound or malformed freshness evidence", () => {
+  const manifest = {
+    schemaVersion:1 as const, datasetId:"upbit_KRW-BTC_60m_current", source:"upbit-public-api", market:"KRW-BTC", interval:"60m" as const,
+    candleCount:2, startOpenTime:0, endCloseTime:7_200_000, timezone:"UTC" as const, ordering:"OPEN_TIME_ASC" as const,
+    missingCandlePolicy:"REJECT" as const, missingCandleCount:0, createdAt:"2026-09-30T00:00:00.000Z", contentSha256:D
+  };
+  const freshness = { source:"upbit-public-api" as const, market:"KRW-BTC", interval:"60m" as const, asOf:7_500_000,
+    expectedLatestCloseTime:7_200_000, actualLatestCloseTime:7_200_000, lagIntervals:0, fresh:true };
+  assert.throws(() => requireCurrentResearchDatasetIdentity({ manifest, freshness:{...freshness, interval:"240m" as const}, observedAt:7_500_000 }), /FRESHNESS_BINDING_MISMATCH/);
+  assert.throws(() => requireCurrentResearchDatasetIdentity({ manifest, freshness:{...freshness, actualLatestCloseTime:3_600_000, lagIntervals:1, fresh:false}, observedAt:7_500_000 }), /OBSERVATION_MISMATCH/);
+  assert.throws(() => requireCurrentResearchDatasetIdentity({ manifest, freshness:{...freshness, fresh:"false" as unknown as boolean}, observedAt:7_500_000 }), /STALE_CURRENT_DATASET/);
+  assert.throws(() => requireCurrentResearchDatasetIdentity({ manifest:{...manifest, contentSha256:""}, freshness, observedAt:7_500_000 }), /INVALID_CURRENT_DATASET_IDENTITY/);
 });

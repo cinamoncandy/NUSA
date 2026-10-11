@@ -642,3 +642,41 @@ test("parameter diagnostic substitution fails closed when verified references ha
   assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
   assert.ok(result.candidates[0].reasons.includes("PARAMETER_ROBUSTNESS_RESULT_BINDING_REQUIRED"));
 });
+
+test("current dataset identity binds source, market, interval and latest completed candle at qualification", () => {
+  const value = run();
+  const dataset = value.provenance.dataset;
+  const identity = {
+    datasetId: dataset.datasetId,
+    datasetFingerprint: dataset.contentSha256,
+    source: dataset.source,
+    market: dataset.market,
+    interval: dataset.interval,
+    endCloseTime: dataset.endCloseTime,
+    observedAt: dataset.endCloseTime + 1,
+    expectedLatestCloseTime: dataset.endCloseTime,
+    actualLatestCloseTime: dataset.endCloseTime,
+    lagIntervals: 0,
+    fresh: true,
+    status: "CURRENT",
+  };
+  assert.equal(qualifyResearchFactoryRun(value, identity).candidates[0].outcome, "QUALIFIED_FOR_LEAGUE");
+  for (const [field, mismatch] of [
+    ["datasetId", "foreign-dataset"], ["datasetFingerprint", "0".repeat(64)],
+    ["source", "foreign-source"], ["market", "KRW-XRP"], ["interval", "60m"],
+    ["endCloseTime", dataset.endCloseTime + 1],
+    ["expectedLatestCloseTime", dataset.endCloseTime + 1],
+    ["actualLatestCloseTime", dataset.endCloseTime + 1],
+    ["fresh", false], ["fresh", "true"], ["lagIntervals", 1], ["status", "STALE"],
+    ["observedAt", dataset.endCloseTime - 1], ["observedAt", NaN],
+  ]) {
+    assert.throws(() => qualifyResearchFactoryRun(value, { ...identity, [field]: mismatch }),
+      /current research dataset identity does not match qualification provenance/, field);
+  }
+  for (const field of ["source", "market", "interval", "endCloseTime"]) {
+    const missing = { ...identity };
+    delete missing[field];
+    assert.throws(() => qualifyResearchFactoryRun(value, missing),
+      /current research dataset identity does not match qualification provenance/, field);
+  }
+});

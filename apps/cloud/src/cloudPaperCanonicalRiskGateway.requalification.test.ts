@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
-const EXPECTED_RISK_BLOB = "e2876443ea0f9b340d47b06fc89d7865c692452a";
+const EXPECTED_RISK_BLOB = "392175413cb7843889d47331fad1b997d3bdf838";
 
 function committedGitBlobSha(path: string): string {
   return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
@@ -39,9 +39,12 @@ describe("RISK exact-source re-qualification evidence", () => {
     assert.doesNotMatch(source, /payloadFingerprint:\s*"PENDING"/);
   });
 
-  it("re-qualifies the consecutive-loss streak as scoped to the current UTC trading day", () => {
+  it("re-qualifies the consecutive-loss streak as scoped to the current canonical (Asia/Seoul) trading day", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
     assert.match(source, /const completed = \[\.\.\.sellOrders\.values\(\)\]\.filter\(\(sell\) => dayOf\(sell\.filledAt\) === today\)/);
+    assert.match(source, /const dayOf = \(timestamp: number\): string => paperTradingDayKey\(timestamp\);/, "one canonical trading day, not a local UTC day");
+    assert.match(readFileSync("apps/cloud/src/paperTradingDay.ts", "utf8"), /tradingDayKey\(timestamp\)/, "the helper delegates to the canonical Asia\/Seoul trading day");
+    assert.doesNotMatch(source, /toISOString\(\)\.slice\(0, 10\)/);
     // The unmatched-sell fail-closed path is unchanged.
     assert.match(source, /consecutiveLossCount: Number\.MAX_SAFE_INTEGER/);
   });

@@ -196,6 +196,12 @@ test("the owner research file turns the research experiments on over the host en
     assert.throws(() => readOwnerResearch(write(bad)), /owner research file is invalid/);
   }
   assert.equal(readOwnerResearch(path.join(dir, "missing.json")), null);
+  assert.deepEqual([...owner.intervalMinutes], [1, 15, 60], "owner decision 2026-10-06: compare longer bars in research");
+  assert.equal(off.env.NUSA_RESEARCH_INTERVAL_MINUTES, "1,15,60");
+  assert.equal(build({}, TOKEN, null, null, { experiments: true }).env.NUSA_RESEARCH_INTERVAL_MINUTES, undefined, "no list, research default (1m) stays");
+  for (const bad of [{ schemaVersion: 1, experiments: true, intervalMinutes: [] }, { schemaVersion: 1, experiments: true, intervalMinutes: [5] }, { schemaVersion: 1, experiments: true, intervalMinutes: [60, 60] }, { schemaVersion: 1, experiments: true, intervalMinutes: "60" }]) {
+    assert.throws(() => readOwnerResearch(write(bad)), /owner research file is invalid/);
+  }
   // The runtime still needs a valid build commit, so the switch alone cannot enable it on a malformed deploy.
   const { readResearchExperimentSettings } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
   assert.equal(readResearchExperimentSettings(off.env).status, "INVALID");

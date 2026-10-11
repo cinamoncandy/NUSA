@@ -1,10 +1,11 @@
 /**
  * Pure state for the NUSA flow-field hero. No imports, so tests can transpile it alone.
  *
- * The figure ("능선", owner-chosen 2026-10-06): a receding landscape of hairline ridges flowing toward the viewer. Driven by runtime facts:
- * - each new decision sends a bright wave from the horizon rolling forward through the ridges;
- * - each new PAPER order raises a peak in the landscape with a lime light beam, and its ridge glows lime, then it settles;
- * - a held / halted runtime tints the white figure amber / red (halted also slows the flow to a near stop).
+ * The figure ("흐름", owner-chosen 2026-10-07 from reference videos): hairline data streams flowing into glowing particle clusters,
+ * one cluster per stage of the chain market -> research -> risk -> paper -> ledger. Driven by runtime facts:
+ * - each new decision sends a bright pulse down the chain, lighting each stream and cluster in turn;
+ * - each new PAPER order ignites the paper cluster with a lime ring and light beam, and its hand-off stream to the ledger glows lime;
+ * - a held / halted runtime tints risk onward amber / red; a halt also dims the streams out of risk and nearly stops the flow.
  * Everything moves with elapsed time; it stops entirely under reduce-motion.
  */
 export type HoloTone = "normal" | "hold" | "halt";
@@ -27,9 +28,13 @@ export interface HoloState {
   readonly markRow: number | null;
   readonly decisionCount: number | null;
   readonly fillCount: number | null;
+  /** When the latest PAPER order was observed; the ring, sparks and beam are pure functions of its age. Null before any order. */
+  readonly orderBornMs: number | null;
 }
 
 export const HOLO_WAVE_MS = 2600;
+/** How long a PAPER order's ring, sparks and beam last. */
+export const HOLO_ORDER_MS = 3600;
 export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "lime" | "fill" | "hold" | "halt" | "ink", Rgb>> = Object.freeze({
   // The figure itself is cool white ink (after the owner's reference); lime is the one accent, for the order band and its marker.
   // The emerald ramp names are kept for the tint maths and the tests that pin it. Status tints (fill / hold / halt) stay unmistakable.
@@ -50,7 +55,7 @@ export const HOLO_BIRTH_MS = 1700;
 export const easeOutCubic = (t: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 
 export function initialHoloState(): HoloState {
-  return Object.freeze({ spin: 0, burst: 0, burstTarget: 0, flash: 0, flashColor: HOLO_COLORS.ink, waves: Object.freeze([]), birth: 0, tintMix: 0, markRow: null, decisionCount: null, fillCount: null });
+  return Object.freeze({ spin: 0, burst: 0, burstTarget: 0, flash: 0, flashColor: HOLO_COLORS.ink, waves: Object.freeze([]), birth: 0, tintMix: 0, markRow: null, decisionCount: null, fillCount: null, orderBornMs: null });
 }
 
 /** Fibonacci sphere: evenly spread unit vectors. */
@@ -70,10 +75,10 @@ export function waveFor(decision: number, nowMs: number): HoloWave {
   return Object.freeze({ bornMs: nowMs, ax: Math.sin(ph) * Math.cos(th), ay: Math.cos(ph), az: Math.sin(ph) * Math.sin(th), amp: 0.09 });
 }
 
-/** The ridge row (0..RIDGE_ROWS-1) a decision is associated with, so successive decisions land on different rows. */
+/** A stable slot (0..47) a decision is associated with, so successive decisions are distinguishable. */
 export function waveRow(wave: HoloWave): number {
   const turn = ((Math.atan2(wave.az, wave.ax) / (Math.PI * 2) + 0.5) % 1 + 1) % 1;
-  return Math.min(RIDGE_ROWS - 1, Math.floor(turn * RIDGE_ROWS));
+  return Math.min(47, Math.floor(turn * 48));
 }
 
 /**
@@ -92,7 +97,7 @@ export function observeHolo(state: HoloState, decisionCount: number | null, fill
     for (let i = 0; i < newDecisions; i += 1) waves.push(waveFor(decisionCount - i, nowMs - i * 400));
     next = Object.freeze({ ...next, waves: Object.freeze(waves.slice(-6)), flash: Math.max(next.flash, 0.25), markRow: waveRow(waves[waves.length - newDecisions]!) });
   }
-  if (fillCount > state.fillCount) next = Object.freeze({ ...next, burstTarget: 1, flash: 1, flashColor: HOLO_COLORS.fill });
+  if (fillCount > state.fillCount) next = Object.freeze({ ...next, burstTarget: 1, flash: 1, flashColor: HOLO_COLORS.fill, orderBornMs: nowMs });
   return Object.freeze({ ...next, decisionCount, fillCount });
 }
 
@@ -114,7 +119,8 @@ export function tickHolo(state: HoloState, tone: HoloTone, dtMs: number, nowMs: 
   const tintStep = 1 - Math.pow(0.92, dtMs / 84);
   const tintMix = Math.abs(tintTarget - state.tintMix) < 0.002 ? tintTarget : state.tintMix + (tintTarget - state.tintMix) * tintStep;
   const waves = state.waves.filter((wave) => nowMs - wave.bornMs < HOLO_WAVE_MS);
-  return Object.freeze({ ...state, spin, burst, burstTarget, flash, birth, tintMix, waves: waves.length === state.waves.length ? state.waves : Object.freeze(waves) });
+  const orderBornMs = state.orderBornMs != null && nowMs - state.orderBornMs >= HOLO_ORDER_MS ? null : state.orderBornMs;
+  return Object.freeze({ ...state, spin, burst, burstTarget, flash, birth, tintMix, orderBornMs, waves: waves.length === state.waves.length ? state.waves : Object.freeze(waves) });
 }
 
 /** Wave displacement at a unit point. */
@@ -161,73 +167,175 @@ export const HOLO_QUIET_FRAME_MS = 56;
 export const holoFrameBudgetMs = (quiet: boolean): number => (quiet ? HOLO_QUIET_FRAME_MS : HOLO_ACTIVE_FRAME_MS);
 
 // ---------------------------------------------------------------------------------------------------------------------------------
-// The flow field. All geometry is in fractions of the (square) canvas: x to the right, y downward, both 0..1.
+// The flow field ("흐름", owner-chosen 2026-10-07 from reference videos): hairline data streams flowing into glowing particle clusters,
+// one cluster per stage of NUSA's canonical chain. All geometry is in fractions of the (square) canvas: x to the right, y downward.
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-// ---- Ridge landscape (owner-chosen 2026-10-06, "능선") -------------------------------------------------------------------
-// A receding landscape of hairline ridges flowing toward the viewer. All coordinates are 0..1 of a square canvas.
-export const RIDGE_ROWS = 48;
-export const RIDGE_COLS = 72;
-export const RIDGE_HORIZON = 0.2;
-export const RIDGE_NEAR = 0.97;
-/** Where a PAPER order rises: a depth on the landscape and a column just right of centre. */
-export const RIDGE_ORDER_DEPTH = 0.42;
-export const RIDGE_ORDER_U = 0.56;
-/** How fast the landscape slides toward the viewer, in rows per second of the flow clock. */
-export const RIDGE_SLIDE = 1.7;
+export type FlowNodeId = "market" | "research" | "risk" | "paper" | "ledger";
+export interface FlowNode { readonly id: FlowNodeId; readonly label: string; readonly x: number; readonly y: number; readonly r: number; readonly count: number; readonly color: Rgb }
+/** The chain, in order. Colour is the figure's cool white with one muted accent each for research (gold) and risk (teal). */
+export const FLOW_NODES: readonly FlowNode[] = Object.freeze([
+  Object.freeze({ id: "market", label: "market", x: 0.18, y: 0.3, r: 0.11, count: 520, color: [236, 240, 248] as const }),
+  Object.freeze({ id: "research", label: "research", x: 0.68, y: 0.18, r: 0.12, count: 600, color: [232, 200, 132] as const }),
+  Object.freeze({ id: "risk", label: "risk", x: 0.82, y: 0.52, r: 0.09, count: 400, color: [156, 232, 222] as const }),
+  Object.freeze({ id: "paper", label: "paper", x: 0.56, y: 0.74, r: 0.1, count: 460, color: [236, 240, 248] as const }),
+  Object.freeze({ id: "ledger", label: "ledger", x: 0.2, y: 0.84, r: 0.07, count: 280, color: [236, 240, 248] as const }),
+] as FlowNode[]);
+/** Streams: [from, to] node indexes; -1 is the off-canvas inflow of market ticks. Index 3 (risk -> paper) and 4 (paper -> ledger) are what a halt closes. */
+export const FLOW_EDGES: readonly (readonly [number, number])[] = Object.freeze([[-1, 0], [0, 1], [1, 2], [2, 3], [3, 4]] as const);
+export const FLOW_PAPER = 3;
+/** Hairlines per stream at full detail (the inflow is denser). */
+export const FLOW_STRANDS = 90;
+export const FLOW_INFLOW_STRANDS = 120;
+/** A decision's pulse travels the whole chain (inflow -> ledger) over one wave lifetime. */
+export const FLOW_PULSE_SPAN = FLOW_EDGES.length;
 
-const hash1 = (k: number): number => { const s = Math.sin(k * 127.1) * 43758.5453; return s - Math.floor(s); };
-function valueNoise(x: number): number { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash1(i) * (1 - u) + hash1(i + 1) * u; }
-/** Smooth deterministic terrain noise in 0..~1. */
-export function ridgeNoise(x: number, y: number): number {
-  let v = 0, a = 0.5, f = 1;
-  for (let o = 0; o < 3; o += 1) { v += a * valueNoise(x * f + y * f * 1.7 + o * 31.3); a *= 0.5; f *= 2.1; }
-  return v;
+export interface FlowStrand { readonly j1: number; readonly j2: number; readonly j3: number; readonly j4: number; readonly phase: number; readonly speed: number; readonly alpha: number }
+export interface FlowField { readonly points: readonly Float32Array[]; readonly strands: readonly (readonly FlowStrand[])[] }
+
+function seededRandom(seed: number): () => number {
+  let value = seed >>> 0;
+  return () => { value = (value * 1664525 + 1013904223) >>> 0; return value / 4294967296; };
+}
+const gaussian = (random: () => number): number => (random() + random() + random() + random() - 2) / 2;
+
+/**
+ * Deterministic geometry. Each cluster point is [x, y, z, brightness] inside the unit ball; density (0..1] scales every count
+ * (small marks draw far fewer). Same density, same field.
+ */
+export function buildFlowField(density = 1): FlowField {
+  const d = Math.min(1, Math.max(0.05, density));
+  const pointRandom = seededRandom(7);
+  const points = FLOW_NODES.map((node) => {
+    const n = Math.max(24, Math.round(node.count * d)), out = new Float32Array(n * 4);
+    for (let i = 0; i < n; i += 1) {
+      const a = pointRandom() * Math.PI * 2, b = Math.acos(2 * pointRandom() - 1), rr = Math.pow(pointRandom(), 0.6);
+      out[i * 4] = Math.sin(b) * Math.cos(a) * rr; out[i * 4 + 1] = Math.cos(b) * rr; out[i * 4 + 2] = Math.sin(b) * Math.sin(a) * rr; out[i * 4 + 3] = pointRandom();
+    }
+    return out;
+  });
+  const strands = FLOW_EDGES.map(([from], e) => {
+    const random = seededRandom(100 + e);
+    const n = Math.max(8, Math.round((from < 0 ? FLOW_INFLOW_STRANDS : FLOW_STRANDS) * d));
+    return Object.freeze(Array.from({ length: n }, () => Object.freeze({ j1: gaussian(random), j2: gaussian(random), j3: gaussian(random), j4: gaussian(random), phase: random() * Math.PI * 2, speed: 0.6 + random() * 0.8, alpha: 0.25 + random() * 0.75 })));
+  });
+  return Object.freeze({ points: Object.freeze(points), strands: Object.freeze(strands) });
 }
 
-/** Depth (0 near .. 1 far) of ridge row r at flow time tSec; rows slide toward the viewer and wrap. */
-export function ridgeDepth(row: number, rows: number, tSec: number): number {
-  // Each row advances by a fraction of one row spacing; depths stay strictly ordered in (0, 1].
-  const frac = ((tSec * RIDGE_SLIDE) % 1 + 1) % 1;
-  return (row + 1 - frac) / rows;
+/** One hairline as a quadratic curve (start, control, end), in canvas fractions, swaying gently with the flow clock. */
+export function flowStrandCurve(edge: number, strand: FlowStrand, tSec: number): { readonly sx: number; readonly sy: number; readonly cx: number; readonly cy: number; readonly ex: number; readonly ey: number } {
+  const [from, to] = FLOW_EDGES[edge]!;
+  const b = FLOW_NODES[to]!;
+  const a = from < 0 ? { x: -0.08, y: 0.1, r: 0 } : FLOW_NODES[from]!;
+  const sx = a.x + strand.j1 * a.r * 0.7, sy = a.y + strand.j2 * a.r * 0.7, ex = b.x + strand.j3 * b.r * 0.6, ey = b.y + strand.j4 * b.r * 0.6;
+  const mx = (sx + ex) / 2, my = (sy + ey) / 2, nx = -(ey - sy), ny = ex - sx, nl = Math.hypot(nx, ny) || 1;
+  const bend = (strand.j1 - strand.j3) * 0.09 + 0.06, wobble = Math.sin(tSec * 0.4 * strand.speed + strand.phase) * 0.012;
+  return { sx, sy, cx: mx + (nx / nl) * bend + wobble, cy: my + (ny / nl) * bend - wobble, ex, ey };
 }
 
-/** Screen baseline y (0..1) for a depth: far rows bunch near the horizon. */
-export const ridgeBaseY = (depth: number): number => RIDGE_HORIZON + (RIDGE_NEAR - RIDGE_HORIZON) * Math.pow(1 - depth, 2.2);
-/** Screen x (0..1) for column u at a depth: the landscape narrows toward the horizon. */
-export const ridgeX = (u: number, depth: number): number => 0.5 + (u - 0.5) * (0.35 + 0.65 * (1 - depth)) * 1.25;
-
-/** Height (0..1 of the canvas, upward) of the terrain at column u, depth, flow time, plus an order's rise (0..1). */
-export function ridgeHeight(u: number, depth: number, tSec: number, orderRise: number): number {
-  const xw = (u - 0.5) * (0.35 + 0.65 * (1 - depth));
-  const centre = Math.exp(-Math.pow(xw / 0.22, 2));
-  const amp = 0.17 * (1 - depth * 0.75);
-  let h = ridgeNoise(u * 6 + 3, depth * 9 + tSec * 0.32) * centre * amp;
-  if (orderRise > 0) h += Math.exp(-Math.pow((u - RIDGE_ORDER_U) / 0.025, 2)) * Math.exp(-Math.pow((depth - RIDGE_ORDER_DEPTH) / 0.03, 2)) * 0.13 * orderRise;
-  return h;
+/** A point travelling along a strand (0..1 of its curve), for the flowing particles. */
+export function flowStrandPoint(curve: ReturnType<typeof flowStrandCurve>, u: number): { readonly x: number; readonly y: number } {
+  const v = 1 - u;
+  return { x: v * v * curve.sx + 2 * v * u * curve.cx + u * u * curve.ex, y: v * v * curve.sy + 2 * v * u * curve.cy + u * u * curve.ey };
 }
 
-/** How brightly a decision's wave lights a row at this depth: the wave is born on the horizon and rolls toward the viewer. */
-export function ridgeWaveGlow(wave: HoloWave, depth: number, nowMs: number): number {
+/** Where a decision's pulse is along the chain (-0.5 before the inflow .. FLOW_PULSE_SPAN past the ledger), or null outside its life. */
+export function flowPulsePosition(wave: HoloWave, nowMs: number): number | null {
   const age = (nowMs - wave.bornMs) / HOLO_WAVE_MS;
-  if (age < 0 || age >= 1) return 0;
-  const front = 1 - age;
-  const d = Math.abs(depth - front);
-  return d < 0.06 ? (1 - d / 0.06) * (1 - age) : 0;
+  if (age < 0 || age >= 1) return null;
+  return age * (FLOW_PULSE_SPAN + 0.5) - 0.5;
+}
+/** How brightly a pulse at chain position p lights stream e (0..1); a stream's middle is at e + 0.5. */
+export const flowEdgeGlow = (p: number, edge: number): number => Math.exp(-Math.pow((p - edge - 0.5) * 2.2, 2));
+/** How brightly a pulse at chain position p lights cluster i (0..1); cluster i sits at the end of stream i. */
+export const flowNodeGlow = (p: number, node: number): number => Math.exp(-Math.pow((p - node - 1) * 2.4, 2));
+
+/** True for the stages a halt closes (risk onward): their colour takes the hold / halt tint and their streams dim. */
+export const flowGated = (node: number): boolean => node >= 2;
+/** A stage's colour: its own colour, tinted toward amber / red from risk onward as a hold / halt fades in. */
+export function flowNodeColor(node: number, tone: HoloTone, tintMix: number): Rgb {
+  const base = FLOW_NODES[node]!.color;
+  return flowGated(node) ? tinted(base, tone, 0, HOLO_COLORS.ink, tintMix) : base;
+}
+/** Brightness multiplier for stream e: a halt closes the streams out of risk (and the ledger hand-off). */
+export const flowEdgeOpen = (edge: number, tone: HoloTone, tintMix: number): number => (tone === "halt" && edge >= 3 ? 1 - 0.8 * Math.min(1, Math.max(0, tintMix)) : 1);
+
+/** Projects cluster point i of a node at a rotation (radians), returning canvas fractions and a 0..1 depth brightness. */
+export function flowClusterPoint(node: number, pts: Float32Array, i: number, rotation: number, spread: number): { readonly x: number; readonly y: number; readonly light: number } {
+  const n = FLOW_NODES[node]!, ca = Math.cos(rotation + node), sa = Math.sin(rotation + node);
+  const px = pts[i * 4]!, py = pts[i * 4 + 1]!, pz = pts[i * 4 + 2]!;
+  const x = px * ca + pz * sa, z = -px * sa + pz * ca, k = 1 / (1.6 - z * 0.5);
+  return { x: n.x + x * n.r * k * spread, y: n.y + py * n.r * k * 0.9 * spread, light: (0.5 + 0.5 * (z + 1) / 2) };
 }
 
-/** How much a row is lime because a PAPER order is rising beside it (0..1). */
-export const ridgeOrderMix = (depth: number, burst: number): number => {
-  const d = Math.abs(depth - RIDGE_ORDER_DEPTH);
-  return burst > 0.02 && d < 0.03 ? (1 - d / 0.03) * burst : 0;
-};
+/** Where a node's label sits (top-left of a chip beside the cluster), in pixels, clamped inside a square canvas of `size`. */
+export function flowLabelPlacement(size: number, node: number, width: number): { readonly left: number; readonly top: number } {
+  const n = FLOW_NODES[node]!;
+  return { left: Math.max(2, Math.min(Math.round(size * (n.x + n.r * 0.75)), size - width - 2)), top: Math.max(2, Math.min(Math.round(size * (n.y - n.r * 0.95)), size - 18)) };
+}
 
-/** Base brightness of a row: near rows are brighter. */
-export const ridgeRowAlpha = (depth: number): number => 0.1 + 0.55 * Math.pow(1 - depth, 1.3);
+// ---- Dynamics: comets, sparks and rings are pure functions of time, so the picture needs no particle state ----------------------------
 
-/** Where the order's light beam stands (its foot), in canvas pixels for a square canvas of `size`. */
+/** Comets a decision launches down each stream (the pulse is carried by bright heads with tails). */
+export const FLOW_COMETS_PER_EDGE = 6;
+/** A comet's tail length (as a fraction of its stream) and its number of tail points. */
+export const FLOW_COMET_TAIL = 0.16;
+export const FLOW_COMET_TAIL_POINTS = 9;
+/** Seconds a stream's comets are held back after the decision, so the pulse visibly travels the chain. */
+export const flowCometDelaySec = (edge: number): number => (edge * 0.55 * HOLO_WAVE_MS) / 1000 / (FLOW_PULSE_SPAN + 0.6);
+
+/** Which strand of a stream a decision comet rides (deterministic, spread across the bundle). */
+export const flowCometStrand = (edge: number, index: number, strandCount: number): number => ((index * 37 + edge * 11 + 5) % Math.max(1, strandCount) + Math.max(1, strandCount)) % Math.max(1, strandCount);
+
+/** A decision comet's progress along its stream (0 at the source .. 1 at the target), or null before launch and after arrival. */
+export function flowCometProgress(wave: HoloWave, edge: number, index: number, nowMs: number): number | null {
+  const age = (nowMs - wave.bornMs) / 1000 - flowCometDelaySec(edge) - index * 0.045;
+  const speed = 0.85 + ((index * 53 + edge * 7) % 10) / 10 * 0.3; // 0.85..1.15 streams per second
+  const u = age * speed;
+  return u >= 0 && u < 1 ? u : null;
+}
+
+/** An ambient comet's progress along a strand (always moving; a halt nearly stops it through the flow clock). */
+export const flowAmbientComet = (strand: FlowStrand, tSec: number): number => ((tSec * 0.22 * strand.speed + strand.phase / (Math.PI * 2)) % 1 + 1) % 1;
+
+/** Tail point j (0 = head) of a comet at progress u: it trails behind the head along the stream and clamps at the source. */
+export const flowTailProgress = (u: number, j: number, points = FLOW_COMET_TAIL_POINTS): number => Math.max(0, u - (j / Math.max(1, points - 1)) * FLOW_COMET_TAIL);
+
+/** Brightness (0..1) of tail point j: 1 at the head fading to 0 at the end. */
+export const flowTailLight = (j: number, points = FLOW_COMET_TAIL_POINTS): number => 1 - j / Math.max(1, points);
+
+/** Sparks thrown by a PAPER order from the paper cluster; position and life are deterministic in the spark index and the order's age. */
+export const FLOW_SPARKS = 70;
+export function flowSpark(index: number, ageSec: number): { readonly x: number; readonly y: number; readonly life: number } | null {
+  const random = seededRandom(900 + index);
+  const angle = random() * Math.PI * 2, speed = 0.13 + random() * 0.55, duration = 0.5 + random() * 1.0;
+  if (ageSec < 0 || ageSec >= duration) return null;
+  const origin = FLOW_NODES[FLOW_PAPER]!;
+  const drag = Math.exp(-ageSec * 1.5);
+  return { x: origin.x + Math.cos(angle) * speed * (1 - drag) / 1.5, y: origin.y + (Math.sin(angle) * speed * (1 - drag)) / 1.5 - 0.1 * ageSec + 0.14 * ageSec * ageSec, life: 1 - ageSec / duration };
+}
+
+/** The rings an order opens around the paper cluster: three, staggered. Radius is a multiple of the cluster radius; alpha 0..1. */
+export function flowOrderRing(ring: number, ageSec: number): { readonly scale: number; readonly alpha: number } | null {
+  const age = ageSec - ring * 0.25;
+  if (age < 0 || age >= 1.8) return null;
+  return { scale: 0.9 + easeOutCubic(age / 1.6) * 2.4, alpha: 0.7 * (1 - age / 1.8) };
+}
+
+/** The ring a pulse opens around a cluster it lands on (glow 0..1 as flowNodeGlow reports it): grows as the glow fades. */
+export const flowArrivalRing = (glow: number): { readonly scale: number; readonly alpha: number } | null => (glow > 0.15 ? { scale: 1.1 + (1 - glow) * 1.4, alpha: glow * 0.6 } : null);
+
+/** A cluster's breathing scale: slow idle swell, a lift while a pulse lands, and a bigger lift while an order ignites it. */
+export const flowBreath = (node: number, tSec: number, pulse: number, order: number): number => 1 + 0.05 * Math.sin(tSec * (0.8 + node * 0.15)) + pulse * 0.12 + order * 0.2;
+
+/** A particle's own swirl rate and twinkle (0..1) from its brightness class, so clusters turn differentially instead of as one body. */
+export const flowParticleSwirl = (m: number): number => 0.5 + m * 1.5;
+export const flowParticleTwinkle = (m: number, tSec: number): number => 0.6 + 0.4 * Math.sin(tSec * flowParticleSwirl(m) * 2 + m * 6.283);
+
+/** Where the order's light beam stands (its foot): the top of the PAPER cluster, in canvas pixels for a square canvas of `size`. */
 export function holoFillMarker(size: number): { x: number; y: number } {
-  return { x: size * ridgeX(RIDGE_ORDER_U, RIDGE_ORDER_DEPTH), y: size * (ridgeBaseY(RIDGE_ORDER_DEPTH) - 0.15) };
+  const paper = FLOW_NODES[FLOW_PAPER]!;
+  return { x: size * paper.x, y: size * (paper.y - paper.r) };
 }
 
 /** Placement of the market chip beside the beam inside a square canvas: clamped so it never leaves the canvas. */
@@ -239,5 +347,5 @@ export function holoChipPlacement(size: number, label: string): { left: number; 
 
 /** True when nothing but the ambient flow is moving. */
 export function isHoloQuiet(state: HoloState): boolean {
-  return state.waves.length === 0 && state.burst === 0 && state.burstTarget === 0 && state.flash < 0.02 && state.birth >= 1;
+  return state.waves.length === 0 && state.burst === 0 && state.burstTarget === 0 && state.flash < 0.02 && state.birth >= 1 && state.orderBornMs == null;
 }

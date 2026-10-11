@@ -119,7 +119,11 @@ function readOwnerResearch(file = OWNER_RESEARCH_FILE) {
   if (!existsSync(file)) return null;
   const parsed = JSON.parse(readFileSync(file, "utf8"));
   if (parsed?.schemaVersion !== 1 || typeof parsed.experiments !== "boolean") throw new Error(`owner research file is invalid: ${file}`);
-  return Object.freeze({ experiments: parsed.experiments });
+  const intervals = parsed.intervalMinutes;
+  if (intervals !== undefined && (!Array.isArray(intervals) || intervals.length === 0 || intervals.some((value) => ![1, 15, 60, 240].includes(value)) || new Set(intervals).size !== intervals.length)) {
+    throw new Error(`owner research file is invalid: ${file}`);
+  }
+  return Object.freeze({ experiments: parsed.experiments, ...(intervals === undefined ? {} : { intervalMinutes: Object.freeze([...intervals]) }) });
 }
 
 /** Fills in operational defaults without overriding anything the caller set explicitly. */
@@ -171,6 +175,13 @@ function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccou
     if (env.NUSA_CLOUD_RESEARCH_EXPERIMENTS !== value) {
       env.NUSA_CLOUD_RESEARCH_EXPERIMENTS = value;
       applied.push("NUSA_CLOUD_RESEARCH_EXPERIMENTS");
+    }
+    if (ownerResearch.intervalMinutes != null) {
+      const intervals = ownerResearch.intervalMinutes.join(",");
+      if (env.NUSA_RESEARCH_INTERVAL_MINUTES !== intervals) {
+        env.NUSA_RESEARCH_INTERVAL_MINUTES = intervals;
+        applied.push("NUSA_RESEARCH_INTERVAL_MINUTES");
+      }
     }
   }
   return { env, applied: Object.freeze(applied), stripped };

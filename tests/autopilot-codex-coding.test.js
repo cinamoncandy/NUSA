@@ -127,3 +127,12 @@ test("the Codex contract makes AIPOS state true on the published commit so the r
   assert.match(prompt, /Do not commit, push, open a PR/, "the no-commit authority rule is unchanged");
   assert.match(prompt, /liveAuthority=NONE/);
 });
+
+test("every Codex run records which outcome it reached so a zero-completion run is never read as a completion", () => {
+  const workflow = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", ".github", "workflows", "autopilot-codex-coding.yml"), "utf8");
+  const step = workflow.slice(workflow.indexOf("- name: Record Codex outcome"), workflow.indexOf("- uses: actions/upload-artifact", workflow.indexOf("- name: Record Codex outcome")));
+  assert.match(step, /if: always\(\)/);
+  for (const outcome of ["HOST_DEFERRED", "USAGE_LIMITED", "CODEX_FAILED", "PATCH_READY", "NO_PATCH"]) assert.match(step, new RegExp(outcome));
+  assert.match(step, /GITHUB_STEP_SUMMARY/);
+  assert.doesNotMatch(step, /GITHUB_OUTPUT|exit 1/, "display only: no output, gate or failure is added");
+});

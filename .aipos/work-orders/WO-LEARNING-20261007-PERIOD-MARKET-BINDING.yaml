@@ -1,0 +1,36 @@
+id: WO-LEARNING-20261007-PERIOD-MARKET-BINDING
+title: "Learning period bound to an unstreamed market can never get benchmark evidence"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/period-benchmark-evidence
+authority_impact: none
+owner_approval: "2026-10-07 in chat: 작업지시서 — Learning Period Benchmark Evidence Break 완전수렴"
+objective: "After the first real PAPER fill (2026-10-07 00:12:59 UTC) /health showed rollover BLOCKED and PERIOD_REJECTED:MISSING_BENCHMARK_EVIDENCE on every close attempt."
+root_cause:
+  classification: MARKET_IDENTITY_MISMATCH
+  evidence:
+    - "deploy/oracle/paper-markets.json (owner, 2026-10-03): the runtime streams only KRW-XRP; before that the default markets were KRW-BTC,KRW-ETH, so realized owner-baseline periods carried KRW-BTC."
+    - "#2551's stalled-period continuation copied the latest realized period's market into the new open period."
+    - "readCanonicalPaperTickerBenchmark returns undefined only when the period market has fewer than 2 stored observations in the window; retention keeps the newest rows and the XRP feed is continuous (lastError null, HEALTHY), so an XRP-bound window always has evidence."
+    - "Candidate attribution passed (the close reached the benchmark step), so the period and fill share the owner-baseline candidate while the period's market differs."
+  ruled_out: "RETENTION_LOSS (newest rows are retained and cover the window end), WINDOW_MISMATCH, RECOVERY_LOSS, INSUFFICIENT_REAL_DATA for the streamed market."
+  unverified: "The open period's stored market value was not read directly (the host state database is not readable from this environment)."
+scope:
+  - "paperRealizedPeriodProducer.ts: retireOpenPeriodForUnstreamedMarket retires an open period only when it carries a market the runtime does not stream (PERIOD_REJECTED:MARKET_NOT_STREAMED); nothing is closed or scored."
+  - "closedLearningRolloverScheduler.ts: an open period on an unstreamed market is retired (UNSTREAMED_MARKET_PERIOD_RETIRED) instead of failing its close forever; a stalled continuation whose latest market is unstreamed restarts only the owner baseline on the current market through the canonical owner-baseline builder, and blocks any other candidate (STALLED_PERIOD_MARKET_NOT_STREAMED)."
+  - "runtime.ts, closedLearningProductionRuntime.ts: wiring (streamed markets = config.upbitMarkets)."
+  - "tests: producer retirement, scheduler retirement/continuation/blocking, benchmark market identity reproduction."
+exclusions:
+  - "Benchmark evidence rule, retention, risk, thresholds, capital, orders and LIVE are unchanged. No benchmark is synthesized; a streamed-market period with missing evidence still fails closed."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Retirement requires a market-bound period and a non-empty streamed-market list; non-baseline candidates are never moved across markets."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js dist/apps/cloud/src/paperRealizedPeriodProducer.test.js tests/paper-benchmark-market-identity.test.js
+residual: "The retired period's fill stays in the PAPER ledger but is not scored as learning evidence (its period could never be benchmarked). The next owner-baseline period on KRW-XRP opens at the canonical account boundary and needs the next real fill and KST day rollover to close."

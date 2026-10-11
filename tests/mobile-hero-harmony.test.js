@@ -1,14 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const { holoFillMarker, holoChipPlacement, HOLO_COLORS, RIDGE_ORDER_U, RIDGE_ORDER_DEPTH, ridgeX, ridgeBaseY } = require("../dist/apps/mobile/src/holoModel.js");
+const { holoFillMarker, holoChipPlacement, HOLO_COLORS, FLOW_NODES, FLOW_PAPER } = require("../dist/apps/mobile/src/holoModel.js");
 const { fieldHero, createTheme } = require("../dist/apps/mobile/src/designSystem.js");
 const { vitalUsesHeroAccent } = require("../dist/apps/mobile/src/homeVitalsModel.js");
 const read = (f) => fs.readFileSync(`apps/mobile/src/${f}`, "utf8");
 
 test("the order marker and the market chip sit inside the hero canvas for every plausible size and label", () => {
   const m = holoFillMarker(300);
-  assert.ok(Math.abs(m.x - 300 * ridgeX(RIDGE_ORDER_U, RIDGE_ORDER_DEPTH)) < 1e-9 && m.y < 300 * ridgeBaseY(RIDGE_ORDER_DEPTH), "the marker is the foot of the order's beam, above its ridge");
+  const paper = FLOW_NODES[FLOW_PAPER];
+  assert.ok(Math.abs(m.x - 300 * paper.x) < 1e-9 && Math.abs(m.y - 300 * (paper.y - paper.r)) < 1e-9, "the marker is the foot of the order's beam, on top of the paper cluster");
   for (const size of [200, 300, 360]) {
     const marker = holoFillMarker(size);
     assert.ok(marker.x > size / 2 && marker.x < size && marker.y > 0 && marker.y < size, "right of centre, inside the canvas");
@@ -39,8 +40,8 @@ test("only a healthy learning tile takes the hero accent; warnings and missing d
 
 test("the HOME hero block explains the new figure, shows the market chip only when nothing is wrong, and passes the market through", () => {
   const rings = read("decisionRings.tsx"), home = read("homeView.tsx");
-  assert.match(rings, /판단마다 지평선에서 빛이 밀려오고, 주문이 나가면 라임 빛기둥이 솟습니다/);
-  assert.ok(!/물결이 지나가고|바깥으로 퍼졌다|핵에서 빛이 퍼지고|벽의 한 줄이/.test(rings), "the old figures' descriptions are gone");
+  assert.match(rings, /판단마다 빛이 시장에서 장부까지 흐르고, 주문이 나가면 PAPER가 라임으로 점화합니다/);
+  assert.ok(!/물결이 지나가고|바깥으로 퍼졌다|핵에서 빛이 퍼지고|벽의 한 줄이|지평선에서 빛이 밀려오고/.test(rings), "the old figures' descriptions are gone");
   assert.match(rings, /marketLabel != null && MARKET_CHIP\.test\(marketLabel\) && status == null/, "no chip while the runtime is held or halted");
   assert.match(rings, /color: fieldHero\.lime \}\]\} testID="home-decision-rings-orders"/);
   assert.match(home, /marketLabel=\{heroMarket\}/);

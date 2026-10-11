@@ -150,7 +150,7 @@ function retryHint(response, payload, observedAt, maxMs = MAX_RETRY_DELAY_MS) {
 
 function providerRateLimitCodeFromPayload(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  for (const value of [payload.reason, payload.error, payload.code, payload.status, payload.stopReason, payload.lastFailure]) {
+  for (const value of [payload.providerStopReason, payload.reason, payload.error, payload.code, payload.status, payload.stopReason, payload.lastFailure]) {
     const code = providerRateLimitCode(value);
     if (code) return code;
   }
@@ -159,7 +159,10 @@ function providerRateLimitCodeFromPayload(payload) {
 }
 
 function rateLimitEvidence(response, payload, observedAt = Date.now()) {
-  const code = providerRateLimitCodeFromPayload(payload) || (response?.status === 429 ? "RATE_LIMITED" : null);
+  const remediationDecision = boundedRemediationDecision(payload?.remediationDecision);
+  const code = providerRateLimitCodeFromPayload(payload)
+    || (remediationDecision?.failureClass === "PROVIDER_CAPACITY" && remediationDecision.recovery === "WAIT_FOR_PROVIDER" ? "PROVIDER_RATE_LIMITED" : null)
+    || (response?.status === 429 ? "RATE_LIMITED" : null);
   if (!code) return null;
   // A daily-quota stop is never locally retried (see decision logic below), so reporting its real
   // resume time cannot lengthen any actual sleep; only the evidence/telemetry value changes. Once
@@ -174,8 +177,11 @@ function rateLimitEvidence(response, payload, observedAt = Date.now()) {
     || payload?.error === "WAITING_PROVIDER_CAPACITY";
   const maxMs = isLongLivedQuotaStop ? MAX_REPORTED_QUOTA_RETRY_DELAY_MS : MAX_RETRY_DELAY_MS;
   const hint = retryHint(response, payload, observedAt, maxMs);
+  const reportedProvider = typeof payload?.provider === "string" && /^[A-Za-z0-9_.:-]{1,128}$/.test(payload.provider)
+    ? payload.provider
+    : null;
   return Object.freeze({
-    provider: code.startsWith("WORKERS_AI_") ? "workers-ai" : "external-coding-runner",
+    provider: code.startsWith("WORKERS_AI_") ? "workers-ai" : reportedProvider ?? "external-coding-runner",
     code,
     httpStatus: Number.isInteger(response?.status) ? response.status : null,
     lastRateLimitAt: observedAt,
@@ -238,16 +244,71 @@ function safeWorkerStatus(value) {
   return typeof value === "string" && /^[A-Za-z0-9_.:-]{1,128}$/.test(value) ? value : "UNKNOWN";
 }
 
-function attemptRecord({ request, attempt, decision, startedAt, status, workerStatus, failureClass, reason, now }) {
+const REMEDIATION_FAILURE_CLASSES = new Set([
+  "AUDIT_BLOCKED",
+  "RELEASE_BLOCKED",
+  "DEPLOYMENT_FAILURE",
+  "PERMISSION_FAILURE",
+  "WORKFLOW_NOT_ELIGIBLE",
+  "AUTHORITY_VIOLATION",
+  "EVIDENCE_UNVERIFIED",
+  "EVIDENCE_MISMATCH",
+  "REQUEST_INVALID",
+  "PROVIDER_CAPACITY",
+  "PROVIDER_FAILURE",
+  "PROPOSAL_REJECTED",
+  "UNKNOWN",
+]);
+const REMEDIATION_RECOVERIES = new Set(["STOP", "WAIT_FOR_PROVIDER", "RETRY_BOUNDED", "REGENERATE_PROPOSAL", "REDISPATCH_FRESH_EVIDENCE"]);
+const TERMINAL_REMEDIATION_CLASSES = new Set([
+  "AUDIT_BLOCKED", "RELEASE_BLOCKED", "DEPLOYMENT_FAILURE", "PERMISSION_FAILURE",
+  "WORKFLOW_NOT_ELIGIBLE", "AUTHORITY_VIOLATION", "REQUEST_INVALID", "UNKNOWN",
+]);
+
+function boundedRemediationDecision(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const outcomes = new Set(["VALID_NO_ACTION", "FAILED_TO_REMEDIATE", "FAILED_CLOSED"]);
+  if (!outcomes.has(value.outcome)
+    || !REMEDIATION_FAILURE_CLASSES.has(value.failureClass)
+    || !REMEDIATION_RECOVERIES.has(value.recovery)
+    || typeof value.retryable !== "boolean"
+    || !Number.isSafeInteger(value.attempt) || value.attempt !== 0
+    || !Number.isSafeInteger(value.maxAttempts) || value.maxAttempts < 1 || value.maxAttempts > 3) return null;
+  if (value.retryable && (value.outcome !== "FAILED_TO_REMEDIATE" || value.attempt >= value.maxAttempts)) return null;
+  if (value.outcome === "VALID_NO_ACTION" && (value.retryable || value.failureClass !== "UNKNOWN" || value.recovery !== "STOP")) return null;
+  if (value.outcome === "FAILED_CLOSED" && value.retryable) return null;
+  if (TERMINAL_REMEDIATION_CLASSES.has(value.failureClass)
+    && (value.retryable || value.recovery !== "STOP"
+      || (value.outcome !== "FAILED_CLOSED" && value.outcome !== "VALID_NO_ACTION"))) return null;
+  if (value.retryable && !(
+    (value.failureClass === "PROPOSAL_REJECTED" && value.recovery === "REGENERATE_PROPOSAL")
+    || (["PROVIDER_FAILURE", "EVIDENCE_UNVERIFIED"].includes(value.failureClass) && value.recovery === "RETRY_BOUNDED")
+  )) return null;
+  return Object.freeze({
+    outcome: value.outcome,
+    failureClass: value.failureClass,
+    recovery: value.recovery,
+    retryable: value.retryable,
+    attempt: value.attempt,
+    maxAttempts: value.maxAttempts,
+  });
+}
+
+function attemptRecord({ request, attempt, decision, startedAt, status, workerStatus, failureClass, reason, now, recovery, workerHttpStatus = null }) {
   return Object.freeze({
     schemaVersion: 1,
     execution_id: request.executionId,
     dedupe_key: request.dedupeKey,
     backend: "github-actions-runner",
     decision,
+    recovery: decision === "RETRY" ? recovery ?? "RETRY_BOUNDED" : "STOP",
+    retryable: decision === "RETRY",
     attempt,
     latency_ms: Math.max(0, now() - startedAt),
     http_class: httpClass(status),
+    http_status: Number.isInteger(status) ? status : null,
+    worker_http_status: workerHttpStatus,
+    worker_http_class: Number.isInteger(workerHttpStatus) ? httpClass(workerHttpStatus) : null,
     checkpoint_id: request.headSha,
     resumed: false,
     worker_status: workerStatus,
@@ -370,7 +431,10 @@ async function dispatchWithRetry({
     if (rateLimit) {
       const workerWaiting = payload?.status === "WAITING_RATE_LIMIT" || payload?.status === "BLOCKED_RATE_LIMIT";
       const providerQuotaExhausted = rateLimit.code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED";
-      const decision = !workerWaiting && !providerQuotaExhausted && attempt < maxAttempts ? "RETRY" : "NO_ACTION";
+      const providerCapacity = rateLimit.code === "PROVIDER_RATE_LIMITED"
+        || rateLimit.code === "WORKERS_AI_RATE_LIMITED"
+        || payload?.status === "CODING_PROPOSAL_FAILED_CLOSED";
+      const decision = !workerWaiting && !providerQuotaExhausted && !providerCapacity && attempt < maxAttempts ? "RETRY" : "NO_ACTION";
       const delayMs = rateLimit.retryAfterMs ?? boundedBackoffMs(baseBackoffMs, attempt, jitter);
       const fallbackProvider = payload?.fallbackProvider === "github-models" ? payload.fallbackProvider : undefined;
       const fallbackFailureReason = typeof payload?.fallbackFailureReason === "string"
@@ -394,7 +458,8 @@ async function dispatchWithRetry({
         await sleep(delayMs);
         continue;
       }
-      return rateLimitedResult(resultSummary(request, attempts, workerWaiting ? "WAITING_RATE_LIMIT" : "BLOCKED_RATE_LIMIT", rateLimit.code, response.status, workerWaiting ? "WAITING_RATE_LIMIT" : "RATE_LIMITED"), nextEvidence, rateLimitEventsForResult);
+      const waitingStatus = workerWaiting || providerCapacity;
+      return rateLimitedResult(resultSummary(request, attempts, waitingStatus ? "WAITING_RATE_LIMIT" : "BLOCKED_RATE_LIMIT", rateLimit.code, response.status, waitingStatus ? "WAITING_RATE_LIMIT" : "RATE_LIMITED"), nextEvidence, rateLimitEventsForResult);
     }
 
     if (response.ok) {
@@ -490,12 +555,58 @@ function boundedWorkerFailureEvidence(payload, url, httpStatus) {
     endpoint: new URL(url).pathname,
     httpStatus: Number.isInteger(httpStatus) ? httpStatus : null,
     workflowRunId,
+    workflowId: Number.isSafeInteger(evidence.workflowId) && evidence.workflowId > 0 ? evidence.workflowId : null,
+    workflowPath: bounded(evidence.workflowPath, /^\.github\/workflows\/[A-Za-z0-9_.-]{1,100}\.ya?ml$/),
     workflowName: bounded(evidence.workflowName),
     workflowEvent: bounded(evidence.workflowEvent, /^[A-Za-z0-9_.:-]{1,64}$/),
     workflowStatus: bounded(evidence.workflowStatus, /^[A-Za-z0-9_.:-]{1,64}$/),
     workflowConclusion: bounded(evidence.workflowConclusion, /^[A-Za-z0-9_.:-]{1,64}$/),
     headSha,
   });
+}
+
+// Diagnostic projection only: never retain arbitrary response fields or credential-like text.
+function boundedDecisionDiagnostics(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const label = (v) => typeof v === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(v)
+    && !/TOKEN|SECRET|PASSWORD|CREDENTIAL_VALUE|PRIVATE_KEY/.test(v) ? v : null;
+  return Object.freeze({
+    outcome: label(value.outcome),
+    failureClass: label(value.failureClass),
+    recovery: label(value.recovery),
+    retryable: typeof value.retryable === "boolean" ? value.retryable : null,
+    attempt: Number.isSafeInteger(value.attempt) && value.attempt >= 0 && value.attempt <= 3 ? value.attempt : null,
+    maxAttempts: Number.isSafeInteger(value.maxAttempts) && value.maxAttempts >= 1 && value.maxAttempts <= 3 ? value.maxAttempts : null,
+  });
+}
+
+function terminalFailureResult(request, error, startedAt, now = () => Date.now(), attempt = 1) {
+  const reason = error instanceof Error ? error.message : "AUTOPILOT_GITHUB_RUNNER_FAILED";
+  const safeFailure = proposalFailureCode(reason);
+  const status = Number.isInteger(error?.httpStatus) ? error.httpStatus : null;
+  const diagnostics = error?.decisionDiagnostics ?? null;
+  const workerStatus = error?.workerStatus ?? (safeFailure ? "REMEDIATION_EXHAUSTED" : "FAILED_CLOSED");
+  const attempts = [attemptRecord({
+    request, attempt, decision: "FAILED_CLOSED", startedAt, status, workerStatus,
+    failureClass: diagnostics?.failureClass ?? "deterministic", reason: safeFailure || reason, now, workerHttpStatus: error?.workerHttpStatus ?? null,
+  })];
+  const diagnosticAttempt = Object.freeze({
+    ...attempts[0],
+    recovery: "STOP",
+    retryable: false,
+    decision_validation_failure: error?.decisionValidationFailure ?? null,
+  });
+  attempts[0] = diagnosticAttempt;
+  return {
+    ...resultSummary(request, attempts, safeFailure ? "FAILED_TO_REMEDIATE" : "FAILED_CLOSED", safeFailure || reason, status, workerStatus),
+    failureEvidence: error?.failureEvidence ?? null,
+    decisionDiagnostics: diagnostics,
+    workerHttpStatus: error?.workerHttpStatus ?? null,
+    workerFailureCode: error?.workerFailureCode ?? null,
+    decisionValidationFailure: error?.decisionValidationFailure ?? null,
+    workflowRunId: request.workflowRunId,
+    headSha: request.headSha,
+  };
 }
 
 async function authorizedJsonPost(url, body, fetchImpl = fetch, now = () => Date.now()) {
@@ -508,14 +619,28 @@ async function authorizedJsonPost(url, body, fetchImpl = fetch, now = () => Date
   });
   let payload = {};
   try { payload = await response.json(); } catch { /* fail below */ }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) payload = {};
   if (!response.ok) {
-    const error = new Error(typeof payload.error === "string" ? payload.error : `AUTOPILOT_WORKER_HTTP_${response.status}`);
+    const hasRemediationDecision = payload && typeof payload === "object" && Object.prototype.hasOwnProperty.call(payload, "remediationDecision");
+    const remediationDecision = hasRemediationDecision ? boundedRemediationDecision(payload.remediationDecision) : null;
+    const invalidDecision = hasRemediationDecision && !remediationDecision;
+    const error = new Error(invalidDecision ? "CODING_REMEDIATION_DECISION_INVALID"
+      : typeof payload.error === "string" ? payload.error : `AUTOPILOT_WORKER_HTTP_${response.status}`);
     error.failureEvidence = boundedWorkerFailureEvidence(payload, url, response.status);
+    error.httpStatus = response.status;
+    error.workerHttpStatus = Number.isInteger(payload.httpStatus) && payload.httpStatus >= 100 && payload.httpStatus <= 599 ? payload.httpStatus : null;
+    error.workerFailureCode = typeof payload.error === "string" && /^[A-Z0-9_]{1,128}$/.test(payload.error) ? payload.error : null;
+    error.workerStatus = safeWorkerStatus(payload?.status);
+    error.decisionDiagnostics = boundedDecisionDiagnostics(payload?.remediationDecision);
+    error.decisionValidationFailure = invalidDecision ? "SCHEMA_OR_ALLOWLIST_MISMATCH" : null;
+    if (invalidDecision) throw error;
+    if (remediationDecision) error.remediationDecision = remediationDecision;
     error.rateLimit = rateLimitEvidence(response, payload, now());
     const workerRateLimitStop = error.rateLimit && (
       payload?.status === "WAITING_RATE_LIMIT"
       || payload?.status === "BLOCKED_RATE_LIMIT"
-      || payload?.status === "CODING_PROPOSAL_FAILED_CLOSED"
+      || payload?.error === "WAITING_PROVIDER_CAPACITY"
+      || payload?.status === "CODING_PROPOSAL_FAILED_CLOSED" && typeof payload?.providerStopReason === "string"
     );
     if (workerRateLimitStop) {
       error.workerStop = true;
@@ -532,12 +657,17 @@ async function authorizedJsonPost(url, body, fetchImpl = fetch, now = () => Date
   }
   const rateLimit = rateLimitEvidence(response, payload, now());
   if (rateLimit) {
-    const workerStop = payload?.status === "WAITING_RATE_LIMIT" || payload?.status === "BLOCKED_RATE_LIMIT";
-    const error = new Error(workerStop ? payload.status : rateLimit.code);
+    const workerStop = payload?.status === "WAITING_RATE_LIMIT"
+      || payload?.status === "BLOCKED_RATE_LIMIT"
+      || payload?.error === "WAITING_PROVIDER_CAPACITY"
+      || payload?.status === "CODING_PROPOSAL_FAILED_CLOSED" && typeof payload?.providerStopReason === "string";
+    const error = new Error(workerStop ? (payload.status || payload.error) : rateLimit.code);
     error.workerStop = workerStop;
     error.rateLimit = Object.freeze({
       ...rateLimit,
       ...(workerStop && typeof payload.stopReason === "string" ? { stopReason: payload.stopReason } : {}),
+      ...(workerStop && typeof payload.providerStopReason === "string" ? { stopReason: payload.providerStopReason } : {}),
+      ...(workerStop && typeof payload.error === "string" ? { lastFailure: payload.error } : {}),
       ...(workerStop && typeof payload.resumeCondition === "string" ? { resumeCondition: payload.resumeCondition } : {}),
       ...(workerStop && Number.isSafeInteger(payload.stoppedAt) ? { stoppedAt: payload.stoppedAt } : {}),
       ...(workerStop && typeof payload.lastFailure === "string" ? { lastFailure: payload.lastFailure } : {}),
@@ -706,9 +836,11 @@ function resetProposalRetryWorkspace() {
     run("git", ["reset", "--hard", "HEAD"], "GITHUB_RUNNER_RETRY_RESTORE_FAILED");
   }
   fs.rmSync(PATCH_PATH, { force: true });
-  const tracked = run("git", ["diff", "--name-only"], "GITHUB_RUNNER_RETRY_TRACKED_STATUS_FAILED").trim();
-  const staged = run("git", ["diff", "--cached", "--name-only"], "GITHUB_RUNNER_RETRY_STAGED_STATUS_FAILED").trim();
-  if (tracked || staged) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+  if (process.env.GITHUB_ACTIONS === "true") {
+    const tracked = run("git", ["diff", "--name-only"], "GITHUB_RUNNER_RETRY_TRACKED_STATUS_FAILED").trim();
+    const staged = run("git", ["diff", "--cached", "--name-only"], "GITHUB_RUNNER_RETRY_STAGED_STATUS_FAILED").trim();
+    if (tracked || staged) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+  }
 }
 
 function normalizeUnifiedDiffHunkCounts(patch) {
@@ -839,7 +971,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   const finish = (status, reason, httpStatus, workerStatus, extra = {}) => {
     const base = resultSummary(request, attempts, status, reason, httpStatus, workerStatus);
     const proposalRetries = attempts.filter((entry) => entry.decision === "RETRY").length;
-    const proposalRejected = attempts.filter((entry) => entry.decision === "RETRY" || entry.decision === "NO_ACTION").length;
+    const proposalRejected = attempts.filter((entry) => entry.decision === "RETRY" || entry.decision === "NO_ACTION" || entry.decision === "FAILED_CLOSED").length;
     const changedFiles = Array.isArray(extra.changedFiles) ? extra.changedFiles : [];
     const codeChanged = status === "DISPATCHED" && changedFiles.length > 0;
     const blockedRateLimit = status === "BLOCKED_RATE_LIMIT";
@@ -913,6 +1045,26 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : "CODING_PROPOSAL_UNAVAILABLE";
+      if (error?.decisionValidationFailure) {
+        const terminal = terminalFailureResult(request, error, startedAt, now, attempt);
+        attempts.push(terminal.attempts[0]);
+        return finish("FAILED_CLOSED", terminal.reason, terminal.httpStatus, terminal.workerStatus, {
+          failureEvidence: terminal.failureEvidence, decisionDiagnostics: terminal.decisionDiagnostics,
+          workerHttpStatus: terminal.workerHttpStatus, workerFailureCode: terminal.workerFailureCode,
+          decisionValidationFailure: terminal.decisionValidationFailure,
+          workflowRunId: terminal.workflowRunId, headSha: terminal.headSha,
+        });
+      }
+      const terminalDecision = error?.remediationDecision;
+      if (terminalDecision?.outcome === "FAILED_CLOSED" && terminalDecision.recovery === "STOP") {
+        const status = Number.isInteger(error?.httpStatus) ? error.httpStatus : null;
+        const code = /^[A-Za-z0-9_:-]{1,160}$/.test(reason) ? reason : "CODING_REMEDIATION_FAILURE";
+        attempts.push(attemptRecord({ request, attempt, decision: "FAILED_CLOSED", startedAt, status, workerStatus: "FAILED_CLOSED", failureClass: terminalDecision.failureClass, reason: code, now, workerHttpStatus: error.workerHttpStatus }));
+        return finish("FAILED_CLOSED", code, status, "FAILED_CLOSED", {
+          remediationDecision: terminalDecision, failureEvidence: error.failureEvidence,
+          workerHttpStatus: error.workerHttpStatus, workerFailureCode: error.workerFailureCode,
+        });
+      }
       if (error?.workerStop === true && error?.rateLimit) {
         const observedAt = Number.isSafeInteger(error.rateLimit.lastRateLimitAt) ? error.rateLimit.lastRateLimitAt : now();
         const hintedDelayMs = Number.isSafeInteger(error.rateLimit.retryAfterMs) && error.rateLimit.retryAfterMs >= 0
@@ -965,7 +1117,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
           nextRetryAt: null,
           retrySource: "none",
         });
-        const retryable = rateLimitCode !== "WORKERS_AI_DAILY_QUOTA_EXHAUSTED";
+        const retryable = !["WORKERS_AI_DAILY_QUOTA_EXHAUSTED", "WORKERS_AI_RATE_LIMITED", "PROVIDER_RATE_LIMITED"].includes(rateLimitCode);
         if (retryable && attempt < maxProposalAttempts) {
           const delayMs = rawEvidence.retryAfterMs ?? boundedBackoffMs(DEFAULT_BACKOFF_MS, attempt, jitter);
           attempts.push(attemptRecord({
@@ -1004,11 +1156,39 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
           rateLimitEvidence: evidence,
         });
       }
+      const workerDecision = error?.remediationDecision;
+      if (workerDecision) {
+        const code = /^[A-Za-z0-9_:-]{1,160}$/.test(reason) ? reason : "CODING_REMEDIATION_FAILURE";
+        const status = Number.isInteger(error?.httpStatus) ? error.httpStatus : null;
+        if (workerDecision.outcome === "VALID_NO_ACTION") {
+          attempts.push(attemptRecord({ request, attempt, decision: "NO_ACTION", startedAt, status, workerStatus: "VALID_NO_ACTION", failureClass: "deterministic", reason: "NO_ACTION_WARRANTED", now, workerHttpStatus: error.workerHttpStatus }));
+          return finish("NO_ACTION", "NO_ACTION_WARRANTED", status, "VALID_NO_ACTION", { remediationDecision: workerDecision, failureEvidence: error.failureEvidence, workerHttpStatus: error.workerHttpStatus, workerFailureCode: error.workerFailureCode, decisionDiagnostics: error.decisionDiagnostics });
+        }
+        if (workerDecision.outcome === "FAILED_TO_REMEDIATE") {
+          const repeatedFailure = workerDecision.failureClass === "PROPOSAL_REJECTED" && seenDeterministicFailureCodes.has(code);
+          if (workerDecision.failureClass === "PROPOSAL_REJECTED") seenDeterministicFailureCodes.add(code);
+          const withinBudget = attempt < maxProposalAttempts && attempt < workerDecision.maxAttempts;
+          if (workerDecision.retryable && withinBudget && !repeatedFailure) {
+            attempts.push(attemptRecord({ request, attempt, decision: "RETRY", startedAt, status, workerStatus: "REMEDIATION_RETRY", failureClass: workerDecision.failureClass, reason: code, now, recovery: workerDecision.recovery, workerHttpStatus: error.workerHttpStatus }));
+            if (workerDecision.recovery === "REGENERATE_PROPOSAL") {
+              feedback = proposalRepairFeedback(code, attempt + 1);
+            } else {
+              await sleep(boundedBackoffMs(DEFAULT_BACKOFF_MS, attempt, jitter));
+            }
+            continue;
+          }
+          attempts.push(attemptRecord({ request, attempt, decision: "FAILED_CLOSED", startedAt, status, workerStatus: "REMEDIATION_EXHAUSTED", failureClass: workerDecision.failureClass, reason: code, now, recovery: workerDecision.recovery, workerHttpStatus: error.workerHttpStatus }));
+          return finish("FAILED_TO_REMEDIATE", code, status, "REMEDIATION_EXHAUSTED", { remediationDecision: workerDecision, failureEvidence: error.failureEvidence, workerHttpStatus: error.workerHttpStatus, workerFailureCode: error.workerFailureCode, decisionDiagnostics: error.decisionDiagnostics });
+        }
+        attempts.push(attemptRecord({ request, attempt, decision: "FAILED_CLOSED", startedAt, status, workerStatus: "FAILED_CLOSED", failureClass: workerDecision.failureClass, reason: code, now, recovery: workerDecision.recovery, workerHttpStatus: error.workerHttpStatus }));
+        return finish("FAILED_CLOSED", code, status, "FAILED_CLOSED", { remediationDecision: workerDecision, failureEvidence: error.failureEvidence, workerHttpStatus: error.workerHttpStatus, workerFailureCode: error.workerFailureCode, decisionDiagnostics: error.decisionDiagnostics });
+      }
+
       const code = retryableProposalFailureCode(reason);
       if (!code) throw error;
       const repeatedFailure = seenDeterministicFailureCodes.has(code);
       seenDeterministicFailureCodes.add(code);
-      const decision = attempt < maxProposalAttempts && !repeatedFailure ? "RETRY" : "NO_ACTION";
+      const decision = attempt < maxProposalAttempts && !repeatedFailure ? "RETRY" : "FAILED_CLOSED";
       attempts.push(attemptRecord({
         request,
         attempt,
@@ -1024,7 +1204,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
         feedback = proposalRepairFeedback(code, attempt + 1);
         continue;
       }
-      return finish("NO_ACTION", code, null, "PROPOSAL_REJECTED");
+      return finish("FAILED_TO_REMEDIATE", code, null, "REMEDIATION_EXHAUSTED");
     }
 
     if (seenPatches.has(proposal.patch)) {
@@ -1032,7 +1212,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
       attempts.push(attemptRecord({
         request,
         attempt,
-        decision: "NO_ACTION",
+        decision: "FAILED_CLOSED",
         startedAt,
         status: null,
         workerStatus: "PROPOSAL_REJECTED",
@@ -1040,7 +1220,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
         reason: code,
         now,
       }));
-      return finish("NO_ACTION", code, null, "PROPOSAL_REJECTED");
+      return finish("FAILED_TO_REMEDIATE", code, null, "REMEDIATION_EXHAUSTED");
     }
     seenPatches.add(proposal.patch);
 
@@ -1056,7 +1236,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
 
       const repeatedFailure = seenDeterministicFailureCodes.has(code);
       seenDeterministicFailureCodes.add(code);
-      const decision = attempt < maxProposalAttempts && !repeatedFailure ? "RETRY" : "NO_ACTION";
+      const decision = attempt < maxProposalAttempts && !repeatedFailure ? "RETRY" : "FAILED_CLOSED";
       attempts.push(attemptRecord({
         request,
         attempt,
@@ -1079,7 +1259,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
         feedback = proposalRepairFeedback(code, attempt + 1);
         continue;
       }
-      return finish("NO_ACTION", code, null, "PROPOSAL_REJECTED");
+      return finish("FAILED_TO_REMEDIATE", code, null, "REMEDIATION_EXHAUSTED");
     }
 
     fs.rmSync(PATCH_PATH, { force: true });
@@ -1154,6 +1334,7 @@ async function main() {
     const result = await executeGithubActionsRunner(request, runnerUrl);
     writeArtifacts(request, result);
     console.log(`execution=${result.status} backend=github-actions-runner changed=${(result.changedFiles || []).join(",")}`);
+    if (result.status === "FAILED_TO_REMEDIATE" || result.status === "FAILED_CLOSED") process.exitCode = 1;
   } catch (error) {
     const reason = error instanceof Error ? error.message : "AUTOPILOT_GITHUB_RUNNER_FAILED";
     if (!request) {
@@ -1163,24 +1344,11 @@ async function main() {
       return;
     }
     const safeProposalFailure = proposalFailureCode(reason);
-    const attempts = [attemptRecord({
-      request,
-      attempt: 1,
-      decision: safeProposalFailure ? "NO_ACTION" : "FAILED_CLOSED",
-      startedAt,
-      status: null,
-      workerStatus: safeProposalFailure ? "PROPOSAL_REJECTED" : "FAILED_CLOSED",
-      failureClass: "deterministic",
-      reason: safeProposalFailure || reason,
-      now: () => Date.now(),
-    })];
-    const result = {
-      ...resultSummary(request, attempts, safeProposalFailure ? "NO_ACTION" : "FAILED_CLOSED", safeProposalFailure || reason, null, safeProposalFailure ? "PROPOSAL_REJECTED" : "FAILED_CLOSED"),
-      failureEvidence: error && typeof error === "object" ? (error.failureEvidence ?? null) : null,
-    };
+    const result = terminalFailureResult(request, error, startedAt);
     writeArtifacts(request, result);
     if (safeProposalFailure) {
-      console.log(`execution=NO_ACTION backend=github-actions-runner reason=${safeProposalFailure}`);
+      console.log(`execution=FAILED_TO_REMEDIATE backend=github-actions-runner reason=${safeProposalFailure}`);
+      process.exitCode = 1;
       return;
     }
     console.error(reason);
@@ -1233,4 +1401,8 @@ module.exports = {
   applyPatchWithNormalizedHunkCounts,
   endpointFor,
   boundedWorkerFailureEvidence,
+  boundedRemediationDecision,
+  boundedDecisionDiagnostics,
+  terminalFailureResult,
+  authorizedJsonPost,
 };

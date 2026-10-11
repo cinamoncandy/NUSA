@@ -1,0 +1,26 @@
+id: WO-AUTOPILOT-20261007-CODEX-OUTCOME
+title: "Record each Autopilot Codex run's outcome"
+status: READY_FOR_REVIEW
+owner: evolve-autopilot
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/autopilot-codex-outcome
+authority_impact: none
+owner_approval: "2026-10-07 in chat: Complete-Convergence directive ('실패를 성공으로 기록' 금지) and '다른 최우선 작업'"
+objective: "The last five scheduled Autopilot Codex runs ended green with no patch and no PR (four ChatGPT weekly usage limit waits, one PAPER host deferral); only a notice annotation said so, so zero-completion runs read as successes."
+scope:
+  - ".github/workflows/autopilot-codex-coding.yml: an always-run step records HOST_DEFERRED, USAGE_LIMITED, CODEX_FAILED, PATCH_READY or NO_PATCH as a notice and in the job summary, from outputs the run already computes."
+  - "tests/autopilot-codex-coding.test.js: the step runs always, names every outcome, writes the summary and adds no output, gate or failure."
+exclusions:
+  - "No change to Codex invocation, usage-limit handling, host guard, patch collection, PR publication, accounts or authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only."
+rollback: "Revert the change."
+verification_commands:
+  - node --test tests/autopilot-codex-coding.test.js
+  - node scripts/validate-workflow-action-pins.js
+  - node scripts/validate-workflow-action-inputs.js
+residual: "Codex coding is blocked until the dedicated ChatGPT account's weekly limit resets (owner screen 2026-10-07: weekly 0%, resets in 3 days; credits 0)."

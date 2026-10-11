@@ -1,3 +1,4 @@
+import { assessCodingRunnerReadiness, type CodingRunnerReadinessBlocker } from "./codingRunnerReadiness";
 import { logAiCall } from "./aiCallTelemetry";
 import { selectJevCodingModel } from "./jevCodingModelTier";
 import {
@@ -124,11 +125,23 @@ export interface CodingRunnerFailureEvidence {
 
 interface VerifiedCodingWorkflowEvidence {
   readonly workflowRunId: number;
+  readonly workflowId?: number;
+  readonly workflowPath?: string;
   readonly workflowName: string | null;
   readonly workflowEvent: string | null;
   readonly workflowStatus: "completed";
   readonly workflowConclusion: string;
   readonly headSha: string;
+}
+
+export class CodingRunnerHttpEvidenceError extends Error {
+  readonly httpStatus: number;
+
+  constructor(message: string, httpStatus: number) {
+    super(message);
+    this.name = "CodingRunnerHttpEvidenceError";
+    this.httpStatus = httpStatus;
+  }
 }
 
 export class CodingRunnerEvidenceError extends Error {
@@ -153,7 +166,7 @@ export interface CodingRunnerExecutionOptions {
    * still verifying evidence when another execution recorded a provider stop does not then spend a
    * call inside that window. It does not serialize calls already in flight when a stop lands.
    */
-  readonly providerWaitUntil?: () => Promise<number | null>;
+  readonly providerWaitUntil?: (provider: string) => Promise<number | null>;
 }
 
 export interface CodingRunnerResult {
@@ -183,6 +196,8 @@ export interface CodingRunnerResult {
   readonly jevAdmissionReason?: string;
   readonly jevRequiredModel?: string | null;
   readonly jevConfidence?: number;
+  /** What the runner lacks to execute, named; present on INTERFACE_READY results only. */
+  readonly readinessBlockers?: readonly CodingRunnerReadinessBlocker[];
 }
 
 interface HttpResponse {
@@ -593,12 +608,12 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
 
   const commitResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}`, githubToken, fetchImpl);
-  if (commitResponse.status !== 200) throw new Error("CODING_RUNNER_HEAD_SHA_UNVERIFIED");
+  if (commitResponse.status !== 200) throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_HEAD_SHA_UNVERIFIED", commitResponse.status);
   const commit = object(await commitResponse.json());
   if (typeof commit.sha !== "string" || commit.sha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_RUNNER_HEAD_SHA_MISMATCH");
 
   const runResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}`, githubToken, fetchImpl);
-  if (runResponse.status !== 200) throw new Error("CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED");
+  if (runResponse.status !== 200) throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED", runResponse.status);
   const run = object(await runResponse.json());
   const runRepository = object(run.repository);
   if (run.id !== request.workflowRunId) throw new Error("CODING_RUNNER_WORKFLOW_RUN_ID_MISMATCH");
@@ -606,14 +621,26 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   if (runRepository.full_name !== request.repository) throw new Error("CODING_RUNNER_WORKFLOW_REPOSITORY_MISMATCH");
   if (run.status !== "completed") throw new Error("CODING_RUNNER_WORKFLOW_NOT_COMPLETED");
 
-  const failureReason = request.reason.match(/(?:^|:)gha:(?:[^:]+:)?(\d+):([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i);
+  // Two canonical failure-reason identities: `gha:<runId>:<sha>:<conclusion>` (planner) and the evolve discovery
+  // observation `gha:<workflow>:<sha>:<conclusion>`, which carries no run id. The cited run id is bound by the GitHub
+  // fetch above (id, head sha, repository). For the named form the commit and the failed conclusion must match that
+  // verified run; the workflow label is not compared, because discovery normalizes it and may select a different
+  // failing workflow of the same commit than the cited run, and the label carries no authority.
+  const numericReason = request.reason.match(/(?:^|:)gha:(?:[^:]+:)?(\d+):([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i);
+  const namedReason = numericReason === null
+    ? request.reason.match(/(?:^|:)gha:([A-Za-z][A-Za-z0-9_-]{0,63}):([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i)
+    : null;
+  const failureReason = numericReason ?? namedReason;
   const failureRepair = failureReason !== null;
-  if (failureReason
-    && (Number(failureReason[1]) !== request.workflowRunId
-      || failureReason[2].toLowerCase() !== request.headSha.toLowerCase())) {
+  if (numericReason
+    && (Number(numericReason[1]) !== request.workflowRunId
+      || numericReason[2].toLowerCase() !== request.headSha.toLowerCase())) {
     throw new Error("CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH");
   }
-  const allowedConclusions = failureRepair ? ["failure", "cancelled", "timed_out"] : ["success"];
+  if (namedReason && namedReason[2].toLowerCase() !== request.headSha.toLowerCase()) {
+    throw new Error("CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH");
+  }
+  const allowedConclusions = failureRepair ? ["failure"] : ["success"];
   if (typeof run.conclusion !== "string" || !allowedConclusions.includes(run.conclusion)
     || (failureReason && run.conclusion !== failureReason[3].toLowerCase())) {
     const code = failureRepair ? "CODING_RUNNER_FAILURE_EVIDENCE_INVALID" : "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL";
@@ -627,9 +654,40 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
       headSha: request.headSha.toLowerCase(),
     });
   }
+  if (failureRepair) {
+    try {
+      assertCodingRemediationWorkflowIdentity(run, namedReason);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "WORKFLOW_NOT_ELIGIBLE";
+      throw new CodingRunnerEvidenceError(code, {
+        code,
+        workflowRunId: request.workflowRunId,
+        workflowName: typeof run.name === "string" ? run.name : null,
+        workflowEvent: typeof run.event === "string" ? run.event : null,
+        workflowStatus: "completed",
+        workflowConclusion: run.conclusion,
+        headSha: request.headSha.toLowerCase(),
+      });
+    }
+    const mainResponse = await githubEvidenceGet(
+      `${GITHUB_API_ORIGIN}/repos/${repository}/branches/main`,
+      githubToken,
+      fetchImpl,
+    );
+    if (mainResponse.status !== 200) {
+      throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_MAIN_SHA_UNVERIFIED", mainResponse.status);
+    }
+    const mainPayload = object(await mainResponse.json());
+    const mainCommit = object(mainPayload.commit);
+    if (typeof mainCommit.sha !== "string" || mainCommit.sha.toLowerCase() !== request.headSha.toLowerCase()) {
+      throw new Error("CODING_RUNNER_WORKFLOW_HEAD_STALE");
+    }
+  }
   if (typeof run.head_branch !== "string" || !run.head_branch.trim()) throw new Error("CODING_RUNNER_WORKFLOW_BRANCH_INVALID");
   return Object.freeze({
     workflowRunId: request.workflowRunId,
+    ...(Number.isSafeInteger(run.workflow_id) ? { workflowId: Number(run.workflow_id) } : {}),
+    ...(typeof run.path === "string" ? { workflowPath: run.path } : {}),
     workflowName: typeof run.name === "string" ? run.name : null,
     workflowEvent: typeof run.event === "string" ? run.event : null,
     workflowStatus: "completed",
@@ -641,6 +699,47 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
 const SAFE_FAILURE_LABEL = /^[A-Za-z0-9_.:/ ()\[\]-]{1,128}$/;
 const SENSITIVE_FAILURE_LABEL = /bearer\s+[A-Za-z0-9._~+\/-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9-]{16,}\b|\bAKIA[0-9A-Z]{16}\b/i;
 const FAILURE_CONCLUSIONS = new Set(["failure", "cancelled", "timed_out"]);
+
+const CODING_REMEDIATION_WORKFLOW_ALLOWLIST = new Map([
+  [311000286, Object.freeze({ name: "CI", path: ".github/workflows/ci.yml" })],
+]);
+const CODING_REMEDIATION_EVENTS = new Set(["push", "workflow_dispatch"]);
+const CODING_REMEDIATION_FAILURE_STEPS = new Set(["Typecheck", "Build", "Lint"]);
+
+function normalizeWorkflowLabel(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function workflowFailureStopCode(run: Record<string, unknown>): string {
+  const workflowPath = typeof run.path === "string" ? run.path.toLowerCase() : "";
+  if (workflowPath.includes("audit")) return "AUDIT_BLOCKED";
+  if (workflowPath.includes("release")) return "RELEASE_BLOCKED";
+  if (/deploy|promot|runtime-proof|deployment/.test(workflowPath)) return "DEPLOYMENT_FAILURE";
+  if (/credential|permission|authority/.test(workflowPath)) return "PERMISSION_FAILURE";
+  return "WORKFLOW_NOT_ELIGIBLE";
+}
+
+function assertCodingRemediationWorkflowIdentity(
+  run: Record<string, unknown>,
+  failureReason: RegExpMatchArray | null,
+): void {
+  if (!Number.isSafeInteger(run.workflow_id)
+    || typeof run.path !== "string" || !run.path.trim()
+    || typeof run.name !== "string" || !run.name.trim()
+    || typeof run.event !== "string" || !run.event.trim()) {
+    throw new Error("WORKFLOW_IDENTITY_MISSING");
+  }
+  const allowlisted = CODING_REMEDIATION_WORKFLOW_ALLOWLIST.get(Number(run.workflow_id));
+  if (!allowlisted) throw new Error(workflowFailureStopCode(run));
+  if (run.path !== allowlisted.path || run.name !== allowlisted.name
+    || !CODING_REMEDIATION_EVENTS.has(run.event) || run.head_branch !== "main") {
+    throw new Error("WORKFLOW_IDENTITY_MISMATCH");
+  }
+  if (failureReason
+    && normalizeWorkflowLabel(failureReason[1]) !== normalizeWorkflowLabel(allowlisted.name)) {
+    throw new Error("WORKFLOW_IDENTITY_MISMATCH");
+  }
+}
 
 function safeFailureLabel(value: unknown): string | null {
   return typeof value === "string"
@@ -663,17 +762,20 @@ async function verifiedJevCodingFailureEvidence(
     githubToken,
     fetchImpl,
   );
-  if (jobsResponse.status !== 200) return null;
+  if (jobsResponse.status !== 200) throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
   let payload: Record<string, unknown>;
   try {
     payload = object(await jobsResponse.json());
   } catch {
-    return null;
+    throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
   }
-  if (!Array.isArray(payload.jobs)) return null;
+  if (!Array.isArray(payload.jobs) || (Number.isSafeInteger(payload.total_count) && Number(payload.total_count) > 100)) {
+    throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
+  }
 
   const failedJobs: string[] = [];
   const failedSteps: string[] = [];
+  let unclassifiedFailedStep = false;
   for (const rawJob of payload.jobs.slice(0, 100)) {
     if (!rawJob || typeof rawJob !== "object" || Array.isArray(rawJob)) continue;
     const job = rawJob as Record<string, unknown>;
@@ -689,14 +791,18 @@ async function verifiedJevCodingFailureEvidence(
       const step = rawStep as Record<string, unknown>;
       const stepConclusion = typeof step.conclusion === "string" ? step.conclusion : "";
       const stepName = safeFailureLabel(step.name);
-      if (FAILURE_CONCLUSIONS.has(stepConclusion) && stepName) {
-        failedSteps.push(stepName);
+      if (FAILURE_CONCLUSIONS.has(stepConclusion)) {
+        if (!stepName) unclassifiedFailedStep = true;
+        else if (failedSteps.length < 16) failedSteps.push(stepName);
+        else unclassifiedFailedStep = true;
       }
-      if (failedSteps.length >= 16) break;
     }
-    if (failedJobs.length >= 8 && failedSteps.length >= 16) break;
   }
-  if (failedJobs.length === 0 && failedSteps.length === 0) return null;
+  if (failedSteps.length === 0
+    || unclassifiedFailedStep
+    || failedSteps.some((step) => !CODING_REMEDIATION_FAILURE_STEPS.has(step))) {
+    throw new Error("ACTIONABLE_FAILURE_NOT_ALLOWLISTED");
+  }
   return Object.freeze({
     workflowRunId: request.workflowRunId,
     headSha: request.headSha.toLowerCase(),
@@ -896,8 +1002,9 @@ export async function executeCodingRunner(
 ): Promise<CodingRunnerResult> {
   const verifiedWorkflow = await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
   const zeroCreditMode = env.NUSA_AUTOPILOT_ZERO_CREDIT_MODE?.trim().toLowerCase() === "true";
+  const verifiedFailureEvidence = await verifiedJevCodingFailureEvidence(request, verifiedWorkflow, env.NUSA_GITHUB_TOKEN, fetchImpl);
   const jevFailureEvidence = !zeroCreditMode && isJevBoundedCodingAdmissionCandidate(request, env)
-    ? await verifiedJevCodingFailureEvidence(request, verifiedWorkflow, env.NUSA_GITHUB_TOKEN, fetchImpl)
+    ? verifiedFailureEvidence
     : null;
   const jevAdmission = await decideJevBoundedCodingAdmission(
     request,
@@ -953,7 +1060,45 @@ export async function executeCodingRunner(
   // configured endpoint must not shadow the canonical Worker AI binding in production.
   const useConfiguredEngine = Boolean(!zeroCreditMode && endpoint && token && !env.AI);
   if (useConfiguredEngine) {
+    if (options.providerWaitUntil) {
+      let waitUntil: number | null;
+      try {
+        waitUntil = await options.providerWaitUntil("configured-coding-engine");
+      } catch {
+        return { status: "EXECUTION_FAILED", reason: "PROVIDER_CAPACITY_STATE_UNAVAILABLE", proposalAttempts: 0, failureStage: "proposal-parse" };
+      }
+      const current = now();
+      if (waitUntil !== null && current < waitUntil) {
+        return {
+          status: "BLOCKED_RATE_LIMIT",
+          reason: "WAITING_PROVIDER_CAPACITY",
+          proposalAttempts: 0,
+          failureStage: "proposal-parse",
+          provider: "configured-coding-engine",
+          retryAfterMs: waitUntil - current,
+          nextRetryAt: waitUntil,
+          stopReason: "WAITING_PROVIDER_CAPACITY",
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        };
+      }
+    }
     const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!, Boolean(request.proposalContext)));
+    if (response.status === 429) {
+      const current = now();
+      const retryAfterMs = MAX_RATE_LIMIT_BACKOFF_MS;
+      return {
+        status: "BLOCKED_RATE_LIMIT",
+        reason: "WAITING_PROVIDER_CAPACITY",
+        httpStatus: response.status,
+        proposalAttempts: 1,
+        failureStage: "proposal-parse",
+        provider: "configured-coding-engine",
+        retryAfterMs,
+        nextRetryAt: current + retryAfterMs,
+        stopReason: "PROVIDER_RATE_LIMITED",
+        resumeCondition: "provider-capacity-and-exact-head-revalidation",
+      };
+    }
     if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: "coding-engine-request-failed" };
     if (!runtime) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status };
     try {
@@ -963,7 +1108,15 @@ export async function executeCodingRunner(
     }
   }
 
-  if (!env.AI) return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured" };
+  if (!env.AI) {
+    const readiness = assessCodingRunnerReadiness({
+      hasWorkersAiBinding: false,
+      hasConfiguredEngine: Boolean(endpoint && token),
+      hasGithubToken: Boolean(env.NUSA_GITHUB_TOKEN?.trim()),
+      zeroCreditMode,
+    });
+    return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured", readinessBlockers: readiness.blockers };
+  }
   const tierSelection = selectJevCodingModel(jevAdmission, env);
   const tierConfiguredModel = tierSelection?.model?.trim();
   const tierModel = tierConfiguredModel
@@ -986,7 +1139,7 @@ export async function executeCodingRunner(
     if (options.providerWaitUntil) {
       let waitUntil: number | null;
       try {
-        waitUntil = await options.providerWaitUntil();
+        waitUntil = await options.providerWaitUntil("workers-ai");
       } catch {
         return { status: "EXECUTION_FAILED", reason: "PROVIDER_CAPACITY_STATE_UNAVAILABLE", proposalAttempts: attempt - 1, failureStage: "proposal-parse" };
       }

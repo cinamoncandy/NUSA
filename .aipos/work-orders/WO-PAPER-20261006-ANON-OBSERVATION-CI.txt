@@ -1,0 +1,2 @@
+EXACT_HEAD_CI_GATE
+The integration test tests/anonymous-paper-observation-wiring.test.js must fail until generated wiring is present. This is intentional fail-closed evidence. Do not waive or delete the test to obtain green CI. Apply the canonical helper, validate, then exact-head CI must pass normally.

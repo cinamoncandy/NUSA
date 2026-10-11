@@ -1,6 +1,6 @@
 id: WO-UI-20261006-HERO-RIDGE
 title: "Replace the hero figure with the owner-chosen ridge landscape (능선)"
-status: READY_FOR_REVIEW
+status: SUPERSEDED_BY_WO-UI-20261007-HERO-FLOW-FIELD
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main

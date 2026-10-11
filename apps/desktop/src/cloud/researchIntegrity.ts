@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import type { HistoricalDatasetManifest } from "./researchDataset";
+import type { UpbitCandleFreshness } from "../exchange/upbitCandleAdapter";
 
 export type ResearchEvidenceKind = "REAL" | "SYNTHETIC";
 export type ResearchIntegrityStatus = "VALID" | "INVALID";
@@ -265,4 +267,68 @@ export function evidenceFingerprint(provenance: ResearchEvidenceProvenance, evid
 
 export function assertDeterministicReplay(expectedFingerprint: string, provenance: ResearchEvidenceProvenance, replayedEvidence: unknown): void {
   if (evidenceFingerprint(provenance, replayedEvidence) !== expectedFingerprint) throw new Error("REPLAY_NON_DETERMINISTIC");
+}
+
+export interface CurrentResearchDatasetIdentityInput {
+  readonly manifest: HistoricalDatasetManifest;
+  readonly freshness: UpbitCandleFreshness;
+  readonly observedAt: number;
+}
+
+export interface CurrentResearchDatasetIdentity {
+  readonly datasetId: string;
+  readonly datasetFingerprint: string;
+  readonly source: string;
+  readonly market: string;
+  readonly interval: string;
+  readonly endCloseTime: number;
+  readonly observedAt: number;
+  readonly expectedLatestCloseTime: number;
+  readonly actualLatestCloseTime: number;
+  readonly lagIntervals: number;
+  readonly fresh: true;
+  readonly status: "CURRENT";
+}
+
+export function requireCurrentResearchDatasetIdentity(input: CurrentResearchDatasetIdentityInput): CurrentResearchDatasetIdentity {
+  const manifest = input.manifest;
+  const freshness = input.freshness;
+  if (manifest == null || manifest.schemaVersion !== 1) throw new Error("INVALID_CURRENT_DATASET_IDENTITY:manifest");
+  for (const key of ["datasetId", "source", "market", "interval"] as const) {
+    if (typeof manifest[key] !== "string" || !manifest[key].trim()) throw new Error(`INVALID_CURRENT_DATASET_IDENTITY:${key}`);
+  }
+  if (!/^[0-9a-f]{64}$/.test(manifest.contentSha256)) throw new Error("INVALID_CURRENT_DATASET_IDENTITY:datasetFingerprint");
+  if (freshness == null || freshness.source !== manifest.source || freshness.market !== manifest.market || freshness.interval !== manifest.interval) {
+    throw new Error("CURRENT_DATASET_FRESHNESS_BINDING_MISMATCH");
+  }
+  for (const [key, value] of [
+    ["endCloseTime", manifest.endCloseTime],
+    ["observedAt", input.observedAt],
+    ["freshnessAsOf", freshness.asOf],
+    ["expectedLatestCloseTime", freshness.expectedLatestCloseTime],
+    ["actualLatestCloseTime", freshness.actualLatestCloseTime],
+    ["lagIntervals", freshness.lagIntervals],
+  ] as const) {
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error(`INVALID_CURRENT_DATASET_IDENTITY:${key}`);
+  }
+  if (freshness.asOf !== input.observedAt) throw new Error("CURRENT_DATASET_FRESHNESS_ASOF_MISMATCH");
+  if (freshness.actualLatestCloseTime !== manifest.endCloseTime) throw new Error("CURRENT_DATASET_OBSERVATION_MISMATCH");
+  if (freshness.expectedLatestCloseTime > input.observedAt || freshness.actualLatestCloseTime > input.observedAt) throw new Error("CURRENT_DATASET_FUTURE_OBSERVATION");
+  if (freshness.fresh !== true || freshness.lagIntervals !== 0 || freshness.actualLatestCloseTime !== freshness.expectedLatestCloseTime) {
+    throw new Error("STALE_CURRENT_DATASET");
+  }
+  return Object.freeze({
+    datasetId: manifest.datasetId,
+    datasetFingerprint: manifest.contentSha256,
+    source: manifest.source,
+    market: manifest.market,
+    interval: manifest.interval,
+    endCloseTime: manifest.endCloseTime,
+    observedAt: input.observedAt,
+    expectedLatestCloseTime: freshness.expectedLatestCloseTime,
+    actualLatestCloseTime: freshness.actualLatestCloseTime,
+    lagIntervals: freshness.lagIntervals,
+    fresh: true,
+    status: "CURRENT",
+  });
 }

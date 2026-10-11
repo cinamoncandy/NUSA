@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { LeagueCandidateOutcome, LeagueRankedEntry } from "./nusaLeague";
 import type { ResearchRunLeagueResult } from "./researchRunLeagueBridge";
+import type { CurrentResearchDatasetIdentity } from "./researchIntegrity";
 
 export type ResearchFactoryOutcome = "REJECTED" | "INSUFFICIENT" | "QUALIFIED_FOR_LEAGUE";
 
@@ -446,11 +447,31 @@ function classify(
  * for initial League qualification. This result is research eligibility only and carries no
  * execution, capital, broker or LIVE authority.
  */
-export function qualifyResearchFactoryRun(run: ResearchRunLeagueResult): ResearchFactoryQualificationResult {
+export function qualifyResearchFactoryRun(
+  run: ResearchRunLeagueResult,
+  currentDatasetIdentity?: CurrentResearchDatasetIdentity,
+): ResearchFactoryQualificationResult {
   if (run.schemaVersion !== 1 || run.evidenceMode !== "RESEARCH_TIER_ONLY") {
     throw new Error("unsupported research run league result");
   }
   validateRunProvenance(run);
+  if (currentDatasetIdentity != null) {
+    if (currentDatasetIdentity.status !== "CURRENT"
+      || currentDatasetIdentity.datasetId !== run.provenance.dataset.datasetId
+      || currentDatasetIdentity.datasetFingerprint.toLowerCase() !== run.provenance.dataset.contentSha256.toLowerCase()
+      || currentDatasetIdentity.source !== run.provenance.dataset.source
+      || currentDatasetIdentity.market !== run.provenance.dataset.market
+      || currentDatasetIdentity.interval !== run.provenance.dataset.interval
+      || currentDatasetIdentity.endCloseTime !== run.provenance.dataset.endCloseTime
+      || currentDatasetIdentity.actualLatestCloseTime !== run.provenance.dataset.endCloseTime
+      || currentDatasetIdentity.expectedLatestCloseTime !== run.provenance.dataset.endCloseTime
+      || !Number.isSafeInteger(currentDatasetIdentity.observedAt)
+      || currentDatasetIdentity.observedAt < currentDatasetIdentity.endCloseTime
+      || currentDatasetIdentity.fresh !== true
+      || currentDatasetIdentity.lagIntervals !== 0) {
+      throw new Error("current research dataset identity does not match qualification provenance");
+    }
+  }
   const reports = new Map(run.evidenceReport.map((report) => [report.candidateId, report] as const));
   if (reports.size !== run.standing.entries.length || reports.size !== run.evidenceReport.length) {
     throw new Error("research evidence report coverage mismatch");

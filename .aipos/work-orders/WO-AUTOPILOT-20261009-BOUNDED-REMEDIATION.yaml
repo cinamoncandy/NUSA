@@ -1,0 +1,121 @@
+id: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
+title: "Close actionable coding-runner failure to bounded remediation transition"
+status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED_RESIDUAL_OPEN
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: fix/2595-remediation-decision-diagnostics
+issue: 2595
+authority_impact: none
+safety:
+  paper_only: true
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+first_broken_transition: "failed workflow identity -> remediation eligibility"
+scope:
+  include:
+    - "Fail-closed coding-runner failure taxonomy with explicit retry allowlists."
+    - "Distinct VALID_NO_ACTION, FAILED_TO_REMEDIATE, and FAILED_CLOSED decisions."
+    - "Hard remediation retry budget capped at three attempts."
+    - "Provider HTTP 5xx evidence can classify a concrete transient provider failure as bounded-retryable."
+    - "Consume the bounded remediation decision in the existing canonical /coding/propose worker and GitHub Actions consumer, with explicit proposal-repair retry and persistent provider-capacity wait."
+    - "HTTP 429 maps to provider capacity and never spends code-remediation retry budget; configured provider cooldown is durable and suppresses calls until resume."
+    - "Failure admission requires exact allowlisted GitHub workflow identity, exact run/repository/SHA, and an allowlisted actionable failed step."
+    - "Governance, release, deployment, credential, permission, unknown, and identity-missing failures stop before coding inference and keep canonical failure classes."
+    - "The explicit failure-workflow allowlist is pinned to CI workflow id 311000286, path .github/workflows/ci.yml, name CI; only Typecheck, Build, and Lint failures are actionable."
+  exclude:
+    - "Any merge, release, secret, production, LIVE, Risk PASS, order, accounting, or strategy-promotion authority."
+    - "New queue, scheduler, coding runner, or worker admission surface."
+acceptance:
+  - "Authority, production mutation, unknown, request-invalid, stale/mismatched evidence and unavailable capacity state fail closed."
+  - "Future or repeated proposal reason prefixes do not become retryable without an explicit allowlist entry."
+  - "Actionable known proposal/provider failures are retryable only inside the fixed budget."
+  - "VALID_NO_ACTION requires an explicit successful abstention reason."
+  - "Exact-head CI passes and independent review has no unresolved findings before Release consideration."
+  - "The worker and existing dispatch consumer use the decision primitive; no parallel recovery loop exists."
+  - "Provider 429/capacity waits without spending the deterministic code retry budget; persistent wait suppresses duplicate provider calls."
+  - "Release, Independent Audit, deployment, unknown, missing/mismatched workflow identity, stale SHA, and non-allowlisted CI steps never call the coding model or spend remediation attempts."
+verification:
+  - "npx tsc -p tsconfig.json"
+  - "node --test dist/apps/autopilot/src/codingRunnerRemediation.test.js"
+  - "node --test dist/apps/autopilot/src/worker.test.js"
+  - "node --test dist/apps/autopilot/src/codingRunner.test.js"
+  - "node --test tests/autopilot-control-plane-wiring.test.js"
+  - "node --test tests/autopilot-dispatch-retry.test.js"
+  - "pnpm run validate"
+delegated_validation: "The published increment is committed and workflow-validated. It seals the existing exact workflow/run/repository/main-SHA and Typecheck/Build/Lint admission boundary with deterministic coverage proving cancelled and timed-out CI conclusions stop before failed-job inspection or coding inference."
+
+predecessor_increment:
+  base_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+  pull_request: 2618
+  branch: autopilot/codex/issue-2595-38095822093
+  head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
+  status: MERGED_PREDECESSOR_CLOUDFLARE_RUNTIME_VERIFIED
+  first_broken_transition: "failed workflow identity -> remediation eligibility"
+  remaining:
+    - "PR #2618 metadata finding resolved and governed merge complete; current diagnostics residual requires fresh gates."
+    - "Deploy latest protected main and verify Oracle and Autopilot runtime SHA/health."
+    - "Observe a real allowlisted actionable coding failure; complete governed repair and durable receipt."
+  next_permitted_action: "Continue the current diagnostics increment below; do not reuse predecessor CI/Audit for it."
+  verified: false
+
+implementation_commit: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
+reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+review_status: "INDEPENDENT_REVIEW_PASS_ON_EXACT_HEAD; PR #2596 comment 6077782732 reviewed 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94"
+independent_review_comment_id: 6077782732
+independent_review_summary_comment_id: 6058378290
+independent_reviewed_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+audit_release_run_id: 37908729659
+audit_job_id: 113749521583
+release_job_id: 113749522793
+audited_pr_head: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
+audited_base_sha: 2019d0245ae228ca61ce416ee0cd0950b368ec91
+next_permitted_action: "Complete exact-head CI, Independent Audit, and governed Release; then deploy exact main, verify runtime identity/health, and obtain one real allowlisted actionable-failure completion receipt."
+validation_status: "MERGED; exact-head CI 37907989197 PASS; deterministic Audit run 37908729659 job 113749521583 PASS; canonical Release run 37908729659 job 113749522793 SUCCESS and merged as 21e632ace23bc2ee64778855ce49e0a083706c84; post-merge CI 37909190312 PASS; Cloudflare Deploy 37909190345 PASS; Runtime Proof 37909862299 PASS with exact source/deployment SHA 21e632ace23bc2ee64778855ce49e0a083706c84."
+review_findings_resolved_in_increment:
+  - "Preserve GitHub commit/workflow lookup HTTP status in typed failure evidence across /coding/execute, /coding/propose, and /coding/publish; preserve configured-engine 429/5xx result status through /coding/propose."
+  - "Normalize colon-delimited details only for explicitly allowlisted SANDBOX failure codes."
+  - "Treat configured coding-engine HTTP 429 as provider capacity; only 5xx is remediation-retryable."
+invalid_canary_non_eligible_workflow:
+  status: INVALID_CANARY_NON_ELIGIBLE_WORKFLOW
+  consumer_run_id: 38030591763
+  cited_oracle_paper_release_run_id: 38027432366
+  result: FAILED_TO_REMEDIATE
+  proposal_attempts: 3
+  evidence_meaning: "Canonical worker consumed a remediation decision and enforced retry cap; this governance failure was ineligible and is not a successful canary or verified completion."
+remaining:
+  - "Pass fresh exact-head CI, independent Audit and governed Release for the current diagnostics residual."
+  - "Deploy exact protected main and verify Oracle and Autopilot runtime SHA/health."
+  - "Complete one real allowlisted actionable coding-failure canary and durable completion receipt through governed verification and runtime evidence."
+  - "Runtime Proof scheduled ingress abstained because exact-main canonical CI was not found; the deployment identity itself was exact and verified."
+  - "Actual PAPER run 37909797419 was INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; it is not a remediation completion receipt."
+
+decision_diagnostics_increment:
+  pull_request: 2619
+  predecessor_pull_request: 2618
+  predecessor_governed_evidence:
+    pull_request: 2618
+    head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
+    base_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+    ci_run_id: 38110715952
+    audit_release_run_id: 38111004681
+    merge_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
+    cloudflare_runtime_proof_run_id: 38111417131
+    cloudflare_runtime_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
+    meaning: PREDECESSOR_EVIDENCE_ONLY_NOT_CURRENT_DIAGNOSTICS_ACCEPTANCE
+  branch: fix/2595-remediation-decision-diagnostics
+  base_sha: be703b22e5272d39509352322a4c1264da481a8e
+  implementation_commit: c608fb11c645787b30d5afadcef53f6f512907a3
+  focused_validation_head: c8dcf638710b9c7dc6fed9b97404397416ee6d8e
+  current_main_build_typecheck_validation_head: c1f59727db893d9c5aaa40653e986dcf02f7c1d4
+  published_head_binding: REQUIRE_FRESH_EXACT_HEAD_CI_AUDIT_RELEASE_IN_CANONICAL_PR_RECEIPT
+  prior_increment_head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
+  status: LOCAL_VALIDATION_PASS_EXACT_HEAD_GATES_PENDING
+  first_broken_transition: "locally validated diagnostics increment -> fresh exact-head CI and independent Audit"
+  scope: "Preserve HTTP status and bounded workflow/Worker/decision diagnostics before invalid-decision rejection; align terminal class vocabulary as STOP only; no retry allowlist or authority expansion."
+  validation: "Current-main be703b22: dispatcher/consumer and canonical Autopilot suite 143/143 PASS; full build, typecheck and preflight PASS. Prior unchanged diagnostics paths: validate:full and changed-file lint PASS. YAML/provenance PASS. PR2619 first CI 38129284192 failed on a non-secret test credential fixture; explicit example-key placeholder repair passed dispatcher/consumer 50/50, lint and security gate (zero findings). Independent review repair: effective terminal recovery STOP retained separately from rejected diagnostics; valid provider retry/exhaustion retains transport and upstream HTTP status. Dispatcher/consumer 52/52 PASS; focused changed-file lint and preflight PASS. Fresh exact-head CI remains required. No new exact-head CI/Audit/Release/runtime/canary acceptance claimed."
+  next_permitted_action: "Publish only this locally validated diagnostics residual after predecessor #2618 merged, obtain fresh exact-head CI and independent Audit, then canonical Release."
+  AUTOPILOT_VERIFIED_COMPLETION_LOOP: false
+  verified: false
