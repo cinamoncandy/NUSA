@@ -3072,28 +3072,28 @@ current_data_2002_dataset_identity:
 
 current_iterative_investment_learning_20261011:
   owner: nusa-data-integrity
-  canonical_pr: 2395
+  completed_pr: 2395
   canonical_learning_issue: 1605
-  source_main_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
-  prior_head: be6702f1667433c2bdf1b310c36c9891f900afe2
+  source_main_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  runtime_sha: ca4f897dd476d1238682a38d618c9569bac19e52
   work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
-  status: REVIEW_REPAIR_LOCAL_PASS_PENDING_EXACT_HEAD_GATES
-  first_broken_transition: current_dataset_identity_to_full_qualification_provenance_binding
-  root_cause: "Qualification previously compared only dataset id/hash, allowing source/market/interval/end-close substitution. Release also stopped on four unresolved review threads."
-  validation: "Scoped TypeScript compiler PASS; focused integrity/qualification 40/40 plus wiring 4/4 PASS; baseline/current red-green regression PASS; preflight, architecture truth, safety, AI and work-order provenance PASS."
-  runtime_evidence: .aipos/evidence/learning-current-chain-20261011.json
+  status: DATA_IDENTITY_IMPLEMENTATION_DEPLOYED_ACTUAL_LEARNING_UNVERIFIED
+  first_broken_transition: pending_period_retained_observations_to_post_restart_benchmark_reconstruction
+  validation: "PR2395 exact-head and protected-main CI/Audit/Release completed; latest-main CI38130954313 and Oracle release38131375100 PASS; current actual runtime SHA matches."
+  runtime_evidence: "Fresh health 2026-10-11T16:09:43.875Z: Ledger81 fills, fingerprint9be0aea43ee8063f9a3027dd4586338c4c9d8413b5bd99f8966e3946f19d2254; realized periods5, rolloverWAITING_FOR_CANONICAL_BOUNDARY, cycles0. Prior CANONICAL_FILL_LEDGER_UNAVAILABLE is not current."
   learning_acceptance_verified: 0
   learning_acceptance_remaining: 7
   improvement: IMPROVEMENT_UNVERIFIED
   verified: false
-  next: "Existing PR2395 fresh exact-head CI/Audit/Release; then exact-main current dataset handoff and real Stage1 retention/benchmark/recovery evidence."
+  next: "Actual Stage1 retained observation range/checksum/benchmark consumption receipt; existing PR2068 ticker regression successor has its own state entry below."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_family_identity:
   work_order: WO-20260919-STRATEGY-FAMILY-IDENTITY
   status: READY_FOR_EXACT_HEAD_REVIEW_AFTER_REPAIR
   branch: codex/strategy-family-integrity
   scope: "Existing generic robustness family inputs and independent evidence identity; no new strategy or qualification policy."
   findings: "Duplicate parameter tuples under distinct names inflated the grid; whitespace parameter aliases overwrote values; malformed grids threw; references sharing a source were conflated."
-  validation: "Final review repair 63/63 focused tests PASS; preflight/truth/research/safety/AI/AIPOS validators PASS; current repaired exact-head full CI and independent acceptance required; prior 209cd9d CI is historical."
+  validation: "Final review repair 64/64 focused tests PASS, including rehashed OOS benchmark omissions/contradictions; preflight/truth/research/safety/AI/AIPOS validators PASS; current repaired exact-head full CI and independent acceptance required; prior 209cd9d CI is historical."
   next: "Independent PR/CI governance; preserve the existing qualification hold."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

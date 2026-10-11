@@ -53,3 +53,11 @@ exact_review_repair_20261011:
   regression: "63/63 PASS after final repair, including rehashed diagnostic tampering, valid-then-invalid rehashed domain receipts, cross-spelling SMA reference, cost stress and deterministic replay."
   actual_runtime_predecessor: "P0 Oracle release 38112518939 succeeded; protected main and actual runtime be703b22 agree. Ledger fingerprint/open period identity survived restart; Learning rollover still CANONICAL_FILL_LEDGER_UNAVAILABLE."
   acceptance: "New exact-head CI and Independent Audit required. Synthetic regression output is not actual PAPER/OOS investment evidence."
+
+benchmark_review_repair_20261011:
+  reviewed_head: 51c5d8963c5c861bdaede74806d6435d6f51cf9b
+  current_base: ca4f897dd476d1238682a38d618c9569bac19e52
+  root_cause: "Verifier trusted reported OOS excess and defaulted missing benchmark values to zero."
+  repair: "Require finite bound OOS returns for every cost condition, enforce exact net-minus-benchmark excess, derive the diagnostic from those returns."
+  validation: "64/64 focused tests PASS including red-green missing/rehashed contradictory/non-finite OOS benchmark regression; synthetic fixtures only."
+  next: "Current repaired exact-head CI, Independent Audit, governed Release/merge."

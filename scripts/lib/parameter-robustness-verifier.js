@@ -63,6 +63,16 @@ function verifyGenericParameterRobustnessResult(request, result) {
   const selectedReturn = (candidate) => prefersOos
     ? (candidate.costResults.BASE.oos?.compoundedReturn ?? 0)
     : (candidate.costResults.BASE.fullSample?.totalReturn ?? 0);
+  for (const candidate of validCandidates) {
+    for (const condition of request.costConditions) {
+      const evidence = candidate.costResults?.[condition.name];
+      if (prefersOos) {
+        const oos = evidence?.oos;
+        if (!oos || ![oos.compoundedReturn, oos.compoundedBenchmarkReturn, oos.benchmarkExcessReturn].every(value => typeof value === "number" && Number.isFinite(value))) throw new Error("missing or non-finite OOS benchmark evidence");
+        if (oos.benchmarkExcessReturn !== oos.compoundedReturn - oos.compoundedBenchmarkReturn) throw new Error("OOS benchmark excess mismatch");
+      } else if (!evidence?.fullSample || ![evidence.fullSample.totalReturn, evidence.fullSample.benchmarkExcessReturn].every(value => typeof value === "number" && Number.isFinite(value))) throw new Error("missing or non-finite full-sample evidence");
+    }
+  }
   const returns = validCandidates.map(selectedReturn).sort((a, b) => a - b);
   const positiveRatio = returns.length ? returns.filter((value) => value > 0).length / returns.length : 0;
   if (result.aggregate && Math.abs(positiveRatio - result.aggregate.positiveRatio) > 1e-9) errors.push(`aggregate.positiveRatio mismatch: recomputed ${positiveRatio}, result reports ${result.aggregate.positiveRatio}`);
@@ -70,7 +80,7 @@ function verifyGenericParameterRobustnessResult(request, result) {
   if (result.aggregate && returns.length && Math.abs(returns[returns.length - 1] - result.aggregate.bestReturn) > 1e-9) errors.push("aggregate.bestReturn mismatch");
   // Re-derive diagnostics independently from the bound candidate and declared edges.
   const selectedBenchmark = (candidate) => prefersOos
-    ? (candidate.costResults.BASE.oos?.benchmarkExcessReturn ?? 0)
+    ? (candidate.costResults.BASE.oos.compoundedReturn - candidate.costResults.BASE.oos.compoundedBenchmarkReturn)
     : (candidate.costResults.BASE.fullSample?.benchmarkExcessReturn ?? 0);
   const edges = [];
   for (const [key, candidate] of expected) {

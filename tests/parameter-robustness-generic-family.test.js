@@ -248,3 +248,18 @@ test("rehashed reference diagnostics remain bound to candidate returns and adjac
     assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", field);
   }
 });
+
+test("rehashed OOS benchmark omissions and contradictions fail closed", () => {
+  const input = request();
+  const valid = runParameterRobustnessRequest(input);
+  assert.equal(verifyParameterRobustnessResult(input, valid).status, "PASS");
+  for (const field of ["compoundedReturn", "compoundedBenchmarkReturn", "benchmarkExcessReturn"]) {
+    for (const value of [undefined, NaN, Infinity, "0", valid.candidates[0].costResults.BASE.oos[field] + 0.25]) {
+      const result = structuredClone(valid);
+      if (value === undefined) delete result.candidates[0].costResults.BASE.oos[field];
+      else result.candidates[0].costResults.BASE.oos[field] = value;
+      result.hashes.candidateResultsSha256 = canonicalHash(result.candidates);
+      assert.equal(verifyParameterRobustnessResult(input, result).status, "FAIL", field + ":" + String(value));
+    }
+  }
+});
