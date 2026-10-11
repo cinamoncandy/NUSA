@@ -4,7 +4,7 @@ status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED_RESIDUAL_OPEN
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-branch: autopilot/codex/issue-2595-37995487274
+branch: autopilot/codex/issue-2595-38095822093
 issue: 2595
 authority_impact: none
 safety:
@@ -47,17 +47,18 @@ verification:
 delegated_validation: "The published increment is committed and workflow-validated. It seals the existing exact workflow/run/repository/main-SHA and Typecheck/Build/Lint admission boundary with deterministic coverage proving cancelled and timed-out CI conclusions stop before failed-job inspection or coding inference."
 
 successor_increment:
-  base_sha: ba6bfa3ec948af52e2b61a9f1de44f921c287b78
-  pull_request: 2601
-  branch: autopilot/codex/issue-2595-37995487274
-  status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+  base_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+  pull_request: 2618
+  branch: autopilot/codex/issue-2595-38095822093
+  head_sha: 58adc3b6a533d43c7e7ef989fa46e74aba7f638d
+  status: EXACT_HEAD_CI_PASS_AUDIT_PASS_RELEASE_PREFLIGHT_REVIEW_FINDING_OPEN
   first_broken_transition: "failed workflow identity -> remediation eligibility"
   remaining:
-    - "Pass focused tests, exact-head CI, Independent Audit, and governed Release."
+    - "Resolve the exact-head independent review finding that stale successor identity still pointed to merged PR #2601."
     - "Deploy latest protected main and verify Oracle and Autopilot runtime SHA/health."
     - "Observe a real allowlisted actionable coding failure; complete governed repair and durable receipt."
-  next_permitted_action: "Run exact-head CI, Independent Audit, and governed Release for this single #2595 successor before deployment or canary evidence collection."
-  verified: true
+  next_permitted_action: "Update this same PR with exact current increment identity, rerun exact-head CI and Independent Audit, then governed Release before deployment or canary evidence collection."
+  verified: false
 
 implementation_commit: 7acdeef04b4fd2be2a8188f256fbe2e4f6902e94
 merge_commit: 21e632ace23bc2ee64778855ce49e0a083706c84
@@ -85,7 +86,7 @@ invalid_canary_non_eligible_workflow:
   proposal_attempts: 3
   evidence_meaning: "Canonical worker consumed a remediation decision and enforced retry cap; this governance failure was ineligible and is not a successful canary or verified completion."
 remaining:
-  - "Exact-head CI, Independent Audit, and governed Release for the published increment."
+  - "Resolve PR #2618 independent review identity finding; rerun exact-head CI, Independent Audit, and governed Release on the repaired head."
   - "Deploy exact protected main and verify Oracle and Autopilot runtime SHA/health."
   - "Complete one real allowlisted actionable coding-failure canary and durable completion receipt through governed verification and runtime evidence."
   - "Runtime Proof scheduled ingress abstained because exact-main canonical CI was not found; the deployment identity itself was exact and verified."

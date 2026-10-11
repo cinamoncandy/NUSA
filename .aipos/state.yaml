@@ -3007,12 +3007,13 @@ current_autopilot_2595_bounded_remediation:
   invalid_canary_non_eligible_workflow: "INVALID_CANARY_NON_ELIGIBLE_WORKFLOW: consumer run 38030591763 received a dispatch citing Oracle PAPER Release run 38027432366; worker artifact recorded FAILED_TO_REMEDIATE after exactly three SANDBOX_PATCH_* proposal rejections. Preserve as evidence of worker consumption, retry cap enforcement, and the eligibility boundary defect only; do not count as Verified Useful Completion."
   validation: "The published increment is committed and workflow-validated. The existing #903 worker now requires the pinned CI workflow identity, exact run/repository/current-main SHA, and an allowlisted Typecheck/Build/Lint failed step before remediation; deterministic regression coverage proves cancelled and timed-out CI conclusions stop before job inspection or coding inference."
   remaining: "Exact-head CI, Independent Audit, and governed Release; then exact-main deployment and Oracle/Autopilot runtime SHA/health proof; then one real allowlisted actionable coding-failure canary through patch, focused validation, PR, exact-head CI, independent Audit, governed Release/merge, and durable completion receipt."
-  successor_branch: autopilot/codex/issue-2595-37995487274
-  successor_base_sha: ba6bfa3ec948af52e2b61a9f1de44f921c287b78
-  successor_pull_request: 2601
-  successor_status: DELEGATED_INCREMENT_COMMITTED_WORKFLOW_VALIDATED
+  successor_branch: autopilot/codex/issue-2595-38095822093
+  successor_base_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+  successor_pull_request: 2618
+  successor_head_sha: 58adc3b6a533d43c7e7ef989fa46e74aba7f638d
+  successor_status: EXACT_HEAD_CI_PASS_AUDIT_PASS_RELEASE_PREFLIGHT_REVIEW_FINDING_OPEN
   successor_first_broken_transition: "failed workflow identity -> remediation eligibility"
-  next_permitted_action: "Complete exact-head CI, Independent Audit, and governed Release for the published boundary increment; only afterward deploy exact main and collect the real canary completion receipt."
+  next_permitted_action: "Resolve PR #2618 exact-head review finding, then rerun exact-head CI and Independent Audit and obtain governed Release before exact-main deployment or real-canary receipt collection."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_issue_1605_market_observation_retention:
   work_order: WO-ISSUE-1605-MARKET-OBSERVATION-RETENTION
