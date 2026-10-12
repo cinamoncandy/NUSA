@@ -3218,3 +3218,16 @@ current_docs_handoff_research_status:
   finding: "The handoff now records the end-of-day state: the learning loop is still 0/7 (owner baseline has no Research lineage), breakout and SMA research found no candidate and the owner stopped it, the PR ledger (merged, closed, HOLD, open) and the four inputs needed from the owner on 2026-10-13."
   next: "After the owner supplies the two GitHub logins and the redesign direction, act one task per PR; keep HOLD PRs untouched until then."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_claude_centered_redesign:
+  work_order: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  status: READY_FOR_REVIEW
+  revision: 2
+  branch: claude/claude-centered-redesign
+  pull_request: 2650
+  authority_impact: none
+  decision: .aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md
+  design: docs/CLAUDE_CENTERED_OPERATING_MODEL.md
+  finding: "Revision 2 (re-reviewed against GitHub and the Worker, 2026-10-12 22:00-22:40 UTC): the notification flood is not Codex-specific; the Worker's scheduled runtime repairs any failed main-head run for 24 hours (230 consumer failures on 2026-10-12, eleven re-dispatches of one Codex failure about every 5 minutes) and the consumer runs are triggered as cinamoncandy, so failures notify the owner. Roles follow the governing charter: CORE is the main Claude on the owner's account, VALIDATOR/RESEARCH plus operations is the assistant Claude on one automation-only machine account, AUTOPILOT stays Workers AI with the 150-line one-file limit. Non-author review under GRILL_ME_PROTOCOL for code PRs, blocking findings as inline threads; branch claims replace claimed_by; the Worker token should move to a GitHub App separate from the release-authority app; the owner-activity gate (#2644) must not be enabled until a closed gate is a quiet NO_ACTION and the Worker identity is separated."
+  next: "Owner answers the six decisions; P1 (Autopilot repair-target allowlist, attempt cap, quiet stops) can start before P0 identity work with owner approval. HOLD PRs stay untouched until then."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

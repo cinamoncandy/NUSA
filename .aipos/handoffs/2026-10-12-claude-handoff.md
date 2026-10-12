@@ -119,7 +119,13 @@ Snapshot; re-verify against GitHub (No-Guess Rule). Protected main at addendum t
 3. Whether to pre-register the regime-signal breakout variant or leave research stopped.
 4. Whether main-branch protection "Do not allow bypassing the above settings" was turned back on after the temporary bypass (the owner said it was; sessions cannot read it).
 
+### Redesign re-review (2026-10-13 KST, PR #2650 revision 2)
+- The Claude-centered redesign is `docs/CLAUDE_CENTERED_OPERATING_MODEL.md` (PROPOSED, revision 2) with its ADR and work order; facts re-verified 2026-10-12 22:00-22:40 UTC.
+- Corrections to the Codex note above: the Codex workflow ran (and failed) three times on 2026-10-12, not hourly. The repeated dispatch is not Codex-specific: the scheduled runtime treats any failed non-repository_dispatch run on the main head within 24 hours as a repair target (`apps/autopilot/src/scheduledRuntime.ts:216`). It re-dispatched Codex run 38300571241 eleven times (19:55-20:48 UTC) and also selected a PAPER evidence failure (run 38287517884). The pause near 20:50 came from `WIP_LIMIT_REACHED`, and two more consumer failures followed at 22:06 and 22:11 UTC, after the disable. On 2026-10-12 the consumer failed 230 times; its runs are triggered as `cinamoncandy`, so the failure notifications reach the owner.
+- Verified: main protection requires `nusa/release-authorized` (app 4935691) with enforcement `everyone`, which answers owner input 4 above as far as the branch API shows; the rest of the protection settings return 403 to sessions.
+- Do not enable #2644 as written: a closed gate returns `OWNER_ACTIVE` as `FAILED_CLOSED`, which the consumer turns into a failed run (`scripts/autopilot-dispatch-retry.js:1059-1063`, `:1337`).
+
 ### Safe next actions for a new session
-1. Re-verify main, open PRs (#2633, #2586, #2637-#2639, #2641, #2642, #2644-#2646) and labels; respect `HOLD`.
-2. Wait for the owner's redesign and the two GitHub logins; then act on the decisions, one task per PR. Confirm the final repository name first.
-3. Never merge your own PR, bypass Audit or Release, enable the owner-activity gate before account separation, or rename the repository or the product.
+1. Re-verify main, open PRs (#2633, #2586, #2637-#2639, #2641, #2642, #2644, #2648, #2650) and labels; respect `HOLD`.
+2. Wait for the owner's redesign decisions (six, in the redesign document) and the GitHub identities; then act on the decisions, one task per PR.
+3. Never merge your own PR, bypass Audit or Release, enable the owner-activity gate before account separation and the quiet closed-gate fix, re-enable Codex coding before the repair-target allowlist and attempt cap, or rename the repository or the product.
