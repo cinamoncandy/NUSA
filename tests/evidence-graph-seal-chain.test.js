@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
 const {
   sealEvidenceGraph, verifyEvidenceGraphSeal, verifySealChainIntegrity,
   SealChainIntegrityDecision, GENESIS_SEAL_HASH,
@@ -78,4 +79,59 @@ test("sqlite seal repository persists the chain and rejects tampering-equivalent
   ).run("s1", "rc-1", "x", "y", "z", 1, 1, 4));
 
   db.close();
+});
+
+
+test("legacy graph without provenance preserves the v1 canonical fingerprint", () => {
+  const seal = sealEvidenceGraph({ sealId: "legacy", candidateId: "rc-1", nodes: nodesA, edges: edgesA, nowMs: 1 });
+  const canonical = JSON.stringify({
+    nodes: [
+      { evidenceId: "freeze", kind: "FREEZE", candidateId: "rc-1" },
+      { evidenceId: "promotion", kind: "PROMOTION", candidateId: "rc-1" }
+    ],
+    edges: [{ fromEvidenceId: "freeze", toEvidenceId: "promotion", relation: "ENABLES" }]
+  });
+  assert.equal(seal.graphHash, createHash("sha256").update(canonical).digest("hex"));
+});
+
+test("external claims cannot be VERIFIED without linked verifier evidence", () => {
+  const nodes = [
+    { evidenceId: "vendor-claim", kind: "EXTERNAL_CLAIM", candidateId: "rc-1", provenance: {
+      sourceType: "EXTERNAL", verificationState: "VERIFIED", sourceRef: "https://example.test/claim",
+      sourceFingerprint: "a".repeat(64), observedAtMs: 1, verifierEvidenceId: "review-1"
+    }},
+    { evidenceId: "review-1", kind: "INDEPENDENT_REVIEW", candidateId: "rc-1" }
+  ];
+  assert.throws(() => sealEvidenceGraph({ sealId: "missing-verifier-edge", candidateId: "rc-1", nodes, edges: [], nowMs: 2 }), /INDEPENDENTLY_VERIFIES/);
+  const seal = sealEvidenceGraph({
+    sealId: "verified-external-claim", candidateId: "rc-1", nodes,
+    edges: [{ fromEvidenceId: "review-1", toEvidenceId: "vendor-claim", relation: "INDEPENDENTLY_VERIFIES" }],
+    nowMs: 2
+  });
+  assert.equal(verifyEvidenceGraphSeal({ seal, nodes, edges: [{ fromEvidenceId: "review-1", toEvidenceId: "vendor-claim", relation: "INDEPENDENTLY_VERIFIES" }] }), true);
+});
+
+test("expired provenance must be explicitly stale and model claims require source references", () => {
+  const expired = [{ evidenceId: "e1", kind: "OBSERVATION", candidateId: "rc-1", provenance: {
+    sourceType: "CANONICAL", verificationState: "VERIFIED", observedAtMs: 1, validUntilMs: 2, verifierEvidenceId: "review"
+  }}, { evidenceId: "review", kind: "REVIEW", candidateId: "rc-1" }];
+  const edge = [{ fromEvidenceId: "review", toEvidenceId: "e1", relation: "INDEPENDENTLY_VERIFIES" }];
+  assert.throws(() => sealEvidenceGraph({ sealId: "expired-current", candidateId: "rc-1", nodes: expired, edges: edge, nowMs: 2 }), /marked STALE/);
+  const stale = expired.map(n => n.evidenceId === "e1" ? { ...n, provenance: { ...n.provenance, verificationState: "STALE" } } : n);
+  assert.doesNotThrow(() => sealEvidenceGraph({ sealId: "expired-stale", candidateId: "rc-1", nodes: stale, edges: edge, nowMs: 2 }));
+  assert.throws(() => sealEvidenceGraph({
+    sealId: "model-without-source", candidateId: "rc-1",
+    nodes: [{ evidenceId: "model", kind: "MODEL_CLAIM", candidateId: "rc-1", provenance: { sourceType: "MODEL_GENERATED", verificationState: "UNVERIFIED" } }],
+    edges: [], nowMs: 1
+  }), /require source provenance/);
+});
+
+test("provenance changes alter the sealed graph fingerprint", () => {
+  const base = [{ evidenceId: "e1", kind: "EXTERNAL_CLAIM", candidateId: "rc-1", provenance: {
+    sourceType: "EXTERNAL", verificationState: "UNVERIFIED", sourceRef: "https://example.test/a"
+  }}];
+  const changed = [{ ...base[0], provenance: { ...base[0].provenance, sourceRef: "https://example.test/b" } }];
+  const a = sealEvidenceGraph({ sealId: "a", candidateId: "rc-1", nodes: base, edges: [], nowMs: 1 });
+  const b = sealEvidenceGraph({ sealId: "b", candidateId: "rc-1", nodes: changed, edges: [], nowMs: 1 });
+  assert.notEqual(a.graphHash, b.graphHash);
 });
