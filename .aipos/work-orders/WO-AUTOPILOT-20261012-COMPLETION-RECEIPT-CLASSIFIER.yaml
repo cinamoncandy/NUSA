@@ -1,0 +1,36 @@
+id: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-CLASSIFIER
+title: "Deterministic completion receipt classifier (issue #2595 items 6 and 8)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: claude/autopilot-completion-receipt
+branch: claude/autopilot-completion-receipt-impl
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('구현해' after the design defaults were approved)"
+scope_note: "A pure classification function and its tests. It is registered in UNWIRED_CONTROL_PLANE_DEBT because nothing records receipts yet. No Worker behavior, workflow, Risk, credential or authority change."
+objective: "Decide VERIFIED_USEFUL_COMPLETION only when CI, independent Audit by the trusted release app, release completion and (when Worker runtime is affected) runtime verification all bind to the same change; never count VALID_NO_ACTION, FAILED_TO_REMEDIATE or an incomplete chain as productive."
+scope:
+  include:
+    - "apps/autopilot/src/autopilotCompletionReceipt.ts"
+    - "apps/autopilot/src/autopilotCompletionReceipt.test.ts"
+    - "apps/autopilot/src/unwiredControlPlaneDebt.ts (one declared entry)"
+  exclude:
+    - "Attaching receipts to the execution coordinator, exposing counts, or any change to Audit, Release or merge authority."
+limitations:
+  - "Not wired: no production code calls the classifier, so no receipt is issued and AUTOPILOT_VERIFIED_COMPLETION_LOOP stays false. The debt entry is removed when the coordinator caller records receipts."
+  - "Evidence fields are supplied by the caller; trust in them rests on the producers (release resolver, execution evidence)."
+acceptance:
+  - "Tests cover: full chain verified with a stable receipt id, no-action outcomes never productive, authority invariants block, each missing piece is named, runtime check only when required, invalid trusted app policy rejected."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/autopilotCompletionReceipt.test.js"
+  - "node --test tests/autopilot-control-plane-wiring.test.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release; wiring to the coordinator is a later work order."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

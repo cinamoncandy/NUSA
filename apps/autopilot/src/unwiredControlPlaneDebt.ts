@@ -33,6 +33,9 @@
  */
 
 export const UNWIRED_CONTROL_PLANE_DEBT: readonly string[] = Object.freeze([
+  // Completion receipt classifier (docs/AUTOPILOT_COMPLETION_RECEIPT_DESIGN.md): lands as a deterministic primitive before
+  // it is attached to the execution coordinator record; removed when that caller records receipts.
+  "autopilotCompletionReceipt.ts#classifyAutopilotCompletion",
   "autonomousExecutionState.ts#applyExecutionHold",
   "autonomousExecutionState.ts#authorizeMergeReady",
   "autonomousExecutionState.ts#clearExecutionHold",
