@@ -178,6 +178,36 @@ describe("persistent execution coordination", () => {
     assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 201, leaseExpiresAt: 1_101 }), { acquired: true });
   });
 
+  it("caps fresh acquisitions of one identity only when the caller asks, and keeps the count across handoff", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const request = { dedupeKey: "evolve-coding:cap", executionId: "evolve-coding:cap", now: 100, leaseExpiresAt: 1_000, maxAcquisitions: 2 };
+    assert.deepEqual(await acquirePersistentExecution(namespace, request), { acquired: true });
+    // The consumer takes the lease over and then fails closed; the count must survive both steps.
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 110, leaseExpiresAt: 1_000 }), { acquired: true });
+    await releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 });
+    assert.equal((await readPersistentExecution(namespace, request.dedupeKey))?.acquisitionCount, 1);
+    assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 300, leaseExpiresAt: 1_300 }), { acquired: true });
+    await releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 400 });
+    assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 500, leaseExpiresAt: 1_500 }), { acquired: false, reason: "ATTEMPT_LIMIT_REACHED" });
+    assert.equal((await readPersistentExecution(namespace, request.dedupeKey))?.state, "RELEASED");
+    // Callers that do not ask for a ceiling keep the previous unbounded behaviour.
+    const { maxAcquisitions: _unused, ...unbounded } = request;
+    assert.deepEqual(await acquirePersistentExecution(namespace, { ...unbounded, now: 600, leaseExpiresAt: 1_600 }), { acquired: true });
+  });
+
+  it("rejects an attempt ceiling outside 1-10", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    for (const maxAcquisitions of [0, 11, 1.5, "3"]) {
+      const response = await coordinator.fetch(new Request("https://execution-coordinator/acquire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dedupeKey: "k", executionId: "e", now: 1, leaseExpiresAt: 2, maxAcquisitions }) }));
+      assert.equal(response.status, 400, String(maxAcquisitions));
+    }
+  });
+
   it("persists a rate-limit stop, suppresses early replays, and resumes the same identity once due", async () => {
     const ns = memoryNamespace();
     const request = {

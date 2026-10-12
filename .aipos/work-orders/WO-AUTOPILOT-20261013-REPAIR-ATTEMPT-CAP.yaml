@@ -1,0 +1,43 @@
+id: WO-AUTOPILOT-20261013-REPAIR-ATTEMPT-CAP
+title: "Cap scheduled Autopilot coding at three attempts per work item and main SHA"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-repair-attempt-cap
+authority_impact: none
+parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+related: WO-AUTOPILOT-20261013-REPAIR-TARGET-ALLOWLIST
+owner_approval: "2026-10-13 in chat (owner chose 'P1 시작', then '계속')"
+scope_note: "Second P1 increment of the redesign (docs/CLAUDE_CENTERED_OPERATING_MODEL.md section 7 item 2). An optional acquisition ceiling in the execution coordinator, used only by scheduled evolution coding. It only withholds work; no route, config, workflow, Audit, Release, Risk or authority change."
+objective: "Stop the scheduler from re-dispatching the same unfixable work about every five minutes until main moves: after three fresh dispatches of one logical work item on one main SHA, further acquisitions return ATTEMPT_LIMIT_REACHED and nothing is dispatched."
+evidence_of_problem:
+  - "2026-10-12: one failed run was re-dispatched eleven times between 19:55 and 20:48 UTC; the loop ended only on the WIP limit and a new main head (Worker /scheduled/status)."
+  - "The consumer releases a failed lease and /acquire re-acquires a RELEASED record, so nothing counted attempts across scheduler ticks."
+scope:
+  include:
+    - "apps/autopilot/src/executionCoordinator.ts (optional maxAcquisitions on /acquire, acquisitionCount on the record, preserved by handoff and release)"
+    - "apps/autopilot/src/scheduledEvolutionCoding.ts (MAX_SCHEDULED_CODING_ATTEMPTS = 3 passed to acquisition)"
+    - "apps/autopilot/src/executionCoordinator.test.ts, apps/autopilot/src/scheduledEvolutionCoding.attemptCap.test.ts"
+  exclude:
+    - "Quiet expected stops in the execution consumer (section 7 item 3), Worker token identity (item 4), other acquire callers (webhook, audit, CI replay), which keep their current behaviour."
+limitations:
+  - "The identity is the existing dedupe key (main SHA plus logical work item); a new main SHA starts a new count, which is intended."
+  - "A rate-limit resume does not count as an attempt; a record written before this change counts as one attempt."
+  - "The Worker auto-deploys from main; the effect needs that deploy and is observable on /scheduled/status as ATTEMPT_LIMIT_REACHED."
+acceptance:
+  - "With the consumer releasing every attempt, five scheduler ticks five minutes apart produce exactly three dispatches and then ATTEMPT_LIMIT_REACHED (the test fails without the ceiling)."
+  - "Callers that pass no ceiling keep unbounded re-acquisition; a ceiling outside 1-10 is rejected; the count survives handoff and release."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/*.test.js"
+  - "node --test tests/autopilot-*.test.js"
+evidence:
+  remaining: "Draft PR, non-author review, exact-head CI, deterministic Audit and Release; Worker deploy."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
