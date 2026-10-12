@@ -3173,3 +3173,10 @@ current_research_sma_60m_oos:
   branch: claude/research-sma-oos-60m
   authority_impact: none
   finding: "On 117 days of public 60-minute candles, slow SMA settings that looked good in-sample (+16%) were all negative on the held-out 39 days (about -2.7%) after fees; fewer trades reduce fee loss but show no edge. Not promotion evidence."
+
+current_autopilot_preflight_credit_posture:
+  work_order: WO-AUTOPILOT-20261012-PREFLIGHT-CREDIT-POSTURE
+  status: READY_FOR_REVIEW
+  branch: claude/preflight-credit-posture
+  authority_impact: none
+  finding: "After #2632 the deploy gate passes, but the trusted Credential Preflight still hardcoded zeroCreditMode ENFORCED; it now derives the expectation from the deploy workflow's NUSA_ZERO_CREDIT_MODE."

@@ -9,7 +9,7 @@ test("nothing is requested until the app registers its transport", () => {
   assert.equal(warmConnection("https://nusa.example"), false);
 });
 
-test("it sends one plain GET of the public /health, once per endpoint, with no credential and no redirect", async () => {
+test("it sends one plain GET of the public /health, once per endpoint, with credentials omitted and redirects rejected", async () => {
   resetConnectionWarmupForTest();
   const calls = [];
   registerConnectionWarmup(async (url, init) => { calls.push({ url, init }); return {}; });
@@ -20,9 +20,10 @@ test("it sends one plain GET of the public /health, once per endpoint, with no c
   assert.equal(calls[0].url, "https://nusa.example/health");
   for (const { init } of calls) {
     assert.equal(init.method, "GET");
+    assert.equal(init.credentials, "omit");
     assert.equal(init.redirect, "error");
     assert.equal(init.cache, "no-store");
-    assert.deepEqual(Object.keys(init).filter((k) => !["method", "redirect", "cache", "signal"].includes(k)), [], "no header, body, cookie or credential option");
+    assert.deepEqual(Object.keys(init).filter((k) => !["method", "credentials", "redirect", "cache", "signal"].includes(k)), [], "no header, body or credential-bearing data");
   }
 });
 
