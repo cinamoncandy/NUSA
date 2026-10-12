@@ -20,6 +20,6 @@ test("the warm-up remains an unauthenticated, HTTPS-only, no-redirect public hea
   const warmup = read("apps/mobile/src/connectionWarmup.ts").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.match(warmup, /!\/\^https:\\\/\\\/\[\^\\s\/\]\+\$\//);
   assert.match(warmup, /\$\{url\}\/health/);
-  assert.match(warmup, /method: "GET", redirect: "error", cache: "no-store"/);
+  assert.match(warmup, /method: "GET", credentials: "omit", redirect: "error", cache: "no-store"/);
   assert.doesNotMatch(warmup, /authorization|cookie|credentialProvider/i);
 });
