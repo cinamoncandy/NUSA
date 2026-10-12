@@ -76,3 +76,30 @@ appended entry from every PR, so concurrent PRs conflict at the file end: merge 
 - CI traps: a `test` gate failure after a newer push cancelled earlier jobs is a stale-head artifact (compare PR head SHA with the run's
   head_sha); `nusa/release-authorized` fails while review threads are unresolved; GitHub 5xx in a job log is transient, so re-run once
   without changing code.
+
+## Evening addendum (2026-10-12 UTC): owner decisions and what is deferred
+Snapshot; re-verify against GitHub (No-Guess Rule). Protected main at addendum time: `07e8e694a487157c6ec34a5bb38537279fe90ea5`.
+
+### Roles and direction (owner)
+- The owner will use **another Claude account as the main coding tool**; the session that wrote this addendum is the **assistant**. Autopilot is the assistant side and prefers **light work** (a 150 changed-line proposal limit is merged in main via #2643 but the Worker is **not deployed** with it).
+- **GitHub account separation is planned for 2026-10-13.** The owner-activity gate (#2644, shipped disabled) watches the main Claude's GitHub login and must stay disabled until the owner supplies two distinct logins (main Claude side, assistant/automation side) and confirms Worker, Codex and assistant sessions do not use the watched account. Owner pause command and re-push behavior are decided in `docs/AUTOPILOT_OWNER_ACTIVITY_GATE_DESIGN.md` (#2641).
+
+### Redesign tomorrow (owner)
+- The owner will **redesign on 2026-10-13**. Until then the redesign-related PRs carry the `HOLD` label and must not be merged or deployed: #2637, #2638, #2639 (completion receipt stack), #2641, #2642, #2644. The label's effect on the release bot was not verified.
+- Do not deploy the Autopilot Worker before the redesign decision.
+
+### Rename: decided, then WITHDRAWN (owner, late 2026-10-12)
+- During the day the owner chose Dokkebi (product), Dokkebiteo / 도깨비터 (AIPOS) and a repository rename to `Dokkebi`. Late the same day the owner **withdrew the product and AIPOS renames: the name stays NUSA (누사) and AIPOS keeps its name.** The Dokkebi display-name PR (#2645) and the phase 2 inventory PR (#2646) were closed unmerged. A repository-wide rename script was prepared but never run; no file was changed.
+- **The GitHub repository itself was already renamed to `cinamoncandy/Dokkebi`** (observed 2026-10-12: the old `cinamoncandy/NUSA` path now redirects and the session had to attach `cinamoncandy/dokkebi`). Renaming it back to `cinamoncandy/NUSA` is an owner action; GitHub redirects the old name in the meantime.
+- **While the repository name differs from the code's hard-coded `cinamoncandy/NUSA`, the Autopilot Worker is expected to reject GitHub OIDC tokens (the token's repository claim is the new name) and other allowlist comparisons fail closed.** Re-verify Autopilot dispatch, the release bot, required checks and deploys after the owner settles the repository name. If the repository stays `Dokkebi`, a dual-name allowlist change (one central constant, independent Audit) is needed first: 13 runtime/Worker sites, 10 scripts, 1 workflow and about 72 test files hard-code the old name, with at least nine allowlist comparisons.
+- Hazards found while preparing the rename, for any future rename: server paths (`/var/lib/nusa`, `/opt/nusa`, `nusa.db`, `nusa-*.service`), `NUSA_*` environment variables read from host env files and secrets, the `owner@nusa.local` login identity, the `nusa/release-authorized` check and release app, hostnames, app ids and `productName` must not be renamed without a coordinated server-side migration.
+
+### Codex automation switched off (owner action, 2026-10-12 late)
+- The owner **disabled the `Autopilot Codex Coding` workflow** (state `disabled_manually`, checked 2026-10-12 21:53 UTC) because it kept failing hourly (`CODEX_FAILED`, not a usage limit) and Autopilot's 5-minute discovery re-dispatched a repair for every failure, which produced red `Autopilot Execution Consumer` runs (each ending `FAILED_CLOSED`, the designed safe result) and notification floods. No code or file changed; it can be re-enabled from the workflow's menu (Enable workflow). The flood had already paused on its own around 20:50 UTC, so the effect of the disable is not yet proven; check for new red consumer runs after 22:23 UTC.
+- Open design issue for the redesign: Autopilot repeatedly tries to repair a failure of its own Codex workflow. Treat failures of the Codex workflow as not eligible for dispatch (or rate-limit repeated dispatches per failed run) before re-enabling it.
+- Related correction: the Worker is auto-deployed from main (revision `07e8e694` at this time), so the merged 150 changed-line proposal limit (#2643) is live even though no manual deploy was run.
+
+### Safe next actions for a new session
+1. Re-verify main, open PRs (#2633, #2586, #2637-#2639, #2641, #2642, #2644-#2646) and labels; respect `HOLD`.
+2. Wait for the owner's redesign and the two GitHub logins; then act on the decisions, one task per PR. Confirm the final repository name first.
+3. Never merge your own PR, bypass Audit or Release, enable the owner-activity gate before account separation, or rename the repository or the product.
