@@ -89,3 +89,45 @@ export function classifyAutopilotCompletion(evidence: AutopilotCompletionEvidenc
   const receiptId = createHash("sha256").update(`${evidence.task.executionId}\n${evidence.task.dedupeKey}\n${merged}`).digest("hex");
   return result("VERIFIED_USEFUL_COMPLETION", [], receiptId);
 }
+
+const OUTCOMES = new Set(["VALID_NO_ACTION", "FAILED_TO_REMEDIATE", "FAILED_CLOSED", "CHANGE_PRODUCED"]);
+const RELEASE_STATUSES = new Set(["RELEASE_NOT_APPLICABLE", "RELEASE_PROVENANCE_MISSING", "NOT_RELEASED", "CONVERGENCE_INCOMPLETE", "RELEASE_COMPLETE"]);
+
+const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+const str = (value: unknown, max = 200): string | null => typeof value === "string" && value.length > 0 && value.length <= max ? value : null;
+const strOrNull = (value: unknown): string | null => value === null || value === undefined ? null : str(value);
+
+/**
+ * Parses untrusted JSON into evidence, or returns null. Fields that are absent become null/false rather than being
+ * guessed, so the classifier reports them as missing.
+ */
+export function parseAutopilotCompletionEvidence(value: unknown): AutopilotCompletionEvidence | null {
+  const root = record(value);
+  const task = record(root?.task);
+  const remediation = record(root?.remediation);
+  const change = record(root?.change);
+  const ci = record(root?.ci);
+  const audit = record(root?.audit);
+  const release = record(root?.release);
+  const runtime = record(root?.runtime);
+  if (!root || !task || !remediation || !change || !ci || !audit || !release || !runtime) return null;
+  const executionId = str(task.executionId);
+  const dedupeKey = str(task.dedupeKey);
+  const outcome = str(remediation.outcome);
+  if (!executionId || !dedupeKey || !outcome || !OUTCOMES.has(outcome)) return null;
+  if (!Array.isArray(change.changedFiles) || change.changedFiles.length > 200 || !change.changedFiles.every((file) => str(file, 300) !== null)) return null;
+  const releaseStatus = release.status === null || release.status === undefined ? null : str(release.status);
+  if (releaseStatus !== null && !RELEASE_STATUSES.has(releaseStatus)) return null;
+  return Object.freeze({
+    task: Object.freeze({ executionId, dedupeKey }),
+    remediation: Object.freeze({ outcome: outcome as CodingRunnerNoActionOutcome | "CHANGE_PRODUCED", attempts: Number(remediation.attempts), maxAttempts: Number(remediation.maxAttempts) }),
+    change: Object.freeze({ headSha: strOrNull(change.headSha), changedFiles: Object.freeze([...(change.changedFiles as string[])]), pullRequestNumber: typeof change.pullRequestNumber === "number" ? change.pullRequestNumber : null }),
+    ci: Object.freeze({ conclusion: strOrNull(ci.conclusion), headSha: strOrNull(ci.headSha) }),
+    audit: Object.freeze({ independentApproval: audit.independentApproval === true, auditedHeadSha: strOrNull(audit.auditedHeadSha), approvedByAppId: strOrNull(audit.approvedByAppId) }),
+    release: Object.freeze({ status: releaseStatus as ReleaseCompletionStatus | null, mergedSha: strOrNull(release.mergedSha) }),
+    runtime: Object.freeze({ required: runtime.required === true, deployedRevisionIsDescendantOfMerged: typeof runtime.deployedRevisionIsDescendantOfMerged === "boolean" ? runtime.deployedRevisionIsDescendantOfMerged : null, healthOk: typeof runtime.healthOk === "boolean" ? runtime.healthOk : null }),
+    liveAuthority: String(root.liveAuthority),
+    productionMutationAllowed: root.productionMutationAllowed === false ? false : true,
+    aiAuthority: String(root.aiAuthority),
+  });
+}

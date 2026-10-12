@@ -1,0 +1,37 @@
+id: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-WIRING
+title: "Record verified completion receipts in the execution coordinator (issue #2595 items 6 and 8)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: claude/autopilot-completion-receipt-impl
+branch: claude/autopilot-receipt-wiring
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('연결 작업도 해')"
+scope_note: "Adds POST /completion-receipt and GET /completion-receipts to the existing ExecutionCoordinator Durable Object, an untrusted-evidence parser, and tests. No Worker request handler, workflow, Risk, credential or authority change."
+objective: "Persist a receipt only when the classifier returns VERIFIED_USEFUL_COMPLETION, idempotently, with the trusted release app id fixed inside the coordinator, and remove the classifier from the unwired debt ledger."
+scope:
+  include:
+    - "apps/autopilot/src/executionCoordinator.ts (writeCompletionReceipt, readCompletionReceipts)"
+    - "apps/autopilot/src/autopilotCompletionReceipt.ts (parseAutopilotCompletionEvidence)"
+    - "apps/autopilot/src/unwiredControlPlaneDebt.ts (entry removed)"
+    - "tests for the parser and the coordinator endpoints"
+  exclude:
+    - "A producer that posts evidence after Release, a status/count exposure, and any change to Audit, Release or merge authority."
+limitations:
+  - "The coordinator endpoint now has a production call site, but nothing posts evidence to it yet, so no receipt is issued and AUTOPILOT_VERIFIED_COMPLETION_LOOP stays false. The evidence producer is the next work order."
+  - "Evidence is caller-supplied; its trust rests on the producer (release resolver, execution evidence). Only the approver app id is fixed by the coordinator."
+acceptance:
+  - "Verified evidence is recorded once; replays are ignored; no-action, incomplete, wrong-approver and fail-open evidence store nothing; malformed evidence is rejected; a spoofed app id in the request is ignored."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/autopilotCompletionReceipt.test.js dist/apps/autopilot/src/executionCoordinator.test.js"
+  - "node --test tests/autopilot-control-plane-wiring.test.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release; the evidence producer and count exposure are later work orders. Deploy of the Worker is needed for the endpoint to exist at runtime."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

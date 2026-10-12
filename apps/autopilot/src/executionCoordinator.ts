@@ -2,6 +2,8 @@ import { validatePersistedEvolutionLearningMemory, type EvolutionLearningMemoryS
 import { validatePersistedCodingExecutionEvidence, type CodingExecutionEvidence } from "./codingExecutionEvidence";
 import { validateAutopilotExecutionTelemetry, type AutopilotExecutionTelemetry } from "./executionTelemetry";
 import type { ExecutionHold, HoldClearance } from "./autonomousExecutionState";
+import { classifyAutopilotCompletion, parseAutopilotCompletionEvidence } from "./autopilotCompletionReceipt";
+import { TRUSTED_RELEASE_AUTH_APP_ID } from "./githubReleaseCompletionResolver";
 
 interface DurableObjectStorageLike {
   get<T>(key: string): Promise<T | undefined>;
@@ -167,6 +169,8 @@ const EVOLVE_LEARNING_COORDINATOR_KEY = "evolve-learning-memory";
 const CODING_EVIDENCE_COORDINATOR_KEY = "coding-execution-observability";
 const CODING_EVIDENCE_HISTORY_KEY = "coding-execution-evidence-v1";
 const MAX_CODING_EVIDENCE = 32;
+const COMPLETION_RECEIPT_HISTORY_KEY = "autopilot-completion-receipts-v1";
+const MAX_COMPLETION_RECEIPTS = 64;
 const AUTOPILOT_TELEMETRY_COORDINATOR_KEY = "autopilot-execution-telemetry";
 const AUTOPILOT_TELEMETRY_HISTORY_KEY = "autopilot-execution-telemetry-v1";
 const MAX_AUTOPILOT_TELEMETRY = 120;
@@ -377,6 +381,7 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/scheduled-receipt-history") return this.readScheduledReceipt();
     if (request.method === "GET" && url.pathname === "/evolve-learning-memory") return this.readEvolutionLearningMemory();
     if (request.method === "GET" && url.pathname === "/coding-evidence-history") return this.readCodingExecutionEvidence();
+    if (request.method === "GET" && url.pathname === "/completion-receipts") return this.readCompletionReceipts();
     if (request.method === "GET" && url.pathname === "/execution-telemetry") return this.readExecutionTelemetry();
     if (request.method === "GET" && url.pathname === "/execution") return this.readExecution();
     if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
@@ -395,6 +400,7 @@ export class ExecutionCoordinator {
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
+    if (url.pathname === "/completion-receipt") return this.writeCompletionReceipt(await request.json());
     if (url.pathname === "/execution-telemetry") return this.writeExecutionTelemetry(await request.json());
     if (url.pathname === "/control-plane-hold/apply") return this.applyControlPlaneHold(await request.json());
     if (url.pathname === "/control-plane-hold/clear") return this.clearControlPlaneHold(await request.json());
@@ -784,6 +790,46 @@ export class ExecutionCoordinator {
       return json({ error: "EVOLVE_LEARNING_MEMORY_CORRUPT" }, 500);
     }
     return json({ value });
+  }
+
+  private async writeCompletionReceipt(value: unknown): Promise<Response> {
+    const evidence = parseAutopilotCompletionEvidence(value !== null && typeof value === "object" ? (value as { evidence?: unknown }).evidence : null);
+    if (evidence === null) return json({ error: "COMPLETION_RECEIPT_EVIDENCE_INVALID" }, 400);
+    // The trusted release app id is fixed here; it is never taken from the request.
+    const decision = classifyAutopilotCompletion(evidence, { releaseAppId: TRUSTED_RELEASE_AUTH_APP_ID });
+    if (decision.classification !== "VERIFIED_USEFUL_COMPLETION" || decision.receiptId === null) {
+      return json({ recorded: false, classification: decision.classification, missing: decision.missing, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    }
+    return this.mutateExecutionAtomically(async (storage) => {
+      const stored = await storage.get<unknown>(COMPLETION_RECEIPT_HISTORY_KEY);
+      const history = stored && typeof stored === "object" && Array.isArray((stored as { receipts?: unknown }).receipts)
+        ? (stored as { receipts: Array<{ receiptId: string }> }).receipts
+        : [];
+      if (history.some((receipt) => receipt.receiptId === decision.receiptId)) {
+        return json({ recorded: false, duplicate: true, classification: decision.classification, receiptId: decision.receiptId });
+      }
+      const receipt = Object.freeze({
+        receiptId: decision.receiptId,
+        recordedAtMs: Date.now(),
+        executionId: evidence.task.executionId,
+        dedupeKey: evidence.task.dedupeKey,
+        headSha: evidence.change.headSha,
+        mergedSha: evidence.release.mergedSha,
+        pullRequestNumber: evidence.change.pullRequestNumber,
+        changedFiles: evidence.change.changedFiles,
+        liveAuthority: "NONE" as const,
+        productionMutationAllowed: false as const,
+        aiAuthority: "ZERO_AUTHORITY" as const,
+      });
+      await storage.put(COMPLETION_RECEIPT_HISTORY_KEY, { schemaVersion: 1, receipts: [...history, receipt].slice(-MAX_COMPLETION_RECEIPTS) });
+      return json({ recorded: true, classification: decision.classification, receiptId: decision.receiptId });
+    });
+  }
+
+  private async readCompletionReceipts(): Promise<Response> {
+    const stored = await this.ctx.storage.get<unknown>(COMPLETION_RECEIPT_HISTORY_KEY);
+    const receipts = stored && typeof stored === "object" && Array.isArray((stored as { receipts?: unknown }).receipts) ? (stored as { receipts: unknown[] }).receipts : [];
+    return json({ count: receipts.length, receipts, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
   }
 
   private async writeCodingExecutionEvidence(value: unknown): Promise<Response> {

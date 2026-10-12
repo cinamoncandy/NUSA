@@ -570,3 +570,64 @@ describe("provider capacity wait", () => {
     assert.equal(await readProviderCapacityWait(namespace, "workers-ai"), null);
   });
 });
+
+describe("completion receipts", () => {
+  const HEAD = "a".repeat(40);
+  const MERGED = "c".repeat(40);
+  const TRUSTED = "4935691";
+  const evidence = (overrides: Record<string, unknown> = {}) => ({
+    task: { executionId: "exec-1", dedupeKey: "dedupe-1" },
+    remediation: { outcome: "CHANGE_PRODUCED", attempts: 1, maxAttempts: 3 },
+    change: { headSha: HEAD, changedFiles: ["apps/autopilot/src/x.ts"], pullRequestNumber: 7 },
+    ci: { conclusion: "success", headSha: HEAD },
+    audit: { independentApproval: true, auditedHeadSha: HEAD, approvedByAppId: TRUSTED },
+    release: { status: "RELEASE_COMPLETE", mergedSha: MERGED },
+    runtime: { required: false, deployedRevisionIsDescendantOfMerged: null, healthOk: null },
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+    ...overrides,
+  });
+  const post = (coordinator: ExecutionCoordinator, body: unknown) => coordinator.fetch(new Request("https://execution-coordinator/completion-receipt", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+  const read = async (coordinator: ExecutionCoordinator) => await (await coordinator.fetch(new Request("https://execution-coordinator/completion-receipts"))).json() as { count: number; receipts: Array<{ receiptId: string }> };
+
+  it("records a verified receipt once and ignores a replay", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    const first = await (await post(coordinator, { evidence: evidence() })).json() as { recorded: boolean; classification: string; receiptId: string };
+    assert.equal(first.recorded, true);
+    assert.equal(first.classification, "VERIFIED_USEFUL_COMPLETION");
+    const replay = await (await post(coordinator, { evidence: evidence() })).json() as { recorded: boolean; duplicate?: boolean };
+    assert.deepEqual([replay.recorded, replay.duplicate], [false, true]);
+    const history = await read(coordinator);
+    assert.equal(history.count, 1);
+    assert.equal(history.receipts[0]?.receiptId, first.receiptId);
+  });
+
+  it("stores nothing for no-action, incomplete, wrong-approver or fail-open evidence", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    const cases: ReadonlyArray<readonly [string, string]> = [
+      ["VALID_NO_ACTION", JSON.stringify(evidence({ remediation: { outcome: "VALID_NO_ACTION", attempts: 0, maxAttempts: 3 } }))],
+      ["INCOMPLETE", JSON.stringify(evidence({ ci: { conclusion: "failure", headSha: HEAD } }))],
+      ["INCOMPLETE", JSON.stringify(evidence({ audit: { independentApproval: true, auditedHeadSha: HEAD, approvedByAppId: "9999" } }))],
+      ["BLOCKED", JSON.stringify(evidence({ aiAuthority: "FULL" }))],
+    ];
+    for (const [expected, body] of cases) {
+      const result = await (await post(coordinator, { evidence: JSON.parse(body) })).json() as { recorded: boolean; classification: string };
+      assert.equal(result.recorded, false, expected);
+      assert.equal(result.classification, expected);
+    }
+    assert.equal((await read(coordinator)).count, 0);
+  });
+
+  it("rejects malformed evidence and takes the trusted app id from the coordinator, not the request", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    assert.equal((await post(coordinator, { evidence: { task: {} } })).status, 400);
+    assert.equal((await post(coordinator, {})).status, 400);
+    const spoofed = await (await post(coordinator, { evidence: evidence(), trustedAppId: "9999", policy: { releaseAppId: "9999" } })).json() as { recorded: boolean };
+    assert.equal(spoofed.recorded, true);
+  });
+});

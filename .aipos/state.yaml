@@ -3187,3 +3187,10 @@ current_autopilot_completion_receipt_classifier:
   branch: claude/autopilot-completion-receipt-impl
   authority_impact: none
   finding: "A pure classifier decides verified useful completion only when CI, trusted-app independent approval, release completion and (if Worker runtime is affected) runtime verification bind to the same change; it is declared as unwired debt until the coordinator records receipts, so no receipt exists and the verified-completion flag stays false."
+
+current_autopilot_completion_receipt_wiring:
+  work_order: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-WIRING
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-receipt-wiring
+  authority_impact: none
+  finding: "The execution coordinator can now record a completion receipt only when the classifier verifies it (trusted release app id fixed inside the coordinator, idempotent). Nothing posts evidence yet, so no receipt exists and the verified-completion flag stays false."
