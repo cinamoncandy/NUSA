@@ -1,0 +1,33 @@
+id: WO-LEARNING-20261012-PROGRESS-TRUTH
+title: "Make learning progress replay-safe and expose next-evaluation eligibility"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P1
+base_commit: d6725778260d06a2308152f6c59d38f7ad64cc1b
+implementation_branch: codex/learning-loop-progress-20261012
+authority_impact: none
+risk: LOW
+objective: "Improve measurable learning progress without changing Research, PAPER, promotion or scheduling policy."
+observed_gap:
+  - "A REPLAYED cycle carrying an existing deployment receipt increments the display deployment count."
+  - "Actual health is waiting for KST rollover but retains historical failure, without explicit current-block or eligibility fields."
+scope:
+  - "Do not count replayed deployment receipts as new deployment events."
+  - "Expose current fixed-code block separately from historical failure."
+  - "Display next KST eligibility only for a valid open period and waiting state; never a promised cycle or scheduling input."
+verification_commands:
+  - "pnpm run build"
+  - "node --test tests/closed-learning-loop-status.test.js tests/closed-learning-progress-truth.test.js"
+  - "pnpm run typecheck"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "pnpm run lint"
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  paper_only: true
+validation:
+  targeted: "PASS 22 tests: replay versus real deployment, current/historical error, KST midnight, future/invalid/elapsed timestamps and withdrawal."
+  gates: "Build, typecheck, validate:full, security:gate PASS; pnpm lint PASS with existing unrelated warnings. Root eslint does not configure cloud TS; typecheck/build cover it."
+  unverified: "New exact-head full CI, independent review, canonical Audit/Release and upgraded server deployment remain required."
+next: "Publish the validated increment, obtain exact-head CI and independent review, then canonical Audit/Release. Real learning cycles remain separately unverified."

@@ -1,4 +1,13 @@
 version: 1
+current_learning_upgrade_20261012:
+  work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/learning-loop-progress-20261012
+  base_sha: d6725778260d06a2308152f6c59d38f7ad64cc1b
+  scope: "Replay-safe deployment metrics, current versus historical block and truthful KST eligibility; display-only, no policy or scheduler changes."
+  validation: "22 focused regression/boundary tests PASS; build, typecheck, validate:full, security gate and repository lint PASS (existing unrelated warnings). New CI, review, merge and rollout unverified."
+  next: "Fresh exact-head CI and independent review, canonical Audit/Release; preserve real-evidence wait."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_deploy_blocker_20261012:
   work_order: WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON
   status: DEPLOYED_WAITING_REAL_LEARNING_EVIDENCE
