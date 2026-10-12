@@ -3231,3 +3231,14 @@ current_ops_claude_centered_redesign:
   finding: "Revision 2 (re-reviewed against GitHub and the Worker, 2026-10-12 22:00-22:40 UTC): the notification flood is not Codex-specific; the Worker's scheduled runtime repairs any failed main-head run for 24 hours (230 consumer failures on 2026-10-12, eleven re-dispatches of one Codex failure about every 5 minutes) and the consumer runs are triggered as cinamoncandy, so failures notify the owner. Roles follow the governing charter: CORE is the main Claude on the owner's account, VALIDATOR/RESEARCH plus operations is the assistant Claude on one automation-only machine account, AUTOPILOT stays Workers AI with the 150-line one-file limit. Non-author review under GRILL_ME_PROTOCOL for code PRs, blocking findings as inline threads; branch claims replace claimed_by; the Worker token should move to a GitHub App separate from the release-authority app; the owner-activity gate (#2644) must not be enabled until a closed gate is a quiet NO_ACTION and the Worker identity is separated."
   next: "Owner answers the six decisions; P1 (Autopilot repair-target allowlist, attempt cap, quiet stops) can start before P0 identity work with owner approval. HOLD PRs stay untouched until then."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_open_pr_inventory:
+  work_order: WO-OPS-20261013-OPEN-PR-INVENTORY
+  status: READY_FOR_REVIEW
+  branch: claude/open-pr-inventory
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  inventory: docs/OPEN_PR_INVENTORY_2026-10-13.md
+  finding: "46 open PRs (23 draft, 20 HOLD, 34 created before October) grouped into: redesign and Autopilot work in progress, October research records, an urgent owner decision (#2311 lowers the new PAPER account initial-capital default from 10,000,000 to 5,000 KRW and is neither draft nor HOLD), security authority-narrowing PRs worth re-checking, likely superseded PRs, and stale September feature/research PRs. Nothing was closed or changed."
+  next: "Owner decides #2311 and approves which groups to close; closing follows only an approved list and never deletes branches."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
