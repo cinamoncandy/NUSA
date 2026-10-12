@@ -15,9 +15,9 @@ scope:
   exclude:
     - "Any implementation, new queue/scheduler/runner/audit/release engine, or change to Audit, Release or merge authority."
 limitations:
-  - "Design proposal with four open owner decisions; no receipt has been issued and AUTOPILOT_VERIFIED_COMPLETION_LOOP remains false."
+  - "Design proposal; the four decisions took the recommended defaults (2026-10-12 chat approval) but implementation needs its own work order. No receipt has been issued and AUTOPILOT_VERIFIED_COMPLETION_LOOP remains false."
 acceptance:
-  - "The document maps every receipt field to an existing source, states the classification rules, and names the open decisions."
+  - "The document maps every receipt field to an existing source, states the classification rules, and records the owner-approved default decisions."
   - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
 verification_commands:
   - "node scripts/validate-aipos-yaml.js"

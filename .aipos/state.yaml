@@ -3179,4 +3179,4 @@ current_autopilot_completion_receipt_design:
   status: READY_FOR_REVIEW
   branch: claude/autopilot-completion-receipt
   authority_impact: none
-  finding: "A design proposes one immutable completion receipt composed from existing evidence, remediation, execution-state and release-completion components; VALID_NO_ACTION never counts as verified useful completion. Four owner decisions are open; no receipt exists and the verified-completion flag stays false."
+  finding: "A design proposes one immutable completion receipt composed from existing evidence, remediation, execution-state and release-completion components; VALID_NO_ACTION never counts as verified useful completion. The four owner decisions took the recommended defaults (existing coordinator record, worker-runtime-scope required, release-app approval as Audit source, count-only exposure later); no receipt exists and the verified-completion flag stays false."
