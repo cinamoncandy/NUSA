@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261012-PROGRESS-TRUTH
 title: "Make learning progress replay-safe and expose next-evaluation eligibility"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: EXACT_HEAD_CI_PASS_INDEPENDENT_AUDIT_BLOCKED
 priority: P1
 base_commit: d6725778260d06a2308152f6c59d38f7ad64cc1b
 implementation_branch: codex/learning-loop-progress-20261012
@@ -30,6 +30,8 @@ safety:
 validation:
   targeted: "PASS 50 tests including actual /health publication, bounded fixed-code/UTC-midnight filtering, replay versus real deployment, current/historical error, invalid/future/elapsed time and withdrawal."
   gates: "Build, typecheck, validate:full, security:gate PASS; pnpm lint PASS with existing unrelated warnings. Root eslint does not configure cloud TS; typecheck/build cover it."
-  unverified: "New exact-head full CI, independent review, canonical Audit/Release and upgraded server deployment remain required."
+  external: "Exact head 44fd704c9c72e0000bf4bc26891079251cd4a7bc: CI38191425978 and companions PASS; fresh independent code review no actionable P0/P1/P2."
+  audit: "38191846340 FAIL UNVERIFIED_CLOSED_LOOP; scope clarification plus one bounded fresh review 38207700626 FAIL/safety FAIL, claiming previous invalid JSON/incompatibility without reproduction. Both verdicts preserved; no gate weakening or approval fabrication."
+  unverified: "Valid independent Audit PASS, Release, merge and upgraded runtime remain required. Actual cycles0 is not completed learning."
 review_correction: "Independent review found public health projection omitted new fields. Reused existing projection with strict bounds and actual HTTP tests; no gate weakening. Initial test fixture port 0 was rejected by existing contract, corrected to a unique localhost port."
-next: "Publish the validated increment, obtain exact-head CI and independent review, then canonical Audit/Release. Real learning cycles remain separately unverified."
+next: "Grounded independent Audit must resolve the exact-diff claim; no repeated provider requests or Release bypass. Canonical deployed loop continues naturally while this increment remains unmerged."

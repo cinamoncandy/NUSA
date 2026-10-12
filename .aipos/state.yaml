@@ -1,12 +1,17 @@
 version: 1
 current_learning_upgrade_20261012:
   work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: EXACT_HEAD_CI_PASS_INDEPENDENT_AUDIT_BLOCKED
   branch: codex/learning-loop-progress-20261012
   base_sha: d6725778260d06a2308152f6c59d38f7ad64cc1b
+  pull_request: 2622
+  exact_head: 44fd704c9c72e0000bf4bc26891079251cd4a7bc
+  exact_head_ci: "38191425978 and required safety/PAPER companions PASS. Independent read-only code review found no actionable findings after 50 actual HTTP/focused tests."
+  independent_audit: "38191846340 FAIL UNVERIFIED_CLOSED_LOOP. One scope-clarified review 38207700626 also FAIL, safety FAIL; response asserts prior AUDIT_VERDICT_JSON_INVALID and incompatibility without concrete reproduction. No override or further repeated dispatch."
+  runtime_observation: "2026-10-12T05:23:07.549Z: source d6725778, ticks511, cycles0, WAITING_FOR_KST_DAY_ROLLOVER, lastError null. Upgrade remains unmerged and undeployed."
   scope: "Replay-safe deployment metrics, current versus historical block and truthful KST eligibility; display-only, no policy or scheduler changes."
   validation: "50 focused/HTTP regression tests PASS after independent-review correction for omitted public fields; build, typecheck, validate:full, security gate and repository lint PASS (existing warnings). New exact-head CI, fresh review and rollout required."
-  next: "Fresh exact-head CI and independent review, canonical Audit/Release; preserve real-evidence wait."
+  next: "Obtain grounded independent Audit evidence addressing exact-diff compatibility and separate product-level real-cycle gap; no Release/merge until valid PASS. Preserve natural real-evidence wait."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_deploy_blocker_20261012:
   work_order: WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON
