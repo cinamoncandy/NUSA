@@ -3239,6 +3239,6 @@ current_autopilot_repair_target_allowlist:
   pull_request: 2651
   authority_impact: none
   parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
-  finding: "First P1 increment: the scheduled runtime and scheduled evolution coding now treat only failed CI and Autopilot Sandbox New-File Guard runs on main (push or manual) as repair targets, so failures of Autopilot's own workflows (Codex coding) or runtime evidence workflows no longer drive the five-minute re-dispatch loop seen on 2026-10-12."
+  finding: "First P1 increment: the scheduled runtime and scheduled evolution coding now treat only failed CI and Autopilot Sandbox New-File Guard runs on main (push or manual) as repair targets, so failures of Autopilot's own workflows (Codex coding) or runtime evidence workflows no longer drive the five-minute re-dispatch loop seen on 2026-10-12. The webhook planner likewise ignores failed or cancelled non-code workflows (the 22:06 and 22:11 UTC failures were repairs of a cancelled Android release trigger run)."
   next: "Non-author review, then the attempt-cap and quiet-stop increments; do not re-enable Codex coding or the owner gate before them."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

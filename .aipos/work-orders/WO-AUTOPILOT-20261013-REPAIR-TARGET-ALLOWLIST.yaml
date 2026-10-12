@@ -15,21 +15,24 @@ evidence_of_problem:
   - "2026-10-12: Autopilot Execution Consumer failed 230 times (26 on 2026-10-11)."
   - "Worker /scheduled/status: the failed scheduled Autopilot Codex Coding run 38300571241 was re-dispatched eleven times between 19:55 and 20:48 UTC; the PAPER evidence workflow failure 38287517884 (workflow_dispatch) was also selected."
   - "Before this change scheduledRuntime.ts currentMainFailureRunId accepted any failed non-repository_dispatch run on the main head within 24 hours."
+  - "The 22:06 and 22:11 UTC consumer failures (runs 38314714186, 38315180204) were webhook-path repairs of a cancelled Android Stable Release Trigger run (38314706259); the Worker failed them closed with CODING_RUNNER_FAILURE_EVIDENCE_INVALID (artifact of run 38315180204). dispatchPlanner turned any failed, cancelled or timed-out workflow_run into CI_FAILED."
 scope:
   include:
     - "apps/autopilot/src/repairableWorkflowRun.ts (new predicate)"
     - "apps/autopilot/src/scheduledRuntime.ts (currentMainFailureRunId, hasFreshWorkflowFailureSince, discoverWorkflowFailureOpportunityIds)"
     - "apps/autopilot/src/scheduledEvolutionCoding.ts (evidenceFromRuns)"
-    - "apps/autopilot/src/repairableWorkflowRun.test.ts, apps/autopilot/src/scheduledRuntime.failureRouting.test.ts"
+    - "apps/autopilot/src/dispatchPlanner.ts (webhook workflow_run failures: only REPAIRABLE_WORKFLOW_NAMES become CI_FAILED)"
+    - "apps/autopilot/src/repairableWorkflowRun.test.ts, apps/autopilot/src/scheduledRuntime.failureRouting.test.ts, apps/autopilot/src/dispatchPlanner.test.ts"
   exclude:
     - "Per-failed-run persistent attempt cap and quiet expected stops (redesign section 7 items 2 and 3), Worker token identity (item 4), the owner-activity gate (#2644) and re-enabling Codex coding: separate increments."
 limitations:
-  - "The webhook path already forwards only CI workflow_run events (autopilot-github-event-bridge.yml), so it is unchanged."
+  - "The event bridge forwards only CI workflow_run events, but the Worker still received a non-CI failure on 2026-10-12, so the webhook planner is narrowed too. PR CI failures still reach the planner as before; the name allowlist does not restrict branch or event on that path."
   - "A real CI failure on main is still re-dispatched on the scheduler cadence until the attempt cap increment lands; this change removes the non-code sources of the loop only."
   - "The Worker auto-deploys from main; the effect needs that deploy and is observable on /scheduled/status."
 acceptance:
   - "A failed scheduled Autopilot Codex Coding run and a failed workflow_dispatch PAPER evidence run on the main head produce no dispatch and no failure opportunity (test reproduces the 2026-10-12 case and fails without the change)."
   - "CI and Autopilot Sandbox New-File Guard failures on main from push or workflow_dispatch remain repair targets; existing scheduled runtime tests pass unchanged."
+  - "A webhook workflow_run failure or cancellation of a workflow outside the allowlist is IGNORED (workflow-run-failure-not-repairable); CI failures still become CI_FAILED."
   - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
 verification_commands:
   - "npx tsc -p tsconfig.json"
