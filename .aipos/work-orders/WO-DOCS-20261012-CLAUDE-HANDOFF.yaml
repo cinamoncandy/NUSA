@@ -8,7 +8,7 @@ branch: claude/claude-handoff
 authority_impact: none
 owner_approval: "2026-10-12 in chat ('1번 2번 다 해')"
 scope_note: "Documentation only: a CLAUDE.md that points to AGENTS.md and a dated AIPOS handoff file under .aipos/handoffs/. No code, workflow, Risk or authority change; the repository rules in AGENTS.md remain authoritative."
-objective: "Store the full handoff in AIPOS so a new Claude session (including one on another account) recover the rules and the current state from the repository without conversation history."
+objective: "Store the full handoff in AIPOS so a new Claude session (including one on another account) can recover the rules and the current state from the repository without conversation history."
 scope:
   include:
     - "CLAUDE.md"
