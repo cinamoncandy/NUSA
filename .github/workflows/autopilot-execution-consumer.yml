@@ -68,8 +68,24 @@ jobs:
           DISPATCH_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
         run: |
           set -euo pipefail
+          # A completed run keeps its failure conclusion forever, so the cited run alone cannot
+          # reveal that the same workflow already recovered on the same head. Fetch the runs of
+          # that workflow for the exact head so a strictly newer success can suppress a repair
+          # nobody needs. A failed or empty listing degrades to the cited-run-only decision.
           if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$DISPATCH_RUN_ID" > artifacts/autopilot-execution/cited-run.json 2>/dev/null; then
-            node scripts/verify-dispatch-run-freshness.js --reason "$DISPATCH_REASON" --run artifacts/autopilot-execution/cited-run.json --out artifacts/autopilot-execution/dispatch-freshness.json | tee -a "$GITHUB_OUTPUT"
+            cited_workflow_id="$(jq -r '.workflow_id // empty' artifacts/autopilot-execution/cited-run.json)"
+            cited_head_sha="$(jq -r '.head_sha // empty' artifacts/autopilot-execution/cited-run.json)"
+            successors=""
+            if [ -n "$cited_workflow_id" ] && [ -n "$cited_head_sha" ]; then
+              if gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$cited_workflow_id/runs?head_sha=$cited_head_sha&per_page=100" > artifacts/autopilot-execution/cited-workflow-runs.json 2>/dev/null; then
+                successors="artifacts/autopilot-execution/cited-workflow-runs.json"
+              fi
+            fi
+            if [ -n "$successors" ]; then
+              node scripts/verify-dispatch-run-freshness.js --reason "$DISPATCH_REASON" --run artifacts/autopilot-execution/cited-run.json --successors "$successors" --out artifacts/autopilot-execution/dispatch-freshness.json | tee -a "$GITHUB_OUTPUT"
+            else
+              node scripts/verify-dispatch-run-freshness.js --reason "$DISPATCH_REASON" --run artifacts/autopilot-execution/cited-run.json --out artifacts/autopilot-execution/dispatch-freshness.json | tee -a "$GITHUB_OUTPUT"
+            fi
           else
             echo "run fetch failed; deferring to worker verification"
             echo "repair=true" | tee -a "$GITHUB_OUTPUT"
