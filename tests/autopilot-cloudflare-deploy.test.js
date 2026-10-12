@@ -32,7 +32,12 @@ test("deployment is Worker-only and has no paid Cloudflare Containers rollout", 
 });
 
 test("Jev shadow deployment does not override the global release freeze", () => {
-  assert.match(workflow, /--var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:true"/);
+  // Owner directive: spend credits as overflow once the free Workers AI allocation is exhausted.
+  // Zero-credit mode is therefore off, which activates only the GitHub Models overflow paths --
+  // each of which records and honours its own credit boundary (402 holds until the next UTC day,
+  // 429 keeps the minute-scale backoff), so an exhausted balance is never re-billed. JEV bounded
+  // routing stays disabled below, so this does not widen routing beyond that overflow.
+  assert.match(workflow, /--var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:false"/);
   assert.match(workflow, /--var "NUSA_JEV_SHADOW_ENABLED:true"/);
   assert.match(workflow, /--var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"/);
   assert.doesNotMatch(workflow, /--var "NUSA_GLOBAL_RELEASE_FREEZE:false"/);
