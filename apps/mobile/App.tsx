@@ -17,7 +17,7 @@ import { resumePaperConnection } from "./src/paperConnectionSession";
 import { buildSafetyLine } from "./src/safetyLineModel";
 import { clearCachedSnapshot, useCachedSnapshot } from "./src/useCachedSnapshot";
 import { markStartup } from "./src/startupTiming";
-import { registerConnectionWarmup } from "./src/connectionWarmup";
+import { registerConnectionWarmup, warmConnection } from "./src/connectionWarmup";
 import { displaySessionState, graceNotConfigured, LAUNCH_GRACE_MS, launchSettling, RESUME_GRACE_MS } from "./src/sessionDisplayModel";
 import { buildPerformanceScreen } from "./src/performanceModel";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
@@ -117,9 +117,14 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
   const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);
   useEffect(() => {
     let active = true;
+    // Release builds already carry the canonical Cloud origin. Start its DNS/TCP/TLS warm-up
+    // immediately instead of waiting for AsyncStorage, while the saved settings read continues in
+    // parallel. This is transport-only: it sends no credential and grants no PAPER authority.
+    const canonicalAtLaunch = resolveCanonicalCloudOrigin();
+    if (canonicalAtLaunch.status === "READY") warmConnection(canonicalAtLaunch.origin);
     void settingsRepository.load().then((stored) => {
       const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);
-      const canonical = resolveCanonicalCloudOrigin();
+      const canonical = canonicalAtLaunch;
       const endpoint = settings.paperEndpoint || (canonical.status === "READY" ? canonical.origin : null);
       if (endpoint == null) return false;
       setConfiguredPaperEndpoint(endpoint);

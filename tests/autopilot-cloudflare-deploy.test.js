@@ -31,13 +31,24 @@ test("deployment is Worker-only and has no paid Cloudflare Containers rollout", 
   assert.doesNotMatch(workflow, /containers list/);
 });
 
+test("the deployed credit posture has one source of truth the health gate cannot drift from", () => {
+  // Regression: the deploy passed NUSA_AUTOPILOT_ZERO_CREDIT_MODE:false while the health gate
+  // separately hardcoded "ENFORCED", so every deploy failed verification, no exact-main deploy
+  // succeeded, and Credential Preflight froze Release behind the canonical P0.
+  assert.match(workflow, /NUSA_ZERO_CREDIT_MODE: "(true|false)"/);
+  assert.match(workflow, /--var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:\$\{NUSA_ZERO_CREDIT_MODE\}"/);
+  assert.match(workflow, /expected_zero_credit="DISABLED"/);
+  assert.match(workflow, /if \[ "\$\{NUSA_ZERO_CREDIT_MODE\}" = "true" \]; then expected_zero_credit="ENFORCED"; fi/);
+  assert.match(workflow, /\[ "\$zero_credit" = "\$expected_zero_credit" \]/);
+  // The gate must never reintroduce a literal expectation alongside the deployed value.
+  assert.doesNotMatch(workflow, /\[ "\$zero_credit" = "(ENFORCED|DISABLED)" \]/);
+  // The health gate still verifies the full fail-closed authority set.
+  assert.match(workflow, /\[ "\$live" = "NONE" \]/);
+  assert.match(workflow, /\[ "\$mutation" = "false" \]/);
+  assert.match(workflow, /\[ "\$ai" = "ZERO_AUTHORITY" \]/);
+});
+
 test("Jev shadow deployment does not override the global release freeze", () => {
-  // Owner directive: spend credits as overflow once the free Workers AI allocation is exhausted.
-  // Zero-credit mode is therefore off, which activates only the GitHub Models overflow paths --
-  // each of which records and honours its own credit boundary (402 holds until the next UTC day,
-  // 429 keeps the minute-scale backoff), so an exhausted balance is never re-billed. JEV bounded
-  // routing stays disabled below, so this does not widen routing beyond that overflow.
-  assert.match(workflow, /--var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:false"/);
   assert.match(workflow, /--var "NUSA_JEV_SHADOW_ENABLED:true"/);
   assert.match(workflow, /--var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"/);
   assert.doesNotMatch(workflow, /--var "NUSA_GLOBAL_RELEASE_FREEZE:false"/);
