@@ -1494,7 +1494,9 @@ describe("coding runner workflow failure evidence", () => {
       const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
       const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
         now: () => 1_000,
-        providerWaitUntil: async () => 61_000,
+        // Waits are recorded per provider: a Workers AI wait says nothing about the overflow
+        // provider, so the overflow is still allowed to answer here.
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
       });
       assert.equal(aiCalls, 0);
       assert.equal(result.status, "BLOCKED_RATE_LIMIT");
@@ -1533,6 +1535,132 @@ describe("coding runner workflow failure evidence", () => {
       assert.equal(aiCalls, 0);
       assert.equal(result.status, "EXECUTION_FAILED");
       assert.equal(result.reason, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
+    });
+
+    it("records an exhausted overflow balance as a day-long stop instead of re-spending it", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") {
+          githubModelsCalls += 1;
+          return response(402, { error: "quota exhausted" });
+        }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+      });
+      assert.equal(githubModelsCalls, 1);
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      // The stop is attributed to the overflow provider, not to the Workers AI wait that routed here.
+      assert.equal(result.provider, "github-models");
+      assert.equal(result.stopReason, "GITHUB_MODELS_CREDITS_EXHAUSTED");
+      assert.equal(result.nextRetryAt, 86_400_000);
+      assert.equal(result.resumeCondition, "paid-credit-topup-or-next-utc-day-and-exact-head-revalidation");
+    });
+
+    it("treats overflow backpressure as a minute-scale wait, not an exhausted balance", async () => {
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") return response(429, { error: "rate limited" });
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+      });
+      assert.equal(result.provider, "github-models");
+      assert.equal(result.stopReason, "GITHUB_MODELS_RATE_LIMITED");
+      assert.equal(result.nextRetryAt, 61_000);
+      assert.equal(result.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+    });
+
+    it("never spends into an overflow provider whose own wait is still active", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async () => 86_400_000,
+      });
+      assert.equal(githubModelsCalls, 0, "an exhausted overflow balance must not be re-billed");
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      assert.equal(result.provider, "workers-ai");
+      assert.equal(result.fallbackProvider, undefined);
+    });
+
+    it("skips the overflow when its wait cannot be read rather than spending blind", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => {
+          if (provider === "workers-ai") return 61_000;
+          throw new Error("coordinator unavailable");
+        },
+      });
+      assert.equal(githubModelsCalls, 0);
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      assert.equal(result.provider, "workers-ai");
+    });
+
+    it("records the overflow boundary when Workers AI rate-limits mid-attempt", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("429 too many requests"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(402, { error: "quota exhausted" }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async () => null,
+      });
+      assert.equal(githubModelsCalls, 1);
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      assert.equal(result.provider, "github-models");
+      assert.equal(result.stopReason, "GITHUB_MODELS_CREDITS_EXHAUSTED");
+      assert.equal(result.nextRetryAt, 86_400_000);
+    });
+
+    it("does not overflow mid-attempt into an overflow provider that is already stopped", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("429 too many requests"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "github-models" ? 86_400_000 : null),
+      });
+      assert.equal(githubModelsCalls, 0, "an exhausted overflow balance must not be re-billed mid-attempt");
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      assert.equal(result.provider, "workers-ai");
+    });
+
+    it("skips the sandbox-repair escalation while the overflow provider is stopped", async () => {
+      let githubModelsCalls = 0;
+      let workersAiCalls = 0;
+      const repairRequest = {
+        ...request,
+        proposalFeedback: "attempt=2;rejection=SANDBOX_PATCH_APPLY_CHECK_FAILED;repair=regenerate",
+        proposalContext: { path: "apps/autopilot/src/example.ts", startLine: 7, content: "export const oldValue = true;\n" },
+      };
+      const ai: WorkersAiBinding = { async run() { workersAiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const result = await executeCodingRunner(repairRequest, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "github-models" ? 86_400_000 : null),
+      });
+      // Protection only: the escalation is skipped, and the documented best-effort contract keeps
+      // the ordinary provider path working rather than returning a new blocked result.
+      assert.equal(githubModelsCalls, 0, "the escalation must honour the overflow boundary");
+      assert.equal(workersAiCalls, 1);
+      assert.equal(result.status, "EXECUTION_ACCEPTED");
     });
 
     it("proceeds normally when no wait is recorded", async () => {
