@@ -3236,6 +3236,7 @@ current_autopilot_repair_attempt_cap:
   work_order: WO-AUTOPILOT-20261013-REPAIR-ATTEMPT-CAP
   status: READY_FOR_REVIEW
   branch: claude/autopilot-repair-attempt-cap
+  pull_request: 2652
   authority_impact: none
   parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
   finding: "Second P1 increment: scheduled evolution coding now asks the execution coordinator for at most three fresh acquisitions per logical work item and main SHA; further ticks return ATTEMPT_LIMIT_REACHED instead of re-dispatching the same unfixable work about every five minutes. Other acquire callers are unchanged."

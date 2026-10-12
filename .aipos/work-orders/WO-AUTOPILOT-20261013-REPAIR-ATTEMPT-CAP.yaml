@@ -5,6 +5,7 @@ owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
 branch: claude/autopilot-repair-attempt-cap
+pull_request: 2652
 authority_impact: none
 parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
 related: WO-AUTOPILOT-20261013-REPAIR-TARGET-ALLOWLIST
