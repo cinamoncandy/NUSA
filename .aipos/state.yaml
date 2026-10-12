@@ -2,6 +2,7 @@ version: 1
 current_learning_completion_20261012:
   work_order: WO-LEARNING-20261012-WRITER-LEASE-LIVENESS
   issue: 1605
+  pull_request: 2620
   status: VERIFYING
   branch: codex/learning-loop-completion-20261012
   base_sha: 722b487383fe19a8c4e025bb82a6a63da43601f2

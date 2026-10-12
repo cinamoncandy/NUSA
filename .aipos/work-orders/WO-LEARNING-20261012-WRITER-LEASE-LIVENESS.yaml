@@ -3,6 +3,7 @@ title: "Stop a supervised learning runtime after its canonical PAPER writer leas
 status: VERIFYING
 priority: P0
 issue: 1605
+pull_request: 2620
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_commit: 722b487383fe19a8c4e025bb82a6a63da43601f2
@@ -38,6 +39,7 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
 validation:
+  first_ci: "38187571986 failed the two exact-source qualification pins because PAPER_ADAPTER changed. Bind the implementation commit/blob and retain every UNVERIFIED criterion and every existing guard."
   local: "Node 24.18.0 / pnpm 11.7.0: build, typecheck, focused regression 91/91, validate:full, changed-test lint, security gate (0 secrets, 0 unmitigated high/critical), work-order index, diff check PASS."
   external: "Fresh CI, independent Audit, governed Release and actual runtime acceptance remain required."
 next: "Publish this validated increment, require fresh CI on the PR head, independent Audit and canonical Release; then Oracle PAPER deploy and inspect the real learning evidence chain."
