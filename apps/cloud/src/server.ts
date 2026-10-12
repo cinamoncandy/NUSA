@@ -403,6 +403,10 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     const loop: Record<string, string | number | Record<string, string | number>> = {};
     for (const key of LOOP_INTS) loop[key] = Number(rawLoop[key]);
     for (const key of LOOP_CODES) { const value = rawLoop[key]; if (typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)) loop[key] = value; }
+    if ((loop.rollover === "BLOCKED" || loop.rollover === "ERROR") && typeof rawLoop.currentBlockedReason === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(rawLoop.currentBlockedReason)) loop.currentBlockedReason = rawLoop.currentBlockedReason;
+    const eligibleAt = rawLoop.nextEvaluationEligibleAt;
+    if (loop.rollover === "WAITING_FOR_KST_DAY_ROLLOVER" && Number.isSafeInteger(eligibleAt) && Number(eligibleAt) > Number(loop.lastTickAt)
+      && Number(eligibleAt) <= Number(loop.lastTickAt) + 86_400_000 && Number(eligibleAt) <= 8_640_000_000_000_000 && Number(eligibleAt) % 86_400_000 === 54_000_000) loop.nextEvaluationEligibleAt = Number(eligibleAt);
     if (loop.lastBlockedReason !== undefined && Number.isSafeInteger(rawLoop.lastBlockedAt) && Number(rawLoop.lastBlockedAt) >= 0) loop.lastBlockedAt = Number(rawLoop.lastBlockedAt);
     else delete loop.lastBlockedReason;
     // Correlation identities: fixed keys only; identifiers, 64-hex fingerprints, KRW markets and integers.

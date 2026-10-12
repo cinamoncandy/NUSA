@@ -5,7 +5,7 @@ current_learning_upgrade_20261012:
   branch: codex/learning-loop-progress-20261012
   base_sha: d6725778260d06a2308152f6c59d38f7ad64cc1b
   scope: "Replay-safe deployment metrics, current versus historical block and truthful KST eligibility; display-only, no policy or scheduler changes."
-  validation: "22 focused regression/boundary tests PASS; build, typecheck, validate:full, security gate and repository lint PASS (existing unrelated warnings). New CI, review, merge and rollout unverified."
+  validation: "50 focused/HTTP regression tests PASS after independent-review correction for omitted public fields; build, typecheck, validate:full, security gate and repository lint PASS (existing warnings). New exact-head CI, fresh review and rollout required."
   next: "Fresh exact-head CI and independent review, canonical Audit/Release; preserve real-evidence wait."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_deploy_blocker_20261012:

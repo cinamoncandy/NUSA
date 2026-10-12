@@ -17,6 +17,7 @@ scope:
 verification_commands:
   - "pnpm run build"
   - "node --test tests/closed-learning-loop-status.test.js tests/closed-learning-progress-truth.test.js"
+  - "node --test tests/cloud-runtime-liveness-health.test.js"
   - "pnpm run typecheck"
   - "pnpm run validate:full"
   - "pnpm run security:gate"
@@ -27,7 +28,8 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   paper_only: true
 validation:
-  targeted: "PASS 22 tests: replay versus real deployment, current/historical error, KST midnight, future/invalid/elapsed timestamps and withdrawal."
+  targeted: "PASS 50 tests including actual /health publication, bounded fixed-code/UTC-midnight filtering, replay versus real deployment, current/historical error, invalid/future/elapsed time and withdrawal."
   gates: "Build, typecheck, validate:full, security:gate PASS; pnpm lint PASS with existing unrelated warnings. Root eslint does not configure cloud TS; typecheck/build cover it."
   unverified: "New exact-head full CI, independent review, canonical Audit/Release and upgraded server deployment remain required."
+review_correction: "Independent review found public health projection omitted new fields. Reused existing projection with strict bounds and actual HTTP tests; no gate weakening. Initial test fixture port 0 was rejected by existing contract, corrected to a unique localhost port."
 next: "Publish the validated increment, obtain exact-head CI and independent review, then canonical Audit/Release. Real learning cycles remain separately unverified."
