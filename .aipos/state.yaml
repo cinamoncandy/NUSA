@@ -3194,3 +3194,10 @@ current_autopilot_completion_receipt_wiring:
   branch: claude/autopilot-receipt-wiring
   authority_impact: none
   finding: "The execution coordinator can now record a completion receipt only when the classifier verifies it (trusted release app id fixed inside the coordinator, idempotent). Nothing posts evidence yet, so no receipt exists and the verified-completion flag stays false."
+
+current_autopilot_completion_receipt_producer:
+  work_order: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-PRODUCER
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-receipt-producer
+  authority_impact: none
+  finding: "GET /release/status now builds completion evidence for a completed release whose coding evidence names the same PR and head, and records it in the coordinator best-effort. No receipt exists until a real eligible PR is released and read; the verified-completion flag stays false."

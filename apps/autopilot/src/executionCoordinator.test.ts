@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, readProviderCapacityWait, recordProviderCapacityWait, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, recoverPersistentAuditDispatch, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { recordCompletionReceipt, acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, readProviderCapacityWait, recordProviderCapacityWait, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, recoverPersistentAuditDispatch, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -629,5 +629,28 @@ describe("completion receipts", () => {
     assert.equal((await post(coordinator, {})).status, 400);
     const spoofed = await (await post(coordinator, { evidence: evidence(), trustedAppId: "9999", policy: { releaseAppId: "9999" } })).json() as { recorded: boolean };
     assert.equal(spoofed.recorded, true);
+  });
+  it("records through the namespace client under one coordinator name and reports a duplicate on replay", async () => {
+    const coordinators = new Map<string, ExecutionCoordinator>();
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: (name: string) => ({ name }),
+      get: (id: unknown) => {
+        const name = (id as { name: string }).name;
+        if (!coordinators.has(name)) coordinators.set(name, new ExecutionCoordinator({ storage: new MemoryStorage() }));
+        const coordinator = coordinators.get(name)!;
+        return { fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) };
+      },
+    };
+    const first = await recordCompletionReceipt(namespace, evidence());
+    assert.deepEqual([first.recorded, first.duplicate, first.classification], [true, false, "VERIFIED_USEFUL_COMPLETION"]);
+    const replay = await recordCompletionReceipt(namespace, evidence());
+    assert.deepEqual([replay.recorded, replay.duplicate], [false, true]);
+    const incomplete = await recordCompletionReceipt(namespace, evidence({ ci: { conclusion: "failure", headSha: HEAD } }));
+    assert.deepEqual([incomplete.recorded, incomplete.classification, incomplete.missing.includes("ci.success")], [false, "INCOMPLETE", true]);
+    assert.equal(coordinators.size, 1);
+    const stub = namespace.get(namespace.idFromName([...coordinators.keys()][0]!));
+    const stored = await (await stub.fetch("https://execution-coordinator/completion-receipts", { method: "GET" })).json() as { count: number };
+    assert.equal(stored.count, 1);
+    await assert.rejects(recordCompletionReceipt(namespace, { task: {} }), /COMPLETION_RECEIPT_RECORD_FAILED/);
   });
 });
