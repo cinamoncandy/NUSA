@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const { startCloudDashboardServer } = require("../dist/apps/cloud/src/server.js");
 const { evaluateComponentHealth } = require("../dist/apps/cloud/src/componentHealth.js");
+const { ClosedLearningLoopStatusTracker } = require("../dist/apps/cloud/src/closedLearningLoopStatus.js");
 
 /**
  * 24-hour PAPER operation must be observable, not assumed.
@@ -42,6 +43,52 @@ const LIVENESS = Object.freeze({
   startedAt: 1_000, lastHeartbeatAt: 2_000, lastMarketEventAt: 1_900,
   lastPaperDecisionAt: 1_800, lastPaperOrderAt: 1_700, lastPaperFillAt: 1_600,
   eventCount: 42, decisionCount: 7, paperOrderCount: 3, paperFillCount: 2, lastError: null
+});
+
+test("/health publishes learning eligibility and current blocks, and withdraws stale or malformed fields", async () => {
+  const now = Date.parse("2026-10-12T01:00:00Z");
+  const tracker = new ClosedLearningLoopStatusTracker();
+  tracker.observeRollover({ status: "BLOCKED", reason: "MISSING_EVIDENCE:private detail" }, now);
+  let loop = tracker.snapshot();
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const read = async () => JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop;
+    assert.equal((await read()).currentBlockedReason, "MISSING_EVIDENCE");
+    tracker.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, now + 1);
+    tracker.observePeriods({ periodId: "period-1", periodStartAt: now, candidateProvenance: [], observations: [] }, []);
+    loop = tracker.snapshot();
+    const waiting = await read();
+    assert.equal(waiting.currentBlockedReason, undefined);
+    assert.equal(waiting.lastBlockedReason, "MISSING_EVIDENCE");
+    assert.equal(waiting.nextEvaluationEligibleAt, Date.parse("2026-10-12T15:00:00Z"));
+    for (const bad of [-1, NaN, "private", now, now + 1, Date.parse("2026-10-13T15:00:00Z"), Number.MAX_SAFE_INTEGER]) {
+      loop = { ...tracker.snapshot(), nextEvaluationEligibleAt: bad, currentBlockedReason: "STALE_FAILURE" };
+      const out = await read();
+      assert.equal(out.nextEvaluationEligibleAt, undefined);
+      assert.equal(out.currentBlockedReason, undefined);
+    }
+    tracker.observeError(now + 2);
+    loop = tracker.snapshot();
+    assert.equal((await read()).currentBlockedReason, "TICK_ERROR");
+    assert.equal((await read()).nextEvaluationEligibleAt, undefined);
+    loop = { ...loop, currentBlockedReason: "private detail" };
+    assert.equal((await read()).currentBlockedReason, undefined);
+    assert.doesNotMatch(JSON.stringify(await read()), /private detail/);
+  }, 42589);
+});
+
+test("/health accepts only canonical hourly eligibility tied to the open period", async () => {
+  const now = Date.parse("2026-10-12T01:00:00Z");
+  const tracker = new ClosedLearningLoopStatusTracker(3_600_000);
+  tracker.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, now);
+  tracker.observePeriods({ periodId: "hourly", periodStartAt: now, observations: [], candidateProvenance: [] }, []);
+  let loop = tracker.snapshot();
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const read = async () => JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop;
+    assert.equal((await read()).nextEvaluationEligibleAt, now + 3_600_000);
+    assert.equal((await read()).evaluationPeriodMs, 3_600_000);
+    loop = { ...loop, nextEvaluationEligibleAt: now + 3_600_001 };
+    assert.equal((await read()).nextEvaluationEligibleAt, undefined);
+  }, 42590);
 });
 
 async function withServer(options, run, port) {

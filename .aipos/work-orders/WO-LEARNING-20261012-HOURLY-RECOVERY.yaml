@@ -1,0 +1,28 @@
+id: WO-LEARNING-20261012-HOURLY-RECOVERY
+title: "Hourly PAPER eligibility with bounded immutable-cycle recovery"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P1
+base_commit: bfc11b758957e19d486ab7caa27e338d9680b916
+implementation_branch: codex/learning-fast-recovery-20261012
+authority_impact: PAPER_evaluation_timing_and_evidence_validation_only
+risk: MEDIUM
+owner_authorization: "2026-10-12 explicit 1시간 PAPER 평가 도입; keep verification/promotion and daily Risk."
+architecture_decision: .aipos/decisions/ADR-LEARNING-20261012-HOURLY-PAPER.md
+scope: "Reuse canonical scheduler; one-hour eligible real-filled periods; no clock/account fabrication. Same-close retries no longer wait for new trades, identity failures bounded. Whole covered days, never hourly-count day inflation."
+verification_commands:
+  - "pnpm test (Git Bash bin on PATH on Windows)"
+  - "pnpm run build"
+  - "node --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js dist/apps/cloud/src/closedLearningProductionConfig.test.js dist/apps/cloud/src/canonicalPaperCandidatePerformance.test.js"
+  - "pnpm run typecheck"
+  - "pnpm run validate:full"
+  - "pnpm run lint"
+  - "pnpm run security:gate"
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+known_blocker: "Owner baseline lacks genuine Research activation lineage; cadence alone does not complete actual learning. Do not invent provenance."
+cost_control: "Evidence-bound INSUFFICIENT decision skips Research replay; no fabricated artifacts or denominator."
+provenance: "COVERED_DAY_BLOCKS_V1 participates in evidence fingerprint."
+validation: "113 focused tests, 1192 isolated files, build/typecheck/validate:full/security/lint PASS; 15 existing lint warnings. Independent latest-diff review: no actionable findings, 94 tests and SQLite persistence/replay PASS. Initial full-suite ENOENT from missing bash PATH corrected without gate changes."
+next: "Publish exact head and obtain fresh CI/Audit/Release/runtime evidence; baseline Research bridge unresolved and actual cycle completion unverified."

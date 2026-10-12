@@ -1,27 +1,61 @@
 version: 1
+current_learning_hourly_recovery_20261012:
+  work_order: WO-LEARNING-20261012-HOURLY-RECOVERY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  owner_choice: ONE_HOUR_PAPER_EVALUATION
+  branch: codex/learning-fast-recovery-20261012
+  validation: "113 focused tests, 1192 isolated test files, build/typecheck/validate:full/security/lint PASS (15 existing lint warnings). Full suite required Git Bash PATH; initial ENOENT environmental failure retained, corrected without code/assertion weakening. Independent latest-diff review: no actionable P0/P1/P2, 94 tests plus SQLite persistence/replay."
+  remaining: "Fresh exact-head CI, independent Audit, Release and deployment; actual cycles remain zero and baseline genuine Research lineage missing."
+  next: "Publish bounded hourly-evaluation increment; do not claim actual cycle completion or bypass baseline Research lineage."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_learning_upgrade_20261012:
+  work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
+  status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_FRESH_CI
+  branch: codex/learning-loop-progress-20261012
+  base_sha: 957ef5385969f4f12b1310c4519c8654f3a67aed
+  pull_request: 2622
+  previous_validated_head: 44fd704c9c72e0000bf4bc26891079251cd4a7bc
+  previous_head_ci: "38191425978 and required safety/PAPER companions PASS; not new synchronized-head approval."
+  independent_audit: "38191846340 FAIL UNVERIFIED_CLOSED_LOOP. One scope-clarified review 38207700626 also FAIL, safety FAIL; response asserts prior AUDIT_VERDICT_JSON_INVALID and incompatibility without concrete reproduction. No override or further repeated dispatch."
+  runtime_observation: "2026-10-12T05:23:07.549Z: source d6725778, ticks511, cycles0, WAITING_FOR_KST_DAY_ROLLOVER, lastError null. Upgrade remains unmerged and undeployed."
+  scope: "Replay-safe deployment metrics, current versus historical block and truthful KST eligibility; display-only, no policy or scheduler changes."
+  validation: "After non-rewriting synchronization: 50 learning/HTTP plus38 Audit tests, build/typecheck/validate:full/security PASS. New exact-head CI/review and upgraded runtime remain required."
+  next: "Revalidate synchronized head; require deployed Audit repair plus fresh independent verdict. Prior FAIL and actual cycle gap remain unresolved, never overwritten."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_repair_context_20261012:
   work_order: WO-AUDIT-20261012-REPAIR-CONTEXT
-  status: LOCAL_VALIDATED_PENDING_REVIEW
+  status: MERGED_PENDING_WORKER_DEPLOYMENT
+  pull_request: 2623
+  merge_commit: 957ef5385969f4f12b1310c4519c8654f3a67aed
+  ci: "38209662232 and companions PASS; independent38-test code review no actionable findings; canonical Audit38210084371 PASS and expected-head merge. Post-merge CI38210177372 ongoing."
   blocked_learning_pr: 2622
   branch: codex/audit-repair-context-provenance-20261012
   scope: "Model response-format repair is not repository evidence; preserve strict validator and independent FAIL."
   validation: "38 Audit regression tests, build/typecheck/validate:full/security PASS. No validator or authority change; actual model remediation not proven."
-  next: "Independent exact-diff review then fresh CI and canonical Audit/Release; learning PR2622 still blocked."
+  next: "Verify exact-main Worker deployment after post-merge CI, then fresh learning-head Audit; do not override previous verdicts."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_deploy_blocker_20261012:
   work_order: WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: DEPLOYED_WAITING_REAL_LEARNING_EVIDENCE
   branch: codex/learning-deploy-diagnostics-20261012
   base_sha: e05077498a2f608a5eccb3a32b708a6744b76fb6
+  pull_request: 2621
+  exact_head: 0fadb6d4f02fbe3081b92025100f60d8fc06f447
+  merge_commit: d6725778260d06a2308152f6c59d38f7ad64cc1b
+  exact_head_ci: "38189228942 PASS; required PAPER/safety/read-only companions PASS."
+  audit_release: "38189604578 PASS; independent exact-head code review no actionable P0/P1/P2. Canonical expected-head merge completed."
+  post_merge_ci: "38189676183 PASS."
+  runtime_deployment: "Oracle PAPER Release 38190048366 PASS on exact main d6725778; public runtime source matches, PAPER readiness PASS and Autopilot IDLE/RESTORED PASS."
+  runtime_evidence: .aipos/evidence/WO-LEARNING-20261012-RUNTIME-DEPLOYMENT.json
   evidence: "Oracle release 38187254866: PAPER readiness PASS; Autopilot BLOCKED, so canonical rollback restored ca4f897d. Actual underlying failure is not exposed."
-  validation: "24 targeted tests PASS; Node 24.18/pnpm 11.7 locked install, lint, typecheck, build, validate:full, security gate PASS. Raw reasons are never printed; stopped/corrupt/stale/unsafe rejections remain tested. CI/Audit/Release and actual rollout unverified."
-  next: "Add only allowlisted readiness failure codes, validate, then CI/Audit/Release and exact-main Oracle deployment."
+  validation: "24 targeted tests and pnpm test 1191 isolated files PASS; lint, typecheck, build, validate:full, security gate, exact-head CI, Audit/Release, post-merge CI and Oracle deploy PASS. Previous BLOCKED root cause remains unknown; current IDLE proves recovery only."
+  next: "Canonical 30-second scheduler continues; require natural KST rollover and real cycle/Research/successor receipts. Current cyclesRecorded=0 is not completion. No forced clock, old-period replay or synthetic fills."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_completion_20261012:
   work_order: WO-LEARNING-20261012-WRITER-LEASE-LIVENESS
   issue: 1605
   pull_request: 2620
-  status: MERGED_INCREMENT_RUNTIME_DEPLOYMENT_PENDING
+  status: DEPLOYED_WAITING_REAL_LEARNING_EVIDENCE
   branch: codex/learning-loop-completion-20261012
   base_sha: 722b487383fe19a8c4e025bb82a6a63da43601f2
   observed_runtime_sha: ca4f897dd476d1238682a38d618c9569bac19e52
@@ -29,9 +63,9 @@ current_learning_completion_20261012:
   exact_head: 5f11e37d3f6a3bfee5e0c1348009e5babcfd983e
   exact_head_ci: "38188354988 PASS; required PAPER/safety/read-only checks PASS."
   audit_release: "38188705466 canonical Audit PASS and expected-head merge; post-merge convergence remains pending."
-  finding: "Rollback of Oracle release 38187254866 restored health 200 on ca4f897d. Current loop WAITING_FOR_KST_DAY_ROLLOVER; historical CANONICAL_FILL_LEDGER_UNAVAILABLE is not current."
+  finding: "Successor release 38190048366 deployed current main d6725778; health 200, source matches, ticks advance. WAITING_FOR_KST_DAY_ROLLOVER with cyclesRecorded=0; historical ledger error is not current."
   validation: "Build/typecheck, focused 91/91 plus qualification 6/6, pnpm test 1190 isolated files, validate:full, lint, security and AIPOS checks PASS. Independent review bound to final head: no actionable findings. Real closed-loop completion remains unverified."
-  next: "Resolve the identified deployment dependency through the successor readiness diagnostic, then deploy exact main and verify actual cycle/Research/successor receipts."
+  next: "Actual cycle/Research/successor receipts after natural KST boundary remain required; canonical runtime polls automatically."
   complete: false
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_paper_runtime_truth_p0:

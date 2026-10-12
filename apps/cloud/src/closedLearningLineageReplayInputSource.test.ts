@@ -106,7 +106,7 @@ const identity = Object.freeze({
   evidenceReferences: Object.freeze([closedLearningPaperPeriodReference("period-0"), closedLearningPaperPeriodReference("period-1"), closedLearningPaperPeriodReference("period-2")]),
 });
 
-function source(overrides: { periods?: readonly PersistedPaperPeriodEnvelope[]; readAccount?: () => PaperAccountState | undefined; lineageAt?: (at: number) => typeof lineage | undefined } = {}) {
+function source(overrides: { requireIndependentDays?: boolean; periods?: readonly PersistedPaperPeriodEnvelope[]; readAccount?: () => PaperAccountState | undefined; lineageAt?: (at: number) => typeof lineage | undefined } = {}) {
   const periods = overrides.periods ?? [period(0, 0.02), period(1, -0.01), period(2, 0.03)];
   return new ClosedLearningLineageReplayInputSource({
     periods: { listRealizedPeriods: () => periods } as never,
@@ -118,10 +118,18 @@ function source(overrides: { periods?: readonly PersistedPaperPeriodEnvelope[]; 
     } as never,
     readCanonicalPaperAccount: overrides.readAccount ?? account,
     executionQualityPolicy: quality,
+    requireIndependentDays: overrides.requireIndependentDays,
   });
 }
 
 describe("ClosedLearningLineageReplayInputSource", () => {
+  it("short partitions remain insufficient instead of claiming longitudinal day evidence", () => {
+    const result = source({ requireIndependentDays: true }).resolve(identity);
+    const evidence = result.paperEvidenceByCandidate["candidate-a"] as { admission: { strength: string }; paperPerformance?: unknown };
+    assert.equal(evidence.admission.strength, "INSUFFICIENT");
+    assert.equal(evidence.paperPerformance, undefined);
+    assert.equal(result.originalRunFingerprintSha256, ORIGINAL, "genuine original Research identity stays unchanged");
+  });
   it("resolves only the explicitly referenced immutable lineage into canonical Research replay evidence", () => {
     const resolved = source().resolve(identity);
     assert.equal(resolved.originalRunFingerprintSha256, ORIGINAL);
@@ -142,7 +150,10 @@ describe("ClosedLearningLineageReplayInputSource", () => {
 
   it("does not fabricate replay evidence when canonical candidate performance is insufficient", () => {
     const empty = Object.freeze({ ...account(), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]) });
-    assert.throws(() => source({ readAccount: () => empty }).resolve(identity), /performance is insufficient/);
+    const result = source({ readAccount: () => empty }).resolve(identity);
+    const evidence = result.paperEvidenceByCandidate["candidate-a"] as { admission: { strength: string }; paperPerformance?: unknown };
+    assert.equal(evidence.admission.strength, "INSUFFICIENT");
+    assert.equal(evidence.paperPerformance, undefined, "no fabricated metrics or qualification strength");
   });
 
   it("requires explicit paper-period references so retries cannot silently widen the denominator", () => {

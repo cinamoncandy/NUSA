@@ -22,6 +22,19 @@ export interface ClosedLearningProductionResearchAdapterOptions {
 
 const SHA256 = /^[a-f0-9]{64}$/;
 
+function insufficientPaperDecision(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }, replay: ClosedLearningResearchReplayInput): ClosedLearningResearchDecision | undefined {
+  const entries = Object.values(replay.paperEvidenceByCandidate);
+  const insufficient = entries.length > 0 && entries.every((entry) => {
+    if (entry == null || typeof entry !== "object" || Array.isArray(entry)) return false;
+    const admission = (entry as { admission?: unknown }).admission;
+    return admission != null && typeof admission === "object" && !Array.isArray(admission) && (admission as { strength?: unknown }).strength === "INSUFFICIENT";
+  });
+  if (!insufficient) return undefined;
+  // No replay happened: never invent replay fingerprints, metrics, artifacts or denominator rows.
+  // The canonical coordinator persists this evidence-bound non-qualified decision in its cycle ledger.
+  return Object.freeze({ decisionId: `closed-learning-insufficient:${input.cycleId}`, outcome: "INSUFFICIENT", decisionReference: `paper-insufficient:${replay.originalRunFingerprintSha256}:${input.evidenceFingerprintSha256}`, reasons: Object.freeze(["PAPER_EVIDENCE_INSUFFICIENT", "RESEARCH_REPLAY_NOT_EXECUTED"]) });
+}
+
 function timestamp(value: number): number {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error("closed learning Research observation clock is invalid");
   return value;
@@ -93,6 +106,8 @@ export class ClosedLearningProductionResearchAdapter implements ExistingResearch
 
   public evaluate(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): ClosedLearningResearchDecision {
     const replayInput = this.prepare(input);
+    const insufficient = insufficientPaperDecision(input, replayInput);
+    if (insufficient != null) { timestamp(this.now()); return insufficient; }
     return this.finalize(
       replayInput.originalRunFingerprintSha256,
       this.options.worker.replay(replayInput.originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate),
@@ -102,6 +117,8 @@ export class ClosedLearningProductionResearchAdapter implements ExistingResearch
   /** Production runtime path: Research/League executes in a child process without blocking HTTP when supported. */
   public async evaluateAsync(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): Promise<ClosedLearningResearchDecision> {
     const replayInput = this.prepare(input);
+    const insufficient = insufficientPaperDecision(input, replayInput);
+    if (insufficient != null) { timestamp(this.now()); return insufficient; }
     const result = this.options.worker.replayAsync == null
       ? this.options.worker.replay(replayInput.originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate)
       : await this.options.worker.replayAsync(replayInput.originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate);

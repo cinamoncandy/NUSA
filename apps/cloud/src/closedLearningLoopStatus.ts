@@ -4,6 +4,7 @@ import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/s
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator";
 import type { ClosedLearningCycleFailureReceipt } from "./closedLearningEvolutionLedgerRepository";
+import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integration";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -17,6 +18,10 @@ export type ClosedLearningLoopStatus = {
   readonly bootstrap: string;
   readonly rollover: string;
   readonly rolloverReason?: string;
+  readonly currentBlockedReason?: string;
+  /** Earliest KST boundary eligibility, not a promise of evaluation or a scheduler input. */
+  readonly nextEvaluationEligibleAt?: number;
+  readonly evaluationPeriodMs?: number;
   readonly cyclesEvaluated: number;
   readonly lastCycleStatus?: string;
   readonly lastCycleOutcome?: string;
@@ -58,6 +63,9 @@ const code = (value: unknown): string | undefined => {
 };
 
 export class ClosedLearningLoopStatusTracker {
+  public constructor(private readonly evaluationPeriodMs?: number) {
+    if (evaluationPeriodMs !== undefined && ![3_600_000, 86_400_000].includes(evaluationPeriodMs)) throw new Error("CLOSED_LEARNING_EVALUATION_PERIOD_INVALID");
+  }
   private status: ClosedLearningLoopStatus | null = null;
   private bootstrap = "NOT_RUN";
   private periods: ClosedLearningEvidenceCorrelation = {};
@@ -154,11 +162,21 @@ export class ClosedLearningLoopStatusTracker {
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
-    const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, ...rest } = this.status;
+    const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
+    let eligibleAt: number | undefined;
+    const start = this.periods.openPeriodStartAt;
+    if (["WAITING_FOR_KST_DAY_ROLLOVER", "WAITING_FOR_EVALUATION_WINDOW"].includes(rest.rollover) && start !== undefined && Number.isSafeInteger(start) && start >= 0 && start <= rest.lastTickAt && start <= 8_640_000_000_000_000) {
+      const dayBoundary = Date.parse(`${tradingDayKey(start)}T15:00:00.000Z`);
+      const boundary = this.evaluationPeriodMs === undefined ? dayBoundary : Math.min(dayBoundary, start + this.evaluationPeriodMs);
+      if (Number.isSafeInteger(boundary) && boundary > rest.lastTickAt) eligibleAt = boundary;
+    }
     const processOutcome = this.processCycleOutcome;
     const outcome = processOutcome ?? this.durableOutcome;
     this.status = Object.freeze({
       ...rest,
+      ...(this.evaluationPeriodMs === undefined ? {} : { evaluationPeriodMs: this.evaluationPeriodMs }),
+      ...(rest.rollover === "BLOCKED" || rest.rollover === "ERROR" ? { currentBlockedReason: rest.rollover === "ERROR" ? "TICK_ERROR" : rest.rolloverReason ?? "BLOCKED_WITHOUT_CODE" } : {}),
+      ...(eligibleAt === undefined ? {} : { nextEvaluationEligibleAt: eligibleAt }),
       ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),
       ...(this.lastBlocked === undefined ? {} : { lastBlockedReason: this.lastBlocked.reason, lastBlockedAt: this.lastBlocked.at }),
       ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
@@ -176,7 +194,7 @@ export class ClosedLearningLoopStatusTracker {
     const cycleOutcome = code(result.cycle?.record?.decision?.outcome);
     if (cycleOutcome !== undefined) this.processCycleOutcome = cycleOutcome;
     if (result.status === "BLOCKED") this.lastBlocked = { reason: code(result.reason) ?? "BLOCKED_WITHOUT_CODE", at: now };
-    const deployed = evaluated && result.cycle?.record?.paperDeployment != null;
+    const deployed = evaluated && (result.cycle?.status === "EXECUTED" || result.cycle?.status === "RESUMED") && result.cycle.record.paperDeployment != null;
     const reason = code(result.reason);
     this.status = Object.freeze({
       lastTickAt: now,

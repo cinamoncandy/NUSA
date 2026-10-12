@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "workOrder": "WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON",
+  "observedAt": "2026-10-12T01:09:39.696Z",
+  "classification": "WAITING_REAL_EVIDENCE",
+  "closedLoopComplete": false,
+  "sourceCommitSha": "d6725778260d06a2308152f6c59d38f7ad64cc1b",
+  "implementation": {
+    "writerLeasePullRequest": 2620,
+    "readinessPullRequest": 2621,
+    "exactHead": "0fadb6d4f02fbe3081b92025100f60d8fc06f447",
+    "exactHeadCiRun": 38189228942,
+    "auditReleaseRun": 38189604578,
+    "postMergeCiRun": 38189676183,
+    "localIsolatedTestFilesPassed": 1191
+  },
+  "deployment": {
+    "workflow": "Oracle PAPER Release",
+    "runId": 38190048366,
+    "conclusion": "success",
+    "paperReadiness": "PASS",
+    "autopilotReadiness": "PASS",
+    "autopilotRuntimeStatus": "IDLE",
+    "autopilotRecovery": "RESTORED"
+  },
+  "runtimeObservation": {
+    "source": "https://nusa-api.duckdns.org/health",
+    "ok": true,
+    "lastHeartbeatAt": 1791767379669,
+    "eventCount": 74,
+    "lastError": null,
+    "learningTicks": 4,
+    "rollover": "WAITING_FOR_KST_DAY_ROLLOVER",
+    "cyclesRecorded": 0,
+    "realizedPeriods": 5,
+    "openObservations": 221,
+    "openFilledObservations": 5
+  },
+  "nextEvidence": "Natural KST day boundary -> real period close -> immutable cycle/Research receipt -> governed successor PAPER receipt. This snapshot does not prove those transitions.",
+  "priorFailure": "Run 38187254866 rolled back on AUTOPILOT_NOT_READY:BLOCKED. The underlying previous reason remains unknown; current IDLE readiness proves recovery, not retrospective root cause.",
+  "safety": {
+    "mode": "PAPER_ONLY",
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  }
+}

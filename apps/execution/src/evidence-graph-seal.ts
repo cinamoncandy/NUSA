@@ -4,7 +4,21 @@ export { GENESIS_SEAL_HASH } from "../../../packages/contracts/src/evidenceGraph
 export type { EvidenceGraphHashSeal, EvidenceGraphSealEdge, EvidenceGraphSealNode } from "../../../packages/contracts/src/evidenceGraph";
 
 function canonicalGraph(nodes:readonly EvidenceGraphSealNode[],edges:readonly EvidenceGraphSealEdge[]):string{
- const canonicalNodes=[...nodes].map(n=>({evidenceId:n.evidenceId.trim(),kind:n.kind.trim(),candidateId:n.candidateId.trim()})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+ const canonicalNodes=[...nodes].map(n=>{
+  const base={evidenceId:n.evidenceId.trim(),kind:n.kind.trim(),candidateId:n.candidateId.trim()};
+  // Preserve the legacy v1 graph fingerprint when provenance was not supplied.
+  if(n.provenance===undefined)return base;
+  const p=n.provenance;
+  return {...base,provenance:{
+   sourceType:p.sourceType,
+   verificationState:p.verificationState,
+   ...(p.sourceRef===undefined?{}:{sourceRef:p.sourceRef.trim()}),
+   ...(p.sourceFingerprint===undefined?{}:{sourceFingerprint:p.sourceFingerprint.toLowerCase()}),
+   ...(p.observedAtMs===undefined?{}:{observedAtMs:p.observedAtMs}),
+   ...(p.validUntilMs===undefined?{}:{validUntilMs:p.validUntilMs}),
+   ...(p.verifierEvidenceId===undefined?{}:{verifierEvidenceId:p.verifierEvidenceId.trim()})
+  }};
+ }).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
  const canonicalEdges=[...edges].map(e=>({fromEvidenceId:e.fromEvidenceId.trim(),toEvidenceId:e.toEvidenceId.trim(),relation:e.relation.trim()})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
  return JSON.stringify({nodes:canonicalNodes,edges:canonicalEdges});
 }
@@ -25,8 +39,28 @@ export function sealEvidenceGraph(input:{readonly sealId:string;readonly candida
  if(input.nodes.length<1)throw new Error("evidence graph cannot be empty");
  const previousSealHash=input.previousSealHash?.trim()||GENESIS_SEAL_HASH;
  const ids=new Set<string>();
- for(const node of input.nodes){if(!node.evidenceId.trim()||!node.kind.trim()||node.candidateId!==input.candidateId)throw new Error("invalid evidence graph node");if(ids.has(node.evidenceId))throw new Error("duplicate evidence id");ids.add(node.evidenceId);}
- for(const edge of input.edges){if(!edge.fromEvidenceId.trim()||!edge.toEvidenceId.trim()||!edge.relation.trim())throw new Error("invalid evidence graph edge");if(!ids.has(edge.fromEvidenceId)||!ids.has(edge.toEvidenceId))throw new Error("dangling evidence graph edge");if(edge.fromEvidenceId===edge.toEvidenceId)throw new Error("self evidence graph edge");}
+ for(const node of input.nodes){
+  if(!node.evidenceId.trim()||!node.kind.trim()||node.candidateId!==input.candidateId)throw new Error("invalid evidence graph node");
+  if(ids.has(node.evidenceId.trim()))throw new Error("duplicate evidence id");
+  ids.add(node.evidenceId.trim());
+  const p=node.provenance;
+  if(p!==undefined){
+   if(!["CANONICAL","EXTERNAL","MODEL_GENERATED"].includes(p.sourceType))throw new Error("invalid evidence provenance source type");
+   if(!["UNVERIFIED","VERIFIED","CONTRADICTED","STALE","SUPERSEDED","REJECTED"].includes(p.verificationState))throw new Error("invalid evidence verification state");
+   if((p.sourceType==="EXTERNAL"||p.sourceType==="MODEL_GENERATED")&&(!p.sourceRef||!p.sourceRef.trim()))throw new Error("external and model-generated evidence require source provenance");
+   if(p.sourceFingerprint!==undefined&&!/^[a-f0-9]{64}$/i.test(p.sourceFingerprint))throw new Error("invalid evidence source fingerprint");
+   for(const timestamp of [p.observedAtMs,p.validUntilMs])if(timestamp!==undefined&&(!Number.isSafeInteger(timestamp)||timestamp<0))throw new Error("invalid evidence provenance timestamp");
+   if(p.observedAtMs!==undefined&&p.observedAtMs>input.nowMs)throw new Error("evidence observation cannot be in the future");
+   if(p.observedAtMs!==undefined&&p.validUntilMs!==undefined&&p.validUntilMs<p.observedAtMs)throw new Error("evidence validity ends before observation");
+   if(p.validUntilMs!==undefined&&input.nowMs>=p.validUntilMs&&p.verificationState!=="STALE")throw new Error("expired evidence must be marked STALE");
+   if(p.verificationState==="VERIFIED"&&(!p.verifierEvidenceId||!p.verifierEvidenceId.trim()||p.verifierEvidenceId.trim()===node.evidenceId.trim()))throw new Error("verified evidence requires distinct verifier evidence");
+  }
+ }
+ for(const edge of input.edges){if(!edge.fromEvidenceId.trim()||!edge.toEvidenceId.trim()||!edge.relation.trim())throw new Error("invalid evidence graph edge");if(!ids.has(edge.fromEvidenceId.trim())||!ids.has(edge.toEvidenceId.trim()))throw new Error("dangling evidence graph edge");if(edge.fromEvidenceId.trim()===edge.toEvidenceId.trim())throw new Error("self evidence graph edge");}
+ for(const node of input.nodes){
+  const p=node.provenance;
+  if(p?.verificationState==="VERIFIED"&&(!input.edges.some(e=>e.fromEvidenceId.trim()===p.verifierEvidenceId?.trim()&&e.toEvidenceId.trim()===node.evidenceId.trim()&&e.relation.trim()==="INDEPENDENTLY_VERIFIES")))throw new Error("verified evidence requires an INDEPENDENTLY_VERIFIES edge");
+ }
  const graphHash=createHash("sha256").update(canonicalGraph(input.nodes,input.edges)).digest("hex");
  const chainHash=computeChainHash({sealId:input.sealId,candidateId:input.candidateId,graphHash,previousSealHash,sealedAtMs:input.nowMs});
  return Object.freeze({sealId:input.sealId,candidateId:input.candidateId,graphHash,previousSealHash,chainHash,nodeCount:input.nodes.length,edgeCount:input.edges.length,sealedAtMs:input.nowMs,deploymentAllowed:false,productionMutationAllowed:false});
