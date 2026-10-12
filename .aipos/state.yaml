@@ -1,4 +1,16 @@
 version: 1
+current_learning_completion_20261012:
+  work_order: WO-LEARNING-20261012-WRITER-LEASE-LIVENESS
+  issue: 1605
+  status: VERIFYING
+  branch: codex/learning-loop-completion-20261012
+  base_sha: 722b487383fe19a8c4e025bb82a6a63da43601f2
+  observed_runtime_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  finding: "Current health has 88 fills, 5 realized periods, 0 cycles and CANONICAL_FILL_LEDGER_UNAVAILABLE; exact underlying reader cause remains unverified."
+  validation: "Build/typecheck, focused 91/91, validate:full, changed-test lint, security, work-order index and diff check PASS; real closed-loop completion remains unverified."
+  next: "Publish the writer-lease liveness guard, require fresh CI/Audit/Release, deploy exact main through Oracle PAPER Release, then verify real period/Research/successor receipts. Oracle refresh 38187254866 is still running."
+  complete: false
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_paper_runtime_truth_p0:
   work_order: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
   status: CANONICAL_BRANCH_RECOVERED_PENDING_EXACT_HEAD_CI

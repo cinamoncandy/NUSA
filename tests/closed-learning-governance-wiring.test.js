@@ -14,6 +14,16 @@ const path = require("node:path");
  */
 const source = fs.readFileSync(path.resolve(__dirname, "../apps/cloud/src/closedLearningProductionRuntime.ts"), "utf8");
 
+test("serialized production learning verifies its writer lease before bootstrap and retains fail-closed shutdown", () => {
+  const tick = source.slice(source.indexOf("const runClosedLearningTick"), source.indexOf("const scheduleTick"));
+  const guard = tick.indexOf("paperRepository?.verifyWriterLease()");
+  const bootstrap = tick.indexOf("await runClosedLearningBootstrapAsync()");
+  assert.ok(guard >= 0 && bootstrap > guard);
+  assert.match(tick, /catch\(\(error: unknown\) => \{ loopStatus\.observeError\(Date\.now\(\)\); persistLastBlocked\(\); throw error; \}\)/);
+  assert.match(tick, /recordRuntimeFailure\(config\.cloudStateDbPath, "CLOSED_LEARNING_SCHEDULER", error\)/);
+  assert.match(tick, /void handle\.stop\(\)/);
+});
+
 test("the production closed-learning composition passes a Governance port to PAPER deployment", () => {
   const start = source.indexOf("new PaperChallengerDeploymentRuntime(");
   assert.ok(start > 0, "expected the production composition to construct PaperChallengerDeploymentRuntime");
