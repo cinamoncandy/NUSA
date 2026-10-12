@@ -1083,6 +1083,28 @@ export async function executeCodingRunner(
       }
     }
     const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!, Boolean(request.proposalContext)));
+    // 402 Payment Required is the standard "out of credit" answer from a paid inference endpoint.
+    // Unlike 429 (transient backpressure, minute-scale backoff) an exhausted balance does not
+    // recover on its own, so it must not be retried against the same empty balance: it records a
+    // hard stop for the rest of the UTC day, which aiBudgetState classifies as HARD_STOP because
+    // the reason is absent from SOFT_BUDGET_STOP_REASONS. The persisted wait is what lets the
+    // caller stop spending and degrade instead of re-billing a dead balance on every dispatch.
+    if (response.status === 402) {
+      const current = now();
+      const retryAfterMs = msUntilNextUtcDay(current);
+      return {
+        status: "BLOCKED_RATE_LIMIT",
+        reason: "WAITING_PROVIDER_CAPACITY",
+        httpStatus: response.status,
+        proposalAttempts: 1,
+        failureStage: "proposal-parse",
+        provider: "configured-coding-engine",
+        retryAfterMs,
+        nextRetryAt: current + retryAfterMs,
+        stopReason: "PAID_CODING_CREDITS_EXHAUSTED",
+        resumeCondition: "paid-credit-topup-or-next-utc-day-and-exact-head-revalidation",
+      };
+    }
     if (response.status === 429) {
       const current = now();
       const retryAfterMs = MAX_RATE_LIMIT_BACKOFF_MS;

@@ -245,6 +245,63 @@ describe("/coding/propose provider-capacity gating", () => {
 
 
 describe("configured coding-engine failure status evidence", () => {
+  it("records an exhausted paid balance as a day-long hard stop, not a retryable 429", async () => {
+    const original = globalThis.fetch;
+
+    try {
+      const env = {
+        ...baseEnv(memoryNamespace()),
+        NUSA_AI_CODING_ENDPOINT: "https://coding.invalid/generate",
+        NUSA_AI_CODING_TOKEN: "engine-token",
+      } as unknown as WorkerEnv;
+      let paidCalls = 0;
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: HEAD }), { status: 200 });
+        if (url.includes("/actions/runs/")) {
+          return new Response(JSON.stringify({
+            id: request.workflowRunId,
+            head_sha: HEAD,
+            head_branch: "main",
+            repository: { full_name: request.repository },
+            event: "workflow_dispatch",
+            status: "completed",
+            conclusion: "success",
+          }), { status: 200 });
+        }
+        if (url === "https://coding.invalid/generate") {
+          paidCalls += 1;
+          return new Response(JSON.stringify({ error: "insufficient credit" }), { status: 402 });
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }) as typeof fetch;
+
+      const before = Date.now();
+      const response = await handleCodingProposal(proposalRequest(), env);
+      assert.equal(response.status, 409);
+      assert.equal(paidCalls, 1);
+      const body = await response.json() as {
+        error: string;
+        httpStatus?: number;
+        provider?: string | null;
+        providerStopReason?: string | null;
+        nextRetryAt?: number | null;
+        remediationDecision?: unknown;
+      };
+      assert.equal(body.error, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(body.httpStatus, 402);
+      assert.equal(body.provider, "configured-coding-engine");
+      // An empty balance never recovers on a minute-scale backoff, so it must not be reported as
+      // transient rate limiting; the wait reaches at least into the next UTC day.
+      assert.equal(body.providerStopReason, "PAID_CODING_CREDITS_EXHAUSTED");
+      assert.ok(Number.isSafeInteger(body.nextRetryAt));
+      assert.ok((body.nextRetryAt as number) > before + 60_000);
+      assert.equal(body.remediationDecision, undefined);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it("preserves HTTP 429 capacity and 5xx status through /coding/propose", async () => {
     const original = globalThis.fetch;
 
