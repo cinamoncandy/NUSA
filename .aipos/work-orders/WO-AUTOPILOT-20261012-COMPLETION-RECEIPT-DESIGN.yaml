@@ -1,0 +1,32 @@
+id: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-DESIGN
+title: "Design the Autopilot completion receipt (issue #2595 items 6 and 8)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-completion-receipt
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('완료 영수증 설계해')"
+scope_note: "Design document only. No code, config, workflow, Risk, credential or authority change."
+objective: "Specify one immutable receipt that binds task, failure, remediation outcome, change, CI, independent Audit, Release/merge and runtime evidence by composing existing components, with a deterministic classification that keeps VALID_NO_ACTION out of verified useful completion."
+scope:
+  include:
+    - "docs/AUTOPILOT_COMPLETION_RECEIPT_DESIGN.md"
+  exclude:
+    - "Any implementation, new queue/scheduler/runner/audit/release engine, or change to Audit, Release or merge authority."
+limitations:
+  - "Design proposal with four open owner decisions; no receipt has been issued and AUTOPILOT_VERIFIED_COMPLETION_LOOP remains false."
+acceptance:
+  - "The document maps every receipt field to an existing source, states the classification rules, and names the open decisions."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Owner decisions, then a separate implementation work order, exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
