@@ -1,0 +1,32 @@
+id: WO-AUTOPILOT-20261012-PREFLIGHT-CREDIT-POSTURE
+title: "Derive the credential preflight's zero-credit expectation from the deploy workflow"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/preflight-credit-posture
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('계속해' while the canonical P0 #1461 stayed open after #2632 merged)"
+scope_note: "Workflow gate and its test only. No Worker, runtime, Risk, credential or authority change."
+objective: "#2632 fixed the deploy health gate; #1461's own diagnosis shows the trusted Credential Preflight still hardcodes zeroCreditMode ENFORCED, so it keeps failing against the deployed DISABLED posture. Derive the expectation from the single NUSA_ZERO_CREDIT_MODE source in the deploy workflow."
+scope:
+  include:
+    - ".github/workflows/autopilot-cloudflare-credential-preflight.yml (step 'Require live Worker revision is runtime-equivalent to exact current main')"
+    - "tests/autopilot-cloudflare-credential-preflight.test.js"
+  exclude:
+    - "Changing the deployed credit posture; weakening any authority invariant (liveAuthority NONE, productionMutationAllowed false, aiAuthority ZERO_AUTHORITY remain asserted)."
+limitations:
+  - "pull_request_target workflows run from main, so this takes effect for PR checks only after it merges."
+acceptance:
+  - "The step fails closed when the deploy workflow has no NUSA_ZERO_CREDIT_MODE or the live Worker reports a different posture; no literal ENFORCED/DISABLED comparison remains."
+verification_commands:
+  - "node --test tests/autopilot-cloudflare-credential-preflight.test.js tests/autopilot-cloudflare-deploy.test.js"
+  - "node scripts/validate-aipos-yaml.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release; after merge the trusted current-main preflight must pass and #1461 must clear on its own."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

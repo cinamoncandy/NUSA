@@ -164,6 +164,10 @@ test('a runtime-unchanged exact main is accepted only with proof against the liv
   assert.match(step, /health\.liveAuthority !== 'NONE'/);
   assert.match(step, /health\.productionMutationAllowed !== false/);
   assert.match(step, /health\.aiAuthority !== 'ZERO_AUTHORITY'/);
-  assert.match(step, /health\.zeroCreditMode !== 'ENFORCED'/);
+  // The expected posture is derived from the deploy workflow's single source, never a literal (regression: #2632 follow-up).
+  assert.match(step, /NUSA_ZERO_CREDIT_MODE:/);
+  assert.match(step, /posture\[1\] === 'true' \? 'ENFORCED' : 'DISABLED'/);
+  assert.match(step, /health\.zeroCreditMode !== expectedZeroCredit/);
+  assert.doesNotMatch(step, /health\.zeroCreditMode !== '(ENFORCED|DISABLED)'/);
   assert.match(workflow, /fetch-depth: 0/);
 });
