@@ -1,30 +1,54 @@
 id: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
 title: "Propose a Claude-centered operating model for the whole project"
 status: READY_FOR_REVIEW
+revision: 2
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
 branch: claude/claude-centered-redesign
+pull_request: 2650
 authority_impact: none
-owner_approval: "2026-10-13 in chat (move from ChatGPT-centered to Claude-centered; redesign everything while recording it in AIPOS)"
-scope_note: "Design document and a PROPOSED ADR. No code, workflow, label, protection, engine or authority change."
-objective: "Reassign AI roles around a main Claude, an assistant Claude and a bounded Autopilot while keeping every safety invariant, the deterministic control plane, independent Audit and the release bot, and define migration phases and owner decisions."
+owner_approval: "2026-10-13 in chat (move from ChatGPT-centered to Claude-centered; redesign everything while recording it in AIPOS); revision 2 on the owner's request to re-review and revise the proposal"
+scope_note: "Design document, a PROPOSED ADR and AIPOS records. No code, workflow, label, protection, engine, token or authority change."
+objective: "Reassign the governing charter's roles (CORE, VALIDATOR/RESEARCH, AUTOPILOT) to a main Claude, an assistant Claude and the bounded Autopilot while keeping every safety invariant, the deterministic control plane, deterministic Audit and the release bot, and define verified problems, migration phases and owner decisions."
 scope:
   include:
-    - "docs/CLAUDE_CENTERED_OPERATING_MODEL.md"
-    - ".aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md (PROPOSED)"
+    - "docs/CLAUDE_CENTERED_OPERATING_MODEL.md (revision 2)"
+    - ".aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md (PROPOSED, revision 2)"
+    - ".aipos/state.yaml entry current_ops_claude_centered_redesign"
+    - ".aipos/handoffs/2026-10-12-claude-handoff.md (re-review addendum and corrected safe next actions)"
   exclude:
-    - "Enabling the owner-activity gate, changing the Autopilot engine, removing Codex assets, merging HOLD PRs or any runtime change."
+    - "Enabling the owner-activity gate, changing the Autopilot engine or token, removing Codex assets, editing or merging HOLD PRs, closing PRs, or any runtime change."
+revision_2_changes:
+  - "Notification flood root cause corrected: the scheduled runtime repairs any failed main-head run for 24 hours (scheduledRuntime.ts:216) and consumer failures notify the owner because runs are triggered as cinamoncandy; disabling Codex does not remove it."
+  - "Independence no longer requires separate GitHub accounts; non-author review uses docs/GRILL_ME_PROTOCOL.md; docs-only authority_impact none PRs use the lightweight path; blocking findings are inline threads, which Release already respects."
+  - "claimed_by in state.yaml withdrawn in favour of a claim branch named after the work order."
+  - "Code PRs open as drafts until the non-author review is done, because Audit skips drafts and green PRs otherwise merge within minutes (#2649 in 7 minutes, #2643 in 8)."
+  - "Roles mapped to the governing charter; GitHub machine-account terms and a Worker GitHub App separate from the release-authority app added."
+  - "Owner-activity gate (#2644) prerequisites added: closed gate must be a quiet NO_ACTION, Worker identity separated."
+  - "Phases now cover open-PR triage, the paid overflow cap, master-instruction merge wording and the CLAUDE.md handoff path."
 limitations:
-  - "A proposal; external settings (accounts, protection rules, provider configuration) cannot be verified from this session. The learning loop's blocker (no Research-qualified candidate) is not solved by the operating model."
+  - "A proposal. Not verifiable from this session: full branch protection and collaborators (HTTP 403), the Worker token type (only that its runs are triggered as cinamoncandy), the reason for the 22:06 and 22:11 UTC consumer failures, current Workers AI usage, and which hosts carry the self-hosted runners."
+  - "The learning loop's blocker (no Research-qualified candidate) is not solved by the operating model."
+evidence:
+  verified_at: "2026-10-12 22:00-22:40 UTC"
+  references:
+    - "Actions API: Autopilot Execution Consumer failures 230 on 2026-10-12, 26 on 2026-10-11; run 38315180204 actor cinamoncandy; run 38268963342 repository mismatch; run 38300571241 Autopilot Codex Coding failure; run 38287517884 PAPER evidence failure."
+    - "Worker /scheduled/status: eleven dispatches for run 38300571241 between 19:55 and 20:48 UTC, then WIP_LIMIT_REACHED until the main head changed."
+    - "apps/autopilot/src/scheduledRuntime.ts:55,216; scripts/autopilot-dispatch-retry.js:1059-1063,1337; .github/workflows/autopilot-deterministic-audit-release.yml:353-363; codingRunner.ts:217,221,411,922."
+    - "GET branches/main: required check nusa/release-authorized (app 4935691), enforcement everyone."
+    - "Pulls API: last 60 PRs authored by cinamoncandy; 45 open (21 draft, 20 HOLD, 34 created before October); #2649 merge made #2650 conflict in state.yaml."
+  remaining: "Owner decisions, then one work order per phase with exact-head CI, independent review where required, deterministic Audit and Release."
 acceptance:
-  - "The document lists what never changes, the current AI roles, the target roles with an independence rule, identity separation, the work flow with claiming, the Autopilot changes, review and notification changes, migration phases P0-P5 and the owner decisions."
+  - "The document states what never changes, the verified current state with evidence, the verified problems, the target roles mapped to the charter with an independence rule, identity separation within GitHub terms, the work flow with branch claiming, the Autopilot changes, review and notification changes, migration phases P0-P5 and the owner decisions."
   - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
 verification_commands:
   - "node scripts/validate-aipos-yaml.js"
   - "node scripts/validate-repository-truth.js"
-evidence:
-  remaining: "Owner decisions, then one work order per phase with exact-head CI, independent Audit and Release."
+  - "node scripts/validate-safety-architecture.js"
+  - "node scripts/validate-ai-zero-authority.js"
+  - "pnpm run aipos:drift"
+  - "pnpm run aipos:conformance"
 safety:
   paper_only: true
   liveAuthority: NONE
