@@ -1,16 +1,16 @@
 version: 1
 current_learning_upgrade_20261012:
   work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
-  status: SYNCHRONIZED_AUDIT_DEPENDENCY_PENDING_FRESH_VALIDATION
+  status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_FRESH_CI
   branch: codex/learning-loop-progress-20261012
   base_sha: 957ef5385969f4f12b1310c4519c8654f3a67aed
   pull_request: 2622
-  exact_head: 44fd704c9c72e0000bf4bc26891079251cd4a7bc
-  exact_head_ci: "38191425978 and required safety/PAPER companions PASS. Independent read-only code review found no actionable findings after 50 actual HTTP/focused tests."
+  previous_validated_head: 44fd704c9c72e0000bf4bc26891079251cd4a7bc
+  previous_head_ci: "38191425978 and required safety/PAPER companions PASS; not new synchronized-head approval."
   independent_audit: "38191846340 FAIL UNVERIFIED_CLOSED_LOOP. One scope-clarified review 38207700626 also FAIL, safety FAIL; response asserts prior AUDIT_VERDICT_JSON_INVALID and incompatibility without concrete reproduction. No override or further repeated dispatch."
   runtime_observation: "2026-10-12T05:23:07.549Z: source d6725778, ticks511, cycles0, WAITING_FOR_KST_DAY_ROLLOVER, lastError null. Upgrade remains unmerged and undeployed."
   scope: "Replay-safe deployment metrics, current versus historical block and truthful KST eligibility; display-only, no policy or scheduler changes."
-  validation: "50 focused/HTTP regression tests PASS after independent-review correction for omitted public fields; build, typecheck, validate:full, security gate and repository lint PASS (existing warnings). New exact-head CI, fresh review and rollout required."
+  validation: "After non-rewriting synchronization: 50 learning/HTTP plus38 Audit tests, build/typecheck/validate:full/security PASS. New exact-head CI/review and upgraded runtime remain required."
   next: "Revalidate synchronized head; require deployed Audit repair plus fresh independent verdict. Prior FAIL and actual cycle gap remain unresolved, never overwritten."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_repair_context_20261012:
