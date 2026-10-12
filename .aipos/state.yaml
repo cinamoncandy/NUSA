@@ -3198,3 +3198,12 @@ current_autopilot_light_task_gate:
   branch: claude/autopilot-light-task-gate-impl
   authority_impact: none
   finding: "A coding proposal or exact-edit patch over 150 added plus removed lines is now rejected as CODING_PROPOSAL_TOO_LARGE (existing reason, classification and bounded retry); the existing single-file rule already exceeds the design's 3-file default. Needs a Worker deploy to take effect."
+
+current_autopilot_owner_activity_gate:
+  work_order: WO-AUTOPILOT-20261012-OWNER-ACTIVITY-GATE
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-owner-gate-impl
+  authority_impact: none
+  finding: "The owner-activity gate and owner pause command are implemented at /coding/propose and /coding/execute but ship DISABLED (NUSA_AUTOPILOT_OWNER_GATE_ENABLED=false). Enable only after the main-Claude and assistant/automation GitHub accounts are separated (owner: 2026-10-13); then set the enable flag and the watched login in deploy config."
+  next: "After the owner reports the two GitHub logins: set NUSA_AUTOPILOT_OWNER_GATE_ENABLED=true and NUSA_AUTOPILOT_OWNER_LOGIN in deploy config in a small PR, deploy, and verify a closed and an open case."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

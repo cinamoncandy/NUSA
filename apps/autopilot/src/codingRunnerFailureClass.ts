@@ -9,6 +9,7 @@ export type CodingRunnerFailureClass =
   | "PERMISSION_FAILURE"
   | "WORKFLOW_NOT_ELIGIBLE"
   | "AUTHORITY_VIOLATION"
+  | "OWNER_ACTIVE"
   | "EVIDENCE_UNVERIFIED"
   | "EVIDENCE_MISMATCH"
   | "REQUEST_INVALID"
@@ -86,6 +87,7 @@ export function classifyCodingRunnerFailure(reason: unknown, httpStatus?: number
     ["WORKFLOW_NOT_ELIGIBLE", ["WORKFLOW_NOT_ELIGIBLE", "ACTIONABLE_FAILURE_NOT_ALLOWLISTED"]],
     ["EVIDENCE_UNVERIFIED", ["WORKFLOW_IDENTITY_MISSING", "ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED"]],
     ["EVIDENCE_MISMATCH", ["WORKFLOW_IDENTITY_MISMATCH"]],
+    ["OWNER_ACTIVE", ["OWNER_ACTIVE"]],
   ]);
   for (const [failureClass, codes] of failClosedWorkflowCodes) {
     if (codes.includes(code)) return make(failureClass, "STOP", false);

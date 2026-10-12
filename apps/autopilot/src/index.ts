@@ -4,6 +4,8 @@ import { resolveCanonicalPrCiForReady } from "./githubCanonicalPrCiResolver";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { resolveGithubReleaseCompletion } from "./githubReleaseCompletionResolver";
+import { evaluateOwnerGateForEnv } from "./ownerActivityGate";
+import { decideCodingRunnerNoAction } from "./codingRunnerRemediation";
 import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
 import { CodingRunnerEvidenceError, CodingRunnerHttpEvidenceError, executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { prepareProductionExecution, reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
@@ -46,6 +48,10 @@ export interface Env {
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
   NUSA_AUTOPILOT_ZERO_CREDIT_MODE?: string;
+  /** Owner-activity gate: off unless exactly "true". Watched login and quiet minutes (default 60) come from deploy config only. */
+  NUSA_AUTOPILOT_OWNER_GATE_ENABLED?: string;
+  NUSA_AUTOPILOT_OWNER_LOGIN?: string;
+  NUSA_AUTOPILOT_OWNER_QUIET_MINUTES?: string;
   NUSA_JEV_SHADOW_ENABLED?: string;
   NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
   NUSA_JEV_MODEL_TIERING_ENABLED?: string;
@@ -206,6 +212,21 @@ export async function handleCodingExecute(
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
     if (!env.NUSA_EXECUTION_COORDINATOR) return json({ error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", status: "INTERFACE_READY" }, 503);
+    // New coding work starts only while the watched owner account is quiet; checked before a lease is taken so a closed
+    // gate takes no lease, calls no coding engine and spends nothing. Off unless explicitly enabled.
+    const ownerGate = await evaluateOwnerGateForEnv(env, allowedRepository, startedAt);
+    if (ownerGate) {
+      return json({
+        accepted: false,
+        status: "CODING_EXECUTE_FAILED_CLOSED",
+        error: "OWNER_ACTIVE",
+        ownerGate: ownerGate.reason,
+        remediationDecision: decideCodingRunnerNoAction("OWNER_ACTIVE", 0, 3),
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }, 409);
+    }
     const lease = await handoffOrAcquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
       dedupeKey: runnerRequest.dedupeKey,
       executionId: runnerRequest.executionId,

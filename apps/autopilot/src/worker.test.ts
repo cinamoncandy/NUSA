@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { handleCodingProposal, handleCodingPublish, ExecutionCoordinator, type WorkerEnv } from "./worker";
+import { handleCodingExecute } from "./index";
 import { readCodingExecutionEvidence, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 const HEAD = "a".repeat(40);
@@ -508,6 +509,81 @@ describe("/coding/publish receipt reconciliation", () => {
       const persisted = await readCodingExecutionEvidence(coordinator);
       assert.equal(persisted.evidence?.outcome.commitSha, commitSha);
       assert.equal(persisted.evidence?.outcome.pullRequestNumber, 77);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
+describe("owner-activity gate at the new-work entry points", () => {
+  const NOW_ISO = () => new Date(Date.now() - 2 * 60_000).toISOString();
+  const gateEnv = (coordinator: ExecutionCoordinatorNamespace): WorkerEnv => ({
+    ...baseEnv(coordinator),
+    NUSA_AUTOPILOT_OWNER_GATE_ENABLED: "true",
+    NUSA_AUTOPILOT_OWNER_LOGIN: "mainacct",
+  } as unknown as WorkerEnv);
+
+  async function withOwnerActiveFetch<T>(run: (urls: string[]) => Promise<T>): Promise<T> {
+    const original = globalThis.fetch;
+    const urls: string[] = [];
+    globalThis.fetch = (async (url: string) => {
+      const value = String(url);
+      urls.push(value);
+      if (value.endsWith("/user")) return new Response(JSON.stringify({ login: "assistant" }), { status: 200 });
+      if (value.includes("/events?")) return new Response(JSON.stringify([{ type: "PushEvent", actor: { login: "mainacct" }, created_at: NOW_ISO() }]), { status: 200 });
+      if (value.includes("/issues/comments?")) return new Response("[]", { status: 200 });
+      throw new Error(`unexpected fetch ${value}`);
+    }) as typeof fetch;
+    try {
+      return await run(urls);
+    } finally {
+      globalThis.fetch = original;
+    }
+  }
+
+  it("refuses /coding/propose with OWNER_ACTIVE, a fail-closed decision, and no coding or lease work", async () => {
+    await withOwnerActiveFetch(async (urls) => {
+      const response = await handleCodingProposal(proposalRequest(), gateEnv(memoryNamespace()));
+      assert.equal(response.status, 409);
+      const body = await response.json() as { error: string; ownerGate: string; remediationDecision: { outcome: string; failureClass: string; recovery: string; retryable: boolean } };
+      assert.equal(body.error, "OWNER_ACTIVE");
+      assert.equal(body.ownerGate, "OWNER_ACTIVE");
+      assert.deepEqual(body.remediationDecision, { outcome: "FAILED_CLOSED", failureClass: "OWNER_ACTIVE", recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3 });
+      assert.ok(urls.every((url) => !url.includes("/commits/") && !url.includes("/actions/runs/")), "no workflow or commit lookup before the gate");
+    });
+  });
+
+  it("refuses /coding/execute before taking an execution lease", async () => {
+    await withOwnerActiveFetch(async (urls) => {
+      const coordinator = memoryNamespace();
+      const response = await handleCodingExecute(new Request("https://worker.example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer coding-token", "content-type": "application/json" },
+        body: JSON.stringify(request),
+      }), gateEnv(coordinator));
+      assert.equal(response.status, 409);
+      const body = await response.json() as { error: string; remediationDecision: { failureClass: string } };
+      assert.equal(body.error, "OWNER_ACTIVE");
+      assert.equal(body.remediationDecision.failureClass, "OWNER_ACTIVE");
+      assert.ok(urls.every((url) => !url.includes("/commits/") && !url.includes("/actions/runs/")));
+      const stub = coordinator.get(coordinator.idFromName("x"));
+      const execution = await (await stub.fetch("https://execution-coordinator/execution", { method: "GET" })).json() as { state?: unknown; execution?: unknown };
+      assert.ok(execution.state == null && execution.execution == null, "no execution state was created");
+    });
+  });
+
+  it("leaves both entry points unchanged while the gate is disabled", async () => {
+    const original = globalThis.fetch;
+    const calls: string[] = [];
+    globalThis.fetch = (async (url: string) => {
+      calls.push(String(url));
+      throw new Error("no network expected");
+    }) as typeof fetch;
+    try {
+      const response = await handleCodingProposal(proposalRequest(), { ...baseEnv(memoryNamespace()) } as unknown as WorkerEnv);
+      const body = await response.json() as { error?: string };
+      assert.notEqual(body.error, "OWNER_ACTIVE");
+      assert.ok(calls.every((url) => !url.includes("/events?") && !url.endsWith("/user")), "the gate made no GitHub call");
     } finally {
       globalThis.fetch = original;
     }

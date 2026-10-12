@@ -1444,3 +1444,11 @@ test("malformed non-object Worker response still retains the actual HTTP status"
     }
   });
 });
+
+test("an OWNER_ACTIVE worker decision is accepted as a terminal fail-closed stop with no retry", () => {
+  const decision = boundedRemediationDecision({ outcome: "FAILED_CLOSED", failureClass: "OWNER_ACTIVE", recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3 });
+  assert.deepEqual(decision, { outcome: "FAILED_CLOSED", failureClass: "OWNER_ACTIVE", recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3 });
+  // a terminal class can never be retryable or use a recovery other than STOP
+  assert.equal(boundedRemediationDecision({ outcome: "FAILED_CLOSED", failureClass: "OWNER_ACTIVE", recovery: "RETRY_BOUNDED", retryable: false, attempt: 0, maxAttempts: 3 }), null);
+  assert.equal(boundedRemediationDecision({ outcome: "FAILED_TO_REMEDIATE", failureClass: "OWNER_ACTIVE", recovery: "STOP", retryable: true, attempt: 0, maxAttempts: 3 }), null);
+});

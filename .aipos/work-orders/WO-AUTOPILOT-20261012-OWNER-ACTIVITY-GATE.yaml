@@ -1,0 +1,39 @@
+id: WO-AUTOPILOT-20261012-OWNER-ACTIVITY-GATE
+title: "Owner-activity gate for new Autopilot coding work (shipped disabled)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-owner-gate-impl
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('일단 구현해' after the design decisions); owner said the GitHub account separation is done tomorrow (2026-10-13)"
+scope_note: "A pure gate, a GitHub reader, wiring at the two new-coding-work entry points, a fail-closed OWNER_ACTIVE failure class, and tests. The gate is OFF by default and OFF in deploy config; it only withholds work and grants no authority."
+objective: "Start new coding work only after the watched (main Claude side) GitHub account has been quiet for 60 minutes and no owner /autopilot pause is in force; every uncertainty closes the gate; work already started continues."
+scope:
+  include:
+    - "apps/autopilot/src/ownerActivityGate.ts and its test"
+    - "apps/autopilot/src/worker.ts (/coding/propose), apps/autopilot/src/index.ts (/coding/execute, env fields)"
+    - "apps/autopilot/src/codingRunnerFailureClass.ts (OWNER_ACTIVE, terminal STOP), scripts/autopilot-dispatch-retry.js allowlists"
+    - "apps/autopilot/wrangler.jsonc (NUSA_AUTOPILOT_OWNER_GATE_ENABLED=false)"
+  exclude:
+    - "Enabling the gate; account separation; gating CI, Audit, release, merge, deploy or reads; a durable wait/redispatch for blocked work."
+limitations:
+  - "Shipped DISABLED. Do not enable until the main-Claude GitHub account and the assistant/automation accounts are separate: set NUSA_AUTOPILOT_OWNER_GATE_ENABLED=true and NUSA_AUTOPILOT_OWNER_LOGIN=<watched login> in deploy config. While both sides share one account the gate would stay closed."
+  - "Deviation from the design: an explicit enable switch exists because 'missing config closes the gate' would otherwise stop all Autopilot work at deploy. When enabled, any invalid or missing config still closes it."
+  - "A blocked request ends as a terminal FAILED_CLOSED OWNER_ACTIVE stop (no retry, no budget use, never counted as remediation or completion); it is not durably re-dispatched, so work discovered only by that event waits for the next discovery."
+  - "The Worker token's own account is checked via GET /user and must not be the watched account; Codex and assistant-session accounts must be checked by the owner. Local unpushed work is invisible; GLOBAL_RELEASE_FREEZE stays the manual stop. The Worker needs its normal deploy."
+acceptance:
+  - "Tests cover command parsing, quiet/active/boundary, other accounts ignored, pause/expiry/resume, clock anomaly, invalid policy, truncated or failed lookups closing, token-is-watched-account closing, disabled gate making no GitHub call, and both entry points refusing without lookups, lease or coding work."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/ownerActivityGate.test.js dist/apps/autopilot/src/worker.test.js dist/apps/autopilot/src/codingRunnerRemediation.test.js"
+  - "node --test tests/autopilot-dispatch-retry.test.js tests/autopilot-control-plane-wiring.test.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release; Worker deploy; owner account separation and the enable switch."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

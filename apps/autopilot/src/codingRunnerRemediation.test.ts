@@ -96,3 +96,9 @@ test("valid no-action requires an explicit successful abstention reason", () => 
 test("invalid retry budget fails closed", () => {
   assert.throws(() => decideCodingRunnerNoAction("CODING_EDIT_ANCHOR_NOT_FOUND", 0, 4), /CODING_REMEDIATION_ATTEMPT_LIMIT_INVALID/);
 });
+
+test("OWNER_ACTIVE is a terminal fail-closed stop that is never retryable and never a no-action", () => {
+  assert.deepEqual(decideCodingRunnerNoAction("OWNER_ACTIVE", 0, 3), {
+    outcome: "FAILED_CLOSED", failureClass: "OWNER_ACTIVE", recovery: "STOP", retryable: false, attempt: 0, maxAttempts: 3,
+  });
+});
