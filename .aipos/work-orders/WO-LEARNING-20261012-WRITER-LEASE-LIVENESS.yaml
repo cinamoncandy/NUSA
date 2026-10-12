@@ -39,6 +39,8 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
 validation:
+  independent_review: "Independent reviewer verified b78ce9bb74b287fbb09ddff8950931b8f4b38bdb: no actionable P0/P1/P2 findings; existing transaction checks and shutdown await ordering preserve safety. Review is not Release authority."
+  full_suite_environment: "The local isolated suite initially lacked Bash; using installed Git Bash fixes that harness prerequisite. It then stopped at tests/run-tests-isolated.test.js on Windows symlink EPERM. Use a directory junction for that same fixture on Windows; all failure-diagnostic assertions remain unchanged."
   first_ci: "38187571986 failed the two exact-source qualification pins because PAPER_ADAPTER changed. Bind the implementation commit/blob and retain every UNVERIFIED criterion and every existing guard."
   local: "Node 24.18.0 / pnpm 11.7.0: build, typecheck, focused regression 91/91, validate:full, changed-test lint, security gate (0 secrets, 0 unmitigated high/critical), work-order index, diff check PASS."
   external: "Fresh CI, independent Audit, governed Release and actual runtime acceptance remain required."

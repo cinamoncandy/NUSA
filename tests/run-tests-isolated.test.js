@@ -8,7 +8,7 @@ const { spawnSync } = require("node:child_process");
 test("invalid checked-in shard cost evidence leaves a durable isolated-test diagnostic", () => {
   const root = mkdtempSync(join(tmpdir(), "nusa-invalid-shard-cost-"));
   try {
-    symlinkSync(resolve("tests"), join(root, "tests"));
+    symlinkSync(resolve("tests"), join(root, "tests"), process.platform === "win32" ? "junction" : "dir");
     const shim = join(root, "invalid-cost-profile.cjs");
     writeFileSync(shim, `
       const Module = require("node:module");
