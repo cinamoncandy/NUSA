@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261012-WRITER-LEASE-LIVENESS
 title: "Stop a supervised learning runtime after its canonical PAPER writer lease is lost"
-status: VERIFYING
+status: MERGED
 priority: P0
 issue: 1605
 pull_request: 2620
@@ -43,5 +43,5 @@ validation:
   full_suite_environment: "The local isolated suite initially lacked Bash; using installed Git Bash fixes that harness prerequisite. It then stopped at tests/run-tests-isolated.test.js on Windows symlink EPERM. Use a directory junction for that same fixture on Windows; all failure-diagnostic assertions remain unchanged."
   first_ci: "38187571986 failed the two exact-source qualification pins because PAPER_ADAPTER changed. Bind the implementation commit/blob and retain every UNVERIFIED criterion and every existing guard."
   local: "Node 24.18.0 / pnpm 11.7.0: build, typecheck, focused regression 91/91, validate:full, changed-test lint, security gate (0 secrets, 0 unmitigated high/critical), work-order index, diff check PASS."
-  external: "Fresh CI, independent Audit, governed Release and actual runtime acceptance remain required."
-next: "Publish this validated increment, require fresh CI on the PR head, independent Audit and canonical Release; then Oracle PAPER deploy and inspect the real learning evidence chain."
+  external: "Final head 5f11e37d: CI 38188354988 and required companions PASS. Independent final-head review found no actionable findings. Canonical Audit/Release 38188705466 merged as e05077498a2f608a5eccb3a32b708a6744b76fb6. Full local suite 1190 isolated files PASS. Actual deployment and closed-learning evidence remain pending."
+next: "Continue WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON, then exact-main Oracle deployment and actual cycle/Research/PAPER-successor evidence."
