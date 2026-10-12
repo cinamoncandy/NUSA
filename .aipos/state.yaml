@@ -3166,3 +3166,10 @@ current_market_data_ticker_rejection_2068:
   evidence_scope: "Synthetic regression fixtures only; no actual acceptance claim."
   next: "Focused regression, exact-head CI, Independent Audit and governed Release/merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_research_sma_60m_oos:
+  work_order: WO-RESEARCH-20261012-SMA-60M-OOS
+  status: READY_FOR_REVIEW
+  branch: claude/research-sma-oos-60m
+  authority_impact: none
+  finding: "On 117 days of public 60-minute candles, slow SMA settings that looked good in-sample (+16%) were all negative on the held-out 39 days (about -2.7%) after fees; fewer trades reduce fee loss but show no edge. Not promotion evidence."
