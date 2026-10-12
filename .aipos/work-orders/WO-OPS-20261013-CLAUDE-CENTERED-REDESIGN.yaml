@@ -1,0 +1,33 @@
+id: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+title: "Propose a Claude-centered operating model for the whole project"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/claude-centered-redesign
+authority_impact: none
+owner_approval: "2026-10-13 in chat (move from ChatGPT-centered to Claude-centered; redesign everything while recording it in AIPOS)"
+scope_note: "Design document and a PROPOSED ADR. No code, workflow, label, protection, engine or authority change."
+objective: "Reassign AI roles around a main Claude, an assistant Claude and a bounded Autopilot while keeping every safety invariant, the deterministic control plane, independent Audit and the release bot, and define migration phases and owner decisions."
+scope:
+  include:
+    - "docs/CLAUDE_CENTERED_OPERATING_MODEL.md"
+    - ".aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md (PROPOSED)"
+  exclude:
+    - "Enabling the owner-activity gate, changing the Autopilot engine, removing Codex assets, merging HOLD PRs or any runtime change."
+limitations:
+  - "A proposal; external settings (accounts, protection rules, provider configuration) cannot be verified from this session. The learning loop's blocker (no Research-qualified candidate) is not solved by the operating model."
+acceptance:
+  - "The document lists what never changes, the current AI roles, the target roles with an independence rule, identity separation, the work flow with claiming, the Autopilot changes, review and notification changes, migration phases P0-P5 and the owner decisions."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Owner decisions, then one work order per phase with exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

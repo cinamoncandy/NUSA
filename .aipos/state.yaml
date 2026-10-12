@@ -3208,3 +3208,14 @@ current_docs_handoff_evening_decisions:
   finding: "The handoff now records the owner's evening decisions: main/assistant Claude roles, GitHub account separation and a redesign on 2026-10-13, HOLD on the redesign-related PRs, the withdrawal of the Dokkebi / Dokkebiteo rename (name stays NUSA, AIPOS unchanged), and that the GitHub repository was already renamed to Dokkebi so the Worker allowlists hard-coded to cinamoncandy/NUSA need the owner to settle the repository name or a dual-name change. It also records that the owner disabled the Autopilot Codex Coding workflow after hourly failures drove repeated Autopilot repair dispatches, and that the Worker auto-deploys from main so the 150-line proposal limit is live."
   next: "After the redesign and the two GitHub logins, act on the owner's decisions one task per PR; do not rename the repository or enable the owner-activity gate before their prerequisites."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_claude_centered_redesign:
+  work_order: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  status: READY_FOR_REVIEW
+  branch: claude/claude-centered-redesign
+  authority_impact: none
+  decision: .aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md
+  design: docs/CLAUDE_CENTERED_OPERATING_MODEL.md
+  finding: "Proposed Claude-centered operating model: main Claude (owner's main account) for design and larger work, assistant Claude for verification, operations, research, AIPOS records, small changes and independent review, Autopilot for bounded light repairs gated by owner activity; author and reviewer on different sessions and accounts; claimed_by in state.yaml; Autopilot must stop re-dispatching failures of its own engine; engine stays Workers AI unless the owner approves paid Claude. Safety invariants, Audit and Release unchanged."
+  next: "Owner answers the six decisions in the design; then P0 (identity separation, protection check) before any other phase."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
