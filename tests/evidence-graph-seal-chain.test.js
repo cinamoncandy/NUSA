@@ -135,3 +135,14 @@ test("provenance changes alter the sealed graph fingerprint", () => {
   const b = sealEvidenceGraph({ sealId: "b", candidateId: "rc-1", nodes: changed, edges: [], nowMs: 1 });
   assert.notEqual(a.graphHash, b.graphHash);
 });
+
+
+test("future-dated source observations fail closed", () => {
+  assert.throws(() => sealEvidenceGraph({
+    sealId: "future-observation", candidateId: "rc-1",
+    nodes: [{ evidenceId: "e1", kind: "OBSERVATION", candidateId: "rc-1", provenance: {
+      sourceType: "CANONICAL", verificationState: "UNVERIFIED", observedAtMs: 11
+    }}],
+    edges: [], nowMs: 10
+  }), /cannot be in the future/);
+});
