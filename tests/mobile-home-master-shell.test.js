@@ -18,7 +18,7 @@ test("HOME uses one canonical Intelligence OS authority rail instead of the lega
   assert.match(home, /PAPER ONLY/);
   assert.match(home, /LIVE NONE/);
   assert.match(home, /AI ZERO/);
-  assert.match(os, />NUSA<\/Text>/);
+  assert.match(os, />Dokkebi<\/Text>/);
   assert.match(os, />PAPER ONLY<\/Text>/);
 });
 

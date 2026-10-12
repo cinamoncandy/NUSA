@@ -346,7 +346,7 @@ export class MobileApprovedSession {
       const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/challenge`, {
         method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, publicKeySpki })
       }), "REGISTRATION");
-      const proof = readProof(await native.signChallenge(credentialId, challenge.challenge, "이 휴대폰을 NUSA 소유자 기기로 등록"));
+      const proof = readProof(await native.signChallenge(credentialId, challenge.challenge, "이 휴대폰을 Dokkebi 소유자 기기로 등록"));
       await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/activate`, {
         method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, challengeId: challenge.challengeId, signature: proof })
       });
@@ -368,7 +368,7 @@ export class MobileApprovedSession {
     const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/challenge`, {
       method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device })
     }), "AUTHENTICATION");
-    const proof = readProof(await native.signChallenge(id, challenge.challenge, "NUSA 소유자 인증"));
+    const proof = readProof(await native.signChallenge(id, challenge.challenge, "Dokkebi 소유자 인증"));
     const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/complete`, {
       method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device, challengeId: challenge.challengeId, signature: proof })
     }));

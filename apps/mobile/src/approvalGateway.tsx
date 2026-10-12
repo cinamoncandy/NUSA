@@ -17,14 +17,14 @@ interface ApprovalGatewayProps {
 const COPY: Readonly<Record<ApprovalGatewayStatus, Readonly<{ eyebrow: string; title: string; detail: string; chip: string; tone: "primary" | "success" | "danger" | "warning" }>>> = Object.freeze({
   PENDING: Object.freeze({
     eyebrow: "ACCESS REQUESTED",
-    title: "NUSA 입장 승인을 기다리고 있어요",
+    title: "Dokkebi 입장 승인을 기다리고 있어요",
     detail: "운영자가 계정을 확인하면 자동으로 이용할 수 있습니다. 승인 전에는 자산·시장·PAPER 기능에 접근할 수 없습니다.",
     chip: "승인 대기",
     tone: "warning"
   }),
   ACTIVE: Object.freeze({
     eyebrow: "ACCESS APPROVED",
-    title: "NUSA에 오신 것을 환영합니다",
+    title: "Dokkebi에 오신 것을 환영합니다",
     detail: "승인이 확인되었습니다. 이제 개인 PAPER 워크스페이스에 안전하게 들어갈 수 있습니다.",
     chip: "승인 완료",
     tone: "success"
@@ -38,7 +38,7 @@ const COPY: Readonly<Record<ApprovalGatewayStatus, Readonly<{ eyebrow: string; t
   }),
   SUSPENDED: Object.freeze({
     eyebrow: "ACCESS PAUSED",
-    title: "NUSA 이용이 일시 중지되었습니다",
+    title: "Dokkebi 이용이 일시 중지되었습니다",
     detail: "보호된 데이터와 PAPER 기능 접근이 즉시 차단되었습니다. 상태가 복구되기 전까지 앱 기능을 사용할 수 없습니다.",
     chip: "이용 정지",
     tone: "danger"
@@ -57,7 +57,7 @@ export function ApprovalGateway({ status, displayName, onRetry, onSignOut, onEnt
         <View style={styles.brandRow}>
           <WaveMark />
           <View>
-            <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
+            <Text style={[styles.brand, { color: theme.colors.text }]}>Dokkebi</Text>
             <Text style={[styles.brandCaption, { color: theme.colors.textMuted }]}>YOUR FINANCIAL ISLAND</Text>
           </View>
         </View>
@@ -84,7 +84,7 @@ export function ApprovalGateway({ status, displayName, onRetry, onSignOut, onEnt
         </View>
 
         <View style={styles.actions}>
-          {active && onEnter ? <NusaButton label="NUSA 들어가기" onPress={onEnter} testID="approval-enter" /> : null}
+          {active && onEnter ? <NusaButton label="Dokkebi 들어가기" onPress={onEnter} testID="approval-enter" /> : null}
           {retryable ? <NusaButton label="승인 상태 다시 확인" onPress={onRetry!} testID="approval-retry" /> : null}
           {onSignOut ? <NusaButton label="다른 계정 사용" onPress={onSignOut} tone="neutral" testID="approval-sign-out" /> : null}
         </View>

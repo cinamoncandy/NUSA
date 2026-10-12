@@ -40,7 +40,7 @@ function PaperActivitySummary({ paperLearning, onOpenPaperLearning }: Readonly<{
   return <View style={[styles.activityPanel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken }]} testID="paper-ai-activity-summary">
     <View style={styles.panelHeader}>
       <View>
-        <Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>NUSA PAPER ACTIVITY</Text>
+        <Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>Dokkebi PAPER ACTIVITY</Text>
         <Text style={[styles.panelTitle, { color: theme.colors.text }]}>{hasActivity ? `관측 이벤트 ${paperLearning!.timeline.length}건` : "관측된 PAPER 행동 없음"}</Text>
       </View>
       <StatusChip label={paperLearning?.status ?? "대기"} tone={statusTone} />

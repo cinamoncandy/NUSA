@@ -43,7 +43,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       : "실행 근거가 확인되지 않아 출처를 분류하지 않습니다.";
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
-    <ScreenHeader eyebrow="NUSA INTELLIGENCE" title="AI" description="현재 관찰과 근거를 읽기 전용으로 제공합니다. AI는 주문 권한이 없습니다." statusLabel="READ ONLY" statusTone="primary" />
+    <ScreenHeader eyebrow="Dokkebi INTELLIGENCE" title="AI" description="현재 관찰과 근거를 읽기 전용으로 제공합니다. AI는 주문 권한이 없습니다." statusLabel="READ ONLY" statusTone="primary" />
 
     <View testID="ai-now">
       <View style={styles.hero} testID="ai-thesis-card">

@@ -1,0 +1,37 @@
+id: WO-UI-20261012-DOKKEBI-DISPLAY-NAME
+title: "Phase 1: show the product name as Dokkebi in user-visible text"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/dokkebi-display-name
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('1단계만 해 Dokkebi로')"
+scope_note: "Presentation only: user-visible strings in the desktop renderer, the Electron window title, the About copyright, the mobile screens, the Android launcher label, the app.json displayName and the README title. No identifier, key, URL, workflow, asset file name, environment variable or authority behavior changes."
+objective: "Show the product as Dokkebi everywhere a user reads the name, across the desktop renderer, the mobile app and the README, without touching internal NUSA identifiers (phase 2, a separate owner-gated task)."
+scope:
+  include:
+    - "apps/desktop/renderer (index.html, component-preview.html, app-runtime.js, brand-ui.js), apps/desktop/src/main.ts (window title), aboutInfo.ts, evidence/evidenceChecklist.ts"
+    - "apps/mobile/App.tsx, apps/mobile/src/* visible strings, android app_name (main and debug), app.json displayName"
+    - "README.md title and product sentence; tests that pin the changed display strings"
+  exclude:
+    - "Phase 2 identifiers: package.json productName and installer artifactName (productName also selects the Electron user-data folder and artifact names feed release pipelines), the nusa/release-authorized status context, the nusa-release-authority app, Worker and API hostnames, NUSA_* and EXPO_PUBLIC_NUSA_* variables, class/type/global names (NUSAApi, window.NUSA*), asset file names, the Android package id, app.json name, the mobile bridge protocol literal app: \"NUSA\", code comments and docs other than the README."
+limitations:
+  - "The logo artwork still reads NUSA: nusa-a4p-lockup.svg and nusa-lockup-dark.svg contain a drawn text label and the design owner must replace the artwork; the symbol-only asset is unchanged."
+  - "UI copy was replaced mechanically with the Korean particle fixed to the vowel ending (가, 를, 는, 와). All-caps eyebrow labels now read Dokkebi in mixed case, as requested. A native-speaker copy review is advisable."
+  - "Shipping the new name to devices needs the normal mobile and desktop releases."
+acceptance:
+  - "No user-visible NUSA string remains in the files above; internal identifiers are unchanged; the tests that pin display strings pass with the new name."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node --test tests/control-room.test.js tests/simple-paper-ui.test.js tests/mobile-home-ai-surface.test.js tests/mobile-brand-concept1.test.js"
+  - "npx vitest run tests/ui-canonical-contract.vitest.js tests/product-screens-execution.vitest.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release; Android visual acceptance (the design gate) for the mobile label change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

@@ -169,7 +169,7 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
       : runtimeNeedsSupervision
         ? "현재 PAPER runtime 상태와 계좌 결과를 먼저 감독합니다."
         : aiInsightAvailable
-          ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
+          ? "검증된 근거와 현재 Dokkebi 판단을 확인합니다."
           : "시장 데이터는 읽기 전용으로 분석 중입니다.";
 
   const primaryAction: HomeDecisionPrimaryAction = input.disconnected || input.readOnlyError

@@ -75,7 +75,7 @@ test("canonical renderer retires the historical control room from active hierarc
 test("canonical brand uses the current NUSA symbol asset", () => {
   assert.match(indexHtml, /assets\/nusa-a4p-symbol\.svg/);
   assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/nusa-a4p-symbol.svg")));
-  assert.match(indexHtml, /alt="NUSA"/);
+  assert.match(indexHtml, /alt="Dokkebi"/);
 });
 
 test("historical control room remains presentation-only and CSP safe", () => {

@@ -28,7 +28,7 @@ export interface MobileAppShellState {
 }
 
 const TITLES: Readonly<Record<string, string>> = Object.freeze({
-  HOME: "NUSA",
+  HOME: "Dokkebi",
   OBSERVE: "관찰",
   PAPER: "PAPER",
   SUPERVISE: "감독",
@@ -49,7 +49,7 @@ export function buildMobileAppShell(input: MobileAppShellInput): MobileAppShellS
       route: "AUTH",
       activeTab: "HOME",
       primaryTabs: PRIMARY_MOBILE_TABS,
-      title: "NUSA 로그인",
+      title: "Dokkebi 로그인",
       canRefresh: false,
       canOpenTradingControl: false,
       showEmergencyStop: false,

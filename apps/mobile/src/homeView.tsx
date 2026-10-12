@@ -209,7 +209,7 @@ export function HomeView({
       <View style={styles.appBar} testID="home-master-rail">
         <View style={styles.brandLockup}>
           <View style={[styles.liveDot, { backgroundColor: systemColor }]} />
-          <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
+          <Text style={[styles.brand, { color: theme.colors.text }]}>Dokkebi</Text>
         </View>
         <Pressable accessibilityRole="button" onPress={onGoSettings} style={({ pressed }) => [styles.statusCapsule, { borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}>
           <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{shownConnectionLabel}</Text>
@@ -293,7 +293,7 @@ export function HomeView({
       </MotionReveal>
 
       <View style={styles.loopHeader}>
-        <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalStart }]}>NUSA 흐름</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>보고, 시험하고, 배웁니다</Text></View>
+        <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalStart }]}>Dokkebi 흐름</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>보고, 시험하고, 배웁니다</Text></View>
         <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>실제 돈은 쓰지 않는 PAPER 판단 흐름</Text>
       </View>
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>

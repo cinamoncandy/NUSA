@@ -117,7 +117,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
     <View style={[styles.top, { maxWidth: tabletWorkspace ? 1080 : 680 }]}>
       <AuthorityRail detail="PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY" status={sourceState} tone={sourceState === "ACTIVE" ? "success" : sourceState === "ERROR" ? "danger" : "warning"} testID="markets-authority-rail" />
-      <ScreenLead eyebrow="MARKETS" title={selectedMarket} detail="NUSA가 관측하는 공개 가격 흐름과 데이터 신선도입니다." badge="MARKETS" badgeTone="info" />
+      <ScreenLead eyebrow="MARKETS" title={selectedMarket} detail="Dokkebi가 관측하는 공개 가격 흐름과 데이터 신선도입니다." badge="MARKETS" badgeTone="info" />
       <MetricStrip items={[{ label: "PRICE", value: money(selectedCurrentPrice) }, { label: "CHANGE", value: rate(changeRate), tone: changeRate == null ? "neutral" : changeRate >= 0 ? "success" : "danger" }, { label: "DATA", value: sourceState, tone: sourceState === "ACTIVE" ? "success" : "warning" }]} testID="markets-summary-strip" />
       {error ? <StateNotice title={monitorLabel("PUBLIC FEED ERROR")} detail={error} tone="danger" /> : displayedStale ? <StateNotice title={monitorLabel("STALE DATA")} detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
     </View>

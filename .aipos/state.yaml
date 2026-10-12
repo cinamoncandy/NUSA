@@ -3198,3 +3198,12 @@ current_autopilot_light_task_gate:
   branch: claude/autopilot-light-task-gate-impl
   authority_impact: none
   finding: "A coding proposal or exact-edit patch over 150 added plus removed lines is now rejected as CODING_PROPOSAL_TOO_LARGE (existing reason, classification and bounded retry); the existing single-file rule already exceeds the design's 3-file default. Needs a Worker deploy to take effect."
+
+current_ui_dokkebi_display_name:
+  work_order: WO-UI-20261012-DOKKEBI-DISPLAY-NAME
+  status: READY_FOR_REVIEW
+  branch: claude/dokkebi-display-name
+  authority_impact: none
+  finding: "Phase 1 of the rename: user-visible text now says Dokkebi (desktop renderer, window title, About, mobile screens, Android label, README). Internal NUSA identifiers, the installer productName/artifact names, status contexts, hostnames and the logo artwork text are unchanged; phase 2 needs owner decisions and coordinated config."
+  next: "Owner decides phase 2 scope (identifiers, productName, release names) and supplies new logo artwork if the drawn NUSA text should change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

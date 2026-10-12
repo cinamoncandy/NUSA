@@ -5,7 +5,7 @@
   const root = document?.getElementById("simple-ui-root");
   if (!document || !root) return;
 
-  const pageLabels = Object.freeze({ dashboard: "홈", orders: "거래", positions: "포트폴리오", strategy: "NUSA", logs: "기록", settings: "설정" });
+  const pageLabels = Object.freeze({ dashboard: "홈", orders: "거래", positions: "포트폴리오", strategy: "Dokkebi", logs: "기록", settings: "설정" });
   const routeAliases = Object.freeze({ market: "orders", balance: "positions", more: "settings" });
   const SERVER_SNAPSHOT_STALE_MS = 7_000;
   const state = {
@@ -190,7 +190,7 @@
   }
   function orderBlockReason(quantity) {
     const [connectionTone] = overallConnection();
-    if (connectionTone !== "connected") return "NUSA 서버와 시장 데이터가 모두 연결되어야 주문할 수 있습니다.";
+    if (connectionTone !== "connected") return "Dokkebi 서버와 시장 데이터가 모두 연결되어야 주문할 수 있습니다.";
     if (!finite(state.lastPrice)) return "유효한 현재가가 없어 주문할 수 없습니다.";
     if (!finite(quantity) || quantity <= 0) return "0보다 큰 주문 수량을 입력하세요.";
     if (state.orderSubmitting) return "Paper 주문을 처리 중입니다.";
@@ -312,7 +312,7 @@
       if (snapshotResult.value) renderSnapshot(snapshotResult.value);
     } else {
       markServerDisconnected();
-      recordLog("NUSA 서버", "초기 Cloud snapshot 연결 실패", "주의");
+      recordLog("Dokkebi 서버", "초기 Cloud snapshot 연결 실패", "주의");
     }
     if (control) renderControl(control); await loadSettings(); await loadAbout(); render();
   }
@@ -321,7 +321,7 @@
   const connectionWatchdog = global.setInterval(() => {
     if (state.serverLastSuccessAt != null && Date.now() - state.serverLastSuccessAt > SERVER_SNAPSHOT_STALE_MS && state.serverConnectionCode !== "disconnected") {
       markServerDisconnected();
-      recordLog("NUSA 서버", "Cloud snapshot이 stale 상태로 전환됨", "주의");
+      recordLog("Dokkebi 서버", "Cloud snapshot이 stale 상태로 전환됨", "주의");
       renderConnection(); renderOrderSummary(); renderControl(state.control);
     }
   }, 2_000);

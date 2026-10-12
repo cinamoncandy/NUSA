@@ -88,7 +88,7 @@ export function buildAboutInfo(input: AboutInfoInput): AboutInfo {
     liveTradingDisabled: true,
     privateApiDisabled: true,
     credentialStorageDisabled: true,
-    copyright: `© ${new Date().getUTCFullYear()} NUSA`,
+    copyright: `© ${new Date().getUTCFullYear()} Dokkebi`,
     license: "Proprietary — 개인 사용 목적의 모의 거래 도구입니다.",
     folders: Object.freeze([
       Object.freeze({ key: "LOGS" as const, label: "로그 폴더", absolutePath: input.layout.logsDirectory }),

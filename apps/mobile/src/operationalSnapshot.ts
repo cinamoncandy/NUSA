@@ -50,10 +50,10 @@ export function buildOperationalSnapshot(input: OperationalSnapshotInput): Opera
   else if (anyDegraded) nextAction = "WAIT";
 
   const headline = overall === "HEALTHY"
-    ? "NUSA is operating normally"
+    ? "Dokkebi is operating normally"
     : overall === "DEGRADED"
-      ? "NUSA is operating cautiously"
-      : "NUSA has stopped trading for safety";
+      ? "Dokkebi is operating cautiously"
+      : "Dokkebi has stopped trading for safety";
 
   return Object.freeze({
     overall,

@@ -20,7 +20,7 @@ export function AuthorityRail({ detail, status, tone = "success", testID }: Read
   return <View style={[styles.authorityRail, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]} testID={testID}>
     <View style={styles.authorityBrandRow}>
       <View style={[styles.authorityDot, { borderColor: color }]} />
-      <Text style={[styles.authorityBrand, { color: theme.colors.text }]}>NUSA</Text>
+      <Text style={[styles.authorityBrand, { color: theme.colors.text }]}>Dokkebi</Text>
       <Text style={[styles.authorityMode, { color }]}>PAPER ONLY</Text>
       <Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]} numberOfLines={1}>{detail}</Text>
     </View>

@@ -108,7 +108,7 @@
       evidence: ["Evidence", "IMMUTABLE RECORDS", "세션별 기록과 검증 상태를 관리합니다."],
       diagnostics: ["Diagnostics", "DEEP INSPECTION", "운영 상세 진단은 이 화면에서만 확인합니다."],
       settings: ["Settings", "PREFERENCES", "표시와 알림 환경을 관리합니다."],
-      about: ["About", "NUSA", "Paper Investment OS의 버전과 안전 상태입니다."]
+      about: ["About", "Dokkebi", "Paper Investment OS의 버전과 안전 상태입니다."]
     };
     const panels = {};
     for (const [id, [title, eyebrow, description]] of Object.entries(definitions)) {

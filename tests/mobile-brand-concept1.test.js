@@ -12,7 +12,7 @@ test("runtime mobile brand keeps the provisional symbol hidden while logo produc
 
   assert.match(components, /export function WaveMark\(_props:[\s\S]*?return null;/);
   assert.doesNotMatch(components, /symbolPeak|symbolReflection|symbolReflectionLine/);
-  assert.match(app, />NUSA<\/Text>/);
+  assert.match(app, />Dokkebi<\/Text>/);
 });
 
 test("Android launcher resources expose Concept 1, monochrome, notification, and splash assets", () => {

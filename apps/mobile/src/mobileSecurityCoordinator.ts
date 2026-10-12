@@ -11,7 +11,7 @@ export class MobileSecurityCoordinator {
 
   public async signIn(input: Readonly<{ sessionId: string; deviceId: string; pin: string; nowMs: number }>): Promise<{ readonly session: SecureSession; readonly method: "BIOMETRIC" | "PIN" }> {
     if (!await this.isTrustedDevice(input.deviceId)) throw new Error("device is not trusted");
-    const method = await this.authentication.authenticate("Sign in to NUSA", input.pin, input.nowMs);
+    const method = await this.authentication.authenticate("Sign in to Dokkebi", input.pin, input.nowMs);
     return Object.freeze({ session: createSecureSession({ sessionId: input.sessionId, deviceId: input.deviceId, nowMs: input.nowMs }, this.sessionPolicy), method });
   }
 

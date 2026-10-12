@@ -42,7 +42,7 @@ const ALL: readonly FieldSubsystem[] = ["governance", "market", "risk", "axiom",
 
 export function buildIntelligenceField(input: IntelligenceFieldInput): IntelligenceFieldModel {
   if (input.checking) {
-    return freeze({ phase: "LAUNCH", statusWord: "STARTING", tone: "dim", headline: "NUSA를 깨우는 중", detail: "로컬 상태를 확인합니다.", lit: [], focus: null, states: {}, coreLevel: 0.25 });
+    return freeze({ phase: "LAUNCH", statusWord: "STARTING", tone: "dim", headline: "Dokkebi를 깨우는 중", detail: "로컬 상태를 확인합니다.", lit: [], focus: null, states: {}, coreLevel: 0.25 });
   }
   if (input.disconnected && input.recovering) {
     return freeze({ phase: "RECOVERING", statusWord: "RECOVERING", tone: "amber", headline: "서버 세션 재연결", detail: "기기 인증은 유지됩니다. 조작 없이 자동으로 복구합니다.", lit: ["governance"], focus: null, states: { governance: "VERIFIED", market: "SYNCING" }, coreLevel: 0.55 });

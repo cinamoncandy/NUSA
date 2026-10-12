@@ -35,7 +35,7 @@ test("stale server snapshots are demoted and Paper orders require both connectio
   assert.match(runtime, /Date\.now\(\) - state\.serverLastSuccessAt > SERVER_SNAPSHOT_STALE_MS/);
   assert.match(runtime, /Cloud snapshot이 stale 상태로 전환됨/);
   assert.match(runtime, /const \[connectionTone\] = overallConnection\(\)/);
-  assert.match(runtime, /NUSA 서버와 시장 데이터가 모두 연결되어야 주문할 수 있습니다/);
+  assert.match(runtime, /Dokkebi 서버와 시장 데이터가 모두 연결되어야 주문할 수 있습니다/);
   assert.match(runtime, /global\.clearInterval\(connectionWatchdog\)/);
 });
 

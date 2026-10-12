@@ -10,7 +10,7 @@ const recoveryTheme = themes.dark;
 function RecoveryScreen({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.screen} testID="app-error-fallback">
     <View style={styles.panel}>
-      <Text style={styles.eyebrow}>NUSA RECOVERY</Text>
+      <Text style={styles.eyebrow}>Dokkebi RECOVERY</Text>
       <Text style={styles.title}>화면을 복구해야 합니다</Text>
       <Text style={styles.message}>예상하지 못한 화면 오류가 발생했습니다. 거래 권한이나 안전 설정은 변경되지 않았습니다. 다시 시도해 앱 화면을 새로 구성할 수 있습니다.</Text>
       <Pressable accessibilityLabel="앱 화면 다시 시도" accessibilityRole="button" onPress={onRetry} style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]} testID="app-error-retry">

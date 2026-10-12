@@ -1,6 +1,6 @@
-# NUSA
+# Dokkebi
 
-**NUSA** is a private, single-user, fail-closed **Upbit Paper/Shadow trading** and deterministic research platform built with Electron.
+**Dokkebi** (formerly NUSA; internal identifiers keep the NUSA name) is a private, single-user, fail-closed **Upbit Paper/Shadow trading** and deterministic research platform built with Electron.
 
 It prioritizes capital survival, evidence, and safety over speed or aggressive automation.
 
@@ -137,5 +137,5 @@ No warranty. No liability for financial decisions or losses.
 
 ## Disclaimer
 
-NUSA is a research and simulation tool.  
+Dokkebi is a research and simulation tool.  
 It is not a broker, not financial advice, and not authorized for real-money trading.

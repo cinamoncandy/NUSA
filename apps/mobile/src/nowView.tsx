@@ -73,7 +73,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const needsSetup = notConfigured != null || readOnlyError != null;
   return <View style={styles.shell} testID="now-screen">
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
-      <Text style={styles.brand}>NUSA</Text>
+      <Text style={styles.brand}>Dokkebi</Text>
       <CalmHeadline tone={model.tone} text={model.headline} sub={model.sub} />
       <View style={model.dim ? styles.dim : undefined} testID="now-hero">
         <DecisionRings status={ringsStatus} decisionCount={blocked ? null : dailyCounts.decisionCount} paperOrderCount={blocked ? null : dailyCounts.paperOrderCount} marketLabel={heroMarket} />

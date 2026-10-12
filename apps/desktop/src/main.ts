@@ -598,7 +598,7 @@ function createWindow(): void {
     height: 820,
     minWidth: 960,
     minHeight: 680,
-    title: "NUSA Paper Trader",
+    title: "Dokkebi Paper Trader",
     icon: path.join(app.getAppPath(), "apps/desktop/renderer/assets/nusa-a4p-symbol.svg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

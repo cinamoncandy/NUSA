@@ -74,7 +74,7 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
       : theme.colors.aiSignalEnd;
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.colors.primary} />} testID="system-learning-screen">
     <View style={styles.header}>
-      <View><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>SYSTEM LEARNING / SUPERVISOR</Text><Text style={[styles.title, { color: theme.colors.text }]}>NUSA가 무엇을 배웠는지</Text></View>
+      <View><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>SYSTEM LEARNING / SUPERVISOR</Text><Text style={[styles.title, { color: theme.colors.text }]}>Dokkebi가 무엇을 배웠는지</Text></View>
       <Pressable accessibilityRole="button" onPress={onClose} testID="system-learning-close"><Text style={[styles.close, { color: theme.colors.textMuted }]}>닫기</Text></Pressable>
     </View>
     {attention ? <View style={[styles.attentionCard, { borderColor: attentionTone }]} testID="system-learning-attention">

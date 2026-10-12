@@ -11,7 +11,7 @@ import { visualSystem } from "./visualSystem";
 import { readableFont } from "./designSystem";
 
 const DESCRIPTIONS: Readonly<Record<PrimaryDestination, string>> = Object.freeze({
-  Home: "현재 NUSA 상태",
+  Home: "현재 Dokkebi 상태",
   Paper: "PAPER 실행, 증거와 학습",
   Live: "LIVE 준비도와 안전 게이트",
   More: "전략, 위험, 성과와 설정",
