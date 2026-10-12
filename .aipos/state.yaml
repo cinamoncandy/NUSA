@@ -3231,3 +3231,13 @@ current_ops_claude_centered_redesign:
   finding: "Revision 2 (re-reviewed against GitHub and the Worker, 2026-10-12 22:00-22:40 UTC): the notification flood is not Codex-specific; the Worker's scheduled runtime repairs any failed main-head run for 24 hours (230 consumer failures on 2026-10-12, eleven re-dispatches of one Codex failure about every 5 minutes) and the consumer runs are triggered as cinamoncandy, so failures notify the owner. Roles follow the governing charter: CORE is the main Claude on the owner's account, VALIDATOR/RESEARCH plus operations is the assistant Claude on one automation-only machine account, AUTOPILOT stays Workers AI with the 150-line one-file limit. Non-author review under GRILL_ME_PROTOCOL for code PRs, blocking findings as inline threads; branch claims replace claimed_by; the Worker token should move to a GitHub App separate from the release-authority app; the owner-activity gate (#2644) must not be enabled until a closed gate is a quiet NO_ACTION and the Worker identity is separated."
   next: "Owner answers the six decisions; P1 (Autopilot repair-target allowlist, attempt cap, quiet stops) can start before P0 identity work with owner approval. HOLD PRs stay untouched until then."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_repair_target_allowlist:
+  work_order: WO-AUTOPILOT-20261013-REPAIR-TARGET-ALLOWLIST
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-repair-target-allowlist
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  finding: "First P1 increment: the scheduled runtime and scheduled evolution coding now treat only failed CI and Autopilot Sandbox New-File Guard runs on main (push or manual) as repair targets, so failures of Autopilot's own workflows (Codex coding) or runtime evidence workflows no longer drive the five-minute re-dispatch loop seen on 2026-10-12."
+  next: "Non-author review, then the attempt-cap and quiet-stop increments; do not re-enable Codex coding or the owner gate before them."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
