@@ -41,8 +41,8 @@ export function sealEvidenceGraph(input:{readonly sealId:string;readonly candida
  const ids=new Set<string>();
  for(const node of input.nodes){
   if(!node.evidenceId.trim()||!node.kind.trim()||node.candidateId!==input.candidateId)throw new Error("invalid evidence graph node");
-  if(ids.has(node.evidenceId))throw new Error("duplicate evidence id");
-  ids.add(node.evidenceId);
+  if(ids.has(node.evidenceId.trim()))throw new Error("duplicate evidence id");
+  ids.add(node.evidenceId.trim());
   const p=node.provenance;
   if(p!==undefined){
    if(!["CANONICAL","EXTERNAL","MODEL_GENERATED"].includes(p.sourceType))throw new Error("invalid evidence provenance source type");
@@ -52,13 +52,13 @@ export function sealEvidenceGraph(input:{readonly sealId:string;readonly candida
    for(const timestamp of [p.observedAtMs,p.validUntilMs])if(timestamp!==undefined&&(!Number.isSafeInteger(timestamp)||timestamp<0))throw new Error("invalid evidence provenance timestamp");
    if(p.observedAtMs!==undefined&&p.validUntilMs!==undefined&&p.validUntilMs<p.observedAtMs)throw new Error("evidence validity ends before observation");
    if(p.validUntilMs!==undefined&&input.nowMs>=p.validUntilMs&&p.verificationState!=="STALE")throw new Error("expired evidence must be marked STALE");
-   if(p.verificationState==="VERIFIED"&&(!p.verifierEvidenceId||!p.verifierEvidenceId.trim()||p.verifierEvidenceId===node.evidenceId))throw new Error("verified evidence requires distinct verifier evidence");
+   if(p.verificationState==="VERIFIED"&&(!p.verifierEvidenceId||!p.verifierEvidenceId.trim()||p.verifierEvidenceId.trim()===node.evidenceId.trim()))throw new Error("verified evidence requires distinct verifier evidence");
   }
  }
- for(const edge of input.edges){if(!edge.fromEvidenceId.trim()||!edge.toEvidenceId.trim()||!edge.relation.trim())throw new Error("invalid evidence graph edge");if(!ids.has(edge.fromEvidenceId)||!ids.has(edge.toEvidenceId))throw new Error("dangling evidence graph edge");if(edge.fromEvidenceId===edge.toEvidenceId)throw new Error("self evidence graph edge");}
+ for(const edge of input.edges){if(!edge.fromEvidenceId.trim()||!edge.toEvidenceId.trim()||!edge.relation.trim())throw new Error("invalid evidence graph edge");if(!ids.has(edge.fromEvidenceId.trim())||!ids.has(edge.toEvidenceId.trim()))throw new Error("dangling evidence graph edge");if(edge.fromEvidenceId.trim()===edge.toEvidenceId.trim())throw new Error("self evidence graph edge");}
  for(const node of input.nodes){
   const p=node.provenance;
-  if(p?.verificationState==="VERIFIED"&&(!input.edges.some(e=>e.fromEvidenceId===p.verifierEvidenceId&&e.toEvidenceId===node.evidenceId&&e.relation==="INDEPENDENTLY_VERIFIES")))throw new Error("verified evidence requires an INDEPENDENTLY_VERIFIES edge");
+  if(p?.verificationState==="VERIFIED"&&(!input.edges.some(e=>e.fromEvidenceId.trim()===p.verifierEvidenceId?.trim()&&e.toEvidenceId.trim()===node.evidenceId.trim()&&e.relation.trim()==="INDEPENDENTLY_VERIFIES")))throw new Error("verified evidence requires an INDEPENDENTLY_VERIFIES edge");
  }
  const graphHash=createHash("sha256").update(canonicalGraph(input.nodes,input.edges)).digest("hex");
  const chainHash=computeChainHash({sealId:input.sealId,candidateId:input.candidateId,graphHash,previousSealHash,sealedAtMs:input.nowMs});
