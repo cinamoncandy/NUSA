@@ -437,6 +437,8 @@ export async function executeIndependentAudit(
           "",
           "--- PREVIOUS RESPONSE REJECTED ---",
           `Validator error: ${lastModelError.message}`,
+          "This feedback concerns the format or validation of your prior model response, not a defect observed in the repository. It is not source evidence and must not itself become a finding, blocker, or safety failure. Do not infer repository incompatibility from a rejected response.",
+          "Reassess the unchanged exact diff independently. Preserve any genuine source-grounded blocker and safety failure; do not choose PASS merely to repair JSON. If a valid grounded verdict remains unavailable, the existing bounded validator will fail closed.",
           "Return a fresh verdict for the same exact diff. Do not copy a blocker string unless you also emit a BLOCKER finding grounded in one CURRENT ADDED-LINE EVIDENCE REF. If no grounded blocker exists, do not invent one.",
           "--- END REPAIR CONTEXT ---",
         ].join("\n")
