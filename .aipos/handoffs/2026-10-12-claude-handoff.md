@@ -76,3 +76,25 @@ appended entry from every PR, so concurrent PRs conflict at the file end: merge 
 - CI traps: a `test` gate failure after a newer push cancelled earlier jobs is a stale-head artifact (compare PR head SHA with the run's
   head_sha); `nusa/release-authorized` fails while review threads are unresolved; GitHub 5xx in a job log is transient, so re-run once
   without changing code.
+
+## Evening addendum (2026-10-12 UTC): owner decisions and what is deferred
+Snapshot; re-verify against GitHub (No-Guess Rule). Protected main at addendum time: `07e8e694a487157c6ec34a5bb38537279fe90ea5`.
+
+### Roles and direction (owner)
+- The owner will use **another Claude account as the main coding tool**; the session that wrote this addendum is the **assistant**. Autopilot is the assistant side and prefers **light work** (a 150 changed-line proposal limit is merged in main via #2643 but the Worker is **not deployed** with it).
+- **GitHub account separation is planned for 2026-10-13.** The owner-activity gate (#2644, shipped disabled) watches the main Claude's GitHub login and must stay disabled until the owner supplies two distinct logins (main Claude side, assistant/automation side) and confirms Worker, Codex and assistant sessions do not use the watched account. Owner pause command and re-push behavior are decided in `docs/AUTOPILOT_OWNER_ACTIVITY_GATE_DESIGN.md` (#2641).
+
+### Redesign tomorrow (owner)
+- The owner will **redesign on 2026-10-13**. Until then the redesign-related PRs carry the `HOLD` label and must not be merged or deployed: #2637, #2638, #2639 (completion receipt stack), #2641, #2642, #2644. The label's effect on the release bot was not verified.
+- Do not deploy the Autopilot Worker before the redesign decision.
+
+### Rename (owner decisions so far)
+- Product **NUSA -> Dokkebi**; AIPOS -> **도깨비터 / Dokkebiteo**; GitHub repository -> **Dokkebi** (owner account unchanged: `cinamoncandy/Dokkebi`).
+- Phase 1 (user-visible text) is in #2645. The phase 2 inventory and migration plan is in #2646 with five open owner decisions (AIPOS folder rename, app ids, hostnames, parallel required check and release app, history policy).
+- **The repository rename is deferred until after tomorrow's redesign.** Before it: make every repository allowlist accept both `cinamoncandy/NUSA` and `cinamoncandy/Dokkebi` through one central constant (this widens a safety boundary, so it needs independent Audit), then rename, then verify Autopilot dispatch, the release bot, required checks and deploys, then remove the old name. Hard-coded repository names found: 13 runtime/Worker sites, 10 scripts, 1 workflow, 72 test files; at least nine allowlist comparisons (coding runner, Audit runner, execution envelope, GitHub executor, execution spine, OIDC `claims.repository`). The Worker rejects OIDC tokens whose repository claim is not the allowed name, so renaming first would stop Autopilot.
+- Do not rename the Android/desktop app ids or `productName` without a separate owner-approved data-migration design. Past records (constitution, audits, decisions, work orders) are not edited.
+
+### Safe next actions for a new session
+1. Re-verify main, open PRs (#2633, #2586, #2637-#2639, #2641, #2642, #2644-#2646) and labels; respect `HOLD`.
+2. Wait for the owner's redesign and the two GitHub logins; then act on the decisions, one task per PR.
+3. Never merge your own PR, bypass Audit or Release, enable the owner-activity gate before account separation, or rename the repository.

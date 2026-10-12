@@ -1,0 +1,32 @@
+id: WO-DOCS-20261012-HANDOFF-EVENING-DECISIONS
+title: "Record the evening owner decisions in the AIPOS handoff"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/handoff-evening-decisions
+authority_impact: none
+owner_approval: "2026-10-12 in chat (store handoffs in AIPOS; defer the repository rename until after tomorrow's redesign)"
+scope_note: "Documentation only: an addendum to the existing AIPOS handoff file and a state pointer."
+objective: "Make the roles, the 2026-10-13 account separation and redesign, the HOLD list, the rename decisions and the deferred repository rename recoverable from the repository."
+scope:
+  include:
+    - ".aipos/handoffs/2026-10-12-claude-handoff.md (addendum)"
+  exclude:
+    - "Any code, workflow, label, protection or authority change."
+limitations:
+  - "A snapshot; PR states and the effect of the HOLD label must be re-verified."
+acceptance:
+  - "The addendum names the decisions, the deferred repository rename with its prerequisite and measured scope, the HOLD list and the safe next actions."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

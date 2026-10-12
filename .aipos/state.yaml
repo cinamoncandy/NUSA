@@ -3198,3 +3198,13 @@ current_autopilot_light_task_gate:
   branch: claude/autopilot-light-task-gate-impl
   authority_impact: none
   finding: "A coding proposal or exact-edit patch over 150 added plus removed lines is now rejected as CODING_PROPOSAL_TOO_LARGE (existing reason, classification and bounded retry); the existing single-file rule already exceeds the design's 3-file default. Needs a Worker deploy to take effect."
+
+current_docs_handoff_evening_decisions:
+  work_order: WO-DOCS-20261012-HANDOFF-EVENING-DECISIONS
+  status: READY_FOR_REVIEW
+  branch: claude/handoff-evening-decisions
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
+  finding: "The handoff now records the owner's evening decisions: main/assistant Claude roles, GitHub account separation and a redesign on 2026-10-13, HOLD on the redesign-related PRs, the Dokkebi / Dokkebiteo / repository rename choices, and that the repository rename waits until after the redesign and a dual-name allowlist change."
+  next: "After the redesign and the two GitHub logins, act on the owner's decisions one task per PR; do not rename the repository or enable the owner-activity gate before their prerequisites."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
