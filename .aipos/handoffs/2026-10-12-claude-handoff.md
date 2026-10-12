@@ -99,6 +99,26 @@ Snapshot; re-verify against GitHub (No-Guess Rule). Protected main at addendum t
 - Open design issue for the redesign: Autopilot repeatedly tries to repair a failure of its own Codex workflow. Treat failures of the Codex workflow as not eligible for dispatch (or rate-limit repeated dispatches per failed run) before re-enabling it.
 - Related correction: the Worker is auto-deployed from main (revision `07e8e694` at this time), so the merged 150 changed-line proposal limit (#2643) is live even though no manual deploy was run.
 
+### Research and learning-loop status at end of day (2026-10-12 UTC)
+- **Learning loop is still 0/7.** Production (checked 21:56 UTC, server revision `4a26f767`, behind main) showed `cyclesRecorded=0`, `deployments=0`, `realizedPeriods=10`, rollover `WAITING_FOR_CANONICAL_BOUNDARY`, last blocked reason `PAPER_RESEARCH_LINEAGE_UNAVAILABLE`. Cause: the running strategy is the owner baseline (`owner-baseline-sma-5-20`), which has no Research lineage, so no learning cycle can start until a Research-qualified candidate is deployed. Do not attach a synthetic lineage.
+- **Trading side:** 102 fills, no open position, the consecutive-loss limit (3) is reached and rejected 11,471 BUY intents; 5 of 7 completed sells today (KST day) lost. The limit stays 3.
+- **Research (owner approved running it; all offline and read-only, none is promotion evidence):**
+  - SMA 5/20, 10/50, 20/100, 50/200 on 60-minute bars: slow settings looked good in-sample (+16%) but were negative on the held-out 39 days (about -2.7%) after costs (#2633, note `docs/RESEARCH_NOTE_2026-10-12_SMA_60M_OOS.md`, includes a breakout/mean-reversion screen).
+  - Long-only breakout N=20/50/100, six consecutive windows with a pass rule fixed in advance (#2648, note `docs/RESEARCH_NOTE_2026-10-13_BREAKOUT_WALKFORWARD.md`): **no setting passes on the last 250 days or on 383 days of never-seen prior data** (2-3 of 6 windows positive, 2x-cost positive in 2 of 6; UP-window averages about +1.7% to +9.4%, DOWN-window averages about -1.5% to -18.7%). It wins in rising markets and loses in falling ones: regime dependence, not an edge. One +17% window explained the apparent last-third success.
+  - **The owner decided to stop this research here.** No candidate is proposed for the learning loop. Optional later step (not approved): pre-register a regime-signal variant (no entry on a down signal) and evaluate it only on new forward data such as the next 60 days.
+
+### Open PR ledger at end of day
+- **Merged today:** #2632, #2635 (Autopilot deploy and preflight posture; #1461 closed), #2636 (receipt design), #2640 (CLAUDE.md and handoff), #2643 (150 changed-line proposal limit, live on the auto-deployed Worker), #2647 (this handoff). The release bot (`nusa-release-authority[bot]`) merged #2636, #2640, #2643 and #2647 normally; the owner merged #2632 and #2635 with a temporary bypass.
+- **Closed unmerged:** #2645 (Dokkebi display name) and #2646 (rename inventory), because the rename was withdrawn.
+- **On `HOLD` pending tomorrow's redesign:** #2637 (receipt classifier), #2638 (coordinator receipts, stacked), #2639 (evidence producer, stacked), #2641 (owner-gate design), #2642 (light-task design), #2644 (owner-activity gate, ships disabled). Some are now behind or conflicting with main; update them only after the redesign decision.
+- **Not on hold:** #2633 (research note and frozen data, behind main) and #2648 (stacked on #2633; retarget to main after it merges), #2586 (loss-limit comparison tool, behind main).
+
+### What the next session needs from the owner (2026-10-13)
+1. The two distinct GitHub logins after the account separation (main Claude side and assistant/automation side), and confirmation that the Worker token, Codex runner and assistant sessions do not use the watched account.
+2. The redesign direction for the Autopilot stack on `HOLD`, including whether the `Autopilot Codex Coding` workflow stays disabled or is re-enabled after the repeated-repair-dispatch issue is fixed.
+3. Whether to pre-register the regime-signal breakout variant or leave research stopped.
+4. Whether main-branch protection "Do not allow bypassing the above settings" was turned back on after the temporary bypass (the owner said it was; sessions cannot read it).
+
 ### Safe next actions for a new session
 1. Re-verify main, open PRs (#2633, #2586, #2637-#2639, #2641, #2642, #2644-#2646) and labels; respect `HOLD`.
 2. Wait for the owner's redesign and the two GitHub logins; then act on the decisions, one task per PR. Confirm the final repository name first.
