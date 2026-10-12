@@ -50,6 +50,7 @@ export function sealEvidenceGraph(input:{readonly sealId:string;readonly candida
    if((p.sourceType==="EXTERNAL"||p.sourceType==="MODEL_GENERATED")&&(!p.sourceRef||!p.sourceRef.trim()))throw new Error("external and model-generated evidence require source provenance");
    if(p.sourceFingerprint!==undefined&&!/^[a-f0-9]{64}$/i.test(p.sourceFingerprint))throw new Error("invalid evidence source fingerprint");
    for(const timestamp of [p.observedAtMs,p.validUntilMs])if(timestamp!==undefined&&(!Number.isSafeInteger(timestamp)||timestamp<0))throw new Error("invalid evidence provenance timestamp");
+   if(p.observedAtMs!==undefined&&p.observedAtMs>input.nowMs)throw new Error("evidence observation cannot be in the future");
    if(p.observedAtMs!==undefined&&p.validUntilMs!==undefined&&p.validUntilMs<p.observedAtMs)throw new Error("evidence validity ends before observation");
    if(p.validUntilMs!==undefined&&input.nowMs>=p.validUntilMs&&p.verificationState!=="STALE")throw new Error("expired evidence must be marked STALE");
    if(p.verificationState==="VERIFIED"&&(!p.verifierEvidenceId||!p.verifierEvidenceId.trim()||p.verifierEvidenceId.trim()===node.evidenceId.trim()))throw new Error("verified evidence requires distinct verifier evidence");
