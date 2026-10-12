@@ -13,6 +13,7 @@ scope:
   include:
     - "docs/RESEARCH_NOTE_2026-10-12_SMA_60M_OOS.md"
     - "scripts/offline-sma-oos-screen.js (reads the frozen file, no network, no writes)"
+    - "scripts/offline-breakout-meanrev-screen.js and docs/research-data/2026-10-12-upbit-60m-closes-250d.json (sha256 fdf1ae23c25d7502e88065464b895c25b6f407dd120e6d633ddaec07f2c58f42)"
     - "docs/research-data/2026-10-12-upbit-60m-closes.json (sha256 57ace137f0bdd514f75cbc7fdfe5081cb2def6287fb925a44041d4fd1207e5e0)"
   exclude:
     - "Any runtime, config or threshold change; changing the running baseline; promoting any candidate."
