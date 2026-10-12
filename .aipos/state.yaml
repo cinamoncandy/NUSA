@@ -3186,4 +3186,4 @@ current_autopilot_owner_activity_gate_design:
   status: READY_FOR_REVIEW
   branch: claude/autopilot-owner-activity-gate-design
   authority_impact: none
-  finding: "Design for a fail-closed gate that lets Autopilot start new coding work only after 60 minutes without owner activity; because the owner account is also used by AI sessions, activity is judged by missing AI attribution markers and uncertainty closes the gate. Nothing is implemented."
+  finding: "Design for a fail-closed gate that lets Autopilot start new coding work only after 60 minutes without owner activity; the owner chose account separation (AI and automation use other accounts), so owner activity is any activity by the owner account, the gate must not be enabled until that separation is done, and uncertainty or a Worker token that resolves to the owner account closes the gate. Nothing is implemented."
