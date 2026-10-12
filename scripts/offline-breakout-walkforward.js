@@ -18,7 +18,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const FILE = path.join(__dirname, "..", "docs", "research-data", "2026-10-12-upbit-60m-closes-250d.json");
+const DEFAULT_FILE = path.join(__dirname, "..", "docs", "research-data", "2026-10-12-upbit-60m-closes-250d.json");
+// Optional first argument: another frozen close file with the same shape (market -> ascending [timestampMs, close]).
+const FILE = process.argv[2] ? path.resolve(process.argv[2]) : DEFAULT_FILE;
 const WINDOWS = 6;
 const SETTINGS = [20, 50, 100];
 

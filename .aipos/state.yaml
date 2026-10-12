@@ -3186,6 +3186,6 @@ current_research_breakout_walkforward:
   status: READY_FOR_REVIEW
   branch: claude/research-breakout-walkforward
   authority_impact: none
-  finding: "Over six consecutive 42-day windows, long-only breakouts (N=20/50/100) failed the pre-registered pass rule: 2-3 positive windows, negative average in DOWN windows, and 2x-cost survival in only 2 windows. The earlier all-positive last third came almost entirely from one +17% rally window. Not promotion evidence; no candidate is proposed for deployment."
-  next: "Optional: rerun the same fixed rule on 1+ year of history and pre-register a regime-signal variant before any Research experiment."
+  finding: "Over six consecutive 42-day windows, long-only breakouts (N=20/50/100) failed the pre-registered pass rule: 2-3 positive windows, negative average in DOWN windows, and 2x-cost survival in only 2 windows. The earlier all-positive last third came almost entirely from one +17% rally window. Re-applying the unchanged rule to 383 days of never-seen prior data reproduced the failure (2-3 positive windows, DOWN-window averages -8% to -19%, UP-window averages +7% to +9%): regime-dependent, not an edge. Not promotion evidence; no candidate is proposed for deployment."
+  next: "Pre-register a regime-signal variant (no entry on a down signal) and evaluate it only on new forward data (for example the next 60 days) before any Research experiment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
