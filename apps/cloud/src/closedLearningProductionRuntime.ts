@@ -2,7 +2,7 @@ import { composeResearchExperiments } from "./researchExperimentComposition";
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
 import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
 import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
-import { buildCanonicalPaperCandidatePerformance } from "./canonicalPaperCandidatePerformance";
+import { buildCanonicalPaperCandidatePerformance, PAPER_COVERED_DAY_SCORING_VERSION } from "./canonicalPaperCandidatePerformance";
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
@@ -123,7 +123,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
   const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line) });
-  const loopStatus = new ClosedLearningLoopStatusTracker();
+  const loopStatus = new ClosedLearningLoopStatusTracker(closedLearningConfig.evaluationPeriodMs);
   // The last BLOCKED/ERROR reason survives a restart (display only; a reason seen by this process always wins).
   loopStatus.seedLastBlocked(readClosedLearningBlocked(config.cloudStateDbPath));
   let persistedBlockedAt = loopStatus.lastBlockedRecord()?.at;
@@ -177,6 +177,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
   const replayInput = new ClosedLearningLineageReplayInputSource({
+    requireIndependentDays: true,
     periods,
     bindings: challengerBindings,
     readCanonicalPaperAccount,
@@ -213,6 +214,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const runClosedLearningBootstrapAsync = (): Promise<ClosedLearningInitialPaperBootstrapResult> => bootstrap.runOnceAsync();
 
   const evidenceIdentity = new ClosedLearningEvidenceIdentitySource({
+    paperEvidenceTransformationVersion: PAPER_COVERED_DAY_SCORING_VERSION,
     bindings: challengerBindings,
     replaySnapshots,
     readRiskConfigHash: () => CLOUD_PAPER_RISK_POLICY_FINGERPRINT,
@@ -223,6 +225,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listRealizedPeriods: periods.listRealizedPeriods,
     readCanonicalPaperAccount,
     now: () => Date.now(),
+    evaluationPeriodMs: closedLearningConfig.evaluationPeriodMs,
     closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
     retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,
@@ -285,6 +288,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       periods: candidatePeriods,
       account: requireCanonicalPaperAccount(),
       executionQualityPolicy: closedLearningConfig.executionQualityPolicy,
+      requireIndependentDays: true,
     });
     return evaluatePaperPerformanceGovernanceFeedback({
       now: input.now,

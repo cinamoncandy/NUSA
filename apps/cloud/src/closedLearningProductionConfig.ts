@@ -9,6 +9,7 @@ export const CLOSED_LEARNING_EXECUTION_QUALITY_POLICY_V1: CanonicalPaperExecutio
 });
 
 export interface ClosedLearningProductionConfig {
+  readonly evaluationPeriodMs: number;
   readonly researchReplaySnapshotPath: string;
   readonly qualifiedArtifactPath: string;
   readonly executionQualityPolicy: CanonicalPaperExecutionQualityPolicy;
@@ -36,7 +37,11 @@ function optionalAbsolutePath(value: string | undefined, fallback: string, field
 export function readClosedLearningProductionConfig(env: NodeJS.ProcessEnv, cloudStateDbPath: string): ClosedLearningProductionConfig {
   const databasePath = durableStatePath(cloudStateDbPath);
   const directory = path.dirname(databasePath);
+  const configuredPeriod = env.NUSA_CLOSED_LEARNING_EVALUATION_PERIOD_MS;
+  const evaluationPeriodMs = configuredPeriod === undefined ? 3_600_000 : Number(configuredPeriod);
+  if (!['3600000', '86400000'].includes(configuredPeriod ?? '3600000')) throw new Error("NUSA_CLOSED_LEARNING_EVALUATION_PERIOD_MS_INVALID");
   return Object.freeze({
+    evaluationPeriodMs,
     researchReplaySnapshotPath: optionalAbsolutePath(
       env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH,
       path.join(directory, "research-replay-snapshots.json"),

@@ -61,3 +61,13 @@ test("invalid, future and already elapsed period boundaries never promise an eva
   tracker.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, Date.parse("2026-10-11T15:00:00Z"));
   assert.equal(tracker.snapshot().nextEvaluationEligibleAt, undefined);
 });
+
+test("hourly tracking reports eligibility without inventing a midnight or completing a cycle", () => {
+  const tracker = new ClosedLearningLoopStatusTracker(3_600_000);
+  tracker.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, now);
+  tracker.observePeriods(open(now - 1000), []);
+  assert.equal(tracker.snapshot().nextEvaluationEligibleAt, now - 1000 + 3_600_000);
+  assert.equal(tracker.snapshot().evaluationPeriodMs, 3_600_000);
+  assert.equal(tracker.snapshot().cyclesEvaluated, 0);
+  assert.throws(() => new ClosedLearningLoopStatusTracker(1000), /EVALUATION_PERIOD_INVALID/);
+});

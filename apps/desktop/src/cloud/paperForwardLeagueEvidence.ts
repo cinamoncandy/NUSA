@@ -7,7 +7,7 @@ export interface PaperForwardLeagueEvidenceSource {
    * Existing canonical PAPER performance shape. The gate does not trust this object by presence:
    * every League-scoring field that can be checked against admission is reconciled fail-closed.
    */
-  readonly paperPerformance: PaperPerformanceSummary;
+  readonly paperPerformance?: PaperPerformanceSummary;
 }
 
 export interface PaperForwardLeagueEvidenceIdentity {
@@ -75,6 +75,7 @@ export function gatePaperForwardLeagueEvidence(
   }
 
   const paper = source.paperPerformance;
+  if (paper == null) throw new PaperForwardLeagueEvidenceError("PAPER_PERFORMANCE_UNAVAILABLE", "verified admission requires actual PAPER performance");
   if (!Number.isFinite(paper.netReturn) || Math.abs(paper.netReturn - admission.cumulativeNetReturn) > RETURN_TOLERANCE) {
     throw new PaperForwardLeagueEvidenceError(
       "PAPER_NET_RETURN_MISMATCH",

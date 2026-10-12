@@ -13,6 +13,7 @@ export type ClosedLearningRolloverStatus =
   | "MIXED_BINDING_PERIOD_RETIRED"
   | "WAITING_FOR_CANONICAL_BOUNDARY"
   | "WAITING_FOR_KST_DAY_ROLLOVER"
+  | "WAITING_FOR_EVALUATION_WINDOW"
   | "WAITING_FOR_REALIZED_FILL"
   | "CLOSED_AND_EVALUATED"
   | "BLOCKED";
@@ -44,6 +45,7 @@ export interface ClosedLearningRolloverPort {
    * closes at the exact canonical account `updatedAt`.
    */
   readonly now?: () => number;
+  readonly evaluationPeriodMs?: number;
   readonly closePeriodFromCanonicalAccount: (input: { readonly periodId: string; readonly periodEndAt: number }) => PersistedPaperPeriodEnvelope;
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   /** Retires an open period whose canonical PAPER account was replaced (different initial capital). */
@@ -123,7 +125,8 @@ interface PreparedRollover {
  *
  * This scheduler never invents a wall-clock account snapshot. It may close a period only at the
  * exact canonical PAPER account `updatedAt`, and only after that boundary, or the wall clock when the
- * account is idle, has crossed the existing Asia/Seoul trading-day boundary. A period without a real FILLED observation remains open.
+ * account is idle, has crossed the existing Asia/Seoul boundary or configured evaluation window.
+ * A period without a real FILLED observation remains open. Risk's trading-day policy is unchanged.
  *
  * Evidence identity construction is deliberately injected: source commit, cost model, risk hash,
  * champion identity, evidence fingerprints, and which realized periods belong to one immutable
@@ -134,7 +137,9 @@ export class ClosedLearningRolloverScheduler {
   /** Realized-period record ids whose cycle did not finish in THIS process, with the in-process resume attempts used. */
   private readonly awaitingCycle = new Map<string, number>();
 
-  public constructor(private readonly port: ClosedLearningRolloverPort) {}
+  public constructor(private readonly port: ClosedLearningRolloverPort) {
+    if (port.evaluationPeriodMs !== undefined && ![3_600_000, 86_400_000].includes(port.evaluationPeriodMs)) throw new Error("CLOSED_LEARNING_EVALUATION_PERIOD_INVALID");
+  }
 
   /**
    * A period's close is durable but its cycle can throw or the process can stop before it starts. Resume a gap created in this
@@ -161,13 +166,13 @@ export class ClosedLearningRolloverScheduler {
       const now = this.port.now?.();
       if (account.updatedAt !== latest.record.periodEndAt || now == null || !Number.isSafeInteger(now) || now < latest.record.periodEndAt
         || tradingDayKey(now) !== tradingDayKey(latest.record.periodEndAt)) return undefined;
-    } else if (account.updatedAt <= latest.record.periodEndAt) {
-      // Preserve the existing in-process rule: a later canonical account boundary must exist.
+    } else if (account.updatedAt < latest.record.periodEndAt) {
+      // The immutable close may be resumed at the exact same account boundary; never regress it.
       return undefined;
     }
+    this.awaitingCycle.set(latest.record.recordId, (attempts ?? 0) + 1);
     const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
     if (isRecorded(identity)) return undefined;
-    this.awaitingCycle.set(latest.record.recordId, (attempts ?? 0) + 1);
     return Object.freeze({
       closedRecordId: latest.record.recordId,
       plan: Object.freeze({ periodId: latest.record.recordId, advisory: latest.record.advisory, candidateProvenance: latest.candidateProvenance, ...(latest.record.market == null ? {} : { market: latest.record.market }) }),
@@ -192,7 +197,8 @@ export class ClosedLearningRolloverScheduler {
     if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) {
       return Object.freeze({ status: "BLOCKED", reason: "CANONICAL_PAPER_ACCOUNT_UNAVAILABLE" });
     }
-    if (account.updatedAt <= latest.record.periodEndAt) {
+    const boundedRecoveryExhausted = (this.awaitingCycle.get(latest.record.recordId) ?? -1) >= MAX_CYCLE_RESUME_ATTEMPTS;
+    if (account.updatedAt < latest.record.periodEndAt || (account.updatedAt === latest.record.periodEndAt && !boundedRecoveryExhausted)) {
       return Object.freeze({ status: "NO_OPEN_PERIOD", reason: "WAITING_FOR_CANONICAL_BOUNDARY" });
     }
     const periodIndex = nextPeriodIndex(realized);
@@ -299,8 +305,11 @@ export class ClosedLearningRolloverScheduler {
     const startDay = tradingDayKey(plan.periodStartAt);
     const clock = this.port.now?.();
     const clockCrossed = clock !== undefined && Number.isSafeInteger(clock) && clock >= account.updatedAt && tradingDayKey(clock) !== startDay;
-    if (tradingDayKey(account.updatedAt) === startDay && !clockCrossed) {
-      return Object.freeze({ status: "WAITING_FOR_KST_DAY_ROLLOVER", periodId: plan.periodId });
+    const interval = this.port.evaluationPeriodMs;
+    const observedClock = clock !== undefined && Number.isSafeInteger(clock) && clock >= account.updatedAt ? clock : account.updatedAt;
+    const intervalCrossed = interval !== undefined && observedClock - plan.periodStartAt >= interval;
+    if (tradingDayKey(account.updatedAt) === startDay && !clockCrossed && !intervalCrossed) {
+      return Object.freeze({ status: interval === 3_600_000 ? "WAITING_FOR_EVALUATION_WINDOW" : "WAITING_FOR_KST_DAY_ROLLOVER", periodId: plan.periodId });
     }
     if (!hasRealizedFill(plan)) {
       return Object.freeze({ status: "WAITING_FOR_REALIZED_FILL", periodId: plan.periodId });
@@ -321,6 +330,11 @@ export class ClosedLearningRolloverScheduler {
     if (!realizedPeriods.some((item) => item.record.recordId === closed.record.recordId)) {
       throw new Error("closed PAPER period is missing from the durable realized denominator");
     }
+    // Identity construction itself may fail after the durable close. It must also have a bounded recovery.
+    // Only the latest close is eligible for this recovery path; discard obsolete retry bookkeeping,
+    // never the durable periods, decisions or failures.
+    for (const key of this.awaitingCycle.keys()) if (key !== closed.record.recordId) this.awaitingCycle.delete(key);
+    this.awaitingCycle.set(closed.record.recordId, 0);
     const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
     return Object.freeze({ closedRecordId: closed.record.recordId, plan, account, realizedPeriods, identity });
   }

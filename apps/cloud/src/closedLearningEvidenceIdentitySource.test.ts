@@ -12,6 +12,14 @@ const ORIGINAL = "d".repeat(64);
 const REPLAY = "e".repeat(64);
 const RISK = "f".repeat(64);
 
+describe("missing canonical Research activation", () => {
+    it("reports a stable precondition failure without inventing Research lineage", () => {
+      const closed = period("no-lineage", 0, 10_000);
+      const source = new ClosedLearningEvidenceIdentitySource({ bindings: { current: () => undefined }, replaySnapshots: snapshotReader(), readRiskConfigHash: () => RISK });
+      assert.throws(() => source.build({ closedPeriod: closed, realizedPeriods: [closed] }), (error: unknown) => error instanceof Error && (error as Error & { code?: string }).code === "PAPER_RESEARCH_LINEAGE_UNAVAILABLE");
+    });
+});
+
 function specification(candidateId = "candidate-a"): ResearchCandidateSpecification {
   return Object.freeze({
     schemaVersion: 1,

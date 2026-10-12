@@ -14,6 +14,7 @@ export interface ClosedLearningEvidenceIdentityWindow {
 }
 
 export interface ClosedLearningEvidenceIdentitySourceOptions {
+  readonly paperEvidenceTransformationVersion?: string;
   readonly bindings: Pick<PaperChallengerBindingLedger, "current">;
   readonly replaySnapshots: ResearchRunReplaySnapshotReader;
   /** Exact fingerprint of the production PAPER risk policy that produced these periods. */
@@ -24,6 +25,11 @@ export interface ClosedLearningEvidenceIdentitySourceOptions {
 
 const SHA64 = /^[a-f0-9]{64}$/;
 const MARKET = /^KRW-[A-Z0-9-]+$/;
+
+class PaperResearchLineageUnavailable extends Error {
+  readonly code = "PAPER_RESEARCH_LINEAGE_UNAVAILABLE";
+  constructor() { super("closed-learning evidence Research lineage is unavailable"); }
+}
 
 function canonical(value: unknown): string {
   if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
@@ -53,7 +59,7 @@ function marketOf(period: PersistedPaperPeriodEnvelope): string {
 
 function activationFor(period: PersistedPaperPeriodEnvelope, bindings: Pick<PaperChallengerBindingLedger, "current">): PaperChallengerActivationReceipt {
   const activation = bindings.current(marketOf(period), period.record.periodStartAt);
-  if (activation?.researchLineage == null) throw new Error("closed-learning evidence Research lineage is unavailable");
+  if (activation?.researchLineage == null) throw new PaperResearchLineageUnavailable();
   return activation;
 }
 
@@ -118,7 +124,12 @@ function stablePeriods(periods: readonly PersistedPaperPeriodEnvelope[]): readon
  * supplied by the scheduler or synthesized from wall-clock state.
  */
 export class ClosedLearningEvidenceIdentitySource {
-  public constructor(private readonly options: ClosedLearningEvidenceIdentitySourceOptions) {}
+  public constructor(private readonly options: ClosedLearningEvidenceIdentitySourceOptions) {
+    const version = options.paperEvidenceTransformationVersion;
+    if (version !== undefined && !/^[A-Z][A-Z0-9_]{0,63}$/.test(version)) {
+      throw new Error("closed-learning evidence transformation version is invalid");
+    }
+  }
 
   public build(window: ClosedLearningEvidenceIdentityWindow): ClosedLearningEvidenceIdentity {
     const realized = stablePeriods(window.realizedPeriods);
@@ -163,6 +174,7 @@ export class ClosedLearningEvidenceIdentitySource {
     const evidenceReferences = Object.freeze(selected.map((period) => closedLearningPaperPeriodReference(period.record.recordId)));
     const evidenceMaterial = Object.freeze({
       schemaVersion: 1,
+      ...(this.options.paperEvidenceTransformationVersion === undefined ? {} : { paperEvidenceTransformationVersion: this.options.paperEvidenceTransformationVersion }),
       lineage,
       sourceCommitSha,
       costModelVersion,

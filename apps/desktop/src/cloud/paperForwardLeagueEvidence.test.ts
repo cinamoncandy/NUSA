@@ -9,6 +9,16 @@ import { evaluateLeague } from "./nusaLeague";
 const HASH = "a".repeat(64);
 const IDENTITY = Object.freeze({ candidateId: "candidate-a", datasetId: "dataset-a", datasetContentSha256: HASH });
 
+describe("unavailable canonical performance", () => {
+    it("does not convert verified admission with no metrics into verified League evidence", () => {
+      const admission = admitPaperForwardEvidence(Array.from({ length: 30 }, (_, index) => period(index)));
+      assert.equal(admission.strength, "VERIFIED");
+      assert.throws(() => gatePaperForwardLeagueEvidence(IDENTITY, { admission }), /actual PAPER performance/);
+      const insufficient = { ...admission, strength: "INSUFFICIENT" as const };
+      assert.equal(gatePaperForwardLeagueEvidence(IDENTITY, { admission: insufficient }).strength, "INSUFFICIENT");
+    });
+});
+
 const paperPerformanceFor = (
   admission: PaperForwardEvidenceAdmission,
   overrides: Partial<PaperPerformanceSummary> = {},
