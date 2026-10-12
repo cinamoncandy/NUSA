@@ -3208,3 +3208,13 @@ current_docs_handoff_evening_decisions:
   finding: "The handoff now records the owner's evening decisions: main/assistant Claude roles, GitHub account separation and a redesign on 2026-10-13, HOLD on the redesign-related PRs, the withdrawal of the Dokkebi / Dokkebiteo rename (name stays NUSA, AIPOS unchanged), and that the GitHub repository was already renamed to Dokkebi so the Worker allowlists hard-coded to cinamoncandy/NUSA need the owner to settle the repository name or a dual-name change. It also records that the owner disabled the Autopilot Codex Coding workflow after hourly failures drove repeated Autopilot repair dispatches, and that the Worker auto-deploys from main so the 150-line proposal limit is live."
   next: "After the redesign and the two GitHub logins, act on the owner's decisions one task per PR; do not rename the repository or enable the owner-activity gate before their prerequisites."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_docs_handoff_research_status:
+  work_order: WO-DOCS-20261013-HANDOFF-RESEARCH-STATUS
+  status: READY_FOR_REVIEW
+  branch: claude/handoff-research-status
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
+  finding: "The handoff now records the end-of-day state: the learning loop is still 0/7 (owner baseline has no Research lineage), breakout and SMA research found no candidate and the owner stopped it, the PR ledger (merged, closed, HOLD, open) and the four inputs needed from the owner on 2026-10-13."
+  next: "After the owner supplies the two GitHub logins and the redesign direction, act one task per PR; keep HOLD PRs untouched until then."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
