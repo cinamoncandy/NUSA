@@ -1,0 +1,47 @@
+id: WO-LEARNING-20261012-WRITER-LEASE-LIVENESS
+title: "Stop a supervised learning runtime after its canonical PAPER writer lease is lost"
+status: VERIFYING
+priority: P0
+issue: 1605
+pull_request: 2620
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_commit: 722b487383fe19a8c4e025bb82a6a63da43601f2
+implementation_branch: codex/learning-loop-completion-20261012
+authority_impact: fail-closed-runtime-recovery-only
+risk: MEDIUM
+objective: "Use the existing writer-lease guard and scheduler failure shutdown so a permanently unusable PAPER writer cannot leave learning polling forever."
+observed_evidence:
+  - "Public health at 2026-10-12T00:12:16.933Z: source ca4f897dd476d1238682a38d618c9569bac19e52; 88 durable fills; 5 realized periods; 0 cycles; current CANONICAL_FILL_LEDGER_UNAVAILABLE."
+  - "Read-only Oracle diagnosis 38187180088 confirms this state and no recent service log errors. The precise underlying ledger-reader failure is not proven by that generic code."
+  - "Code gap: repository heartbeat marks leaseLost permanently; snapshot remains readable and rollover catches the ledger read error as BLOCKED. The production poll never verifies writer ownership before continuing."
+scope:
+  - "Expose the existing lease assertion through a transaction-safe verification method."
+  - "Verify the canonical writer before every serialized production learning tick; use the existing failClosedScheduler/stop path on failure."
+  - "No lease duration, takeover policy, Risk limit, trading policy, strategy, schema, scheduler or evidence-store changes."
+acceptance:
+  - "Valid lease verification succeeds. Expired, stolen or clock-invalid ownership fails without allowing a write."
+  - "A lost writer cannot continue bootstrap/rollover; the existing supervisor may restart and reconcile preserved canonical state."
+  - "Local regression, typecheck, build, full validation and security gates pass."
+  - "Fresh PR CI, independent Audit, canonical Release and actual Oracle PAPER evidence are required."
+  - "Overall learning completion requires real period -> Research decision -> qualified PAPER successor evidence; rejection/wait does not prove improvement."
+verification_commands:
+  - "pnpm run build"
+  - "pnpm run typecheck"
+  - "node -r ./tests/register-dist.cjs --test tests/cloud-paper-trading-execution-loop.test.js tests/closed-learning-governance-wiring.test.js tests/closed-learning-http-event-loop-regression.test.js tests/closed-learning-loop-status.test.js tests/integration-paper-lifecycle-production-root.test.js dist/apps/cloud/src/paperRealizedPeriodCanonicalProducer.test.js dist/apps/cloud/src/closedLearningRolloverScheduler.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "node scripts/aipos-work-order-index.js --check"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+validation:
+  independent_review: "Independent reviewer verified b78ce9bb74b287fbb09ddff8950931b8f4b38bdb: no actionable P0/P1/P2 findings; existing transaction checks and shutdown await ordering preserve safety. Review is not Release authority."
+  full_suite_environment: "The local isolated suite initially lacked Bash; using installed Git Bash fixes that harness prerequisite. It then stopped at tests/run-tests-isolated.test.js on Windows symlink EPERM. Use a directory junction for that same fixture on Windows; all failure-diagnostic assertions remain unchanged."
+  first_ci: "38187571986 failed the two exact-source qualification pins because PAPER_ADAPTER changed. Bind the implementation commit/blob and retain every UNVERIFIED criterion and every existing guard."
+  local: "Node 24.18.0 / pnpm 11.7.0: build, typecheck, focused regression 91/91, validate:full, changed-test lint, security gate (0 secrets, 0 unmitigated high/critical), work-order index, diff check PASS."
+  external: "Fresh CI, independent Audit, governed Release and actual runtime acceptance remain required."
+next: "Publish this validated increment, require fresh CI on the PR head, independent Audit and canonical Release; then Oracle PAPER deploy and inspect the real learning evidence chain."

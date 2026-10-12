@@ -199,6 +199,36 @@ test("clock regression cannot permit a paper writer takeover", () => {
   rmSync(filename, { force: true });
 });
 
+test("learning lease verification rejects an expired writer and preserves the durable account for recovery", () => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-learning-writer-"));
+  const filename = join(directory, "paper.db");
+  let now = 1_000;
+  const db = new SqliteDatabase(filename);
+  const repository = new SqliteCloudPaperAccountRepository(db, { ownerId: "learning-writer", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 });
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, repository });
+  try {
+    loop.processTick(baseTick());
+    const before = loop.snapshot();
+    repository.verifyWriterLease();
+    now = 5_000;
+    assert.throws(() => repository.verifyWriterLease(), /PAPER_WRITER_LEASE_LOST/);
+    assert.throws(() => repository.loadFills(), /PAPER_WRITER_LEASE_LOST/);
+    assert.throws(() => repository.save(before), /PAPER_WRITER_LEASE_LOST/);
+    assert.deepEqual(loop.snapshot(), before);
+    repository.close();
+    const recovered = new SqliteCloudPaperAccountRepository(db, { ownerId: "recovered-learning-writer", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 });
+    try {
+      recovered.verifyWriterLease();
+      assert.deepEqual(recovered.loadLatest(), before);
+      assert.deepEqual(recovered.loadFills(), before.fills);
+    } finally { recovered.close(); }
+  } finally {
+    repository.close();
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("a large forward clock jump fails closed instead of taking over a live writer", () => {
   const filename = join(mkdtempSync(join(tmpdir(), "nusa-paper-writer-clock-jump-")), "paper.db");
   let now = 1_000;
@@ -211,6 +241,18 @@ test("a large forward clock jump fails closed instead of taking over a live writ
   firstRepository.close();
   firstDb.close();
   rmSync(filename, { force: true });
+});
+
+test("learning lease verification cannot recover a regressed clock by refreshing the lease", () => {
+  const db = new SqliteDatabase(":memory:");
+  let now = 1_000;
+  const repository = new SqliteCloudPaperAccountRepository(db, { now: () => now });
+  try {
+    now = 500;
+    assert.throws(() => repository.verifyWriterLease(), /PAPER_WRITER_CLOCK_REGRESSION/);
+    now = 1_000;
+    assert.throws(() => repository.verifyWriterLease(), /PAPER_WRITER_LEASE_LOST/);
+  } finally { repository.close(); db.close(); }
 });
 
 test("crash after a durable save allows takeover without losing the last normal state", () => {

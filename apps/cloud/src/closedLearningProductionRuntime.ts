@@ -339,6 +339,9 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       try { loopStatus.observeDurableFailures(cycleRepository.failureSummary()); } catch { loopStatus.clearDurableFailures(); }
     };
     const task = (async () => {
+      // A lost lease is terminal for this repository instance. Let the existing fail-closed
+      // shutdown/supervisor recover it instead of treating every ledger read as a polling wait.
+      paperRepository?.verifyWriterLease();
       refreshDurableCycles();
       const bootstrap = await runClosedLearningBootstrapAsync();
       loopStatus.observeBootstrap(bootstrap);
