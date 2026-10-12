@@ -1,9 +1,9 @@
 version: 1
 current_learning_upgrade_20261012:
   work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
-  status: EXACT_HEAD_CI_PASS_INDEPENDENT_AUDIT_BLOCKED
+  status: SYNCHRONIZED_AUDIT_DEPENDENCY_PENDING_FRESH_VALIDATION
   branch: codex/learning-loop-progress-20261012
-  base_sha: d6725778260d06a2308152f6c59d38f7ad64cc1b
+  base_sha: 957ef5385969f4f12b1310c4519c8654f3a67aed
   pull_request: 2622
   exact_head: 44fd704c9c72e0000bf4bc26891079251cd4a7bc
   exact_head_ci: "38191425978 and required safety/PAPER companions PASS. Independent read-only code review found no actionable findings after 50 actual HTTP/focused tests."
@@ -11,7 +11,19 @@ current_learning_upgrade_20261012:
   runtime_observation: "2026-10-12T05:23:07.549Z: source d6725778, ticks511, cycles0, WAITING_FOR_KST_DAY_ROLLOVER, lastError null. Upgrade remains unmerged and undeployed."
   scope: "Replay-safe deployment metrics, current versus historical block and truthful KST eligibility; display-only, no policy or scheduler changes."
   validation: "50 focused/HTTP regression tests PASS after independent-review correction for omitted public fields; build, typecheck, validate:full, security gate and repository lint PASS (existing warnings). New exact-head CI, fresh review and rollout required."
-  next: "Obtain grounded independent Audit evidence addressing exact-diff compatibility and separate product-level real-cycle gap; no Release/merge until valid PASS. Preserve natural real-evidence wait."
+  next: "Revalidate synchronized head; require deployed Audit repair plus fresh independent verdict. Prior FAIL and actual cycle gap remain unresolved, never overwritten."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_audit_repair_context_20261012:
+  work_order: WO-AUDIT-20261012-REPAIR-CONTEXT
+  status: MERGED_PENDING_WORKER_DEPLOYMENT
+  pull_request: 2623
+  merge_commit: 957ef5385969f4f12b1310c4519c8654f3a67aed
+  ci: "38209662232 and companions PASS; independent38-test code review no actionable findings; canonical Audit38210084371 PASS and expected-head merge. Post-merge CI38210177372 ongoing."
+  blocked_learning_pr: 2622
+  branch: codex/audit-repair-context-provenance-20261012
+  scope: "Model response-format repair is not repository evidence; preserve strict validator and independent FAIL."
+  validation: "38 Audit regression tests, build/typecheck/validate:full/security PASS. No validator or authority change; actual model remediation not proven."
+  next: "Verify exact-main Worker deployment after post-merge CI, then fresh learning-head Audit; do not override previous verdicts."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_deploy_blocker_20261012:
   work_order: WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON

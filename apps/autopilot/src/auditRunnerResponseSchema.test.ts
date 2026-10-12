@@ -28,7 +28,7 @@ function response(status: number, payload: unknown, textValue?: string) {
   };
 }
 
-function fetchSequence() {
+function fetchSequence(diff = "diff --git a/a.ts b/a.ts\n+const safe = true;\n") {
   const pull = {
     state: "open",
     changed_files: 1,
@@ -48,7 +48,7 @@ function fetchSequence() {
   const queue = [
     response(200, pull),
     response(200, run),
-    response(200, {}, "diff --git a/a.ts b/a.ts\n+const safe = true;\n"),
+    response(200, {}, diff),
     response(200, pull),
     response(200, run),
   ];
@@ -85,4 +85,32 @@ test("Workers AI response schema makes verdict invariants structurally expressib
   assert.deepEqual(responseFormat?.json_schema?.properties?.safetyInvariantResult?.enum, ["PASS", "FAIL"]);
   assert.equal(responseFormat?.json_schema?.properties?.safetyInvariantResult?.type, "string");
   assert.equal(responseFormat?.json_schema?.properties?.mergeAllowed?.type, "boolean");
+});
+
+test("format repair is not source evidence and a genuine grounded blocker remains FAIL", async () => {
+  let attempts = 0;
+  const diff = "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+const amount = missingInput.amount;\n";
+  const AI = { async run(_model: string, input: Record<string, unknown>) {
+    attempts++;
+    if (attempts === 1) return { response: "not JSON" };
+    const prompt = String(input.prompt);
+    assert.match(prompt, /not a defect observed in the repository/);
+    assert.match(prompt, /must not itself become a finding, blocker, or safety failure/);
+    assert.match(prompt, /Preserve any genuine source-grounded blocker/);
+    assert.match(prompt, /do not choose PASS merely to repair JSON/);
+    assert.ok(prompt.includes(diff));
+    return { response: { verdict: "FAIL", findings: [{ code: "MISSING_INPUT", severity: "BLOCKER", message: "Undefined input is dereferenced.", evidenceRef: "a.ts:+1" }], blockers: ["Undefined input is dereferenced."], safetyInvariantResult: "PASS", mergeAllowed: false } };
+  } };
+  const result = await executeIndependentAudit(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, fetchSequence(diff) as never);
+  assert.equal(attempts, 2);
+  assert.equal(result.verdict, "FAIL");
+  assert.equal(result.mergeAllowed, false);
+  assert.equal(result.findings[0]?.code, "MISSING_INPUT");
+});
+
+test("repair feedback does not make repeatedly invalid output an approval", async () => {
+  let attempts = 0;
+  const AI = { async run() { attempts++; return { response: "not JSON" }; } };
+  await assert.rejects(executeIndependentAudit(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, fetchSequence() as never), /AUDIT_VERDICT_JSON_INVALID/);
+  assert.equal(attempts, 3, "existing three-attempt retry budget unchanged");
 });

@@ -2,7 +2,7 @@ id: WO-LEARNING-20261012-PROGRESS-TRUTH
 title: "Make learning progress replay-safe and expose next-evaluation eligibility"
 status: EXACT_HEAD_CI_PASS_INDEPENDENT_AUDIT_BLOCKED
 priority: P1
-base_commit: d6725778260d06a2308152f6c59d38f7ad64cc1b
+base_commit: 957ef5385969f4f12b1310c4519c8654f3a67aed
 implementation_branch: codex/learning-loop-progress-20261012
 authority_impact: none
 risk: LOW
@@ -34,4 +34,4 @@ validation:
   audit: "38191846340 FAIL UNVERIFIED_CLOSED_LOOP; scope clarification plus one bounded fresh review 38207700626 FAIL/safety FAIL, claiming previous invalid JSON/incompatibility without reproduction. Both verdicts preserved; no gate weakening or approval fabrication."
   unverified: "Valid independent Audit PASS, Release, merge and upgraded runtime remain required. Actual cycles0 is not completed learning."
 review_correction: "Independent review found public health projection omitted new fields. Reused existing projection with strict bounds and actual HTTP tests; no gate weakening. Initial test fixture port 0 was rejected by existing contract, corrected to a unique localhost port."
-next: "Grounded independent Audit must resolve the exact-diff claim; no repeated provider requests or Release bypass. Canonical deployed loop continues naturally while this increment remains unmerged."
+next: "Merged Audit repair dependency synchronized without history rewrite. New exact-head validation/CI and fresh deployed-Audit verdict required; prior FAIL remains recorded."
