@@ -1077,7 +1077,20 @@ export async function executeCodingRunner(
     ),
   );
   const repairGithubToken = env.NUSA_GITHUB_TOKEN?.trim();
-  if (sandboxRepairEscalation && repairGithubToken) {
+  // The escalation spends on the same overflow balance, so it must honour that provider's recorded
+  // boundary. This stays protection-only: an active or unreadable wait simply skips the escalation
+  // and leaves the documented best-effort contract ("keep the current provider path unchanged")
+  // intact rather than introducing a new blocked result here.
+  let escalationAllowed = sandboxRepairEscalation && Boolean(repairGithubToken);
+  if (escalationAllowed && options.providerWaitUntil) {
+    try {
+      const overflowWait = await options.providerWaitUntil("github-models");
+      if (overflowWait !== null && now() < overflowWait) escalationAllowed = false;
+    } catch {
+      escalationAllowed = false;
+    }
+  }
+  if (escalationAllowed && repairGithubToken) {
     try {
       const proposal = await githubModelsProposal(request, repairGithubToken, fetchImpl, codingEditProposalPrompt(request));
       return await executeProposal(request, proposal, runtime, publisher);
@@ -1276,11 +1289,35 @@ export async function executeCodingRunner(
       const rateLimitReason = workersAiRateLimitReason(error);
       if (rateLimitReason) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken && !zeroCreditMode) {
+        let midAttemptOverflowAllowed = Boolean(githubToken) && !zeroCreditMode;
+        if (midAttemptOverflowAllowed && options.providerWaitUntil) {
+          try {
+            const overflowWait = await options.providerWaitUntil("github-models");
+            if (overflowWait !== null && now() < overflowWait) midAttemptOverflowAllowed = false;
+          } catch {
+            midAttemptOverflowAllowed = false;
+          }
+        }
+        if (githubToken && midAttemptOverflowAllowed) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
           } catch (fallbackError) {
+            const overflowStop = githubModelsProviderStop(fallbackError, now());
+            if (overflowStop) {
+              const stoppedAt = now();
+              return {
+                status: "BLOCKED_RATE_LIMIT",
+                reason: "WAITING_PROVIDER_CAPACITY",
+                proposalAttempts: Math.max(0, attempt - 1),
+                failureStage: "proposal-parse",
+                provider: "github-models",
+                retryAfterMs: overflowStop.nextRetryAt - stoppedAt,
+                nextRetryAt: overflowStop.nextRetryAt,
+                stopReason: overflowStop.stopReason,
+                resumeCondition: overflowStop.resumeCondition,
+              };
+            }
             return {
               status: "BLOCKED_RATE_LIMIT",
               reason: rateLimitReason,
