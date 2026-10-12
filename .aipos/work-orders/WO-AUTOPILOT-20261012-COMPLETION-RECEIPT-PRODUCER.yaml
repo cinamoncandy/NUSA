@@ -1,0 +1,38 @@
+id: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-PRODUCER
+title: "Produce completion receipt evidence from the verified release chain (issue #2595 items 6 and 8)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: claude/autopilot-receipt-wiring
+branch: claude/autopilot-receipt-producer
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('증거 생산자도 해')"
+scope_note: "Builds evidence from facts other components already verified and posts it to the coordinator from the existing GET /release/status read path. Best-effort: a failure never changes the release answer. No new endpoint, workflow, Risk, credential or authority change."
+objective: "Let a real PR whose release proof chain is complete and whose coding evidence names the same PR and head commit produce a receipt, with runtime verification demanded only for Worker-runtime changes."
+scope:
+  include:
+    - "apps/autopilot/src/completionReceiptProducer.ts and its test"
+    - "apps/autopilot/src/executionCoordinator.ts (recordCompletionReceipt client)"
+    - "apps/autopilot/src/index.ts (receipt step in GET /release/status; additive completionReceipt response field)"
+    - "tests/autopilot-completion-receipt-producer.test.js (Worker runtime scope parity with scripts/autopilot-worker-deploy-scope.js)"
+  exclude:
+    - "Any change to Audit, Release or merge authority; a count/status exposure; synthetic or backfilled receipts."
+limitations:
+  - "Triggered only when someone reads GET /release/status?pr=N for a completed release; there is no scheduler. No receipt exists until a real eligible PR is released and read, so AUTOPILOT_VERIFIED_COMPLETION_LOOP stays false."
+  - "CI and Audit are taken from RELEASE_COMPLETE plus the repository rule that the release authorization is issued only after exact-head CI and Audit; they are not re-fetched. attempts=1 and maxAttempts=3 are fixed policy values, not measured."
+  - "The Worker needs its normal deploy before the path exists at runtime."
+acceptance:
+  - "Evidence is built only for RELEASE_COMPLETE with matching PR number and head commit; docs-only changes need no runtime check; Worker-runtime changes need a descendant deployed revision; lookup failures yield missing evidence, never a guess; scope parity with the deploy script is pinned."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/completionReceiptProducer.test.js dist/apps/autopilot/src/executionCoordinator.test.js dist/apps/autopilot/src/index.test.js"
+  - "node --test tests/autopilot-completion-receipt-producer.test.js tests/autopilot-control-plane-wiring.test.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release; Worker deploy; a real eligible PR to produce the first receipt."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

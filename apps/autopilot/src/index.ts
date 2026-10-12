@@ -4,6 +4,7 @@ import { resolveCanonicalPrCiForReady } from "./githubCanonicalPrCiResolver";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { resolveGithubReleaseCompletion } from "./githubReleaseCompletionResolver";
+import { buildCompletionReceiptEvidence, changesWorkerRuntime, observeWorkerRuntime } from "./completionReceiptProducer";
 import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
 import { CodingRunnerEvidenceError, CodingRunnerHttpEvidenceError, executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { prepareProductionExecution, reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
@@ -21,6 +22,7 @@ import {
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
   readCodingExecutionEvidence,
+  recordCompletionReceipt,
   recordCodingExecutionEvidence,
   releasePersistentExecution,
   recoverPersistentAuditDispatch,
@@ -411,11 +413,23 @@ export default {
       const prNumber = Number(url.searchParams.get("pr"));
       const release = await resolveGithubReleaseCompletion(prNumber, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
       let verifiedWorkerOutcome = null;
+      let completionReceipt: Awaited<ReturnType<typeof recordCompletionReceipt>> | null = null;
       if (env.NUSA_EXECUTION_COORDINATOR) {
         try {
           const coding = await readCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR);
           const evidence = [...coding.history].reverse().find((candidate) => candidate.outcome.pullRequestNumber === prNumber) ?? null;
           if (evidence?.outcome.commitSha) {
+            try {
+              // Receipts are best-effort evidence recording: a failure here never changes the release answer.
+              const needsRuntime = changesWorkerRuntime(evidence.outcome.changedFiles);
+              const runtime = needsRuntime && release.status === "RELEASE_COMPLETE"
+                ? await observeWorkerRuntime(env.NUSA_DEPLOYMENT_REVISION, release.mergedSha, { token: env.NUSA_GITHUB_TOKEN, allowedRepository })
+                : null;
+              const receiptEvidence = buildCompletionReceiptEvidence(evidence, release, runtime);
+              if (receiptEvidence) completionReceipt = await recordCompletionReceipt(env.NUSA_EXECUTION_COORDINATOR, receiptEvidence);
+            } catch {
+              completionReceipt = null;
+            }
             const completions = await readActiveWipCompletions(env.NUSA_EXECUTION_COORDINATOR);
             const completion = [...completions].reverse().find((candidate) => candidate.executionId === evidence.request.executionId) ?? null;
             const telemetry = await readAutopilotExecutionTelemetry(env.NUSA_EXECUTION_COORDINATOR);
@@ -439,7 +453,7 @@ export default {
         }
       }
       const unavailable = release.reason === "release-github-token-not-configured";
-      return json({ ...release, verifiedWorkerOutcome }, unavailable ? 503 : 200);
+      return json({ ...release, verifiedWorkerOutcome, completionReceipt }, unavailable ? 503 : 200);
     }
 
     if (request.method === "GET" && url.pathname === "/scheduled/status") {

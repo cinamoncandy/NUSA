@@ -171,6 +171,7 @@ const CODING_EVIDENCE_HISTORY_KEY = "coding-execution-evidence-v1";
 const MAX_CODING_EVIDENCE = 32;
 const COMPLETION_RECEIPT_HISTORY_KEY = "autopilot-completion-receipts-v1";
 const MAX_COMPLETION_RECEIPTS = 64;
+const COMPLETION_RECEIPT_COORDINATOR_KEY = "autopilot-completion-receipts";
 const AUTOPILOT_TELEMETRY_COORDINATOR_KEY = "autopilot-execution-telemetry";
 const AUTOPILOT_TELEMETRY_HISTORY_KEY = "autopilot-execution-telemetry-v1";
 const MAX_AUTOPILOT_TELEMETRY = 120;
@@ -1352,6 +1353,32 @@ export async function readCodingExecutionEvidence(namespace: ExecutionCoordinato
   if (latest !== null && JSON.stringify(body.evidence) !== JSON.stringify(latest)) throw new Error("CODING_EVIDENCE_READ_INVALID");
   if (latest === null && body.evidence != null) throw new Error("CODING_EVIDENCE_READ_INVALID");
   return Object.freeze({ evidence: latest, history: Object.freeze([...history]) });
+}
+
+export interface CompletionReceiptRecordResult {
+  readonly recorded: boolean;
+  readonly duplicate: boolean;
+  readonly classification: string;
+  readonly receiptId: string | null;
+  readonly missing: readonly string[];
+}
+
+export async function recordCompletionReceipt(namespace: ExecutionCoordinatorNamespace, evidence: unknown): Promise<CompletionReceiptRecordResult> {
+  const stub = namespace.get(namespace.idFromName(COMPLETION_RECEIPT_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/completion-receipt", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ evidence }),
+  });
+  if (!response.ok) throw new Error("COMPLETION_RECEIPT_RECORD_FAILED");
+  const body = await response.json() as { recorded?: unknown; duplicate?: unknown; classification?: unknown; receiptId?: unknown; missing?: unknown };
+  return Object.freeze({
+    recorded: body.recorded === true,
+    duplicate: body.duplicate === true,
+    classification: typeof body.classification === "string" ? body.classification : "UNKNOWN",
+    receiptId: typeof body.receiptId === "string" ? body.receiptId : null,
+    missing: Array.isArray(body.missing) ? body.missing.filter((item): item is string => typeof item === "string") : [],
+  });
 }
 
 export async function recordAutopilotExecutionTelemetry(namespace: ExecutionCoordinatorNamespace, telemetry: AutopilotExecutionTelemetry): Promise<void> {
