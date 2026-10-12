@@ -1,0 +1,32 @@
+id: WO-DOCS-20261012-DOKKEBI-RENAME-PHASE2-INVENTORY
+title: "Inventory and migration plan for renaming NUSA to Dokkebi and AIPOS to Dokkebiteo"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/rename-phase2-inventory
+authority_impact: none
+owner_approval: "2026-10-12 in chat (internal identifiers too; AIPOS named 도깨비터 / Dokkebiteo)"
+scope_note: "Design document only. Nothing is renamed; the plan keeps old and new names side by side until every consumer is verified."
+objective: "Measure what the rename touches, classify each group by risk, and propose a reversible order, flagging the items that only the owner can change (branch protection, release app, DNS/Cloudflare, app identifiers)."
+scope:
+  include:
+    - "docs/DOKKEBI_RENAME_PHASE2_INVENTORY.md"
+  exclude:
+    - "Any rename, config, workflow, protection-rule or identifier change."
+limitations:
+  - "Counts are git grep measurements on 2026-10-12 main; names held in external services are not visible from the repository."
+acceptance:
+  - "The document records the chosen names, the measured scale, a disposition and risk per group, the proposed order, and the owner decisions."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Owner decisions, then separate work orders per group, exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

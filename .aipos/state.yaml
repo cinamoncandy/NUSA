@@ -3198,3 +3198,12 @@ current_autopilot_light_task_gate:
   branch: claude/autopilot-light-task-gate-impl
   authority_impact: none
   finding: "A coding proposal or exact-edit patch over 150 added plus removed lines is now rejected as CODING_PROPOSAL_TOO_LARGE (existing reason, classification and bounded retry); the existing single-file rule already exceeds the design's 3-file default. Needs a Worker deploy to take effect."
+
+current_docs_dokkebi_rename_phase2_inventory:
+  work_order: WO-DOCS-20261012-DOKKEBI-RENAME-PHASE2-INVENTORY
+  status: READY_FOR_REVIEW
+  branch: claude/rename-phase2-inventory
+  authority_impact: none
+  finding: "Names chosen: product Dokkebi, AIPOS Dokkebiteo (도깨비터). About 1,350 files, 304 NUSA_* variables, about 120 file names and external names (required check, release app, hostnames, app ids) are involved. The plan renames in reversible steps with old and new side by side; app ids and productName are proposed to stay; past records are not edited."
+  next: "Owner answers the five decisions in the inventory (AIPOS folder rename, app ids, hostnames, required check and release app, history policy)."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
