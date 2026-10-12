@@ -1,4 +1,5 @@
 import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
+import { evaluateOwnerGateForEnv } from "./ownerActivityGate";
 import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordCodingExecutionEvidence, recordProviderCapacityWait, releasePersistentExecution } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import { reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
@@ -133,6 +134,20 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
 
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
+    // New coding work starts only while the watched owner account is quiet; the gate is off unless explicitly enabled.
+    const ownerGate = await evaluateOwnerGateForEnv(env, allowedRepository, Date.now());
+    if (ownerGate) {
+      return json({
+        accepted: false,
+        status: "CODING_PROPOSAL_FAILED_CLOSED",
+        error: "OWNER_ACTIVE",
+        ownerGate: ownerGate.reason,
+        remediationDecision: decideCodingRunnerNoAction("OWNER_ACTIVE", 0, 3),
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }, 409);
+    }
     const capture = new ProposalCaptureRuntime();
     const coordinator = env.NUSA_EXECUTION_COORDINATOR;
     const result = await executeCodingRunner(runnerRequest, env, undefined, capture, undefined, {
