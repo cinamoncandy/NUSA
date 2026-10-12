@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, readProviderCapacityWait, recordProviderCapacityWait, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, recoverPersistentAuditDispatch, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, readProviderCapacityWait, recordProviderCapacityWait, reservePaidOverflowCall, utcDayKey, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, recoverPersistentAuditDispatch, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -508,6 +508,74 @@ describe("persistent control-plane HOLD", () => {
     assert.equal((await post({ ...base, maxConcurrent: 9 })).status, 400);
   });
 
+});
+
+// idFromName-aware namespace: the production helpers isolate state per Durable Object id, so a
+// stub that collapses every id into one coordinator cannot express provider/day isolation at all.
+function keyedMemoryNamespace(): ExecutionCoordinatorNamespace {
+  const coordinators = new Map<string, ExecutionCoordinator>();
+  const namespace = {
+    idFromName: (name: string) => name,
+    get: (id: unknown) => {
+      const key = String(id);
+      let coordinator = coordinators.get(key);
+      if (!coordinator) {
+        coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+        coordinators.set(key, coordinator);
+      }
+      const bound = coordinator;
+      return { fetch: (input: RequestInfo | URL, init?: RequestInit) => bound.fetch(new Request(input, init)) };
+    },
+  };
+  return namespace as unknown as ExecutionCoordinatorNamespace;
+}
+
+describe("paid overflow daily cap", () => {
+  it("reserves atomically up to the cap and refuses beyond it", async () => {
+    const ns = memoryNamespace();
+    const input = { provider: "github-models", day: "2026-10-12", cap: 2 };
+    assert.equal(await reservePaidOverflowCall(ns, input), true);
+    assert.equal(await reservePaidOverflowCall(ns, input), true);
+    assert.equal(await reservePaidOverflowCall(ns, input), false, "the cap must not be exceeded");
+    assert.equal(await reservePaidOverflowCall(ns, input), false, "a refusal must not consume budget either");
+  });
+
+  it("gives each UTC day and each provider its own budget", async () => {
+    const ns = keyedMemoryNamespace();
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "github-models", day: "2026-10-12", cap: 1 }), true);
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "github-models", day: "2026-10-12", cap: 1 }), false);
+    // A new day resets the count without any cleanup step.
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "github-models", day: "2026-10-13", cap: 1 }), true);
+    // Same day, different provider: an exhausted budget must not spill across providers. This only
+    // means anything against an idFromName-aware namespace.
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "configured-coding-engine", day: "2026-10-12", cap: 1 }), true);
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "configured-coding-engine", day: "2026-10-12", cap: 1 }), false);
+    // ...and the first provider is still exhausted for its own day.
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "github-models", day: "2026-10-12", cap: 1 }), false);
+  });
+
+  it("refuses concurrent reservations past the cap instead of letting both spend", async () => {
+    const ns = memoryNamespace();
+    const input = { provider: "github-models", day: "2026-10-12", cap: 3 };
+    const granted = (await Promise.all(Array.from({ length: 8 }, () => reservePaidOverflowCall(ns, input)))).filter(Boolean);
+    assert.equal(granted.length, 3, "exactly the cap may be granted across concurrent callers");
+  });
+
+  it("rejects a malformed cap or day rather than granting spend", async () => {
+    const ns = memoryNamespace();
+    for (const bad of [
+      { provider: "github-models", day: "12-10-2026", cap: 1 },
+      { provider: "github-models", day: "2026-10-12", cap: -1 },
+      { provider: "github-models", day: "2026-10-12", cap: 1.5 },
+    ]) {
+      await assert.rejects(() => reservePaidOverflowCall(ns, bad), /PAID_OVERFLOW_RESERVE_FAILED/);
+    }
+  });
+
+  it("derives the UTC day key the cap and the provider stop share", () => {
+    assert.equal(utcDayKey(Date.UTC(2026, 9, 12, 23, 59, 59)), "2026-10-12");
+    assert.equal(utcDayKey(Date.UTC(2026, 9, 13, 0, 0, 0)), "2026-10-13");
+  });
 });
 
 describe("provider capacity wait", () => {
