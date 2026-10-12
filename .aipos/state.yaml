@@ -3180,3 +3180,10 @@ current_autopilot_completion_receipt_design:
   branch: claude/autopilot-completion-receipt
   authority_impact: none
   finding: "A design proposes one immutable completion receipt composed from existing evidence, remediation, execution-state and release-completion components; VALID_NO_ACTION never counts as verified useful completion. The four owner decisions took the recommended defaults (existing coordinator record, worker-runtime-scope required, release-app approval as Audit source, count-only exposure later); no receipt exists and the verified-completion flag stays false."
+
+current_docs_claude_handoff:
+  work_order: WO-DOCS-20261012-CLAUDE-HANDOFF
+  status: READY_FOR_REVIEW
+  branch: claude/claude-handoff
+  authority_impact: none
+  finding: "CLAUDE.md defers to AGENTS.md, and a dated handoff note records the current open PRs, unfinished work and owner decisions for a new Claude session."
