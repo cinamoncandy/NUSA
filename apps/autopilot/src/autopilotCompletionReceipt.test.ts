@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { classifyAutopilotCompletion, type AutopilotCompletionEvidence } from "./autopilotCompletionReceipt";
+import { classifyAutopilotCompletion, parseAutopilotCompletionEvidence, type AutopilotCompletionEvidence } from "./autopilotCompletionReceipt";
 
 const HEAD = "a".repeat(40);
 const MERGED = "c".repeat(40);
@@ -80,5 +80,32 @@ describe("classifyAutopilotCompletion", () => {
     const r = classify({ ...complete(), audit: { independentApproval: true, auditedHeadSha: HEAD, approvedByAppId: null } });
     assert.equal(r.classification, "INCOMPLETE");
     assert.ok(r.missing.includes("audit.trustedApp"));
+  });
+});
+
+describe("parseAutopilotCompletionEvidence", () => {
+  it("parses complete evidence and treats absent optional fields as missing, not as passing", () => {
+    const parsed = parseAutopilotCompletionEvidence(JSON.parse(JSON.stringify(complete())));
+    assert.ok(parsed);
+    const sparse = parseAutopilotCompletionEvidence({ ...JSON.parse(JSON.stringify(complete())), ci: {}, release: {} });
+    assert.ok(sparse);
+    const r = classifyAutopilotCompletion(sparse, POLICY);
+    assert.equal(r.classification, "INCOMPLETE");
+    assert.ok(r.missing.includes("ci.success") && r.missing.includes("release.complete"));
+  });
+
+  it("rejects non-objects, unknown outcomes and oversized file lists", () => {
+    assert.equal(parseAutopilotCompletionEvidence(null), null);
+    assert.equal(parseAutopilotCompletionEvidence({}), null);
+    assert.equal(parseAutopilotCompletionEvidence({ ...complete(), remediation: { outcome: "WHATEVER", attempts: 0, maxAttempts: 3 } }), null);
+    assert.equal(parseAutopilotCompletionEvidence({ ...complete(), change: { headSha: HEAD, changedFiles: Array.from({ length: 201 }, () => "a.ts"), pullRequestNumber: 1 } }), null);
+  });
+
+  it("does not let a missing productionMutationAllowed flag pass as fail-closed", () => {
+    const body = JSON.parse(JSON.stringify(complete())) as Record<string, unknown>;
+    delete body.productionMutationAllowed;
+    const parsed = parseAutopilotCompletionEvidence(body);
+    assert.ok(parsed);
+    assert.equal(classifyAutopilotCompletion(parsed, POLICY).classification, "BLOCKED");
   });
 });
