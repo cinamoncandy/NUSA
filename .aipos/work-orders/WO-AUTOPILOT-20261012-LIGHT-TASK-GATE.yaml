@@ -1,0 +1,35 @@
+id: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE
+title: "Limit an Autopilot coding proposal to 150 changed lines"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-light-task-gate-impl
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('기본값으로 구현해' for the light-task design)"
+scope_note: "One constant, one counting function and two checks in codingRunner.ts plus tests. The check only rejects more proposals; no Worker route, config, workflow, Risk or authority change."
+objective: "Make Autopilot take light work only: reject a proposal or exact-edit patch whose added plus removed lines exceed 150, reusing the existing CODING_PROPOSAL_TOO_LARGE reason, its PROPOSAL_REJECTED/REGENERATE_PROPOSAL classification and the bounded retry budget."
+scope:
+  include:
+    - "apps/autopilot/src/codingRunner.ts (MAX_CODING_CHANGED_LINES, countChangedPatchLines, checks in validateCodingProposal and buildDeterministicCodingPatch)"
+    - "apps/autopilot/src/codingRunner.test.ts"
+  exclude:
+    - "Deploy-config limits, queue ordering by effort, automatic hand-off of large work, and any change to CI, Audit, release, merge or deploy."
+limitations:
+  - "Deviates from docs/AUTOPILOT_LIGHT_TASK_GATE_DESIGN.md in two intended ways: the 150-line limit is a code constant (changing it needs a reviewed PR, which is stricter than deploy config), and no file-count limit is added because the existing rule already requires exactly one file per proposal (stricter than 3). The publish path already accepts exactly one file."
+  - "Line count is a size proxy, not risk. The Worker needs its normal deploy for the limit to take effect at runtime."
+acceptance:
+  - "A patch with exactly 150 changed lines passes and 151 is rejected with CODING_PROPOSAL_TOO_LARGE, for both a model patch and a patch built from an exact edit; file headers are not counted; the single-file rule still holds."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/codingRunner.test.js dist/apps/autopilot/src/codingRunnerRemediation.test.js dist/apps/autopilot/src/worker.test.js dist/apps/autopilot/src/index.test.js"
+  - "node --test tests/autopilot-control-plane-wiring.test.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release; Worker deploy."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

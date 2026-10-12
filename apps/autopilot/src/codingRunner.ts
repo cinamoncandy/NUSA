@@ -217,6 +217,8 @@ const GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference/chat/completi
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_EDIT_TEXT_BYTES = 8_000;
+/** Autopilot takes light work only: at most this many added plus removed lines per proposal (docs/AUTOPILOT_LIGHT_TASK_GATE_DESIGN.md). */
+export const MAX_CODING_CHANGED_LINES = 150;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const MAX_CODING_PROPOSAL_CONTEXT_BYTES = 20_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 60_000;
@@ -378,7 +380,17 @@ function validateCodingEdit(value: unknown): CodingEdit {
   return Object.freeze({ path, expectedText, replacementText });
 }
 
-function validateCodingProposal(value: unknown): CodingProposal {
+/** Counts added and removed lines of a unified diff, excluding the file headers. */
+export function countChangedPatchLines(patch: string): number {
+  let count = 0;
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
+    if (line.startsWith("+") || line.startsWith("-")) count += 1;
+  }
+  return count;
+}
+
+export function validateCodingProposal(value: unknown): CodingProposal {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("CODING_PROPOSAL_INVALID");
   const proposal = value as Record<string, unknown>;
   const hasPatch = Object.prototype.hasOwnProperty.call(proposal, "patch") && proposal.patch !== undefined && proposal.patch !== null;
@@ -390,6 +402,7 @@ function validateCodingProposal(value: unknown): CodingProposal {
   }
   if (typeof proposal.patch !== "string") throw new Error("CODING_PROPOSAL_INVALID");
   if (new TextEncoder().encode(proposal.patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (countChangedPatchLines(proposal.patch) > MAX_CODING_CHANGED_LINES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
   if (/liveAuthority|productionMutationAllowed|aiAuthority|NUSA_|wrangler|\.github\//i.test(proposal.patch)) {
     throw new Error("CODING_PROPOSAL_AUTHORITY_SURFACE_FORBIDDEN");
   }
@@ -450,6 +463,7 @@ export function buildDeterministicCodingPatch(context: CodingProposalContext, ed
     "",
   ].join("\n");
   if (new TextEncoder().encode(patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (countChangedPatchLines(patch) > MAX_CODING_CHANGED_LINES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
   return patch;
 }
 

@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { buildDeterministicCodingPatch, CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
+import { buildDeterministicCodingPatch, countChangedPatchLines, MAX_CODING_CHANGED_LINES, validateCodingProposal, CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { classifyCodingRunnerFailure } from "./codingRunnerFailureClass";
 
 const request = {
@@ -1672,5 +1672,47 @@ describe("coding runner workflow failure evidence", () => {
       assert.equal(aiCalls, 1);
       assert.equal(result.status, "EXECUTION_ACCEPTED");
     });
+  });
+});
+
+describe("light-task size limit", () => {
+  const patchWith = (added: number, removed: number): string => [
+    "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+    "--- a/apps/autopilot/src/example.ts",
+    "+++ b/apps/autopilot/src/example.ts",
+    "@@ -1,1 +1,1 @@",
+    ...Array.from({ length: removed }, (_, i) => `-const old${i} = 1;`),
+    ...Array.from({ length: added }, (_, i) => `+const next${i} = 2;`),
+    "",
+  ].join("\n");
+
+  it("counts added and removed lines and ignores the file headers", () => {
+    assert.equal(countChangedPatchLines(patchWith(3, 2)), 5);
+    assert.equal(countChangedPatchLines("--- a/x\n+++ b/x\n"), 0);
+    assert.equal(MAX_CODING_CHANGED_LINES, 150);
+  });
+
+  it("accepts exactly the limit and rejects one line more with the existing too-large reason", () => {
+    assert.deepEqual(Object.keys(validateCodingProposal({ patch: patchWith(75, 75) })), ["patch"]);
+    assert.throws(() => validateCodingProposal({ patch: patchWith(76, 75) }), /CODING_PROPOSAL_TOO_LARGE/);
+    assert.throws(() => validateCodingProposal({ patch: patchWith(151, 0) }), /CODING_PROPOSAL_TOO_LARGE/);
+  });
+
+  it("applies the same limit to a patch built from an exact edit", () => {
+    const content = "export const before = true;\nexport const oldValue = true;\nexport const after = true;\n";
+    const context = { path: "apps/autopilot/src/example.ts", startLine: 1, content };
+    const edit = (lines: number) => ({
+      path: context.path,
+      expectedText: "export const oldValue = true;",
+      replacementText: Array.from({ length: lines }, (_, i) => `export const v${i} = 1;`).join("\n"),
+    });
+    // one removed line plus 149 added lines is exactly 150 and passes; 150 added lines makes 151 and is rejected
+    assert.doesNotThrow(() => buildDeterministicCodingPatch(context, edit(149)));
+    assert.throws(() => buildDeterministicCodingPatch(context, edit(150)), /CODING_PROPOSAL_TOO_LARGE/);
+  });
+
+  it("keeps the existing single-file rule, which is stricter than the three-file default", () => {
+    const twoFiles = `${patchWith(1, 1)}diff --git a/apps/autopilot/src/other.ts b/apps/autopilot/src/other.ts\n--- a/apps/autopilot/src/other.ts\n+++ b/apps/autopilot/src/other.ts\n@@ -1 +1 @@\n-a\n+b\n`;
+    assert.throws(() => validateCodingProposal({ patch: twoFiles }), /CODING_PROPOSAL_PATH_INVALID/);
   });
 });
