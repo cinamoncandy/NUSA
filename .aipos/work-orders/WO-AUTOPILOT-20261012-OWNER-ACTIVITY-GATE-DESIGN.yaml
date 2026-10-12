@@ -1,0 +1,33 @@
+id: WO-AUTOPILOT-20261012-OWNER-ACTIVITY-GATE-DESIGN
+title: "Design an owner-activity gate so Autopilot starts new coding work only after the owner has been quiet"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-owner-activity-gate-design
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('기본값으로 설계해')"
+scope_note: "Design document only. The gate would only reduce what Autopilot does; no code, config, workflow, Risk or authority change."
+objective: "Specify a fail-closed gate evaluated before a new coding execution lease is taken, based on activity by the owner account (AI and automation use separate accounts, owner decision), with a 60 minute quiet window."
+scope:
+  include:
+    - "docs/AUTOPILOT_OWNER_ACTIVITY_GATE_DESIGN.md"
+  exclude:
+    - "Any implementation; gating CI, Audit, release, merge, deploy or status reads; any change to Audit, Release or merge authority."
+limitations:
+  - "Account separation is a prerequisite: if any AI or automation token still uses the owner account the gate stays closed. The gate checks only the Worker token itself (GET /user). Local unpushed work is invisible to the gate."
+  - "Design only: nothing is implemented and Autopilot currently ignores owner activity."
+acceptance:
+  - "The document states the defaults, the account-separation prerequisite and its fail-closed direction, the two gate points, the OWNER_ACTIVE wait semantics that spend no retry budget, configuration, test criteria and the open owner decisions."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Owner decisions, then a separate implementation work order, exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
