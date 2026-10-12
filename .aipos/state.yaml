@@ -3180,3 +3180,12 @@ current_autopilot_preflight_credit_posture:
   branch: claude/preflight-credit-posture
   authority_impact: none
   finding: "After #2632 the deploy gate passes, but the trusted Credential Preflight still hardcoded zeroCreditMode ENFORCED; it now derives the expectation from the deploy workflow's NUSA_ZERO_CREDIT_MODE."
+
+current_research_breakout_walkforward:
+  work_order: WO-RESEARCH-20261013-BREAKOUT-WALKFORWARD
+  status: READY_FOR_REVIEW
+  branch: claude/research-breakout-walkforward
+  authority_impact: none
+  finding: "Over six consecutive 42-day windows, long-only breakouts (N=20/50/100) failed the pre-registered pass rule: 2-3 positive windows, negative average in DOWN windows, and 2x-cost survival in only 2 windows. The earlier all-positive last third came almost entirely from one +17% rally window. Not promotion evidence; no candidate is proposed for deployment."
+  next: "Optional: rerun the same fixed rule on 1+ year of history and pre-register a regime-signal variant before any Research experiment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
