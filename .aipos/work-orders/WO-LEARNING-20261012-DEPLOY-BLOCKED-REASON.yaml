@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON
 title: "Identify the Autopilot readiness failure that rolls back a healthy PAPER deployment"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: MERGED
 priority: P0
 issue: 1605
 owner: nusa-development
@@ -35,5 +35,8 @@ safety:
 validation:
   targeted: "PASS 24 tests including unknown/provider text redaction and BLOCKED/STOPPED/corrupt/stale/unsafe rejection."
   local: "Node 24.18.0 / pnpm 11.7.0 frozen lockfile install, lint, typecheck, build, validate:full and security gate PASS; zero secrets or unmitigated high/critical."
-  external: "New exact-head CI, independent review, canonical Audit/Release and real deployment remain required. Parent 1190-file suite is not new-head evidence."
-next: "Publish bounded diagnostics through fresh CI and independent review, canonical Audit/Release, then exact-main Oracle release to obtain the real blocker."
+  full_test: "pnpm test PASS 1191 isolated test files at exact head 0fadb6d4."
+  external: "PR 2621 exact-head CI 38189228942 and companions PASS; independent review no actionable findings; canonical Audit/Release 38189604578 PASS; merge d6725778260d06a2308152f6c59d38f7ad64cc1b; post-merge CI 38189676183 PASS."
+  runtime: "Oracle PAPER Release 38190048366 PASS on exact main d6725778; PAPER ready and Autopilot IDLE/RESTORED; public source matches, ticks advance, no current error. Prior BLOCKED cause remains unknown."
+runtime_evidence: .aipos/evidence/WO-LEARNING-20261012-RUNTIME-DEPLOYMENT.json
+next: "WAITING_REAL_EVIDENCE: canonical 30-second scheduler runs; natural KST rollover, real cycle/Research and successor receipts still required. cyclesRecorded=0 is not closed-loop completion."

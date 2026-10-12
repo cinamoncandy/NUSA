@@ -1,0 +1,37 @@
+id: WO-LEARNING-20261012-PROGRESS-TRUTH
+title: "Make learning progress replay-safe and expose next-evaluation eligibility"
+status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_FRESH_CI
+priority: P1
+base_commit: 957ef5385969f4f12b1310c4519c8654f3a67aed
+implementation_branch: codex/learning-loop-progress-20261012
+authority_impact: none
+risk: LOW
+objective: "Improve measurable learning progress without changing Research, PAPER, promotion or scheduling policy."
+observed_gap:
+  - "A REPLAYED cycle carrying an existing deployment receipt increments the display deployment count."
+  - "Actual health is waiting for KST rollover but retains historical failure, without explicit current-block or eligibility fields."
+scope:
+  - "Do not count replayed deployment receipts as new deployment events."
+  - "Expose current fixed-code block separately from historical failure."
+  - "Display next KST eligibility only for a valid open period and waiting state; never a promised cycle or scheduling input."
+verification_commands:
+  - "pnpm run build"
+  - "node --test tests/closed-learning-loop-status.test.js tests/closed-learning-progress-truth.test.js"
+  - "node --test tests/cloud-runtime-liveness-health.test.js"
+  - "pnpm run typecheck"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "pnpm run lint"
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  paper_only: true
+validation:
+  targeted: "PASS 50 tests including actual /health publication, bounded fixed-code/UTC-midnight filtering, replay versus real deployment, current/historical error, invalid/future/elapsed time and withdrawal."
+  gates: "Build, typecheck, validate:full, security:gate PASS; pnpm lint PASS with existing unrelated warnings. Root eslint does not configure cloud TS; typecheck/build cover it."
+  external: "Previous head44fd704c CI38191425978 and companions PASS, not new synchronized-head approval. After synchronization: 50 learning/HTTP plus38 Audit tests/build/typecheck/validate:full/security PASS."
+  audit: "38191846340 FAIL UNVERIFIED_CLOSED_LOOP; scope clarification plus one bounded fresh review 38207700626 FAIL/safety FAIL, claiming previous invalid JSON/incompatibility without reproduction. Both verdicts preserved; no gate weakening or approval fabrication."
+  unverified: "Valid independent Audit PASS, Release, merge and upgraded runtime remain required. Actual cycles0 is not completed learning."
+review_correction: "Independent review found public health projection omitted new fields. Reused existing projection with strict bounds and actual HTTP tests; no gate weakening. Initial test fixture port 0 was rejected by existing contract, corrected to a unique localhost port."
+next: "Merged Audit repair dependency synchronized without history rewrite. New exact-head validation/CI and fresh deployed-Audit verdict required; prior FAIL remains recorded."

@@ -1,6 +1,9 @@
 id: WO-AUDIT-20261012-REPAIR-CONTEXT
 title: "Separate model response repair feedback from repository evidence"
-status: LOCAL_VALIDATED_PENDING_REVIEW
+status: MERGED
+pull_request: 2623
+merge_commit: 957ef5385969f4f12b1310c4519c8654f3a67aed
+external_evidence: "Exact head20c1584d CI38209662232 and companions PASS; independent38-test review no actionable findings; canonical Audit38210084371 PASS and expected-head merge. Actual Worker update pending."
 priority: P1
 base_commit: d6725778260d06a2308152f6c59d38f7ad64cc1b
 implementation_branch: codex/audit-repair-context-provenance-20261012
