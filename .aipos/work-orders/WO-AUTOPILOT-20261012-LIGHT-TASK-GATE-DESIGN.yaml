@@ -1,0 +1,32 @@
+id: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE-DESIGN
+title: "Design a light-task size gate so Autopilot only takes small changes"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-light-task-gate-design
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('기본값으로 설계해' after stating Claude is the assistant and Autopilot prioritizes light work)"
+scope_note: "Design document only. The gate would only reduce what Autopilot does; no code, config, workflow, Risk or authority change."
+objective: "Specify a deterministic, fail-closed size limit (150 changed lines as a code constant; the existing exactly-one-file rule already covers file count) checked where proposals are validated, reusing the existing proposal-rejection and bounded-retry semantics. Updated to match the implementation in #2643."
+scope:
+  include:
+    - "docs/AUTOPILOT_LIGHT_TASK_GATE_DESIGN.md"
+  exclude:
+    - "Any implementation; queue ordering by effort; automatic hand-off of large tasks; any change to CI, Audit, release, merge or deploy."
+limitations:
+  - "The implementation is a separate PR (#2643) and needs a Worker deploy. Line count is a proxy for size, not risk."
+acceptance:
+  - "The document states the defaults, where the limit is enforced, how rejection is classified and bounded, the out-of-scope items, test criteria and the open owner decisions."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Owner decisions, then a separate implementation work order, exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

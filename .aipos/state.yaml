@@ -3191,3 +3191,10 @@ current_docs_claude_handoff:
   finding: "CLAUDE.md defers to AGENTS.md; the full handoff (safety, state, open PRs, decisions, blockers, evidence, verification, next permitted actions) lives in the AIPOS handoff file so a new session on any account recovers from the repository."
   next: "Re-verify main, PRs 2637/2638/2639/2633/2586 and runtime health, then continue existing PRs only; see the handoff file for the ordered next permitted actions."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_light_task_gate_design:
+  work_order: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE-DESIGN
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-light-task-gate-design
+  authority_impact: none
+  finding: "Design for a fail-closed size limit (150 changed lines as a code constant; the existing one-file rule covers file count) checked where proposals are validated, updated to match PR 2643; oversize is a proposal rejection with bounded regeneration, never a larger attempt. The assistant Claude takes large work. Queue ordering is out of scope because Autopilot is reactive."
