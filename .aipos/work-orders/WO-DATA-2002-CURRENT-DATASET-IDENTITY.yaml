@@ -1,0 +1,73 @@
+id: WO-DATA-2002-CURRENT-DATASET-IDENTITY
+title: "Converge existing current research dataset identity PR"
+status: COMPLETED
+owner: nusa-data-integrity
+issue: 2002
+pull_request: 2395
+branch: research/current-dataset-identity-2002
+source_main_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
+prior_head_sha: 73bf8956e733e8d430706c1a04df6abe8bbccd2f
+reconvergence_commit: 8899471c3fdbe812abdb8e3d9cc0535aca1bb7ca
+authority_impact: none
+objective: "Bind real-market dataset content and source-owned freshness to current identity before Research qualification, using existing canonical PR only."
+first_broken_transition: "validated current dataset identity -> exact source/market/interval/latest-candle qualification binding"
+verification_commands:
+  - "node --max-old-space-size=1536 node_modules/typescript/bin/tsc -p .aipos/evidence/data-2395-scoped-tsconfig.json"
+  - "node --test tests/research-integrity.test.ts"
+  - "node -r ./tests/register-dist.cjs --test tests/research-real-market-qualification-wiring.test.js"
+  - "pnpm run preflight"
+  - "git diff --check"
+  - "node scripts/aipos-work-order-index.js --check"
+  - "node scripts/validate-aipos-work-order-provenance.js"
+evidence:
+  local_build_failure: "Default Node heap exhausted near 480MiB; 1536MiB whole-project retry was stopped after prolonged resource pressure. Scoped dependency compilation and focused tests PASS; full canonical build remains a fresh exact-head CI gate."
+  metadata_validation: "Work-order index, provenance validator and git diff --check PASS."
+  issue_inventory: "#2011/#2022/#2034 implementation present; #2153 conservative sequence/gap fix plus regression present; final runtime closure pending. #2068 contains future/foreign persistence regression absent in the inspected main file and remains queued after #2395."
+  prior_exact_head_ci: "38095297590 PASS on prior head only; invalid for refreshed head."
+  prior_audit: "38095582184 NO_ACTION authority=NONE because PR base a99da735 did not equal protected main 7cf6a722."
+  prior_runtime: "38095297569 artifact result INCOMPLETE; public ticker smoke PASS, dataset identity/replay acceptance unproven."
+  focused_source_tests: "23/23 PASS: 19 Data Integrity tests and 4 real-market qualification wiring tests."
+  preflight: "PASS: runtime, portability, platform-independent tests, Android contract and strict AIPOS YAML (395 files)."
+  public_dataset_methods: "Canonical Upbit candle mapping, manifest validation/content hashing, source-owned freshness, current identity, replay content hashing and completed-candle PIT bounds. No separate validator implementation."
+  actual_public_dataset: ".aipos/evidence/data-2395-public-dataset-20261011.json: 20 real public KRW-BTC 1d candles, CONTIGUOUS, missing=0, lag=0, CURRENT, same-content replay PASS; source TypeScript transpile read-only execution."
+  deployment_baseline: "38094009683 CONVERGED at source 7cf6a722; release provenance UNKNOWN; Oracle path matches source."
+acceptance:
+  - "Verified content fingerprint and source/market/interval freshness binding."
+  - "Exact completed candle and observation-time continuity; stale/future/mismatch fail closed."
+  - "PIT, train/OOS separation and deterministic replay preserved."
+  - "Local validation, exact-head CI, independent Audit ACCEPTED and governed Release before merge."
+  - "Exact-main actual dataset identity/provenance/currentness/replay evidence before completion."
+remaining: "PR2395 implementation/CI/Audit/Release/protected merge complete. Runtime Learning acceptance is owned by issue1605, not this completed PR."
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+
+review_repair_20261011:
+  prior_head: be6702f1667433c2bdf1b310c36c9891f900afe2
+  actionable_review: "Exact-head review identified qualification comparing only datasetId/content hash. Latest major-issue-free review does not repair this confirmed defect."
+  release_root_cause: "38106367545 preflight found unresolved_review_threads=4 and revoked nusa/release-authorized."
+  repair: "Use canonical CurrentResearchDatasetIdentity type and compare source, market, interval, endCloseTime, actual/expected latest completed candle, strict fresh, zero lag and safe observation time before qualification."
+  validation: "Scoped TypeScript compiler PASS; integrity/qualification 40/40 and wiring 4/4 PASS; preflight, truth, safety, AI authority, provenance and diff checks PASS. Baseline rejects regression with Missing expected exception: source; repaired regression PASS. Prior-head acceptance is not transferred."
+  runtime_read_limit: "Public /health reads timed out twice; process active and deployed symlink 7cf6a722 verified only. No new runtime health/cycle acceptance claimed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_base_reconvergence: "15692d6 main moves only Autopilot tests/state; strict protection requires normal merge. Replayed 44/44 focused tests PASS after merge. Downloaded raw CI artifact moved outside worktree to keep repository portability checks truthful."
+
+ticker_regression_followup_2068_20261011:
+  canonical_pr: 2068
+  protected_main: be703b22e5272d39509352322a4c1264da481a8e
+  existing_branch: market-data/2022-2034-evidence
+  inventory_result: "Not superseded: latest-main runtime wiring tests lack durable rejection coverage for future/foreign tickers."
+  repair: "Normal merge of latest protected main; retained only existing minimal regression and source fingerprint assertions."
+  focused_validation: "4/4 PASS against the actual current deployed exact-main compiled runtime; fixture events are tests, not actual-market acceptance evidence."
+  guards: "Repository portability, platform-independent tests and diff check PASS."
+  remaining: "New exact-head CI, Independent Audit, Release/protected merge; no runtime source modification."
+
+ticker_review_repair_20261011:
+  reviewed_head: 9dcdaa6e0df17a2149cd29de762ad45eb51369f4
+  current_base: ca4f897dd476d1238682a38d618c9569bac19e52
+  assertions: "Persisted timestamp/price and exact canonicalUpbitSourceFingerprint must match the accepted fresh fixture."
+  recovery: "Dedicated current_market_data_ticker_rejection_2068 state entry; PR2395 recorded completed/deployed rather than pending."
+  gates: "Fresh focused regression and exact-head CI/Audit/Release required."

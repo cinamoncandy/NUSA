@@ -1,4 +1,39 @@
 version: 1
+current_audit_repair_context_20261012:
+  work_order: WO-AUDIT-20261012-REPAIR-CONTEXT
+  status: LOCAL_VALIDATED_PENDING_REVIEW
+  blocked_learning_pr: 2622
+  branch: codex/audit-repair-context-provenance-20261012
+  scope: "Model response-format repair is not repository evidence; preserve strict validator and independent FAIL."
+  validation: "38 Audit regression tests, build/typecheck/validate:full/security PASS. No validator or authority change; actual model remediation not proven."
+  next: "Independent exact-diff review then fresh CI and canonical Audit/Release; learning PR2622 still blocked."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_learning_deploy_blocker_20261012:
+  work_order: WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/learning-deploy-diagnostics-20261012
+  base_sha: e05077498a2f608a5eccb3a32b708a6744b76fb6
+  evidence: "Oracle release 38187254866: PAPER readiness PASS; Autopilot BLOCKED, so canonical rollback restored ca4f897d. Actual underlying failure is not exposed."
+  validation: "24 targeted tests PASS; Node 24.18/pnpm 11.7 locked install, lint, typecheck, build, validate:full, security gate PASS. Raw reasons are never printed; stopped/corrupt/stale/unsafe rejections remain tested. CI/Audit/Release and actual rollout unverified."
+  next: "Add only allowlisted readiness failure codes, validate, then CI/Audit/Release and exact-main Oracle deployment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_learning_completion_20261012:
+  work_order: WO-LEARNING-20261012-WRITER-LEASE-LIVENESS
+  issue: 1605
+  pull_request: 2620
+  status: MERGED_INCREMENT_RUNTIME_DEPLOYMENT_PENDING
+  branch: codex/learning-loop-completion-20261012
+  base_sha: 722b487383fe19a8c4e025bb82a6a63da43601f2
+  observed_runtime_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  merge_commit: e05077498a2f608a5eccb3a32b708a6744b76fb6
+  exact_head: 5f11e37d3f6a3bfee5e0c1348009e5babcfd983e
+  exact_head_ci: "38188354988 PASS; required PAPER/safety/read-only checks PASS."
+  audit_release: "38188705466 canonical Audit PASS and expected-head merge; post-merge convergence remains pending."
+  finding: "Rollback of Oracle release 38187254866 restored health 200 on ca4f897d. Current loop WAITING_FOR_KST_DAY_ROLLOVER; historical CANONICAL_FILL_LEDGER_UNAVAILABLE is not current."
+  validation: "Build/typecheck, focused 91/91 plus qualification 6/6, pnpm test 1190 isolated files, validate:full, lint, security and AIPOS checks PASS. Independent review bound to final head: no actionable findings. Real closed-loop completion remains unverified."
+  next: "Resolve the identified deployment dependency through the successor readiness diagnostic, then deploy exact main and verify actual cycle/Research/successor receipts."
+  complete: false
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_paper_runtime_truth_p0:
   work_order: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
   status: CANONICAL_BRANCH_RECOVERED_PENDING_EXACT_HEAD_CI
@@ -3007,13 +3042,13 @@ current_autopilot_2595_bounded_remediation:
   invalid_canary_non_eligible_workflow: "INVALID_CANARY_NON_ELIGIBLE_WORKFLOW: consumer run 38030591763 received a dispatch citing Oracle PAPER Release run 38027432366; worker artifact recorded FAILED_TO_REMEDIATE after exactly three SANDBOX_PATCH_* proposal rejections. Preserve as evidence of worker consumption, retry cap enforcement, and the eligibility boundary defect only; do not count as Verified Useful Completion."
   validation: "The published increment is committed and workflow-validated. The existing #903 worker now requires the pinned CI workflow identity, exact run/repository/current-main SHA, and an allowlisted Typecheck/Build/Lint failed step before remediation; deterministic regression coverage proves cancelled and timed-out CI conclusions stop before job inspection or coding inference."
   remaining: "Exact-head CI, Independent Audit, and governed Release; then exact-main deployment and Oracle/Autopilot runtime SHA/health proof; then one real allowlisted actionable coding-failure canary through patch, focused validation, PR, exact-head CI, independent Audit, governed Release/merge, and durable completion receipt."
-  successor_branch: autopilot/codex/issue-2595-38095822093
-  successor_base_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
-  successor_pull_request: 2618
-  successor_head_sha: 58adc3b6a533d43c7e7ef989fa46e74aba7f638d
-  successor_status: EXACT_HEAD_CI_PASS_AUDIT_PASS_RELEASE_PREFLIGHT_REVIEW_FINDING_OPEN
-  successor_first_broken_transition: "failed workflow identity -> remediation eligibility"
-  next_permitted_action: "Resolve PR #2618 exact-head review finding, then rerun exact-head CI and Independent Audit and obtain governed Release before exact-main deployment or real-canary receipt collection."
+  predecessor_branch: autopilot/codex/issue-2595-38095822093
+  predecessor_base_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+  predecessor_pull_request: 2618
+  predecessor_head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
+  predecessor_status: MERGED_PREDECESSOR_CLOUDFLARE_RUNTIME_VERIFIED
+  predecessor_first_broken_transition: "failed workflow identity -> remediation eligibility"
+  next_permitted_action: "Continue current diagnostics residual below with fresh exact-head CI/Audit/Release; predecessor #2618 is merged and its Cloudflare runtime is verified."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_issue_1605_market_observation_retention:
   work_order: WO-ISSUE-1605-MARKET-OBSERVATION-RETENTION
@@ -3026,4 +3061,74 @@ current_issue_1605_market_observation_retention:
   scope: "Protect benchmark observations for canonical research_paper_forward_period_pending lifetime; malformed/unreadable protection state fails closed without pruning."
   validation: "Initial exact-head CI 38044178206 PASS; Codex review found the first implementation queried a legacy OPEN-period table and lacked durable AIPOS evidence. Same-branch repair targets canonical pending storage and adds work-order/state evidence."
   remaining: "Fresh exact-head CI, Independent Audit, canonical Release/merge, exact-main runtime retention/restart evidence, then learning-loop successor stages."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_2595_decision_diagnostics:
+  issue: 2595
+  pull_request: 2619
+  predecessor_pull_request: 2618
+  predecessor_governed_evidence:
+    pull_request: 2618
+    head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
+    base_sha: 7cf6a722c0004362698fc146f3ad546c1e541d1c
+    ci_run_id: 38110715952
+    audit_release_run_id: 38111004681
+    merge_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
+    cloudflare_runtime_proof_run_id: 38111417131
+    cloudflare_runtime_sha: 15692d6cc870ff1dd126a902e577a95cad91e9dc
+    meaning: PREDECESSOR_EVIDENCE_ONLY_NOT_CURRENT_DIAGNOSTICS_ACCEPTANCE
+  work_order: WO-AUTOPILOT-20261009-BOUNDED-REMEDIATION
+  branch: fix/2595-remediation-decision-diagnostics
+  base_sha: be703b22e5272d39509352322a4c1264da481a8e
+  implementation_commit: c608fb11c645787b30d5afadcef53f6f512907a3
+  focused_validation_head: c8dcf638710b9c7dc6fed9b97404397416ee6d8e
+  current_main_build_typecheck_validation_head: c1f59727db893d9c5aaa40653e986dcf02f7c1d4
+  published_head_binding: REQUIRE_FRESH_EXACT_HEAD_CI_AUDIT_RELEASE_IN_CANONICAL_PR_RECEIPT
+  prior_increment_head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
+  status: LOCAL_VALIDATION_PASS_EXACT_HEAD_GATES_PENDING
+  first_broken_transition: "locally validated diagnostics increment -> fresh exact-head CI and independent Audit"
+  validation: "Current-main be703b22: dispatcher/consumer and canonical Autopilot suite 143/143 PASS; full build, typecheck and preflight PASS. Prior unchanged diagnostics paths: validate:full and changed-file lint PASS. YAML/provenance PASS. PR2619 first CI 38129284192 failed on a non-secret test credential fixture; explicit example-key placeholder repair passed dispatcher/consumer 50/50, lint and security gate (zero findings). Independent review repair: effective terminal recovery STOP retained separately from rejected diagnostics; valid provider retry/exhaustion retains transport and upstream HTTP status. Dispatcher/consumer 52/52 PASS; focused changed-file lint and preflight PASS. Fresh exact-head CI remains required."
+  next_permitted_action: "Publish the locally validated diagnostics residual on the existing diagnostics branch; independent Audit, canonical Release and naturally eligible canary remain required."
+  AUTOPILOT_VERIFIED_COMPLETION_LOOP: false
+  VERIFIED: false
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+completed_data_2002_dataset_identity:
+  work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
+  pull_request: 2395
+  branch: research/current-dataset-identity-2002
+  status: COMPLETED_IMPLEMENTATION
+  protected_merge_sha: be703b22e5272d39509352322a4c1264da481a8e
+  evidence: "Exact-head CI/Audit/Release and protected merge complete; actual deployed dataset handoff recorded. Historical receipts are not current Learning acceptance."
+  remaining: "No active PR2395 implementation gate. Actual Learning retention/benchmark acceptance belongs to #1605."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_iterative_investment_learning_20261011:
+  owner: nusa-data-integrity
+  completed_pr: 2395
+  canonical_learning_issue: 1605
+  source_main_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  runtime_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  work_order: WO-DATA-2002-CURRENT-DATASET-IDENTITY
+  status: DATA_IDENTITY_IMPLEMENTATION_DEPLOYED_ACTUAL_LEARNING_UNVERIFIED
+  first_broken_transition: pending_period_retained_observations_to_post_restart_benchmark_reconstruction
+  validation: "PR2395 exact-head and protected-main CI/Audit/Release completed; latest-main CI38130954313 and Oracle release38131375100 PASS; current actual runtime SHA matches."
+  runtime_evidence: "Fresh health 2026-10-11T16:09:43.875Z: Ledger81 fills, fingerprint9be0aea43ee8063f9a3027dd4586338c4c9d8413b5bd99f8966e3946f19d2254; realized periods5, rolloverWAITING_FOR_CANONICAL_BOUNDARY, cycles0. Prior CANONICAL_FILL_LEDGER_UNAVAILABLE is not current."
+  learning_acceptance_verified: 0
+  learning_acceptance_remaining: 7
+  improvement: IMPROVEMENT_UNVERIFIED
+  verified: false
+  next: "Actual Stage1 retained observation range/checksum/benchmark consumption receipt; existing PR2068 ticker regression successor has its own state entry below."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_market_data_ticker_rejection_2068:
+  canonical_pr: 2068
+  branch: market-data/2022-2034-evidence
+  work_order: WO-DATA-2068-TICKER-PERSISTENCE-REGRESSION
+  base_sha: ca4f897dd476d1238682a38d618c9569bac19e52
+  status: REVIEW_REPAIR_PENDING_CURRENT_HEAD_GATES
+  first_broken_transition: rejected_ticker_to_durable_canonical_observation_regression_evidence
+  repair: "Bind surviving row timestamp/price and exact canonical source fingerprint to the accepted fixture; rejected future/foreign fixtures cannot substitute for it."
+  evidence_scope: "Synthetic regression fixtures only; no actual acceptance claim."
+  next: "Focused regression, exact-head CI, Independent Audit and governed Release/merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

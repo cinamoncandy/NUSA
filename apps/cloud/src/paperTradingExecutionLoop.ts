@@ -278,6 +278,10 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     this.assertLeaseHeld();
     return this.readFillLedgerRows();
   }
+  /** Verify the existing writer boundary before a supervised learning tick can proceed. */
+  public verifyWriterLease(): void {
+    this.db.transaction(() => this.assertLeaseHeld());
+  }
   public clear(): void {
     this.db.transaction(() => {
       this.assertLeaseHeld();

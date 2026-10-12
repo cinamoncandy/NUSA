@@ -26,7 +26,7 @@ const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/rese
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
-const { featureFingerprint, validateEvidenceProvenance } = require("../dist/apps/desktop/src/cloud/researchIntegrity.js");
+const { featureFingerprint, validateEvidenceProvenance, requireCurrentResearchDatasetIdentity } = require("../dist/apps/desktop/src/cloud/researchIntegrity.js");
 const { validateResearchCandidateSpecification } = require("../dist/apps/desktop/src/cloud/researchCandidateSpecification.js");
 const { buildInvestmentLearningEvidence, buildInvestmentResearchAttentionPlan, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
 const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
@@ -551,7 +551,8 @@ function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
     sourceRequest: sourceRequests.join(" | "),
     createdAt: new Date(dataAsOf).toISOString()
   });
-  return Object.freeze({ market, candles, sourceRequests, freshness, manifest });
+  const currentDatasetIdentity = requireCurrentResearchDatasetIdentity({ manifest, freshness, observedAt: dataAsOf });
+  return Object.freeze({ market, candles, sourceRequests, freshness, manifest, currentDatasetIdentity });
 }
 
 function buildResearchUniverseContext(marketDatasets, dataAsOf) {
@@ -848,7 +849,7 @@ async function main() {
     validateEvidenceProvenance(provenance, { promotionEligible: true });
     return Object.freeze({ candidateId: candidate.candidateId, featureIdentity: Object.freeze(featureIdentity), provenance: Object.freeze(provenance) });
   });
-  const factoryQualification = qualifyResearchFactoryRun(league);
+  const factoryQualification = qualifyResearchFactoryRun(league, primaryDataset.currentDatasetIdentity);
   const learningStore = new FileResearchInvestmentLearningLedgerStore(researchLearningLedgerPath());
   const cumulativeLearningLedger = learningStore.appendRun(league, factoryQualification);
   const investmentLearningEvidence = buildInvestmentLearningEvidence({
