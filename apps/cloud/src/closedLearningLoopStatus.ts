@@ -21,6 +21,7 @@ export type ClosedLearningLoopStatus = {
   readonly currentBlockedReason?: string;
   /** Earliest KST boundary eligibility, not a promise of evaluation or a scheduler input. */
   readonly nextEvaluationEligibleAt?: number;
+  readonly evaluationPeriodMs?: number;
   readonly cyclesEvaluated: number;
   readonly lastCycleStatus?: string;
   readonly lastCycleOutcome?: string;
@@ -62,6 +63,9 @@ const code = (value: unknown): string | undefined => {
 };
 
 export class ClosedLearningLoopStatusTracker {
+  public constructor(private readonly evaluationPeriodMs?: number) {
+    if (evaluationPeriodMs !== undefined && ![3_600_000, 86_400_000].includes(evaluationPeriodMs)) throw new Error("CLOSED_LEARNING_EVALUATION_PERIOD_INVALID");
+  }
   private status: ClosedLearningLoopStatus | null = null;
   private bootstrap = "NOT_RUN";
   private periods: ClosedLearningEvidenceCorrelation = {};
@@ -161,14 +165,16 @@ export class ClosedLearningLoopStatusTracker {
     const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
     let eligibleAt: number | undefined;
     const start = this.periods.openPeriodStartAt;
-    if (rest.rollover === "WAITING_FOR_KST_DAY_ROLLOVER" && start !== undefined && Number.isSafeInteger(start) && start >= 0 && start <= rest.lastTickAt && start <= 8_640_000_000_000_000) {
-      const boundary = Date.parse(`${tradingDayKey(start)}T15:00:00.000Z`);
+    if (["WAITING_FOR_KST_DAY_ROLLOVER", "WAITING_FOR_EVALUATION_WINDOW"].includes(rest.rollover) && start !== undefined && Number.isSafeInteger(start) && start >= 0 && start <= rest.lastTickAt && start <= 8_640_000_000_000_000) {
+      const dayBoundary = Date.parse(`${tradingDayKey(start)}T15:00:00.000Z`);
+      const boundary = this.evaluationPeriodMs === undefined ? dayBoundary : Math.min(dayBoundary, start + this.evaluationPeriodMs);
       if (Number.isSafeInteger(boundary) && boundary > rest.lastTickAt) eligibleAt = boundary;
     }
     const processOutcome = this.processCycleOutcome;
     const outcome = processOutcome ?? this.durableOutcome;
     this.status = Object.freeze({
       ...rest,
+      ...(this.evaluationPeriodMs === undefined ? {} : { evaluationPeriodMs: this.evaluationPeriodMs }),
       ...(rest.rollover === "BLOCKED" || rest.rollover === "ERROR" ? { currentBlockedReason: rest.rollover === "ERROR" ? "TICK_ERROR" : rest.rolloverReason ?? "BLOCKED_WITHOUT_CODE" } : {}),
       ...(eligibleAt === undefined ? {} : { nextEvaluationEligibleAt: eligibleAt }),
       ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),

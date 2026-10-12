@@ -1,4 +1,13 @@
 version: 1
+current_learning_hourly_recovery_20261012:
+  work_order: WO-LEARNING-20261012-HOURLY-RECOVERY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  owner_choice: ONE_HOUR_PAPER_EVALUATION
+  branch: codex/learning-fast-recovery-20261012
+  validation: "113 focused tests, 1192 isolated test files, build/typecheck/validate:full/security/lint PASS (15 existing lint warnings). Full suite required Git Bash PATH; initial ENOENT environmental failure retained, corrected without code/assertion weakening. Independent latest-diff review: no actionable P0/P1/P2, 94 tests plus SQLite persistence/replay."
+  remaining: "Fresh exact-head CI, independent Audit, Release and deployment; actual cycles remain zero and baseline genuine Research lineage missing."
+  next: "Publish bounded hourly-evaluation increment; do not claim actual cycle completion or bypass baseline Research lineage."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_upgrade_20261012:
   work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
   status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_FRESH_CI

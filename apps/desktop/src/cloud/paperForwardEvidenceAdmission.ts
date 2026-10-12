@@ -34,6 +34,7 @@ export class PaperForwardEvidenceAdmissionError extends Error {
 }
 
 const DEFAULT_POLICY: PaperForwardEvidenceAdmissionPolicy = Object.freeze({ minimumLongitudinalPeriods: 30 });
+export const PAPER_FORWARD_EVIDENCE_DEFAULT_POLICY = DEFAULT_POLICY;
 const PAPER_FORWARD_STATUSES = new Set<PaperForwardPeriodEvidence["status"]>(["COMPLETED", "REJECTED", "HALTED"]);
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 

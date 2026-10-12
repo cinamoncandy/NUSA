@@ -76,6 +76,21 @@ test("/health publishes learning eligibility and current blocks, and withdraws s
   }, 42589);
 });
 
+test("/health accepts only canonical hourly eligibility tied to the open period", async () => {
+  const now = Date.parse("2026-10-12T01:00:00Z");
+  const tracker = new ClosedLearningLoopStatusTracker(3_600_000);
+  tracker.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, now);
+  tracker.observePeriods({ periodId: "hourly", periodStartAt: now, observations: [], candidateProvenance: [] }, []);
+  let loop = tracker.snapshot();
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const read = async () => JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop;
+    assert.equal((await read()).nextEvaluationEligibleAt, now + 3_600_000);
+    assert.equal((await read()).evaluationPeriodMs, 3_600_000);
+    loop = { ...loop, nextEvaluationEligibleAt: now + 3_600_001 };
+    assert.equal((await read()).nextEvaluationEligibleAt, undefined);
+  }, 42590);
+});
+
 async function withServer(options, run, port) {
   const handle = startCloudDashboardServer({ port, ...base, ...options });
   try { await run(handle); } finally { await handle.stop(); }

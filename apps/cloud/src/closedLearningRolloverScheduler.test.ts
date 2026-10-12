@@ -113,6 +113,7 @@ function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE", aw
 
 function harness(options: {
   now: number;
+  evaluationPeriodMs?: number;
   clock?: number;
   observation?: "FILLED" | "WAIT";
   outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE";
@@ -134,6 +135,7 @@ function harness(options: {
     listOpenPeriods: () => openPeriods,
     listRealizedPeriods: () => realized,
     readCanonicalPaperAccount: () => account(options.now),
+    ...(options.evaluationPeriodMs === undefined ? {} : { evaluationPeriodMs: options.evaluationPeriodMs }),
     ...(options.clock === undefined ? {} : { now: () => options.clock! }),
     closePeriodFromCanonicalAccount: ({ periodId, periodEndAt }) => {
       events.push(`close:${periodId}:${periodEndAt}`);
@@ -439,6 +441,23 @@ describe("closed-learning rollover across a replaced PAPER account (owner capita
 });
 
 describe("closed-learning rollover resumes a closed period whose cycle threw", () => {
+  it("hourly eligibility closes only at the real account boundary without waiting for midnight", () => {
+    const start = Date.parse("2026-09-04T01:00:00Z");
+    const end = start + 3_600_000;
+    const open = { ...plan("FILLED"), periodStartAt: start };
+    const ready = harness({ now: end, evaluationPeriodMs: 3_600_000, openPeriods: [open] });
+    assert.equal(ready.scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
+    assert.ok(ready.events.includes(`close:period-0:${end}`));
+    const early = harness({ now: end - 1, evaluationPeriodMs: 3_600_000, openPeriods: [open] });
+    assert.equal(early.scheduler.runOnce().status, "WAITING_FOR_EVALUATION_WINDOW");
+    assert.ok(!early.events.some((item) => item.startsWith("close:")));
+    const noFill = harness({ now: end, evaluationPeriodMs: 3_600_000, openPeriods: [{ ...open, observations: [{ observationId: "wait", observedAt: end, status: "WAIT" }] }] });
+    assert.equal(noFill.scheduler.runOnce().status, "WAITING_FOR_REALIZED_FILL");
+    assert.ok(!noFill.events.some((item) => item.startsWith("close:")));
+    const idle = harness({ now: start + 60_000, clock: end, evaluationPeriodMs: 3_600_000, openPeriods: [open] });
+    assert.equal(idle.scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
+    assert.ok(idle.events.includes(`close:period-0:${start + 60_000}`), "wall clock eligibility never fabricates an account snapshot");
+  });
   const LATER = NEXT_KST_DAY + 60_000;
 
   /** A stateful port: one open FILLED period that crosses the KST day, a durable close, and a cycle that can be made to throw. */
@@ -493,13 +512,31 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
     assert.equal(events.filter((item) => item === "cycle").length, 2);
   });
 
-  it("waits for the canonical boundary after the close before resuming, and writes nothing", () => {
-    const { scheduler, events } = sequence({ failuresBeforeSuccess: 1 });
+  it("resumes the immutable close on the next tick without requiring a new trade", () => {
+    const { scheduler, events, openIds } = sequence({ failuresBeforeSuccess: 1 });
     scheduler.runOnce();
-    const waiting = scheduler.runOnce(); // the account has not moved past the period end
-    assert.equal(waiting.status, "NO_OPEN_PERIOD");
-    assert.equal(waiting.reason, "WAITING_FOR_CANONICAL_BOUNDARY");
+    const resumed = scheduler.runOnce();
+    assert.equal(resumed.status, "CLOSED_AND_EVALUATED");
+    assert.equal(events.filter((item) => item === "cycle").length, 2);
+    assert.equal(openIds().length, 1);
+    assert.notEqual(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
+    assert.equal(events.filter((item) => item === "cycle").length, 2);
+  });
+  it("does not resume after canonical account chronology regresses", () => {
+    const { scheduler, events, setAccount } = sequence({ failuresBeforeSuccess: 1 });
+    scheduler.runOnce();
+    setAccount(NEXT_KST_DAY - 1);
+    assert.notEqual(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
     assert.equal(events.filter((item) => item === "cycle").length, 1);
+  });
+  it("bounds identity failures at an unchanged close and continues PAPER without invented evidence", () => {
+    const fixture = sequence({ failuresBeforeSuccess: 0 });
+    let builds = 0;
+    const broken = new ClosedLearningRolloverScheduler({ ...fixture.port, buildEvidenceIdentity: () => { builds++; throw new Error("REAL_LINEAGE_UNAVAILABLE"); } });
+    for (let tick = 0; tick < MAX_CYCLE_RESUME_ATTEMPTS + 3; tick++) broken.runOnce();
+    assert.equal(builds, 1 + MAX_CYCLE_RESUME_ATTEMPTS);
+    assert.equal(fixture.openIds().length, 1);
+    assert.equal(fixture.events.filter((item) => item === "cycle").length, 0);
   });
 
   it("resumes the exact unrecorded close after process restart without waiting for a synthetic or later account update", () => {

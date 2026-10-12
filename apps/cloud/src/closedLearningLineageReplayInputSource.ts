@@ -7,6 +7,7 @@ import type { PaperChallengerBindingLedger, PaperChallengerActivationReceipt } f
 import type { PaperRealizedPeriodProducer } from "./paperRealizedPeriodProducer";
 import { samePaperResearchLineage, validatePaperResearchLineage, type PaperResearchLineage } from "./paperResearchLineage";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
+import { PAPER_FORWARD_EVIDENCE_DEFAULT_POLICY } from "../../desktop/src/cloud/paperForwardEvidenceAdmission";
 
 const PERIOD_REFERENCE_PREFIX = "paper-period:";
 const MARKET = /^KRW-[A-Z0-9-]+$/;
@@ -16,6 +17,7 @@ export interface ClosedLearningLineageReplayInputSourceOptions {
   readonly bindings: Pick<PaperChallengerBindingLedger, "current">;
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   readonly executionQualityPolicy: CanonicalPaperExecutionQualityPolicy;
+  readonly requireIndependentDays?: boolean;
 }
 
 function referencedPeriodIds(references: readonly string[]): readonly string[] {
@@ -106,8 +108,11 @@ export class ClosedLearningLineageReplayInputSource implements ClosedLearningRes
         periods: candidate.periods,
         account,
         executionQualityPolicy: this.options.executionQualityPolicy,
+        requireIndependentDays: this.options.requireIndependentDays,
       });
-      if (paperPerformance != null) {
+      if (paperPerformance == null || (this.options.requireIndependentDays && paperPerformance.observationDays < PAPER_FORWARD_EVIDENCE_DEFAULT_POLICY.minimumLongitudinalPeriods)) {
+        paperEvidenceByCandidate[candidate.candidateId] = Object.freeze({ admission: Object.freeze({ ...candidate.admission, strength: "INSUFFICIENT", reasons: Object.freeze([...candidate.admission.reasons, "PAPER_INDEPENDENT_DAY_EVIDENCE_INSUFFICIENT"]) }) });
+      } else {
         paperEvidenceByCandidate[candidate.candidateId] = Object.freeze({ admission: candidate.admission, paperPerformance });
       }
     }
