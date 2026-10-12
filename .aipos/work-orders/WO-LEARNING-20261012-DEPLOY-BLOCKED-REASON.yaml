@@ -1,0 +1,39 @@
+id: WO-LEARNING-20261012-DEPLOY-BLOCKED-REASON
+title: "Identify the Autopilot readiness failure that rolls back a healthy PAPER deployment"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P0
+issue: 1605
+owner: nusa-development
+base_commit: e05077498a2f608a5eccb3a32b708a6744b76fb6
+implementation_branch: codex/learning-deploy-diagnostics-20261012
+authority_impact: none
+risk: LOW
+objective: "Preserve fail-closed readiness while reporting an allowlisted local failure code so the learning runtime deployment blocker can be diagnosed."
+observed_evidence:
+  - "Oracle release 38187254866 proved PAPER readiness on requested main 722b4873, then AUTOPILOT_NOT_READY:BLOCKED forced rollback."
+  - "Existing rollback restored source ca4f897d with health 200; current rollover WAITING_FOR_KST_DAY_ROLLOVER, historical ledger error retained."
+  - "No underlying HTTP/auth/config cause is established by the status-only error. Do not infer one or weaken the deployment gate."
+scope:
+  - "Include only explicitly allowlisted local Autopilot failure codes in BLOCKED readiness errors."
+  - "Unknown/free-text/provider-controlled reasons are omitted; stopped, corrupt, stale and unsafe states remain rejected."
+  - "No new request, token read, provider retry, authority, readiness relaxation or logging of raw state."
+acceptance:
+  - "Known HTTP/config/response failures are distinguishable without raw input disclosure."
+  - "Adversarial/free-text reasons cannot leak; BLOCKED remains a failure."
+  - "Targeted tests, preflight, full validation, security and lint pass before PR publication."
+  - "Require fresh CI, independent review, canonical Audit/Release and real Oracle deploy evidence."
+verification_commands:
+  - "node --test tests/autopilot-readiness-reason.test.js tests/autopilot-runtime.test.js tests/oracle-paper-release-workflow.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "pnpm exec eslint scripts/autopilot-readiness.js tests/autopilot-readiness-reason.test.js"
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  paper_only: true
+validation:
+  targeted: "PASS 24 tests including unknown/provider text redaction and BLOCKED/STOPPED/corrupt/stale/unsafe rejection."
+  local: "Node 24.18.0 / pnpm 11.7.0 frozen lockfile install, lint, typecheck, build, validate:full and security gate PASS; zero secrets or unmitigated high/critical."
+  external: "New exact-head CI, independent review, canonical Audit/Release and real deployment remain required. Parent 1190-file suite is not new-head evidence."
+next: "Publish bounded diagnostics through fresh CI and independent review, canonical Audit/Release, then exact-main Oracle release to obtain the real blocker."
