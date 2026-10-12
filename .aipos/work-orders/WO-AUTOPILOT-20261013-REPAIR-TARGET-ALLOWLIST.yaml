@@ -5,6 +5,7 @@ owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
 branch: claude/autopilot-repair-target-allowlist
+pull_request: 2651
 authority_impact: none
 parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
 owner_approval: "2026-10-13 in chat (owner chose 'P1 시작' after the Claude-centered redesign revision 2)"
