@@ -318,6 +318,16 @@ current_issue_2118_coverage_shard_rebalance:
   deployment: "CI-only diff; Cloudflare exact-main scope had no runtime delta and skipped Worker deploy; no Oracle application deployment required."
   remaining: "Coverage-shard rebalance subincrement complete. Broader CI p50/p95 and owner-latency plus worker WIP/throughput telemetry remain separate #2118/#2117/#903 work; do not infer WIP expansion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_wip_release_on_finish:
+  work_order: WO-AUTOPILOT-20261013-WIP-RELEASE-ON-FINISH
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-wip-release-on-finish
+  authority_impact: none
+  finding: "The GitHub Actions coding backend never released its active-WIP claim (completeActiveWip is only on the legacy /coding/execute path), so each attempt held the single slot until the 60-minute expiry. The execution consumer now calls an authenticated /coding/wip-release when its attempt ends, freeing the slot at once; the expiry remains the fallback. maxConcurrent stays 1 until successful coding throughput can be measured."
+  next: "After merge and deploy, check consumer logs for wip_release=released and that the next dispatch follows within minutes."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_autopilot_worker_deploy_scope:
   work_order: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
   status: MERGED_POST_MERGE_VALIDATION_AND_DEPLOY_SKIP_VERIFIED
