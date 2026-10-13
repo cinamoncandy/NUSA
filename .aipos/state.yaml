@@ -3240,5 +3240,6 @@ current_ops_open_pr_inventory:
   parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
   inventory: docs/OPEN_PR_INVENTORY_2026-10-13.md
   finding: "46 open PRs (23 draft, 20 HOLD, 34 created before October) grouped into: redesign and Autopilot work in progress, October research records, an urgent owner decision (#2311 lowers the new PAPER account initial-capital default from 10,000,000 to 5,000 KRW and is neither draft nor HOLD), security authority-narrowing PRs worth re-checking, likely superseded PRs, and stale September feature/research PRs. Nothing was closed or changed."
-  next: "Owner decides #2311 and approves which groups to close; closing follows only an approved list and never deletes branches."
+  owner_decisions: "2026-10-13: #2311 closed by the owner (PAPER initial-capital default stays KRW 10,000,000; branch kept)."
+  next: "Owner approves which other groups to close; closing follows only an approved list and never deletes branches."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
