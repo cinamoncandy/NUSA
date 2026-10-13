@@ -1059,6 +1059,14 @@ latest_event_bridge_oidc_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "NUSA_WEBHOOK_SECRET/OIDC runtime delivery and control-plane receipt remain external deployment evidence; no unauthenticated fallback is allowed."
 
+current_research_family_screen_20261013:
+  work_order: WO-RESEARCH-20261013-FAMILY-SCREEN
+  status: COMPLETED_NO_SURVIVOR
+  branch: claude/research-family-screen
+  finding: "Pre-registered Bollinger, squeeze and regime-filtered breakout screens on 250d and prior 383d 60m data: 0 of 6 settings survive. Learning loop still has no Research-qualifiable candidate; no threshold or risk change."
+  next: "Owner decides whether to freeze REGIME_BREAKOUT N=50 for a forward SHADOW test or leave research stopped."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
   status: REVIEW_CORRECTIONS_APPLIED_PENDING_FRESH_CI

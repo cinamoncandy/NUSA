@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261013-FAMILY-SCREEN
 title: "Pre-registered offline screen of three more signal families and a forward SHADOW plan for the learning loop"
-status: PRE_REGISTERED
+status: COMPLETED_NO_SURVIVOR
 priority: P1
 authority_impact: none
 repository: cinamoncandy/NUSA
@@ -25,3 +25,9 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+result: "0 of 6 settings survive (none passes on either file). Regime filter shrinks DOWN-window losses but they stay negative. No candidate is proposed for the learning loop."
+forward_shadow: "Not started: no setting passed the historical screen. Optional only on owner request: freeze REGIME_BREAKOUT N=50 and evaluate on data after 2026-10-14."
+note: docs/RESEARCH_NOTE_2026-10-13_FAMILY_SCREEN.md
+verification_commands:
+  - "node scripts/offline-family-screen.js"
+  - "node scripts/validate-aipos-yaml.js"
