@@ -1663,6 +1663,87 @@ describe("coding runner workflow failure evidence", () => {
       assert.equal(result.status, "EXECUTION_ACCEPTED");
     });
 
+    it("stops the overflow for the day once the owner cap is reached", async () => {
+      let githubModelsCalls = 0;
+      let reservations = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+        reserveOverflowCall: async () => { reservations += 1; return false; },
+      });
+      assert.equal(reservations, 1, "the cap is checked before the call, not after");
+      assert.equal(githubModelsCalls, 0, "a capped overflow must not spend");
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      assert.equal(result.provider, "github-models");
+      assert.equal(result.stopReason, "GITHUB_MODELS_DAILY_CAP_REACHED");
+      assert.equal(result.nextRetryAt, 86_400_000);
+      assert.equal(result.resumeCondition, "owner-daily-overflow-cap-reset-and-exact-head-revalidation");
+    });
+
+    it("spends the overflow while the owner cap still has room", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+        reserveOverflowCall: async () => true,
+      });
+      assert.equal(githubModelsCalls, 1);
+      assert.equal(result.status, "EXECUTION_ACCEPTED");
+    });
+
+    it("withholds the spend when the cap reservation cannot be taken", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+        reserveOverflowCall: async () => { throw new Error("coordinator unavailable"); },
+      });
+      assert.equal(githubModelsCalls, 0, "an unverifiable cap must never grant spending");
+      assert.equal(result.stopReason, "GITHUB_MODELS_DAILY_CAP_REACHED");
+    });
+
+    it("caps the mid-attempt overflow on the same daily budget", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("429 too many requests"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async () => null,
+        reserveOverflowCall: async () => false,
+      });
+      assert.equal(githubModelsCalls, 0);
+      assert.equal(result.provider, "github-models");
+      assert.equal(result.stopReason, "GITHUB_MODELS_DAILY_CAP_REACHED");
+    });
+
+    it("leaves spending uncapped when the owner configured no cap", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+      });
+      assert.equal(githubModelsCalls, 1, "no reserveOverflowCall means no owner cap");
+      assert.equal(result.status, "EXECUTION_ACCEPTED");
+    });
+
     it("proceeds normally when no wait is recorded", async () => {
       let aiCalls = 0;
       const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };

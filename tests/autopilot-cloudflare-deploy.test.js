@@ -49,6 +49,9 @@ test("the deployed credit posture has one source of truth the health gate cannot
 });
 
 test("Jev shadow deployment does not override the global release freeze", () => {
+  // Owner-imposed ceiling on paid overflow calls per UTC day. The deploy must always pass one, so a
+  // deployment can never leave spending bounded only by the purchased balance.
+  assert.match(workflow, /--var "NUSA_AUTOPILOT_PAID_OVERFLOW_DAILY_CAP:\d+"/);
   assert.match(workflow, /--var "NUSA_JEV_SHADOW_ENABLED:true"/);
   assert.match(workflow, /--var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"/);
   assert.doesNotMatch(workflow, /--var "NUSA_GLOBAL_RELEASE_FREEZE:false"/);

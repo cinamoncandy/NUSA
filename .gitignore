@@ -20,6 +20,7 @@ outputs/
 work/
 release/
 /coverage/
+/test-results/
 storybook-static/
 
 # GitHub Actions Autopilot preflight evidence. These are generated before
