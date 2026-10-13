@@ -3346,3 +3346,15 @@ current_risk_loss_limit_comparison_tool:
   branch: claude/loss-limit-comparison
   authority_impact: none
   finding: "Added an offline deterministic comparison of consecutive-loss limits over a completed-sell sequence (tooling only, threshold stays 3); no real comparison exists yet because the ledger sequence is owner-authenticated, so issue 2575 item 5 remains open"
+
+current_owner_decisions_20261013:
+  work_order: WO-DOCS-20261013-OWNER-DECISIONS
+  status: READY_FOR_REVIEW
+  branch: docs/owner-decisions-20261013
+  authority_impact: none
+  owner_approval: "2026-10-13 in chat: owner adopted the assisting session's recommendation for all four open decisions, which was status quo on every one."
+  decisions: "HOLD PRs stay on HOLD (no prerequisite work requested); the two Jev domain-advisory PRs (2337, 2339) are left to their author, blockers recorded on the PRs; Autopilot Codex Coding stays disabled_manually because its failures came from the dedicated ChatGPT account usage limit, not from the repair-dispatch defects fixed today; the coding-remediation allowlist stays CI-only, since three tests pin the refusal of non-allowlisted workflows as a governance-visibility requirement."
+  corrected_stale_record: "An earlier handoff recorded that the Worker repository allowlist is hard-coded to cinamoncandy/NUSA and that the owner must settle the repository name after a rename to Dokkebi. Both halves are no longer true: repos/cinamoncandy/NUSA and repos/cinamoncandy/Dokkebi both resolve to id 1296492411 with canonical full_name cinamoncandy/NUSA (the rename was withdrawn, Dokkebi survives only as a redirect alias), and the allowlist is not hard-coded - index.ts resolves env.NUSA_GITHUB_REPOSITORY first and only falls back to DEFAULT_REPOSITORY, so a future rename is a binding change, not a code change."
+  verified_today: "Merged 2586, 2626, 2629, 2631, 2660, 2661. Zero workflow failures across the last 100 runs; Worker deploymentRevision matches exact main; security:gate PASS with zero unmitigated advisories and zero secret findings."
+  measurement_notes: "CI critical path is now ~344s and its bottleneck moved from validation (132s) to the coverage-core shards (202-249s), so further batching of validation's single-file node --test steps would cost failure-attribution granularity for no wall-clock gain. Shard cost evidence is already measured (355 per-file overrides above a p70 fallback from 4 source runs), so the residual 23% shard spread is not missing data."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
