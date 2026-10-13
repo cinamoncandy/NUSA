@@ -243,6 +243,25 @@
    "holdoutGapPerTrade": -0.003,
    "preRegistered": true,
    "lesson": "No skill: adding the BTC Korea premium and global BTC momentum left the model unchanged in effect (holdout -0.771% per trade vs universe -0.467%, 1,755 trades). Linear daily cross-sectional ranking of KRW markets consistently picks losers (likely high-volatility names)."
+  },
+  {
+   "id": "ML_EXTERNAL_60M_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-external-60m.js (pre-registered f5201c7b9); 60m manifest 393a8925...; external.json sha256 43d0e59d9cfdc5cafbc4a97dd273153909ae08c1c80a7f19a8ca030dd1d6a536",
+   "dataType": "EXTERNAL",
+   "timeframe": "60m",
+   "universe": 106,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0068,
+   "preRegistered": true,
+   "lesson": "No skill: 355 holdout trades, -0.404% per trade vs universe +0.271% (win 42.5%). Four ML models in a row picked markets that did worse than the market average on unseen data; the inverse is NOT a valid conclusion because it was seen on the holdout (it may only be tested on forward data)."
   }
  ]
 }

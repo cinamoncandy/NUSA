@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261013-ML-EXTERNAL-60M
 title: "EXTERNAL + 60m + all KRW + ML (hourly Korea premium and global BTC momentum)"
-status: PRE_REGISTERED
+status: COMPLETED_NO_SURVIVOR
 priority: P0
 authority_impact: none
 repository: cinamoncandy/NUSA
@@ -18,3 +18,4 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+result: "FAIL (no skill): 355 holdout trades, -0.404% per trade (2x -0.603%) vs universe +0.271%, win rate 42.5%, p 0.95. external.json sha256 43d0e59d9cfdc5cafbc4a97dd273153909ae08c1c80a7f19a8ca030dd1d6a536."
