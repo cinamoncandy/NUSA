@@ -3112,6 +3112,15 @@ current_autopilot_runner_readiness:
   branch: claude/autopilot-runner-preflight
   authority_impact: none
   finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
+
+current_learning_methods_20261013:
+  work_order: WO-RESEARCH-20261013-LEARNING-METHODS
+  status: COMPLETED_ANALYSIS
+  branch: claude/research-family-screen
+  finding: "GLOBAL FIRST_BROKEN_TRANSITION is Research -> qualified candidate (market result: 0/135 holdout survivors, baseline gross-negative before fees). Loop plumbing and #2589 failure fields are deployed but unexercised. VERIFIED=false."
+  next: "Forward test verdict earliest 2026-12-13; owner decision on new data sources. No threshold or lineage change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_pending_order_attribution_test:
   work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
   status: READY_FOR_REVIEW
