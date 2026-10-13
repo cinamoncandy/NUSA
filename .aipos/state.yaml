@@ -2907,6 +2907,15 @@ current_ops_clear_recovered_market_reject:
   owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
   finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+
+current_safety_gate_evidence_states_20261013:
+  work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/safety-gates-evidence-states
+  finding: "Safety gates showed PASS on stale evidence; now PASS/FAIL/BLOCKED/STALE/CHECKING with per-source freshness."
+  next: "Exact-head CI, Audit, Release; then check the deployed app shows the new states."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_sec_shell_quote_advisory:
   work_order: WO-SEC-20261006-SHELL-QUOTE-ADVISORY
   status: READY_FOR_REVIEW
