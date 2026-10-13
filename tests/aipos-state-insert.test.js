@@ -70,3 +70,18 @@ test("works on the real state file without reordering existing entries", () => {
   assert.deepEqual(after.filter((key) => key !== "current_zz_state_insert_probe"), before);
   assert.equal(after.length, before.length + 1);
 });
+
+test("the documented pnpm form, which passes a `--` separator, reads the entry file", () => {
+  const { mkdtempSync, writeFileSync, mkdirSync } = require("node:fs");
+  const { join } = require("node:path");
+  const { tmpdir } = require("node:os");
+  const { spawnSync } = require("node:child_process");
+  const dir = mkdtempSync(join(tmpdir(), "aipos-state-add-"));
+  mkdirSync(join(dir, ".aipos"));
+  writeFileSync(join(dir, ".aipos", "state.yaml"), base);
+  writeFileSync(join(dir, "entry.yaml"), entry("current_golf"));
+  const script = require.resolve("../scripts/aipos-state-insert.js");
+  const result = spawnSync(process.execPath, [script, "--", "entry.yaml"], { cwd: dir, encoding: "utf8", env: { ...process.env, NODE_PATH: join(__dirname, "..", "node_modules") } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(Object.keys(yaml.load(readFileSync(join(dir, ".aipos", "state.yaml"), "utf8"))).includes("current_golf"));
+});
