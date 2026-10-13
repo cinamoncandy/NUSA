@@ -16,6 +16,8 @@ export type ClosedLearningRolloverStatus =
   | "WAITING_FOR_EVALUATION_WINDOW"
   | "WAITING_FOR_REALIZED_FILL"
   | "CLOSED_AND_EVALUATED"
+  /** An owner-baseline period closed. It has no Research lineage, so it is kept as a self-observation, not scored as a learning cycle. */
+  | "BASELINE_PERIOD_OBSERVED"
   | "BLOCKED";
 
 export interface ClosedLearningRolloverResult {
@@ -171,7 +173,14 @@ export class ClosedLearningRolloverScheduler {
       return undefined;
     }
     this.awaitingCycle.set(latest.record.recordId, (attempts ?? 0) + 1);
-    const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
+    let identity: ClosedLearningEvidenceIdentity;
+    try {
+      identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
+    } catch (error) {
+      const observed = this.observeBaselinePeriod(latest, account, realized, error);
+      if (observed != null) return observed;
+      throw error;
+    }
     if (isRecorded(identity)) return undefined;
     return Object.freeze({
       closedRecordId: latest.record.recordId,
@@ -221,6 +230,29 @@ export class ClosedLearningRolloverScheduler {
       periodStartAt: account.updatedAt,
     });
     return Object.freeze({ status: "STALLED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `continued:${latest.record.recordId}` });
+  }
+
+  /**
+   * The owner baseline never has Research lineage, so its closed period cannot become a learning cycle and no lineage is invented.
+   * The durable realized period is the self-observation (outcome, cost and benchmark evidence are already immutable there); the
+   * baseline continues in a fresh period from the same canonical account boundary, exactly as a non-qualified cycle would. This
+   * replaces a BLOCKED retry loop that ended in the same continuation. Any other candidate, or any other error, is unchanged.
+   */
+  private observeBaselinePeriod(closed: PersistedPaperPeriodEnvelope, account: PaperAccountState, realizedPeriods: readonly PersistedPaperPeriodEnvelope[], error: unknown): ClosedLearningRolloverResult | undefined {
+    if ((error as { readonly code?: unknown } | null)?.code !== "PAPER_RESEARCH_LINEAGE_UNAVAILABLE") return undefined;
+    if (!(closed.candidateProvenance.length === 1 && closed.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID)) return undefined;
+    if (closed.record.market != null && this.isUnstreamed(closed.record.market)) return undefined;
+    this.awaitingCycle.delete(closed.record.recordId);
+    const periodIndex = nextPeriodIndex(realizedPeriods);
+    const reopened = this.port.openPeriodFromCanonicalAccount({
+      periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
+      periodIndex,
+      advisory: closed.record.advisory,
+      candidateProvenance: closed.candidateProvenance,
+      ...(closed.record.market == null ? {} : { market: closed.record.market }),
+      periodStartAt: account.updatedAt,
+    });
+    return Object.freeze({ status: "BASELINE_PERIOD_OBSERVED", periodId: reopened.periodId, reason: `observed:${closed.record.recordId}` });
   }
 
   private isUnstreamed(market: string): boolean {
@@ -335,7 +367,14 @@ export class ClosedLearningRolloverScheduler {
     // never the durable periods, decisions or failures.
     for (const key of this.awaitingCycle.keys()) if (key !== closed.record.recordId) this.awaitingCycle.delete(key);
     this.awaitingCycle.set(closed.record.recordId, 0);
-    const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
+    let identity: ClosedLearningEvidenceIdentity;
+    try {
+      identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
+    } catch (error) {
+      const observed = this.observeBaselinePeriod(closed, account, realizedPeriods, error);
+      if (observed != null) return observed;
+      throw error;
+    }
     return Object.freeze({ closedRecordId: closed.record.recordId, plan, account, realizedPeriods, identity });
   }
 
