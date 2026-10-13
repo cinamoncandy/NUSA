@@ -1,11 +1,58 @@
 version: 1
+current_research_holdout_boundary_20261013:
+  work_order: WO-RESEARCH-20261013-HOLDOUT-BOUNDARY
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "6 focused tests,build,typecheck,validate:full,security,lint PASS;15 existing warnings. Independent read-only review no actionable findings."
+  next: "Offline input validation; collection and actual holdout evidence still pending."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_regime_research_resume_20261013:
+  work_order: WO-RESEARCH-20261013-REGIME-RESUME
+  status: CANDIDATE_ADAPTER_LOCAL_VALIDATED
+  validation: "35 focused tests,build,typecheck,validate:full,security,lint PASS;15 existing warnings. Research-only adapter, no deployed binding or candidate outcome claimed."
+  branch: codex/research-regime-resume-20261013
+  owner_authorization: "Explicit research resume; PAPER/SHADOW only."
+  next: "Independent review and canonical integration; dataset/provenance/holdout evaluator and deployed collection remain pending. No loss reset or early qualification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_learning_candidate_blocker_20261013:
+  work_order: WO-LEARNING-20261013-QUALIFIED-CANDIDATE-BLOCKER
+  status: RESEARCH_SCOPE_AUTHORIZED
+  observed_at: "2026-10-13T01:50:15.474Z"
+  evidence: "Health ticks120, cycles0, deployments0; bootstrap RESEARCH_NOT_DEPLOYABLE; baseline without Research lineage; consecutive losses3/limit3."
+  next: "Owner authorized bounded regime-aware research under WO-RESEARCH-20261013-REGIME-RESUME. No risk reset, lineage fabrication or qualification weakening."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_browser_performance_20261013:
+  work_order: WO-OPS-20261013-BROWSER-PERFORMANCE
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: codex/browser-performance-evidence-20261013
+  validation: "2 Node tests and7 real Chromium tests PASS; validate:full/security/lint PASS,15 existing warnings. Numeric synthetic observation in work order."
+  next: "Independent review then exact-head canonical CI/Audit/Release; not integrated yet."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_verification_first_20261013:
+  work_order: WO-OPS-20261013-VERIFICATION-FIRST
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/verification-first-20261013
+  owner_request: "AIPOS first, then implementation."
+  validation: "6 actual Chromium E2E and7 Node guard/CI tests PASS; build/typecheck/validate:full/security/lint and action pin/input validators PASS,15 existing warnings. Independent review3 P2 corrected, fresh review no findings."
+  remaining: "Fresh exact-head CI/Audit/Release. CPU/heap, full-product map, physical devices and measured AI concurrency expansion are staged, not claimed complete."
+  next: "Reuse canonical E2E/CI; source-bound Feature Map, browser error guard and scoped PR evidence. No parallel control plane or self-approval."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_baseline_recovery_20261012:
+  work_order: WO-LEARNING-20261012-BASELINE-ROLLOVER-RECOGNITION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/research-baseline-rollover-20261012
+  observed_runtime: "2026-10-13 09:08 KST: source4a26f767, hourly3600000, healthOK,1968 ticks,10 realized periods,0 actual cycles. Research10 completed sessions; baseline bootstrap still blocks."
+  prior_hourly_deployment: "38218434560 PASS, actual runtime revision verified."
+  validation: "Frozen codeb6aa4a17:49 focused tests and1193 isolated files PASS; build/typecheck/validate:full/security/lint PASS,15 existing warnings. AIPOS-only validation checkpoint; exact-head CI/Audit/Release/runtime pending."
+  next: "Restore strict canonical baseline recognition and preflight before binding mutations; no fabricated historical Research lineage."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_hourly_recovery_20261012:
   work_order: WO-LEARNING-20261012-HOURLY-RECOVERY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: DEPLOYED_WAITING_REAL_LEARNING_EVIDENCE
   owner_choice: ONE_HOUR_PAPER_EVALUATION
   branch: codex/learning-fast-recovery-20261012
   validation: "113 focused tests, 1192 isolated test files, build/typecheck/validate:full/security/lint PASS (15 existing lint warnings). Full suite required Git Bash PATH; initial ENOENT environmental failure retained, corrected without code/assertion weakening. Independent latest-diff review: no actionable P0/P1/P2, 94 tests plus SQLite persistence/replay."
-  remaining: "Fresh exact-head CI, independent Audit, Release and deployment; actual cycles remain zero and baseline genuine Research lineage missing."
+  actual_deployment: "PR2625 exacthead11cb1fcc canonicalCI38217186264 PASS; AuditRelease38217690396 PASS; merge4a26f767 postCI38217816720 PASS; Oracle38218434560 PASS; 2026-10-13 runtime source and hourly3600000 verified."
+  remaining: "Actual cycles remain zero; baseline recognition repair and genuine Research-qualified candidate required."
   next: "Publish bounded hourly-evaluation increment; do not claim actual cycle completion or bypass baseline Research lineage."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_upgrade_20261012:
@@ -3230,6 +3277,18 @@ current_ops_claude_centered_redesign:
   design: docs/CLAUDE_CENTERED_OPERATING_MODEL.md
   finding: "Revision 2 (re-reviewed against GitHub and the Worker, 2026-10-12 22:00-22:40 UTC): the notification flood is not Codex-specific; the Worker's scheduled runtime repairs any failed main-head run for 24 hours (230 consumer failures on 2026-10-12, eleven re-dispatches of one Codex failure about every 5 minutes) and the consumer runs are triggered as cinamoncandy, so failures notify the owner. Roles follow the governing charter: CORE is the main Claude on the owner's account, VALIDATOR/RESEARCH plus operations is the assistant Claude on one automation-only machine account, AUTOPILOT stays Workers AI with the 150-line one-file limit. Non-author review under GRILL_ME_PROTOCOL for code PRs, blocking findings as inline threads; branch claims replace claimed_by; the Worker token should move to a GitHub App separate from the release-authority app; the owner-activity gate (#2644) must not be enabled until a closed gate is a quiet NO_ACTION and the Worker identity is separated."
   next: "Owner answers the six decisions; P1 (Autopilot repair-target allowlist, attempt cap, quiet stops) can start before P0 identity work with owner approval. HOLD PRs stay untouched until then."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_open_pr_inventory:
+  work_order: WO-OPS-20261013-OPEN-PR-INVENTORY
+  status: READY_FOR_REVIEW
+  branch: claude/open-pr-inventory
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  inventory: docs/OPEN_PR_INVENTORY_2026-10-13.md
+  finding: "46 open PRs (23 draft, 20 HOLD, 34 created before October) grouped into: redesign and Autopilot work in progress, October research records, an urgent owner decision (#2311 lowers the new PAPER account initial-capital default from 10,000,000 to 5,000 KRW and is neither draft nor HOLD), security authority-narrowing PRs worth re-checking, likely superseded PRs, and stale September feature/research PRs. Nothing was closed or changed."
+  owner_decisions: "2026-10-13: #2311 closed by the owner (PAPER initial-capital default stays KRW 10,000,000; branch kept)."
+  next: "Owner approves which other groups to close; closing follows only an approved list and never deletes branches."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_autopilot_repair_target_allowlist:

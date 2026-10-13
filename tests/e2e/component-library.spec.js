@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 test("dialog and drawer are keyboard accessible", async ({ page }) => {
   await page.goto("/component-preview.html");

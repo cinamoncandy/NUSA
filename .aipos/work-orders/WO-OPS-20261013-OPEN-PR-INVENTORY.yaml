@@ -1,0 +1,33 @@
+id: WO-OPS-20261013-OPEN-PR-INVENTORY
+title: "Inventory the open pull requests for owner triage (redesign P3)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/open-pr-inventory
+authority_impact: none
+parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+owner_approval: "2026-10-13 in chat ('계속' after the P1 increments; P3 list-only step of the redesign)"
+scope_note: "Documentation only: a grouped list of the 46 open PRs with state and a recommended next step. No PR is closed, labelled, edited or merged and no branch is deleted."
+objective: "Give the owner one list to decide which open PRs continue, which close, and which need a closer look, with #2311 (PAPER initial-capital default 10,000,000 to 5,000 KRW) flagged for an owner decision."
+scope:
+  include:
+    - "docs/OPEN_PR_INVENTORY_2026-10-13.md"
+  exclude:
+    - "Closing, labelling, rebasing or editing any PR; deleting branches; any code or workflow change."
+limitations:
+  - "Snapshot from the GitHub API at about 23:55 UTC on 2026-10-12; mergeable state 'unknown' means GitHub had not computed it. Supersession in group 5 is inferred from closed linked issues and must be confirmed before closing."
+acceptance:
+  - "Every open PR at the snapshot appears exactly once in the groups; #2311 is called out as a capital-related owner decision."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Owner decisions on the groups; closing only on an owner-approved list."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

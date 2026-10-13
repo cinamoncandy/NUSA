@@ -167,6 +167,12 @@ export interface CodingRunnerExecutionOptions {
    * call inside that window. It does not serialize calls already in flight when a stop lands.
    */
   readonly providerWaitUntil?: (provider: string) => Promise<number | null>;
+  /**
+   * Reserve one paid overflow call against the owner-imposed daily cap. Returning false means the
+   * cap is reached; the reservation is atomic, so two concurrent executions cannot both spend the
+   * last call. Absent (or no cap configured) leaves spending bounded only by the purchased balance.
+   */
+  readonly reserveOverflowCall?: (provider: string) => Promise<boolean>;
 }
 
 export interface CodingRunnerResult {
@@ -963,6 +969,32 @@ function githubModelsProviderStop(error: unknown, now: number): { readonly stopR
   return null;
 }
 
+/**
+ * Owner-imposed daily ceiling on paid overflow calls, enforced before the call is made.
+ *
+ * Reaching the cap is not a provider failure, so it reuses the provider boundary this module
+ * already records and honours: the overflow stops for the rest of the UTC day exactly as an
+ * exhausted balance does, which means the existing pre-checks, degradation and HARD_STOP
+ * classification apply unchanged. A reservation failure (coordinator unreachable) withholds the
+ * spend rather than granting it.
+ */
+async function paidOverflowCapReached(options: { readonly reserveOverflowCall?: (provider: string) => Promise<boolean> }): Promise<boolean> {
+  if (!options.reserveOverflowCall) return false;
+  try {
+    return !(await options.reserveOverflowCall("github-models"));
+  } catch {
+    return true;
+  }
+}
+
+function paidOverflowCapStop(now: number): { readonly stopReason: string; readonly nextRetryAt: number; readonly resumeCondition: string } {
+  return Object.freeze({
+    stopReason: "GITHUB_MODELS_DAILY_CAP_REACHED",
+    nextRetryAt: now + msUntilNextUtcDay(now),
+    resumeCondition: "owner-daily-overflow-cap-reset-and-exact-head-revalidation",
+  });
+}
+
 async function githubModelsProposal(request: CodingRunnerRequest, token: string, fetchImpl: FetchImpl, prompt: string): Promise<CodingProposal> {
   const response = await fetchImpl(GITHUB_MODELS_ENDPOINT, githubModelsCodingRequest(request, token, prompt));
   if (!response.ok) throw new Error(`GITHUB_MODELS_CODING_HTTP_${response.status}`);
@@ -1104,6 +1136,7 @@ export async function executeCodingRunner(
       escalationAllowed = false;
     }
   }
+  if (escalationAllowed && await paidOverflowCapReached(options)) escalationAllowed = false;
   if (escalationAllowed && repairGithubToken) {
     try {
       const proposal = await githubModelsProposal(request, repairGithubToken, fetchImpl, codingEditProposalPrompt(request));
@@ -1237,6 +1270,20 @@ export async function executeCodingRunner(
           }
         }
         const overflowAvailable = overflowWaitUntil === null || current >= overflowWaitUntil;
+        if (githubToken && !zeroCreditMode && overflowAvailable && await paidOverflowCapReached(options)) {
+          const capStop = paidOverflowCapStop(current);
+          return {
+            status: "BLOCKED_RATE_LIMIT",
+            reason: "WAITING_PROVIDER_CAPACITY",
+            proposalAttempts: attempt - 1,
+            failureStage: "proposal-parse",
+            provider: "github-models",
+            retryAfterMs: capStop.nextRetryAt - current,
+            nextRetryAt: capStop.nextRetryAt,
+            stopReason: capStop.stopReason,
+            resumeCondition: capStop.resumeCondition,
+          };
+        }
         if (githubToken && !zeroCreditMode && overflowAvailable) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
@@ -1311,6 +1358,21 @@ export async function executeCodingRunner(
           } catch {
             midAttemptOverflowAllowed = false;
           }
+        }
+        if (githubToken && midAttemptOverflowAllowed && await paidOverflowCapReached(options)) {
+          const capStoppedAt = now();
+          const capStop = paidOverflowCapStop(capStoppedAt);
+          return {
+            status: "BLOCKED_RATE_LIMIT",
+            reason: "WAITING_PROVIDER_CAPACITY",
+            proposalAttempts: Math.max(0, attempt - 1),
+            failureStage: "proposal-parse",
+            provider: "github-models",
+            retryAfterMs: capStop.nextRetryAt - capStoppedAt,
+            nextRetryAt: capStop.nextRetryAt,
+            stopReason: capStop.stopReason,
+            resumeCondition: capStop.resumeCondition,
+          };
         }
         if (githubToken && midAttemptOverflowAllowed) {
           try {
