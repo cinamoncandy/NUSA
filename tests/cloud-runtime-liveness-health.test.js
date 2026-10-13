@@ -537,6 +537,21 @@ test("/health publishes the rule-replay parity as signed integer basis points an
   }, 42344);
 });
 
+test("/health publishes the advisory meta-learning report with codes and integers only", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "RESEARCH_NOT_DEPLOYABLE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY",
+    metaLearning: { experiments: 15, configurations: 264, discoveryPasses: 14, holdoutPasses: 0, overfitRatePercent: 100, validKnowledgePer100Configs: 0, exhausted: "dataType=CLOSE,methodClass=RULE", recommended: "TRADES+INTRADAY+ALL_KRW+ML", recommendedPrerequisites: "COLLECT_TRADES", nextHoldoutBarMicros: 189, runtimeEntries: 1, liveForwardEntries: 1, note: "free text" } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const meta = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.metaLearning;
+    assert.equal(meta.recommended, "TRADES+INTRADAY+ALL_KRW+ML");
+    assert.equal(meta.exhausted, "dataType=CLOSE,methodClass=RULE");
+    assert.equal(meta.configurations, 264);
+    assert.equal(meta.note, undefined, "free text is never published");
+  }, 42347);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, metaLearning: { ...loop.metaLearning, exhausted: "<script>" } } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.metaLearning, undefined);
+  }, 42348);
+});
+
 test("/health publishes the microstructure recorder counters as non-negative integers only", async () => {
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, microstructureRecorder: { orderBookSamples: 12, tradeTicks: 340, writeFailures: 0, lastRecordedAt: 1_791_900_000_000, secret: "x" } }) }, async (handle) => {
     const runtime = JSON.parse((await request(handle.port, "/health")).body).runtime;
