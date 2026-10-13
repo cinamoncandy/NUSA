@@ -1444,3 +1444,31 @@ test("malformed non-object Worker response still retains the actual HTTP status"
     }
   });
 });
+
+test("a finished attempt asks the Worker to free its active-WIP claim and never fails because of it", async () => {
+  const { releaseActiveWipClaim } = require("../scripts/autopilot-dispatch-retry.js");
+  const saved = { url: process.env.ACTIONS_ID_TOKEN_REQUEST_URL, token: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN };
+  process.env.ACTIONS_ID_TOKEN_REQUEST_URL = "https://token.actions.example/id";
+  process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = "request-token";
+  try {
+    const calls = [];
+    const fetchImpl = async (url, init = {}) => {
+      calls.push({ url: String(url), init });
+      if (String(url).startsWith("https://token.actions.example/")) return new Response(JSON.stringify({ value: "oidc" }), { status: 200 });
+      return new Response(JSON.stringify({ released: true }), { status: 200 });
+    };
+    const request = { dedupeKey: "evolve-coding:abc:github-issue-2118", executionId: "evolve-coding:abc" };
+    const result = await releaseActiveWipClaim(request, "https://nusa-autopilot.example/coding/execute", fetchImpl);
+    assert.equal(result.released, true);
+    const release = calls.find((call) => call.url === "https://nusa-autopilot.example/coding/wip-release");
+    assert.ok(release, "posts to /coding/wip-release");
+    assert.equal(release.init.headers.authorization, "Bearer oidc");
+    assert.deepEqual(JSON.parse(release.init.body), request);
+
+    const failing = await releaseActiveWipClaim(request, "https://nusa-autopilot.example/coding/execute", async () => { throw new Error("network down"); });
+    assert.equal(failing.released, false);
+  } finally {
+    if (saved.url === undefined) delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL; else process.env.ACTIONS_ID_TOKEN_REQUEST_URL = saved.url;
+    if (saved.token === undefined) delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN; else process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = saved.token;
+  }
+});
