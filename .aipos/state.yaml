@@ -1,4 +1,11 @@
 version: 1
+current_browser_performance_20261013:
+  work_order: WO-OPS-20261013-BROWSER-PERFORMANCE
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: codex/browser-performance-evidence-20261013
+  validation: "2 Node tests and7 real Chromium tests PASS; validate:full/security/lint PASS,15 existing warnings. Numeric synthetic observation in work order."
+  next: "Independent review then exact-head canonical CI/Audit/Release; not integrated yet."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_verification_first_20261013:
   work_order: WO-OPS-20261013-VERIFICATION-FIRST
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI

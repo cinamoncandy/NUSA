@@ -16,6 +16,8 @@ Initial coverage is the existing desktop/component browser harness and linked in
 
 ## Evidence and escalation
 
+The renderer E2E also performs twenty synthetic navigation transitions and records fixed numeric Chromium CDP observations (task duration, used/total JS heap, nodes and documents) as test annotations. Each transition checks visibility; missing or malformed metrics fail closed. Run `pnpm test:e2e`. Compare only matched source/environment/workloads; these measurements are not a CPU trace, heap snapshot, memory-leak verdict or production benchmark. No raw heap content is captured or uploaded.
+
 - Browser runtime and console errors fail existing E2E; raw error values are not printed by the guard.
 - Existing Playwright workers are bounded to one in CI and two locally. This is browser-test capacity, not AI-worker or financial authority.
 - Failure screenshots and traces use only the local synthetic test harness. Do not reuse this capture setup with credentials or private customer data.
