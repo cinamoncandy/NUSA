@@ -1,0 +1,17 @@
+id: WO-RESEARCH-20261013-TRADES-FLOW
+title: "Pre-registered: the meta-learner's recommended TRADES+INTRADAY+ALL_KRW+ML experiment on 7 days of public trade ticks"
+status: PRE_REGISTERED
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-trades-flow
+owner_decision: "2026-10-13 in chat: '학습 루프도 완성해' (complete the learning loop), after approving meta-learning steering."
+reason: "The first broken transition of the learning loop is Research -> qualified candidate (0 holdout passes in 189 configurations). The meta-learner recommends TRADES+INTRADAY+ALL_KRW+ML with prerequisite COLLECT_TRADES; Upbit serves 7 days of public trade ticks, so the prerequisite is met without waiting."
+design: "scripts/research-ml-trades-flow.js header, committed before any tick was fetched. 3 configurations (lambda); K = 192."
+next: "Fetch, run once, record the result (pass or fail) in docs/research-ledger/experiments.json and regenerate the snapshot. A PASS only qualifies a forward SHADOW test; it is not promotion evidence."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
