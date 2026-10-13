@@ -1,0 +1,21 @@
+id: WO-RESEARCH-20261013-STRATEGY-CATALOG
+title: "Pre-registered catalog screen of widely known strategy families with a multiple-testing correction"
+status: PRE_REGISTERED
+priority: P1
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-family-screen
+owner_approval: "2026-10-13 in chat: 'learn every strategy in the world' -> bounded catalog plan accepted ('진행해')."
+objective: "Screen a broad catalog of known families on 60m and daily data, with a held-out final test and a Bonferroni-corrected bar, to find any candidate that could pass Research without lowering a threshold."
+pre_registration:
+  committed_before_results: true
+  script: scripts/offline-strategy-catalog-screen.js
+  families: "SMA/EMA cross, price above SMA, Donchian, Turtle, regime Donchian, Bollinger breakout and reversion, z-score reversion, RSI reversion, Connors RSI2, RSI momentum, MACD, MACD zero, time-series momentum, ROC threshold, squeeze, dip in uptrend, dual trend, hour sessions (60m), weekend/weekday holds, cross-sectional rotation, dual momentum"
+  holdout: "Last 120 days of 60m and last 365 days of daily data, never used for discovery (daily Donchian 20 was already seen on it: disclosed)."
+  rule: "Discovery: 6-window rule. Holdout (discovery passers only): pooled mean trade > 0, >= 30 trades, one-sided z p < 0.05/K, 2x-cost mean > 0. Research gate minimum 50 trades reported, not lowered."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
