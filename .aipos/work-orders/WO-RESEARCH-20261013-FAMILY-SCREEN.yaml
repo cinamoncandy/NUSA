@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261013-FAMILY-SCREEN
 title: "Pre-registered offline screen of three more signal families and a forward SHADOW plan for the learning loop"
-status: COMPLETED_NO_SURVIVOR
+status: DAILY_SURVIVOR_FOUND_FORWARD_TEST_FROZEN
 priority: P1
 authority_impact: none
 repository: cinamoncandy/NUSA
@@ -42,3 +42,5 @@ daily_screen_pre_registration:
   script: scripts/offline-daily-screen.js
   committed_before_data_fetch: true
   families: ["DONCHIAN_D N=20/55", "REGIME_DONCHIAN_D N=20/55", "GOLDEN_CROSS_D", "TSMOM_D"]
+daily_screen_result: "DONCHIAN_D N=20 passes (5/6 windows, 2x 5/6, DOWN mean +7.95%); REGIME_DONCHIAN_D N=20 passes narrowly; 4 others fail. Data sha256 c813b78d1b05b318a1c7cf85ac892172ce4362e2ba6a25f77aa2cdc9e653a94c."
+next: "Owner decides whether to register a daily Donchian family in Research for a formal experiment (code work plus owner approval). Forward 60m test verdict earliest 2026-12-13. No threshold, risk or runtime change."

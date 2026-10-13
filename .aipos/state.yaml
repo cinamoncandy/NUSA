@@ -1061,10 +1061,12 @@ latest_event_bridge_oidc_slice:
 
 current_research_family_screen_20261013:
   work_order: WO-RESEARCH-20261013-FAMILY-SCREEN
-  status: COMPLETED_NO_SURVIVOR
+  status: DAILY_SURVIVOR_FOUND_FORWARD_TEST_FROZEN
   branch: claude/research-family-screen
   finding: "Pre-registered Bollinger, squeeze and regime-filtered breakout screens on 250d and prior 383d 60m data: 0 of 6 settings survive. Learning loop still has no Research-qualifiable candidate; no threshold or risk change."
-  next: "Owner decides whether to freeze REGIME_BREAKOUT N=50 for a forward SHADOW test or leave research stopped."
+  daily: "Pre-registered daily screen (1824 days): DONCHIAN_D N=20 passes, REGIME_DONCHIAN_D N=20 narrowly; not promotion evidence."
+  forward: "REGIME_BREAKOUT N=50 frozen for forward 60m data from 2026-10-14; verdict earliest 2026-12-13."
+  next: "Owner decides on registering a daily Donchian family for a formal Research experiment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_research_follow_up:
