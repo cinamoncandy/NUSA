@@ -1,0 +1,20 @@
+id: WO-RESEARCH-20261013-HOLDOUT-BOUNDARY
+title: Validate forward research input against frozen holdout
+status: LOCAL_VALIDATED_PENDING_CI
+validation: "6 focused tests,build,typecheck,validate:full,security and lint PASS;15 existing warnings. Independent read-only review no actionable P0/P1/P2. Extra provenance fields excluded and regression passed after review."
+priority: P1
+authority_impact: none
+base_commit: f12a7b8216e64933c8a6f1c8c9b5797c3a8abb62
+implementation_branch: codex/research-holdout-boundary-20261013
+depends_on: WO-RESEARCH-20261013-REGIME-RESUME
+scope: "Offline input validator only. Reuse ResearchDataset manifest/hash/continuity validation; fixed KRW-BTC60m 60-day holdout, missing data fail-closed. No source authenticity, collection, promotion or runtime activation claim."
+impact: "Reject stale/partial/corrupt/mixed research inputs instead of reporting false confidence."
+verification_commands:
+  - node --test tests/regime-forward-input.test.js tests/regime-forward-candidate.test.js
+  - pnpm run validate:full
+  - pnpm run lint
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Canonical CI/Audit/Release; provenance claims remain untrusted until bound to real canonical collection. No actual holdout or learning success claimed."

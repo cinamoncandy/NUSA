@@ -3,6 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
+import { isRepairableMainWorkflowFailure } from "./repairableWorkflowRun";
 import { acquirePersistentExecution, admitActiveWip, createEvolutionLearningMemoryStorage, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { DurableEvolutionLearningMemory } from "./evolveDurableLearningMemory";
 
@@ -27,6 +28,12 @@ const MAX_SOURCE_AGE_SECONDS = 24 * 60 * 60;
 const DISCOVERY_MAX_AGE_MS = 60 * 60 * 1000;
 const DISCOVERY_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const CODING_LEASE_MS = 5 * 60 * 1000;
+/**
+ * Fresh dispatches of one logical work item on one main SHA. The consumer releases a failed attempt,
+ * so without this ceiling the scheduler re-dispatched the same unfixable failure about every five
+ * minutes until main moved (2026-10-12). A new main SHA is a new identity and starts again.
+ */
+export const MAX_SCHEDULED_CODING_ATTEMPTS = 3;
 const AUTHORITY = Object.freeze({ liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const });
 
 type JsonObject = Record<string, unknown>;
@@ -53,7 +60,7 @@ function evidenceFromRuns(candidates: readonly unknown[]): readonly WorkflowFail
     if (!run) continue;
     const conclusion = text(run.conclusion);
     if (conclusion !== "failure" && conclusion !== "timed_out") continue;
-    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+    if (!isRepairableMainWorkflowFailure(run)) continue;
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
     const headSha = text(run.head_sha);
@@ -304,6 +311,7 @@ export async function runScheduledEvolutionCoding(
     executionId: bridge.request.executionId,
     now: input.now,
     leaseExpiresAt: input.now + CODING_LEASE_MS,
+    maxAcquisitions: MAX_SCHEDULED_CODING_ATTEMPTS,
   });
   if (!persistent.acquired) {
     if (persistent.reason === "WAITING_RATE_LIMIT") return result("WAITING_RATE_LIMIT", "waiting-rate-limit", signals.map((signal) => signal.id));

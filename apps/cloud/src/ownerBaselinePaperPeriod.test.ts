@@ -32,3 +32,23 @@ test("owner baseline rejects non-Unix account timestamps before opening a period
   assert.equal(isOwnerBaselinePeriodStartAt(Number.NaN), false);
   assert.equal(isOwnerBaselinePeriodStartAt(START), true);
 });
+
+test("canonical continuations retain immutable advisory and reject forged baseline metadata", () => {
+  const original = buildOwnerBaselinePaperPeriodInput({ market: "KRW-XRP", periodIndex: 0, periodStartAt: START, sourceCommitSha: COMMIT });
+  const periodStartAt = START + 86_400_000;
+  for (const prefix of ["closed-learning-rollover", "closed-learning-mixed-binding-replaced", "closed-learning-account-replaced"]) {
+    const continued = { ...original, periodIndex: 5, periodStartAt, periodId: `${prefix}:5:${periodStartAt}` };
+    assert.equal(isOwnerBaselinePeriodInput(continued), true);
+    for (const forged of [
+      { ...continued, periodIndex: 6 },
+      { ...continued, periodStartAt: periodStartAt + 1 },
+      { ...continued, market: "KRW-BTC" },
+      { ...continued, candidateProvenance: [{ ...original.candidateProvenance[0]!, datasetContentSha256: "f".repeat(64) }] },
+      { ...continued, candidateProvenance: [{ ...original.candidateProvenance[0]!, datasetId: "forged" }] },
+      { ...continued, advisory: { ...original.advisory, reasons: [] } },
+      { ...continued, advisory: { ...original.advisory, generatedAt: new Date(periodStartAt + 1).toISOString() } },
+      { ...continued, candidateProvenance: [...original.candidateProvenance, ...original.candidateProvenance] },
+    ]) assert.equal(isOwnerBaselinePeriodInput(forged), false);
+  }
+  assert.equal(isOwnerBaselinePeriodInput({ periodId: "owner-baseline:fake", candidateProvenance: [{ candidateId: OWNER_BASELINE_CANDIDATE_ID }] } as never), false);
+});

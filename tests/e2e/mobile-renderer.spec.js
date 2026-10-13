@@ -1,4 +1,5 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
+const { selectPerformanceMetrics } = require("./performance-metrics");
 
 async function installRendererBridge(page) {
   await page.addInitScript(() => {
@@ -34,6 +35,32 @@ async function installRendererBridge(page) {
     };
   });
 }
+
+test("synthetic renderer records bounded navigation CPU and heap observations", async ({ page, context, browser }, testInfo) => {
+  await installRendererBridge(page);
+  await page.goto("/index.html");
+  await expect(page.getByTestId("nusa-app-root")).toBeVisible();
+  const session = await context.newCDPSession(page);
+  try {
+    await session.send("Performance.enable");
+    const before = selectPerformanceMetrics(await session.send("Performance.getMetrics"));
+    const screens = ["orders", "positions", "strategy", "logs", "dashboard"];
+    for (let iteration = 0; iteration < 20; iteration++) {
+      const screen = screens[iteration % screens.length];
+      await page.locator(`.v2-nav [data-simple-nav='${screen}']`).click();
+      await expect(page.locator(`[data-simple-page='${screen}']`)).toBeVisible();
+    }
+    const after = selectPerformanceMetrics(await session.send("Performance.getMetrics"));
+    expect(after.TaskDuration).toBeGreaterThanOrEqual(before.TaskDuration);
+    const observation = JSON.stringify({
+      browser: browser.version(), node: process.version, transitions: 20,
+      observedAt: new Date().toISOString(), before, after,
+      scope: "synthetic renderer only; not a leak verdict or production benchmark",
+    });
+    testInfo.annotations.push({ type: "synthetic-performance-observation", description: observation });
+    console.log("SYNTHETIC_PERFORMANCE_OBSERVATION", observation);
+  } finally { await session.detach(); }
+});
 
 test("canonical renderer keeps Paper state, navigation, and order confirmation usable on mobile", async ({ page }) => {
   await installRendererBridge(page);

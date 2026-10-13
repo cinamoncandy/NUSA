@@ -18,6 +18,14 @@ test("maps exact deployed source SHA and durable snapshot path into canonical Re
   assert.equal(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, path.resolve("/var/lib/nusa/research-replay-snapshots.json"));
   assert.equal(env.NUSA_RESEARCH_LEARNING_LEDGER_PATH, path.resolve("/var/lib/nusa/research-investment-learning.jsonl"));
 });
+test("forward timeout/nonzero failures remain explicit while independent canonical Research proceeds", () => {
+  for (const failure of [{ error: { code: "ETIMEDOUT" } }, { status: 1 }, { error: { code: "ENOENT" } }]) {
+    let calls = 0;
+    const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
+      spawnSync: () => ++calls === 1 ? failure : { status: 0 } });
+    assert.equal(calls, 2); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
+  }
+});
 
 test("accepts matching deployed source commit identities", () => {
   const env = buildResearchEnv({
@@ -56,18 +64,23 @@ test("fails closed on missing source identity or non-durable state", () => {
   assert.throws(() => buildResearchEnv({ NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite"), NUSA_RESEARCH_LEARNING_LEDGER_PATH: "relative.jsonl" }), /learning ledger path must be absolute and durable/);
 });
 
-test("runs only the canonical preload + real public-market Research script", () => {
+test("runs bounded forward study then canonical preload + real public-market Research script", () => {
   let observed;
+  const calls = [];
   const result = run({
     env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
     cwd: path.resolve("/opt/nusa/current"),
     executable: path.resolve("/usr/bin/node"),
     spawnSync: (executable, args, options) => {
       observed = { executable, args, options };
+      calls.push(observed);
       return { status: 0, signal: null };
     },
   });
   assert.equal(result.status, "COMPLETED");
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].args, ["scripts/run-regime-forward-study.js"]);
+  assert.equal(calls[0].options.timeout, 120000);
   assert.equal(result.learningLedgerPath, path.resolve("/var/lib/nusa/research-investment-learning.jsonl"));
   assert.equal(observed.executable, path.resolve("/usr/bin/node"));
   assert.deepEqual(observed.args, ["-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"]);

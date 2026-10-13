@@ -1,8 +1,9 @@
 import type { PersistedPaperCandidateProvenance } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
 import type { PaperRealizedPeriodOpenInput } from "./paperRealizedPeriodProducer";
+import { isDeepStrictEqual } from "node:util";
 import {
-  OWNER_BASELINE_CANDIDATE_ID,
+  OWNER_BASELINE_CODE_IDENTITY,
   ownerBaselineAdvisory,
   ownerBaselineCandidateProvenance,
   ownerBaselineStrategySpec,
@@ -35,9 +36,17 @@ export function buildOwnerBaselinePaperPeriodInput(context: OwnerBaselinePaperPe
 }
 
 export function isOwnerBaselinePeriodInput(input: PaperRealizedPeriodOpenInput): boolean {
-  return Array.isArray(input.candidateProvenance)
-    && input.candidateProvenance.length === 1
-    && input.candidateProvenance[0]?.candidateId === OWNER_BASELINE_CANDIDATE_ID
-    && typeof input.periodId === "string"
-    && input.periodId.startsWith("owner-baseline:");
+  try {
+    if (!isOwnerBaselinePeriodStartAt(input.periodStartAt) || !Number.isSafeInteger(input.periodIndex) || input.periodIndex < 0) return false;
+    const market = input.market;
+    if (typeof market !== "string" || !/^KRW-[A-Z0-9-]+$/.test(market)) return false;
+    const expected = ownerBaselineCandidateProvenance(market, ownerBaselineStrategySpec(OWNER_BASELINE_CODE_IDENTITY).specificationHash);
+    if (!isDeepStrictEqual(input.candidateProvenance, [expected])) return false;
+    const generatedAt = Date.parse(input.advisory.generatedAt);
+    if (!Number.isSafeInteger(generatedAt) || generatedAt >= input.periodStartAt || new Date(generatedAt).toISOString() !== input.advisory.generatedAt) return false;
+    // Continuations preserve their original immutable advisory, not a newly minted day identity.
+    if (!isDeepStrictEqual(input.advisory, ownerBaselineAdvisory(market, generatedAt + 1))) return false;
+    return input.periodId === `owner-baseline:${market}:${input.periodStartAt}`
+      || ["closed-learning-rollover", "closed-learning-mixed-binding-replaced", "closed-learning-account-replaced"].some(prefix => input.periodId === `${prefix}:${input.periodIndex}:${input.periodStartAt}`);
+  } catch { return false; }
 }

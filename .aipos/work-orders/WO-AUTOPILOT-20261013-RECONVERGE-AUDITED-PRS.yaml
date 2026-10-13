@@ -1,0 +1,38 @@
+id: WO-AUTOPILOT-20261013-RECONVERGE-AUDITED-PRS
+title: "Bring green PRs that Audit declined as stale back onto current main"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/reconverge-audited-prs
+authority_impact: none
+owner_approval: "2026-10-13 in chat ('모든 병목 해결해')"
+scope_note: "Extends scripts/autopilot-reconverge.mjs, which already merges current main into stale autopilot/* PRs, to other same-repository PRs whose current head the deterministic Audit attempted within the last 24 hours. It never merges a PR, never touches Audit or Release, and keeps every existing guard (open, not draft, no HOLD, no fork, base main, no conflict, head CI success)."
+objective: "Remove the release bottleneck where a green PR passes Audit but is declined as stale because another merge moved main seconds earlier, and then waits until someone updates it by hand."
+evidence_of_problem:
+  - "Audit run 38341183768 for #2651 at 03:19 UTC 2026-10-13: 'NO_ACTION stale/non-releasable Audit request ... base=45a161db main=8a8d1fde' because #2654 merged 13 seconds earlier; the same happened to #2652. Both stayed unmerged until a session merged main by hand."
+  - "The existing reconverge step skipped them as NOT_AUTOPILOT_BRANCH."
+scope:
+  include:
+    - "scripts/autopilot-reconverge.mjs (recentAuditedHeads, recentAuditForHead in decideReconverge)"
+    - "tests/autopilot-reconverge.test.js"
+  exclude:
+    - "Resolving merge conflicts automatically (state.yaml append conflicts still need a person or session), changing Audit, Release or branch protection, or acting on PRs Audit never attempted."
+limitations:
+  - "Older open PRs that Audit never attempted are deliberately not updated, so the step cannot revive unreviewed September work."
+  - "A PR with a merge conflict (mergeable=false) is still skipped; the frequent state.yaml append conflicts remain a separate bottleneck."
+  - "The merge commit is pushed with the existing NUSA_AUTOPILOT_GITHUB_TOKEN identity, as for autopilot/* PRs today; a session working on that branch must pull before pushing."
+acceptance:
+  - "A non-autopilot PR is updated only when Audit attempted its current head within 24 hours; all existing guards still apply; tests fail without the change."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node --test tests/autopilot-reconverge.test.js"
+  - "node --test tests/autopilot-*.test.js"
+evidence:
+  remaining: "Exact-head CI, deterministic Audit and Release; then observe a stale-declined PR being brought onto main by the next reconverge run."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

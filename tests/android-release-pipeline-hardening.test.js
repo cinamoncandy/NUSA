@@ -67,6 +67,25 @@ test("release trigger is exact-main, idempotent and bounded", () => {
   assert.match(trigger, /seq 1 60/);
 });
 
+test("watchdog wakes only for main CI, since its reconciliation is main-only", () => {
+  // Observed 2026-10-13: 56 of the last 100 watchdog runs were cancelled. Every trigger shares one
+  // concurrency group, so GitHub cancels the older pending run; with no branch filter each
+  // pull-request CI completion queued another wake-up (72 of the last 100 CI runs were
+  // pull_request). Those cancellations were the upstream source of the failure-repair dispatch
+  // storm suppressed downstream in the dispatch freshness gate.
+  const trigger = watchdog.split("workflow_run:", 2)[1].split("schedule:", 1)[0];
+  assert.match(trigger, /branches: \[main\]/);
+  // The reconciliation itself never reads the triggering run's branch: it is main-only by
+  // construction, so a non-main wake-up can only ever be wasted work.
+  assert.match(watchdog, /branches\/main/);
+  assert.match(watchdog, /runs\?branch=main/);
+  assert.match(watchdog, /-f ref=main/);
+  assert.doesNotMatch(watchdog, /github\.event\.workflow_run\.head_branch/);
+  // The 5-minute schedule remains the cadence backstop, so scoping the event trigger cannot
+  // silently stop reconciliation.
+  assert.match(watchdog, /cron: "\*\/5 \* \* \* \*"/);
+});
+
 test("watchdog self-heals only within a bounded retry budget", () => {
   assertFailClosedSafety(watchdog);
   assert.match(watchdog, /run_attempt/);

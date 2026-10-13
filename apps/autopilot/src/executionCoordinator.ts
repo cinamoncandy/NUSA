@@ -51,6 +51,8 @@ export interface PersistentExecutionRecord {
   headSha?: string;
   stop?: PersistentExecutionStop;
   resumeCount?: number;
+  /** Fresh acquisitions of this dedupe identity through /acquire; a rate-limit resume does not count. */
+  acquisitionCount?: number;
   /** A repository dispatch is asynchronous; one verified missing-consumer recovery is permitted. */
   auditDispatchRecoveryCount?: number;
 }
@@ -68,6 +70,8 @@ export interface PersistentExecutionAcquireRequest {
   taskId?: string;
   provider?: string;
   headSha?: string;
+  /** Optional ceiling on fresh acquisitions of the same dedupe identity (1-10); absent means unbounded. */
+  maxAcquisitions?: number;
 }
 
 export interface PersistentExecutionStopRequest extends PersistentExecutionStop {
@@ -176,6 +180,14 @@ const ACTIVE_WIP_STORAGE_KEY = "evolve-active-wip-v1";
 const ACTIVE_WIP_COMPLETION_HISTORY_KEY = "evolve-active-wip-completions-v1";
 const MAX_ACTIVE_WIP = 8;
 const MAX_ACTIVE_WIP_COMPLETIONS = 120;
+/**
+ * A claim is released only by a successful coding completion. A dispatch that fails closed, is
+ * rejected or is never consumed left its claim in place forever, so with maxConcurrent 1 every later
+ * backlog item was refused with WIP_LIMIT_REACHED (2026-10-13: 116 of 120 scheduled ticks). The
+ * execution consumer job times out after 20 minutes, so a claim older than this cannot belong to
+ * running work and is released at the next admission.
+ */
+export const ACTIVE_WIP_CLAIM_MAX_AGE_MS = 60 * 60 * 1000;
 const CONTROL_PLANE_HOLD_COORDINATOR_PREFIX = "control-plane-hold";
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA40 = /^[0-9a-f]{40}$/i;
@@ -282,7 +294,8 @@ function validAcquire(value: unknown): value is PersistentExecutionAcquireReques
     && Number(candidate.leaseExpiresAt) > Number(candidate.now)
     && (candidate.taskId === undefined || (typeof candidate.taskId === "string" && SAFE_LIFECYCLE_ID.test(candidate.taskId)))
     && (candidate.provider === undefined || (typeof candidate.provider === "string" && SAFE_LIFECYCLE_ID.test(candidate.provider)))
-    && (candidate.headSha === undefined || (typeof candidate.headSha === "string" && SHA40.test(candidate.headSha)));
+    && (candidate.headSha === undefined || (typeof candidate.headSha === "string" && SHA40.test(candidate.headSha)))
+    && (candidate.maxAcquisitions === undefined || (Number.isSafeInteger(candidate.maxAcquisitions) && Number(candidate.maxAcquisitions) >= 1 && Number(candidate.maxAcquisitions) <= 10));
 }
 
 function validScheduledReceipt(value: unknown): value is ScheduledRuntimeReceipt {
@@ -400,6 +413,7 @@ export class ExecutionCoordinator {
     if (url.pathname === "/control-plane-hold/clear") return this.clearControlPlaneHold(await request.json());
     if (url.pathname === "/rate-limit-stop") return this.stopForRateLimit(await request.json());
     if (url.pathname === "/provider-capacity-wait") return this.recordProviderCapacityWait(await request.json());
+    if (url.pathname === "/paid-overflow-reserve") return this.reservePaidOverflowCall(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -419,7 +433,12 @@ export class ExecutionCoordinator {
           if (request.now < current.stop.nextRetryAt) return json({ acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: current.stop.nextRetryAt, record: current }, 409);
         }
         if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
+        // A rate-limit resume is not a new attempt. A record written before counting existed was acquired once.
+        if (request.maxAcquisitions !== undefined && current.state !== "WAITING_RATE_LIMIT" && (current.acquisitionCount ?? 1) >= request.maxAcquisitions) {
+          return json({ acquired: false, reason: "ATTEMPT_LIMIT_REACHED", record: current }, 409);
+        }
       }
+      const sameIdentity = current?.dedupeKey === request.dedupeKey;
 
       const record: ExecutionRecord = Object.freeze({
         dedupeKey: request.dedupeKey,
@@ -432,6 +451,7 @@ export class ExecutionCoordinator {
         ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
         ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
         ...(current?.auditDispatchRecoveryCount !== undefined ? { auditDispatchRecoveryCount: current.auditDispatchRecoveryCount } : {}),
+        acquisitionCount: sameIdentity && current ? (current.acquisitionCount ?? 1) + (current.state === "WAITING_RATE_LIMIT" ? 0 : 1) : 1,
       });
       await storage.put("execution", record);
       return json({ acquired: true, record }, 201);
@@ -528,6 +548,7 @@ export class ExecutionCoordinator {
         ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
         ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
         ...(current?.auditDispatchRecoveryCount !== undefined ? { auditDispatchRecoveryCount: current.auditDispatchRecoveryCount } : {}),
+        ...(current?.dedupeKey === request.dedupeKey && current.acquisitionCount !== undefined ? { acquisitionCount: current.acquisitionCount } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, handoff: false, record }, 201);
@@ -598,6 +619,35 @@ export class ExecutionCoordinator {
     });
   }
 
+  /**
+   * Atomic per-UTC-day reservation of one paid overflow call. The owner-imposed cap is enforced
+   * here rather than by the caller because two concurrent executions would otherwise both read the
+   * same count and both spend. A reservation is only consumed when it is granted, so a refusal
+   * never burns budget. The counter is keyed by day, so it resets with the provider's own daily
+   * boundary and needs no cleanup.
+   */
+  private async reservePaidOverflowCall(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return json({ error: "PAID_OVERFLOW_RESERVE_INVALID" }, 400);
+    const request = value as { day?: unknown; cap?: unknown };
+    const day = request.day;
+    const cap = request.cap;
+    if (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error: "PAID_OVERFLOW_RESERVE_INVALID" }, 400);
+    if (!Number.isSafeInteger(cap) || (cap as number) < 0) return json({ error: "PAID_OVERFLOW_RESERVE_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const stored = await storage.get<{ schemaVersion: 1; day: string; used: number }>("paid-overflow-usage");
+      const sameDay = stored !== undefined
+        && stored.schemaVersion === 1
+        && stored.day === day
+        && Number.isSafeInteger(stored.used)
+        && stored.used >= 0;
+      const used = sameDay ? stored.used : 0;
+      if (used >= (cap as number)) return json({ allowed: false, day, used, cap });
+      const next = Object.freeze({ schemaVersion: 1 as const, day, used: used + 1 });
+      await storage.put("paid-overflow-usage", next);
+      return json({ allowed: true, day, used: next.used, cap });
+    });
+  }
+
   private async admitActiveWip(value: unknown): Promise<Response> {
     if (!value || typeof value !== "object") return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
     const request = value as Partial<ActiveWipAdmissionRequest>;
@@ -608,8 +658,13 @@ export class ExecutionCoordinator {
     if (!validText(request.dedupeKey) || !validText(request.executionId) || !ownerOk || !keysOk || !validSafeTimestamp(request.claimedAt)
       || !Number.isSafeInteger(request.maxConcurrent) || Number(request.maxConcurrent) < 1 || Number(request.maxConcurrent) > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
     return this.mutateExecutionAtomically(async (storage) => {
-      const state = await storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
-      if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || state.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const stored = await storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
+      if (stored.schemaVersion !== 1 || !Array.isArray(stored.claims) || stored.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const expiredClaims = stored.claims.filter((claim) => claim.claimedAt + ACTIVE_WIP_CLAIM_MAX_AGE_MS <= Number(request.claimedAt));
+      const state: ActiveWipState = expiredClaims.length === 0
+        ? stored
+        : Object.freeze({ schemaVersion: 1, claims: Object.freeze(stored.claims.filter((claim) => !expiredClaims.includes(claim))) });
+      if (expiredClaims.length > 0) await storage.put(ACTIVE_WIP_STORAGE_KEY, state);
       const same = state.claims.find((claim) => claim.dedupeKey === request.dedupeKey);
       if (same) return json({ admitted: false, reason: same.executionId === request.executionId ? "ALREADY_ACTIVE" : "DEDUPE_CONFLICT", claims: state.claims }, 409);
       const sameExecution = state.claims.find((claim) => claim.executionId === request.executionId);
@@ -620,7 +675,7 @@ export class ExecutionCoordinator {
       const claim: ActiveWipClaim = Object.freeze({ dedupeKey: request.dedupeKey!, executionId: request.executionId!, canonicalOwner: request.canonicalOwner!, conflictKeys: Object.freeze([...request.conflictKeys!]), claimedAt: Number(request.claimedAt) });
       const next: ActiveWipState = Object.freeze({ schemaVersion: 1, claims: Object.freeze([...state.claims, claim]) });
       await storage.put(ACTIVE_WIP_STORAGE_KEY, next);
-      return json({ admitted: true, claim, claims: next.claims }, 201);
+      return json({ admitted: true, claim, claims: next.claims, expiredClaims }, 201);
     });
   }
 
@@ -1119,6 +1174,31 @@ export async function readProviderCapacityWait(namespace: ExecutionCoordinatorNa
   if (body.wait === null || body.wait === undefined) return null;
   if (!validPersistentExecutionStop(body.wait)) throw new Error("PROVIDER_CAPACITY_WAIT_READ_FAILED");
   return body.wait;
+}
+
+/** UTC calendar day of a timestamp, the window the paid overflow cap and provider stop share. */
+export function utcDayKey(now: number): string {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+/**
+ * Reserve one paid overflow call for the given UTC day, returning false once the cap is reached.
+ * Keyed by provider and day so each provider has its own budget and the count resets daily.
+ */
+export async function reservePaidOverflowCall(
+  namespace: ExecutionCoordinatorNamespace,
+  input: { provider: string; day: string; cap: number },
+): Promise<boolean> {
+  const stub = namespace.get(namespace.idFromName(`paid-overflow-usage:${input.provider}:${input.day}`));
+  const response = await stub.fetch("https://execution-coordinator/paid-overflow-reserve", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ day: input.day, cap: input.cap }),
+  });
+  if (!response.ok) throw new Error("PAID_OVERFLOW_RESERVE_FAILED");
+  const body = await response.json() as { allowed?: unknown };
+  if (typeof body.allowed !== "boolean") throw new Error("PAID_OVERFLOW_RESERVE_FAILED");
+  return body.allowed;
 }
 
 export async function completePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {

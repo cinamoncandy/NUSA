@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
+import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
 import {
   PaperRealizedPeriodProducer,
   PaperRealizedPeriodProducerError,
@@ -62,6 +63,24 @@ function codeOf(action: () => unknown): string {
 }
 
 describe("PaperRealizedPeriodProducer", () => {
+  it("retires a canonical baseline continuation after restart, but preserves a candidate-ID-only spoof", () => {
+    const state = producer();
+    try {
+      const original = buildOwnerBaselinePaperPeriodInput({ market: "KRW-XRP", periodIndex: 5, periodStartAt: BASE, sourceCommitSha: "a".repeat(40) });
+      const continuation = { ...original, periodId: `closed-learning-rollover:5:${BASE}` };
+      state.producer.openPeriod(continuation);
+      const restarted = new PaperRealizedPeriodProducer(state.repository);
+      restarted.retireOpenPeriodForReplacement(continuation.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:challenger-a");
+      assert.equal(restarted.listOpenPeriods().length, 0);
+      assert.equal(state.repository.getPending(continuation.periodId), undefined);
+      const spoof = openPeriod(6, "forged-baseline", "owner-baseline-sma-5-20");
+      restarted.openPeriod(spoof);
+      assert.equal(codeOf(() => restarted.retireOpenPeriodForReplacement(spoof.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:challenger-a")), "PERIOD_REPLACEMENT_FORBIDDEN");
+      assert.equal(restarted.listOpenPeriods()[0]?.periodId, spoof.periodId);
+      assert.notEqual(state.repository.getPending(spoof.periodId), undefined);
+    } finally { state.db.close(); }
+  });
+
   it("appends exactly one canonical #885 envelope and replays it after restart", () => {
     const state = producer();
     try {

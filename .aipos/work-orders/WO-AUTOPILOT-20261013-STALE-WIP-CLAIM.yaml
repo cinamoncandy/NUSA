@@ -1,0 +1,39 @@
+id: WO-AUTOPILOT-20261013-STALE-WIP-CLAIM
+title: "Release stale Autopilot active-WIP claims so backlog coding is not blocked forever"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-wip-bottleneck
+authority_impact: none
+owner_approval: "2026-10-13 in chat ('오토파일럿 병목 해결해')"
+scope_note: "One age check in the execution coordinator's active-WIP admission plus a test. It only frees a slot that no running work can hold; no route, config, workflow, Audit, Release, Risk or authority change."
+objective: "Remove the current Autopilot bottleneck: release an active-WIP claim older than 60 minutes at the next admission, so a failed or never-consumed backlog dispatch cannot hold the single WIP slot indefinitely."
+evidence_of_problem:
+  - "Worker /scheduled/status 07:05-09:03 UTC 2026-10-13: 116 of 120 ticks DUPLICATE_EXECUTION_SUPPRESSED / WIP_LIMIT_REACHED, the rest ABSTAINED; no work dispatched. WIP_LIMIT_REACHED was also continuous on 2026-10-12 from 19:42 UTC."
+  - "apps/autopilot/src/index.ts completes an active-WIP claim only when coding returns EXECUTION_ACCEPTED; a failed, rejected or unconsumed dispatch never releases it, and scheduled backlog coding admits with maxConcurrent 1."
+scope:
+  include:
+    - "apps/autopilot/src/executionCoordinator.ts (ACTIVE_WIP_CLAIM_MAX_AGE_MS = 60 minutes; expired claims pruned at admission and returned as expiredClaims)"
+    - "apps/autopilot/src/executionCoordinator.test.ts"
+  exclude:
+    - "Releasing claims on failure through the completion path (the completion history records successful work only), changing maxConcurrent, or any other Autopilot behaviour."
+limitations:
+  - "The live claim list is not exposed publicly, so the stuck claim is inferred from the code path and the continuous WIP_LIMIT_REACHED receipts, not read directly."
+  - "After release the same backlog item may be dispatched again; the three-attempt ceiling per work item and main SHA (#2652) bounds that."
+  - "The execution consumer job times out after 20 minutes, so a 60-minute-old claim cannot belong to running work."
+acceptance:
+  - "A claim younger than 60 minutes still blocks with WIP_LIMIT_REACHED; at 60 minutes the next admission releases it and is admitted (test fails without the change)."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/*.test.js"
+  - "node --test tests/autopilot-*.test.js"
+evidence:
+  remaining: "Exact-head CI, deterministic Audit and Release; Worker auto-deploy; then /scheduled/status should show dispatches instead of continuous WIP_LIMIT_REACHED."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

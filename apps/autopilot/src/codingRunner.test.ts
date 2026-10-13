@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { buildDeterministicCodingPatch, CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
+import { buildDeterministicCodingPatch, countChangedPatchLines, MAX_CODING_CHANGED_LINES, validateCodingProposal, CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { classifyCodingRunnerFailure } from "./codingRunnerFailureClass";
 
 const request = {
@@ -1663,6 +1663,87 @@ describe("coding runner workflow failure evidence", () => {
       assert.equal(result.status, "EXECUTION_ACCEPTED");
     });
 
+    it("stops the overflow for the day once the owner cap is reached", async () => {
+      let githubModelsCalls = 0;
+      let reservations = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+        reserveOverflowCall: async () => { reservations += 1; return false; },
+      });
+      assert.equal(reservations, 1, "the cap is checked before the call, not after");
+      assert.equal(githubModelsCalls, 0, "a capped overflow must not spend");
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      assert.equal(result.provider, "github-models");
+      assert.equal(result.stopReason, "GITHUB_MODELS_DAILY_CAP_REACHED");
+      assert.equal(result.nextRetryAt, 86_400_000);
+      assert.equal(result.resumeCondition, "owner-daily-overflow-cap-reset-and-exact-head-revalidation");
+    });
+
+    it("spends the overflow while the owner cap still has room", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+        reserveOverflowCall: async () => true,
+      });
+      assert.equal(githubModelsCalls, 1);
+      assert.equal(result.status, "EXECUTION_ACCEPTED");
+    });
+
+    it("withholds the spend when the cap reservation cannot be taken", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+        reserveOverflowCall: async () => { throw new Error("coordinator unavailable"); },
+      });
+      assert.equal(githubModelsCalls, 0, "an unverifiable cap must never grant spending");
+      assert.equal(result.stopReason, "GITHUB_MODELS_DAILY_CAP_REACHED");
+    });
+
+    it("caps the mid-attempt overflow on the same daily budget", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("429 too many requests"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async () => null,
+        reserveOverflowCall: async () => false,
+      });
+      assert.equal(githubModelsCalls, 0);
+      assert.equal(result.provider, "github-models");
+      assert.equal(result.stopReason, "GITHUB_MODELS_DAILY_CAP_REACHED");
+    });
+
+    it("leaves spending uncapped when the owner configured no cap", async () => {
+      let githubModelsCalls = 0;
+      const ai: WorkersAiBinding = { async run() { throw new Error("unexpected Workers AI call"); } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, async (url) => {
+        if (url === "https://models.github.ai/inference/chat/completions") { githubModelsCalls += 1; return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] }); }
+        return verifiedGithubFetch(url);
+      }, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async (provider) => (provider === "workers-ai" ? 61_000 : null),
+      });
+      assert.equal(githubModelsCalls, 1, "no reserveOverflowCall means no owner cap");
+      assert.equal(result.status, "EXECUTION_ACCEPTED");
+    });
+
     it("proceeds normally when no wait is recorded", async () => {
       let aiCalls = 0;
       const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
@@ -1672,5 +1753,47 @@ describe("coding runner workflow failure evidence", () => {
       assert.equal(aiCalls, 1);
       assert.equal(result.status, "EXECUTION_ACCEPTED");
     });
+  });
+});
+
+describe("light-task size limit", () => {
+  const patchWith = (added: number, removed: number): string => [
+    "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+    "--- a/apps/autopilot/src/example.ts",
+    "+++ b/apps/autopilot/src/example.ts",
+    "@@ -1,1 +1,1 @@",
+    ...Array.from({ length: removed }, (_, i) => `-const old${i} = 1;`),
+    ...Array.from({ length: added }, (_, i) => `+const next${i} = 2;`),
+    "",
+  ].join("\n");
+
+  it("counts added and removed lines and ignores the file headers", () => {
+    assert.equal(countChangedPatchLines(patchWith(3, 2)), 5);
+    assert.equal(countChangedPatchLines("--- a/x\n+++ b/x\n"), 0);
+    assert.equal(MAX_CODING_CHANGED_LINES, 150);
+  });
+
+  it("accepts exactly the limit and rejects one line more with the existing too-large reason", () => {
+    assert.deepEqual(Object.keys(validateCodingProposal({ patch: patchWith(75, 75) })), ["patch"]);
+    assert.throws(() => validateCodingProposal({ patch: patchWith(76, 75) }), /CODING_PROPOSAL_TOO_LARGE/);
+    assert.throws(() => validateCodingProposal({ patch: patchWith(151, 0) }), /CODING_PROPOSAL_TOO_LARGE/);
+  });
+
+  it("applies the same limit to a patch built from an exact edit", () => {
+    const content = "export const before = true;\nexport const oldValue = true;\nexport const after = true;\n";
+    const context = { path: "apps/autopilot/src/example.ts", startLine: 1, content };
+    const edit = (lines: number) => ({
+      path: context.path,
+      expectedText: "export const oldValue = true;",
+      replacementText: Array.from({ length: lines }, (_, i) => `export const v${i} = 1;`).join("\n"),
+    });
+    // one removed line plus 149 added lines is exactly 150 and passes; 150 added lines makes 151 and is rejected
+    assert.doesNotThrow(() => buildDeterministicCodingPatch(context, edit(149)));
+    assert.throws(() => buildDeterministicCodingPatch(context, edit(150)), /CODING_PROPOSAL_TOO_LARGE/);
+  });
+
+  it("keeps the existing single-file rule, which is stricter than the three-file default", () => {
+    const twoFiles = `${patchWith(1, 1)}diff --git a/apps/autopilot/src/other.ts b/apps/autopilot/src/other.ts\n--- a/apps/autopilot/src/other.ts\n+++ b/apps/autopilot/src/other.ts\n@@ -1 +1 @@\n-a\n+b\n`;
+    assert.throws(() => validateCodingProposal({ patch: twoFiles }), /CODING_PROPOSAL_PATH_INVALID/);
   });
 });
