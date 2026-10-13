@@ -51,6 +51,8 @@ export interface PersistentExecutionRecord {
   headSha?: string;
   stop?: PersistentExecutionStop;
   resumeCount?: number;
+  /** Fresh acquisitions of this dedupe identity through /acquire; a rate-limit resume does not count. */
+  acquisitionCount?: number;
   /** A repository dispatch is asynchronous; one verified missing-consumer recovery is permitted. */
   auditDispatchRecoveryCount?: number;
 }
@@ -68,6 +70,8 @@ export interface PersistentExecutionAcquireRequest {
   taskId?: string;
   provider?: string;
   headSha?: string;
+  /** Optional ceiling on fresh acquisitions of the same dedupe identity (1-10); absent means unbounded. */
+  maxAcquisitions?: number;
 }
 
 export interface PersistentExecutionStopRequest extends PersistentExecutionStop {
@@ -282,7 +286,8 @@ function validAcquire(value: unknown): value is PersistentExecutionAcquireReques
     && Number(candidate.leaseExpiresAt) > Number(candidate.now)
     && (candidate.taskId === undefined || (typeof candidate.taskId === "string" && SAFE_LIFECYCLE_ID.test(candidate.taskId)))
     && (candidate.provider === undefined || (typeof candidate.provider === "string" && SAFE_LIFECYCLE_ID.test(candidate.provider)))
-    && (candidate.headSha === undefined || (typeof candidate.headSha === "string" && SHA40.test(candidate.headSha)));
+    && (candidate.headSha === undefined || (typeof candidate.headSha === "string" && SHA40.test(candidate.headSha)))
+    && (candidate.maxAcquisitions === undefined || (Number.isSafeInteger(candidate.maxAcquisitions) && Number(candidate.maxAcquisitions) >= 1 && Number(candidate.maxAcquisitions) <= 10));
 }
 
 function validScheduledReceipt(value: unknown): value is ScheduledRuntimeReceipt {
@@ -420,7 +425,12 @@ export class ExecutionCoordinator {
           if (request.now < current.stop.nextRetryAt) return json({ acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: current.stop.nextRetryAt, record: current }, 409);
         }
         if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
+        // A rate-limit resume is not a new attempt. A record written before counting existed was acquired once.
+        if (request.maxAcquisitions !== undefined && current.state !== "WAITING_RATE_LIMIT" && (current.acquisitionCount ?? 1) >= request.maxAcquisitions) {
+          return json({ acquired: false, reason: "ATTEMPT_LIMIT_REACHED", record: current }, 409);
+        }
       }
+      const sameIdentity = current?.dedupeKey === request.dedupeKey;
 
       const record: ExecutionRecord = Object.freeze({
         dedupeKey: request.dedupeKey,
@@ -433,6 +443,7 @@ export class ExecutionCoordinator {
         ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
         ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
         ...(current?.auditDispatchRecoveryCount !== undefined ? { auditDispatchRecoveryCount: current.auditDispatchRecoveryCount } : {}),
+        acquisitionCount: sameIdentity && current ? (current.acquisitionCount ?? 1) + (current.state === "WAITING_RATE_LIMIT" ? 0 : 1) : 1,
       });
       await storage.put("execution", record);
       return json({ acquired: true, record }, 201);
@@ -529,6 +540,7 @@ export class ExecutionCoordinator {
         ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
         ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
         ...(current?.auditDispatchRecoveryCount !== undefined ? { auditDispatchRecoveryCount: current.auditDispatchRecoveryCount } : {}),
+        ...(current?.dedupeKey === request.dedupeKey && current.acquisitionCount !== undefined ? { acquisitionCount: current.acquisitionCount } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, handoff: false, record }, 201);
