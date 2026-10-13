@@ -1,4 +1,11 @@
 version: 1
+current_learning_candidate_blocker_20261013:
+  work_order: WO-LEARNING-20261013-QUALIFIED-CANDIDATE-BLOCKER
+  status: DIAGNOSED_PENDING_RESEARCH_SCOPE
+  observed_at: "2026-10-13T01:50:15.474Z"
+  evidence: "Health ticks120, cycles0, deployments0; bootstrap RESEARCH_NOT_DEPLOYABLE; baseline without Research lineage; consecutive losses3/limit3."
+  next: "Owner direction for new bounded Research scope; previous research stop preserved. No risk reset, lineage fabrication or qualification weakening."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_browser_performance_20261013:
   work_order: WO-OPS-20261013-BROWSER-PERFORMANCE
   status: LOCAL_VALIDATED_PENDING_REVIEW_CI
