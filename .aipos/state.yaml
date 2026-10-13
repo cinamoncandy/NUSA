@@ -1,10 +1,18 @@
 version: 1
+current_regime_research_resume_20261013:
+  work_order: WO-RESEARCH-20261013-REGIME-RESUME
+  status: PREREGISTERED_INFRASTRUCTURE_VALIDATED
+  validation: "32 reused infrastructure tests and validate:full PASS; no new candidate outcome or deployed research binding claimed."
+  branch: codex/research-regime-resume-20261013
+  owner_authorization: "Explicit research resume; PAPER/SHADOW only."
+  next: "Verify canonical regime infrastructure, then implement bounded forward candidate evaluation; no loss reset or early qualification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_candidate_blocker_20261013:
   work_order: WO-LEARNING-20261013-QUALIFIED-CANDIDATE-BLOCKER
-  status: DIAGNOSED_PENDING_RESEARCH_SCOPE
+  status: RESEARCH_SCOPE_AUTHORIZED
   observed_at: "2026-10-13T01:50:15.474Z"
   evidence: "Health ticks120, cycles0, deployments0; bootstrap RESEARCH_NOT_DEPLOYABLE; baseline without Research lineage; consecutive losses3/limit3."
-  next: "Owner direction for new bounded Research scope; previous research stop preserved. No risk reset, lineage fabrication or qualification weakening."
+  next: "Owner authorized bounded regime-aware research under WO-RESEARCH-20261013-REGIME-RESUME. No risk reset, lineage fabrication or qualification weakening."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_browser_performance_20261013:
   work_order: WO-OPS-20261013-BROWSER-PERFORMANCE

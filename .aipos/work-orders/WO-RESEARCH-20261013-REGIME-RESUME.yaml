@@ -1,0 +1,46 @@
+id: WO-RESEARCH-20261013-REGIME-RESUME
+title: Resume bounded regime-aware forward research
+status: PREREGISTERED_INFRASTRUCTURE_VALIDATED
+priority: P1
+authority_impact: none
+risk: MEDIUM
+base_commit: fa1e279d58916354da4c42c5ea9e01d146a5f875
+implementation_branch: codex/research-regime-resume-20261013
+owner_authorization: "2026-10-13 explicit resume after regime-aware PAPER/SHADOW research proposal. Supersedes prior research stop only within this scope."
+objective: "Assess a bounded candidate using new evidence, not force a completed learning cycle."
+canonical_owners: "Existing Research/marketRegime/regimePolicy/backtest/PaperBroker; existing independent qualification, Audit and Release."
+preregistration:
+  version: 1
+  hypothesis: "Avoiding new SMA exposure during forbidden downtrend regimes may improve net downside behavior; not established."
+  market: KRW-BTC
+  candle_interval: 60m
+  strategy: sma-crossover
+  short_window: 20
+  long_window: 100
+  comparator: "Same SMA and canonical costs without regime entry filter; cash and buy-and-hold reported separately."
+  classifier: "packages/core/src/regimePolicy.ts classifyPriceRegime, DEFAULT_REGIME_CONFIG at base_commit; no second classifier. trendLookback20,strongTrendReturn0.04,weakTrendReturn0.01,lowVolatility0.001,highVolatility0.01."
+  exposure: "Research-only entry mask: STRONG_UPTREND or WEAK_UPTREND only; every other/undefined classification forbids new entries. Do not adopt regime risk multipliers or suppress exits."
+  execution: "Closed candle evidence only, next-candle execution; same-candle attribution harness is infrastructure testing only."
+  holdout_start_utc: "2026-10-14T00:00:00Z"
+  holdout_end_utc_exclusive: "2026-12-13T00:00:00Z"
+  holdout_days: 60
+  evaluation: "Six chronological10-day blocks; hourly observations are not independent days."
+  tuning: "One candidate, no tuning on holdout; historical inspected data is development only."
+  missing_data: "Missing/duplicate/stale/inverted candles => INSUFFICIENT_DATA, no invented fills."
+  costs: "Canonical fee/slippage plus2x stress; explicit latency and fill assumptions."
+  research_screen: "Positive net return in at least4/6 blocks; positive aggregate net after2x costs; drawdown no worse than comparator; >=30 completed trades overall. Otherwise FAIL/INSUFFICIENT_DATA, not promotion."
+  promotion: "Screen success never substitutes existing OOS/DSR/PBO/regime/League/qualified-artifact and PAPER authorization gates."
+provenance: "Freeze source SHA and spec fingerprint before holdout; record data source, acquisition/event time, version, fingerprint, lineage and rejected observations."
+resource_budget: "One candidate/market; no parallel provider jobs, paid services, new scheduler or broker writes."
+verification_commands:
+  - node --test tests/regime-policy.test.js tests/regime-classifier.test.js tests/regime-determinism.test.js tests/regime-verifier.test.js
+  - pnpm run preflight
+  - pnpm run validate:full
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  consecutive_loss_limit: unchanged_3
+remaining: "Forward candidate evaluator/collection binding, actual holdout evidence and canonical integration are pending; no runtime activation claimed."
+next: "Verify reused classifier/research infrastructure, then implement separately tested next-candle candidate evaluator and provenance using canonical Research contracts."
+validation: "32 existing regime policy/classifier/determinism/independent verifier tests actually PASS; validate:full PASS. Synthetic infrastructure tests are not candidate research or forward market evidence."
