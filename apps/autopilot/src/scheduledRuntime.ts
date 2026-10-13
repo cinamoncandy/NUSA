@@ -4,6 +4,7 @@ import { prepareProductionExecution } from "./productionExecutionSpine";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogReadiness, selectStalenessProbePulls } from "./evolveGithubIssueBacklog";
 import { runScheduledEvolutionCoding } from "./scheduledEvolutionCoding";
+import { isRepairableMainWorkflowFailure } from "./repairableWorkflowRun";
 import {
   UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY,
   deriveGithubIssueWorkSupply,
@@ -201,7 +202,7 @@ function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], n
     if (!run) continue;
     const conclusion = text(run.conclusion);
     if (conclusion !== "failure" && conclusion !== "timed_out") continue;
-    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+    if (!isRepairableMainWorkflowFailure(run)) continue;
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
     const headSha = text(run.head_sha);
@@ -219,7 +220,7 @@ function currentMainFailureRunId(candidates: readonly unknown[], mainSha: string
     if (!run) continue;
     const conclusion = text(run.conclusion);
     if (conclusion !== "failure" && conclusion !== "timed_out") continue;
-    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+    if (!isRepairableMainWorkflowFailure(run)) continue;
     if (text(run.head_sha)?.toLowerCase() !== mainSha.toLowerCase()) continue;
     const runId = positiveInteger(run.id);
     const completedAt = workflowCompletedAt(run);
@@ -238,7 +239,7 @@ function hasFreshWorkflowFailureSince(candidates: readonly unknown[], observedAt
     if (!run) continue;
     const conclusion = text(run.conclusion);
     if (conclusion !== "failure" && conclusion !== "timed_out") continue;
-    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+    if (!isRepairableMainWorkflowFailure(run)) continue;
     const completedAt = workflowCompletedAt(run);
     if (completedAt && Date.parse(completedAt) >= observedAt) return true;
   }

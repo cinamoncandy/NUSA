@@ -3311,3 +3311,14 @@ current_autopilot_repair_attempt_cap:
   finding: "Second P1 increment: scheduled evolution coding now asks the execution coordinator for at most three fresh acquisitions per logical work item and main SHA; further ticks return ATTEMPT_LIMIT_REACHED instead of re-dispatching the same unfixable work about every five minutes. Other acquire callers are unchanged."
   next: "Non-author review; then the quiet-stop increment for the execution consumer. Independent of PR #2651."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_repair_target_allowlist:
+  work_order: WO-AUTOPILOT-20261013-REPAIR-TARGET-ALLOWLIST
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-repair-target-allowlist
+  pull_request: 2651
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  finding: "First P1 increment: the scheduled runtime and scheduled evolution coding now treat only failed CI and Autopilot Sandbox New-File Guard runs on main (push or manual) as repair targets, so failures of Autopilot's own workflows (Codex coding) or runtime evidence workflows no longer drive the five-minute re-dispatch loop seen on 2026-10-12. The webhook planner likewise ignores failed or cancelled non-code workflows (the 22:06 and 22:11 UTC failures were repairs of a cancelled Android release trigger run)."
+  next: "Non-author review, then the attempt-cap and quiet-stop increments; do not re-enable Codex coding or the owner gate before them."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

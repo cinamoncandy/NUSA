@@ -1,3 +1,4 @@
+import { REPAIRABLE_WORKFLOW_NAMES } from "./repairableWorkflowRun";
 export type SupportedGithubEvent = "ping" | "push" | "pull_request" | "workflow_run";
 
 export type AutopilotDispatchKind =
@@ -131,6 +132,10 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
     return freeze({ kind: "CI_SUCCEEDED", repository, headSha, prNumber: null, workflowRunId, workflowRunAttempt, reason: "workflow-run-success", mutationAllowed: false });
   }
   if (["failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"].includes(conclusion ?? "")) {
+    // Only named code checks are repair evidence. A failed or cancelled control-plane, release or
+    // runtime-evidence workflow is not a code defect: on 2026-10-12 a cancelled Android release
+    // trigger run was dispatched as a repair and failed closed twice.
+    if (!workflowName || !REPAIRABLE_WORKFLOW_NAMES.has(workflowName)) return ignored(payload, "workflow-run-failure-not-repairable");
     return freeze({ kind: "CI_FAILED", repository, headSha, prNumber: workflowRunPullRequestNumber(run), workflowRunId, workflowRunAttempt, reason: `workflow-run:${conclusion}`, mutationAllowed: false });
   }
   return ignored(payload, `workflow-run-conclusion:${conclusion ?? "unknown"}`);
