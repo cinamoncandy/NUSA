@@ -3290,3 +3290,24 @@ current_ops_open_pr_inventory:
   owner_decisions: "2026-10-13: #2311 closed by the owner (PAPER initial-capital default stays KRW 10,000,000; branch kept)."
   next: "Owner approves which other groups to close; closing follows only an approved list and never deletes branches."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_docs_assistant_handoff_20261013:
+  work_order: WO-DOCS-20261013-ASSISTANT-HANDOFF
+  status: READY_FOR_REVIEW
+  branch: claude/handoff-2026-10-13
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-13-assistant-handoff.md
+  finding: "Session handoff: redesign revision 2 merged as PROPOSED (#2650); P1 Autopilot fixes #2651 (repair only code-check failures, scheduled and webhook paths) and #2652 (three attempts per work item) are drafts with green CI awaiting a non-author review; open-PR inventory #2653 confirms #1922 and #2060 as superseded; #2311 closed by the owner so the PAPER initial-capital default stays KRW 10,000,000."
+  next: "Owner: approve closing #1922 and #2060, review #2651/#2652 with the main Claude account, answer the six redesign decisions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_repair_attempt_cap:
+  work_order: WO-AUTOPILOT-20261013-REPAIR-ATTEMPT-CAP
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-repair-attempt-cap
+  pull_request: 2652
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  finding: "Second P1 increment: scheduled evolution coding now asks the execution coordinator for at most three fresh acquisitions per logical work item and main SHA; further ticks return ATTEMPT_LIMIT_REACHED instead of re-dispatching the same unfixable work about every five minutes. Other acquire callers are unchanged."
+  next: "Non-author review; then the quiet-stop increment for the execution consumer. Independent of PR #2651."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
