@@ -1059,6 +1059,16 @@ latest_event_bridge_oidc_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "NUSA_WEBHOOK_SECRET/OIDC runtime delivery and control-plane receipt remain external deployment evidence; no unauthenticated fallback is allowed."
 
+current_research_family_screen_20261013:
+  work_order: WO-RESEARCH-20261013-FAMILY-SCREEN
+  status: DAILY_SURVIVOR_FOUND_FORWARD_TEST_FROZEN
+  branch: claude/research-family-screen
+  finding: "Pre-registered Bollinger, squeeze and regime-filtered breakout screens on 250d and prior 383d 60m data: 0 of 6 settings survive. Learning loop still has no Research-qualifiable candidate; no threshold or risk change."
+  daily: "Pre-registered daily screen (1824 days): DONCHIAN_D N=20 passes, REGIME_DONCHIAN_D N=20 narrowly; not promotion evidence."
+  forward: "REGIME_BREAKOUT N=50 frozen for forward 60m data from 2026-10-14; verdict earliest 2026-12-13."
+  next: "Owner decides on registering a daily Donchian family for a formal Research experiment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
   status: REVIEW_CORRECTIONS_APPLIED_PENDING_FRESH_CI
@@ -2447,6 +2457,15 @@ current_research_evaluator_runner:
   branch: claude/nusa-repository-j93sd8-evaluators
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+
+current_research_ohlcv_catalog_20261013:
+  work_order: WO-RESEARCH-20261013-OHLCV-CATALOG
+  status: COMPLETED_NO_SURVIVOR
+  branch: claude/research-family-screen
+  finding: "Pre-registered OHLCV catalog (38 configurations): 1 discovery pass (daily Keltner), 0 holdout passes. Cumulative 135 configurations today, 0 survivors."
+  next: "Owner decides on order-book collection or external data; forward test verdict earliest 2026-12-13. No threshold or risk change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_orchestrator_composition:
   work_order: WO-RESEARCH-20261002-ORCHESTRATOR-COMPOSITION
   status: READY_FOR_REVIEW
@@ -2892,6 +2911,15 @@ current_research_longer_timeframes_proposal:
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('제안서 써줘'); implementation not approved"
   finding: "All tested families lose on 1-minute bars after costs; proposes a walk-forward Research comparison over 15/60/240-minute bars"
+
+current_research_strategy_catalog_20261013:
+  work_order: WO-RESEARCH-20261013-STRATEGY-CATALOG
+  status: COMPLETED_NO_SURVIVOR
+  branch: claude/research-family-screen
+  finding: "Pre-registered 97-configuration catalog (60m and daily, held-out final test, Bonferroni bar): 9 passed discovery, 0 passed the holdout; 8 of 9 lost money per trade on unseen data."
+  next: "No learning-loop candidate. Wait for the forward test (earliest 2026-12-13) or owner decision on richer data. No threshold or risk change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_timeframe_comparison:
   work_order: WO-RESEARCH-20261006-TIMEFRAME-COMPARISON
   status: READY_FOR_REVIEW
@@ -3093,6 +3121,15 @@ current_autopilot_runner_readiness:
   branch: claude/autopilot-runner-preflight
   authority_impact: none
   finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
+
+current_learning_methods_20261013:
+  work_order: WO-RESEARCH-20261013-LEARNING-METHODS
+  status: COMPLETED_ANALYSIS
+  branch: claude/research-family-screen
+  finding: "GLOBAL FIRST_BROKEN_TRANSITION is Research -> qualified candidate (market result: 0/135 holdout survivors, baseline gross-negative before fees). Loop plumbing and #2589 failure fields are deployed but unexercised. VERIFIED=false."
+  next: "Forward test verdict earliest 2026-12-13; owner decision on new data sources. No threshold or lineage change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_pending_order_attribution_test:
   work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
   status: READY_FOR_REVIEW

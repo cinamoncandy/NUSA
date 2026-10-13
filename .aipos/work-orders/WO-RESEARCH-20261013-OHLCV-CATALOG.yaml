@@ -1,0 +1,25 @@
+id: WO-RESEARCH-20261013-OHLCV-CATALOG
+title: "Pre-registered OHLCV (open/high/low/volume) catalog screen; order-book collection plan"
+status: COMPLETED_NO_SURVIVOR
+priority: P1
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-family-screen
+owner_approval: "2026-10-13 in chat: owner chose 1 (widen research to other data types)."
+pre_registration:
+  committed_before_data_fetch: true
+  script: scripts/offline-ohlcv-catalog-screen.js
+  families: "ATR breakout, Keltner, Donchian on highs/lows, volume-confirmed breakout, OBV trend, stochastic, Williams %R, MFI reversion, VWAP reversion, inside bar, NR7, close strength with volume, capitulation reversion, ADX trend, Supertrend, gap continuation, volume momentum (19 rules x 60m and daily = 38)"
+  rule: "Same holdout and discovery rule as the close-only catalog; Bonferroni K is cumulative (97 + 38 = 135)."
+order_book: "Upbit gives no historical order book, so it cannot be backtested. Testing it needs live collection first (a new collector and storage, owner decision); nothing collected yet."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+result: "38 configurations; 1 passed discovery (daily Keltner 20/2, 6/6 windows); 0 passed the holdout (16 trades, -2.67% per trade). Cumulative today: 135 configurations, 0 holdout survivors."
+note: docs/RESEARCH_NOTE_2026-10-13_OHLCV_CATALOG.md
+verification_commands:
+  - "node scripts/offline-ohlcv-catalog-screen.js"
+next: "No candidate. Options: start live order-book collection (owner decision), external data (funding, premium), or wait for the forward test (earliest 2026-12-13)."

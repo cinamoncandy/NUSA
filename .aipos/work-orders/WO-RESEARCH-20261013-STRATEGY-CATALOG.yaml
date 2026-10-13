@@ -1,0 +1,27 @@
+id: WO-RESEARCH-20261013-STRATEGY-CATALOG
+title: "Pre-registered catalog screen of widely known strategy families with a multiple-testing correction"
+status: COMPLETED_NO_SURVIVOR
+priority: P1
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-family-screen
+owner_approval: "2026-10-13 in chat: 'learn every strategy in the world' -> bounded catalog plan accepted ('진행해')."
+objective: "Screen a broad catalog of known families on 60m and daily data, with a held-out final test and a Bonferroni-corrected bar, to find any candidate that could pass Research without lowering a threshold."
+pre_registration:
+  committed_before_results: true
+  script: scripts/offline-strategy-catalog-screen.js
+  families: "SMA/EMA cross, price above SMA, Donchian, Turtle, regime Donchian, Bollinger breakout and reversion, z-score reversion, RSI reversion, Connors RSI2, RSI momentum, MACD, MACD zero, time-series momentum, ROC threshold, squeeze, dip in uptrend, dual trend, hour sessions (60m), weekend/weekday holds, cross-sectional rotation, dual momentum"
+  holdout: "Last 120 days of 60m and last 365 days of daily data, never used for discovery (daily Donchian 20 was already seen on it: disclosed)."
+  rule: "Discovery: 6-window rule. Holdout (discovery passers only): pooled mean trade > 0, >= 30 trades, one-sided z p < 0.05/K, 2x-cost mean > 0. Research gate minimum 50 trades reported, not lowered."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+result: "97 configurations; 9 passed discovery (all daily: Bollinger breakout/reversion, z-score, RSI reversion, squeeze); 0 passed the holdout. 8 of the 9 lost money per trade in the holdout (overfitting). No 60m configuration passed discovery."
+note: docs/RESEARCH_NOTE_2026-10-13_STRATEGY_CATALOG.md
+verification_commands:
+  - "node scripts/offline-strategy-catalog-screen.js"
+  - "node scripts/validate-aipos-yaml.js"
+next: "No candidate. Remaining path: the frozen 60m forward test (verdict earliest 2026-12-13), or new data types (high/low/volume/order book) by owner decision. No threshold change."

@@ -1,0 +1,56 @@
+id: WO-RESEARCH-20261013-FAMILY-SCREEN
+title: "Pre-registered offline screen of three more signal families and a forward SHADOW plan for the learning loop"
+status: DAILY_SURVIVOR_FOUND_FORWARD_TEST_FROZEN
+priority: P1
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-family-screen
+owner_approval: "2026-10-13 in chat: owner chose options 1 and 2 (pre-register a new candidate for a forward test; screen other signal families) to unblock the closed learning loop."
+objective: "Find a candidate that could genuinely pass Research qualification, without lowering any threshold, risk limit or the consecutive-loss limit of 3."
+pre_registration:
+  committed_before_results: true
+  script: scripts/offline-family-screen.js
+  families: ["BOLLINGER k=2.0", "BOLLINGER k=2.5", "SQUEEZE", "REGIME_BREAKOUT N=20/50/100"]
+  pass_rule: "Per frozen file: base-cost mean net positive in >=4 of 6 windows AND UP-window mean > 0 AND DOWN-window mean > 0 AND 2x-cost positive in >=4 of 6. Survives only if it passes on both frozen files."
+  inputs:
+    - "docs/research-data/2026-10-12-upbit-60m-closes-250d.json sha256 fdf1ae23c25d7502e88065464b895c25b6f407dd120e6d633ddaec07f2c58f42"
+    - "docs/research-data/2026-10-13-upbit-60m-closes-prior-383d.json sha256 22ba26818115125d5699b36484d6ea5c743d4a923fbfccdbe132a12ba734f4c0"
+  limitation: "REGIME_BREAKOUT reuses Donchian settings already seen in the earlier note, so its historical screen is not untouched; only a forward test on data after 2026-10-13 is."
+scope:
+  include: ["scripts/offline-family-screen.js", "docs/RESEARCH_NOTE_2026-10-13_FAMILY_SCREEN.md", "this work order", ".aipos/state.yaml entry"]
+  exclude: ["Any runtime strategy, candidate binding, qualification, threshold, risk, capital or order change."]
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+result: "0 of 6 settings survive (none passes on either file). Regime filter shrinks DOWN-window losses but they stay negative. No candidate is proposed for the learning loop."
+forward_shadow: "Not started: no setting passed the historical screen. Optional only on owner request: freeze REGIME_BREAKOUT N=50 and evaluate on data after 2026-10-14."
+note: docs/RESEARCH_NOTE_2026-10-13_FAMILY_SCREEN.md
+verification_commands:
+  - "node scripts/offline-family-screen.js"
+  - "node scripts/validate-aipos-yaml.js"
+follow_up_owner_decision: "2026-10-13 in chat: owner chose 1 (forward test of REGIME_BREAKOUT N=50) and 3 (another direction)."
+forward_test:
+  script: scripts/forward-regime-breakout.js
+  frozen_at_commit: "the commit that adds this block"
+  start: "2026-10-14T00:00:00Z"
+  verdict_rule: "INCOMPLETE before 60 forward days; then PASS only if 5-market mean net > 0 after base costs and under 2x costs, >= 20 round trips, >= 3 of 5 markets positive."
+  earliest_verdict: "2026-12-13"
+daily_screen_pre_registration:
+  script: scripts/offline-daily-screen.js
+  committed_before_data_fetch: true
+  families: ["DONCHIAN_D N=20/55", "REGIME_DONCHIAN_D N=20/55", "GOLDEN_CROSS_D", "TSMOM_D"]
+daily_screen_result: "DONCHIAN_D N=20 passes (5/6 windows, 2x 5/6, DOWN mean +7.95%); REGIME_DONCHIAN_D N=20 passes narrowly; 4 others fail. Data sha256 c813b78d1b05b318a1c7cf85ac892172ce4362e2ba6a25f77aa2cdc9e653a94c."
+next: "Owner decides whether to register a daily Donchian family in Research for a formal experiment (code work plus owner approval). Forward 60m test verdict earliest 2026-12-13. No threshold, risk or runtime change."
+registration_feasibility:
+  owner_request: "2026-10-13 in chat: register the daily 20-day breakout in Research."
+  finding: "Not registrable as-is without a rule change. Research windows are 7/2/2 days built from stored 1m candles (RESEARCH_INTERVAL_MINUTES max 240); the candidate gate requires >= 50 trades (researchCandidateGate.ts minimumTradeCount 50) on a single market; the daily rule made about 34 trades per market in five years. A daily experiment would end INSUFFICIENT_TRADES. PAPER Donchian also exits at the N-bar low, not the N/2 low the screen used."
+  not_done: "No code registered; the trade minimum is not lowered."
+  options_for_owner: "A: a five-market portfolio candidate (design change, threshold unchanged); B: keep it as a research note only; C: leave the frozen forward test running and revisit."
+option_a_feasibility:
+  owner_choice: "2026-10-13 in chat: A (five-market portfolio candidate)."
+  check: "Pooled five markets, daily 20-day breakout, 60/20/20 train/validation/holdout split of 1824 days, base costs."
+  result: "Holdout (about the last 365 days) has 31 round trips with a N/2 exit (mean +0.25% per trade) and 27 with the PAPER N exit (mean -2.04%). Both are below the 50-trade minimum and near zero or negative after costs."
+  decision: "Code not started: even the portfolio design cannot meet minimumTradeCount 50 in the holdout, and the recent year shows no edge. Threshold unchanged."
