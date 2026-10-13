@@ -142,3 +142,23 @@ export function runtimeResearchEntries(byInterval: Readonly<Record<string, { rea
   }
   return Object.freeze(entries);
 }
+
+/**
+ * Runtime steering (owner-approved 2026-10-13, WO-RESEARCH-20261013-META-STEERING). The runtime Research grid always evaluates
+ * close-derived intraday bars with rule families. When EVERY one of its dimension values is EXHAUSTED and the policy recommends an
+ * untried combination elsewhere, the longer-bar runtime orchestrators tick only every META_DEPRIORITIZED_TICK_EVERY-th scheduled
+ * tick. Steering only orders work: the first bar length (which also collects candles) always ticks, nothing is ever stopped, and
+ * no pass rule, threshold, holdout, budget cap, risk setting or authority changes. Any other state is NORMAL (every tick).
+ */
+export const META_DEPRIORITIZED_TICK_EVERY = 4;
+export type MetaLearningSteeringMode = "NORMAL" | "DEPRIORITIZE_EXHAUSTED";
+export interface MetaLearningSteering { readonly mode: MetaLearningSteeringMode; readonly longBarTickEvery: number }
+export const META_STEERING_NORMAL: MetaLearningSteering = Object.freeze({ mode: "NORMAL" as const, longBarTickEvery: 1 });
+
+export function metaLearningSteering(report: Pick<MetaLearningReport, "exhausted" | "recommended"> | undefined, runtimeMarkets: number): MetaLearningSteering {
+  if (report == null || report.recommended === undefined) return META_STEERING_NORMAL;
+  const grid = ["dataType=CLOSE", "timeframe=INTRADAY", `universe=${runtimeMarkets <= 5 ? "FIVE" : "ALL_KRW"}`, "methodClass=RULE"];
+  return grid.every((value) => report.exhausted.includes(value))
+    ? Object.freeze({ mode: "DEPRIORITIZE_EXHAUSTED" as const, longBarTickEvery: META_DEPRIORITIZED_TICK_EVERY })
+    : META_STEERING_NORMAL;
+}

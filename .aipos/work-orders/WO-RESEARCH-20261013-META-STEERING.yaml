@@ -1,0 +1,17 @@
+id: WO-RESEARCH-20261013-META-STEERING
+title: "Meta-learning steers the runtime Research tick schedule (deprioritize the exhausted grid)"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P1
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/meta-learning-steering
+owner_decision: "2026-10-13 in chat: owner approved letting meta-learning recommendations steer runtime Research ('해', then option 1). This supersedes the earlier 'advisory/display only' scope for scheduling only."
+change: "packages/contracts/src/researchMetaLearning.ts adds metaLearningSteering: when every runtime-grid value (dataType=CLOSE, timeframe=INTRADAY, universe of the runtime markets, methodClass=RULE) is EXHAUSTED and another combination is recommended, mode DEPRIORITIZE_EXHAUSTED and the longer-bar orchestrators tick every 4th scheduled tick. The first bar length (which collects candles) always ticks. Published on /health closedLearningLoop.metaLearning.steeringMode/longBarTickEvery."
+unchanged: "No pass rule, threshold, holdout, daily budget cap, Risk limit, capital or authority changes; nothing is stopped; an invalid or failing steering value falls back to every tick."
+validation: "tsc; closed-learning-loop-status 18, cloud-runtime-liveness-health 32, research-experiment-composition 13, researchMetaLearningRuntime 3, research-ledger-snapshot 1 pass; portability, platform-independent-test and AIPOS validators pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

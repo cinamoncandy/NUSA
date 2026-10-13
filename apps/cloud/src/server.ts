@@ -454,19 +454,21 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     // Meta-learning: integers, fixed dimension/combination codes and code lists only.
     const rawMeta = rawLoop.metaLearning as Record<string, unknown> | null | undefined;
     if (rawMeta != null && typeof rawMeta === "object" && !Array.isArray(rawMeta)) {
-      const ints = ["experiments", "configurations", "discoveryPasses", "holdoutPasses", "nextHoldoutBarMicros", "runtimeEntries", "liveForwardEntries"] as const;
+      const ints = ["experiments", "configurations", "discoveryPasses", "holdoutPasses", "nextHoldoutBarMicros", "runtimeEntries", "liveForwardEntries", "longBarTickEvery"] as const;
       const LIST = /^$|^[A-Za-z]+=[A-Z_]+(,[A-Za-z]+=[A-Z_]+)*$/;
       const PREREQ = /^$|^COLLECT_[A-Z]+(,COLLECT_[A-Z]+)*$/;
       const COMBO = /^[A-Z]+\+[A-Z]+\+[A-Z_]+\+[A-Z]+$/;
       if (ints.every((key) => Number.isSafeInteger(rawMeta[key]) && Number(rawMeta[key]) >= 0)
         && typeof rawMeta.validKnowledgePer100Configs === "number" && Number.isFinite(rawMeta.validKnowledgePer100Configs) && rawMeta.validKnowledgePer100Configs >= 0 && rawMeta.validKnowledgePer100Configs <= 100
         && typeof rawMeta.exhausted === "string" && LIST.test(rawMeta.exhausted) && rawMeta.exhausted.length <= 400
-        && typeof rawMeta.recommendedPrerequisites === "string" && PREREQ.test(rawMeta.recommendedPrerequisites)) {
+        && typeof rawMeta.recommendedPrerequisites === "string" && PREREQ.test(rawMeta.recommendedPrerequisites)
+        && (rawMeta.steeringMode === "NORMAL" || rawMeta.steeringMode === "DEPRIORITIZE_EXHAUSTED")) {
         const meta: Record<string, string | number> = {};
         for (const key of ints) meta[key] = Number(rawMeta[key]);
         meta.validKnowledgePer100Configs = rawMeta.validKnowledgePer100Configs;
         meta.exhausted = rawMeta.exhausted;
         meta.recommendedPrerequisites = rawMeta.recommendedPrerequisites;
+        meta.steeringMode = rawMeta.steeringMode;
         if (Number.isSafeInteger(rawMeta.overfitRatePercent) && Number(rawMeta.overfitRatePercent) >= 0 && Number(rawMeta.overfitRatePercent) <= 100) meta.overfitRatePercent = Number(rawMeta.overfitRatePercent);
         if (typeof rawMeta.recommended === "string" && COMBO.test(rawMeta.recommended)) meta.recommended = rawMeta.recommended;
         loop.metaLearning = meta;
