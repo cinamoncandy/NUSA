@@ -100,6 +100,17 @@ export function normalizePaperCandidateStrategy(
   if (Object.keys(parameters).length === 0) {
     throw new PaperCandidateExecutionBindingError("CANDIDATE_STRATEGY_PARAMETERS_INVALID", "candidate strategy parameters are empty", candidateId);
   }
+  // Known executable families cannot silently discard unimplemented Research semantics.
+  const supportedNames: Readonly<Record<string, readonly string[]>> = {
+    "sma-crossover": ["shortPeriod", "longPeriod"],
+    "rsi-mean-reversion": ["period", "oversold", "overbought"],
+    "donchian-breakout": ["channelPeriod"],
+  };
+  const allowed = Object.prototype.hasOwnProperty.call(supportedNames, familyId) ? supportedNames[familyId] : undefined;
+  const names = Object.keys(parameters);
+  if (allowed != null && (names.length !== allowed.length || names.some((name) => !allowed.includes(name)))) {
+    throw new PaperCandidateExecutionBindingError("CANDIDATE_STRATEGY_PARAMETERS_INVALID", "candidate strategy parameter names are invalid", candidateId);
+  }
   return freeze({ candidateId, familyId, lineageId, specificationHash, codeSha, costModelVersion, parameters: freeze(Object.fromEntries(Object.entries(parameters).sort(([a], [b]) => a.localeCompare(b)))) });
 }
 
