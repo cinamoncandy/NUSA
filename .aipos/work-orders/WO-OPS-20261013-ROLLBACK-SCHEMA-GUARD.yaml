@@ -1,0 +1,18 @@
+id: WO-OPS-20261013-ROLLBACK-SCHEMA-GUARD
+title: "Release step: never roll back onto a release that cannot open the migrated database"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/release-rollback-schema-guard
+owner_request: "2026-10-13 in chat: resolve everything (after the release incident)."
+incident: "Activation of 3098387b7 failed readiness twice; rollback to 2bb279335 could not start because migration 028 was applied (migration runner: database contains unknown migration), leaving PAPER down. Host diagnosis (claude/host-diagnose-annotations) confirmed current_release=2bb279335 with port 41731 closed."
+change: "deploy/oracle/nusa-release-step.sh: rollback_schema_compatible() compares the database's applied migration ids (read-only node:sqlite) with the ids declared in the rollback release; when the previous release cannot open the database, activation keeps the new release active and fails loudly instead of rolling back."
+requires_owner: "The helper is installed outside the release tree; it takes effect only after the owner reinstalls it: sudo install -o root -g root -m 0755 deploy/oracle/nusa-release-step.sh /opt/nusa/bin/nusa-release-step"
+validation: "tests/oracle-release-rollback-schema-guard.test.js 3 pass (compatible, incompatible, activation keeps the new release); tests/oracle-paper-release-workflow.test.js 20 pass; bash -n PASS."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
