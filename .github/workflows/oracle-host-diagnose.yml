@@ -84,18 +84,18 @@ jobs:
         run: |
           set +e
           redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
-          {
-            echo "previous=$(cat /opt/nusa/.previous-release 2>&1 | xargs basename 2>/dev/null)"; free -m 2>&1 | head -2; df -h / 2>&1 | tail -1
+          # Everything stays in shell variables: this step writes no file and makes no request of its own (the earlier step
+          # already probed /health once; its bounded response file is reused here).
+          summary="$({
+            echo "previous=$(basename "$(< /opt/nusa/.previous-release)" 2>&1)"; free -m 2>&1 | head -2; df -h / 2>&1 | tail -1
             for unit in nusa nusa-autopilot; do systemctl show "$unit" -p ActiveState,SubState,NRestarts,ActiveEnterTimestamp 2>&1 | tr '\n' ' '; echo; done
-            curl -sS -m 6 -o /dev/null -w "local_health=%{http_code}\n" http://127.0.0.1:41731/health 2>&1
-          } | redact > /tmp/nusa-diag-summary.txt
+            echo "health_probe=$(head -c 200 /tmp/nusa-health-probe.txt 2>&1 | tr '\n' ' ')"
+          } | redact)"
           # A release directory name is a public commit SHA, not a secret: print it unredacted.
-          echo "current_release=$(basename "$(readlink -f /opt/nusa/current)")" >> /tmp/nusa-diag-summary.txt
-          ls -1t /opt/nusa/releases 2>&1 | head -5 | sed 's/^/release_dir=/' >> /tmp/nusa-diag-summary.txt
-          journalctl -u nusa --since "-90 minutes" --no-pager -o cat 2>&1 | grep -v "^\s*at " | tail -40 | cut -c1-300 | redact > /tmp/nusa-diag-errors.txt
-          journalctl -u nusa-autopilot --since "-90 minutes" --no-pager -o cat 2>&1 | grep -Ei "fail|error|blocked|stopped|ready" | tail -20 | cut -c1-300 | redact > /tmp/nusa-diag-autopilot.txt
-          emit() { local title="$1" file="$2"; local body; body="$(head -c 3500 "$file" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=${title}::${body}"; }
-          emit "diag-summary" /tmp/nusa-diag-summary.txt
-          split -b 3500 -d /tmp/nusa-diag-errors.txt /tmp/nusa-diag-errors-part- 2>/dev/null
-          n=0; for part in /tmp/nusa-diag-errors-part-*; do [ -f "$part" ] || continue; n=$((n+1)); [ "$n" -le 5 ] && emit "diag-nusa-log-$n" "$part"; done
-          emit "diag-autopilot-log" /tmp/nusa-diag-autopilot.txt
+          summary="${summary}"$'\n'"current_release=$(basename "$(readlink -f /opt/nusa/current)")"$'\n'"$(ls -1t /opt/nusa/releases 2>&1 | head -5 | sed 's/^/release_dir=/')"
+          errors="$(journalctl -u nusa --since "-90 minutes" --no-pager -o cat 2>&1 | grep -v "^\s*at " | tail -40 | cut -c1-300 | redact)"
+          autopilot="$(journalctl -u nusa-autopilot --since "-90 minutes" --no-pager -o cat 2>&1 | grep -Ei "fail|error|blocked|stopped|ready" | tail -20 | cut -c1-300 | redact)"
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          emit "diag-summary" "$summary"
+          for n in 1 2 3 4 5; do part="${errors:$(( (n-1)*3500 )):3500}"; [ -n "$part" ] && emit "diag-nusa-log-$n" "$part"; done
+          emit "diag-autopilot-log" "$autopilot"
