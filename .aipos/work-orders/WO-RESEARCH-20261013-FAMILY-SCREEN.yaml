@@ -31,3 +31,14 @@ note: docs/RESEARCH_NOTE_2026-10-13_FAMILY_SCREEN.md
 verification_commands:
   - "node scripts/offline-family-screen.js"
   - "node scripts/validate-aipos-yaml.js"
+follow_up_owner_decision: "2026-10-13 in chat: owner chose 1 (forward test of REGIME_BREAKOUT N=50) and 3 (another direction)."
+forward_test:
+  script: scripts/forward-regime-breakout.js
+  frozen_at_commit: "the commit that adds this block"
+  start: "2026-10-14T00:00:00Z"
+  verdict_rule: "INCOMPLETE before 60 forward days; then PASS only if 5-market mean net > 0 after base costs and under 2x costs, >= 20 round trips, >= 3 of 5 markets positive."
+  earliest_verdict: "2026-12-13"
+daily_screen_pre_registration:
+  script: scripts/offline-daily-screen.js
+  committed_before_data_fetch: true
+  families: ["DONCHIAN_D N=20/55", "REGIME_DONCHIAN_D N=20/55", "GOLDEN_CROSS_D", "TSMOM_D"]
