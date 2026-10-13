@@ -1,5 +1,5 @@
 import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
-import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordCodingExecutionEvidence, recordProviderCapacityWait, releasePersistentExecution } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordCodingExecutionEvidence, recordProviderCapacityWait, releaseActiveWip, releasePersistentExecution } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import { reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
 import {
@@ -122,6 +122,39 @@ function validatePublishedFiles(value: unknown): readonly { readonly path: strin
     throw new Error("CODING_PUBLISH_CONTENT_INVALID");
   }
   return Object.freeze([Object.freeze({ path, content })]);
+}
+
+const WIP_RELEASE_IDENTITY = /^[A-Za-z0-9_.:|-]{1,512}$/;
+
+/**
+ * The execution consumer calls this when its coding attempt ends, successfully or not, so the single
+ * active-WIP slot is freed at once instead of after ACTIVE_WIP_CLAIM_MAX_AGE_MS. Same authentication as
+ * /coding/propose. It can only remove the claim whose dedupe key and execution id both match.
+ */
+export async function handleCodingWipRelease(request: Request, env: WorkerEnv): Promise<Response> {
+  const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
+  const authority = { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" } as const;
+  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!await verifyCodingAuthorization(provided, env.NUSA_CODING_RUNNER_TOKEN?.trim(), allowedRepository)) {
+    return json({ released: false, error: "CODING_RUNNER_UNAUTHORIZED", ...authority }, 401);
+  }
+  let body: { dedupeKey?: unknown; executionId?: unknown };
+  try {
+    body = await request.json() as { dedupeKey?: unknown; executionId?: unknown };
+  } catch {
+    return json({ released: false, error: "WIP_RELEASE_REQUEST_INVALID", ...authority }, 400);
+  }
+  if (typeof body?.dedupeKey !== "string" || !WIP_RELEASE_IDENTITY.test(body.dedupeKey)
+    || typeof body.executionId !== "string" || !WIP_RELEASE_IDENTITY.test(body.executionId)) {
+    return json({ released: false, error: "WIP_RELEASE_REQUEST_INVALID", ...authority }, 400);
+  }
+  if (!env.NUSA_EXECUTION_COORDINATOR) return json({ released: false, error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", ...authority }, 503);
+  try {
+    const result = await releaseActiveWip(env.NUSA_EXECUTION_COORDINATOR, { dedupeKey: body.dedupeKey, executionId: body.executionId });
+    return json({ ...result, ...authority }, 200);
+  } catch {
+    return json({ released: false, error: "ACTIVE_WIP_RELEASE_FAILED", ...authority }, 503);
+  }
 }
 
 export async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<Response> {
@@ -461,6 +494,10 @@ const worker = {
 
     if (request.method === "POST" && url.pathname === "/coding/propose") {
       return handleCodingProposal(request, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/coding/wip-release") {
+      return handleCodingWipRelease(request, env);
     }
 
     if (request.method === "POST" && url.pathname === "/coding/publish") {

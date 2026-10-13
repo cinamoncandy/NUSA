@@ -405,6 +405,7 @@ export class ExecutionCoordinator {
     if (url.pathname === "/complete") return this.complete(await request.json());
     if (url.pathname === "/active-wip/admit") return this.admitActiveWip(await request.json());
     if (url.pathname === "/active-wip/complete") return this.completeActiveWip(await request.json());
+    if (url.pathname === "/active-wip/release") return this.releaseActiveWip(await request.json());
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
@@ -706,6 +707,28 @@ export class ExecutionCoordinator {
       await storage.put(ACTIVE_WIP_COMPLETION_HISTORY_KEY, Object.freeze({ schemaVersion: 1, completions }));
       await storage.put(ACTIVE_WIP_STORAGE_KEY, Object.freeze({ schemaVersion: 1, claims }));
       return json({ completed: true, evidence, claims });
+    });
+  }
+
+  /**
+   * Frees a claim once its execution ended without the completion path (the GitHub Actions coding
+   * backend never reached completeActiveWip, so every claim waited for ACTIVE_WIP_CLAIM_MAX_AGE_MS).
+   * Records no completion evidence. Idempotent: an absent claim is reported, not an error; a claim
+   * held by another execution is never released.
+   */
+  private async releaseActiveWip(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    const request = value as { dedupeKey?: unknown; executionId?: unknown };
+    if (!validText(request.dedupeKey) || !validText(request.executionId)) return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const state = await storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
+      if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || state.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const claim = state.claims.find((candidate) => candidate.dedupeKey === request.dedupeKey);
+      if (!claim) return json({ released: false, reason: "CLAIM_NOT_FOUND", claims: state.claims });
+      if (claim.executionId !== request.executionId) return json({ released: false, reason: "ACTIVE_WIP_IDENTITY_MISMATCH", claims: state.claims }, 409);
+      const claims = Object.freeze(state.claims.filter((candidate) => candidate.dedupeKey !== request.dedupeKey));
+      await storage.put(ACTIVE_WIP_STORAGE_KEY, Object.freeze({ schemaVersion: 1, claims }));
+      return json({ released: true, claims });
     });
   }
 
@@ -1223,6 +1246,14 @@ export async function completeActiveWip(namespace: ExecutionCoordinatorNamespace
   const body = await response.json() as { evidence?: ActiveWipCompletionEvidence };
   if (!body.evidence || body.evidence.executionId !== input.executionId || body.evidence.dedupeKey !== input.dedupeKey) throw new Error("ACTIVE_WIP_COMPLETION_INVALID");
   return Object.freeze(body.evidence);
+}
+
+export async function releaseActiveWip(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string }): Promise<{ readonly released: boolean; readonly reason?: string }> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { released?: unknown; reason?: unknown };
+  if (response.status === 400 || response.status >= 500 || typeof body.released !== "boolean") throw new Error("ACTIVE_WIP_RELEASE_FAILED");
+  return Object.freeze({ released: body.released, ...(typeof body.reason === "string" ? { reason: body.reason } : {}) });
 }
 
 export async function readActiveWipCompletions(namespace: ExecutionCoordinatorNamespace): Promise<readonly ActiveWipCompletionEvidence[]> {
