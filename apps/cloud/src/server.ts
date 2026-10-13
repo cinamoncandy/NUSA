@@ -104,6 +104,8 @@ export interface CloudRuntimeLivenessSnapshot {
   /** Today's completed and losing sells per strategy family code (fixed codes, integers only). */
   readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
   /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
+  /** Research-only microstructure recorder counters (see marketMicrostructureRecorder.ts). */
+  readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly lastRecordedAt?: number };
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
   readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
@@ -472,6 +474,12 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     }
     if (loop.bootstrap !== undefined && loop.rollover !== undefined) closedLearningLoop = { closedLearningLoop: loop };
   }
+  // Microstructure recorder: non-negative integer counters and one timestamp only.
+  const rawMicro = source.microstructureRecorder as Record<string, unknown> | null | undefined;
+  let microstructure: { microstructureRecorder?: Record<string, number> } = {};
+  if (rawMicro != null && typeof rawMicro === "object" && ["orderBookSamples", "tradeTicks", "writeFailures"].every((key) => Number.isSafeInteger(rawMicro[key]) && Number(rawMicro[key]) >= 0)) {
+    microstructure = { microstructureRecorder: { orderBookSamples: Number(rawMicro.orderBookSamples), tradeTicks: Number(rawMicro.tradeTicks), writeFailures: Number(rawMicro.writeFailures), ...(Number.isSafeInteger(rawMicro.lastRecordedAt) && Number(rawMicro.lastRecordedAt) > 0 ? { lastRecordedAt: Number(rawMicro.lastRecordedAt) } : {}) } };
+  }
   const rawResearch = source.researchCollectionStatus;
   const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
     ? {
@@ -489,7 +497,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     : {};
   // Build identity: only a full lowercase 40-hex commit is published, never other text.
   const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
-  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop, ...microstructure }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

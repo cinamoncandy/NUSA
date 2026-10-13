@@ -1,5 +1,7 @@
 import { buildMetaLearningStatus } from "./researchMetaLearningRuntime";
 import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
+import { MarketMicrostructureRecorder, microstructureRecorderEnabled } from "./marketMicrostructureRecorder";
+import { SqliteMarketMicrostructureStore } from "../../../packages/storage/src/marketMicrostructureStore";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { replayPaperPeriodRule } from "./paperPeriodRuleReplay";
 import { composeResearchExperiments } from "./researchExperimentComposition";
@@ -127,6 +129,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
   const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line) });
+  // Research-only recording of the public order book and trades already streamed (Upbit keeps no history of either).
+  const microstructureRecorder = microstructureRecorderEnabled(env) ? new MarketMicrostructureRecorder(new SqliteMarketMicrostructureStore(database)) : undefined;
   const loopStatus = new ClosedLearningLoopStatusTracker(closedLearningConfig.evaluationPeriodMs);
   // The last BLOCKED/ERROR reason survives a restart (display only; a reason seen by this process always wins).
   loopStatus.seedLastBlocked(readClosedLearningBlocked(config.cloudStateDbPath));
@@ -155,6 +159,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     undefined,
     () => loopStatus.snapshot(),
     () => researchExperiments?.experimentTicksByInterval() ?? null,
+    microstructureRecorder,
   );
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
