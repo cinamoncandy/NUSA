@@ -3358,3 +3358,12 @@ current_owner_decisions_20261013:
   verified_today: "Merged 2586, 2626, 2629, 2631, 2660, 2661. Zero workflow failures across the last 100 runs; Worker deploymentRevision matches exact main; security:gate PASS with zero unmitigated advisories and zero secret findings."
   measurement_notes: "CI critical path is now ~344s and its bottleneck moved from validation (132s) to the coverage-core shards (202-249s), so further batching of validation's single-file node --test steps would cost failure-attribution granularity for no wall-clock gain. Shard cost evidence is already measured (355 per-file overrides above a p70 fallback from 4 source runs), so the residual 23% shard spread is not missing data."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_reconverge_audited_prs:
+  work_order: WO-AUTOPILOT-20261013-RECONVERGE-AUDITED-PRS
+  status: READY_FOR_REVIEW
+  branch: claude/reconverge-audited-prs
+  authority_impact: none
+  finding: "Release bottleneck: Audit declines a green PR as stale whenever another merge moves main first (#2651 and #2652 on 2026-10-13), and the reconverge step only updated autopilot/* branches. It now also merges current main into same-repository PRs whose current head Audit attempted within 24 hours, with every existing guard kept; PRs Audit never attempted are untouched."
+  next: "After merge, watch the next reconverge run update a stale-declined PR; state.yaml append conflicts remain a separate bottleneck."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
