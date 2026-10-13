@@ -133,6 +133,16 @@ current_learning_completion_20261012:
   next: "Actual cycle/Research/successor receipts after natural KST boundary remain required; canonical runtime polls automatically."
   complete: false
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_aipos_state_insert_order:
+  work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/aipos-state-insert
+  authority_impact: none
+  finding: "Merge bottleneck: almost every PR appended to the end (or the top) of .aipos/state.yaml, so each merge left the other open PRs in conflict (71 state.yaml commits across 60 merges since 2026-10-10). New entries now go through scripts/aipos-state-insert.js, which places them before the entry whose name comes next in name order; six parallel additions to a copy of the real file merged with no conflict. AGENTS.md step 6 tells every agent to use it."
+  next: "Use pnpm run aipos:state-add for every new state entry."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_android_paper_runtime_truth_p0:
   work_order: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
   status: CANONICAL_BRANCH_RECOVERED_PENDING_EXACT_HEAD_CI
