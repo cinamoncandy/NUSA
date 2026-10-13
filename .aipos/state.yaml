@@ -2447,6 +2447,15 @@ current_research_evaluator_runner:
   branch: claude/nusa-repository-j93sd8-evaluators
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+
+current_research_meta_learner_20261013:
+  work_order: WO-RESEARCH-20261013-META-LEARNER
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/research-meta-learner
+  finding: "Research ledger plus a fixed-policy meta-learner. First run: rules, close data, five markets exhausted (0/173 holdout); next is OHLCV + intraday + all KRW markets + ML."
+  next: "Run the recommended pre-registered ML experiment and append its outcome to the ledger. No threshold change; the bar is cumulative."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_orchestrator_composition:
   work_order: WO-RESEARCH-20261002-ORCHESTRATOR-COMPOSITION
   status: READY_FOR_REVIEW
