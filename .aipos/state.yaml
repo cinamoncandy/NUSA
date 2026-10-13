@@ -1,4 +1,10 @@
 version: 1
+current_research_holdout_boundary_20261013:
+  work_order: WO-RESEARCH-20261013-HOLDOUT-BOUNDARY
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "6 focused tests,build,typecheck,validate:full,security,lint PASS;15 existing warnings. Independent read-only review no actionable findings."
+  next: "Offline input validation; collection and actual holdout evidence still pending."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_regime_research_resume_20261013:
   work_order: WO-RESEARCH-20261013-REGIME-RESUME
   status: CANDIDATE_ADAPTER_LOCAL_VALIDATED
