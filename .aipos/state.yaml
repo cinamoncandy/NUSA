@@ -1,4 +1,10 @@
 version: 1
+current_research_runtime_proof_20261013:
+  work_order: WO-RESEARCH-20261013-RUNTIME-PROOF
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "Projection tests and fullworkorder gates PASS; independent record-integrity finding corrected. Actual extended diagnostic pending."
+  next: "Read-only research timer and bounded forward-log proof in existing host diagnostic."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_forward_runner_20261013:
   work_order: WO-RESEARCH-20261013-FORWARD-RUNNER
   status: LOCAL_VALIDATED_PENDING_CI
