@@ -5,6 +5,7 @@ import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProd
 import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator";
 import type { ClosedLearningCycleFailureReceipt } from "./closedLearningEvolutionLedgerRepository";
 import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integration";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -42,7 +43,10 @@ export type ClosedLearningLoopStatus = {
 
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
-  realizedPeriods: number; realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
+  realizedPeriods: number;
+  /** Realized owner-baseline periods: durable self-observations without Research lineage, never counted as learning cycles. */
+  baselineObservations: number;
+  realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
   cycleId: string; cycleEvidenceId: string; cycleEvidenceFingerprint: string; decisionId: string; decisionReference: string; decisionCandidateId: string; deploymentId: string;
   /** Durable (survives restarts): how many cycles the ledger holds, and when the latest was recorded. */
   cyclesRecorded: number; lastCycleRecordedAt: number;
@@ -52,6 +56,12 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
    * Baseline SHADOW totals (hypothetical round trips of the baseline rule, whether or not Risk allowed a real order). Non-negative
    * integers in basis points and counts only; NOT PAPER evidence and never a promotion input (see paperBaselineShadow.ts).
    */
+  /**
+   * Parity check of the latest realized owner-baseline period: the period's realized PAPER return (account equity, after sizing,
+   * Risk and fees) next to a replay of the same rule on the same completed minute closes (one full hypothetical position). Signed
+   * basis points and counts; measurement only, never a Risk, qualification or Research input.
+   */
+  replayPeriodId: string; replayBars: number; replayTrades: number; replayClosedNetBp: number; replayOpenMarkBp: number; replayPaperNetBp: number;
   shadowSince: number; shadowTrades: number; shadowWins: number; shadowGrossGainBp: number; shadowGrossLossBp: number; shadowFeeBp: number;
 }>>;
 
@@ -78,6 +88,7 @@ export class ClosedLearningLoopStatusTracker {
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
   private durableFailure: ClosedLearningEvidenceCorrelation = {};
   private shadow: ClosedLearningEvidenceCorrelation = {};
+  private replay: ClosedLearningEvidenceCorrelation = {};
 
   /** Reads the identities of the current open period and the latest realized period. */
   public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
@@ -92,6 +103,7 @@ export class ClosedLearningLoopStatusTracker {
         openFilledObservations: open.observations.filter((item) => item.status === "FILLED").length,
       }),
       realizedPeriods: realized.length,
+      baselineObservations: realized.filter((item) => item.candidateProvenance?.length === 1 && item.candidateProvenance[0]?.candidateId === OWNER_BASELINE_CANDIDATE_ID).length,
       ...(latest == null ? {} : {
         realizedPeriodId: latest.record.recordId,
         realizedPeriodEndAt: latest.record.periodEndAt,
@@ -119,6 +131,19 @@ export class ClosedLearningLoopStatusTracker {
       decisionCandidateId: latest.decision?.candidateId,
       deploymentId: latest.paperDeployment?.deploymentId,
     }).filter(([, value]) => typeof value === "string" && value.length > 0)));
+    this.publish();
+  }
+
+  /** Display-only rule-replay parity of one realized baseline period; undefined or malformed withdraws the keys. */
+  public observeRuleReplay(replay: { readonly periodId: string; readonly bars: number; readonly trades: number; readonly closedNetReturn: number; readonly openMarkReturn: number; readonly paperNetReturn: number } | undefined): void {
+    const bp = (value: number) => Math.round(value * 10_000);
+    const ok = replay != null && typeof replay.periodId === "string" && replay.periodId.length > 0
+      && [replay.bars, replay.trades].every((value) => Number.isSafeInteger(value) && value >= 0)
+      && [replay.closedNetReturn, replay.openMarkReturn, replay.paperNetReturn].every((value) => Number.isFinite(value) && Math.abs(value) < 100);
+    this.replay = !ok || replay == null ? {} : Object.freeze({
+      replayPeriodId: replay.periodId, replayBars: replay.bars, replayTrades: replay.trades,
+      replayClosedNetBp: bp(replay.closedNetReturn), replayOpenMarkBp: bp(replay.openMarkReturn), replayPaperNetBp: bp(replay.paperNetReturn),
+    });
     this.publish();
   }
 
@@ -159,6 +184,7 @@ export class ClosedLearningLoopStatusTracker {
       ...this.periods,
       ...this.cycle,
       ...this.shadow,
+      ...this.replay,
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.

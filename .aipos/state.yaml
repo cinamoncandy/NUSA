@@ -3138,6 +3138,14 @@ current_learning_methods_20261013:
   next: "Forward test verdict earliest 2026-12-13; owner decision on new data sources. No threshold or lineage change."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_learning_paper_rule_replay_20261013:
+  work_order: WO-LEARNING-20261013-PAPER-RULE-REPLAY
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/learning-paper-rule-replay
+  finding: "Research champion proxy (TP/SL exits) differs from the PAPER baseline (cross-down exit). Added an exact PAPER-rule replay per closed baseline period with signed-bp parity on /health; measurement only."
+  next: "Exact-head CI, Audit, Release, deploy; read the gap; owner decides on aligning the Research champion."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_pending_order_attribution_test:
   work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
   status: READY_FOR_REVIEW
@@ -3196,6 +3204,15 @@ current_learning_resume_failed_cycle:
   authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
   finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
   limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
+
+current_learning_baseline_observation_20261013:
+  work_order: WO-LEARNING-20261013-BASELINE-OBSERVATION
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/learning-baseline-observation
+  finding: "Closed owner-baseline periods hit PAPER_RESEARCH_LINEAGE_UNAVAILABLE, a BLOCKED retry loop, then a stalled reopen; now BASELINE_PERIOD_OBSERVED with immediate continuation and a baselineObservations count. No lineage or cycle invented."
+  next: "Exact-head CI, Audit, Release, deploy; verify on /health after the next baseline close; then feed observations to Research N+1."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_baseline_shadow:
   work_order: WO-LEARNING-20261008-BASELINE-SHADOW
   status: READY_FOR_REVIEW

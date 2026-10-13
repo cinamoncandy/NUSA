@@ -1,3 +1,5 @@
+import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
+import { replayPaperPeriodRule } from "./paperPeriodRuleReplay";
 import { composeResearchExperiments } from "./researchExperimentComposition";
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
 import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
@@ -16,7 +18,7 @@ import { readBaselineShadowRecord, writeBaselineShadowRecord } from "./paperBase
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
 import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
-import { OwnerBaselinePaperBindingProvider, isOwnerBaselineSourceCommitSha, ownerBaselineStrategyEnabled, ownerBaselineStrategySpec } from "./ownerBaselinePaperStrategy";
+import { OWNER_BASELINE_CANDIDATE_ID, OwnerBaselinePaperBindingProvider, isOwnerBaselineSourceCommitSha, ownerBaselineStrategyEnabled, ownerBaselineStrategySpec } from "./ownerBaselinePaperStrategy";
 import { buildOwnerBaselinePaperPeriodInput, isOwnerBaselinePeriodStartAt } from "./ownerBaselinePaperPeriod";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
@@ -333,6 +335,26 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     periods.openPeriodFromCanonicalAccount(input);
   };
 
+  // Rule-replay parity of the latest realized owner-baseline period (measurement only), computed once per closed period.
+  let ruleReplayCache: { readonly recordId: string; readonly value: Parameters<ClosedLearningLoopStatusTracker["observeRuleReplay"]>[0] } | undefined;
+  const latestBaselineRuleReplay = (realized: readonly PersistedPaperPeriodEnvelope[]): Parameters<ClosedLearningLoopStatusTracker["observeRuleReplay"]>[0] => {
+    if (!ownerBaselineStrategyEnabled(env) || !isOwnerBaselineSourceCommitSha(shadowSourceCommit)) return undefined;
+    const latest = [...realized]
+      .filter((item) => item.candidateProvenance.length === 1 && item.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID && item.record.market != null)
+      .sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0];
+    if (latest == null) return undefined;
+    if (ruleReplayCache != null && ruleReplayCache.recordId === latest.record.recordId) return ruleReplayCache.value;
+    const paperNetReturn = latest.record.realizedReturns[OWNER_BASELINE_CANDIDATE_ID];
+    if (paperNetReturn === undefined) return undefined;
+    const replay = replayPaperPeriodRule({
+      spec: ownerBaselineStrategySpec(shadowSourceCommit), market: latest.record.market!, periodStartAt: latest.record.periodStartAt, periodEndAt: latest.record.periodEndAt,
+      feeRate: 0.0005, readWindow: (market, startAt, endAt) => minuteObservationReader.readWindow(market, startAt, endAt),
+    });
+    const value = Object.freeze({ periodId: latest.record.recordId, ...replay, paperNetReturn });
+    ruleReplayCache = { recordId: latest.record.recordId, value };
+    return value;
+  };
+
   const runClosedLearningTick = (): Promise<void> => {
     if (stopping) return Promise.resolve();
     if (closedLearningTick != null) return closedLearningTick;
@@ -365,6 +387,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       }
       refreshDurableCycles();
       try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
+      try { loopStatus.observeRuleReplay(latestBaselineRuleReplay(periods.listRealizedPeriods())); } catch { loopStatus.observeRuleReplay(undefined); }
     })().catch((error: unknown) => { loopStatus.observeError(Date.now()); persistLastBlocked(); throw error; });
     closedLearningTick = task;
     task.then(
