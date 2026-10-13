@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
+import { isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 import {
   PersistedPaperPeriodStoreError,
   SqlitePersistedPaperPeriodStore,
@@ -473,7 +474,7 @@ export class PaperRealizedPeriodProducer {
     if (!normalizedReason.startsWith("SUPERSEDED_BY_QUALIFIED_CHALLENGER:")) throw new PaperRealizedPeriodProducerError("INVALID_RETIREMENT_REASON", "PAPER period replacement reason is invalid", periodId);
     const current = this.openPeriods.get(periodId);
     if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
-    if (current.candidateProvenance[0]?.candidateId !== "owner-baseline-sma-5-20") throw new PaperRealizedPeriodProducerError("PERIOD_REPLACEMENT_FORBIDDEN", "only owner baseline periods may be replaced by a qualified challenger", periodId);
+    if (!isOwnerBaselinePeriodInput(current)) throw new PaperRealizedPeriodProducerError("PERIOD_REPLACEMENT_FORBIDDEN", "only canonical owner baseline periods may be replaced by a qualified challenger", periodId);
     const pending = this.repository.getPending(periodId);
     if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
     this.repository.retirePending(periodId, pending.checksum);
