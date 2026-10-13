@@ -128,7 +128,9 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
 
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line) });
+  // Meta-learning steering (researchMetaLearning.ts): starts NORMAL and follows the latest meta-learning evaluation.
+  let longBarTickEvery = 1;
+  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
   // Research-only recording of the public order book and trades already streamed (Upbit keeps no history of either).
   const microstructureRecorder = microstructureRecorderEnabled(env) ? new MarketMicrostructureRecorder(new SqliteMarketMicrostructureStore(database)) : undefined;
   const loopStatus = new ClosedLearningLoopStatusTracker(closedLearningConfig.evaluationPeriodMs);
@@ -388,13 +390,15 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
       persistLastBlocked();
       try {
-        loopStatus.observeMetaLearning(buildMetaLearningStatus({
+        const meta = buildMetaLearningStatus({
           ledger: RESEARCH_LEDGER_SNAPSHOT,
           runtimeTicksByInterval: researchExperiments?.experimentTicksByInterval() ?? null,
           researchMarkets: (env.NUSA_RESEARCH_MARKETS ?? "KRW-BTC").split(",").filter((m) => m.trim() !== "").length,
           ...(baselineShadow == null ? {} : { shadow: baselineShadow.summary() }),
-        }));
-      } catch { loopStatus.observeMetaLearning(undefined); }
+        });
+        longBarTickEvery = meta.longBarTickEvery;
+        loopStatus.observeMetaLearning(meta);
+      } catch { longBarTickEvery = 1; loopStatus.observeMetaLearning(undefined); }
       if (baselineShadow != null) {
         loopStatus.observeShadow(baselineShadow.summary());
         const persistable = baselineShadow.takePersistable();

@@ -1,4 +1,4 @@
-import { evaluateMetaLearning, runtimeResearchEntries, type ResearchLedgerEntry } from "../../../packages/contracts/src/researchMetaLearning";
+import { evaluateMetaLearning, metaLearningSteering, runtimeResearchEntries, type ResearchLedgerEntry } from "../../../packages/contracts/src/researchMetaLearning";
 import type { ClosedLearningMetaLearningStatus } from "./closedLearningLoopStatus";
 
 /**
@@ -7,7 +7,8 @@ import type { ClosedLearningMetaLearningStatus } from "./closedLearningLoopStatu
  * - the reviewed offline ledger compiled into the build (researchLedgerSnapshot.ts),
  * - this process's runtime Research evaluations (per bar length),
  * - the live owner-baseline SHADOW totals, which replace the ledger's recorded PAPER_FORWARD snapshot (never counted twice).
- * Advisory and display only: the result changes no Research schedule, budget, threshold, qualification, Risk or authority.
+ * It also carries the steering decision (metaLearningSteering): how often the longer-bar runtime orchestrators tick. It changes no
+ * budget, threshold, qualification, Risk or authority.
  */
 export interface BaselineShadowSummary {
   readonly trades: number;
@@ -34,6 +35,7 @@ export function buildMetaLearningStatus(input: {
   const ledger = live == null ? input.ledger : input.ledger.filter((entry) => entry.source !== "PAPER_FORWARD");
   const report = evaluateMetaLearning([...ledger, ...runtime, ...(live == null ? [] : [live])]);
   const recommended = report.ranked[0];
+  const steering = metaLearningSteering(report, input.researchMarkets);
   return Object.freeze({
     experiments: report.experiments,
     configurations: report.configurations,
@@ -47,5 +49,7 @@ export function buildMetaLearningStatus(input: {
     nextHoldoutBarMicros: Math.round(report.nextHoldoutBar * 1_000_000),
     runtimeEntries: runtime.length,
     liveForwardEntries: live == null ? 0 : 1,
+    steeringMode: steering.mode,
+    longBarTickEvery: steering.longBarTickEvery,
   });
 }

@@ -39,7 +39,7 @@ export type ClosedLearningLoopStatus = {
    * can be followed mechanically. Identifiers and fingerprints only; no amounts, prices, returns or free text.
    */
   readonly evidence?: ClosedLearningEvidenceCorrelation;
-  /** Research meta-learning report (packages/contracts/src/researchMetaLearning.ts): advisory and display only. */
+  /** Research meta-learning report (packages/contracts/src/researchMetaLearning.ts), including the tick steering it applies. */
   readonly metaLearning?: ClosedLearningMetaLearningStatus;
 };
 
@@ -49,6 +49,8 @@ export type ClosedLearningMetaLearningStatus = Readonly<{
   overfitRatePercent?: number; validKnowledgePer100Configs: number; exhausted: string; recommended?: string;
   /** Comma-separated, e.g. "COLLECT_TRADES"; empty when the recommendation needs no collection. */
   recommendedPrerequisites: string; nextHoldoutBarMicros: number; runtimeEntries: number; liveForwardEntries: number;
+  /** Runtime steering: longer-bar Research orchestrators tick every longBarTickEvery-th scheduled tick. */
+  steeringMode: "NORMAL" | "DEPRIORITIZE_EXHAUSTED"; longBarTickEvery: number;
 }>;
 
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
