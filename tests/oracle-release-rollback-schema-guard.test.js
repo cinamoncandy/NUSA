@@ -10,6 +10,9 @@ const { DatabaseSync } = require("node:sqlite");
 const script = fs.readFileSync(path.join(__dirname, "..", "deploy", "oracle", "nusa-release-step.sh"), "utf8");
 const fn = script.slice(script.indexOf("rollback_schema_compatible() {"), script.indexOf("rollback_and_restore() {"));
 
+// The helper only runs on the Linux PAPER host; Windows coverage shards have no POSIX bash to exercise it.
+const posixOnly = process.platform === "win32" ? { skip: "the release helper runs only on the Linux host" } : {};
+
 function run(appliedIds, releaseIds) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-guard-"));
   try {
@@ -28,11 +31,11 @@ function run(appliedIds, releaseIds) {
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
 
-test("the rollback guard accepts a release that knows every applied migration", () => {
+test("the rollback guard accepts a release that knows every applied migration", posixOnly, () => {
   assert.equal(run(["027_research_holdout_usage"], ["026_research_closed_candles", "027_research_holdout_usage"]), 0);
 });
 
-test("the rollback guard refuses a release that does not know an applied migration (the 2026-10-13 outage)", () => {
+test("the rollback guard refuses a release that does not know an applied migration (the 2026-10-13 outage)", posixOnly, () => {
   assert.equal(run(["027_research_holdout_usage", "028_research_market_microstructure"], ["027_research_holdout_usage"]), 1);
 });
 
