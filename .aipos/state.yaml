@@ -1,4 +1,10 @@
 version: 1
+current_strategy_parameter_boundary_20261013:
+  work_order: WO-LEARNING-20261013-STRATEGY-PARAMETER-BOUNDARY
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "47 focused and1202 isolated test files PASS;build,typecheck,validate:full,lint PASS. Canonical admission only; baseline pin/version unchanged."
+  next: "Fail closed on unsupported strategy fields; no masked-candidate promotion or risk relaxation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_runtime_proof_20261013:
   work_order: WO-RESEARCH-20261013-RUNTIME-PROOF
   status: LOCAL_VALIDATED_PENDING_CI

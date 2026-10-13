@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PaperCandidateStrategySpec } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
+import { normalizePaperCandidateStrategy } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
 import { evaluatePaperCandidateStrategy } from "./paperCandidateStrategy";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 
@@ -29,6 +30,15 @@ function observations(prices: readonly number[]): readonly IntelligenceObservati
 }
 
 describe("PAPER candidate strategy semantics", () => {
+  it("rejects extra strategy semantics instead of silently executing a different candidate", () => {
+    for (const [familyId, parameters] of [
+      ["sma-crossover", { shortPeriod: 2, longPeriod: 3 }],
+      ["rsi-mean-reversion", { period: 2, oversold: 20, overbought: 80 }],
+      ["donchian-breakout", { channelPeriod: 2 }],
+    ] as const) {
+      assert.throws(() => evaluatePaperCandidateStrategy(normalizePaperCandidateStrategy({ ...spec, familyId, parameters: { ...parameters, regimeFilter: "UP_ONLY" } }, spec.candidateId), observations([100, 101, 103, 105]), 10, "KRW-BTC"), /parameter names are invalid/);
+    }
+  });
   it("uses the bound SMA parameters to produce a deterministic direction", () => {
     const rising = evaluatePaperCandidateStrategy(spec, observations([99, 100, 101, 103]), 10, "KRW-BTC");
     const falling = evaluatePaperCandidateStrategy(spec, observations([104, 103, 101, 100]), 10, "KRW-BTC");
