@@ -1,0 +1,23 @@
+id: WO-RESEARCH-20261013-ML-EXTERNAL
+title: "EXTERNAL + daily + all KRW + ML: add the BTC Korea premium and global BTC momentum to the daily model"
+status: PRE_REGISTERED
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-meta-learner
+related_issues: [1605]
+owner_request: "2026-10-13 in chat: do all of it."
+meta_learner:
+  learned: "EXTERNAL history is reachable (Coinbase public candles, ECB USD/KRW via frankfurter.dev; Binance 451, Bybit 403), so its collection cost was set to 0 before this experiment."
+  recommendation: "EXTERNAL + INTRADAY and EXTERNAL + DAILY tie at score 1; the fixed tie-break picks INTRADAY. DAILY is run first because the FX source is daily and the daily data is already frozen; INTRADAY stays queued. Disclosed deviation."
+pre_registration:
+  committed_before_external_fetch: true
+  script: scripts/research-ml-external.js
+  only_differences_from_daily: "three EXTERNAL features (premium level, its 7-day change, Coinbase BTC 7-day return); K = 183 + 3 = 186"
+  data: "Same daily manifest as WO-RESEARCH-20261013-ML-ALLKRW-DAILY plus external.json (sha256 recorded with the result)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

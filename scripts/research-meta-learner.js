@@ -32,7 +32,9 @@ const DIMENSIONS = {
   universe: ["FIVE", "ALL_KRW"],
   methodClass: ["RULE", "ML"],
 };
-const COLLECTION_COST = { TRADES: 2, ORDERBOOK: 2, EXTERNAL: 2 };
+// EXTERNAL history (Coinbase public candles, ECB USD/KRW via frankfurter.dev) was verified reachable on 2026-10-13, so it needs no
+// collection before a backtest (Binance and Bybit answer 451/403 from this environment). TRADES and ORDERBOOK history is not offered.
+const COLLECTION_COST = { TRADES: 2, ORDERBOOK: 2, EXTERNAL: 0 };
 const EXHAUSTED_CONFIGS = 50;
 
 function classify(e) {

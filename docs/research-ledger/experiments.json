@@ -205,6 +205,25 @@
    "holdoutGapPerTrade": -0.0047,
    "preRegistered": true,
    "lesson": "No skill: top-5 picks averaged -0.20% per trade versus +0.27% for buying every eligible market on the same days (355 trades, win rate 43.9%, p 0.78). Validation was already below the universe (-0.87% vs -0.72%)."
+  },
+  {
+   "id": "ML_ALLKRW_DAILY_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-allkrw-daily.js (pre-registered c62336331); daily data manifest sha256 dd81586b5bc01217bb90acc14f229e16cba884599470dc841782b0272f398b0b",
+   "dataType": "OHLCV",
+   "timeframe": "1d",
+   "universe": 295,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0031,
+   "preRegistered": true,
+   "lesson": "No skill: 1,755 holdout trades, -0.774% per trade vs universe -0.467% (win rate 42.2%); validation also below universe. Price/volume features do not rank next-day winners across KRW markets."
   }
  ]
 }
