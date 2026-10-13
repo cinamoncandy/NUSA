@@ -1,0 +1,46 @@
+id: WO-DOCS-20261013-OWNER-DECISIONS
+title: "Record the owner's four status-quo decisions and correct the stale repository-rename blocker"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: docs/owner-decisions-20261013
+authority_impact: none
+owner_approval: "2026-10-13 in chat ('결정은 권장으로 다 정할게'): the owner adopted the assisting session's recommendation on all four open decisions, and every recommendation was status quo."
+scope_note: "Documentation only: one additive state entry and this work order. No code, workflow, label, protection or authority change."
+objective: "Make the owner's four decisions and today's verified findings recoverable from the repository, so a later session neither re-asks them nor chases a blocker that no longer exists."
+scope:
+  include:
+    - ".aipos/state.yaml (one additive current_owner_decisions_20261013 entry)"
+    - ".aipos/work-orders/WO-DOCS-20261013-OWNER-DECISIONS.yaml"
+  exclude:
+    - "Any code, workflow, label, branch-protection or authority change."
+    - "Any change to HOLD PRs, the Jev domain-advisory PRs, the disabled Codex workflow or the coding-remediation allowlist."
+decisions_recorded:
+  - "HOLD PRs stay on HOLD; no prerequisite work was requested."
+  - "Jev domain-advisory PRs 2337 and 2339 are left to their author; the exact blocker is recorded on the PRs."
+  - "Autopilot Codex Coding stays disabled_manually: its failures came from the dedicated ChatGPT account usage limit, not from the repair-dispatch defects fixed today."
+  - "The coding-remediation allowlist stays CI-only; three tests pin the refusal of non-allowlisted workflows as a governance-visibility requirement."
+corrections:
+  - "An earlier handoff recorded that the Worker repository allowlist is hard-coded to cinamoncandy/NUSA and that the owner must settle the repository name after a rename to Dokkebi. Neither half holds: both repository paths resolve to id 1296492411 with canonical full_name cinamoncandy/NUSA, so the rename was withdrawn and Dokkebi survives only as a redirect alias; and index.ts resolves env.NUSA_GITHUB_REPOSITORY before falling back to DEFAULT_REPOSITORY, so a future rename is a binding change rather than a code change."
+limitations:
+  - "A snapshot taken 2026-10-13 about 09:00 UTC. PR states, run conclusions, runtime values and workflow enablement must be re-verified before acting on them."
+  - "The measurement notes describe the CI critical path at that moment only; it moved once already today."
+acceptance:
+  - "The state entry states all four decisions, the corrected repository-name record, the PRs merged today, and the measurement notes that make further validation-step batching unnecessary."
+  - "AIPOS evidence, drift, provenance and conformance validation pass."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-evidence.js"
+  - "pnpm run aipos:drift"
+  - "pnpm run aipos:provenance"
+  - "pnpm run aipos:conformance"
+evidence:
+  verified_today: "Merged 2586, 2626, 2629, 2631, 2660, 2661; zero workflow failures across the last 100 runs; Worker deploymentRevision matches exact main; security:gate PASS with zero unmitigated advisories and zero secret findings."
+  remaining: "Exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

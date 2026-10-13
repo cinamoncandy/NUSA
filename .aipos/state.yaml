@@ -1,4 +1,22 @@
 version: 1
+current_strategy_parameter_boundary_20261013:
+  work_order: WO-LEARNING-20261013-STRATEGY-PARAMETER-BOUNDARY
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "47 focused and1202 isolated test files PASS;build,typecheck,validate:full,lint PASS. Canonical admission only; baseline pin/version unchanged."
+  next: "Fail closed on unsupported strategy fields; no masked-candidate promotion or risk relaxation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_runtime_proof_20261013:
+  work_order: WO-RESEARCH-20261013-RUNTIME-PROOF
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "Projection tests and fullworkorder gates PASS; independent record-integrity finding corrected. Actual extended diagnostic pending."
+  next: "Read-only research timer and bounded forward-log proof in existing host diagnostic."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_forward_runner_20261013:
+  work_order: WO-RESEARCH-20261013-FORWARD-RUNNER
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "20 focused tests and full work-order gates PASS,15 existing lint warnings. Review findings corrected; fresh review no actionable findings. Local WAITING probe only."
+  next: "Wire bounded study into existing Research service; future outcome and qualified candidate are not guaranteed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_holdout_boundary_20261013:
   work_order: WO-RESEARCH-20261013-HOLDOUT-BOUNDARY
   status: LOCAL_VALIDATED_PENDING_CI
@@ -3287,7 +3305,7 @@ current_ops_open_pr_inventory:
   parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
   inventory: docs/OPEN_PR_INVENTORY_2026-10-13.md
   finding: "46 open PRs (23 draft, 20 HOLD, 34 created before October) grouped into: redesign and Autopilot work in progress, October research records, an urgent owner decision (#2311 lowers the new PAPER account initial-capital default from 10,000,000 to 5,000 KRW and is neither draft nor HOLD), security authority-narrowing PRs worth re-checking, likely superseded PRs, and stale September feature/research PRs. Nothing was closed or changed."
-  owner_decisions: "2026-10-13: #2311 closed by the owner (PAPER initial-capital default stays KRW 10,000,000; branch kept)."
+  owner_decisions: "2026-10-13: #2311 closed by the owner (PAPER initial-capital default stays KRW 10,000,000; branch kept). #1922 and #2060 closed on owner approval as superseded (#1921 consolidate decision; #2115); branches kept."
   next: "Owner approves which other groups to close; closing follows only an approved list and never deletes branches."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
@@ -3321,4 +3339,31 @@ current_autopilot_repair_target_allowlist:
   parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
   finding: "First P1 increment: the scheduled runtime and scheduled evolution coding now treat only failed CI and Autopilot Sandbox New-File Guard runs on main (push or manual) as repair targets, so failures of Autopilot's own workflows (Codex coding) or runtime evidence workflows no longer drive the five-minute re-dispatch loop seen on 2026-10-12. The webhook planner likewise ignores failed or cancelled non-code workflows (the 22:06 and 22:11 UTC failures were repairs of a cancelled Android release trigger run)."
   next: "Non-author review, then the attempt-cap and quiet-stop increments; do not re-enable Codex coding or the owner gate before them."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_risk_loss_limit_comparison_tool:
+  work_order: WO-RISK-20261008-LOSS-LIMIT-COMPARISON-TOOL
+  status: READY_FOR_REVIEW
+  branch: claude/loss-limit-comparison
+  authority_impact: none
+  finding: "Added an offline deterministic comparison of consecutive-loss limits over a completed-sell sequence (tooling only, threshold stays 3); no real comparison exists yet because the ledger sequence is owner-authenticated, so issue 2575 item 5 remains open"
+
+current_owner_decisions_20261013:
+  work_order: WO-DOCS-20261013-OWNER-DECISIONS
+  status: READY_FOR_REVIEW
+  branch: docs/owner-decisions-20261013
+  authority_impact: none
+  owner_approval: "2026-10-13 in chat: owner adopted the assisting session's recommendation for all four open decisions, which was status quo on every one."
+  decisions: "HOLD PRs stay on HOLD (no prerequisite work requested); the two Jev domain-advisory PRs (2337, 2339) are left to their author, blockers recorded on the PRs; Autopilot Codex Coding stays disabled_manually because its failures came from the dedicated ChatGPT account usage limit, not from the repair-dispatch defects fixed today; the coding-remediation allowlist stays CI-only, since three tests pin the refusal of non-allowlisted workflows as a governance-visibility requirement."
+  corrected_stale_record: "An earlier handoff recorded that the Worker repository allowlist is hard-coded to cinamoncandy/NUSA and that the owner must settle the repository name after a rename to Dokkebi. Both halves are no longer true: repos/cinamoncandy/NUSA and repos/cinamoncandy/Dokkebi both resolve to id 1296492411 with canonical full_name cinamoncandy/NUSA (the rename was withdrawn, Dokkebi survives only as a redirect alias), and the allowlist is not hard-coded - index.ts resolves env.NUSA_GITHUB_REPOSITORY first and only falls back to DEFAULT_REPOSITORY, so a future rename is a binding change, not a code change."
+  verified_today: "Merged 2586, 2626, 2629, 2631, 2660, 2661. Zero workflow failures across the last 100 runs; Worker deploymentRevision matches exact main; security:gate PASS with zero unmitigated advisories and zero secret findings."
+  measurement_notes: "CI critical path is now ~344s and its bottleneck moved from validation (132s) to the coverage-core shards (202-249s), so further batching of validation's single-file node --test steps would cost failure-attribution granularity for no wall-clock gain. Shard cost evidence is already measured (355 per-file overrides above a p70 fallback from 4 source runs), so the residual 23% shard spread is not missing data."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_stale_wip_claim:
+  work_order: WO-AUTOPILOT-20261013-STALE-WIP-CLAIM
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-wip-bottleneck
+  authority_impact: none
+  finding: "Autopilot bottleneck: scheduled backlog coding was refused with WIP_LIMIT_REACHED on 116 of 120 ticks (07:05-09:03 UTC 2026-10-13) because an active-WIP claim is released only on successful coding; failed or unconsumed dispatches kept the single slot forever. Claims older than 60 minutes are now released at the next admission."
+  next: "After merge and Worker deploy, confirm /scheduled/status shows dispatches again; the three-attempt ceiling bounds repeats."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

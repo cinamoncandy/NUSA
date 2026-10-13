@@ -42,10 +42,30 @@ jobs:
         run: |
           set +e
           redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
-          for unit in nusa nusa-autopilot; do
+          for unit in nusa nusa-autopilot nusa-research.service nusa-research.timer; do
             echo "== $unit"
             systemctl show "$unit" -p ActiveState,SubState,NRestarts,ActiveEnterTimestamp,MemoryCurrent 2>&1
           done
+          echo "== Research timer next and previous activation"
+          systemctl show nusa-research.timer -p NextElapseUSecRealtime,LastTriggerUSec 2>&1
+          echo "== Forward Research log projection (last 200 lines; fixed fields only; absence is not success)"
+          journalctl -u nusa-research.service -n 200 --no-pager -o cat 2>/dev/null | grep 'REGIME_FORWARD_STUDY ' | tail -3 | cut -c1-4096 | node -e '
+          const fs = require("node:fs");
+          let count = 0;
+          for (const line of fs.readFileSync(0, "utf8").split("\n").slice(0, 3)) {
+            try {
+              const marker = "REGIME_FORWARD_STUDY ";
+              const index = line.indexOf(marker);
+              if (index < 0) continue;
+              const value = JSON.parse(line.slice(index + marker.length));
+              if (!["WAITING_HOLDOUT", "INSUFFICIENT_DATA", "RESEARCH_SCREEN_PASS", "RESEARCH_SCREEN_FAIL"].includes(value.status) ||
+                  !/^[a-f0-9]{40}$/.test(value.executionSourceSha || "") || !/^[a-f0-9]{64}$/.test(value.specificationFingerprint || "")) continue;
+              console.log(JSON.stringify({status: value.status, executionSourceSha: value.executionSourceSha, specificationFingerprint: value.specificationFingerprint}));
+              count++;
+            } catch { /* malformed or truncated record is not evidence */ }
+          }
+          if (count === 0) console.log("FORWARD_EXECUTION_EVIDENCE_UNAVAILABLE");
+          '
           echo "== nusa log: error-like lines, last 3 hours (max 80, redacted)"
           journalctl -u nusa --since "-3 hours" --no-pager -o cat 2>&1 | grep -Ei "persist|sqlite|database|disk|ENOSPC|EACCES|EROFS|SQLITE|lease|lock|readonly|fail|error|halt" | tail -80 | redact
           echo "== nusa log: line count last 3 hours"; journalctl -u nusa --since "-3 hours" --no-pager -o cat 2>&1 | wc -l
