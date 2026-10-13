@@ -77,3 +77,25 @@ jobs:
           echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 9000 characters)"
           curl -sS -m 6 -o /tmp/nusa-health-probe.txt -w "http=%{http_code} connect=%{time_connect}s total=%{time_total}s size=%{size_download}B\n" http://127.0.0.1:41731/health 2>&1
           head -c 9000 /tmp/nusa-health-probe.txt 2>/dev/null; echo
+      - name: Publish the same read-only findings as job annotations
+        # The job log is only downloadable from GitHub's blob storage; annotations are readable through the REST API, so a
+        # session without blob access (and the owner on a phone) can read the outcome. Same redaction, bounded size.
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          # Everything stays in shell variables: this step writes no file and makes no request of its own (the earlier step
+          # already probed /health once; its bounded response file is reused here).
+          summary="$({
+            echo "previous=$(basename "$(< /opt/nusa/.previous-release)" 2>&1)"; free -m 2>&1 | head -2; df -h / 2>&1 | tail -1
+            for unit in nusa nusa-autopilot; do systemctl show "$unit" -p ActiveState,SubState,NRestarts,ActiveEnterTimestamp 2>&1 | tr '\n' ' '; echo; done
+            echo "health_probe=$(head -c 200 /tmp/nusa-health-probe.txt 2>&1 | tr '\n' ' ')"
+          } | redact)"
+          # A release directory name is a public commit SHA, not a secret: print it unredacted.
+          summary="${summary}"$'\n'"current_release=$(basename "$(readlink -f /opt/nusa/current)")"$'\n'"$(ls -1t /opt/nusa/releases 2>&1 | head -5 | sed 's/^/release_dir=/')"
+          errors="$(journalctl -u nusa --since "-90 minutes" --no-pager -o cat 2>&1 | grep -v "^\s*at " | tail -40 | cut -c1-300 | redact)"
+          autopilot="$(journalctl -u nusa-autopilot --since "-90 minutes" --no-pager -o cat 2>&1 | grep -Ei "fail|error|blocked|stopped|ready" | tail -20 | cut -c1-300 | redact)"
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          emit "diag-summary" "$summary"
+          for n in 1 2 3 4 5; do part="${errors:$(( (n-1)*3500 )):3500}"; [ -n "$part" ] && emit "diag-nusa-log-$n" "$part"; done
+          emit "diag-autopilot-log" "$autopilot"
