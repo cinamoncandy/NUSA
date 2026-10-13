@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 async function installRendererBridge(page) {
   await page.addInitScript(() => {
