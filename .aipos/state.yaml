@@ -1,4 +1,13 @@
 version: 1
+current_research_baseline_recovery_20261012:
+  work_order: WO-LEARNING-20261012-BASELINE-ROLLOVER-RECOGNITION
+  status: IN_PROGRESS
+  branch: codex/research-baseline-rollover-20261012
+  observed_runtime: "2026-10-13 09:08 KST: source4a26f767, hourly3600000, healthOK,1968 ticks,10 realized periods,0 actual cycles. Research10 completed sessions; baseline bootstrap still blocks."
+  prior_hourly_deployment: "38218434560 PASS, actual runtime revision verified."
+  validation: "48 focused tests PASS; local implementation not published. Previous full-suite process cannot be retrieved, no final full-suite PASS claim."
+  next: "Restore strict canonical baseline recognition and preflight before binding mutations; no fabricated historical Research lineage."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_hourly_recovery_20261012:
   work_order: WO-LEARNING-20261012-HOURLY-RECOVERY
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI

@@ -1,0 +1,24 @@
+id: WO-LEARNING-20261012-BASELINE-ROLLOVER-RECOGNITION
+title: Restore genuine Research bootstrap across baseline rollover
+status: IN_PROGRESS
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: 4a26f767ce4eea5d84182a5a85204a94ebc34dc0
+implementation_branch: codex/research-baseline-rollover-20261012
+owner_request: "Research 연결 병목 해결해; scoped implementation may proceed while prior hourly deployment completes."
+scope: "Canonical baseline recognition across original and continuation IDs; market/dataset/hash/advisory/chronology validation; replacement eligibility preflight before binding mutation."
+evidence: "Rollover preserves baseline provenance but changes ID prefix; bootstrap returns EXISTING_PAPER_STATE without reading Research snapshot."
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm test
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: "48 focused tests and build PASS; typecheck/security/lint PASS (15 existing warnings); validate:full PASS before final added deployment test. Full-suite session85663 is no longer retrievable, so final complete suite is UNVERIFIED. Changes remain local, no PR."
+runtime_observation_20261013: "09:08 KST / source4a26f767 / process and workload HEALTHY / hourly3600000 deployed via38218434560 PASS / ticks1968 / realizedPeriods10 / cyclesRecorded0 / bootstrapEXISTING_PAPER_STATE / historical PAPER_RESEARCH_LINEAGE_UNAVAILABLE. Research33 ticks,10 completed sessions; not closed-loop completion."
+next: "Recover independent review and rerun final frozen-source full suite; do not claim deployment or closed-loop completion for this local baseline fix. Genuine Research/Governance gates unchanged."

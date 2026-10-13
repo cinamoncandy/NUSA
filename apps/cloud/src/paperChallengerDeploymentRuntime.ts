@@ -2,6 +2,7 @@ import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contract
 import type { PaperCandidateStrategySpec } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
 import type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { bindPaperCandidateForExecution } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
+import { isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
@@ -193,6 +194,16 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     });
     void authorization;
 
+    // Reject unsafe replacement before revoking or activating any binding.
+    const openPeriods = this.options.periods.listOpenPeriods?.() ?? [];
+    if (openPeriods.length > 1) throw new Error("multiple PAPER periods are unsafe");
+    const baseline = openPeriods[0];
+    if (baseline != null) {
+      if (!isOwnerBaselinePeriodInput(baseline)) throw new Error("another PAPER realized period is already open");
+      if (baseline.market !== market || baseline.periodStartAt > periodStartAt) throw new Error("owner baseline replacement boundary conflicts");
+      if (this.options.periods.retireOpenPeriodForReplacement == null) throw new Error("owner baseline replacement retirement unavailable");
+    }
+
     const prior = this.options.bindings.current(market, periodStartAt);
     if (prior != null && prior.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256) {
       // A qualified challenger is a PAPER-only handoff, not concurrent authority. Revoke the
@@ -216,14 +227,8 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
       this.options.bindings.activate(market, binding, researchLineage);
     }
 
-    const openPeriods = this.options.periods.listOpenPeriods?.() ?? [];
-    if (openPeriods.length > 1) throw new Error("multiple PAPER periods are unsafe");
-    const baseline = openPeriods[0];
-    if (baseline?.candidateProvenance[0]?.candidateId === "owner-baseline-sma-5-20") {
-      if (this.options.periods.retireOpenPeriodForReplacement == null) throw new Error("owner baseline replacement retirement unavailable");
-      this.options.periods.retireOpenPeriodForReplacement(baseline.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:" + candidateId);
-    } else if (baseline != null) {
-      throw new Error("another PAPER realized period is already open");
+    if (baseline != null) {
+      this.options.periods.retireOpenPeriodForReplacement!(baseline.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:" + candidateId);
     }
     const periodIndex = nextPeriodIndex(this.options.periods.listRealizedPeriods());
     this.options.periods.openPeriodFromCanonicalAccount({
