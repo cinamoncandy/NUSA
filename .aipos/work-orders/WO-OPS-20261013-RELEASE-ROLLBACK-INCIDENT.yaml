@@ -1,0 +1,19 @@
+id: WO-OPS-20261013-RELEASE-ROLLBACK-INCIDENT
+title: "Incident: main 3098387b7 activation failed and rollback could not start (migration 028); plus trade-tick key fix"
+status: OPEN_PRODUCTION_DOWN
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+branch: claude/microstructure-trade-key
+observed:
+  - "oracle-paper-release runs 38464414541 and 38466962267 for 3098387b7 both ended deploymentResult=FAILED; /health 502 from about 20:40 UTC except around 21:08, when the new release answered /health (sourceCommitSha 3098387b7, orderBookSamples 11, metaLearning present)."
+  - "Activation readiness failed for a reason only visible in the job log (not readable from the session). The rollback cannot start the previous release: migrationRunner refuses 'database contains unknown migration' once 028 is applied, so rollback_and_restore leaves the service down."
+lesson: "A release that adds a migration makes rollback to the previous release impossible. Additive migrations need either rollback-tolerant migration reading or a forward-only recovery plan before deploy."
+trade_tick_bug: "research_trade_ticks keyed by Upbit sequential_id (~1.79e16, above Number.MAX_SAFE_INTEGER, rounded by JSON.parse) rejected every trade (tradeTicks 0). Fix: migration 029 research_trade_ticks_v2 keyed by (market, time, price, volume, side); recorder counts rejected rows (rejectedRows on /health)."
+validation: "storage, recorder, migration and health tests 86 pass; cloud, storage and closed-learning suites 636 pass."
+next: "Owner shares the failed activation log (FAIL line and [journal] lines) or approves a read-only diagnosis change; fix forward; no further blind redeploys."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

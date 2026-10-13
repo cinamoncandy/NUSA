@@ -559,4 +559,13 @@ CREATE TABLE IF NOT EXISTS research_trade_ticks (
   PRIMARY KEY (market, sequential_id)
 );
 CREATE INDEX IF NOT EXISTS research_trade_ticks_time ON research_trade_ticks (market, traded_at_ms);
+` }, { id: "029_research_trade_ticks_by_content", sql: `
+CREATE TABLE IF NOT EXISTS research_trade_ticks_v2 (
+  market TEXT NOT NULL,
+  traded_at_ms INTEGER NOT NULL CHECK (traded_at_ms > 0),
+  price REAL NOT NULL CHECK (price > 0),
+  volume REAL NOT NULL CHECK (volume > 0),
+  side TEXT NOT NULL CHECK (side IN ('ASK', 'BID')),
+  PRIMARY KEY (market, traded_at_ms, price, volume, side)
+);
 ` }];
