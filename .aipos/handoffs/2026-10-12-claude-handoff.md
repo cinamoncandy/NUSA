@@ -129,3 +129,6 @@ Snapshot; re-verify against GitHub (No-Guess Rule). Protected main at addendum t
 1. Re-verify main, open PRs (#2633, #2586, #2637-#2639, #2641, #2642, #2644, #2648, #2650) and labels; respect `HOLD`.
 2. Wait for the owner's redesign decisions (six, in the redesign document) and the GitHub identities; then act on the decisions, one task per PR.
 3. Never merge your own PR, bypass Audit or Release, enable the owner-activity gate before account separation and the quiet closed-gate fix, re-enable Codex coding before the repair-target allowlist and attempt cap, or rename the repository or the product.
+
+### Continued
+The next handoff is `.aipos/handoffs/2026-10-13-assistant-handoff.md` (redesign revision 2 merged as PROPOSED, P1 Autopilot fixes #2651/#2652, open-PR inventory #2653, #2311 closed by the owner).
