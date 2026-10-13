@@ -2458,6 +2458,14 @@ current_research_evaluator_runner:
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
 
+current_research_microstructure_recorder_20261013:
+  work_order: WO-RESEARCH-20261013-MICROSTRUCTURE-RECORDER
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/research-microstructure-recorder
+  finding: "Every data type with history is exhausted (0/189 holdout); order book and trades have no Upbit history. Added a research-only recorder of the already-streamed public order book and trades with /health counters."
+  next: "CI, Audit, Release, deploy; verify counters on /health; collect, then pre-register an order-book/trade-flow study."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_ohlcv_catalog_20261013:
   work_order: WO-RESEARCH-20261013-OHLCV-CATALOG
   status: COMPLETED_NO_SURVIVOR
