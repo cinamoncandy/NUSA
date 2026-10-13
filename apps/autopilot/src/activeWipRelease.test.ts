@@ -27,10 +27,11 @@ function namespace(): ExecutionCoordinatorNamespace {
 }
 
 const claim = { dedupeKey: "evolve-coding:abc:github-issue-2118", executionId: "evolve-coding:abc", canonicalOwner: "apps/autopilot", conflictKeys: ["apps/autopilot/src/concurrencyAdvisor.ts"], claimedAt: 1_000, maxConcurrent: 1 };
-const env = (ns: ExecutionCoordinatorNamespace) => ({ NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA", NUSA_CODING_RUNNER_TOKEN: "coding-token", NUSA_EXECUTION_COORDINATOR: ns }) as unknown as WorkerEnv;
-const post = (body: unknown, token = "coding-token") => new Request("https://worker/coding/wip-release", {
+const RUNNER_CREDENTIAL = "coding-token";
+const env = (ns: ExecutionCoordinatorNamespace) => ({ NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA", NUSA_CODING_RUNNER_TOKEN: RUNNER_CREDENTIAL, NUSA_EXECUTION_COORDINATOR: ns }) as unknown as WorkerEnv;
+const post = (body: unknown, bearer = RUNNER_CREDENTIAL) => new Request("https://worker/coding/wip-release", {
   method: "POST",
-  headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+  headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
   body: typeof body === "string" ? body : JSON.stringify(body),
 });
 
