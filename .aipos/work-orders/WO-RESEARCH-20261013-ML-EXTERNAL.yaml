@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261013-ML-EXTERNAL
 title: "EXTERNAL + daily + all KRW + ML: add the BTC Korea premium and global BTC momentum to the daily model"
-status: PRE_REGISTERED
+status: COMPLETED_NO_SURVIVOR
 priority: P0
 authority_impact: none
 repository: cinamoncandy/NUSA
@@ -21,3 +21,4 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+result: "FAIL (no skill): 1,755 holdout trades, -0.771% per trade vs universe -0.467%, win rate 42.3%, p 1.0. external.json sha256 9f49c83a9d366acf8be5d41cdca543b8a7c6fe6cfdbb604faa5830ed74a50f26."
