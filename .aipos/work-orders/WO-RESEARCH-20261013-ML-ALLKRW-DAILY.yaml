@@ -1,0 +1,21 @@
+id: WO-RESEARCH-20261013-ML-ALLKRW-DAILY
+title: "Meta-learner's next experiment: OHLCV + daily + all KRW markets + logistic-regression ML"
+status: PRE_REGISTERED
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-meta-learner
+related_issues: [1605]
+owner_request: "2026-10-13 in chat: do all of it (run the meta-learner's next recommendation)."
+pre_registration:
+  committed_before_data_fetch: true
+  script: scripts/research-ml-allkrw-daily.js
+  design: "All KRW markets, daily candles 2021-10-13..2026-10-13; point-in-time eligibility (>=60 prior days, 30-day median traded value >= 1e9 KRW); 60/20/20 split with embargo; 12 features; label next-day return > 0.2%; lambda {0.1,1,10} on validation; top 5 by probability, 1-day hold."
+  pass_rule: ">=50 holdout trades, mean > 0, one-sided z p < 0.05/183, 2x-cost mean > 0, beats buying every eligible market."
+  disclosed_bias: "Survivorship: markets listed at fetch time."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
