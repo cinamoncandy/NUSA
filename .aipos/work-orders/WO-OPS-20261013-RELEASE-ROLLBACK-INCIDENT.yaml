@@ -17,3 +17,11 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+recovery:
+  restoredAt: "2026-10-13T21:38Z"
+  release: f8421941c2befb9552167c3db0783eb422286ba8
+  releaseRun: 38470929719
+  cause: "readiness wait (180 s) shorter than startup; rollback blocked by migration 028"
+  fix: "#2680 raised NUSA_READY_STARTUP_WAIT_MS default to 300000"
+  verified: "public /health ok=true, runtime.sourceCommitSha=f8421941c"
+  followUps: ["#2681 rollback schema guard (owner must reinstall host helper)", "#2682 diagnose annotations"]
