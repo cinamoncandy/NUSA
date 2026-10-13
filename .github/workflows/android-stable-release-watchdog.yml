@@ -4,6 +4,13 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+    # This watchdog only ever reconciles main: it reads branches/main, queries ?branch=main and
+    # dispatches ref=main, and never uses the triggering run's branch. Without this filter every
+    # pull-request CI completion woke it too, and since all triggers share one concurrency group
+    # GitHub cancels the older pending run -- 56 of the last 100 runs were cancelled that way, and
+    # those cancellations were what fed the failure-repair dispatch storm. Every sibling
+    # release/deploy workflow with main-only logic already filters this way.
+    branches: [main]
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
