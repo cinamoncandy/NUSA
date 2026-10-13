@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, readProviderCapacityWait, recordProviderCapacityWait, reservePaidOverflowCall, utcDayKey, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, recoverPersistentAuditDispatch, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, ACTIVE_WIP_CLAIM_MAX_AGE_MS, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, readProviderCapacityWait, recordProviderCapacityWait, reservePaidOverflowCall, utcDayKey, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, recoverPersistentAuditDispatch, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -469,6 +469,29 @@ describe("persistent control-plane HOLD", () => {
     assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
     assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
   });
+  it("releases an active-WIP claim that outlived any possible running work so backlog coding is not blocked forever", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    const admit = async (dedupeKey: string, claimedAt: number) => {
+      const response = await coordinator.fetch(new Request("https://execution-coordinator/active-wip/admit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ dedupeKey, executionId: `exec:${dedupeKey}`, canonicalOwner: "apps/autopilot", conflictKeys: [`key:${dedupeKey}`], claimedAt, maxConcurrent: 1 }),
+      }));
+      return { status: response.status, body: await response.json() as { admitted: boolean; reason?: string; expiredClaims?: { dedupeKey: string }[] } };
+    };
+    const start = 1_000_000;
+    // A failed dispatch never completes its claim.
+    assert.equal((await admit("issue-1", start)).status, 201);
+    const blocked = await admit("issue-2", start + ACTIVE_WIP_CLAIM_MAX_AGE_MS - 1);
+    assert.equal(blocked.status, 409);
+    assert.equal(blocked.body.reason, "WIP_LIMIT_REACHED");
+    const resumed = await admit("issue-2", start + ACTIVE_WIP_CLAIM_MAX_AGE_MS);
+    assert.equal(resumed.status, 201);
+    assert.deepEqual(resumed.body.expiredClaims?.map((claim) => claim.dedupeKey), ["issue-1"]);
+    // The released item may be claimed again later; a fresh claim still holds the slot.
+    assert.equal((await admit("issue-1", start + ACTIVE_WIP_CLAIM_MAX_AGE_MS + 1)).body.reason, "WIP_LIMIT_REACHED");
+  });
+
   it("atomically admits independent WIP while rejecting conflict and capacity overflow", async () => {
     const storage = new TransactionalRacyStorage();
     const coordinator = new ExecutionCoordinator({ storage });
