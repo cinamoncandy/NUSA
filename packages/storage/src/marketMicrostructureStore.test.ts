@@ -12,7 +12,7 @@ function withStore(run: (store: SqliteMarketMicrostructureStore) => void, sample
   try { run(new SqliteMarketMicrostructureStore(db, samples, ticks)); } finally { db.close(); rmSync(dir, { recursive: true, force: true }); }
 }
 const sample = (at: number) => ({ capturedAtMs: at, bestBid: 100, bestAsk: 101, bidSize5: 5, askSize5: 6, totalBidSize: 50, totalAskSize: 60 });
-const tick = (id: number, at: number) => ({ sequentialId: id, tradedAtMs: at, price: 100, volume: 0.5, side: "BID" as const });
+const tick = (id: number, at: number) => ({ tradedAtMs: at, price: 100 + id, volume: 0.5, side: "BID" as const });
 
 describe("market microstructure store", () => {
   it("stores samples and ticks idempotently and reads them back in time order", () => withStore((store) => {
@@ -20,8 +20,13 @@ describe("market microstructure store", () => {
     assert.deepEqual(store.appendOrderBookSamples("KRW-BTC", [sample(2)]), { stored: 0, rejected: 0 });
     assert.deepEqual(store.readOrderBookSamples("KRW-BTC", 0, 10).map((s) => s.capturedAtMs), [1, 2]);
     assert.deepEqual(store.appendTradeTicks("KRW-BTC", [tick(7, 5), tick(7, 5), tick(8, 6)]), { stored: 2, rejected: 0 });
-    assert.deepEqual(store.readTradeTicks("KRW-BTC", 0, 10).map((t) => t.sequentialId), [7, 8]);
+    assert.deepEqual(store.readTradeTicks("KRW-BTC", 0, 10).map((t) => t.price), [107, 108]);
     assert.deepEqual(store.summary(), { orderBookSamples: 2, tradeTicks: 2, firstAt: 1, lastAt: 6 });
+  }));
+
+  it("identifies a trade by its content, not by Upbit's unsafe sequential id", () => withStore((store) => {
+    const a = { tradedAtMs: 10, price: 100, volume: 1, side: "BID" as const };
+    assert.deepEqual(store.appendTradeTicks("KRW-XRP", [a, { ...a }, { ...a, side: "ASK" as const }, { ...a, volume: 2 }]), { stored: 3, rejected: 0 });
   }));
 
   it("rejects invalid rows without storing them and refuses an invalid market", () => withStore((store) => {

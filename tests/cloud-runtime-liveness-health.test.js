@@ -553,9 +553,9 @@ test("/health publishes the advisory meta-learning report with codes and integer
 });
 
 test("/health publishes the microstructure recorder counters as non-negative integers only", async () => {
-  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, microstructureRecorder: { orderBookSamples: 12, tradeTicks: 340, writeFailures: 0, lastRecordedAt: 1_791_900_000_000, secret: "x" } }) }, async (handle) => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, microstructureRecorder: { orderBookSamples: 12, tradeTicks: 340, writeFailures: 0, rejectedRows: 2, lastRecordedAt: 1_791_900_000_000, secret: "x" } }) }, async (handle) => {
     const runtime = JSON.parse((await request(handle.port, "/health")).body).runtime;
-    assert.deepEqual(runtime.microstructureRecorder, { orderBookSamples: 12, tradeTicks: 340, writeFailures: 0, lastRecordedAt: 1_791_900_000_000 });
+    assert.deepEqual(runtime.microstructureRecorder, { orderBookSamples: 12, tradeTicks: 340, writeFailures: 0, rejectedRows: 2, lastRecordedAt: 1_791_900_000_000 });
   }, 42345);
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, microstructureRecorder: { orderBookSamples: -1, tradeTicks: 1, writeFailures: 0 } }) }, async (handle) => {
     assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.microstructureRecorder, undefined);
