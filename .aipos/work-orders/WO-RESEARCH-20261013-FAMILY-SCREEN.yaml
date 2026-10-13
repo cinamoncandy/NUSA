@@ -1,0 +1,27 @@
+id: WO-RESEARCH-20261013-FAMILY-SCREEN
+title: "Pre-registered offline screen of three more signal families and a forward SHADOW plan for the learning loop"
+status: PRE_REGISTERED
+priority: P1
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-family-screen
+owner_approval: "2026-10-13 in chat: owner chose options 1 and 2 (pre-register a new candidate for a forward test; screen other signal families) to unblock the closed learning loop."
+objective: "Find a candidate that could genuinely pass Research qualification, without lowering any threshold, risk limit or the consecutive-loss limit of 3."
+pre_registration:
+  committed_before_results: true
+  script: scripts/offline-family-screen.js
+  families: ["BOLLINGER k=2.0", "BOLLINGER k=2.5", "SQUEEZE", "REGIME_BREAKOUT N=20/50/100"]
+  pass_rule: "Per frozen file: base-cost mean net positive in >=4 of 6 windows AND UP-window mean > 0 AND DOWN-window mean > 0 AND 2x-cost positive in >=4 of 6. Survives only if it passes on both frozen files."
+  inputs:
+    - "docs/research-data/2026-10-12-upbit-60m-closes-250d.json sha256 fdf1ae23c25d7502e88065464b895c25b6f407dd120e6d633ddaec07f2c58f42"
+    - "docs/research-data/2026-10-13-upbit-60m-closes-prior-383d.json sha256 22ba26818115125d5699b36484d6ea5c743d4a923fbfccdbe132a12ba734f4c0"
+  limitation: "REGIME_BREAKOUT reuses Donchian settings already seen in the earlier note, so its historical screen is not untouched; only a forward test on data after 2026-10-13 is."
+scope:
+  include: ["scripts/offline-family-screen.js", "docs/RESEARCH_NOTE_2026-10-13_FAMILY_SCREEN.md", "this work order", ".aipos/state.yaml entry"]
+  exclude: ["Any runtime strategy, candidate binding, qualification, threshold, risk, capital or order change."]
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
