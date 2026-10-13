@@ -5,6 +5,7 @@ import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProd
 import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator";
 import type { ClosedLearningCycleFailureReceipt } from "./closedLearningEvolutionLedgerRepository";
 import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integration";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -42,7 +43,10 @@ export type ClosedLearningLoopStatus = {
 
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
-  realizedPeriods: number; realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
+  realizedPeriods: number;
+  /** Realized owner-baseline periods: durable self-observations without Research lineage, never counted as learning cycles. */
+  baselineObservations: number;
+  realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
   cycleId: string; cycleEvidenceId: string; cycleEvidenceFingerprint: string; decisionId: string; decisionReference: string; decisionCandidateId: string; deploymentId: string;
   /** Durable (survives restarts): how many cycles the ledger holds, and when the latest was recorded. */
   cyclesRecorded: number; lastCycleRecordedAt: number;
@@ -92,6 +96,7 @@ export class ClosedLearningLoopStatusTracker {
         openFilledObservations: open.observations.filter((item) => item.status === "FILLED").length,
       }),
       realizedPeriods: realized.length,
+      baselineObservations: realized.filter((item) => item.candidateProvenance?.length === 1 && item.candidateProvenance[0]?.candidateId === OWNER_BASELINE_CANDIDATE_ID).length,
       ...(latest == null ? {} : {
         realizedPeriodId: latest.record.recordId,
         realizedPeriodEndAt: latest.record.periodEndAt,

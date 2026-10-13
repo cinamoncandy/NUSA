@@ -1,0 +1,24 @@
+id: WO-LEARNING-20261013-BASELINE-OBSERVATION
+title: "Keep closed owner-baseline PAPER periods as self-observations instead of a BLOCKED retry loop"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/learning-baseline-observation
+related_issues: [1605, 2589]
+concept: docs/NUSA_RECURSIVE_SELF_IMPROVEMENT.md (self-observation; first broken link PAPER -> learning record)
+owner_request: "2026-10-13 in chat: apply the recursive self-improvement concept and focus on completing the learning loop."
+observed_gap: "Production /health: realizedPeriods 10, cyclesRecorded 0, last historical reason PAPER_RESEARCH_LINEAGE_UNAVAILABLE. Each closed owner-baseline period threw in identity construction, was BLOCKED, retried MAX_CYCLE_RESUME_ATTEMPTS times, and only then continued as STALLED_PERIOD_REOPENED."
+change:
+  - "closedLearningRolloverScheduler: when identity construction fails with PAPER_RESEARCH_LINEAGE_UNAVAILABLE for an owner-baseline period on a streamed market, return BASELINE_PERIOD_OBSERVED and continue the baseline from the same canonical account boundary (as a non-qualified cycle would). Same handling in the restart-resume path."
+  - "Unchanged: challengers without lineage, any other identity error, and unstreamed markets stay BLOCKED. No lineage, cycle, decision or score is created for the baseline."
+  - "closedLearningLoopStatus and /health evidence: baselineObservations = realized owner-baseline periods (durable self-observations, never counted as cycles)."
+validation: "Rollover scheduler tests 47 (6 new), closed-learning and health tests 163, all compiled cloud tests 563 pass; tsc build PASS."
+not_verified: "Production behaviour after deploy; the next real baseline close must show BASELINE_PERIOD_OBSERVED and baselineObservations on /health."
+next: "Research N+1 reads baseline observations (PAPER vs backtest gap of the same rule) as failure-attribution input; separate work order."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
