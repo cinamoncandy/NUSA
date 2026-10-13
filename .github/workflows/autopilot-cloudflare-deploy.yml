@@ -238,6 +238,7 @@ jobs:
             --config apps/autopilot/wrangler.jsonc \
             --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}" \
             --var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:${NUSA_ZERO_CREDIT_MODE}" \
+            --var "NUSA_AUTOPILOT_PAID_OVERFLOW_DAILY_CAP:25" \
             --var "NUSA_JEV_SHADOW_ENABLED:true" \
             --var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"
 
