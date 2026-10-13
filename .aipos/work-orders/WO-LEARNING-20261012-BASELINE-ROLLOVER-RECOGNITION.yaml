@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261012-BASELINE-ROLLOVER-RECOGNITION
 title: Restore genuine Research bootstrap across baseline rollover
-status: IN_PROGRESS
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P1
 risk: MEDIUM
 authority_impact: none
@@ -19,6 +19,6 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-validation: "49 focused tests and build PASS; typecheck/security/lint PASS (15 existing warnings); validate:full PASS. Diagnostic full suite1193 files PASS but source was refined during that run, so final frozen-source suite is required. Earlier session85663 is unretrievable, no PASS inferred from it."
+validation: "Frozen implementation commitb6aa4a17774ba096963d906ad889c7db21c73e67: pnpm test1193 isolated files PASS;49 focused tests PASS; build/typecheck/validate:full/security/lint PASS,15 existing lint warnings. Earlier diagnostic run is not used as final evidence. This checkpoint changes AIPOS only; fresh remote exact-head validation required."
 runtime_observation_20261013: "09:08 KST / source4a26f767 / process and workload HEALTHY / hourly3600000 deployed via38218434560 PASS / ticks1968 / realizedPeriods10 / cyclesRecorded0 / bootstrapEXISTING_PAPER_STATE / historical PAPER_RESEARCH_LINEAGE_UNAVAILABLE. Research33 ticks,10 completed sessions; not closed-loop completion."
 next: "Run final frozen-source full suite, publish one PR, exact-head CI and independent canonical Audit/Release; deploy only current protected main with PASS CI. Actual Research connection proof required; no candidate qualification claim."

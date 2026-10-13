@@ -1,11 +1,11 @@
 version: 1
 current_research_baseline_recovery_20261012:
   work_order: WO-LEARNING-20261012-BASELINE-ROLLOVER-RECOGNITION
-  status: IN_PROGRESS
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: codex/research-baseline-rollover-20261012
   observed_runtime: "2026-10-13 09:08 KST: source4a26f767, hourly3600000, healthOK,1968 ticks,10 realized periods,0 actual cycles. Research10 completed sessions; baseline bootstrap still blocks."
   prior_hourly_deployment: "38218434560 PASS, actual runtime revision verified."
-  validation: "49 focused tests PASS, build/typecheck/validate:full/security/lint PASS; final frozen-source full suite required. Earlier missing process not inferred PASS."
+  validation: "Frozen codeb6aa4a17:49 focused tests and1193 isolated files PASS; build/typecheck/validate:full/security/lint PASS,15 existing warnings. AIPOS-only validation checkpoint; exact-head CI/Audit/Release/runtime pending."
   next: "Restore strict canonical baseline recognition and preflight before binding mutations; no fabricated historical Research lineage."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_hourly_recovery_20261012:
