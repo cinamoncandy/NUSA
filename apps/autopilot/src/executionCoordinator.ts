@@ -400,6 +400,7 @@ export class ExecutionCoordinator {
     if (url.pathname === "/control-plane-hold/clear") return this.clearControlPlaneHold(await request.json());
     if (url.pathname === "/rate-limit-stop") return this.stopForRateLimit(await request.json());
     if (url.pathname === "/provider-capacity-wait") return this.recordProviderCapacityWait(await request.json());
+    if (url.pathname === "/paid-overflow-reserve") return this.reservePaidOverflowCall(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -595,6 +596,35 @@ export class ExecutionCoordinator {
       const kept = current && validPersistentExecutionStop(current) && current.nextRetryAt >= incoming.nextRetryAt ? current : incoming;
       if (kept === incoming) await storage.put("provider-capacity-wait", incoming);
       return json({ recorded: true, wait: kept });
+    });
+  }
+
+  /**
+   * Atomic per-UTC-day reservation of one paid overflow call. The owner-imposed cap is enforced
+   * here rather than by the caller because two concurrent executions would otherwise both read the
+   * same count and both spend. A reservation is only consumed when it is granted, so a refusal
+   * never burns budget. The counter is keyed by day, so it resets with the provider's own daily
+   * boundary and needs no cleanup.
+   */
+  private async reservePaidOverflowCall(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return json({ error: "PAID_OVERFLOW_RESERVE_INVALID" }, 400);
+    const request = value as { day?: unknown; cap?: unknown };
+    const day = request.day;
+    const cap = request.cap;
+    if (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error: "PAID_OVERFLOW_RESERVE_INVALID" }, 400);
+    if (!Number.isSafeInteger(cap) || (cap as number) < 0) return json({ error: "PAID_OVERFLOW_RESERVE_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const stored = await storage.get<{ schemaVersion: 1; day: string; used: number }>("paid-overflow-usage");
+      const sameDay = stored !== undefined
+        && stored.schemaVersion === 1
+        && stored.day === day
+        && Number.isSafeInteger(stored.used)
+        && stored.used >= 0;
+      const used = sameDay ? stored.used : 0;
+      if (used >= (cap as number)) return json({ allowed: false, day, used, cap });
+      const next = Object.freeze({ schemaVersion: 1 as const, day, used: used + 1 });
+      await storage.put("paid-overflow-usage", next);
+      return json({ allowed: true, day, used: next.used, cap });
     });
   }
 
@@ -1119,6 +1149,31 @@ export async function readProviderCapacityWait(namespace: ExecutionCoordinatorNa
   if (body.wait === null || body.wait === undefined) return null;
   if (!validPersistentExecutionStop(body.wait)) throw new Error("PROVIDER_CAPACITY_WAIT_READ_FAILED");
   return body.wait;
+}
+
+/** UTC calendar day of a timestamp, the window the paid overflow cap and provider stop share. */
+export function utcDayKey(now: number): string {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+/**
+ * Reserve one paid overflow call for the given UTC day, returning false once the cap is reached.
+ * Keyed by provider and day so each provider has its own budget and the count resets daily.
+ */
+export async function reservePaidOverflowCall(
+  namespace: ExecutionCoordinatorNamespace,
+  input: { provider: string; day: string; cap: number },
+): Promise<boolean> {
+  const stub = namespace.get(namespace.idFromName(`paid-overflow-usage:${input.provider}:${input.day}`));
+  const response = await stub.fetch("https://execution-coordinator/paid-overflow-reserve", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ day: input.day, cap: input.cap }),
+  });
+  if (!response.ok) throw new Error("PAID_OVERFLOW_RESERVE_FAILED");
+  const body = await response.json() as { allowed?: unknown };
+  if (typeof body.allowed !== "boolean") throw new Error("PAID_OVERFLOW_RESERVE_FAILED");
+  return body.allowed;
 }
 
 export async function completePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {
