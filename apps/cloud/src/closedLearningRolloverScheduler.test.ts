@@ -120,6 +120,7 @@ function harness(options: {
   awaitingGovernance?: boolean;
   closeError?: Error;
   cycleError?: Error;
+  identityError?: Error;
   retireMixed?: boolean;
   inspectMixed?: boolean;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
@@ -128,6 +129,7 @@ function harness(options: {
   const events: string[] = [];
   const openInputs: PaperRealizedPeriodOpenInput[] = [];
   const failures: Array<{ closedPeriodId: string; identity: ClosedLearningEvidenceIdentity; stage: "CYCLE" | "FINALIZE"; code: string }> = [];
+  const identityFailures: Array<{ closedPeriod: PersistedPaperPeriodEnvelope; code: string }> = [];
   const closed = envelope();
   const openPeriods = options.openPeriods ?? [plan(options.observation ?? "FILLED")];
   const realized = Object.freeze([...(options.priorRealized ?? []), closed]);
@@ -143,16 +145,58 @@ function harness(options: {
       return closed;
     },
     openPeriodFromCanonicalAccount: (input) => { openInputs.push(input); events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
-    buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
+    buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); if (options.identityError) throw options.identityError; return identity(); },
+    recordIdentityFailure: (failure) => { identityFailures.push(failure); },
     runClosedLearningCycle: () => { events.push("cycle"); if (options.cycleError) throw options.cycleError; return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
     recordCycleFailure: (failure) => { failures.push(failure); events.push(`failure:${failure.stage}:${failure.code}`); },
     ...(options.inspectMixed === true ? { inspectOpenPeriodForMixedBinding: (periodId: string) => { events.push(`inspect-mixed:${periodId}`); return { evidenceFingerprintSha256: "f".repeat(64) }; } } : {}),
     ...(options.retireMixed === false ? {} : { retireOpenPeriodForMixedBinding: (periodId: string) => { events.push(`retire-mixed:${periodId}`); return plan("FILLED", periodId); } }),
   };
-  return { scheduler: new ClosedLearningRolloverScheduler(port), events, openInputs, failures };
+  return { scheduler: new ClosedLearningRolloverScheduler(port), events, openInputs, failures, identityFailures, port };
 }
 
 describe("ClosedLearningRolloverScheduler", () => {
+  for (const resume of [false, true]) {
+    for (const asyncPath of [false, true]) {
+      it(`fails closed on identity receipt write failure (resume=${resume}, async=${asyncPath})`, async () => {
+        const h = harness({ now: NEXT_KST_DAY, identityError: new Error("identity unavailable") });
+        const scheduler = new ClosedLearningRolloverScheduler({
+          ...h.port,
+          ...(resume ? { listOpenPeriods: () => [], now: () => NEXT_KST_DAY + 1, isCycleRecorded: () => false } : {}),
+          recordIdentityFailure: () => { throw new Error("storage unavailable"); },
+        });
+        for (let attempt = 0; attempt < MAX_CYCLE_RESUME_ATTEMPTS + 2; attempt += 1) {
+          if (asyncPath) await assert.rejects(scheduler.runOnceAsync(), /CLOSED_LEARNING_FAILURE_PERSISTENCE_FAILED/);
+          else assert.throws(() => scheduler.runOnce(), /CLOSED_LEARNING_FAILURE_PERSISTENCE_FAILED/);
+        }
+        assert.equal(h.openInputs.length, 0);
+        assert.ok(!h.events.includes("cycle"));
+        assert.equal(h.events.filter((event) => event.startsWith("identity:")).length, 1);
+      });
+    }
+  }
+  for (const asyncPath of [false, true]) {
+    it(`captures a post-close identity failure before any cycle (${asyncPath ? "async" : "sync"})`, async () => {
+      const error = Object.assign(new Error("private diagnostic payload"), { code: "RISK_FINGERPRINT_INVALID" });
+      const h = harness({ now: NEXT_KST_DAY, identityError: error });
+      const result = asyncPath ? await h.scheduler.runOnceAsync() : h.scheduler.runOnce();
+      assert.equal(result.status, "BLOCKED");
+      assert.deepEqual(h.identityFailures, [{ closedPeriod: envelope(), code: "RISK_FINGERPRINT_INVALID" }]);
+      assert.equal(h.failures.length, 0);
+      assert.equal(h.openInputs.length, 0);
+      assert.ok(!h.events.includes("cycle"));
+      assert.doesNotMatch(JSON.stringify(h.identityFailures), /private diagnostic/);
+    });
+  }
+  it("captures the same closed identity failure after scheduler restart without repeating the close", () => {
+    const h = harness({ now: NEXT_KST_DAY, identityError: new Error("unstructured diagnostic") });
+    assert.equal(h.scheduler.runOnce().status, "BLOCKED");
+    const restarted = new ClosedLearningRolloverScheduler({ ...h.port, listOpenPeriods: () => [], now: () => NEXT_KST_DAY + 1, isCycleRecorded: () => false });
+    assert.equal(restarted.runOnce().status, "BLOCKED");
+    assert.deepEqual(h.identityFailures[1], h.identityFailures[0]);
+    assert.equal(h.identityFailures[0]?.code, "CLOSED_LEARNING_CYCLE_FAILED");
+    assert.equal(h.events.filter((event) => event.startsWith("close:")).length, 1);
+  });
   it("records bounded identity-only evidence when a prepared cycle fails after the period close", () => {
     const error = Object.assign(new Error("secret exception text with prices"), { code: "RESEARCH_WORKER_FAILED" });
     const { scheduler, failures } = harness({ now: NEXT_KST_DAY, cycleError: error });
@@ -637,6 +681,7 @@ describe("closed-learning rollover keeps an owner-baseline period as a self-obse
       isCycleRecorded: () => false,
       runClosedLearningCycle: () => { events.push("cycle"); return cycle("INSUFFICIENT"); },
       recordCycleFailure: (failure) => { events.push(`failure:${failure.code}`); },
+      recordIdentityFailure: (failure) => { events.push(`identity-failure:${failure.code}`); },
     };
     return { scheduler: new ClosedLearningRolloverScheduler(port), events };
   }

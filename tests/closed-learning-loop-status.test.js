@@ -206,6 +206,50 @@ test("cycle failure receipts survive restart, deduplicate replay, and remain bes
   } finally { db.close(); }
 });
 
+test("identity-stage receipts replay through the existing ledger and status without creating cycles", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db);
+    const repo = new ClosedLearningEvolutionLedgerRepository(ledger, () => 7_000);
+    const input = { closedPeriodId: "period-7", evidenceId: "closed-paper-period:period-7", evidenceFingerprintSha256: HEX("e"), sourceCommitSha: "b".repeat(40), runtimeSourceCommitSha: "b".repeat(40), stage: "IDENTITY", code: "RISK_FINGERPRINT_INVALID" };
+    const receipt = repo.appendFailure(input);
+    const restarted = new ClosedLearningEvolutionLedgerRepository(ledger);
+    assert.equal(restarted.appendFailure(input).failureId, receipt.failureId);
+    assert.equal(restarted.failureSummary().failuresRecorded, 1);
+    assert.equal(restarted.summary().cyclesRecorded, 0);
+    const tracker = new ClosedLearningLoopStatusTracker();
+    tracker.observeDurableFailures(restarted.failureSummary());
+    tracker.observeRollover({ status: "WAITING_FOR_CANONICAL_BOUNDARY" }, 9_000);
+    assert.equal(tracker.snapshot().evidence.latestFailureStage, "IDENTITY");
+    assert.equal(tracker.snapshot().evidence.latestFailureCode, input.code);
+    const records = ledger.list();
+    const changed = { ...records[0], hypothesis: records[0].hypothesis.replace("RISK_FINGERPRINT_INVALID", "OTHER_FAILURE") };
+    const tampered = new ClosedLearningEvolutionLedgerRepository({ list: () => [changed], append: () => { throw new Error("no writes"); } });
+    assert.throws(() => tampered.failureSummary(), /tampered/);
+  } finally { db.close(); }
+});
+
+test("identity-stage failure survives closing and reopening its SQLite database", () => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "nusa-identity-receipt-"));
+  const filename = path.join(directory, "learning.sqlite");
+  const input = { closedPeriodId: "period-7", evidenceId: "closed-paper-period:period-7", evidenceFingerprintSha256: HEX("e"), sourceCommitSha: "b".repeat(40), runtimeSourceCommitSha: "b".repeat(40), stage: "IDENTITY", code: "RISK_FINGERPRINT_INVALID" };
+  let db;
+  try {
+    db = new SqliteDatabase(filename);
+    const first = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db), () => 7_000).appendFailure(input);
+    db.close();
+    db = new SqliteDatabase(filename);
+    const restarted = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db), () => 8_000);
+    assert.deepEqual(restarted.appendFailure(input), first);
+    restarted.append(cycleRecord("7", "REJECTED", 9_000));
+    assert.equal(restarted.summary().cyclesRecorded, 1);
+    assert.deepEqual(restarted.failureSummary().receipts, [first]);
+  } finally {
+    db?.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("malformed durable cycle failure evidence fails closed", () => {
   const db = new SqliteDatabase(":memory:");
   try {

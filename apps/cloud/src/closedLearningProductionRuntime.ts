@@ -1,4 +1,6 @@
 import { buildMetaLearningStatus } from "./researchMetaLearningRuntime";
+import { createHash } from "node:crypto";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
 import { MarketMicrostructureRecorder, microstructureRecorderEnabled } from "./marketMicrostructureRecorder";
 import { SqliteMarketMicrostructureStore } from "../../../packages/storage/src/marketMicrostructureStore";
@@ -252,6 +254,18 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       return buildOwnerBaselinePaperPeriodInput({ market, periodIndex, periodStartAt, sourceCommitSha });
     },
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
+    recordIdentityFailure: ({ closedPeriod, code }) => {
+      const runtimeSourceCommitSha = (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim().toLowerCase();
+      cycleRepository.appendFailure({
+        closedPeriodId: closedPeriod.record.recordId,
+        evidenceId: `closed-paper-period:${closedPeriod.record.recordId}`,
+        evidenceFingerprintSha256: createHash("sha256").update(canonicalResearchJson(closedPeriod), "utf8").digest("hex"),
+        sourceCommitSha: runtimeSourceCommitSha,
+        runtimeSourceCommitSha,
+        stage: "IDENTITY",
+        code,
+      });
+    },
     // "Recorded" means complete: a qualified decision without its deployment receipt is resumed by running the coordinator again.
     isCycleRecorded: (identity) => isCompleteClosedLearningCycle(cycleRepository.get(closedLearningCycleId(identity))),
     recordCycleFailure: ({ closedPeriodId, identity, stage, code }) => cycleRepository.appendFailure({

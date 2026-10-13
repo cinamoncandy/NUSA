@@ -71,6 +71,7 @@ export interface ClosedLearningRolloverPort {
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
   readonly recordCycleFailure?: (input: { readonly closedPeriodId: string; readonly identity: ClosedLearningEvidenceIdentity; readonly stage: "CYCLE" | "FINALIZE"; readonly code: string }) => void;
+  readonly recordIdentityFailure?: (input: { readonly closedPeriod: PersistedPaperPeriodEnvelope; readonly code: string }) => void;
 }
 
 function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): number {
@@ -138,6 +139,19 @@ interface PreparedRollover {
 export class ClosedLearningRolloverScheduler {
   /** Realized-period record ids whose cycle did not finish in THIS process, with the in-process resume attempts used. */
   private readonly awaitingCycle = new Map<string, number>();
+  private failurePersistenceLost = false;
+
+  private assertFailurePersistence(): void {
+    if (this.failurePersistenceLost) throw new Error("CLOSED_LEARNING_FAILURE_PERSISTENCE_FAILED");
+  }
+
+  private recordIdentityFailure(closedPeriod: PersistedPaperPeriodEnvelope, error: unknown): void {
+    try { this.port.recordIdentityFailure?.({ closedPeriod, code: failureCode(error) }); }
+    catch {
+      this.failurePersistenceLost = true;
+      this.assertFailurePersistence();
+    }
+  }
 
   public constructor(private readonly port: ClosedLearningRolloverPort) {
     if (port.evaluationPeriodMs !== undefined && ![3_600_000, 86_400_000].includes(port.evaluationPeriodMs)) throw new Error("CLOSED_LEARNING_EVALUATION_PERIOD_INVALID");
@@ -179,6 +193,7 @@ export class ClosedLearningRolloverScheduler {
     } catch (error) {
       const observed = this.observeBaselinePeriod(latest, account, realized, error);
       if (observed != null) return observed;
+      this.recordIdentityFailure(latest, error);
       throw error;
     }
     if (isRecorded(identity)) return undefined;
@@ -373,6 +388,7 @@ export class ClosedLearningRolloverScheduler {
     } catch (error) {
       const observed = this.observeBaselinePeriod(closed, account, realizedPeriods, error);
       if (observed != null) return observed;
+      this.recordIdentityFailure(closed, error);
       throw error;
     }
     return Object.freeze({ closedRecordId: closed.record.recordId, plan, account, realizedPeriods, identity });
@@ -399,6 +415,7 @@ export class ClosedLearningRolloverScheduler {
   }
 
   public runOnce(): ClosedLearningRolloverResult {
+    this.assertFailurePersistence();
     let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
     let stage: "CYCLE" | "FINALIZE" = "CYCLE";
     try {
@@ -410,6 +427,7 @@ export class ClosedLearningRolloverScheduler {
       this.awaitingCycle.delete(prepared.closedRecordId);
       return result;
     } catch (error) {
+      this.assertFailurePersistence();
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
       if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
@@ -424,6 +442,7 @@ export class ClosedLearningRolloverScheduler {
 
   /** Async production path yields while Research/League evaluates the closed PAPER evidence. */
   public async runOnceAsync(): Promise<ClosedLearningRolloverResult> {
+    this.assertFailurePersistence();
     let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
     let stage: "CYCLE" | "FINALIZE" = "CYCLE";
     try {
@@ -437,6 +456,7 @@ export class ClosedLearningRolloverScheduler {
       this.awaitingCycle.delete(prepared.closedRecordId);
       return result;
     } catch (error) {
+      this.assertFailurePersistence();
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
       if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
