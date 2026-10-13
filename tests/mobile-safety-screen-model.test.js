@@ -22,12 +22,17 @@ test("even all gates passing never says LIVE is on; blocked gates are amber", ()
   const gates = { passed: 2, total: 3, headline: "", detail: "", gates: [
     { id: "a", title: "A", detail: "", state: "PASS" },
     { id: "b", title: "B", detail: "", state: "BLOCKED" },
-    { id: "c", title: "C", detail: "", state: "UNKNOWN" },
+    { id: "c", title: "C", detail: "", state: "CHECKING" },
+    { id: "d", title: "D", detail: "", state: "STALE" },
+    { id: "e", title: "E", detail: "", state: "FAIL" },
   ] };
   const m = buildSafetyScreen(gates, ["X_BLOCKER"]);
   assert.equal(m.rows[0].value, "잠김 · 영구");
   assert.equal(m.rows.find((r) => r.label === "B").tone, "ATTENTION");
   assert.equal(m.rows.find((r) => r.label === "C").value, "확인 중");
+  assert.equal(m.rows.find((r) => r.label === "D").value, "오래됨");
+  assert.equal(m.rows.find((r) => r.label === "D").tone, "ATTENTION");
+  assert.equal(m.rows.find((r) => r.label === "E").value, "실패");
   assert.ok(m.rows.every((r) => !/켜짐|활성|ENABLED/.test(r.value)));
   assert.ok(m.advanced.includes("blocker: X_BLOCKER"));
 });

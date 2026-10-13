@@ -1,0 +1,18 @@
+id: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
+title: "Safety screen: nine items as PASS/FAIL/BLOCKED/STALE/CHECKING; stale or missing evidence is never PASS"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P1
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/safety-gates-evidence-states
+owner_request: "2026-10-13 master instruction P1: connect the nine safety items to backend evidence with PASS/FAIL/BLOCKED/STALE/CHECKING; stale or missing evidence is not PASS."
+finding: "apps/mobile/src/liveGateModel.ts used only PASS/BLOCKED/UNKNOWN and checked freshness only for runtimeSafety, so a passing value on STALE evidence (e.g. CONNECTED account, PASS drills) read PASS."
+change: "Each gate reads its value and its source's freshness from the existing LIVE_READY projection (no new backend). PASS needs a passing value and FRESH evidence; explicit negative values are FAIL whatever their age; missing prerequisites BLOCKED; STALE evidence STALE; unknown or missing freshness CHECKING. Safety screen and LIVE monitor labels updated."
+validation: "tests/mobile-live-gates.test.js and tests/mobile-safety-screen-model.test.js 15/15; all tests/mobile-*.test.js 732 pass; root and mobile tsc --noEmit PASS."
+not_verified: "Device rendering and production values; the backend sources are unchanged (only the presentation mapping)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

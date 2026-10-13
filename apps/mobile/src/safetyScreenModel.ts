@@ -9,7 +9,7 @@ import type { CalmTone } from "./uiKitModel";
 export interface SafetyRow { readonly label: string; readonly hint: string; readonly value: string; readonly tone: CalmTone }
 export interface SafetyScreenModel { readonly rows: readonly SafetyRow[]; readonly advanced: readonly string[] }
 
-const GATE_WORD = Object.freeze({ PASS: "통과", BLOCKED: "막힘", UNKNOWN: "확인 중" } as const);
+const GATE_WORD = Object.freeze({ PASS: "통과", FAIL: "실패", BLOCKED: "막힘", STALE: "오래됨", CHECKING: "확인 중" } as const);
 
 export function buildSafetyScreen(gates: LiveGateSummary | null, blockers: readonly string[]): SafetyScreenModel {
   const rows: SafetyRow[] = [
@@ -18,7 +18,7 @@ export function buildSafetyScreen(gates: LiveGateSummary | null, blockers: reado
   ];
   if (gates != null) {
     rows.push({ label: "실거래 준비 관문", hint: "통과해도 실거래는 켜지지 않아요", value: `${gates.passed} / ${gates.total}`, tone: "MUTED" });
-    for (const gate of gates.gates) rows.push({ label: gate.title, hint: gate.detail, value: GATE_WORD[gate.state], tone: gate.state === "PASS" ? "NORMAL" : gate.state === "BLOCKED" ? "ATTENTION" : "MUTED" });
+    for (const gate of gates.gates) rows.push({ label: gate.title, hint: gate.detail, value: GATE_WORD[gate.state], tone: gate.state === "PASS" ? "NORMAL" : gate.state === "CHECKING" ? "MUTED" : "ATTENTION" });
   }
   const advanced = [
     ...(gates?.gates.map((gate) => `${gate.id}=${gate.state}`) ?? []),
