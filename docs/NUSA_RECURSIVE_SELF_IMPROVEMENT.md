@@ -46,7 +46,7 @@ flowchart TD
 | 엄격한 반증 | 후보 게이트(최소 거래 50), DSR/PBO 증거, 홀드아웃 원장; 오프라인 사전등록 연구 | 연결됨(오프라인) | 사전등록·누적 다중검정 보정이 런타임 Research에는 없음 |
 | 전이학습 | 없음 | 없음 | 한 시장의 지식을 다른 시장에서 검증하는 절차 |
 | 온라인 적응 | 시장 국면 엔진(`marketRegimeEngine.ts`), 시간 단위 평가 | 부분(미검증) | 성능 저하 감지 → 재평가 시점 결정이 루프에 연결되지 않음 |
-| 메타학습 | 연구 장부와 메타 학습기(`docs/research-ledger/experiments.json`, `scripts/research-meta-learner.js`) | 부분(오프라인) | 런타임 Research가 메타 학습기의 선택을 아직 받지 않음 |
+| 메타학습 | 연구 장부(`docs/research-ledger/experiments.json`), 공통 정책(`packages/contracts/src/researchMetaLearning.ts`), 런타임 평가(`researchMetaLearningRuntime.ts`, `/health` `closedLearningLoop.metaLearning`), 오프라인 CLI | 연결됨(권고만) | 추천에 따라 런타임 Research의 탐색 방향을 실제로 바꾸는 것은 소유자 결정(이전 결정: 실패 기록은 기록만, 적응형 일정 보류)을 바꿔야 함 |
 | 지속적 자기개선 | League 비교(`nusaLeague.ts`), 승격 게이트(`researchPromotionGate.ts`), 폐루프 코디네이터 | 있으나 미연결 | 검증 통과 후보가 없어 한 번도 실제로 돌지 않음(`cyclesRecorded=0`) |
 
 ## 현재 가장 먼저 끊기는 곳

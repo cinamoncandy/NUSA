@@ -39,7 +39,17 @@ export type ClosedLearningLoopStatus = {
    * can be followed mechanically. Identifiers and fingerprints only; no amounts, prices, returns or free text.
    */
   readonly evidence?: ClosedLearningEvidenceCorrelation;
+  /** Research meta-learning report (packages/contracts/src/researchMetaLearning.ts): advisory and display only. */
+  readonly metaLearning?: ClosedLearningMetaLearningStatus;
 };
+
+export type ClosedLearningMetaLearningStatus = Readonly<{
+  experiments: number; configurations: number; discoveryPasses: number; holdoutPasses: number;
+  /** Comma-separated dimension values, e.g. "dataType=CLOSE,methodClass=RULE"; empty when none. */
+  overfitRatePercent?: number; validKnowledgePer100Configs: number; exhausted: string; recommended?: string;
+  /** Comma-separated, e.g. "COLLECT_TRADES"; empty when the recommendation needs no collection. */
+  recommendedPrerequisites: string; nextHoldoutBarMicros: number; runtimeEntries: number; liveForwardEntries: number;
+}>;
 
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
@@ -89,6 +99,7 @@ export class ClosedLearningLoopStatusTracker {
   private durableFailure: ClosedLearningEvidenceCorrelation = {};
   private shadow: ClosedLearningEvidenceCorrelation = {};
   private replay: ClosedLearningEvidenceCorrelation = {};
+  private metaLearning: ClosedLearningMetaLearningStatus | undefined;
 
   /** Reads the identities of the current open period and the latest realized period. */
   public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
@@ -131,6 +142,12 @@ export class ClosedLearningLoopStatusTracker {
       decisionCandidateId: latest.decision?.candidateId,
       deploymentId: latest.paperDeployment?.deploymentId,
     }).filter(([, value]) => typeof value === "string" && value.length > 0)));
+    this.publish();
+  }
+
+  /** Advisory meta-learning report; undefined withdraws it. */
+  public observeMetaLearning(report: ClosedLearningMetaLearningStatus | undefined): void {
+    this.metaLearning = report;
     this.publish();
   }
 
@@ -188,7 +205,7 @@ export class ClosedLearningLoopStatusTracker {
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
-    const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
+    const { evidence: _previousEvidence, metaLearning: _previousMeta, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
     let eligibleAt: number | undefined;
     const start = this.periods.openPeriodStartAt;
     if (["WAITING_FOR_KST_DAY_ROLLOVER", "WAITING_FOR_EVALUATION_WINDOW"].includes(rest.rollover) && start !== undefined && Number.isSafeInteger(start) && start >= 0 && start <= rest.lastTickAt && start <= 8_640_000_000_000_000) {
@@ -206,6 +223,7 @@ export class ClosedLearningLoopStatusTracker {
       ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),
       ...(this.lastBlocked === undefined ? {} : { lastBlockedReason: this.lastBlocked.reason, lastBlockedAt: this.lastBlocked.at }),
       ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
+      ...(this.metaLearning === undefined ? {} : { metaLearning: this.metaLearning }),
     }) as ClosedLearningLoopStatus;
   }
 

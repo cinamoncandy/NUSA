@@ -1,3 +1,5 @@
+import { buildMetaLearningStatus } from "./researchMetaLearningRuntime";
+import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { replayPaperPeriodRule } from "./paperPeriodRuleReplay";
 import { composeResearchExperiments } from "./researchExperimentComposition";
@@ -380,6 +382,14 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       }
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
       persistLastBlocked();
+      try {
+        loopStatus.observeMetaLearning(buildMetaLearningStatus({
+          ledger: RESEARCH_LEDGER_SNAPSHOT,
+          runtimeTicksByInterval: researchExperiments?.experimentTicksByInterval() ?? null,
+          researchMarkets: (env.NUSA_RESEARCH_MARKETS ?? "KRW-BTC").split(",").filter((m) => m.trim() !== "").length,
+          ...(baselineShadow == null ? {} : { shadow: baselineShadow.summary() }),
+        }));
+      } catch { loopStatus.observeMetaLearning(undefined); }
       if (baselineShadow != null) {
         loopStatus.observeShadow(baselineShadow.summary());
         const persistable = baselineShadow.takePersistable();

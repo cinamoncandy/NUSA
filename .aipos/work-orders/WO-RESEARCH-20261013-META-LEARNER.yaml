@@ -23,3 +23,12 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+runtime_integration:
+  owner_request: "2026-10-13 in chat: complete meta-learning (do all of it)."
+  change:
+    - "packages/contracts/src/researchMetaLearning.ts: the single policy (lessons, exhaustion, ranking with collection cost, design-flaw retry, cumulative bar, efficiency metrics); the CLI transpiles it instead of keeping its own copy."
+    - "apps/cloud/src/researchLedgerSnapshot.ts: the ledger's policy fields compiled into the runtime; tests/research-ledger-snapshot.test.js fails on drift."
+    - "apps/cloud/src/researchMetaLearningRuntime.ts: every closed-learning tick evaluates the snapshot plus this process's runtime Research evaluations plus the live baseline SHADOW (replacing the recorded forward entry) and publishes closedLearningLoop.metaLearning on /health: counts, overfitRatePercent, validKnowledgePer100Configs, exhausted, recommended, recommendedPrerequisites, nextHoldoutBarMicros."
+  boundary: "Advisory and display only. It changes no Research schedule, budget, threshold, qualification, Risk or authority."
+  pending_owner_decision: "Steering runtime Research by the recommendation would reverse earlier owner decisions (failure memory record-only; adaptive research scheduling deferred). Not done."
+  validation: "policy tests 6, runtime tests 2, snapshot drift test, /health test; closed-learning, health and all compiled cloud tests 635 pass; CLI output unchanged (recommends TRADES+INTRADAY+ALL_KRW+ML)."
