@@ -36,6 +36,8 @@ export interface MarketMicrostructureRecorderStatus {
   readonly orderBookSamples: number;
   readonly tradeTicks: number;
   readonly writeFailures: number;
+  /** Rows the store refused as invalid; a rising count means recording is silently losing data. */
+  readonly rejectedRows: number;
   readonly lastRecordedAt?: number;
 }
 
@@ -49,6 +51,7 @@ export class MarketMicrostructureRecorder {
   private orderBookSamples = 0;
   private tradeTicks = 0;
   private writeFailures = 0;
+  private rejectedRows = 0;
   private lastRecordedAt: number | undefined;
 
   public constructor(
@@ -85,18 +88,18 @@ export class MarketMicrostructureRecorder {
       this.lastSampleAt.set(market, receivedAt);
       const result = this.sink.appendOrderBookSamples(market, [sample]);
       this.orderBookSamples += result.stored;
+      this.rejectedRows += result.rejected;
       if (result.stored > 0) this.lastRecordedAt = receivedAt;
     } catch { this.writeFailures += 1; }
   }
 
-  /** Buffers a trade tick; a tick without a sequential id cannot be deduplicated and is not recorded. */
+  /** Buffers a trade tick, identified by its content (see StoredTradeTick: Upbit's sequential_id is not a safe integer). */
   public recordTrade(trade: MicrostructureTradeInput): void {
     try {
-      if (trade.sequential_id === undefined) return;
       const market = trade.code.trim().toUpperCase();
       const pending = this.pendingTicks.get(market) ?? [];
       if (pending.length >= this.maximumPendingTicksPerMarket) return;
-      pending.push({ sequentialId: trade.sequential_id, tradedAtMs: trade.trade_timestamp, price: trade.trade_price, volume: trade.trade_volume, side: trade.ask_bid });
+      pending.push({ tradedAtMs: trade.trade_timestamp, price: trade.trade_price, volume: trade.trade_volume, side: trade.ask_bid });
       this.pendingTicks.set(market, pending);
     } catch { this.writeFailures += 1; }
   }
@@ -109,12 +112,13 @@ export class MarketMicrostructureRecorder {
       try {
         const result = this.sink.appendTradeTicks(market, ticks);
         this.tradeTicks += result.stored;
+        this.rejectedRows += result.rejected;
         if (result.stored > 0) this.lastRecordedAt = this.now();
       } catch { this.writeFailures += 1; }
     }
   }
 
   public status(): MarketMicrostructureRecorderStatus {
-    return Object.freeze({ orderBookSamples: this.orderBookSamples, tradeTicks: this.tradeTicks, writeFailures: this.writeFailures, ...(this.lastRecordedAt === undefined ? {} : { lastRecordedAt: this.lastRecordedAt }) });
+    return Object.freeze({ orderBookSamples: this.orderBookSamples, tradeTicks: this.tradeTicks, writeFailures: this.writeFailures, rejectedRows: this.rejectedRows, ...(this.lastRecordedAt === undefined ? {} : { lastRecordedAt: this.lastRecordedAt }) });
   }
 }

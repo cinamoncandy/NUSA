@@ -105,7 +105,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
   /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
   /** Research-only microstructure recorder counters (see marketMicrostructureRecorder.ts). */
-  readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly lastRecordedAt?: number };
+  readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly rejectedRows?: number; readonly lastRecordedAt?: number };
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
   readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
@@ -480,7 +480,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawMicro = source.microstructureRecorder as Record<string, unknown> | null | undefined;
   let microstructure: { microstructureRecorder?: Record<string, number> } = {};
   if (rawMicro != null && typeof rawMicro === "object" && ["orderBookSamples", "tradeTicks", "writeFailures"].every((key) => Number.isSafeInteger(rawMicro[key]) && Number(rawMicro[key]) >= 0)) {
-    microstructure = { microstructureRecorder: { orderBookSamples: Number(rawMicro.orderBookSamples), tradeTicks: Number(rawMicro.tradeTicks), writeFailures: Number(rawMicro.writeFailures), ...(Number.isSafeInteger(rawMicro.lastRecordedAt) && Number(rawMicro.lastRecordedAt) > 0 ? { lastRecordedAt: Number(rawMicro.lastRecordedAt) } : {}) } };
+    microstructure = { microstructureRecorder: { orderBookSamples: Number(rawMicro.orderBookSamples), tradeTicks: Number(rawMicro.tradeTicks), writeFailures: Number(rawMicro.writeFailures), ...(Number.isSafeInteger(rawMicro.rejectedRows) && Number(rawMicro.rejectedRows) >= 0 ? { rejectedRows: Number(rawMicro.rejectedRows) } : {}), ...(Number.isSafeInteger(rawMicro.lastRecordedAt) && Number(rawMicro.lastRecordedAt) > 0 ? { lastRecordedAt: Number(rawMicro.lastRecordedAt) } : {}) } };
   }
   const rawResearch = source.researchCollectionStatus;
   const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
