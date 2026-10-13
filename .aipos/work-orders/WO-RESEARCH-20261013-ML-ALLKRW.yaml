@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261013-ML-ALLKRW
 title: "First meta-learner-chosen experiment: OHLCV + intraday + all KRW markets + logistic-regression ML"
-status: PRE_REGISTERED
+status: V1_FAIL_DESIGN_FLAW_V2_PRE_REGISTERED
 priority: P0
 authority_impact: none
 repository: cinamoncandy/NUSA
@@ -21,3 +21,9 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+v1_result: "FAIL. 106 of 295 markets eligible; train 18,368 samples (38.8% positive). With a 0.5 probability threshold the model selected 3 validation and 4 holdout trades (mean -8.87% per trade). Data manifest sha256 393a89258fc5eaddb593f9fc59ebfc836fd03c3fbd5df253c045a3049773a875. Recorded in the ledger as designFlaw."
+meta_learner_change: "Rule 4c added before v2 was run: a designFlaw experiment's combination may be retried once with the flaw fixed; its configurations still count (cumulative K 180 for v2)."
+v2_pre_registration:
+  script: scripts/research-ml-allkrw-v2.js
+  only_differences: "top 5 by predicted probability with no 0.5 threshold; K = 177 + 3 = 180"
+  committed_before_run: true

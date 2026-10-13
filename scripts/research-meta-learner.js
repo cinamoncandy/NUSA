@@ -16,6 +16,9 @@
  *    Ties are broken by the fixed order of the arrays below. Values needing collection are reported as prerequisites.
  * 4b. Live PAPER/SHADOW outcomes (source PAPER_FORWARD) are ledger entries like any experiment, so the meta-learner learns from
  *    real execution as well as from backtests (the loop's "failure analysis -> learning-method evaluation" edge).
+ * 4c. An experiment recorded with designFlaw: true failed because of how it was built, not because the idea was tested. Its
+ *    combination may be re-tried ONCE with the flaw fixed (a retry records retryOf). Its configurations still count in the
+ *    cumulative bar, so a retry is never free. Added 2026-10-13 after ML_ALLKRW_V1, before its retry was run.
  * 5. The bar for the next experiment is cumulative: alpha = 0.05 / (all configurations so far + the next experiment's).
  *    Learning more ways to learn makes every later test stricter, so trying many methods cannot buy a lucky pass.
  */
@@ -48,6 +51,8 @@ for (const e of experiments) {
     const s = stats[`${dim}=${v}`];
     s.experiments += 1; s.configs += e.configs; s.discovery += e.discoveryPass; s.holdout += e.holdoutPass;
   }
+  const retried = experiments.some((other) => other.retryOf === e.id);
+  if (e.designFlaw === true && !retried) continue; // re-triable once: not marked as tried
   for (const dt of c.dataType) for (const tf of c.timeframe) for (const u of c.universe) for (const m of c.methodClass) tried.add([dt, tf, u, m].join("|"));
 }
 const exhausted = (key) => stats[key].configs >= EXHAUSTED_CONFIGS && stats[key].holdout === 0;

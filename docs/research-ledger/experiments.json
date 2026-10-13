@@ -165,6 +165,26 @@
    "holdoutPass": 0,
    "holdoutGapPerTrade": -0.0011,
    "preRegistered": false
+  },
+  {
+   "id": "ML_ALLKRW_V1_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-allkrw.js (pre-registered 7af03342b); data manifest sha256 393a89258fc5eaddb593f9fc59ebfc836fd03c3fbd5df253c045a3049773a875; 106 eligible of 295 markets",
+   "dataType": "OHLCV",
+   "timeframe": "60m",
+   "universe": 106,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0887,
+   "preRegistered": true,
+   "lesson": "Design flaw: a 0.5 probability threshold with a 38.8% positive base rate selected almost nothing (3 validation, 4 holdout trades). Selection must be rank-based or calibrated to the base rate.",
+   "designFlaw": true
   }
  ]
 }
