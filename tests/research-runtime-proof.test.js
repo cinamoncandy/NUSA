@@ -12,7 +12,7 @@ test("existing diagnostic includes Research timer and bounded projection without
 });
 test("forward-log projection excludes private or arbitrary fields", () => {
   const code = source.match(/node -e '([\s\S]*?)\n          '/)[1];
-  const value = { status: "WAITING_HOLDOUT", executionSourceSha: "a".repeat(40), specificationFingerprint: "b".repeat(64), token: "PRIVATE_VALUE" };
+  const value = { status: "WAITING_HOLDOUT", executionSourceSha: "a".repeat(40), specificationFingerprint: "b".repeat(64), token: "test", privateField: "PRIVATE_VALUE" };
   const project = input => { const run = spawnSync(process.execPath, ["-e", code], { input, encoding: "utf8" }); assert.equal(run.status, 0); return run.stdout.trim(); };
   const output = project(`REGIME_FORWARD_STUDY ${JSON.stringify(value)}`);
   assert.deepEqual(JSON.parse(output), { status: value.status, executionSourceSha: value.executionSourceSha, specificationFingerprint: value.specificationFingerprint });

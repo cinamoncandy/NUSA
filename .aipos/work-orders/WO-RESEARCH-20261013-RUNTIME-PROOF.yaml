@@ -4,6 +4,7 @@ status: LOCAL_VALIDATED_PENDING_CI
 base_commit: ce7ec0cd3b29c26df26837f3596eff298b59630d
 implementation_branch: codex/research-runtime-proof-20261013
 validation: "2 tests executing actual inline JSON projection PASS; preflight,validate:full,security,changed-test lint,workflow pins/inputs PASS. Independent P2 record-integrity finding fixed; fresh review no actionable findings. Existing host diagnostic38353329534 PASS but predates Research extension."
+ci_correction: "38353767439 Security gate CREDENTIAL_ASSIGNMENT on synthetic privacy fixture. Scanner checks tracked files; initial untracked fixture was not scanned. Replaced long synthetic token with short test marker plus separate private-field probe; assertions and scanner unchanged. Tracked local security0/PASS and tests/validate:full PASS. Old head not approved."
 priority: P1
 authority_impact: none
 scope: "Existing Oracle Host Diagnose workflow only: Research service/timer state and bounded forward-log projection. No execution, deployment, credential read or new timer."
