@@ -1,0 +1,41 @@
+id: WO-AUTOPILOT-20261013-WIP-RELEASE-ON-FINISH
+title: "Free the Autopilot active-WIP slot as soon as a coding attempt finishes"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-wip-release-on-finish
+authority_impact: none
+owner_approval: "2026-10-13 in chat ('다 해' to: release the WIP slot on failure, verify the engine, decide on a second slot after measurement)"
+scope_note: "A coordinator endpoint that removes one matching active-WIP claim, an authenticated Worker route that calls it, and a best-effort call from the execution consumer when its attempt ends. It only frees a slot; no Audit, Release, Risk or authority change."
+objective: "Stop a finished attempt from holding the single WIP slot: the GitHub Actions coding backend never reached completeActiveWip, so every claim, successful or failed, waited for the 60-minute expiry (#2667) before the next backlog item could start."
+evidence_of_problem:
+  - "completeActiveWip is called only from apps/autopilot/src/index.ts handleCodingExecute (legacy cloud runner); the current execution consumer uses /coding/propose and /coding/publish and never released a claim."
+  - "After #2667 the first dispatch at 09:23 UTC 2026-10-13 failed in under a minute, yet the next item could start only after the 60-minute expiry."
+scope:
+  include:
+    - "apps/autopilot/src/executionCoordinator.ts (/active-wip/release, releaseActiveWip)"
+    - "apps/autopilot/src/worker.ts (POST /coding/wip-release, same authorization as /coding/propose)"
+    - "scripts/autopilot-dispatch-retry.js (releaseActiveWipClaim after every attempt; never changes the outcome or exit code)"
+    - "apps/autopilot/src/activeWipRelease.test.ts, tests/autopilot-dispatch-retry.test.js"
+  exclude:
+    - "Raising maxConcurrent above 1: deferred until successful coding throughput can be measured (docs/NUSA_REFERENCE_INTELLIGENCE_PRINCIPLE.md 5.1)."
+    - "Recording completion evidence for released claims; completion history stays success-only."
+limitations:
+  - "If the consumer cannot reach the Worker, the 60-minute expiry from #2667 still frees the slot."
+  - "A release removes only a claim whose dedupe key and execution id both match; a claim held by another execution is never released."
+acceptance:
+  - "After release, the next backlog item is admitted at once; release is idempotent; a mismatched execution cannot release; unauthorized or malformed requests are rejected; the consumer posts the matching identity with its OIDC token and a release failure does not fail the attempt."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/*.test.js"
+  - "node --test tests/autopilot-*.test.js"
+evidence:
+  remaining: "Exact-head CI, deterministic Audit and Release; Worker auto-deploy; then consumer logs should show wip_release=released and the next dispatch should follow within minutes."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
