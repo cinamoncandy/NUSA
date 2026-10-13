@@ -59,7 +59,8 @@ function insertStateEntry(stateText, entryText) {
 }
 
 if (require.main === module) {
-  const entryPath = process.argv[2];
+  // `pnpm run aipos:state-add -- <entry.yaml>` passes the `--` separator through.
+  const entryPath = process.argv.slice(2).find((argument) => argument !== "--");
   if (!entryPath) {
     console.error("usage: node scripts/aipos-state-insert.js <entry.yaml>");
     process.exit(2);

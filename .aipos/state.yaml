@@ -134,6 +134,15 @@ current_learning_completion_20261012:
   complete: false
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_aipos_state_add_dashdash:
+  work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/aipos-state-add-dashdash
+  authority_impact: none
+  finding: "Follow-up to the name-order state insert: the documented `pnpm run aipos:state-add -- <entry.yaml>` passed the `--` separator as the file name and failed with ENOENT; the script now skips it. Found while recording the Autopilot coding-off decision."
+  next: "Use pnpm run aipos:state-add -- <entry.yaml> for new state entries."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_aipos_state_insert_order:
   work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
   status: READY_FOR_REVIEW
