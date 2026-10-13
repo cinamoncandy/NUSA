@@ -51,7 +51,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function getJson(url) {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const res = await fetch(url, { headers: { accept: "application/json" } });
-    if (res.status === 429) { await sleep(1000 * (attempt + 1)); continue; }
+    if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
     if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
     return res.json();
   }
@@ -60,13 +60,27 @@ async function getJson(url) {
 
 async function fetchAll(dir) {
   fs.mkdirSync(dir, { recursive: true });
-  const markets = (await getJson("https://api.upbit.com/v1/market/all")).map((m) => m.market).filter((m) => m.startsWith("KRW-"));
-  const tickers = [];
-  for (let i = 0; i < markets.length; i += 100) tickers.push(...await getJson(`https://api.upbit.com/v1/ticker?markets=${markets.slice(i, i + 100).join(",")}`));
-  const universe = tickers.sort((a, b) => b.acc_trade_price_24h - a.acc_trade_price_24h).slice(0, TOP_MARKETS).map((t) => t.market);
-  if (!universe.includes("KRW-BTC")) universe[universe.length - 1] = "KRW-BTC";
+  // Fetch mechanics only (no rule change): the universe is chosen once and kept in universe.json, and a rerun resumes,
+  // so a transient HTTP 5xx cannot silently change the universe.
+  const universeFile = path.join(dir, "universe.json");
+  let universe;
+  if (fs.existsSync(universeFile)) universe = JSON.parse(fs.readFileSync(universeFile, "utf8")).universe;
+  else {
+    const markets = (await getJson("https://api.upbit.com/v1/market/all")).map((m) => m.market).filter((m) => m.startsWith("KRW-"));
+    const tickers = [];
+    for (let i = 0; i < markets.length; i += 100) tickers.push(...await getJson(`https://api.upbit.com/v1/ticker?markets=${markets.slice(i, i + 100).join(",")}`));
+    universe = tickers.sort((a, b) => b.acc_trade_price_24h - a.acc_trade_price_24h).slice(0, TOP_MARKETS).map((t) => t.market);
+    if (!universe.includes("KRW-BTC")) universe[universe.length - 1] = "KRW-BTC";
+    fs.writeFileSync(universeFile, JSON.stringify({ selectedAt: new Date().toISOString(), universe }));
+  }
   const manifest = { fetchedAt: new Date().toISOString(), universe, files: {} };
   for (const market of universe) {
+    const existing = path.join(dir, `${market}.json`);
+    if (fs.existsSync(existing)) {
+      const body = fs.readFileSync(existing, "utf8");
+      manifest.files[market] = { ticks: JSON.parse(body).length, sha256: crypto.createHash("sha256").update(body).digest("hex") };
+      continue;
+    }
     const rows = [];
     for (let daysAgo = 7; daysAgo >= 1; daysAgo -= 1) {
       let cursor;
