@@ -2457,6 +2457,15 @@ current_research_evaluator_runner:
   branch: claude/nusa-repository-j93sd8-evaluators
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+
+current_research_ohlcv_catalog_20261013:
+  work_order: WO-RESEARCH-20261013-OHLCV-CATALOG
+  status: COMPLETED_NO_SURVIVOR
+  branch: claude/research-family-screen
+  finding: "Pre-registered OHLCV catalog (38 configurations): 1 discovery pass (daily Keltner), 0 holdout passes. Cumulative 135 configurations today, 0 survivors."
+  next: "Owner decides on order-book collection or external data; forward test verdict earliest 2026-12-13. No threshold or risk change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_orchestrator_composition:
   work_order: WO-RESEARCH-20261002-ORCHESTRATOR-COMPOSITION
   status: READY_FOR_REVIEW
