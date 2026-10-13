@@ -180,6 +180,14 @@ const ACTIVE_WIP_STORAGE_KEY = "evolve-active-wip-v1";
 const ACTIVE_WIP_COMPLETION_HISTORY_KEY = "evolve-active-wip-completions-v1";
 const MAX_ACTIVE_WIP = 8;
 const MAX_ACTIVE_WIP_COMPLETIONS = 120;
+/**
+ * A claim is released only by a successful coding completion. A dispatch that fails closed, is
+ * rejected or is never consumed left its claim in place forever, so with maxConcurrent 1 every later
+ * backlog item was refused with WIP_LIMIT_REACHED (2026-10-13: 116 of 120 scheduled ticks). The
+ * execution consumer job times out after 20 minutes, so a claim older than this cannot belong to
+ * running work and is released at the next admission.
+ */
+export const ACTIVE_WIP_CLAIM_MAX_AGE_MS = 60 * 60 * 1000;
 const CONTROL_PLANE_HOLD_COORDINATOR_PREFIX = "control-plane-hold";
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA40 = /^[0-9a-f]{40}$/i;
@@ -650,8 +658,13 @@ export class ExecutionCoordinator {
     if (!validText(request.dedupeKey) || !validText(request.executionId) || !ownerOk || !keysOk || !validSafeTimestamp(request.claimedAt)
       || !Number.isSafeInteger(request.maxConcurrent) || Number(request.maxConcurrent) < 1 || Number(request.maxConcurrent) > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
     return this.mutateExecutionAtomically(async (storage) => {
-      const state = await storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
-      if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || state.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const stored = await storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
+      if (stored.schemaVersion !== 1 || !Array.isArray(stored.claims) || stored.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const expiredClaims = stored.claims.filter((claim) => claim.claimedAt + ACTIVE_WIP_CLAIM_MAX_AGE_MS <= Number(request.claimedAt));
+      const state: ActiveWipState = expiredClaims.length === 0
+        ? stored
+        : Object.freeze({ schemaVersion: 1, claims: Object.freeze(stored.claims.filter((claim) => !expiredClaims.includes(claim))) });
+      if (expiredClaims.length > 0) await storage.put(ACTIVE_WIP_STORAGE_KEY, state);
       const same = state.claims.find((claim) => claim.dedupeKey === request.dedupeKey);
       if (same) return json({ admitted: false, reason: same.executionId === request.executionId ? "ALREADY_ACTIVE" : "DEDUPE_CONFLICT", claims: state.claims }, 409);
       const sameExecution = state.claims.find((claim) => claim.executionId === request.executionId);
@@ -662,7 +675,7 @@ export class ExecutionCoordinator {
       const claim: ActiveWipClaim = Object.freeze({ dedupeKey: request.dedupeKey!, executionId: request.executionId!, canonicalOwner: request.canonicalOwner!, conflictKeys: Object.freeze([...request.conflictKeys!]), claimedAt: Number(request.claimedAt) });
       const next: ActiveWipState = Object.freeze({ schemaVersion: 1, claims: Object.freeze([...state.claims, claim]) });
       await storage.put(ACTIVE_WIP_STORAGE_KEY, next);
-      return json({ admitted: true, claim, claims: next.claims }, 201);
+      return json({ admitted: true, claim, claims: next.claims, expiredClaims }, 201);
     });
   }
 
