@@ -200,7 +200,7 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     const baseline = openPeriods[0];
     if (baseline != null) {
       if (!isOwnerBaselinePeriodInput(baseline)) throw new Error("another PAPER realized period is already open");
-      if (baseline.market !== market || baseline.periodStartAt > periodStartAt) throw new Error("owner baseline replacement boundary conflicts");
+      if (baseline.periodStartAt > periodStartAt) throw new Error("owner baseline replacement boundary conflicts");
       if (this.options.periods.retireOpenPeriodForReplacement == null) throw new Error("owner baseline replacement retirement unavailable");
     }
 

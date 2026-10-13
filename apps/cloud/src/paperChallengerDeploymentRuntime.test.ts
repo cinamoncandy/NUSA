@@ -109,7 +109,8 @@ describe("PaperChallengerDeploymentRuntime", () => {
     const start = Date.UTC(2026, 9, 12);
     const original = buildOwnerBaselinePaperPeriodInput({ market: "KRW-BTC", periodIndex: 5, periodStartAt: start, sourceCommitSha: "a".repeat(40) });
     const baseline = { ...original, periodId: `closed-learning-rollover:5:${start}`, schemaVersion: 1 as const, observationIds: [], observations: [] };
-    for (const open of [baseline, { ...baseline, market: "KRW-XRP" }, { ...baseline, candidateProvenance: [{ ...baseline.candidateProvenance[0]!, datasetId: "forged" }] }]) {
+    const xrp = { ...buildOwnerBaselinePaperPeriodInput({ market: "KRW-XRP", periodIndex: 5, periodStartAt: start, sourceCommitSha: "a".repeat(40) }), schemaVersion: 1 as const, observationIds: [], observations: [] };
+    for (const open of [baseline, xrp, { ...baseline, market: "KRW-XRP" }, { ...baseline, candidateProvenance: [{ ...baseline.candidateProvenance[0]!, datasetId: "forged" }] }]) {
       const ledger = new MemoryLedger();
       const bindings = new PaperChallengerBindingLedger(ledger);
       let retired = 0;
@@ -124,7 +125,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
         readCanonicalPaperAccount: () => account(start + 1), governance: governanceFor(),
       });
       const input = { cycleId: "closed-learning:test", decision, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const };
-      if (open === baseline) {
+      if (open === baseline || open === xrp) {
         runtime.deploy(input);
         runtime.deploy(input);
         assert.equal(retired, 1);
