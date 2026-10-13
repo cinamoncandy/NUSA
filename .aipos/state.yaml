@@ -1,4 +1,10 @@
 version: 1
+current_forward_runner_20261013:
+  work_order: WO-RESEARCH-20261013-FORWARD-RUNNER
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "20 focused tests and full work-order gates PASS,15 existing lint warnings. Review findings corrected; fresh review no actionable findings. Local WAITING probe only."
+  next: "Wire bounded study into existing Research service; future outcome and qualified candidate are not guaranteed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_holdout_boundary_20261013:
   work_order: WO-RESEARCH-20261013-HOLDOUT-BOUNDARY
   status: LOCAL_VALIDATED_PENDING_CI

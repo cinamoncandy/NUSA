@@ -41,12 +41,16 @@ function run(options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const executable = options.executable ?? process.execPath;
   const spawn = options.spawnSync ?? spawnSync;
+  // One bounded child on the existing Research cadence. It cannot emit deployment authority.
+  const forward = spawn(executable, ["scripts/run-regime-forward-study.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 120000 });
+  const forwardFailure = forward.error?.code === "ETIMEDOUT" || forward.signal ? "TIMEOUT_OR_SIGNAL" : forward.error ? "SPAWN_ERROR" : forward.status !== 0 ? "NONZERO_EXIT" : null;
+  if (forwardFailure) console.error(`[cloud-research-snapshot] FORWARD_STUDY_FAILED_CLOSED:${forwardFailure}`);
   const args = ["-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"];
   const result = spawn(executable, args, { cwd, env, stdio: "inherit", shell: false });
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`cloud Research snapshot terminated by ${result.signal}`);
   if (result.status !== 0) throw new Error(`cloud Research snapshot failed with exit ${String(result.status)}`);
-  return Object.freeze({ status: "COMPLETED", sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA, snapshotPath: env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, learningLedgerPath: env.NUSA_RESEARCH_LEARNING_LEDGER_PATH, costModelVersion: env.NUSA_RESEARCH_COST_MODEL_VERSION });
+  return Object.freeze({ status: "COMPLETED", forwardExecution: forwardFailure ? "FAILED" : "COMPLETED_NOT_QUALIFICATION", forwardFailure, sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA, snapshotPath: env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, learningLedgerPath: env.NUSA_RESEARCH_LEARNING_LEDGER_PATH, costModelVersion: env.NUSA_RESEARCH_COST_MODEL_VERSION });
 }
 
 if (require.main === module) {
