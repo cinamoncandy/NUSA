@@ -14,6 +14,8 @@
  * 4. Score = number of values the candidate takes that have never been tried (exploration), minus a fixed cost per value that
  *    needs new collection before it can be tested (ORDERBOOK, TRADES, EXTERNAL: 2; ALL_KRW universe: 0; ML: 0).
  *    Ties are broken by the fixed order of the arrays below. Values needing collection are reported as prerequisites.
+ * 4b. Live PAPER/SHADOW outcomes (source PAPER_FORWARD) are ledger entries like any experiment, so the meta-learner learns from
+ *    real execution as well as from backtests (the loop's "failure analysis -> learning-method evaluation" edge).
  * 5. The bar for the next experiment is cumulative: alpha = 0.05 / (all configurations so far + the next experiment's).
  *    Learning more ways to learn makes every later test stricter, so trying many methods cannot buy a lucky pass.
  */
@@ -54,6 +56,8 @@ const totalDiscovery = experiments.reduce((a, e) => a + e.discoveryPass, 0);
 const totalHoldout = experiments.reduce((a, e) => a + e.holdoutPass, 0);
 
 console.log(`LEDGER: ${experiments.length} experiments, ${totalConfigs} configurations, ${totalDiscovery} discovery passes, ${totalHoldout} holdout passes`);
+const forward = experiments.filter((e) => e.source === "PAPER_FORWARD");
+console.log(`live PAPER/SHADOW evidence: ${forward.length} entr${forward.length === 1 ? "y" : "ies"}, ${forward.reduce((a, e) => a + e.holdoutPass, 0)} passes (forward evidence is unseen data by construction)`);
 console.log(`overall overfit rate: ${totalDiscovery ? (((totalDiscovery - totalHoldout) / totalDiscovery) * 100).toFixed(0) : "n/a"}% of discovery passes failed on unseen data`);
 console.log("\nLESSONS (dimension value | experiments | configurations | discovery | holdout | status)");
 for (const [key, s] of Object.entries(stats)) console.log(`${key} | ${s.experiments} | ${s.configs} | ${s.discovery} | ${s.holdout} | ${s.experiments === 0 ? "UNTRIED" : exhausted(key) ? "EXHAUSTED" : "OPEN"}`);

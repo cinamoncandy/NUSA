@@ -46,38 +46,46 @@ async function fetchAll(dir) {
   fs.mkdirSync(dir, { recursive: true });
   const markets = (await (await fetch("https://api.upbit.com/v1/market/all")).json()).map((m) => m.market).filter((m) => m.startsWith("KRW-")).sort();
   const manifest = {};
-  for (const market of markets) {
-    const file = path.join(dir, `${market}.json`);
-    if (fs.existsSync(file)) { manifest[market] = sha(fs.readFileSync(file)); continue; }
-    const rows = new Map();
-    let to = new Date(END).toISOString().slice(0, 19);
-    for (let page = 0; page < 60; page += 1) {
-      let response;
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        response = await fetch(`https://api.upbit.com/v1/candles/minutes/60?market=${market}&count=200&to=${to}`);
-        if (response.status !== 429) break;
-        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-      }
-      if (!response.ok) throw new Error(`UPBIT_HTTP_${response.status}:${market}`);
-      const batch = await response.json();
-      if (batch.length === 0) break;
-      for (const r of batch) {
-        const at = Date.parse(`${r.candle_date_time_utc}Z`);
-        if (at >= START && at < END) rows.set(at, [at, r.opening_price, r.high_price, r.low_price, r.trade_price, r.candle_acc_trade_volume, r.candle_acc_trade_price]);
-      }
-      const oldest = Date.parse(`${batch[batch.length - 1].candle_date_time_utc}Z`);
-      if (batch.length < 200 || oldest <= START) break;
-      to = new Date(oldest).toISOString().slice(0, 19);
-      await new Promise((r) => setTimeout(r, 120));
-    }
-    const body = JSON.stringify([...rows.values()].sort((a, b) => a[0] - b[0]));
-    fs.writeFileSync(file, body);
-    manifest[market] = sha(body);
-    process.stdout.write(".");
-  }
+  // Download mechanics only (not part of the experiment design): 4 markets at a time, about 8 requests per second in total,
+  // under Upbit's public candle limit. Already downloaded files are kept.
+  const queue = [...markets];
+  const worker = async () => {
+    for (let market = queue.shift(); market !== undefined; market = queue.shift()) await fetchMarket(dir, market, manifest);
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
   fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ start: START, end: END, markets: manifest }, null, 1));
   console.log(`\nfetched ${markets.length} markets; manifest sha256 ${sha(fs.readFileSync(path.join(dir, "manifest.json")))}`);
 }
+async function fetchMarket(dir, market, manifest) {
+  const file = path.join(dir, `${market}.json`);
+  if (fs.existsSync(file)) { manifest[market] = sha(fs.readFileSync(file)); return; }
+  const rows = new Map();
+  let to = new Date(END).toISOString().slice(0, 19);
+  for (let page = 0; page < 60; page += 1) {
+    let response;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      response = await fetch(`https://api.upbit.com/v1/candles/minutes/60?market=${market}&count=200&to=${to}`);
+      if (response.status !== 429) break;
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+    if (!response.ok) throw new Error(`UPBIT_HTTP_${response.status}:${market}`);
+    const batch = await response.json();
+    if (batch.length === 0) break;
+    for (const r of batch) {
+      const at = Date.parse(`${r.candle_date_time_utc}Z`);
+      if (at >= START && at < END) rows.set(at, [at, r.opening_price, r.high_price, r.low_price, r.trade_price, r.candle_acc_trade_volume, r.candle_acc_trade_price]);
+    }
+    const oldest = Date.parse(`${batch[batch.length - 1].candle_date_time_utc}Z`);
+    if (batch.length < 200 || oldest <= START) break;
+    to = new Date(oldest).toISOString().slice(0, 19);
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  const body = JSON.stringify([...rows.values()].sort((a, b) => a[0] - b[0]));
+  fs.writeFileSync(file, body);
+  manifest[market] = sha(body);
+  process.stdout.write(".");
+}
+
 function sha(buffer) { return crypto.createHash("sha256").update(buffer).digest("hex"); }
 
 function load(dir) {
