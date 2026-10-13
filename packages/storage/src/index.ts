@@ -42,6 +42,7 @@ export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, P
 export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
 export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
 export { SqliteResearchCandleStore, ResearchCandleStoreError } from "./researchCandleStore";
+export { SqliteMarketMicrostructureStore, MarketMicrostructureStoreError, type StoredOrderBookSample, type StoredTradeTick } from "./marketMicrostructureStore";
 export { SqliteResearchHoldoutLedger, ResearchHoldoutLedgerError } from "./researchHoldoutLedger";
 export type { HoldoutKey } from "./researchHoldoutLedger";
 export type { StoredResearchCandle } from "./researchCandleStore";
@@ -536,4 +537,26 @@ CREATE TABLE IF NOT EXISTS research_holdout_usage (
   used_at_ms INTEGER NOT NULL CHECK (used_at_ms > 0),
   PRIMARY KEY (strategy_config_hash, market, interval_ms, holdout_start_ms, holdout_end_ms)
 );
+` }, { id: "028_research_market_microstructure", sql: `
+CREATE TABLE IF NOT EXISTS research_orderbook_samples (
+  market TEXT NOT NULL,
+  captured_at_ms INTEGER NOT NULL CHECK (captured_at_ms > 0),
+  best_bid REAL NOT NULL CHECK (best_bid > 0),
+  best_ask REAL NOT NULL CHECK (best_ask > 0),
+  bid_size_5 REAL NOT NULL CHECK (bid_size_5 >= 0),
+  ask_size_5 REAL NOT NULL CHECK (ask_size_5 >= 0),
+  total_bid_size REAL NOT NULL CHECK (total_bid_size >= 0),
+  total_ask_size REAL NOT NULL CHECK (total_ask_size >= 0),
+  PRIMARY KEY (market, captured_at_ms)
+);
+CREATE TABLE IF NOT EXISTS research_trade_ticks (
+  market TEXT NOT NULL,
+  sequential_id INTEGER NOT NULL,
+  traded_at_ms INTEGER NOT NULL CHECK (traded_at_ms > 0),
+  price REAL NOT NULL CHECK (price > 0),
+  volume REAL NOT NULL CHECK (volume > 0),
+  side TEXT NOT NULL CHECK (side IN ('ASK', 'BID')),
+  PRIMARY KEY (market, sequential_id)
+);
+CREATE INDEX IF NOT EXISTS research_trade_ticks_time ON research_trade_ticks (market, traded_at_ms);
 ` }];

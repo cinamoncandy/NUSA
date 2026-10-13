@@ -20,7 +20,8 @@ import { readPreviousRuntimeFailure, recordRuntimeFailure } from "./runtimeFailu
 import { paperExecutionObservedAt } from "./paperExecutionObservation";
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
-import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
+import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitTrade, type UpbitWebSocketOptions } from "./upbitWebSocket";
+import type { MarketMicrostructureRecorder } from "./marketMicrostructureRecorder";
 import { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
@@ -87,7 +88,7 @@ export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly 
 export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRuntimeMarketDataTick): void; }
 export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryResult; }
 export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; experimentTicks?(): { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null; }
-export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void, onOrderBook?: (orderBook: UpbitOrderBook) => void) => CloudRuntimeMarketDataClientLike;
+export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void, onOrderBook?: (orderBook: UpbitOrderBook) => void, onTrade?: (trade: UpbitTrade) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
 export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
 export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
@@ -162,7 +163,7 @@ export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
   stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
   dashboardHydrator: CloudRuntimeDashboardHydratorLike = new CloudRuntimeDashboardHydrator(),
-  marketDataClientFactory: CloudRuntimeMarketDataClientFactory = (markets, onTicker, onConnectionState, onOrderBook) => new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState), onOrderBook } satisfies UpbitWebSocketOptions),
+  marketDataClientFactory: CloudRuntimeMarketDataClientFactory = (markets, onTicker, onConnectionState, onOrderBook, onTrade) => new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState), onOrderBook, onTrade } satisfies UpbitWebSocketOptions),
   snapshotRepository?: CloudDashboardSnapshotRepository,
   paperAccountRepository?: PaperAccountRepository,
   paperExecutionLoop?: PaperTradingExecutionLoop,
@@ -177,7 +178,9 @@ export function startCloudRuntime(
   /** Display-only status of the production closed-learning loop (see closedLearningLoopStatus.ts). */
   closedLearningStatus?: () => Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>> | null,
   /** Display-only research experiment tick summaries keyed by bar length ("1m", "15m", ...). */
-  researchIntervalTicks?: () => Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null>> | null
+  researchIntervalTicks?: () => Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null>> | null,
+  /** Research-only recorder of the public order book and trades this runtime already receives (see marketMicrostructureRecorder.ts). */
+  microstructureRecorder?: MarketMicrostructureRecorder
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -532,6 +535,7 @@ export function startCloudRuntime(
       if (marketConnectionState === "CONNECTED" && orderBookReconciler.needsRefresh(orderBook.code, receivedAt)) void orderBookReconciler.refreshSnapshot(orderBook.code).catch(() => undefined);
       const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
+      microstructureRecorder?.recordOrderBook(orderBook, receivedAt);
       // Only observed, validated quotes recover this diagnostic; never clear other failures
       // or the failure timestamp used by the post-failure market receipt health gate.
       if ((heartbeat.lastError === "PAPER_ORDERBOOK_UNRECONCILED" || heartbeat.lastError === "PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE")
@@ -561,8 +565,10 @@ export function startCloudRuntime(
         }
       }
     } catch { recordFailure("PAPER_ORDERBOOK_OBSERVATION_REJECTED"); }
-  }) : undefined;
+  }, microstructureRecorder == null ? undefined : (trade) => microstructureRecorder.recordTrade(trade)) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
+  const microstructureFlushTimer = microstructureRecorder == null ? undefined : setInterval(() => microstructureRecorder.flush(), 5_000);
+  microstructureFlushTimer?.unref?.();
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
   // Display only: how long this process was blocked. A stall over the 30 s PAPER writer lease explains a lost lease.
   const stallMonitor = createEventLoopStallMonitor();
@@ -579,6 +585,7 @@ export function startCloudRuntime(
   };
   const researchIntervalLiveness = () => { let byInterval: Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }> | null = null; try { const raw = researchIntervalTicks?.() ?? null; if (raw != null) { byInterval = {}; for (const [key, value] of Object.entries(raw)) if (value != null) byInterval[key] = value; } } catch { byInterval = null; } return byInterval == null || Object.keys(byInterval).length === 0 ? {} : { researchExperimentTicksByInterval: byInterval }; };
   const paperLedgerLiveness = () => { try { const state = effectivePaperLoop?.snapshot(); return state == null ? {} : { paperLedger: paperLedgerFingerprint(state) }; } catch { return {}; } };
+  const microstructureLiveness = () => { try { return microstructureRecorder == null ? {} : { microstructureRecorder: microstructureRecorder.status() }; } catch { return {}; } };
   const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
   const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
   const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
@@ -665,6 +672,7 @@ export function startCloudRuntime(
       ...lossSessionLiveness(),
       ...lossAttributionLiveness(),
       ...researchExperimentLiveness(),
+      ...microstructureLiveness(),
       ...paperLedgerLiveness(),
       ...researchIntervalLiveness(),
       ...closedLearningLiveness()
@@ -712,7 +720,7 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForMixedBinding(periodId),
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 
