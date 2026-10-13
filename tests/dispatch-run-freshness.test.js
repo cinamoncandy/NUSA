@@ -13,12 +13,39 @@ const { citedRunNeedsRepair } = require("../scripts/verify-dispatch-run-freshnes
 
 const REPAIR = "gha:123:abc:failure";
 
-test("still-failed, cancelled, and timed-out runs proceed to the worker", () => {
-  for (const conclusion of ["failure", "cancelled", "timed_out"]) {
+test("only a failure conclusion is dispatched, matching the Worker contract", () => {
+  // codingRunner.ts: `const allowedConclusions = failureRepair ? ["failure"] : ["success"]`.
+  // A cited cancelled/timed_out run is parsed by the reason regex and then always rejected with
+  // CODING_RUNNER_FAILURE_EVIDENCE_INVALID (409), so dispatching it only burns a consumer run.
+  assert.equal(citedRunNeedsRepair(REPAIR, { status: "completed", conclusion: "failure" }).repair, true);
+  for (const conclusion of ["cancelled", "timed_out"]) {
     const decision = citedRunNeedsRepair(REPAIR, { status: "completed", conclusion });
-    assert.equal(decision.repair, true);
+    assert.equal(decision.repair, false, conclusion);
+    assert.equal(decision.reason, `run-not-repairable:${conclusion}`);
   }
 });
+
+test("the observed cancelled-run repair loop is suppressed", () => {
+  // Observed 2026-10-13: Android Stable Release Watchdog run 38337326294 was cancelled on
+  // 9e1dee48, and the repair dispatch citing it failed closed with 409 EVIDENCE_INVALID on every
+  // attempt (02:13, 02:25, 02:32 ...).
+  const decision = citedRunNeedsRepair(
+    "gha:38337326294:9e1dee48e457df03a593fa88448cc0c12ede8381:cancelled",
+    { status: "completed", conclusion: "cancelled", workflow_id: 1, head_sha: "9e1dee48e457df03a593fa88448cc0c12ede8381", run_number: 7, run_attempt: 1 },
+  );
+  assert.equal(decision.repair, false);
+  assert.equal(decision.reason, "run-not-repairable:cancelled");
+});
+
+test("an unrepairable conclusion still never overrides unverifiable evidence", () => {
+  // Suppression requires a terminal, readable conclusion; anything unverifiable still proceeds.
+  assert.equal(citedRunNeedsRepair(REPAIR, { status: "in_progress", conclusion: null }).repair, true);
+  assert.equal(citedRunNeedsRepair(REPAIR, { status: "completed", conclusion: null }).repair, true);
+  assert.equal(citedRunNeedsRepair(REPAIR, null).repair, true);
+  // And a non-repair dispatch is still the Worker's call, not this gate's.
+  assert.equal(citedRunNeedsRepair("audit:pr:1", { status: "completed", conclusion: "cancelled" }).repair, true);
+});
+
 
 test("retried-to-success and other terminal conclusions are suppressed", () => {
   for (const conclusion of ["success", "neutral", "skipped", "startup_failure", "stale", "action_required"]) {

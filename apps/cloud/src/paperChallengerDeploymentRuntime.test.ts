@@ -6,6 +6,7 @@ import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PaperChallengerDeploymentRuntime, type QualifiedPaperChallengerArtifact } from "./paperChallengerDeploymentRuntime";
 import type { PaperResearchLineage } from "./paperResearchLineage";
+import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 const HASH = "a".repeat(64);
@@ -104,6 +105,40 @@ const governanceFor = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe("PaperChallengerDeploymentRuntime", () => {
+  it("preflights canonical rollover baseline before any binding mutation and retires only once", () => {
+    const start = Date.UTC(2026, 9, 12);
+    const original = buildOwnerBaselinePaperPeriodInput({ market: "KRW-BTC", periodIndex: 5, periodStartAt: start, sourceCommitSha: "a".repeat(40) });
+    const baseline = { ...original, periodId: `closed-learning-rollover:5:${start}`, schemaVersion: 1 as const, observationIds: [], observations: [] };
+    const xrp = { ...buildOwnerBaselinePaperPeriodInput({ market: "KRW-XRP", periodIndex: 5, periodStartAt: start, sourceCommitSha: "a".repeat(40) }), schemaVersion: 1 as const, observationIds: [], observations: [] };
+    for (const open of [baseline, xrp, { ...baseline, market: "KRW-XRP" }, { ...baseline, candidateProvenance: [{ ...baseline.candidateProvenance[0]!, datasetId: "forged" }] }]) {
+      const ledger = new MemoryLedger();
+      const bindings = new PaperChallengerBindingLedger(ledger);
+      let retired = 0;
+      let opened = 0;
+      const runtime = new PaperChallengerDeploymentRuntime({
+        artifacts: { read: () => artifact }, bindings,
+        periods: {
+          listRealizedPeriods: () => [], listOpenPeriods: () => retired === 0 ? [open] : [],
+          retireOpenPeriodForReplacement: () => { retired++; return open; },
+          openPeriodFromCanonicalAccount: input => { opened++; return { ...input, schemaVersion: 1, observationIds: [], observations: [] }; },
+        },
+        readCanonicalPaperAccount: () => account(start + 1), governance: governanceFor(),
+      });
+      const input = { cycleId: "closed-learning:test", decision, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const };
+      if (open === baseline || open === xrp) {
+        runtime.deploy(input);
+        runtime.deploy(input);
+        assert.equal(retired, 1);
+        assert.equal(bindings.current("KRW-BTC", start + 1)?.binding.candidateId, "challenger-a");
+      } else {
+        assert.throws(() => runtime.deploy(input), /already open/);
+        assert.equal(ledger.records.length, 0);
+        assert.equal(retired, 0);
+        assert.equal(opened, 0);
+      }
+    }
+  });
+
   it("persists exact Research lineage with the canonical PAPER binding and opens the period", () => {
     const ledger = new MemoryLedger();
     const bindings = new PaperChallengerBindingLedger(ledger);

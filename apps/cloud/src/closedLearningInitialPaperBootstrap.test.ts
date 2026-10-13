@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ClosedLearningInitialPaperBootstrap } from "./closedLearningInitialPaperBootstrap";
 import type { ClosedLearningResearchReplayResult } from "./closedLearningResearchWorkerClient";
-import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
+import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
 
 const ORIGINAL = "a".repeat(64);
 const REPLAY = "b".repeat(64);
@@ -81,6 +81,7 @@ function options(input: {
   readonly snapshots?: readonly unknown[];
   readonly hasOpen?: boolean;
   readonly hasOwnerBaselineOpen?: boolean;
+  readonly baselineRollover?: boolean;
   readonly hasRealized?: boolean;
   readonly failHistory?: boolean;
   readonly deployError?: string;
@@ -113,7 +114,7 @@ function options(input: {
     artifacts: { save: (artifact: never) => { events.push("artifact"); return artifact; } },
     deployment: { deploy: (deploymentInput: { decision: { candidateId: string; candidateVersion: string } }) => { events.push("deploy"); if (input.deployError) throw new Error(input.deployError); return { deploymentId: "initial-period", candidateId: deploymentInput.decision.candidateId, candidateVersion: deploymentInput.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }; } },
     listOpenPeriods: () => input.hasOwnerBaselineOpen
-      ? [{ periodId: "owner-baseline:KRW-BTC:1", candidateProvenance: [{ candidateId: OWNER_BASELINE_CANDIDATE_ID }] }]
+      ? [{ ...buildOwnerBaselinePaperPeriodInput({ market: "KRW-XRP", periodIndex: 5, periodStartAt: 1791732302171, sourceCommitSha: "a".repeat(40) }), ...(input.baselineRollover ? { periodId: "closed-learning-rollover:5:1791732302171" } : {}) }]
       : input.hasOpen ? [{}] : [],
     listRealizedPeriods: () => input.hasRealized ? [{}] : [],
     now: () => 1_725_494_400_000,
@@ -197,6 +198,17 @@ describe("initial PAPER bootstrap", () => {
     const output = new ClosedLearningInitialPaperBootstrap(base).runOnce();
     assert.equal(output.status, "RESEARCH_NOT_DEPLOYABLE");
     assert.deepEqual(events, ["worker", "history"]);
+  });
+
+  it("reads genuine Research across a baseline rollover despite realized history, sync and async", async () => {
+    for (const asyncMode of [false, true]) {
+      const { base, events } = options({ hasOwnerBaselineOpen: true, baselineRollover: true, hasRealized: true });
+      const bootstrap = new ClosedLearningInitialPaperBootstrap(base);
+      const result = asyncMode ? await bootstrap.runOnceAsync() : bootstrap.runOnce();
+      assert.equal(result.status, "DEPLOYED");
+      assert.equal(events.filter(event => event.startsWith("worker")).length, 1);
+      assert.equal(events.filter(event => event === "deploy").length, 1);
+    }
   });
 
   it("reuses a successful non-deployable bootstrap result for the same Research fingerprint", async () => {
