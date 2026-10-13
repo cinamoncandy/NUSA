@@ -3175,3 +3175,80 @@ current_market_data_ticker_rejection_2068:
   evidence_scope: "Synthetic regression fixtures only; no actual acceptance claim."
   next: "Focused regression, exact-head CI, Independent Audit and governed Release/merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_preflight_credit_posture:
+  work_order: WO-AUTOPILOT-20261012-PREFLIGHT-CREDIT-POSTURE
+  status: READY_FOR_REVIEW
+  branch: claude/preflight-credit-posture
+  authority_impact: none
+  finding: "After #2632 the deploy gate passes, but the trusted Credential Preflight still hardcoded zeroCreditMode ENFORCED; it now derives the expectation from the deploy workflow's NUSA_ZERO_CREDIT_MODE."
+
+current_autopilot_completion_receipt_design:
+  work_order: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-DESIGN
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-completion-receipt
+  authority_impact: none
+  finding: "A design proposes one immutable completion receipt composed from existing evidence, remediation, execution-state and release-completion components; VALID_NO_ACTION never counts as verified useful completion. The four owner decisions took the recommended defaults (existing coordinator record, worker-runtime-scope required, release-app approval as Audit source, count-only exposure later); no receipt exists and the verified-completion flag stays false."
+
+current_docs_claude_handoff:
+  work_order: WO-DOCS-20261012-CLAUDE-HANDOFF
+  status: READY_FOR_REVIEW
+  branch: claude/claude-handoff
+  pull_request: 2640
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
+  finding: "CLAUDE.md defers to AGENTS.md; the full handoff (safety, state, open PRs, decisions, blockers, evidence, verification, next permitted actions) lives in the AIPOS handoff file so a new session on any account recovers from the repository."
+  next: "Re-verify main, PRs 2637/2638/2639/2633/2586 and runtime health, then continue existing PRs only; see the handoff file for the ordered next permitted actions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_light_task_gate:
+  work_order: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-light-task-gate-impl
+  authority_impact: none
+  finding: "A coding proposal or exact-edit patch over 150 added plus removed lines is now rejected as CODING_PROPOSAL_TOO_LARGE (existing reason, classification and bounded retry); the existing single-file rule already exceeds the design's 3-file default. Needs a Worker deploy to take effect."
+
+current_docs_handoff_evening_decisions:
+  work_order: WO-DOCS-20261012-HANDOFF-EVENING-DECISIONS
+  status: READY_FOR_REVIEW
+  branch: claude/handoff-evening-decisions
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
+  finding: "The handoff now records the owner's evening decisions: main/assistant Claude roles, GitHub account separation and a redesign on 2026-10-13, HOLD on the redesign-related PRs, the withdrawal of the Dokkebi / Dokkebiteo rename (name stays NUSA, AIPOS unchanged), and that the GitHub repository was already renamed to Dokkebi so the Worker allowlists hard-coded to cinamoncandy/NUSA need the owner to settle the repository name or a dual-name change. It also records that the owner disabled the Autopilot Codex Coding workflow after hourly failures drove repeated Autopilot repair dispatches, and that the Worker auto-deploys from main so the 150-line proposal limit is live."
+  next: "After the redesign and the two GitHub logins, act on the owner's decisions one task per PR; do not rename the repository or enable the owner-activity gate before their prerequisites."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_docs_handoff_research_status:
+  work_order: WO-DOCS-20261013-HANDOFF-RESEARCH-STATUS
+  status: READY_FOR_REVIEW
+  branch: claude/handoff-research-status
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
+  finding: "The handoff now records the end-of-day state: the learning loop is still 0/7 (owner baseline has no Research lineage), breakout and SMA research found no candidate and the owner stopped it, the PR ledger (merged, closed, HOLD, open) and the four inputs needed from the owner on 2026-10-13."
+  next: "After the owner supplies the two GitHub logins and the redesign direction, act one task per PR; keep HOLD PRs untouched until then."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_claude_centered_redesign:
+  work_order: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  status: READY_FOR_REVIEW
+  revision: 2
+  branch: claude/claude-centered-redesign
+  pull_request: 2650
+  authority_impact: none
+  decision: .aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md
+  design: docs/CLAUDE_CENTERED_OPERATING_MODEL.md
+  finding: "Revision 2 (re-reviewed against GitHub and the Worker, 2026-10-12 22:00-22:40 UTC): the notification flood is not Codex-specific; the Worker's scheduled runtime repairs any failed main-head run for 24 hours (230 consumer failures on 2026-10-12, eleven re-dispatches of one Codex failure about every 5 minutes) and the consumer runs are triggered as cinamoncandy, so failures notify the owner. Roles follow the governing charter: CORE is the main Claude on the owner's account, VALIDATOR/RESEARCH plus operations is the assistant Claude on one automation-only machine account, AUTOPILOT stays Workers AI with the 150-line one-file limit. Non-author review under GRILL_ME_PROTOCOL for code PRs, blocking findings as inline threads; branch claims replace claimed_by; the Worker token should move to a GitHub App separate from the release-authority app; the owner-activity gate (#2644) must not be enabled until a closed gate is a quiet NO_ACTION and the Worker identity is separated."
+  next: "Owner answers the six decisions; P1 (Autopilot repair-target allowlist, attempt cap, quiet stops) can start before P0 identity work with owner approval. HOLD PRs stay untouched until then."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_open_pr_inventory:
+  work_order: WO-OPS-20261013-OPEN-PR-INVENTORY
+  status: READY_FOR_REVIEW
+  branch: claude/open-pr-inventory
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  inventory: docs/OPEN_PR_INVENTORY_2026-10-13.md
+  finding: "46 open PRs (23 draft, 20 HOLD, 34 created before October) grouped into: redesign and Autopilot work in progress, October research records, an urgent owner decision (#2311 lowers the new PAPER account initial-capital default from 10,000,000 to 5,000 KRW and is neither draft nor HOLD), security authority-narrowing PRs worth re-checking, likely superseded PRs, and stale September feature/research PRs. Nothing was closed or changed."
+  owner_decisions: "2026-10-13: #2311 closed by the owner (PAPER initial-capital default stays KRW 10,000,000; branch kept)."
+  next: "Owner approves which other groups to close; closing follows only an approved list and never deletes branches."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

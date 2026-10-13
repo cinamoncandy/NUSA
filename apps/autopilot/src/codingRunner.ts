@@ -217,6 +217,8 @@ const GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference/chat/completi
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_EDIT_TEXT_BYTES = 8_000;
+/** Autopilot takes light work only: at most this many added plus removed lines per proposal (docs/AUTOPILOT_LIGHT_TASK_GATE_DESIGN.md). */
+export const MAX_CODING_CHANGED_LINES = 150;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const MAX_CODING_PROPOSAL_CONTEXT_BYTES = 20_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 60_000;
@@ -378,7 +380,17 @@ function validateCodingEdit(value: unknown): CodingEdit {
   return Object.freeze({ path, expectedText, replacementText });
 }
 
-function validateCodingProposal(value: unknown): CodingProposal {
+/** Counts added and removed lines of a unified diff, excluding the file headers. */
+export function countChangedPatchLines(patch: string): number {
+  let count = 0;
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
+    if (line.startsWith("+") || line.startsWith("-")) count += 1;
+  }
+  return count;
+}
+
+export function validateCodingProposal(value: unknown): CodingProposal {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("CODING_PROPOSAL_INVALID");
   const proposal = value as Record<string, unknown>;
   const hasPatch = Object.prototype.hasOwnProperty.call(proposal, "patch") && proposal.patch !== undefined && proposal.patch !== null;
@@ -390,6 +402,7 @@ function validateCodingProposal(value: unknown): CodingProposal {
   }
   if (typeof proposal.patch !== "string") throw new Error("CODING_PROPOSAL_INVALID");
   if (new TextEncoder().encode(proposal.patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (countChangedPatchLines(proposal.patch) > MAX_CODING_CHANGED_LINES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
   if (/liveAuthority|productionMutationAllowed|aiAuthority|NUSA_|wrangler|\.github\//i.test(proposal.patch)) {
     throw new Error("CODING_PROPOSAL_AUTHORITY_SURFACE_FORBIDDEN");
   }
@@ -450,6 +463,7 @@ export function buildDeterministicCodingPatch(context: CodingProposalContext, ed
     "",
   ].join("\n");
   if (new TextEncoder().encode(patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (countChangedPatchLines(patch) > MAX_CODING_CHANGED_LINES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
   return patch;
 }
 
@@ -917,6 +931,38 @@ function githubModelsCodingRequest(request: CodingRunnerRequest, token: string, 
   };
 }
 
+/**
+ * Capacity/credit boundary of the GitHub Models overflow provider.
+ *
+ * githubModelsProposal throws GITHUB_MODELS_CODING_HTTP_<status> for every non-ok answer, and the
+ * remediation classifier only treats 5xx as transient. A 402 (billing/quota exhausted) or 429
+ * (backpressure) therefore recorded no stop of its own, so the overflow was re-attempted on every
+ * later dispatch — spending into a boundary that had already been reported. Mapping them to a real
+ * provider stop is what makes the free-first -> overflow routing stop at the credit boundary
+ * instead of hammering it: 429 clears on a minute scale, an exhausted balance does not, so it
+ * holds until the next UTC day.
+ */
+function githubModelsProviderStop(error: unknown, now: number): { readonly stopReason: string; readonly nextRetryAt: number; readonly resumeCondition: string } | null {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const status = /^GITHUB_MODELS_CODING_HTTP_(\d{3})$/.exec(message)?.[1];
+  if (status === "402") {
+    const retryAfterMs = msUntilNextUtcDay(now);
+    return Object.freeze({
+      stopReason: "GITHUB_MODELS_CREDITS_EXHAUSTED",
+      nextRetryAt: now + retryAfterMs,
+      resumeCondition: "paid-credit-topup-or-next-utc-day-and-exact-head-revalidation",
+    });
+  }
+  if (status === "429") {
+    return Object.freeze({
+      stopReason: "GITHUB_MODELS_RATE_LIMITED",
+      nextRetryAt: now + MAX_RATE_LIMIT_BACKOFF_MS,
+      resumeCondition: "provider-capacity-and-exact-head-revalidation",
+    });
+  }
+  return null;
+}
+
 async function githubModelsProposal(request: CodingRunnerRequest, token: string, fetchImpl: FetchImpl, prompt: string): Promise<CodingProposal> {
   const response = await fetchImpl(GITHUB_MODELS_ENDPOINT, githubModelsCodingRequest(request, token, prompt));
   if (!response.ok) throw new Error(`GITHUB_MODELS_CODING_HTTP_${response.status}`);
@@ -1045,7 +1091,20 @@ export async function executeCodingRunner(
     ),
   );
   const repairGithubToken = env.NUSA_GITHUB_TOKEN?.trim();
-  if (sandboxRepairEscalation && repairGithubToken) {
+  // The escalation spends on the same overflow balance, so it must honour that provider's recorded
+  // boundary. This stays protection-only: an active or unreadable wait simply skips the escalation
+  // and leaves the documented best-effort contract ("keep the current provider path unchanged")
+  // intact rather than introducing a new blocked result here.
+  let escalationAllowed = sandboxRepairEscalation && Boolean(repairGithubToken);
+  if (escalationAllowed && options.providerWaitUntil) {
+    try {
+      const overflowWait = await options.providerWaitUntil("github-models");
+      if (overflowWait !== null && now() < overflowWait) escalationAllowed = false;
+    } catch {
+      escalationAllowed = false;
+    }
+  }
+  if (escalationAllowed && repairGithubToken) {
     try {
       const proposal = await githubModelsProposal(request, repairGithubToken, fetchImpl, codingEditProposalPrompt(request));
       return await executeProposal(request, proposal, runtime, publisher);
@@ -1083,6 +1142,28 @@ export async function executeCodingRunner(
       }
     }
     const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!, Boolean(request.proposalContext)));
+    // 402 Payment Required is the standard "out of credit" answer from a paid inference endpoint.
+    // Unlike 429 (transient backpressure, minute-scale backoff) an exhausted balance does not
+    // recover on its own, so it must not be retried against the same empty balance: it records a
+    // hard stop for the rest of the UTC day, which aiBudgetState classifies as HARD_STOP because
+    // the reason is absent from SOFT_BUDGET_STOP_REASONS. The persisted wait is what lets the
+    // caller stop spending and degrade instead of re-billing a dead balance on every dispatch.
+    if (response.status === 402) {
+      const current = now();
+      const retryAfterMs = msUntilNextUtcDay(current);
+      return {
+        status: "BLOCKED_RATE_LIMIT",
+        reason: "WAITING_PROVIDER_CAPACITY",
+        httpStatus: response.status,
+        proposalAttempts: 1,
+        failureStage: "proposal-parse",
+        provider: "configured-coding-engine",
+        retryAfterMs,
+        nextRetryAt: current + retryAfterMs,
+        stopReason: "PAID_CODING_CREDITS_EXHAUSTED",
+        resumeCondition: "paid-credit-topup-or-next-utc-day-and-exact-head-revalidation",
+      };
+    }
     if (response.status === 429) {
       const current = now();
       const retryAfterMs = MAX_RATE_LIMIT_BACKOFF_MS;
@@ -1146,11 +1227,35 @@ export async function executeCodingRunner(
       const current = now();
       if (waitUntil !== null && current < waitUntil) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken && !zeroCreditMode) {
+        let overflowWaitUntil: number | null = null;
+        if (githubToken && !zeroCreditMode && options.providerWaitUntil) {
+          try {
+            overflowWaitUntil = await options.providerWaitUntil("github-models");
+          } catch {
+            // An unreadable overflow wait must not grant spending: skip the overflow this round.
+            overflowWaitUntil = Number.MAX_SAFE_INTEGER;
+          }
+        }
+        const overflowAvailable = overflowWaitUntil === null || current >= overflowWaitUntil;
+        if (githubToken && !zeroCreditMode && overflowAvailable) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
           } catch (error) {
+            const overflowStop = githubModelsProviderStop(error, current);
+            if (overflowStop) {
+              return {
+                status: "BLOCKED_RATE_LIMIT",
+                reason: "WAITING_PROVIDER_CAPACITY",
+                proposalAttempts: attempt - 1,
+                failureStage: "proposal-parse",
+                provider: "github-models",
+                retryAfterMs: overflowStop.nextRetryAt - current,
+                nextRetryAt: overflowStop.nextRetryAt,
+                stopReason: overflowStop.stopReason,
+                resumeCondition: overflowStop.resumeCondition,
+              };
+            }
             return {
               status: "BLOCKED_RATE_LIMIT",
               reason: "WAITING_PROVIDER_CAPACITY",
@@ -1198,11 +1303,35 @@ export async function executeCodingRunner(
       const rateLimitReason = workersAiRateLimitReason(error);
       if (rateLimitReason) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken && !zeroCreditMode) {
+        let midAttemptOverflowAllowed = Boolean(githubToken) && !zeroCreditMode;
+        if (midAttemptOverflowAllowed && options.providerWaitUntil) {
+          try {
+            const overflowWait = await options.providerWaitUntil("github-models");
+            if (overflowWait !== null && now() < overflowWait) midAttemptOverflowAllowed = false;
+          } catch {
+            midAttemptOverflowAllowed = false;
+          }
+        }
+        if (githubToken && midAttemptOverflowAllowed) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
           } catch (fallbackError) {
+            const overflowStop = githubModelsProviderStop(fallbackError, now());
+            if (overflowStop) {
+              const stoppedAt = now();
+              return {
+                status: "BLOCKED_RATE_LIMIT",
+                reason: "WAITING_PROVIDER_CAPACITY",
+                proposalAttempts: Math.max(0, attempt - 1),
+                failureStage: "proposal-parse",
+                provider: "github-models",
+                retryAfterMs: overflowStop.nextRetryAt - stoppedAt,
+                nextRetryAt: overflowStop.nextRetryAt,
+                stopReason: overflowStop.stopReason,
+                resumeCondition: overflowStop.resumeCondition,
+              };
+            }
             return {
               status: "BLOCKED_RATE_LIMIT",
               reason: rateLimitReason,

@@ -9,7 +9,7 @@
  * Nothing happens until the app registers its fetch at start-up, so tests and any host without a transport make no request.
  * Dependency-free on purpose.
  */
-type FetchLike = (url: string, init: { method: "GET"; redirect: "error"; cache: "no-store"; signal?: unknown }) => Promise<unknown>;
+type FetchLike = (url: string, init: { method: "GET"; credentials: "omit"; redirect: "error"; cache: "no-store"; signal?: unknown }) => Promise<unknown>;
 
 const WARMUP_TIMEOUT_MS = 4_000;
 const warmed = new Set<string>();
@@ -34,7 +34,7 @@ export function warmConnection(endpoint: string): boolean {
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     const timer = controller == null ? null : setTimeout(() => { try { controller.abort(); } catch { /* nothing to abort */ } }, WARMUP_TIMEOUT_MS);
     const finish = () => { if (timer != null) clearTimeout(timer); };
-    Promise.resolve(transport(`${url}/health`, { method: "GET", redirect: "error", cache: "no-store", ...(controller == null ? {} : { signal: controller.signal }) })).then(finish, finish);
+    Promise.resolve(transport(`${url}/health`, { method: "GET", credentials: "omit", redirect: "error", cache: "no-store", ...(controller == null ? {} : { signal: controller.signal }) })).then(finish, finish);
     return true;
   } catch {
     return false;

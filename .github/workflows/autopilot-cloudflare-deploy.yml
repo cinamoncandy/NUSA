@@ -29,6 +29,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # Single source of truth for the deployed credit posture: the same value is passed to wrangler
+  # and used to derive the health value the deployed Worker must report back. Hardcoding the
+  # expectation separately is what let the deploy gate drift from the deployed var.
+  NUSA_ZERO_CREDIT_MODE: "false"
   NUSA_WORKER_HEALTH_URL: https://nusa-autopilot.desporin12.workers.dev/health
 
 jobs:
@@ -233,7 +237,7 @@ jobs:
           pnpm dlx wrangler@4.127.1 deploy \
             --config apps/autopilot/wrangler.jsonc \
             --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}" \
-            --var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:true" \
+            --var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:${NUSA_ZERO_CREDIT_MODE}" \
             --var "NUSA_JEV_SHADOW_ENABLED:true" \
             --var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"
 
@@ -243,6 +247,9 @@ jobs:
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
         run: |
           set -euo pipefail
+          expected_zero_credit="DISABLED"
+          if [ "${NUSA_ZERO_CREDIT_MODE}" = "true" ]; then expected_zero_credit="ENFORCED"; fi
+          echo "Expecting deployed zeroCreditMode=${expected_zero_credit}"
           for attempt in $(seq 1 15); do
             health="$(curl -sS --fail-with-body --max-time 20 "$NUSA_WORKER_HEALTH_URL" || true)"
             revision="$(printf '%s' "$health" | jq -r '.deploymentRevision // empty' 2>/dev/null || true)"
@@ -250,7 +257,7 @@ jobs:
             mutation="$(printf '%s' "$health" | jq -r 'if has("productionMutationAllowed") then (.productionMutationAllowed | tostring) else empty end' 2>/dev/null || true)"
             ai="$(printf '%s' "$health" | jq -r '.aiAuthority // empty' 2>/dev/null || true)"
             zero_credit="$(printf '%s' "$health" | jq -r '.zeroCreditMode // empty' 2>/dev/null || true)"
-            if [ "$revision" = "$HEAD_SHA" ] && [ "$live" = "NONE" ] && [ "$mutation" = "false" ] && [ "$ai" = "ZERO_AUTHORITY" ] && [ "$zero_credit" = "ENFORCED" ]; then
+            if [ "$revision" = "$HEAD_SHA" ] && [ "$live" = "NONE" ] && [ "$mutation" = "false" ] && [ "$ai" = "ZERO_AUTHORITY" ] && [ "$zero_credit" = "$expected_zero_credit" ]; then
               echo "Verified deployed Worker revision and safety invariants: $revision"
               exit 0
             fi
