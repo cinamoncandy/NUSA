@@ -519,3 +519,20 @@ test("/health publishes the baseline shadow totals as non-negative integers only
     assert.equal(evidence.shadowGrossGainBp, 7);
   }, 42342);
 });
+
+test("/health publishes the rule-replay parity as signed integer basis points and counts, and drops malformed ones", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "RESEARCH_NOT_DEPLOYABLE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY",
+    evidence: { replayPeriodId: "closed-learning-rollover:9:1791825840978", replayBars: 60, replayTrades: 3, replayClosedNetBp: -123, replayOpenMarkBp: 0, replayPaperNetBp: -4, replayPaperNetKrw: -400 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.deepEqual({ id: evidence.replayPeriodId, b: evidence.replayBars, t: evidence.replayTrades, c: evidence.replayClosedNetBp, o: evidence.replayOpenMarkBp, p: evidence.replayPaperNetBp }, { id: "closed-learning-rollover:9:1791825840978", b: 60, t: 3, c: -123, o: 0, p: -4 });
+    assert.equal(evidence.replayPaperNetKrw, undefined, "an unlisted key (any amount) is never published");
+  }, 42343);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { replayTrades: -1, replayClosedNetBp: 1.5, replayPaperNetBp: "x", replayOpenMarkBp: -7 } } }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.equal(evidence.replayTrades, undefined);
+    assert.equal(evidence.replayClosedNetBp, undefined);
+    assert.equal(evidence.replayPaperNetBp, undefined);
+    assert.equal(evidence.replayOpenMarkBp, -7);
+  }, 42344);
+});

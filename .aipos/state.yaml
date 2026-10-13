@@ -2935,6 +2935,15 @@ current_ops_clear_recovered_market_reject:
   owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
   finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+
+current_safety_gate_evidence_states_20261013:
+  work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/safety-gates-evidence-states
+  finding: "Safety gates showed PASS on stale evidence; now PASS/FAIL/BLOCKED/STALE/CHECKING with per-source freshness."
+  next: "Exact-head CI, Audit, Release; then check the deployed app shows the new states."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_sec_shell_quote_advisory:
   work_order: WO-SEC-20261006-SHELL-QUOTE-ADVISORY
   status: READY_FOR_REVIEW
@@ -3119,6 +3128,14 @@ current_learning_methods_20261013:
   branch: claude/research-family-screen
   finding: "GLOBAL FIRST_BROKEN_TRANSITION is Research -> qualified candidate (market result: 0/135 holdout survivors, baseline gross-negative before fees). Loop plumbing and #2589 failure fields are deployed but unexercised. VERIFIED=false."
   next: "Forward test verdict earliest 2026-12-13; owner decision on new data sources. No threshold or lineage change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_paper_rule_replay_20261013:
+  work_order: WO-LEARNING-20261013-PAPER-RULE-REPLAY
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/learning-paper-rule-replay
+  finding: "Research champion proxy (TP/SL exits) differs from the PAPER baseline (cross-down exit). Added an exact PAPER-rule replay per closed baseline period with signed-bp parity on /health; measurement only."
+  next: "Exact-head CI, Audit, Release, deploy; read the gap; owner decides on aligning the Research champion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_pending_order_attribution_test:

@@ -46,7 +46,7 @@ export function LiveReadinessMonitorView({ snapshot, unavailableReason, unavaila
             <Text style={[styles.gateTitle, { color: gate.state === "PASS" ? theme.colors.text : theme.colors.textMuted }]}>{gate.title}</Text>
             <Text style={[styles.rowMeta, { color: theme.colors.textMuted }]}>{gate.detail}</Text>
           </View>
-          <Text style={[styles.gateState, { color: gate.state === "PASS" ? theme.colors.primary : gate.state === "BLOCKED" ? theme.colors.warning : theme.colors.textMuted }]}>{GATE_LABEL[gate.state]}</Text>
+          <Text style={[styles.gateState, { color: gate.state === "PASS" ? theme.colors.primary : gate.state === "CHECKING" ? theme.colors.textMuted : theme.colors.warning }]}>{GATE_LABEL[gate.state]}</Text>
         </View></Fragment>)}
       </View>
       <Text style={[styles.reason, { color: theme.colors.textMuted }]}>관측 전용: 주문·취소·출금·이체·LIVE 활성화·lease 생성 기능이 없습니다.</Text>
@@ -67,10 +67,10 @@ export function LiveReadinessMonitorView({ snapshot, unavailableReason, unavaila
   </ScrollView>;
 }
 
-const GATE_LABEL: Readonly<Record<LiveGateState, string>> = Object.freeze({ PASS: "통과", BLOCKED: "막힘", UNKNOWN: "확인 중" });
+const GATE_LABEL: Readonly<Record<LiveGateState, string>> = Object.freeze({ PASS: "통과", FAIL: "실패", BLOCKED: "막힘", STALE: "오래됨", CHECKING: "확인 중" });
 
 function gateDotStyle(state: LiveGateState, pass: string, blocked: string, unknown: string) {
-  return state === "PASS" ? { backgroundColor: pass, borderColor: pass } : { backgroundColor: "transparent", borderColor: state === "BLOCKED" ? blocked : unknown };
+  return state === "PASS" ? { backgroundColor: pass, borderColor: pass } : { backgroundColor: "transparent", borderColor: state === "CHECKING" ? unknown : blocked };
 }
 
 function Metric({ label, value }: Readonly<{ label: string; value: string }>) { const { theme } = useTheme(); return <View style={styles.metric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.metricValue, { color: theme.colors.text }]}>{value}</Text></View>; }

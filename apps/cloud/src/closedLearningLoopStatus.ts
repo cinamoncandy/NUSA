@@ -56,6 +56,12 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
    * Baseline SHADOW totals (hypothetical round trips of the baseline rule, whether or not Risk allowed a real order). Non-negative
    * integers in basis points and counts only; NOT PAPER evidence and never a promotion input (see paperBaselineShadow.ts).
    */
+  /**
+   * Parity check of the latest realized owner-baseline period: the period's realized PAPER return (account equity, after sizing,
+   * Risk and fees) next to a replay of the same rule on the same completed minute closes (one full hypothetical position). Signed
+   * basis points and counts; measurement only, never a Risk, qualification or Research input.
+   */
+  replayPeriodId: string; replayBars: number; replayTrades: number; replayClosedNetBp: number; replayOpenMarkBp: number; replayPaperNetBp: number;
   shadowSince: number; shadowTrades: number; shadowWins: number; shadowGrossGainBp: number; shadowGrossLossBp: number; shadowFeeBp: number;
 }>>;
 
@@ -82,6 +88,7 @@ export class ClosedLearningLoopStatusTracker {
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
   private durableFailure: ClosedLearningEvidenceCorrelation = {};
   private shadow: ClosedLearningEvidenceCorrelation = {};
+  private replay: ClosedLearningEvidenceCorrelation = {};
 
   /** Reads the identities of the current open period and the latest realized period. */
   public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
@@ -127,6 +134,19 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  /** Display-only rule-replay parity of one realized baseline period; undefined or malformed withdraws the keys. */
+  public observeRuleReplay(replay: { readonly periodId: string; readonly bars: number; readonly trades: number; readonly closedNetReturn: number; readonly openMarkReturn: number; readonly paperNetReturn: number } | undefined): void {
+    const bp = (value: number) => Math.round(value * 10_000);
+    const ok = replay != null && typeof replay.periodId === "string" && replay.periodId.length > 0
+      && [replay.bars, replay.trades].every((value) => Number.isSafeInteger(value) && value >= 0)
+      && [replay.closedNetReturn, replay.openMarkReturn, replay.paperNetReturn].every((value) => Number.isFinite(value) && Math.abs(value) < 100);
+    this.replay = !ok || replay == null ? {} : Object.freeze({
+      replayPeriodId: replay.periodId, replayBars: replay.bars, replayTrades: replay.trades,
+      replayClosedNetBp: bp(replay.closedNetReturn), replayOpenMarkBp: bp(replay.openMarkReturn), replayPaperNetBp: bp(replay.paperNetReturn),
+    });
+    this.publish();
+  }
+
   /** Display-only baseline shadow totals; a malformed value withdraws the shadow keys. */
   public observeShadow(totals: { readonly since: number; readonly trades: number; readonly wins: number; readonly grossGainBp: number; readonly grossLossBp: number; readonly feeBp: number } | undefined): void {
     const ok = totals != null && [totals.since, totals.trades, totals.wins, totals.grossGainBp, totals.grossLossBp, totals.feeBp].every((value) => Number.isSafeInteger(value) && value >= 0) && totals.wins <= totals.trades;
@@ -164,6 +184,7 @@ export class ClosedLearningLoopStatusTracker {
       ...this.periods,
       ...this.cycle,
       ...this.shadow,
+      ...this.replay,
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
