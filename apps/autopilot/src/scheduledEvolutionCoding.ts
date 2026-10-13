@@ -3,6 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
+import { isRepairableMainWorkflowFailure } from "./repairableWorkflowRun";
 import { acquirePersistentExecution, admitActiveWip, createEvolutionLearningMemoryStorage, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { DurableEvolutionLearningMemory } from "./evolveDurableLearningMemory";
 
@@ -59,7 +60,7 @@ function evidenceFromRuns(candidates: readonly unknown[]): readonly WorkflowFail
     if (!run) continue;
     const conclusion = text(run.conclusion);
     if (conclusion !== "failure" && conclusion !== "timed_out") continue;
-    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+    if (!isRepairableMainWorkflowFailure(run)) continue;
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
     const headSha = text(run.head_sha);

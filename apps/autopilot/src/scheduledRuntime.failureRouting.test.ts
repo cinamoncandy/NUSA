@@ -178,3 +178,47 @@ test("cancelled exact-main workflows are not treated as autonomous failure-repai
   assert.deepEqual(outcome.discoveredOpportunityIds, []);
   assert.equal(dispatched, false);
 });
+
+test("failures of Autopilot's own workflows and runtime evidence workflows are not repair targets", async () => {
+  // 2026-10-12: a failed scheduled Codex coding run and a manually dispatched PAPER evidence run on
+  // the main head were each re-dispatched as repairs about every five minutes.
+  let dispatched = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200 });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
+    if (url.includes("/actions/runs?")) return new Response(JSON.stringify({ workflow_runs: [{
+      id: FAILURE_RUN_ID,
+      name: "Autopilot Codex Coding",
+      status: "completed",
+      conclusion: "failure",
+      head_branch: "main",
+      head_sha: SHA,
+      event: "schedule",
+      completed_at: new Date(NOW - 30_000).toISOString(),
+    }, {
+      id: FAILURE_RUN_ID + 1,
+      name: "Actual PAPER Public-Market Runtime Evidence",
+      status: "completed",
+      conclusion: "failure",
+      head_branch: "main",
+      head_sha: SHA,
+      event: "workflow_dispatch",
+      completed_at: new Date(NOW - 40_000).toISOString(),
+    }] }), { status: 200 });
+    if (url.endsWith("/dispatches")) dispatched = true;
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA",
+    NUSA_EXECUTION_COORDINATOR: namespace(),
+  }, NOW, fetchImpl);
+
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
+  assert.equal(outcome.workflowRunId, null);
+  assert.deepEqual(outcome.discoveredOpportunityIds, []);
+  assert.equal(dispatched, false);
+});
