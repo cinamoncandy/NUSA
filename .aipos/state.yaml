@@ -133,6 +133,16 @@ current_learning_completion_20261012:
   next: "Actual cycle/Research/successor receipts after natural KST boundary remain required; canonical runtime polls automatically."
   complete: false
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_aipos_state_insert_order:
+  work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/aipos-state-insert
+  authority_impact: none
+  finding: "Merge bottleneck: almost every PR appended to the end (or the top) of .aipos/state.yaml, so each merge left the other open PRs in conflict (71 state.yaml commits across 60 merges since 2026-10-10). New entries now go through scripts/aipos-state-insert.js, which places them before the entry whose name comes next in name order; six parallel additions to a copy of the real file merged with no conflict. AGENTS.md step 6 tells every agent to use it."
+  next: "Use pnpm run aipos:state-add for every new state entry."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_android_paper_runtime_truth_p0:
   work_order: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
   status: CANONICAL_BRANCH_RECOVERED_PENDING_EXACT_HEAD_CI
@@ -2116,6 +2126,16 @@ current_pr1991_review_hardening:
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_workspace_dirty:
+  work_order: WO-AUTOPILOT-20261013-WORKSPACE-DIRTY
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-workspace-dirty
+  authority_impact: none
+  finding: "After the stale-WIP fix the first real backlog dispatch (run 38375920359, issue #2118) failed with CODING_RUNTIME_WORKSPACE_DIRTY before any proposal: the freshness step added on 2026-10-12 writes artifacts/autopilot-execution/cited-workflow-runs.json, which unlike its siblings was not git-ignored. It is now ignored; the clean check stays fail-closed for every other path."
+  next: "After merge, the next consumer run should reach the coding engine; observe whether it produces an acceptable proposal."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_autopilot_zero_credit_mode:
   work_order: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
   status: IN_PROGRESS

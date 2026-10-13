@@ -1,0 +1,35 @@
+id: WO-AUTOPILOT-20261013-WORKSPACE-DIRTY
+title: "Ignore the freshness check's cited-workflow-runs.json so real coding attempts can start"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-workspace-dirty
+authority_impact: none
+owner_approval: "2026-10-13 in chat ('모든 병목 해결해')"
+scope_note: "One .gitignore line and one test assertion. No code path, workflow, Audit, Release, Risk or authority change."
+objective: "Remove the bottleneck that failed every real Autopilot coding attempt before any proposal was requested."
+evidence_of_problem:
+  - "Execution Consumer run 38375920359 (09:23 UTC 2026-10-13), the first real backlog dispatch after the stale-WIP fix (#2667), ended FAILED_CLOSED with CODING_RUNTIME_WORKSPACE_DIRTY for issue #2118."
+  - "Since #2624 (2026-10-12) the consumer's freshness step writes artifacts/autopilot-execution/cited-workflow-runs.json before scripts/autopilot-dispatch-retry.js checks `git status --porcelain --untracked-files=all`; its siblings cited-run.json and dispatch-freshness.json are git-ignored, this one was not."
+scope:
+  include:
+    - ".gitignore (/artifacts/autopilot-execution/cited-workflow-runs.json)"
+    - "tests/autopilot-preflight-workspace-clean.test.js"
+  exclude:
+    - "Changing the workspace-clean check itself, which stays fail-closed for any other untracked or modified path."
+limitations:
+  - "Whether the Workers AI engine then produces an acceptable proposal is observed only after the next real dispatch."
+acceptance:
+  - "git check-ignore reports the file as ignored; unrelated paths are still not ignored; the test fails without the change."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node --test tests/autopilot-preflight-workspace-clean.test.js"
+evidence:
+  remaining: "Exact-head CI, deterministic Audit and Release; then the next consumer run should get past the workspace check."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

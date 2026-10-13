@@ -31,7 +31,7 @@ Before planning, editing, or generating code:
 3. Follow the recovery protocol and active work order referenced there.
 4. Read `.aipos/architecture.md`, `.aipos/context.md`, and relevant decisions.
 5. Verify changes with the commands recorded in the work order.
-6. Update `.aipos/state.yaml` and the active work order before stopping.
+6. Update `.aipos/state.yaml` and the active work order before stopping. Add a new top-level state entry with `node scripts/aipos-state-insert.js <entry.yaml>` (`pnpm run aipos:state-add -- <entry.yaml>`), which places it at its name-order position; do not append it at the end or insert it after `version: 1`, because parallel PRs then edit the same lines and conflict on every merge.
 
 Do not rely on prior conversation history. The repository is the source of truth. Vendor-specific instructions may supplement AIPOS but cannot replace it.
 
