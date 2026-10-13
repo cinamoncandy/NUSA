@@ -185,6 +185,26 @@
    "preRegistered": true,
    "lesson": "Design flaw: a 0.5 probability threshold with a 38.8% positive base rate selected almost nothing (3 validation, 4 holdout trades). Selection must be rank-based or calibrated to the base rate.",
    "designFlaw": true
+  },
+  {
+   "id": "ML_ALLKRW_V2_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "retryOf": "ML_ALLKRW_V1_20261013",
+   "evidence": "scripts/research-ml-allkrw-v2.js (pre-registered 2521aefdd); same data manifest as v1",
+   "dataType": "OHLCV",
+   "timeframe": "60m",
+   "universe": 106,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0047,
+   "preRegistered": true,
+   "lesson": "No skill: top-5 picks averaged -0.20% per trade versus +0.27% for buying every eligible market on the same days (355 trades, win rate 43.9%, p 0.78). Validation was already below the universe (-0.87% vs -0.72%)."
   }
  ]
 }

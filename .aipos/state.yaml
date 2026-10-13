@@ -2462,8 +2462,8 @@ current_research_meta_learner_20261013:
   work_order: WO-RESEARCH-20261013-META-LEARNER
   status: LOCAL_VALIDATED_PENDING_CI
   branch: claude/research-meta-learner
-  finding: "Research ledger plus a fixed-policy meta-learner. First run: rules, close data, five markets exhausted (0/173 holdout); next is OHLCV + intraday + all KRW markets + ML."
-  next: "Run the recommended pre-registered ML experiment and append its outcome to the ledger. No threshold change; the bar is cumulative."
+  finding: "Research ledger plus a fixed-policy meta-learner, now also fed live PAPER shadow evidence. First full meta-loop: it chose all-KRW ML; v1 failed by design flaw (threshold), the learner gained a one-retry rule, v2 failed with no skill (picks -0.20% vs universe +0.27% per trade, 355 trades). 10 experiments, 180 configurations, 0 holdout passes."
+  next: "Meta-learner now recommends OHLCV + DAILY + ALL_KRW + ML; after that only new data sources (trades, order book, external) remain. No threshold change; the bar is cumulative."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_research_ohlcv_catalog_20261013:

@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261013-ML-ALLKRW
 title: "First meta-learner-chosen experiment: OHLCV + intraday + all KRW markets + logistic-regression ML"
-status: V1_FAIL_DESIGN_FLAW_V2_PRE_REGISTERED
+status: COMPLETED_NO_SURVIVOR
 priority: P0
 authority_impact: none
 repository: cinamoncandy/NUSA
@@ -27,3 +27,5 @@ v2_pre_registration:
   script: scripts/research-ml-allkrw-v2.js
   only_differences: "top 5 by predicted probability with no 0.5 threshold; K = 177 + 3 = 180"
   committed_before_run: true
+v2_result: "FAIL (no skill). 355 holdout trades, mean net -0.201% per trade (2x -0.400%), universe +0.271%, win rate 43.9%, p 0.78 (bar 2.78e-4). Validation picks -0.87% vs universe -0.72%."
+next: "Meta-learner after v2: see the ledger run in the PR. No threshold or risk change."
