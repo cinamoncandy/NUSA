@@ -44,3 +44,8 @@ daily_screen_pre_registration:
   families: ["DONCHIAN_D N=20/55", "REGIME_DONCHIAN_D N=20/55", "GOLDEN_CROSS_D", "TSMOM_D"]
 daily_screen_result: "DONCHIAN_D N=20 passes (5/6 windows, 2x 5/6, DOWN mean +7.95%); REGIME_DONCHIAN_D N=20 passes narrowly; 4 others fail. Data sha256 c813b78d1b05b318a1c7cf85ac892172ce4362e2ba6a25f77aa2cdc9e653a94c."
 next: "Owner decides whether to register a daily Donchian family in Research for a formal experiment (code work plus owner approval). Forward 60m test verdict earliest 2026-12-13. No threshold, risk or runtime change."
+registration_feasibility:
+  owner_request: "2026-10-13 in chat: register the daily 20-day breakout in Research."
+  finding: "Not registrable as-is without a rule change. Research windows are 7/2/2 days built from stored 1m candles (RESEARCH_INTERVAL_MINUTES max 240); the candidate gate requires >= 50 trades (researchCandidateGate.ts minimumTradeCount 50) on a single market; the daily rule made about 34 trades per market in five years. A daily experiment would end INSUFFICIENT_TRADES. PAPER Donchian also exits at the N-bar low, not the N/2 low the screen used."
+  not_done: "No code registered; the trade minimum is not lowered."
+  options_for_owner: "A: a five-market portfolio candidate (design change, threshold unchanged); B: keep it as a research note only; C: leave the frozen forward test running and revisit."
