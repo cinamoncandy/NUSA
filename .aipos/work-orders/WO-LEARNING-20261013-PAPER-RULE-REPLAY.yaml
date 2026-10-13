@@ -1,0 +1,24 @@
+id: WO-LEARNING-20261013-PAPER-RULE-REPLAY
+title: "Research-to-execution parity: replay the PAPER rule over each closed baseline period and publish the gap"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/learning-paper-rule-replay
+related_issues: [1605]
+concept: docs/NUSA_RECURSIVE_SELF_IMPROVEMENT.md (self-verification)
+owner_decision: "2026-10-13 in chat: option 3. First measure with an exact replay of the PAPER rule (option 1), then decide on aligning the Research champion (option 2)."
+finding: "The Research champion proxy is not the PAPER baseline rule. Both enter on an SMA 5/20 cross-up, but the proxy exits only by +3% take-profit or -2% stop-loss (researchExperimentComposition.ts proxy via buildSmaResearchStrategy), while PAPER sells on the cross-down. The Research DSL (ExitRule) cannot express a cross-down exit."
+change:
+  - "apps/cloud/src/paperPeriodRuleReplay.ts: replays the PAPER decision function (evaluatePaperCandidateStrategy) over one closed period on the same persisted completed-minute closes and 60-bar lookback; closed round trips with fees, open position marked separately; no look-ahead."
+  - "closedLearningProductionRuntime: computes it once per latest realized owner-baseline period (cached by record id) and publishes replayPeriodId, replayBars, replayTrades, replayClosedNetBp, replayOpenMarkBp, replayPaperNetBp (signed bp) on /health. Measurement only."
+caveat: "replayPaperNetBp is the period's account-equity return (after sizing, Risk and fees); the replay is one full hypothetical position. Magnitudes are not directly comparable; trade counts and signs are. A Risk halt shows as replay trades with zero PAPER fills."
+validation: "paperPeriodRuleReplay tests 5 (independent recount, no look-ahead, flat market, invalid input, status), /health signed-bp test, closed-learning, health and all compiled cloud tests 619 pass; tsc PASS."
+not_verified: "Production values after deploy."
+next: "Owner decides option 2 (add a cross-down exit to the Research DSL and align the champion) using the measured gap."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

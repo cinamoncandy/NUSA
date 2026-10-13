@@ -3130,6 +3130,14 @@ current_learning_methods_20261013:
   next: "Forward test verdict earliest 2026-12-13; owner decision on new data sources. No threshold or lineage change."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_learning_paper_rule_replay_20261013:
+  work_order: WO-LEARNING-20261013-PAPER-RULE-REPLAY
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/learning-paper-rule-replay
+  finding: "Research champion proxy (TP/SL exits) differs from the PAPER baseline (cross-down exit). Added an exact PAPER-rule replay per closed baseline period with signed-bp parity on /health; measurement only."
+  next: "Exact-head CI, Audit, Release, deploy; read the gap; owner decides on aligning the Research champion."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_pending_order_attribution_test:
   work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
   status: READY_FOR_REVIEW
