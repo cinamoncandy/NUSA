@@ -1,11 +1,11 @@
 version: 1
 current_regime_research_resume_20261013:
   work_order: WO-RESEARCH-20261013-REGIME-RESUME
-  status: PREREGISTERED_INFRASTRUCTURE_VALIDATED
-  validation: "32 reused infrastructure tests and validate:full PASS; no new candidate outcome or deployed research binding claimed."
+  status: CANDIDATE_ADAPTER_LOCAL_VALIDATED
+  validation: "35 focused tests,build,typecheck,validate:full,security,lint PASS;15 existing warnings. Research-only adapter, no deployed binding or candidate outcome claimed."
   branch: codex/research-regime-resume-20261013
   owner_authorization: "Explicit research resume; PAPER/SHADOW only."
-  next: "Verify canonical regime infrastructure, then implement bounded forward candidate evaluation; no loss reset or early qualification."
+  next: "Independent review and canonical integration; dataset/provenance/holdout evaluator and deployed collection remain pending. No loss reset or early qualification."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_candidate_blocker_20261013:
   work_order: WO-LEARNING-20261013-QUALIFIED-CANDIDATE-BLOCKER

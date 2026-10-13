@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261013-REGIME-RESUME
 title: Resume bounded regime-aware forward research
-status: PREREGISTERED_INFRASTRUCTURE_VALIDATED
+status: LOCAL_VALIDATED_PENDING_CANONICAL_CI
 priority: P1
 authority_impact: none
 risk: MEDIUM
@@ -17,7 +17,7 @@ preregistration:
   strategy: sma-crossover
   short_window: 20
   long_window: 100
-  comparator: "Same SMA and canonical costs without regime entry filter; cash and buy-and-hold reported separately."
+  comparator: "Same SMA and canonical costs without the NEW upward-only research mask; existing StrategyEngine regime/Risk controls remain active in BOTH arms. Cash and buy-and-hold reported separately."
   classifier: "packages/core/src/regimePolicy.ts classifyPriceRegime, DEFAULT_REGIME_CONFIG at base_commit; no second classifier. trendLookback20,strongTrendReturn0.04,weakTrendReturn0.01,lowVolatility0.001,highVolatility0.01."
   exposure: "Research-only entry mask: STRONG_UPTREND or WEAK_UPTREND only; every other/undefined classification forbids new entries. Do not adopt regime risk multipliers or suppress exits."
   execution: "Closed candle evidence only, next-candle execution; same-candle attribution harness is infrastructure testing only."
@@ -42,5 +42,5 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   consecutive_loss_limit: unchanged_3
 remaining: "Forward candidate evaluator/collection binding, actual holdout evidence and canonical integration are pending; no runtime activation claimed."
-next: "Verify reused classifier/research infrastructure, then implement separately tested next-candle candidate evaluator and provenance using canonical Research contracts."
-validation: "32 existing regime policy/classifier/determinism/independent verifier tests actually PASS; validate:full PASS. Synthetic infrastructure tests are not candidate research or forward market evidence."
+next: "Implement offline Research entry mask and paired canonical backtest; tests must prove exits unchanged and no future access. No production registration."
+validation: "35 focused tests PASS including3 new entry-mask/canonical-pair regressions; build,typecheck,validate:full,security and lint PASS (15 existing warnings). Independent read-only review no actionable P0/P1/P2, not Audit approval. Synthetic tests are not forward market evidence."
