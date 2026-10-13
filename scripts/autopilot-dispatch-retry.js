@@ -1324,6 +1324,27 @@ function writeArtifacts(request, result) {
   }, null, 2));
 }
 
+/**
+ * Best effort: tells the Worker this coding attempt is over so its active-WIP claim is freed at once.
+ * Without it the GitHub Actions backend never released a claim and the next item waited up to an
+ * hour. Never changes the execution outcome or exit code.
+ */
+async function releaseActiveWipClaim(request, runnerUrl, fetchImpl = fetch) {
+  try {
+    const token = await oidcToken({ fetchImpl });
+    if (!token.ok) return { released: false, reason: token.reason };
+    const response = await fetchImpl(endpointFor(runnerUrl, "wip-release"), {
+      method: "POST",
+      headers: { authorization: "Bearer " + token.value, "content-type": "application/json" },
+      body: JSON.stringify({ dedupeKey: request.dedupeKey, executionId: request.executionId }),
+    });
+    const payload = await response.json().catch(() => null);
+    return { released: payload?.released === true, reason: typeof payload?.reason === "string" ? payload.reason : (typeof payload?.error === "string" ? payload.error : `http-${response.status}`) };
+  } catch (error) {
+    return { released: false, reason: error instanceof Error ? error.message : "wip-release-failed" };
+  }
+}
+
 async function main() {
   const startedAt = Date.now();
   let request;
@@ -1332,6 +1353,8 @@ async function main() {
     const runnerUrl = process.env.NUSA_CODING_RUNNER_URL;
     if (typeof runnerUrl !== "string" || !runnerUrl) throw new Error("AUTOPILOT_CODING_RUNNER_URL_MISSING");
     const result = await executeGithubActionsRunner(request, runnerUrl);
+    const wipRelease = await releaseActiveWipClaim(request, runnerUrl);
+    console.log(`wip_release=${wipRelease.released ? "released" : "not_released"} reason=${wipRelease.reason ?? "none"}`);
     writeArtifacts(request, result);
     console.log(`execution=${result.status} backend=github-actions-runner changed=${(result.changedFiles || []).join(",")}`);
     if (result.status === "FAILED_TO_REMEDIATE" || result.status === "FAILED_CLOSED") process.exitCode = 1;
@@ -1344,6 +1367,11 @@ async function main() {
       return;
     }
     const safeProposalFailure = proposalFailureCode(reason);
+    const runnerUrlForRelease = process.env.NUSA_CODING_RUNNER_URL;
+    if (typeof runnerUrlForRelease === "string" && runnerUrlForRelease) {
+      const wipRelease = await releaseActiveWipClaim(request, runnerUrlForRelease);
+      console.log(`wip_release=${wipRelease.released ? "released" : "not_released"} reason=${wipRelease.reason ?? "none"}`);
+    }
     const result = terminalFailureResult(request, error, startedAt);
     writeArtifacts(request, result);
     if (safeProposalFailure) {
@@ -1364,6 +1392,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  releaseActiveWipClaim,
   MAX_RETRY_DELAY_MS,
   MAX_REPORTED_QUOTA_RETRY_DELAY_MS,
   RETRY_JITTER_RATIO,

@@ -133,6 +133,16 @@ current_learning_completion_20261012:
   next: "Actual cycle/Research/successor receipts after natural KST boundary remain required; canonical runtime polls automatically."
   complete: false
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_aipos_state_insert_order:
+  work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/aipos-state-insert
+  authority_impact: none
+  finding: "Merge bottleneck: almost every PR appended to the end (or the top) of .aipos/state.yaml, so each merge left the other open PRs in conflict (71 state.yaml commits across 60 merges since 2026-10-10). New entries now go through scripts/aipos-state-insert.js, which places them before the entry whose name comes next in name order; six parallel additions to a copy of the real file merged with no conflict. AGENTS.md step 6 tells every agent to use it."
+  next: "Use pnpm run aipos:state-add for every new state entry."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_android_paper_runtime_truth_p0:
   work_order: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
   status: CANONICAL_BRANCH_RECOVERED_PENDING_EXACT_HEAD_CI
@@ -299,6 +309,16 @@ current_issue_2118_coverage_shard_rebalance:
   deployment: "CI-only diff; Cloudflare exact-main scope had no runtime delta and skipped Worker deploy; no Oracle application deployment required."
   remaining: "Coverage-shard rebalance subincrement complete. Broader CI p50/p95 and owner-latency plus worker WIP/throughput telemetry remain separate #2118/#2117/#903 work; do not infer WIP expansion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_wip_release_on_finish:
+  work_order: WO-AUTOPILOT-20261013-WIP-RELEASE-ON-FINISH
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-wip-release-on-finish
+  authority_impact: none
+  finding: "The GitHub Actions coding backend never released its active-WIP claim (completeActiveWip is only on the legacy /coding/execute path), so each attempt held the single slot until the 60-minute expiry. The execution consumer now calls an authenticated /coding/wip-release when its attempt ends, freeing the slot at once; the expiry remains the fallback. maxConcurrent stays 1 until successful coding throughput can be measured."
+  next: "After merge and deploy, check consumer logs for wip_release=released and that the next dispatch follows within minutes."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_autopilot_worker_deploy_scope:
   work_order: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
   status: MERGED_POST_MERGE_VALIDATION_AND_DEPLOY_SKIP_VERIFIED
@@ -2106,6 +2126,16 @@ current_pr1991_review_hardening:
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_workspace_dirty:
+  work_order: WO-AUTOPILOT-20261013-WORKSPACE-DIRTY
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-workspace-dirty
+  authority_impact: none
+  finding: "After the stale-WIP fix the first real backlog dispatch (run 38375920359, issue #2118) failed with CODING_RUNTIME_WORKSPACE_DIRTY before any proposal: the freshness step added on 2026-10-12 writes artifacts/autopilot-execution/cited-workflow-runs.json, which unlike its siblings was not git-ignored. It is now ignored; the clean check stays fail-closed for every other path."
+  next: "After merge, the next consumer run should reach the coding engine; observe whether it produces an acceptable proposal."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_autopilot_zero_credit_mode:
   work_order: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
   status: IN_PROGRESS
@@ -3232,6 +3262,13 @@ current_market_data_ticker_rejection_2068:
   next: "Focused regression, exact-head CI, Independent Audit and governed Release/merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_research_sma_60m_oos:
+  work_order: WO-RESEARCH-20261012-SMA-60M-OOS
+  status: READY_FOR_REVIEW
+  branch: claude/research-sma-oos-60m
+  authority_impact: none
+  finding: "On 117 days of public 60-minute candles, slow SMA settings that looked good in-sample (+16%) were all negative on the held-out 39 days (about -2.7%) after fees; fewer trades reduce fee loss but show no edge. Not promotion evidence."
+
 current_autopilot_preflight_credit_posture:
   work_order: WO-AUTOPILOT-20261012-PREFLIGHT-CREDIT-POSTURE
   status: READY_FOR_REVIEW
@@ -3317,6 +3354,15 @@ current_docs_assistant_handoff_20261013:
   handoff_file: .aipos/handoffs/2026-10-13-assistant-handoff.md
   finding: "Session handoff: redesign revision 2 merged as PROPOSED (#2650); P1 Autopilot fixes #2651 (repair only code-check failures, scheduled and webhook paths) and #2652 (three attempts per work item) are drafts with green CI awaiting a non-author review; open-PR inventory #2653 confirms #1922 and #2060 as superseded; #2311 closed by the owner so the PAPER initial-capital default stays KRW 10,000,000."
   next: "Owner: approve closing #1922 and #2060, review #2651/#2652 with the main Claude account, answer the six redesign decisions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_reconverge_audited_prs:
+  work_order: WO-AUTOPILOT-20261013-RECONVERGE-AUDITED-PRS
+  status: READY_FOR_REVIEW
+  branch: claude/reconverge-audited-prs
+  authority_impact: none
+  finding: "Release bottleneck: Audit declines a green PR as stale whenever another merge moves main first (#2651 and #2652 on 2026-10-13), and the reconverge step only updated autopilot/* branches. It now also merges current main into same-repository PRs whose current head Audit attempted within 24 hours, with every existing guard kept; PRs Audit never attempted are untouched."
+  next: "After merge, watch the next reconverge run update a stale-declined PR; state.yaml append conflicts remain a separate bottleneck."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_autopilot_repair_attempt_cap:

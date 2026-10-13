@@ -1,0 +1,39 @@
+id: WO-AIPOS-20261013-STATE-INSERT-ORDER
+title: "Insert new AIPOS state entries at their name-order position to stop merge conflicts"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/aipos-state-insert
+authority_impact: none
+owner_approval: "2026-10-13 in chat ('해' to the recommendation to insert state entries by name order instead of at the end)"
+scope_note: "A helper script, its tests, a package script and one AGENTS.md sentence. Existing entries are not reordered or edited; readers and validators do not depend on order. No code path, workflow, protection or authority change."
+objective: "Remove the merge bottleneck where every open PR appends to the same end (or the same top) of .aipos/state.yaml, so each merge left the other open PRs in conflict."
+evidence_of_problem:
+  - "Between 2026-10-10 and 2026-10-13, .aipos/state.yaml changed in 71 commits across 60 merges; on 2026-10-12/13 #2650, #2651 (twice), #2652, #2654 and #2586 each needed a manual merge only because of state.yaml."
+  - "Sessions appended at the end; other sessions inserted right after `version: 1`; both ends collided."
+scope:
+  include:
+    - "scripts/aipos-state-insert.js (insert one entry before the entry whose name comes next in name order; version stays first; duplicate, multi-key and invalid YAML entries rejected)"
+    - "tests/aipos-state-insert.test.js"
+    - "package.json (aipos:state-add)"
+    - "AGENTS.md (AIPOS recovery step 6: use the helper instead of appending)"
+  exclude:
+    - "Reordering or splitting the existing file, changing validators or readers."
+limitations:
+  - "Two new entries collide only when no existing entry sorts between their names, or when both sort after every existing name."
+  - "Agents that ignore AGENTS.md can still append at the end; the conflicts then return for those PRs only."
+acceptance:
+  - "On a copy of the real state file, six branches each adding an entry with the helper merged one after another with no conflict (manual git check), and tests show separate hunks for different names on sorted and unsorted files."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node --test tests/aipos-state-insert.test.js"
+  - "node scripts/validate-aipos-yaml.js"
+evidence:
+  remaining: "Exact-head CI, deterministic Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
