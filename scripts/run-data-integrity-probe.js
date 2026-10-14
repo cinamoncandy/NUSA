@@ -46,7 +46,15 @@ function probe({ db, now = Date.now() }) {
   return { status: fail ? "FAIL" : warn ? "WARN" : "PASS", ...out };
 }
 
-module.exports = { probe };
+/** Durable copy for the runtime (/health runtime.dataIntegrity reads it); written atomically next to the state DB. */
+const RESULT_FILE = "data-integrity-result.json";
+function writeResult(stateDbPath, result, observedAt = Date.now(), fs = require("node:fs"), pathLib = require("node:path")) {
+  const target = pathLib.join(pathLib.dirname(stateDbPath), RESULT_FILE);
+  fs.writeFileSync(`${target}.tmp`, JSON.stringify({ schemaVersion: 1, observedAt, ...result }));
+  fs.renameSync(`${target}.tmp`, target);
+}
+
+module.exports = { probe, writeResult, RESULT_FILE };
 
 if (require.main === module) {
   try {
@@ -54,6 +62,10 @@ if (require.main === module) {
     const path = String(process.env.NUSA_CLOUD_STATE_DB_PATH || "");
     if (!path.startsWith("/")) throw new Error("state path");
     const db = new DatabaseSync(path, { readOnly: true });
-    try { console.log("DATA_INTEGRITY", JSON.stringify(probe({ db }))); } finally { db.close(); }
+    try {
+      const result = probe({ db });
+      console.log("DATA_INTEGRITY", JSON.stringify(result));
+      writeResult(path, result);
+    } finally { db.close(); }
   } catch { console.error("DATA_INTEGRITY_FAILED_CLOSED"); process.exitCode = 1; }
 }
