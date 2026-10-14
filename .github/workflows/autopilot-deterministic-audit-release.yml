@@ -477,11 +477,36 @@ jobs:
           MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
         run: |
           set -euo pipefail
+          read_release_api() {
+            local response error_file attempt
+            error_file="$(mktemp)"
+            for attempt in 1 2 3; do
+              if response="$(gh api --method GET "$@" 2>"$error_file")"; then
+                rm -f "$error_file"
+                printf '%s' "$response"
+                return 0
+              fi
+              # Never retry auth/configuration/quota failures or print raw response data.
+              if grep -Eq 'HTTP (400|401|403|404|409|422|429)' "$error_file" || ! grep -Eq 'unexpected end of JSON input|unexpected EOF|connection reset|TLS handshake timeout|timed out|HTTP 50[0234]' "$error_file"; then
+                rm -f "$error_file"
+                echo '::error::RELEASE_API_READ_BLOCKED; no automatic retry for this failure category.' >&2
+                return 1
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "::warning::RELEASE_API_READ_TRANSIENT attempt $attempt/3; bounded read-only retry." >&2
+                sleep "$((attempt * 2))"
+              fi
+            done
+            rm -f "$error_file"
+            echo '::error::RELEASE_API_READ_RETRY_EXHAUSTED' >&2
+            return 1
+          }
           success=false
           for poll in $(seq 1 40); do
-            current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            current_main="$(read_release_api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            if ! [[ "$current_main" =~ ^[0-9a-f]{40}$ ]]; then echo '::error::RELEASE_MAIN_SHA_INVALID'; exit 1; fi
             if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced from $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."; exit 0; fi
-            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100")"
+            runs="$(read_release_api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100")"
             successful_run="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and .conclusion == "success")][0].id // empty' <<<"$runs")"
             if [ -n "$successful_run" ]; then echo "Post-merge CI SUCCESS recovered for $MERGED_MAIN via run $successful_run."; success=true; break; fi
             active_count="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and (.status == "queued" or .status == "in_progress" or .status == "pending"))] | length' <<<"$runs")"
@@ -499,10 +524,11 @@ jobs:
             sleep 20
           done
           if [ "$success" != "true" ]; then echo "::error::Post-merge CI for $MERGED_MAIN produced no successful attempt before timeout."; exit 1; fi
-          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          current_main="$(read_release_api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if ! [[ "$current_main" =~ ^[0-9a-f]{40}$ ]]; then echo '::error::RELEASE_MAIN_SHA_INVALID'; exit 1; fi
           if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced after CI recovery; newer convergence chain owns deployment."; exit 0; fi
 
-          deploy_runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/runs?head_sha=$MERGED_MAIN&per_page=100")"
+          deploy_runs="$(read_release_api "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/runs?head_sha=$MERGED_MAIN&per_page=100")"
           existing_deploy_run="$(jq -r --arg sha "$MERGED_MAIN" '
             [.workflow_runs[]
               | select(.path == ".github/workflows/autopilot-cloudflare-deploy.yml"
