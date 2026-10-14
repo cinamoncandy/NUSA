@@ -1,0 +1,26 @@
+id: WO-OPS-20261014-UPBIT-SOCKET-RETIREMENT
+title: Contain asynchronous errors on retired public Upbit sockets
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: 870452f6ef80007967d2431fcafe21fe6c4de89b
+implementation_branch: codex/upbit-retired-socket-error-20261014
+observed_gap: "Real Node ws child on loopback reproduced exit1 with unhandled WebSocket was closed before the connection was established; retired EventEmitter error also reproduced failure before fix."
+validation: "13 targeted tests,build,typecheck,validate:full,security:gate,lint and diff check PASS;24 pre-existing lint warnings. Full isolated suite running, not yet claimed PASS."
+review: "Independent read-only reviewer reran13 tests and found no actionable P0/P1/P2. Not Audit or Release approval."
+scope: "Retired public socket lifecycle only; preserve active error degradation, bounded reconnect and existing transport ownership."
+impact: "Prevent shutdown-induced unhandled errors without hiding active feed failures. Physical cause of prior deployment outages remains UNVERIFIED."
+verification_commands:
+  - pnpm run build
+  - node --test tests/upbit-websocket.test.js dist/apps/cloud/src/cloudRuntimeShutdown.test.js
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Exact-head canonical CI/Audit/Release then Oracle PAPER release/runtime verification. Full-suite result pending; outage initiating cause remains UNVERIFIED."
