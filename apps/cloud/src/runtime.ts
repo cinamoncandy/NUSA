@@ -23,6 +23,7 @@ import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitTrade, type UpbitWebSocketOptions } from "./upbitWebSocket";
 import type { MarketMicrostructureRecorder } from "./marketMicrostructureRecorder";
 import type { ResearchOrderBookCollector } from "./researchOrderBookCollector";
+import { readDataIntegrityResult } from "./dataIntegrityResult";
 import { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
@@ -593,6 +594,8 @@ export function startCloudRuntime(
   const researchIntervalLiveness = () => { let byInterval: Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }> | null = null; try { const raw = researchIntervalTicks?.() ?? null; if (raw != null) { byInterval = {}; for (const [key, value] of Object.entries(raw)) if (value != null) byInterval[key] = value; } } catch { byInterval = null; } return byInterval == null || Object.keys(byInterval).length === 0 ? {} : { researchExperimentTicksByInterval: byInterval }; };
   const paperLedgerLiveness = () => { try { const state = effectivePaperLoop?.snapshot(); return state == null ? {} : { paperLedger: paperLedgerFingerprint(state) }; } catch { return {}; } };
   const microstructureLiveness = () => { try { return microstructureRecorder == null ? {} : { microstructureRecorder: microstructureRecorder.status() }; } catch { return {}; } };
+  // Daily stored-data integrity probe result written by the host Research service (display only; read each /health).
+  const dataIntegrityLiveness = () => { try { const value = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readDataIntegrityResult(config.cloudStateDbPath); return value == null ? {} : { dataIntegrity: value }; } catch { return {}; } };
   const orderBookCollectorLiveness = () => { try { return orderBookCollector == null ? {} : { orderBookCollector: orderBookCollector.status() }; } catch { return {}; } };
   const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
   const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
@@ -682,6 +685,7 @@ export function startCloudRuntime(
       ...researchExperimentLiveness(),
       ...microstructureLiveness(),
       ...orderBookCollectorLiveness(),
+      ...dataIntegrityLiveness(),
       ...paperLedgerLiveness(),
       ...researchIntervalLiveness(),
       ...closedLearningLiveness()
