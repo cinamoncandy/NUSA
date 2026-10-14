@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const { EventEmitter } = require("node:events");
 const {
   normalizeUpbitMarkets,
@@ -17,6 +17,22 @@ const ticker = (overrides = {}) => ({
   trade_price: 100000000,
   trade_timestamp: 1000,
   ...overrides
+});
+
+test("retirement evidence binds the exact MARKET_DATA source without granting qualification", () => {
+  const { MODULE_QUALIFICATION_RECORDS_V1, isLevel10Qualified } = require("../dist/apps/cloud/src/moduleQualificationV1.js");
+  const record = MODULE_QUALIFICATION_RECORDS_V1.MARKET_DATA;
+  const blob = execFileSync("git", ["rev-parse", `HEAD:${record.sourceRef}`], { encoding: "utf8" }).trim();
+  assert.equal(record.sourceCommitSha, "7c5f75763e9bc3a673647dfa892a3a60d32967a9");
+  assert.equal(blob, "8b137a79820d06003479512b255731c227efa16d");
+  assert.equal(record.sourceBlobSha, blob);
+  assert.equal(isLevel10Qualified(record), false);
+  assert.equal(record.verificationAuthority, "INDEPENDENT_EVIDENCE_REQUIRED");
+  for (const [criterion, evidence] of Object.entries(record.criteria)) {
+    if (criterion === "CANONICAL_ENTRYPOINT") continue;
+    assert.equal(evidence.status, "UNVERIFIED", criterion);
+    assert.deepEqual(evidence.evidenceRefs, [], criterion);
+  }
 });
 
 test("stopping a real CONNECTING Node ws socket contains its asynchronous abort error", () => {
