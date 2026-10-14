@@ -29,3 +29,6 @@ Not changed: PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, ai
 6. Automatic review: on request only.
 
 None of these decisions changes LIVE, risk, capital or AI authority: PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY.
+
+## Revision 3 (2026-10-14, owner: "complete the redesign centered on Claude")
+With decision 2 revised, the two-account structure is dropped. One Claude working session on the owner's account fills CORE plus operations, research and AIPOS records; a separate fresh Claude session (same account allowed) is the VALIDATOR for code and workflow PRs under `docs/GRILL_ME_PROTOCOL.md`; AUTOPILOT and the deterministic Audit and release bot are unchanged. An unset `NUSA_AGENT_ROLE` now means CORE (no added authority: no merge, no approval). Handoffs are `.aipos/handoffs/<date>-main-handoff.md`. Next phases: P4 paid overflow off, P1 follow-up on #2651/#2652, P3 stale-PR list for owner approval. Details: `docs/CLAUDE_CENTERED_OPERATING_MODEL.md` §0.

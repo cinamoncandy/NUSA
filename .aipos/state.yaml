@@ -3450,7 +3450,8 @@ current_ops_claude_centered_decisions_20261014:
   decision: .aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md
   finding: "Owner accepted the Claude-centered operating model on 2026-10-14: roles adopted (design moves from ChatGPT to Claude), current repository and Worker token kept (GitHub App only if needed later), paid GPT-4.1 overflow off, Codex kept disabled, recommended P3 cleanup order, review on request only."
   p2: "CLAUDE.md, AGENTS.md Operating roles and master-instruction release-path merge wording updated in the same PR."
-  next: "P4 overflow-off work order. #2644 stays off."
+  revision_3: "One Claude working session is CORE plus operations/research/records; a fresh session reviews code PRs; unset NUSA_AGENT_ROLE means CORE."
+  next: "P4 overflow-off work order; P1 follow-up on #2651/#2652; P3 stale-PR list. #2644 stays off."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_claude_centered_redesign:

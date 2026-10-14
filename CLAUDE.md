@@ -5,10 +5,10 @@ Claude Code specifics and cannot override it.
 
 1. Start with the AIPOS recovery steps in `AGENTS.md` (`.aipos/aipos.yaml`, `.aipos/state.yaml`, the active work order).
    The repository, not the conversation, is the source of truth.
-2. Read the most recent handoff in `.aipos/handoffs/` (`<date>-<main|assistant>-handoff.md`, newest date first) for the
+2. Read the most recent handoff in `.aipos/handoffs/` (`<date>-main-handoff.md`, newest date first) for the
    current state and the next safe actions. Re-verify it on GitHub before acting.
-3. Know your role (`AGENTS.md`, "Operating roles"; `docs/CLAUDE_CENTERED_OPERATING_MODEL.md`). `NUSA_AGENT_ROLE=main`
-   is CORE; `assistant` is VALIDATOR/RESEARCH and operations. Unset means assistant: read and verify first.
+3. Know your role (`AGENTS.md`, "Operating roles"; `docs/CLAUDE_CENTERED_OPERATING_MODEL.md` §0). Unset or `main` is
+   CORE (design, implementation, operations, research, records); `validator`/`assistant` is a fresh review session.
 4. For autonomous engineering, CI/PR handling and deployment, follow `docs/NUSA_CORE_MASTER_INSTRUCTIONS.md`.
 5. Safety is not negotiable: PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`,
    `aiAuthority=ZERO_AUTHORITY`. Never merge or approve your own PR, never bypass Audit or Release, and never loosen

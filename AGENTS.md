@@ -113,15 +113,15 @@ Before changing code:
 
 Roles follow `docs/CLAUDE_CENTERED_OPERATING_MODEL.md` (ADR `ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL`, ACCEPTED). Design and implementation are Claude-centered; AIPOS and work orders stay vendor-neutral.
 
-- **CORE**: the main AI session on the owner's account. Design, medium and large implementation, review of the assistant's code PRs.
-- **VALIDATOR / RESEARCH (+ operations)**: the assistant AI session. Non-author review, operations checks, standing-approval PAPER deploys, offline research, AIPOS records, small fixes.
+- **CORE (+ operations, research, records)**: the Claude working session on the owner's account. Design, implementation, AIPOS records, operations checks, offline research, standing-approval PAPER deploys.
+- **VALIDATOR**: a separate fresh Claude session (same account allowed) that reviews code and workflow PRs it did not write.
 - **AUTOPILOT**: the Worker with Workers AI, limited to 150 changed lines in one file and allowed CI failures only.
 - **Gate (not AI)**: deterministic Audit and the release bot merge; no AI merges or approves its own PR.
-- A session learns its role from `NUSA_AGENT_ROLE` (`main` or `assistant`). If it is unset, act as the assistant and start with reading and verification.
+- A session learns its role from `NUSA_AGENT_ROLE` (`main`, or `validator`/`assistant` for a review session). If it is unset, act as CORE; every session starts with AIPOS recovery and verification, and no role may merge or approve.
 - Claim work by pushing a branch named after the work order before starting (no `agent/` prefix); search open PRs and branches with the same id first and leave existing work alone.
 - A PR that changes code or workflows opens as a **draft** and is reviewed by the role that did not write it, in a fresh session, under `docs/GRILL_ME_PROTOCOL.md`; blocking findings are inline review threads. The author marks it ready only after the review. Documentation-only `authority_impact: none` PRs use the lightweight path.
 - Automatic review on every PR is off; review runs on request. Codex workflows stay disabled and the paid GPT-4.1 overflow is off by owner decision.
-- Handoffs are per role: `.aipos/handoffs/<date>-<main|assistant>-handoff.md`. Read the most recent one.
+- Handoffs: `.aipos/handoffs/<date>-main-handoff.md` (older files may use other names). Read the most recent one.
 
 ## PR and CI noise prevention
 
