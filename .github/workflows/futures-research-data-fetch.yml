@@ -1,0 +1,41 @@
+name: Futures Research Data Fetch
+
+# READ-ONLY download of the public Binance USD-M history pre-registered in
+# docs/RESEARCH_PREREG_2026-10-14_FUTURES_REGIME_LONG_SHORT.md (design v1 B4). Dispatch by hand, from main only.
+# Runs scripts/futures-research-fetch.js on the PAPER host (the only place Binance public data is reachable, B0),
+# which GETs fixed public market-data paths with no header, key or signature. Output: one artifact with the raw
+# files and a SHA-256 manifest; nothing is written to the repository, the runtime or the host's state. PAPER only.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: futures-research-data-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    name: Fetch pre-registered public futures history
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 20
+    steps:
+      - name: Check out main (read-only)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Download public klines and funding history
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/futures-research-fetch.js "$RUNNER_TEMP/futures-research-data"
+      - name: Upload data and manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: futures-research-data
+          path: ${{ runner.temp }}/futures-research-data
+          if-no-files-found: error
+          retention-days: 30
