@@ -248,8 +248,8 @@ export function startCloudRuntime(
   const todayRealizedHeartbeat = (): { todayRealized?: PersonalPaperTodayRealized } => {
     try {
       const now = Date.now();
-      const fills = effectivePaperLoop?.snapshot().fills;
-      const realizedPnlKrw = fills == null ? null : computeTodayRealizedPnlKrw(fills, now);
+      const account = effectivePaperLoop?.snapshot();
+      const realizedPnlKrw = account == null ? null : computeTodayRealizedPnlKrw(account.fills, account.positions, now);
       return realizedPnlKrw == null ? {} : { todayRealized: Object.freeze({ realizedPnlKrw, evaluatedAt: now }) };
     } catch { return {}; }
   };

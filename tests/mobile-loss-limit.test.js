@@ -78,7 +78,7 @@ test("today's realized P&L reads as a signed won amount, only for today's KST da
 });
 
 test("today's P&L is computed from the PAPER loop's fills outside RISK and wired to the Now tab", () => {
-  assert.match(runtime, /computeTodayRealizedPnlKrw\(fills, now\)/);
+  assert.match(runtime, /computeTodayRealizedPnlKrw\(account\.fills, account\.positions, now\)/);
   assert.match(runtime, /\.\.\.todayRealizedHeartbeat\(\)/);
   assert.doesNotMatch(runtime, /dailyRealized\(\)/);
   assert.match(contract, /if \(record\.todayRealized !== undefined && !isValidTodayRealized\(record\.todayRealized\)\) delete record\.todayRealized;/);

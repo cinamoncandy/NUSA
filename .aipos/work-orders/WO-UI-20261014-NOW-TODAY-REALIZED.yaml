@@ -20,6 +20,7 @@ verification_commands:
   - "npx tsc -p tsconfig.json && node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/paperTodayRealized.test.js dist/apps/cloud/src/cloudPaperCanonicalRiskGateway*.test.js"
   - "node --test tests/mobile-loss-limit.test.js"
   - "node scripts/validate-architecture.js && node scripts/lint-mobile.js"
+fill_cap_guard: "Non-author review (2026-10-14): PAPER state keeps only the newest fills, so older buys of an open position can be dropped and the average entry would be silently wrong. The helper now rebuilds per-market quantity from the retained fills and returns null (line hidden) unless it equals the account's own position quantity for every market."
 residual: "The figure reflects the loop's in-memory fills at heartbeat time; device rendering is HUMAN_ENVIRONMENT_ONLY."
 safety:
   paper_only: true
