@@ -2,7 +2,8 @@ id: WO-OPS-20261014-PAID-OVERFLOW-OFF
 title: "Turn off the paid GitHub Models overflow by enforcing the existing zero-credit mode"
 status: LOCAL_HARDENING_VALIDATED_PENDING_FRESH_CI
 pull_request: 2699
-base_commit: 990cb28134feb82e3c9c4679274eb50316f88ba1
+base_commit: 99b219a960a86d7c5400cc158972461cec65e3b5
+base_validation: "Non-rewriting main merge to2bd4bcad;Binancepublicprobe delta independent. Fresh133runtime +36workflow/probe tests,build/typecheck/validate:full/lint/security/actionpins/inputsPASS;24existingwarnings. Full1218filesPASS beforethis independentbaseaddition,notclaimedrerunafter."
 review_blocker: "P1 resolvedlocally: missing/malformed posture defaultsENFORCED via shared readiness helper; both deployment guards reject invalidliteral. Red mockpaidcall1 reproducedbeforefix. Freshnon-author review no remainingP0/P1/P2; notAuditReleaseapproval."
 repair_scope: "Canonical readiness helper shared by runner and health; enforce unless explicitly validfalse. Deploy rejects invalid literal before wrangler call. Negative tests preserve paid-enabled tests using explicitfalse preconditions, not weakened assertions."
 validation: "124 runner/index/readiness +9 worker +31 workflow tests PASS;build/typecheck/validate:full/lint/security and action pin/input gates PASS,24 existing warnings. Full1218 isolated files PASS after historicalworker fixture correction. Original sandbox security AUDIT_UNAVAILABLE classification retained; authorizednetworkrerunPASS."

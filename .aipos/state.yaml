@@ -2391,6 +2391,8 @@ current_ops_paid_overflow_off_20261014:
   work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
   status: LOCAL_HARDENING_VALIDATED_PENDING_FRESH_CI
   branch: claude/p4-paid-overflow-off
+  base_commit: 99b219a960a86d7c5400cc158972461cec65e3b5
+  base_validation: "Fresh133runtime/36workflow-probe andallrecordedgatesPASS aftermainmerge. Full1218 priorbasePASS;currentfullshardCIstillrequired."
   validation: "Fresh reviewer P1 unverifiedposture could spend: redmockcall1 reproduced,sharedhelper defaultENFORCED/Deployreject repaired.124runtime+9worker+31workflow andbuild/typecheck/validate:full/lint/security PASS. Full1218 isolated filesPASS;historicalfixture assertionspreserved, explicitfalse preconditions."
   next: "Non-author review, exact-head CI, Audit/Release; then confirm /health zeroCreditMode ENFORCED."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
