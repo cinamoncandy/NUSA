@@ -573,8 +573,8 @@ test("/health publishes the microstructure recorder counters as non-negative int
 });
 
 test("/health publishes the all-KRW order-book collector counters as non-negative integers only", async () => {
-  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, orderBookCollector: { rounds: 3, markets: 240, samplesStored: 700, failures: 1, lastRoundAt: 1_791_900_000_000, note: "x" } }) }, async (handle) => {
-    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, { rounds: 3, markets: 240, samplesStored: 700, failures: 1, lastRoundAt: 1_791_900_000_000 });
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, orderBookCollector: { rounds: 3, markets: 240, samplesStored: 700, failures: 1, rejected: 4, lastRoundAt: 1_791_900_000_000, note: "x" } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, { rounds: 3, markets: 240, samplesStored: 700, failures: 1, rejected: 4, lastRoundAt: 1_791_900_000_000 });
   }, 42350);
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, orderBookCollector: { rounds: 1.5, markets: 1, samplesStored: 0, failures: 0 } }) }, async (handle) => {
     assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, undefined);
