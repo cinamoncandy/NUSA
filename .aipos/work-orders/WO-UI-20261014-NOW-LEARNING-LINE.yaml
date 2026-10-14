@@ -9,7 +9,8 @@ parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
 authority_impact: none
 owner_approval: "2026-10-14 in chat: design v1 accepted (Now tab four answers); current calm design kept; 'continue'."
 change:
-  - "apps/mobile/src/nowView.tsx: one muted line '배우고 있나 · <buildLearningLine(snapshot.research)>' (attention colour when the model warns), hidden when the snapshot is stale or blocked."
+  - "apps/mobile/src/learningLineModel.ts: buildNowLearningLine, a short plain-words variant (no champion/challenger or promotion jargon; null when research is not reported)."
+  - "apps/mobile/src/nowView.tsx: one line after the P&L, loss-limit and why lines, attention colour when it warns, hidden when stale/blocked."
 not_changed: "No new data, model or server change; buildLearningLine is the same model the HOME detail view already uses."
 remaining: "The Autopilot status line needs a server-side read of the Worker health and is a separate work order."
 verification_commands:
