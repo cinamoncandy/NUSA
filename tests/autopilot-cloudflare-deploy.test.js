@@ -2,10 +2,27 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const { spawnSync } = require("node:child_process");
+const yaml = require("js-yaml");
 const { readNulDelimitedPaths, selectLastSuccessfulDeploymentSha, workerRuntimeChanged } = require("../scripts/autopilot-worker-deploy-scope");
 
 const workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "autopilot-cloudflare-deploy.yml"), "utf8");
 const readiness = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "cloudflare-deployment-readiness.yml"), "utf8");
+
+test("missing or malformed credit posture stops before deployment or health acceptance", () => {
+  const steps = yaml.load(workflow).jobs.deploy.steps.filter(step => /^(Deploy exact CI-verified revision|Verify deployed Worker reports)/.test(step.name ?? ""));
+  assert.equal(steps.length, 2);
+  for (const step of steps) for (const posture of [undefined, "", "tru", "1", "falsejunk"]) {
+    const env = { ...process.env, HEAD_SHA: "a".repeat(40) };
+    if (posture === undefined) delete env.NUSA_ZERO_CREDIT_MODE;
+    else env.NUSA_ZERO_CREDIT_MODE = posture;
+    const result = spawnSync("bash", ["-c", `pnpm() { echo UNEXPECTED_DEPLOY; }; curl() { echo UNEXPECTED_NETWORK; }; ${step.run}`], { encoding: "utf8", timeout: 5000, env });
+    assert.ifError(result.error);
+    assert.equal(result.status, 1, `${step.name}:${posture}`);
+    assert.match(result.stdout, /ZERO_CREDIT_POSTURE_INVALID/);
+    assert.doesNotMatch(result.stdout, /UNEXPECTED_DEPLOY|UNEXPECTED_NETWORK/);
+  }
+});
 
 test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /workflow_run:\s*\n\s*workflows: \[CI\]/);

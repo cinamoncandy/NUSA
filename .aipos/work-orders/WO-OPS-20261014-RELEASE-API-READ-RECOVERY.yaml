@@ -1,6 +1,13 @@
 id: WO-OPS-20261014-RELEASE-API-READ-RECOVERY
 title: Bound transient GitHub read recovery after canonical merge
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: INTEGRATED_CANONICAL_RELEASE_VERIFIED
+pull_request: 2707
+pr_exact_head: 5e281fbdb05c42a6996f71d93070dc634657ba8c
+merge_commit: 990cb28134feb82e3c9c4679274eb50316f88ba1
+exact_head_ci: "38516904650 and companionsPASS."
+audit_release: "38517696695 audit/release and entireworkflowPASS; canonicalbotmerge."
+post_merge_ci: "38517809450PASS. CloudflareDeploy38518266302PASS; workflow-only scope may skip Worker deployment, not exact-runtime-SHA proof."
+runtime_limit: "No production transient EOF artificially induced. Local negative/recovery tests prove bounded semantics; real transient retry remains future evidence."
 priority: P1
 risk: MEDIUM
 authority_impact: none

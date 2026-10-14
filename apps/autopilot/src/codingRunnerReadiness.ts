@@ -3,6 +3,11 @@
  * request, so an INTERFACE_READY result says exactly which configuration is missing instead of only
  * "not configured". It checks presence, never values, grants nothing and never reads a secret.
  */
+/** Paid inference requires an explicit opt-out; unknown posture never authorizes spend. */
+export function isZeroCreditModeEnforced(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() !== "false";
+}
+
 export interface CodingRunnerReadinessInput {
   readonly hasWorkersAiBinding: boolean;
   readonly hasConfiguredEngine: boolean;
