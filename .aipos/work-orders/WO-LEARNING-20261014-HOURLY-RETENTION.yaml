@@ -1,0 +1,28 @@
+id: WO-LEARNING-20261014-HOURLY-RETENTION
+title: Preserve bounded hourly PAPER evidence horizon
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+validation: "Actual red runtime regression100!=720 reproduced. Minimal composition fix passed26 focused tests;build,typecheck,validate:full,security:gate,lint,diff check PASS.23 existing lint warnings. No full local suite claimed for this increment."
+review: "Independent read-only review reran26 focused tests; no actionable P0/P1/P2. Not Audit approval."
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: 51d3ef11a38daa4710fa8ef4b16db28acf56924b
+observed_gap: "Cloud runtime omits maximumPeriods; constructor and close prune to100. At nominal one-hour periods only4.16 days survive, below existing30 covered-day requirement."
+scope: "Existing Cloud composition sets existing producer maximumPeriods to1000. No new store, schema, timer, qualification rule, Risk or cadence change. Same budget in daily mode so changing cadence does not shrink saved hourly evidence. Standalone producer explicit/default policy unchanged."
+impact: "Make genuine30-day hourly evidence accumulation possible without hourly-as-day inflation. No candidate or performance improvement claimed."
+cost: "Bounded1000 instead of100 realized envelopes; up to10x current window storage/replay load. No unlimited retention or new API calls. Production resource impact remains UNVERIFIED until observed."
+compatibility: "Envelope schema unchanged. Previously pruned evidence cannot be invented/recovered. Downlevel Cloud binary still prunes100: rollback must use retention-aware target or preserve/restore full evidence backup before its pruning; no destructive rollback is authorized by this work order."
+research_observation: "Read-only diagnostic38489815161PASS: Research LastTrigger2026-10-14T00:17:57Z, forward execution log proof unavailable. Do not equate timer trigger with successful study."
+verification_commands:
+  - pnpm run build
+  - node --test tests/cloud-runtime-paper-period-wiring.test.js dist/apps/cloud/src/paperRealizedPeriodProducer.test.js dist/apps/cloud/src/canonicalPaperCandidatePerformance.test.js
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Exact-head CI and independent Audit/Release; actual production horizon/resource behavior remains future evidence."

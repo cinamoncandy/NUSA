@@ -271,6 +271,9 @@ export function startCloudRuntime(
   let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
+      // Thirty nominal hourly days need 720 records; the independent covered-day gate is unchanged.
+      // Keep the same bounded budget after cadence changes instead of shrinking hourly history to 100.
+      maximumPeriods: 1_000,
       onLifecycleEvent: (event) => paperLearningRecorder.record({
         cycleId: `paper-period:${event.periodId}`,
         stage: event.type,
