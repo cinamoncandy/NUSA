@@ -63,7 +63,7 @@ current_upbit_socket_retirement_20261014:
   work_order: WO-OPS-20261014-UPBIT-SOCKET-RETIREMENT
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: codex/upbit-retired-socket-error-20261014
-  validation: "Red retirement reproduced. Initial full suite/CI failed exact-source pin; rebound committed source without qualification promotion. Fresh19 targeted tests,1213 isolated files,build/typecheck/validate:full/security/lint PASS,24 existing warnings. Fresh independent review no findings."
+  validation: "Red retirement reproduced; exact-source pin repaired without promotion. Canonical base equality gate required merge2904e335:22 focused tests,1214 isolated files,build/typecheck/validate:full/security/lint PASS,24 existing warnings. Fresh review no findings. OldheadCI38494839917PASS not current approval."
   next: "Exact-head canonical CI/Audit/Release; no active error or authority relaxation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 

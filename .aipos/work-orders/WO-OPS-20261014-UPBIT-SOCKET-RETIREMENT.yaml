@@ -4,12 +4,12 @@ status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P1
 risk: MEDIUM
 authority_impact: none
-base_commit: 870452f6ef80007967d2431fcafe21fe6c4de89b
+base_commit: 2904e33536b3be6be63438d1f0ab727165019712
 implementation_branch: codex/upbit-retired-socket-error-20261014
 observed_gap: "Real Node ws child on loopback reproduced exit1 with unhandled WebSocket was closed before the connection was established; retired EventEmitter error also reproduced failure before fix."
 validation: "Initial full suite and CI38493971347 failed module10XS exact-source pin. Minimal pin rebind to actual committed7c5f7576/blob8b137a79; qualification remains TARGET_ONLY, non-entrypoint criteria UNVERIFIED. Fresh19 focused tests,1213 isolated test files,build,typecheck,validate:full,security:gate,lint PASS;24 existing warnings. No assertion weakened."
 review: "Fresh independent read-only review reran19 tests, checked shallow-checkout-compatible exact HEAD blob test; no actionable P0/P1/P2. Not Audit or Release approval."
-base_freshness: "Main2904e335 adds independent Research orderbook collector; no core transport/pin overlap, active error semantics unchanged, PR mergeable. Preserve validated head unless canonical gate requires refresh."
+base_freshness: "Canonical Audit checks current_base==current_main, so non-rewriting merge2904e335 required. Synchronized local7bea24b4 passed22 focused tests,1214 isolated files,build/typecheck/validate:full/security/lint;24 existing warnings. Fresh reviewer reran22tests, no findings. Old-head CI38494839917PASS is not new-head approval."
 scope: "Retired public socket lifecycle only; preserve active error degradation, bounded reconnect and existing transport ownership."
 impact: "Prevent shutdown-induced unhandled errors without hiding active feed failures. Physical cause of prior deployment outages remains UNVERIFIED."
 verification_commands:
@@ -26,4 +26,4 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: "Exact-head canonical CI/Audit/Release then Oracle PAPER release/runtime verification. Full-suite result pending; outage initiating cause remains UNVERIFIED."
+next: "Fresh synchronized exact-head canonical CI/Audit/Release then Oracle PAPER release/runtime verification. Outage initiating cause remains UNVERIFIED."
