@@ -977,7 +977,8 @@ current_design_claude_v1_20261014:
   authority_impact: none
   design: docs/NUSA_CLAUDE_DESIGN_V1.md
   finding: "Intraday SMA loses to fees; 186-189 configs with 0 holdout passes, first-screen passes only on daily bars; learning loop 0/7 for lack of a qualified candidate. Design: slow-bar regime research, forward-run wiring, Binance futures as a separate PAPER-only domain (data access first, then contracts, simulator, own risk gate), owner Now-tab with four answers, repository simplification."
-  next: "Owner decides adoption, futures risk limits, research direction and baseline handling."
+  owner_decisions: "2026-10-14 all as recommended: adopted; futures 2x/isolated/25%/loss-3; slow-bar regime research; baseline unchanged."
+  next: "Step 1: Now tab shows consecutive-loss stop and today P&L; then forward-run wiring, Binance data probe, simplification."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_deterministic_coding_patches:

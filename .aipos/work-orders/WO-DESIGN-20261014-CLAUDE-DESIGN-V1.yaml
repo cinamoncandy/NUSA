@@ -10,11 +10,13 @@ authority_impact: none
 owner_approval: "2026-10-14 in chat: 'until now ChatGPT designed; this time you do it', 'do all of it as you like', and 'add Binance futures trading'."
 scope_note: "Design document only. No code, workflow, strategy, risk, credential or authority change. Binance futures is PAPER-only with public data; no API key or live path."
 design: docs/NUSA_CLAUDE_DESIGN_V1.md
-owner_decisions_pending:
-  - "Adopt the design and its execution order 1-5"
-  - "Futures risk limits (proposed: max leverage 2x, isolated margin, 25% liquidation distance, consecutive-loss 3)"
-  - "Move research to slow-bar (240m/daily) regime-aware families"
-  - "Keep the owner baseline strategy unchanged (recommended) or change it"
+owner_decisions:
+  decided_at: "2026-10-14 in chat: '다 추천대로' (all as recommended)"
+  accepted:
+    - "Design adopted; execution order 1-5 may proceed"
+    - "Futures risk limits: max leverage 2x, isolated margin only, liquidation distance >= 25%, consecutive-loss 3"
+    - "Research moves to slow-bar (240m/daily) regime-aware families"
+    - "Owner baseline strategy unchanged"
 limitations:
   - "Runtime /health endpoints were not reachable from this session (proxy 403); facts come from repository records."
   - "Binance public API returned HTTP 451 in an earlier research run; data access from the PAPER host is unverified."
