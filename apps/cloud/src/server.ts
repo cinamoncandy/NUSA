@@ -470,6 +470,9 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         meta.exhausted = rawMeta.exhausted;
         meta.recommendedPrerequisites = rawMeta.recommendedPrerequisites;
         meta.steeringMode = rawMeta.steeringMode;
+        if (Number.isSafeInteger(rawMeta.paperPeriodsConsumed) && Number(rawMeta.paperPeriodsConsumed) >= 0) meta.paperPeriodsConsumed = Number(rawMeta.paperPeriodsConsumed);
+        for (const key of ["paperNetBp", "paperExcessBp"] as const) if (Number.isSafeInteger(rawMeta[key]) && Math.abs(Number(rawMeta[key])) <= 1_000_000) meta[key] = Number(rawMeta[key]);
+        if (typeof rawMeta.paperEvidenceFingerprint === "string" && /^[a-f0-9]{64}$/.test(rawMeta.paperEvidenceFingerprint)) meta.paperEvidenceFingerprint = rawMeta.paperEvidenceFingerprint;
         if (Number.isSafeInteger(rawMeta.overfitRatePercent) && Number(rawMeta.overfitRatePercent) >= 0 && Number(rawMeta.overfitRatePercent) <= 100) meta.overfitRatePercent = Number(rawMeta.overfitRatePercent);
         if (typeof rawMeta.recommended === "string" && COMBO.test(rawMeta.recommended)) meta.recommended = rawMeta.recommended;
         loop.metaLearning = meta;

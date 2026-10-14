@@ -51,6 +51,8 @@ export type ClosedLearningMetaLearningStatus = Readonly<{
   recommendedPrerequisites: string; nextHoldoutBarMicros: number; runtimeEntries: number; liveForwardEntries: number;
   /** Runtime steering: longer-bar Research orchestrators tick every longBarTickEvery-th scheduled tick. */
   steeringMode: "NORMAL" | "DEPRIORITIZE_EXHAUSTED"; longBarTickEvery: number;
+  /** Performance Evidence N consumed by meta-learning: realized canonical PAPER baseline periods and their identity. */
+  paperPeriodsConsumed: number; paperNetBp?: number; paperExcessBp?: number; paperEvidenceFingerprint?: string;
 }>;
 
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
