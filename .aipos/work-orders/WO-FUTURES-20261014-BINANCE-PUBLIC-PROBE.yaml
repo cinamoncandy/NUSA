@@ -1,0 +1,26 @@
+id: WO-FUTURES-20261014-BINANCE-PUBLIC-PROBE
+title: "B0: read-only probe of Binance USD-M futures public data from the PAPER host"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/binance-public-probe
+parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted 'all as recommended' (step 3, B0 Binance public data access)."
+objective: "Learn whether the PAPER host can read Binance futures public market data before any futures contract or simulator work."
+change:
+  - ".github/workflows/binance-futures-public-probe.yml: workflow_dispatch only, contents read, no secrets, no actions, no checkout; four bounded GETs of public paths; prints status codes, sizes and allowlisted fields."
+  - "tests/binance-futures-public-probe-workflow.test.js pins those properties and forbids private/order endpoints."
+why_host: "This session's network policy blocks fapi.binance.com (proxy 403), and an earlier research run saw HTTP 451; only the PAPER host can answer."
+next: "After merge, dispatch once by hand (owner, or a session with workflow dispatch access) and record the status codes in this work order."
+verification_commands:
+  - "node --test tests/binance-futures-public-probe-workflow.test.js"
+  - "node scripts/validate-workflow-authority-map.js && node scripts/validate-workflow-action-pins.js && node scripts/validate-workflow-action-inputs.js"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  credentials: NONE
+  fail_closed: true

@@ -1,0 +1,46 @@
+name: Binance Futures Public Data Probe
+
+# READ-ONLY reachability probe for design v1 step B0 (docs/NUSA_CLAUDE_DESIGN_V1.md §3). Dispatch by hand only.
+# It checks whether the PAPER host can read Binance USD-M futures PUBLIC market data (ping, mark price/funding,
+# funding history, 4h klines). It takes no secrets, sends no API key or header, checks out no repository code,
+# places no order and writes nothing on the host except bounded probe files under /tmp. It prints only HTTP
+# status codes, byte counts and a few allowlisted public fields. An earlier research run saw HTTP 451 (region
+# block), so 451/403 here is an expected, reportable answer, not a failure of this job. PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: binance-futures-public-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Read-only Binance futures public data probe
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 3
+    steps:
+      - name: Probe public endpoints (status, size and allowlisted fields only)
+        shell: bash
+        run: |
+          set +e
+          echo "== time"; date -u +%FT%TZ
+          for path in "/fapi/v1/ping" "/fapi/v1/premiumIndex?symbol=BTCUSDT" "/fapi/v1/fundingRate?symbol=BTCUSDT&limit=3" "/fapi/v1/klines?symbol=BTCUSDT&interval=4h&limit=3"; do
+            code="$(curl -sS -m 8 --max-filesize 65536 -o /tmp/nusa-binance-probe.json -w '%{http_code}' "https://fapi.binance.com${path}" 2>/dev/null)"
+            size="$(wc -c < /tmp/nusa-binance-probe.json 2>/dev/null || echo 0)"
+            echo "== ${path%%\?*} http=${code:-000} bytes=${size}"
+            node -e '
+              const fs = require("node:fs");
+              let value;
+              try { value = JSON.parse(fs.readFileSync("/tmp/nusa-binance-probe.json", "utf8").slice(0, 65536)); } catch { process.exit(0); }
+              const pick = (o) => o && typeof o === "object" && !Array.isArray(o)
+                ? Object.fromEntries(["symbol", "markPrice", "lastFundingRate", "nextFundingTime", "fundingRate", "fundingTime", "code", "msg"].filter((k) => k in o).map((k) => [k, String(o[k]).slice(0, 80)]))
+                : Array.isArray(o) ? { kind: "row", fields: o.length } : {};
+              const out = Array.isArray(value) ? { rows: value.length, first: pick(value[0]) } : pick(value);
+              console.log(JSON.stringify(out).slice(0, 600));
+            '
+          done
+          echo "== verdict: http=200 on all four means B0 can proceed; 451/403 means futures stays research-only on stored data"
