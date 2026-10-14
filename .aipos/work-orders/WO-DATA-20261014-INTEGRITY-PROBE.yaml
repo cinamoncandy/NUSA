@@ -1,0 +1,19 @@
+id: WO-DATA-20261014-INTEGRITY-PROBE
+title: "Runtime evidence of stored research data: daily read-only integrity probe (candles, order books, trades)"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P1
+authority_impact: none
+domain: "Public Market Data / Data & Research Integrity"
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/data-integrity-probe
+reason: "No runtime evidence existed for the stored research data itself: /health reports counts only, and the host DB is not readable from a session. Gaps, future rows, misaligned candle close times, inconsistent OHLC and crossed books could go unnoticed."
+change: "scripts/run-data-integrity-probe.js (read-only, node:sqlite readOnly) prints DATA_INTEGRITY {status PASS|WARN|FAIL, integer fields}; FAIL on future rows (> 5 s skew), misaligned candles, inconsistent OHLC, crossed books; WARN on missing candles in 7 days or a 1-minute series older than 10 minutes. run-cloud-research-snapshot spawns it daily (120 s timeout, never blocks Research); oracle-host-diagnose publishes it as data_integrity= (status plus safe integers only)."
+unchanged: "Evidence only: gates nothing, changes no data, no PAPER/Risk/Governance/authority change."
+validation: "run-data-integrity-probe 3, run-cloud-research-snapshot 8, oracle-host-diagnose-workflow 5 pass; YAML parses; bash -n of the annotation step."
+next: "After deploy and the next nusa-research run (09:15 KST), dispatch oracle-host-diagnose and read data_integrity; any FAIL becomes the data domain's FIRST_BROKEN_TRANSITION."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
