@@ -1,0 +1,29 @@
+id: WO-UI-20261014-NOW-LOSS-LIMIT
+title: "Now tab says when the consecutive-loss limit has paused buying"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/now-tab-loss-limit
+parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted 'all as recommended'; step 1 (Now tab four answers)."
+objective: "The owner sees in plain Korean that today's consecutive losses reached the limit and buying resumes at KST midnight, instead of an unknown reason."
+change:
+  - "packages/contracts: optional display-only heartbeat.lossLimit {consecutiveLossCount, maxConsecutiveLosses, evaluatedAt}; malformed values are dropped, never rejecting the snapshot."
+  - "apps/cloud/src/runtime.ts: heartbeat copies the canonical risk gateway's lossSession() counts; a failing read is ignored."
+  - "apps/mobile/src/lossLimitModel.ts + nowView.tsx: amber line when reached (STOPPED) or one loss before (WARNING); evaluations from an earlier KST day are not shown."
+not_changed: "The risk gateway, limit value (3), reset rule and every decision path are untouched. Display only."
+review_corrections: "2026-10-14 independent review: (P0) an earlier revision added a display accessor to cloudPaperCanonicalRiskGateway.ts, which changes the pinned RISK requalification blob; the earlier local claim that the requalification test passed was wrong (the test reads the committed HEAD blob and was run before the commit). The gateway is now byte-identical to main and today's realized P&L is removed from this PR. (P1) The STOPPED line no longer promises a midnight restart when another stop (halt, kill switch) is in force."
+after_midnight: "After KST midnight the line disappears even before the gateway's first new evaluation. That is correct (the limit has reset); a missing line then means 'no pause today', not lost data (non-author review note, 2026-10-14)."
+remaining: "Today's realized P&L must be computed outside the RISK gateway (separate work order). Learning and Autopilot lines are later steps."
+verification_commands:
+  - "npx tsc -p tsconfig.json && npx tsc -p apps/mobile/tsconfig.json --noEmit"
+  - "node --test tests/mobile-loss-limit.test.js"
+  - "node --test $(grep -rl -e nowView -e personalPaperOperations -e cloud/src/runtime -e readHeartbeat -e lossSession tests --include=*.js)"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
