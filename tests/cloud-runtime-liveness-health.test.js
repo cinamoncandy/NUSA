@@ -580,3 +580,12 @@ test("/health publishes the all-KRW order-book collector counters as non-negativ
     assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, undefined);
   }, 42351);
 });
+
+test("/health publishes the stored-data integrity result as a status plus non-negative integers only", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, dataIntegrity: { status: "FAIL", observedAt: 1_792_000_000_000, candleFuture: 1, note: "x", bad: -2 } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, { status: "FAIL", observedAt: 1_792_000_000_000, candleFuture: 1 });
+  }, 42352);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, dataIntegrity: { status: "GOOD", candleFuture: 0 } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, undefined);
+  }, 42353);
+});

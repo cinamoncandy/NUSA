@@ -58,3 +58,12 @@ test("gaps warn; future, misaligned, inconsistent and crossed rows fail", () => 
     assert.equal(r[field], 1, field);
   }
 });
+
+test("the result is written atomically beside the state database for /health", () => {
+  const fs = require("node:fs"); const os = require("node:os"); const path = require("node:path");
+  const { writeResult, RESULT_FILE } = require("./run-data-integrity-probe.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-probe-"));
+  writeResult(path.join(dir, "cloud-state.db"), { status: "PASS", candleSeries: 2 }, 123);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, RESULT_FILE), "utf8")), { schemaVersion: 1, observedAt: 123, status: "PASS", candleSeries: 2 });
+  assert.equal(fs.existsSync(path.join(dir, `${RESULT_FILE}.tmp`)), false);
+});
