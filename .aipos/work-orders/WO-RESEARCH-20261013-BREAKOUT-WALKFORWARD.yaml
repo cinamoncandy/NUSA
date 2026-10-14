@@ -1,0 +1,37 @@
+id: WO-RESEARCH-20261013-BREAKOUT-WALKFORWARD
+title: "Research note: walk-forward and regime screen of the long-only breakout"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: claude/research-sma-oos-60m
+branch: claude/research-breakout-walkforward
+authority_impact: none
+owner_approval: "2026-10-12 in chat ('돌파 계열 구간별 검증 진행해')"
+scope_note: "Documentation plus one read-only offline script that reads the frozen 250-day 60-minute close file already in the stacked PR. No runtime code, config, threshold or strategy change; not promotion evidence."
+objective: "Separate a genuine breakout edge from dependence on one rally by simulating three settings independently over six consecutive windows with a pass rule fixed before the run."
+scope:
+  include:
+    - "docs/RESEARCH_NOTE_2026-10-13_BREAKOUT_WALKFORWARD.md"
+    - "scripts/offline-breakout-walkforward.js (reads a frozen file, default or first argument, no network, no writes)"
+    - "docs/research-data/2026-10-13-upbit-60m-closes-prior-383d.json (sha256 22ba26818115125d5699b36484d6ea5c743d4a923fbfccdbe132a12ba734f4c0): about 383 days before the 250-day file, never used before; same rule re-applied unchanged"
+  exclude:
+    - "Any runtime, config, threshold or strategy change; promoting or deploying a candidate."
+limitations:
+  - "The prior-year file is genuinely unseen data (outside the earlier 250 days) and gives the same result, but both periods cover a similar down-up-down market cycle and the regime split is made after the fact."
+  - "The settings were seen in aggregate in the previous note, so this is a robustness check rather than an untouched out-of-sample test. About 250 days, five markets, one signal family, long only, close fills; one large rally window drives the result. Six windows are too few for a statistical conclusion."
+  - "Stacked on #2633 because it reads that PR's frozen data file; retarget to main after #2633 merges."
+acceptance:
+  - "The script reproduces the note's tables from the frozen input; the note states the pre-registered pass rule, the result for every setting (none passes) and what it does not prove."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/offline-breakout-walkforward.js"
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Exact-head CI, independent Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
