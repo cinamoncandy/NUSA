@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildMetaLearningStatus, shadowForwardEntry } from "./researchMetaLearningRuntime";
+import { buildMetaLearningStatus, paperLedgerForwardEntry, shadowForwardEntry } from "./researchMetaLearningRuntime";
 import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
 import { META_DEPRIORITIZED_TICK_EVERY, META_STEERING_NORMAL, metaLearningSteering } from "../../../packages/contracts/src/researchMetaLearning";
 
@@ -31,6 +31,24 @@ describe("runtime research meta-learning", () => {
     assert.equal(metaLearningSteering({ exhausted: all }, 1).mode, "NORMAL", "no recommendation: keep every tick");
     assert.equal(metaLearningSteering({ exhausted: all, recommended: "TRADES+INTRADAY+ALL_KRW+ML" }, 10).mode, "NORMAL", "an all-KRW runtime grid is a different universe");
     assert.deepEqual(metaLearningSteering(undefined, 1), META_STEERING_NORMAL);
+  });
+
+  it("realized canonical PAPER periods feed meta-learning with an identifying fingerprint and no extra configuration", () => {
+    const periods = Array.from({ length: 12 }, (_, i) => ({ recordId: `p${i}`, netReturn: -0.001, benchmarkReturn: 0.0005, outcomeFingerprint: "f".repeat(64) }));
+    const base = { ledger: RESEARCH_LEDGER_SNAPSHOT, researchMarkets: 1 };
+    const without = buildMetaLearningStatus(base);
+    const status = buildMetaLearningStatus({ ...base, paperPeriods: periods });
+    assert.equal(status.paperPeriodsConsumed, 12);
+    assert.equal(status.paperNetBp, -10);
+    assert.equal(status.paperExcessBp, -15);
+    assert.match(status.paperEvidenceFingerprint ?? "", /^[a-f0-9]{64}$/);
+    assert.equal(status.configurations, without.configurations, "the ledger is the same rule: no configuration added");
+    assert.equal(status.experiments, without.experiments + 1);
+    assert.equal(buildMetaLearningStatus({ ...base, paperPeriods: [...periods].reverse() }).paperEvidenceFingerprint, status.paperEvidenceFingerprint, "order-independent identity");
+    const winning = Array.from({ length: 20 }, (_, i) => ({ recordId: `w${i}`, netReturn: 0.002, benchmarkReturn: 0.001 }));
+    assert.equal(paperLedgerForwardEntry(winning)?.entry.holdoutPass, 1);
+    assert.equal(paperLedgerForwardEntry(winning.slice(1))?.entry.holdoutPass, 0, "fewer than 20 periods never pass");
+    assert.equal(paperLedgerForwardEntry([{ recordId: "x", netReturn: Number.NaN, benchmarkReturn: 0 }]), undefined);
   });
 
   it("a live shadow passes only with at least 50 round trips and a positive net after fees", () => {

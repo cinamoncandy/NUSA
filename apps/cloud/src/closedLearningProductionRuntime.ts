@@ -415,6 +415,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
           runtimeTicksByInterval: researchExperiments?.experimentTicksByInterval() ?? null,
           researchMarkets: (env.NUSA_RESEARCH_MARKETS ?? "KRW-BTC").split(",").filter((m) => m.trim() !== "").length,
           ...(baselineShadow == null ? {} : { shadow: baselineShadow.summary() }),
+          // Performance Evidence N -> Research N+1: realized canonical PAPER baseline periods feed meta-learning.
+          paperPeriods: periods.listRealizedPeriods()
+            .filter((item) => item.candidateProvenance.length === 1 && item.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID)
+            .map((item) => ({ recordId: item.record.recordId, netReturn: item.record.realizedReturns[OWNER_BASELINE_CANDIDATE_ID] ?? Number.NaN, benchmarkReturn: item.record.benchmarkReturn, ...(item.record.canonicalOutcomeReceiptFingerprint == null ? {} : { outcomeFingerprint: item.record.canonicalOutcomeReceiptFingerprint }) })),
         });
         longBarTickEvery = meta.longBarTickEvery;
         loopStatus.observeMetaLearning(meta);
