@@ -2611,6 +2611,14 @@ current_ui_now_loss_limit_20261014:
   next: "Exact-head CI and fresh-session review; today's P&L outside RISK as its own work order."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_ui_now_today_realized_20261014:
+  work_order: WO-UI-20261014-NOW-TODAY-REALIZED
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/now-today-realized
+  validation: "4 P&L unit tests, 10 Now-tab tests, 397 related tests and RISK requalification tests PASS; architecture findings=0; mobile lint PASS."
+  next: "Retarget to main after #2701 merges; fresh-session review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ui_research_progress:
   work_order: WO-UI-20261003-RESEARCH-PROGRESS
   status: READY_FOR_REVIEW

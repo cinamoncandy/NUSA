@@ -37,6 +37,11 @@ export interface PersonalPaperLossLimit {
   readonly evaluatedAt: number;
 }
 
+export interface PersonalPaperTodayRealized {
+  readonly realizedPnlKrw: number;
+  readonly evaluatedAt: number;
+}
+
 export interface PersonalPaperRuntimeHeartbeat {
   readonly startedAt: number;
   readonly lastHeartbeatAt: number;
@@ -69,6 +74,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly researchCollectionState?: "DISABLED" | "INVALID" | "UNAVAILABLE";
   /** Display only: the PAPER consecutive-loss limit state from the canonical risk gateway's latest evaluation (today's KST trading day). Absent before the first evaluation or without a canonical PAPER boundary. */
   readonly lossLimit?: PersonalPaperLossLimit;
+  /** Display only: today's (Asia/Seoul) realized PAPER P&L in KRW from the account's fills, computed outside RISK. Absent without a canonical PAPER loop or on an inconsistent ledger. */
+  readonly todayRealized?: PersonalPaperTodayRealized;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -367,6 +374,13 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   if (record.researchCollectionState !== undefined && (record.researchCollection !== undefined || !["DISABLED", "INVALID", "UNAVAILABLE"].includes(record.researchCollectionState as string))) delete record.researchCollectionState;
   if (record.tradedMarkets !== undefined && !isValidMarketList(record.tradedMarkets)) delete record.tradedMarkets;
   if (record.lossLimit !== undefined && !isValidLossLimit(record.lossLimit)) delete record.lossLimit;
+  if (record.todayRealized !== undefined && !isValidTodayRealized(record.todayRealized)) delete record.todayRealized;
+}
+
+function isValidTodayRealized(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.realizedPnlKrw === "number" && Number.isFinite(v.realizedPnlKrw) && Math.abs(v.realizedPnlKrw) <= 1_000_000_000_000 && isTimeMs(v.evaluatedAt);
 }
 
 function isValidLossLimit(value: unknown): boolean {
