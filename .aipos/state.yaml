@@ -2852,10 +2852,11 @@ current_stall_metrics:
 
 current_futures_binance_public_probe_20261014:
   work_order: WO-FUTURES-20261014-BINANCE-PUBLIC-PROBE
-  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  status: COMPLETED
   branch: claude/binance-public-probe
   validation: "3 workflow tests, 22 all-workflow scan tests and workflow authority/pin/input validators PASS."
-  next: "Review, CI, merge; then one manual dispatch to record Binance public reachability (expected answers 200 or 451/403)."
+  result: "2026-10-14 run 38520735288 on nusa-paper-host: ping, premiumIndex, fundingRate, 4h klines all http=200; exchange time fresh. B0 passes."
+  next: "Futures PAPER research on live public data (funding in costs); still no keys or orders."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_futures_paper_core_20261014:
@@ -2878,6 +2879,12 @@ current_handoff_main_20261014:
   status: RECORDED
   handoff: .aipos/handoffs/2026-10-14-main-handoff.md
   finding: "End-of-session handoff: owner decisions of 2026-10-14, four draft PRs (#2699, #2701, #2702, #2703) waiting for non-author review, and next safe actions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_handoff_main_20261014_afternoon:
+  status: RECORDED
+  handoff: .aipos/handoffs/2026-10-14-main-handoff.md
+  finding: "Afternoon update: #2699, #2701, #2702 merged (B0 probe all 200); #2703 and #2706 ready; #2705 stacked; #2709 needs a fresh-session review; lessons and next actions recorded."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_health_error_class:
