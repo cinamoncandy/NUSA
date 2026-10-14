@@ -2602,6 +2602,15 @@ current_paper_baseline_multi_market:
   branch: claude/nusa-repository-j93sd8-baseline-markets
   authority_impact: execution_exposure_paper_only
   deploy: not_deployed_server_deploy_required
+
+current_ui_now_loss_limit_20261014:
+  work_order: WO-UI-20261014-NOW-LOSS-LIMIT
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/now-tab-loss-limit
+  validation: "Review fix: RISK gateway byte-identical to main (requalification blob test PASS after commit); 8 loss-limit tests PASS. Earlier P&L revision withdrawn."
+  next: "Exact-head CI and fresh-session review; today's P&L outside RISK as its own work order."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ui_research_progress:
   work_order: WO-UI-20261003-RESEARCH-PROGRESS
   status: READY_FOR_REVIEW
