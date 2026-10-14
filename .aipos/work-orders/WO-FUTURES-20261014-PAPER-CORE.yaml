@@ -23,7 +23,7 @@ stated_simplifications:
 next:
   - "B0 data probe (#2702) result decides live-data PAPER vs stored-data research."
   - "B4: futures research with funding in costs; B5 shadow; B6 screen."
-no_network_guard: "apps/cloud/src/futures/paperFuturesNoNetwork.test.ts scans the futures sources and contract for fetch, URLs, exchange names/SDKs, sockets, keys, secrets and process.env; verified to fail when a network call is injected."
+no_network_guard: "apps/cloud/src/futures/paperFuturesNoNetwork.test.ts walks every relative import from the futures sources transitively (reaching paperTradingDay.ts and contracts risk-safety-integration.ts), fails on any package or non-allowlisted Node built-in (allowlist: node:crypto), and scans every reached file for fetch, URLs, exchange names/SDKs, sockets, keys, secrets and process.env, reporting file:line and the line text. Verified to fail on an injected network call in a transitively imported module and on an injected node:util import."
 verification_commands:
   - "npx tsc -p tsconfig.json"
   - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/futures/*.test.js"
