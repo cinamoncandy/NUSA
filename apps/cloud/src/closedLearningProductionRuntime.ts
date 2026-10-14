@@ -2,6 +2,7 @@ import { buildMetaLearningStatus } from "./researchMetaLearningRuntime";
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
+import { readOrderBookStudyResult } from "./researchStudyResult";
 import { MarketMicrostructureRecorder, microstructureRecorderEnabled } from "./marketMicrostructureRecorder";
 import { SqliteMarketMicrostructureStore } from "../../../packages/storage/src/marketMicrostructureStore";
 import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled } from "./researchOrderBookCollector";
@@ -411,7 +412,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       persistLastBlocked();
       try {
         const meta = buildMetaLearningStatus({
-          ledger: RESEARCH_LEDGER_SNAPSHOT,
+          // A finished pre-registered study written by the host Research service joins the reviewed ledger automatically.
+          ledger: (() => { const study = readOrderBookStudyResult(config.cloudStateDbPath); return study == null || RESEARCH_LEDGER_SNAPSHOT.some((e) => e.id === study.id) ? RESEARCH_LEDGER_SNAPSHOT : [...RESEARCH_LEDGER_SNAPSHOT, study]; })(),
           runtimeTicksByInterval: researchExperiments?.experimentTicksByInterval() ?? null,
           researchMarkets: (env.NUSA_RESEARCH_MARKETS ?? "KRW-BTC").split(",").filter((m) => m.trim() !== "").length,
           ...(baselineShadow == null ? {} : { shadow: baselineShadow.summary() }),
