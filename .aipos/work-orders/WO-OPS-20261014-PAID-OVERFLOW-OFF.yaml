@@ -1,0 +1,32 @@
+id: WO-OPS-20261014-PAID-OVERFLOW-OFF
+title: "Turn off the paid GitHub Models overflow by enforcing the existing zero-credit mode"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/p4-paid-overflow-off
+parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+phase: P4
+authority_impact: none
+owner_approval: "2026-10-14 in chat: decision 3 (paid GPT-4.1 overflow off, Workers AI kept) and 'ㅇ' to start P4."
+objective: "Stop all paid coding-model spending while keeping the free Workers AI coding path."
+change:
+  - ".github/workflows/autopilot-cloudflare-deploy.yml: NUSA_ZERO_CREDIT_MODE true (single source passed to wrangler and to the health gate)"
+  - "apps/autopilot/wrangler.jsonc: NUSA_AUTOPILOT_ZERO_CREDIT_MODE true (also makes the deploy scope count this as a Worker runtime change)"
+effect:
+  - "codingRunner.ts skips the GitHub Models openai/gpt-4.1 overflow, the sandbox-repair escalation and any configured paid engine; Jev bounded routing is forced off."
+  - "The Workers AI binding path is unchanged; when it waits on capacity the run reports a wait instead of spending."
+  - "/health reports zeroCreditMode ENFORCED and aiCodingEngine ZERO_CREDIT; the deploy and credential-preflight gates derive the expected value from the same variable."
+rollback: "Set both values back to false."
+verification_commands:
+  - "node --test tests/autopilot-cloudflare-deploy.test.js tests/autopilot-cloudflare-credential-preflight.test.js"
+  - "npx tsc -p tsconfig.json && node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/codingRunner*.test.js dist/apps/autopilot/src/index*.test.js"
+  - "node scripts/validate-aipos-yaml.js"
+acceptance:
+  - "After merge and auto-deploy, https://nusa-autopilot.desporin12.workers.dev/health reports zeroCreditMode ENFORCED with the merged revision."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

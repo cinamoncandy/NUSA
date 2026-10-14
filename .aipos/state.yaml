@@ -2361,6 +2361,15 @@ current_mobile_home_simplify:
   branch: claude/nusa-repository-j93sd8-home-simplify
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
+
+current_ops_paid_overflow_off_20261014:
+  work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/p4-paid-overflow-off
+  validation: "Deploy/preflight workflow tests 30/30 and codingRunner/index dist tests 120/120 PASS."
+  next: "Non-author review, exact-head CI, Audit/Release; then confirm /health zeroCreditMode ENFORCED."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_preflight_runtime_unchanged:
   work_order: WO-OPS-20261002-PREFLIGHT-RUNTIME-UNCHANGED
   status: READY_FOR_REVIEW
