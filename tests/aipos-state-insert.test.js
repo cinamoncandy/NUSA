@@ -100,5 +100,6 @@ test("per-entry files never touch the same lines, and refuse keys already in sta
   assert.throws(() => stateEntryFile(base, [], entry("current_kilo")), /ENTRY_ALREADY_EXISTS:current_kilo/);
   assert.throws(() => stateEntryFile(base, ["current_golf"], entry("current_golf")), /ENTRY_ALREADY_EXISTS:current_golf/);
   assert.throws(() => stateEntryFile(base, [], "version: 2\n"), /ENTRY_RESERVED_KEY/);
+  assert.throws(() => stateEntryFile(base, ["Current_Golf"], entry("current_golf")), /ENTRY_ALREADY_EXISTS:current_golf/, "case-only clash");
   assert.throws(() => stateEntryFile(base, [], `${entry("current_x")}current_y:\n  a: 1\n`), /ENTRY_MUST_BE_ONE_TOP_LEVEL_KEY/);
 });

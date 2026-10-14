@@ -68,7 +68,7 @@ const STATE_DIR = join(".aipos", "state.d");
 /** Keys already recorded in the per-entry directory (file name without .yaml). */
 function stateDirKeys(root) {
   const dir = join(root, STATE_DIR);
-  return existsSync(dir) ? readdirSync(dir).filter((name) => name.endsWith(".yaml")).map((name) => name.slice(0, -5)) : [];
+  return existsSync(dir) ? readdirSync(dir).filter((name) => /\.ya?ml$/.test(name)).map((name) => name.replace(/\.ya?ml$/, "")) : [];
 }
 
 /** Pure: validates one entry for its own file and returns { name, text }, or throws. */
@@ -81,7 +81,9 @@ function stateEntryFile(stateText, existingDirKeys, entryText) {
   const name = entryKeys[0].key;
   if (name === "version") throw new Error("ENTRY_RESERVED_KEY:version");
   const stateKeys = topLevelKeys(stateText.split("\n")).map(({ key }) => key);
-  if (stateKeys.includes(name) || existingDirKeys.includes(name)) throw new Error(`ENTRY_ALREADY_EXISTS:${name}`);
+  // Case-insensitive: Windows and macOS checkouts cannot hold Foo.yaml and foo.yaml side by side.
+  const lower = name.toLowerCase();
+  if (stateKeys.includes(name) || existingDirKeys.some((key) => key.toLowerCase() === lower)) throw new Error(`ENTRY_ALREADY_EXISTS:${name}`);
   return { name, text: `${entry}\n` };
 }
 

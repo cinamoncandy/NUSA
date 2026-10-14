@@ -14,7 +14,8 @@ change:
   - "scripts/aipos-state-insert.js: default writes .aipos/state.d/<key>.yaml (refuses a key already in state.yaml or state.d, refuses 'version'); --inline keeps the old name-order insertion."
   - "tests/aipos-state-insert.test.js: CLI default leaves state.yaml untouched, duplicate refused, --inline still works; pure stateEntryFile cases."
   - "tests/aipos-state-dir.test.js: every state.d file holds exactly its own key and never duplicates state.yaml."
-  - "AGENTS.md: the state is state.yaml plus state.d/*.yaml; new entries use the per-entry file."
+  - "AGENTS.md, CLAUDE.md and .aipos/AI_HANDOFF_CONTRACT.md recovery steps: the state is state.yaml plus every state.d/*.yaml; new entries use the per-entry file."
+  - "Case-insensitive duplicate refusal (Windows/macOS checkouts) in the script and the state.d test (pre-review P1/P2)."
 not_changed: "Existing state.yaml entries and every validator stay as they are; no entry is moved."
 verification_commands:
   - "node --test tests/aipos-state-insert.test.js tests/aipos-state-dir.test.js"

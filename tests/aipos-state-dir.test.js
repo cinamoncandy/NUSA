@@ -10,7 +10,10 @@ test("every state.d file holds exactly its own key and no key duplicates state.y
   const dir = join(".aipos", "state.d");
   const stateKeys = new Set(Object.keys(yaml.load(readFileSync(join(".aipos", "state.yaml"), "utf8"))));
   if (!existsSync(dir)) return;
+  const seen = new Set();
   for (const name of readdirSync(dir)) {
+    assert.ok(!seen.has(name.toLowerCase()), `case-only duplicate in state.d: ${name}`);
+    seen.add(name.toLowerCase());
     assert.match(name, /^[A-Za-z_][A-Za-z0-9_]*\.yaml$/, `unexpected file in state.d: ${name}`);
     const parsed = yaml.load(readFileSync(join(dir, name), "utf8"));
     const key = name.slice(0, -5);
