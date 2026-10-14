@@ -250,6 +250,46 @@ test("identity-stage failure survives closing and reopening its SQLite database"
   }
 });
 
+test("failure receipt survives process exit without SQLite close and repeated process replay", () => {
+  const { spawnSync } = require("node:child_process");
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "nusa-failure-process-"));
+  const filename = path.join(directory, "learning.sqlite");
+  const input = { closedPeriodId: "period-crash", evidenceId: "closed-paper-period:period-crash", evidenceFingerprintSha256: HEX("e"), sourceCommitSha: "b".repeat(40), runtimeSourceCommitSha: "b".repeat(40), stage: "IDENTITY", code: "RISK_FINGERPRINT_INVALID" };
+  const program = `
+    const { SqliteDatabase } = require('./dist/packages/storage/src/index.js');
+    const { SqliteEvolutionLearningLedger } = require('./dist/packages/storage/src/evolutionLearningLedger.js');
+    const { ClosedLearningEvolutionLedgerRepository } = require('./dist/apps/cloud/src/closedLearningEvolutionLedgerRepository.js');
+    const db = new SqliteDatabase(process.argv[1]);
+    const repo = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db), () => 7000);
+    repo.appendFailure(JSON.parse(process.argv[2]));
+    process.exit(23); // Deliberately bypass db.close(); never touches the runtime database.
+  `;
+  let db;
+  try {
+    let first;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const child = spawnSync(process.execPath, ["-e", program, filename, JSON.stringify(input)], {
+        cwd: path.join(__dirname, ".."), encoding: "utf8", timeout: 10000,
+      });
+      assert.equal(child.error, undefined, child.error?.message);
+      assert.equal(child.signal, null);
+      assert.equal(child.status, 23, child.stderr);
+      db = new SqliteDatabase(filename);
+      const repo = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db));
+      const summary = repo.failureSummary();
+      assert.equal(summary.failuresRecorded, 1, "process replay must not duplicate failure history");
+      first ??= summary.receipts[0];
+      assert.deepEqual(summary.receipts, [first]);
+      assert.equal(repo.summary().cyclesRecorded, 0, "failure replay must not fabricate cycles");
+      db.close();
+      db = undefined;
+    }
+  } finally {
+    db?.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("malformed durable cycle failure evidence fails closed", () => {
   const db = new SqliteDatabase(":memory:");
   try {

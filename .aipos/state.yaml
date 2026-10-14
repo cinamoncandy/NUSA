@@ -3326,6 +3326,15 @@ current_research_sma_cost_note:
   branch: claude/research-note-sma-cost-screen
   authority_impact: none
   finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
+
+current_learning_process_exit_20261015:
+  work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/learning-crash-replay-20261015
+  evidence: "109 focused tests, build/typecheck/validate:full/aipos:index/security:gate and lint:scripts PASS (24 existing warnings). Fresh non-author review no P0/P1/P2. Temporary SQLite survives nonzero exit and three process replays with one receipt, zero cycles; not production acceptance."
+  next: "Repository gates, fresh non-author review and canonical CI/Audit/Release; do not inject production failures or invent qualified candidates."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_resume_failed_cycle:
   work_order: WO-LEARNING-20261008-RESUME-FAILED-CYCLE
   status: MERGED_INCREMENT_LIMITATION_RECORDED
