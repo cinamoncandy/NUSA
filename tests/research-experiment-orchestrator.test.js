@@ -200,6 +200,27 @@ test("failure reasons are recomputed from the ledger records, so a brand-new orc
   } finally { s.db.close(); }
 });
 
+test("failure memory defers a challenger whose last 5 evaluations failed for the same reason to every 4th tick", () => {
+  const s = build(fresh()); seed(s);
+  try {
+    const noEdge = (i) => ({ strategyId: "challenger-v1", strategyVersion: "1.0.0", evaluationTimestamp: i, evaluationId: `e${i}`, result: "CHAMPION_BETTER", reason: "MULTI_METRIC_COMPARISON", champion: { metrics: { netReturn: 0.02, maximumDrawdown: 0.1, executionQuality: 0.9 } }, challenger: { metrics: { netReturn: 0.01, maximumDrawdown: 0.1, executionQuality: 0.9 } } });
+    let history = Array.from({ length: 5 }, (_, i) => noEdge(i));
+    const o = new (s.orchestrator.constructor)({ ...s.orchestrator.options, failureEvidence: () => history });
+    o.recover();
+    const first = o.tick();
+    assert.ok(first.experiments.every((e) => e.outcome.status !== "DEFERRED_REPEAT_FAILURE"), "tick 0 still evaluates it");
+    const second = o.tick();
+    assert.deepEqual(second.experiments.filter((e) => e.outcome.status === "DEFERRED_REPEAT_FAILURE").map((e) => e.variantId), ["v1"], "only the repeating challenger is deferred");
+    assert.equal(o.experimentTicks().counts.DEFERRED_REPEAT_FAILURE, 1);
+    history = history.slice(1);
+    assert.ok(o.tick().experiments.every((e) => e.outcome.status !== "DEFERRED_REPEAT_FAILURE"), "a streak below 5 is never deferred");
+    history = () => { throw new Error("ledger unavailable"); };
+    const broken = new (s.orchestrator.constructor)({ ...s.orchestrator.options, failureEvidence: () => { throw new Error("ledger unavailable"); } });
+    broken.recover(); broken.tick();
+    assert.ok(broken.tick().experiments.every((e) => e.outcome.status !== "DEFERRED_REPEAT_FAILURE"), "a failure-memory read error defers nothing");
+  } finally { s.db.close(); }
+});
+
 test("ordinary outcome count keys are capped at 30 so the derived FAIL_ and REPEAT_ keys always fit within /health's 40", () => {
   const { addOutcomeCount, MAX_ORDINARY_COUNT_KEYS } = require("../dist/apps/cloud/src/researchExperimentOrchestrator.js");
   assert.equal(MAX_ORDINARY_COUNT_KEYS, 30);
