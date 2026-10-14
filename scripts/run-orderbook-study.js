@@ -23,7 +23,13 @@
  * - Rule: each decision hour buy the top 3 eligible markets by predicted probability, equal weight, hold 60m.
  * - Holdout PASS only if all hold: >= 50 trades; mean net per trade > 0; one-sided z-test p < 0.05 / 195 (ledger 192
  *   configurations + 3 lambdas); mean net under stress costs > 0; mean net beats buying every eligible market at the same hours.
+ *
+ * Data-integrity addendum (2026-10-14, WO-DATA-20261014-ORDERBOOK-INTEGRITY; changes no rule above): the result line also carries
+ * the identity of the dataset actually consumed (sha256 over the per-minute rows of every eligible market in canonical order,
+ * row count and observed range), and the study fails closed with DATA_INTEGRITY_FAIL:DATA_FUTURE if any stored row is stamped
+ * more than 5 s after the run time.
  */
+const crypto = require("node:crypto");
 const M = 60_000;
 const H = 60 * M;
 const START = Date.parse("2026-10-15T00:00:00Z");
@@ -103,15 +109,26 @@ function evaluate(rows, score) {
 
 function runStudy({ db, now = Date.now() }) {
   if (now < END + 2 * H) return { status: "WAITING_DATA", daysCollected: Math.max(0, Math.floor((Math.min(now, END) - START) / (24 * H))) };
+  // Any stored row stamped after the run time (beyond 5 s clock skew) means the clock or the source cannot be trusted.
+  if (Number(db.prepare("SELECT COUNT(*) AS n FROM research_orderbook_samples WHERE captured_at_ms > ?").get(now + 5_000).n) > 0) return { status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" };
   const markets = db.prepare("SELECT DISTINCT market FROM research_orderbook_samples WHERE captured_at_ms > ? AND captured_at_ms <= ?").all(START, END).map((r) => r.market);
   const rows = [];
   let eligible = 0;
+  const hash = crypto.createHash("sha256");
+  let datasetRows = 0; let firstAt = Infinity; let lastAt = -Infinity;
   const trainHours = (VAL - START) / H;
   for (const market of markets) {
-    const marketRows = rowsFor(bookSeries(db, market));
+    const series = bookSeries(db, market);
+    const marketRows = rowsFor(series);
     const trainRows = marketRows.filter((r) => r.t + H <= VAL);
     if (trainRows.length < 0.9 * trainHours || median(trainRows.map((r) => r.spreadBp)) > 20) continue;
     eligible += 1;
+    hash.update(`${market}\n`);
+    for (const minute of [...series.keys()].sort((x, y) => x - y)) {
+      const r = series.get(minute);
+      hash.update(`${r.t},${r.b},${r.a},${r.b5},${r.a5},${r.tb},${r.ta}\n`);
+      datasetRows += 1; firstAt = Math.min(firstAt, r.t); lastAt = Math.max(lastAt, r.t);
+    }
     rows.push(...marketRows.filter((r) => (r.t < VAL ? r.t + H <= VAL : r.t < HOLD ? r.t + H <= HOLD : true)));
   }
   const byHour = new Map();
@@ -137,6 +154,7 @@ function runStudy({ db, now = Date.now() }) {
   const round = (x) => Math.round(x * 100) / 100;
   return {
     status: pass ? "HOLDOUT_PASS" : "HOLDOUT_FAIL", markets: markets.length, eligible, lambda: best.lambda,
+    datasetFingerprint: hash.digest("hex"), datasetRows, datasetFirstAt: firstAt, datasetLastAt: lastAt,
     discoveryPass: best.v.meanBp > 0 && best.v.meanBp > best.v.universeBp, validationTrades: best.v.trades, validationMeanBp: round(best.v.meanBp), validationUniverseBp: round(best.v.universeBp),
     holdoutTrades: h.trades, holdoutMeanBp: round(h.meanBp), holdoutUniverseBp: round(h.universeBp), holdoutStressBp: round(h.stressBp), holdoutWinPct: round(h.winPct), holdoutP: Number(h.p.toPrecision(3)), bar: Number((0.05 / K).toPrecision(3)),
   };

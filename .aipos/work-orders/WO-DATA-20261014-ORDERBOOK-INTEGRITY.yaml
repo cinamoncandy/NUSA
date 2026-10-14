@@ -1,0 +1,24 @@
+id: WO-DATA-20261014-ORDERBOOK-INTEGRITY
+title: "Order-book data integrity: reject stale/future/wrong-market books at ingestion; bind the consumed dataset identity in the study handoff"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+domain: "Public Market Data / Data & Research Integrity (owner master instruction 2026-10-14)"
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/orderbook-data-integrity
+fresh_read_2026_10_14:
+  main: 9e96a73ac
+  runtime: "2904e3353 (main ahead by #2689 and #2690; exact-main release pending, see byk3h23uh watcher)"
+first_broken_transition: "ingestion -> gap/freshness-verified market state: the all-KRW collector (#2688) stored any book the exchange returned, with no market match or stale/future check; and research handoff: the pre-registered ORDERBOOK study (#2690) emitted results without the identity of the dataset it consumed."
+change:
+  - "researchOrderBookCollector: keep only books for a requested market whose exchange timestamp lies in (now - 120 s, now + 5 s]; others are counted in status.rejected (also the store's invalid rows); /health orderBookCollector.rejected."
+  - "run-orderbook-study.js (addendum, no rule change): result carries datasetFingerprint (sha256 over the per-minute rows of every eligible market in canonical order), datasetRows, datasetFirstAt, datasetLastAt; DATA_INTEGRITY_FAIL:DATA_FUTURE if any stored row is stamped > 5 s after the run time."
+  - "oracle-host-diagnose: the orderbook_study projection admits DATA_INTEGRITY_FAIL, *Fingerprint (64-hex) and reasonCode DATA_* only."
+handoff_to_research_owner: "Branch claude/failure-memory-defers-research (91d322cd5, no PR): failure memory defers challengers with a 5x same-reason streak to every 4th tick. Research-owned; left for that owner. PR #2691 (PAPER evidence -> meta-learner) was opened before the ownership change and is left to complete."
+validation: "tsc; researchOrderBookCollector 4, cloud-runtime-liveness-health 33, run-orderbook-study 4, oracle-host-diagnose-workflow 5 pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
