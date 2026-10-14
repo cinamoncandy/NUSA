@@ -890,7 +890,10 @@ current_mobile_paper_session_reconnect:
 
 current_release_api_read_recovery_20261014:
   work_order: WO-OPS-20261014-RELEASE-API-READ-RECOVERY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: INTEGRATED_CANONICAL_RELEASE_VERIFIED
+  pull_request: 2707
+  merge_commit: 990cb28134feb82e3c9c4679274eb50316f88ba1
+  evidence: "ExactCI38516904650/companions,AuditRelease38517696695,postCI38517809450PASS. Deploy38518266302PASS,workflow-only no runtime-SHA claim. Productiontransientretryfutureevidence."
   branch: codex/release-api-read-recovery-20261014
   validation: "19 focused/1217 isolated files and build/typecheck/validate:full/security/lint PASS;24 existing warnings. Fresh reviewerP1 malformed main identity fixed and8 negative cases tested; freshreview nofindings."
   synchronized_base: ae721916e5a469c14a07f909e4ed30878d6189a2
@@ -2383,6 +2386,17 @@ current_mobile_home_simplify:
   branch: claude/nusa-repository-j93sd8-home-simplify
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
+
+current_ops_paid_overflow_off_20261014:
+  work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
+  status: LOCAL_HARDENING_VALIDATED_PENDING_FRESH_CI
+  branch: claude/p4-paid-overflow-off
+  base_commit: 99b219a960a86d7c5400cc158972461cec65e3b5
+  base_validation: "Fresh133runtime/36workflow-probe andallrecordedgatesPASS aftermainmerge. Full1218 priorbasePASS;currentfullshardCIstillrequired."
+  validation: "Fresh reviewer P1 unverifiedposture could spend: redmockcall1 reproduced,sharedhelper defaultENFORCED/Deployreject repaired.124runtime+9worker+31workflow andbuild/typecheck/validate:full/lint/security PASS. Full1218 isolated filesPASS;historicalfixture assertionspreserved, explicitfalse preconditions."
+  next: "Non-author review, exact-head CI, Audit/Release; then confirm /health zeroCreditMode ENFORCED."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_preflight_runtime_unchanged:
   work_order: WO-OPS-20261002-PREFLIGHT-RUNTIME-UNCHANGED
   status: READY_FOR_REVIEW
