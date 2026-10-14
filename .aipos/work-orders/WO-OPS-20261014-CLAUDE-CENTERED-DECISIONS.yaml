@@ -1,5 +1,5 @@
 id: WO-OPS-20261014-CLAUDE-CENTERED-DECISIONS
-title: "Record the owner's six decisions on the Claude-centered operating model"
+title: "Record the owner's six decisions on the Claude-centered operating model and apply P2 operating documents"
 status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
@@ -23,10 +23,10 @@ scope:
     - "docs/CLAUDE_CENTERED_OPERATING_MODEL.md"
     - ".aipos/work-orders/WO-OPS-20261014-CLAUDE-CENTERED-DECISIONS.yaml"
     - ".aipos/state.yaml entry current_ops_claude_centered_decisions_20261014"
+    - "P2 (owner said go, 2026-10-14): CLAUDE.md (role variable, latest handoff), AGENTS.md (Operating roles, release-path merge wording), docs/NUSA_CORE_MASTER_INSTRUCTIONS.md (merge only through the release path or OWNER)"
   exclude:
-    - "Turning off the paid overflow in code or settings, creating the GitHub App, editing CLAUDE.md/AGENTS.md, closing PRs or enabling #2644; each is its own phase work order."
+    - "Turning off the paid overflow in code or settings, creating the GitHub App, closing PRs or enabling #2644; each is its own phase work order."
 next:
-  - "P2 documentation PR (CLAUDE.md, AGENTS.md, master-instruction merge wording)."
   - "P4 work order to switch the paid GPT-4.1 overflow off."
   - "Owner creates the Worker GitHub App (P0)."
 verification_commands:
