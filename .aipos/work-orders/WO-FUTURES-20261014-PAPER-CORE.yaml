@@ -20,6 +20,9 @@ stated_simplifications:
   - "The losing streak counts each losing close, so a trade closed in several losing slices counts more than once (safe side). Daily loss is realized only."
   - "One position per symbol; flipping through zero in one order is rejected."
   - "maxDailyLossRatio 5% and maxPositionMarginRatio 20% are conservative defaults chosen with the accepted limits; the owner may only tighten them."
+non_author_review: "2026-10-14 /grill-me (comment 6161810205) on dbf1a02c7: no blocking findings. Non-blocking 1 (funding debt beyond margin) documented in the simulator model notes; 2 (flip tolerance) fixed with a shared PAPER_FUTURES_QUANTITY_EPS and a float-dust test; 3 kept as a wiring prerequisite below."
+wiring_prerequisites:
+  - "startOfDayEquity must come from the futures ledger and mark price/time from source-stamped public data, never caller-computed values (review item 3)."
 next:
   - "B0 data probe (#2702) result decides live-data PAPER vs stored-data research."
   - "B4: futures research with funding in costs; B5 shadow; B6 screen."
