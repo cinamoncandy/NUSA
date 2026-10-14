@@ -2875,6 +2875,14 @@ current_futures_research_data_fetch_20261014:
   next: "Fresh-session review, merge, one dispatch, freeze data with hashes."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_futures_research_prereg_20261014:
+  work_order: WO-FUTURES-20261014-RESEARCH-PREREG
+  status: READY_FOR_REVIEW
+  branch: claude/futures-research-preregistration
+  finding: "One rule pre-registered before any futures history is seen: 4h regime (SMA200) breakout N=50 long/short, owner limits, real funding; holdout = last 365 days evaluated once; pass needs positive net at 1x and 2x costs, >=30 trades, 3/5 symbols, profitable shorts in DOWN months, DD<=20%, no liquidation."
+  next: "Data download workflow, then frozen data with hashes, then one holdout evaluation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_handoff_main_20261014:
   status: RECORDED
   handoff: .aipos/handoffs/2026-10-14-main-handoff.md
