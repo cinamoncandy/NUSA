@@ -1,0 +1,26 @@
+id: WO-OPS-20261014-RELEASE-API-READ-RECOVERY
+title: Bound transient GitHub read recovery after canonical merge
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: 785807dfd7cbf1a29071447318f6fa2a6f38eb2c
+implementation_branch: codex/release-api-read-recovery-20261014
+observed_gap: "Release38495999097 merged2689 then failed during post-merge CI read with unexpected end of JSON input. PostCI38496114940PASS. Later Oracle38508906721PASS/sourcec9b96f8e contains47b6da7a; publichealth2026-10-14T05:15:33.952Z HEALTHY,lastErrornull. No duplicate deployment needed."
+scope: "Existing canonical post-merge recovery step only. Bound transient GET retries; never repeat writes, merge or authority steps. Unknown/auth/config/quota errors and malformed evidence fail closed."
+impact: "Avoid preventable Release-tail failure and duplicate manual intervention; maximum3 read attempts,2/4-second backoff, no new scheduler."
+validation: "19 targeted tests and1217 isolated test files PASS;build,typecheck,validate:full,security:gate,lint,workflow action pins/inputs,work-order provenance,diff check PASS.24 existing lint warnings."
+review: "Fresh non-author review found P1 invalid main SHA could exit0. Both guards corrected;8 real extracted-step cases prove nonzeroexit andzeroPOST. Fresh19-test review PASS,no remainingP0/P1/P2;notAuditReleaseapproval."
+compatibility: "Remoteae721916 Research-only delta inspected;no Release workflow overlap. Latest-main synchronization and fresh gates before PR required."
+verification_commands:
+  - node --test tests/release-api-read-recovery.test.js tests/autopilot-deterministic-audit-release.test.js
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Synchronize coherent latest main, fresh scoped validation, draft PR with exact-head CI. No self-approval or manual merge."
