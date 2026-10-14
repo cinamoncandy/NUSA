@@ -13,6 +13,7 @@ change:
   - "apps/mobile/src/safetyScreenModel.ts: buildFuturesSafetyRows(limits), dependency-free; always 'preparing', never trading."
   - "apps/mobile/src/futuresSafetyRows.ts: mobile-local adapter reading PAPER_FUTURES_OWNER_LIMITS (presentation files may not import runtime contracts)."
   - "apps/mobile/src/safetyView.tsx: a second CalmRow section under the existing rows."
+review_follow_up: "Non-author review (2026-10-14): the 20% position-margin limit the gate enforces was not shown; added as a row, read from the same PAPER_FUTURES_OWNER_LIMITS source."
 not_changed: "No new design, tab, palette or navigation; no runtime, trading, risk or authority change."
 stacked_on: "claude/futures-paper-core (#2703), which defines the limits; retarget to main after it merges."
 verification_commands:

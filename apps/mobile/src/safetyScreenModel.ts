@@ -33,6 +33,7 @@ export interface FuturesLimitsInput {
   readonly minLiquidationDistanceRatio: number;
   readonly maxConsecutiveLosses: number;
   readonly maxDailyLossRatio: number;
+  readonly maxPositionMarginRatio: number;
 }
 
 const pct = (ratio: number): string => `${Math.round(ratio * 100)}%`;
@@ -46,6 +47,7 @@ export function buildFuturesSafetyRows(limits: FuturesLimitsInput): readonly Saf
     { label: "선물 (바이낸스 모의)", hint: "계산 엔진만 준비됐고 아직 거래하지 않아요", value: "준비 중", tone: "MUTED" },
     { label: "선물 레버리지", hint: "격리 마진만 써요", value: `최대 ${limits.maxLeverage}배`, tone: "NORMAL" },
     { label: "청산가까지 거리", hint: "더 가까우면 새 진입을 막아요", value: `${pct(limits.minLiquidationDistanceRatio)} 이상`, tone: "NORMAL" },
+    { label: "포지션 증거금", hint: "한 포지션에 쓰는 증거금, 하루 시작 자산 기준", value: `${pct(limits.maxPositionMarginRatio)}까지`, tone: "NORMAL" },
     { label: "선물 손실 한도", hint: "한국 시간 하루 기준", value: `연속 ${limits.maxConsecutiveLosses}번 · 하루 ${pct(limits.maxDailyLossRatio)}`, tone: "NORMAL" },
   ];
   return Object.freeze(rows.map((row) => Object.freeze(row)));

@@ -38,11 +38,12 @@ test("even all gates passing never says LIVE is on; blocked gates are amber", ()
 });
 
 test("futures rows always read as not trading yet and show the gate's own limits", () => {
-  const rows = buildFuturesSafetyRows({ maxLeverage: 2, minLiquidationDistanceRatio: 0.25, maxConsecutiveLosses: 3, maxDailyLossRatio: 0.05 });
+  const rows = buildFuturesSafetyRows({ maxLeverage: 2, minLiquidationDistanceRatio: 0.25, maxConsecutiveLosses: 3, maxDailyLossRatio: 0.05, maxPositionMarginRatio: 0.2 });
   assert.deepEqual(rows.map((r) => [r.label, r.value]), [
     ["선물 (바이낸스 모의)", "준비 중"],
     ["선물 레버리지", "최대 2배"],
     ["청산가까지 거리", "25% 이상"],
+    ["포지션 증거금", "20%까지"],
     ["선물 손실 한도", "연속 3번 · 하루 5%"],
   ]);
   assert.ok(Object.isFrozen(rows) && rows.every((r) => Object.isFrozen(r)));
