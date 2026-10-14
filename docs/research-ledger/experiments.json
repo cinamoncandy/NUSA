@@ -81,7 +81,7 @@
   {
    "id": "DAILY_SCREEN_20261013",
    "date": "2026-10-13",
-   "evidence": "PR #2674 (pre-registered d915e5afe; feasibility in WO-RESEARCH-20261013-FAMILY-SCREEN)",
+   "evidence": "scripts/offline-daily-screen.js, docs/RESEARCH_NOTE_2026-10-13_FAMILY_SCREEN.md (PR #2674, pre-registered d915e5afe; feasibility in WO-RESEARCH-20261013-FAMILY-SCREEN)",
    "dataType": "CLOSE",
    "timeframe": "1d",
    "universe": 5,
