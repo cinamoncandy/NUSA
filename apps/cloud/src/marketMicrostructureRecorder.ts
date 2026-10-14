@@ -118,6 +118,11 @@ export class MarketMicrostructureRecorder {
     }
   }
 
+  /** Markets this recorder has sampled from the WebSocket (the all-market collector leaves them to it). */
+  public recordedMarkets(): ReadonlySet<string> {
+    return new Set(this.lastSampleAt.keys());
+  }
+
   public status(): MarketMicrostructureRecorderStatus {
     return Object.freeze({ orderBookSamples: this.orderBookSamples, tradeTicks: this.tradeTicks, writeFailures: this.writeFailures, rejectedRows: this.rejectedRows, ...(this.lastRecordedAt === undefined ? {} : { lastRecordedAt: this.lastRecordedAt }) });
   }

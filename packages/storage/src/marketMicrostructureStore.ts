@@ -92,6 +92,34 @@ export class SqliteMarketMicrostructureStore {
     return Object.freeze({ stored, rejected: ticks.length - valid.length });
   }
 
+  /**
+   * Stores one round of samples across many markets in a single transaction, without the per-market count retention of
+   * appendOrderBookSamples (that DELETE per market would run hundreds of times a minute). Retention for these rows is time-based:
+   * see pruneOrderBookSamplesBefore. Invalid markets or samples are skipped and counted.
+   */
+  public appendOrderBookRound(rows: readonly { readonly market: string; readonly sample: StoredOrderBookSample }[]): { readonly stored: number; readonly rejected: number } {
+    const valid = rows.filter((row) => typeof row.market === "string" && MARKET.test(row.market) && validSample(row.sample));
+    const stored = this.db.transaction(() => {
+      let count = 0;
+      const insert = this.db.connection.prepare("INSERT OR IGNORE INTO research_orderbook_samples (market, captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5, total_bid_size, total_ask_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const { market, sample: s } of valid) count += Number(insert.run(market, s.capturedAtMs, s.bestBid, s.bestAsk, s.bidSize5, s.askSize5, s.totalBidSize, s.totalAskSize).changes ?? 0);
+      return count;
+    });
+    return Object.freeze({ stored, rejected: rows.length - valid.length });
+  }
+
+  /** Deletes the given markets' samples captured before cutoffMs (time-based retention for appendOrderBookRound rows). */
+  public pruneOrderBookSamplesBefore(markets: readonly string[], cutoffMs: number): number {
+    if (!Number.isSafeInteger(cutoffMs) || cutoffMs <= 0) throw new MarketMicrostructureStoreError("INVALID_CUTOFF", "microstructure cutoff is invalid");
+    for (const market of markets) checkMarket(market);
+    return this.db.transaction(() => {
+      let count = 0;
+      const remove = this.db.connection.prepare("DELETE FROM research_orderbook_samples WHERE market = ? AND captured_at_ms < ?");
+      for (const market of markets) count += Number(remove.run(market, cutoffMs).changes ?? 0);
+      return count;
+    });
+  }
+
   public readOrderBookSamples(market: string, fromMs: number, toMs: number): readonly StoredOrderBookSample[] {
     checkMarket(market);
     const rows = this.db.connection.prepare("SELECT captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5, total_bid_size, total_ask_size FROM research_orderbook_samples WHERE market = ? AND captured_at_ms >= ? AND captured_at_ms <= ? ORDER BY captured_at_ms ASC").all(market, fromMs, toMs) as Array<Record<string, number>>;
