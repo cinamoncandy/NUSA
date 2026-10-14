@@ -2798,6 +2798,15 @@ current_stall_metrics:
   authority_impact: none
   owner_approval: "2026-10-06 in chat"
   finding: "PAPER halted with PAPER_WRITER_LEASE_LOST: a process stall above the 30 s writer lease loses it until restart; the stall source is unknown, measurement only"
+
+current_futures_paper_core_20261014:
+  work_order: WO-FUTURES-20261014-PAPER-CORE
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/futures-paper-core
+  validation: "13 futures tests PASS; tsc, safety/ai-zero/portability/platform-independent/architecture validators PASS."
+  next: "Review, CI, merge; then futures research after the B0 probe answer. Not wired to runtime."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_health_error_class:
   work_order: WO-OPS-20261006-HEALTH-ERROR-CLASS
   status: READY_FOR_REVIEW

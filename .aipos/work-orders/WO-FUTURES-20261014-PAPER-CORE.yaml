@@ -1,0 +1,34 @@
+id: WO-FUTURES-20261014-PAPER-CORE
+title: "B1-B3: PAPER-only Binance USD-M futures contract, deterministic simulator and futures risk gate"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/futures-paper-core
+parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+authority_impact: none
+owner_approval: "2026-10-14 in chat: 'add Binance futures', design v1 accepted 'all as recommended' (futures limits 2x, isolated, 25% liquidation distance, consecutive-loss 3), then 'do everything yourself'."
+objective: "A separate PAPER futures domain whose accounting and risk rules are tested before any market data or runtime wiring exists."
+change:
+  - "packages/contracts/src/paperFutures.ts: positions, account, ledger, order intent, cost profile, owner limits (2x, 25%, 3 losses, 5% daily loss, 20% margin per position) and PAPER authority constants."
+  - "apps/cloud/src/futures/paperFuturesSimulator.ts: pure isolated-margin simulator (adverse slippage, taker fee, liquidation price, liquidation, funding, reduce-only, idempotent order ids)."
+  - "apps/cloud/src/futures/paperFuturesRiskGate.ts: futures-only gate; reduce-only exposure cuts always allowed; new exposure must pass stale-mark, isolated-only, leverage, liquidation-distance, position-margin, consecutive-loss (KST day) and daily-loss checks; limits can only be tightened."
+not_changed: "Nothing is wired into the runtime, no market data is fetched, no credential exists, and the Upbit spot gateway, ledger and limits are untouched."
+stated_simplifications:
+  - "Liquidation price omits tiered maintenance amounts; the 25% distance floor at 2x leverage keeps far away from it."
+  - "One position per symbol; flipping through zero in one order is rejected."
+  - "maxDailyLossRatio 5% and maxPositionMarginRatio 20% are conservative defaults chosen with the accepted limits; the owner may only tighten them."
+next:
+  - "B0 data probe (#2702) result decides live-data PAPER vs stored-data research."
+  - "B4: futures research with funding in costs; B5 shadow; B6 screen."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/futures/*.test.js"
+  - "node scripts/validate-safety-architecture.js && node scripts/validate-architecture.js && node scripts/validate-architecture-surfaces.js"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  credentials: NONE
+  fail_closed: true
