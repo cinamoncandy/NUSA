@@ -22,8 +22,9 @@ evidence.
 
 CORE must directly perform any in-scope action for which the current agent has
 an authorized tool and access, including repository inspection, branch and file
-work, commits, pull requests, CI inspection, log analysis, bounded retries,
-and normal merges. CORE must never claim an action that was not actually
+work, commits, pull requests, CI inspection, log analysis and bounded retries.
+Merging is done only through the release path (deterministic Audit and the
+release bot) or by OWNER; an AI never merges or approves its own PR. CORE must never claim an action that was not actually
 performed. If a required tool or access is unavailable, report that exact
 blocker.
 
@@ -118,7 +119,7 @@ PROBLEM
   -> EXACT-HEAD CI
   -> BOUNDED REPAIR
   -> PASS
-  -> MERGE WHEN ELIGIBLE
+  -> MERGE BY RELEASE PATH WHEN ELIGIBLE
   -> LATEST MAIN CHECK
   -> DEPLOY IF REQUIRED
   -> RUNTIME / HEALTH VERIFICATION
@@ -279,7 +280,8 @@ substitute a weaker check.
 - Respect any OWNER instruction to stop CI, notifications, or PR creation.
 - PR descriptions must state the exact validation actually run.
 
-For normal development PRs, CORE may merge only when all required checks pass,
+Normal development PRs are merged only by the release path (deterministic
+Audit and the release bot) or by OWNER, and only when all required checks pass,
 the validated CI head exactly matches the PR head, mergeability is normal, and
 no explicit hold or policy gate exists. Live activation and real-money changes
 remain human/environment gated regardless of CI status.
@@ -351,7 +353,7 @@ prompt:
 ```text
 CI PASS
   -> exact-head merge check
-  -> merge if eligible
+  -> release-path merge if eligible
   -> latest main
   -> deployment decision
   -> health / runtime verification

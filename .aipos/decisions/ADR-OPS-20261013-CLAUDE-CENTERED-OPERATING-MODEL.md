@@ -1,6 +1,6 @@
-# Claude-centered operating model (PROPOSED, revision 2)
+# Claude-centered operating model (ACCEPTED 2026-10-14, revision 2)
 
-Status: PROPOSED, awaiting owner decisions. Owner request 2026-10-13: move from a ChatGPT/Codex-centered process to a Claude-centered one and redesign the whole operating model while recording it in AIPOS. Revision 2 follows the owner's request to re-review the proposal; its facts were re-verified against the repository, the GitHub API and the Worker's public status between 22:00 and 22:40 UTC on 2026-10-12.
+Status: ACCEPTED by the owner on 2026-10-14 (decisions below); previously PROPOSED. Owner request 2026-10-13: move from a ChatGPT/Codex-centered process to a Claude-centered one and redesign the whole operating model while recording it in AIPOS. Revision 2 follows the owner's request to re-review the proposal; its facts were re-verified against the repository, the GitHub API and the Worker's public status between 22:00 and 22:40 UTC on 2026-10-12.
 
 Decision proposed: keep every safety invariant, the deterministic control plane ("rules decide, AI repairs"), deterministic Audit and the release bot unchanged. Keep the governing charter's role names (OWNER, CORE, EVOLVE, AUTOPILOT, VALIDATOR, RESEARCH) and change only who fills them: CORE is a main Claude working on the owner's GitHub account; VALIDATOR and RESEARCH, plus operations, are an assistant Claude that moves to a single machine account used only for automated work; AUTOPILOT stays the Worker with Workers AI, limited to 150 changed lines in one file. AIPOS and work orders stay vendor-neutral.
 
@@ -19,3 +19,16 @@ Alternatives considered: requiring different GitHub accounts for review independ
 Migration: P0 owner identity and settings, P1 Autopilot repair-target allowlist, attempt cap and quiet stops (can start before P0 with owner approval), P2 operating documents (`CLAUDE.md`, `AGENTS.md`, master instructions merge wording, claim and review rules), P3 HOLD and stale PR triage (45 open, 34 created before October; close only on an owner-approved list, never delete branches), P4 engine and cost, P5 Codex assets. Details and the six owner decisions: `docs/CLAUDE_CENTERED_OPERATING_MODEL.md`.
 
 Not changed: PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY, risk limits (consecutive-loss limit 3), Audit and Release authority, AIPOS vendor neutrality, owner shortcuts.
+
+## Owner decisions (2026-10-14, in chat; recorded under WO-OPS-20261014-CLAUDE-CENTERED-DECISIONS)
+1. Roles, independence rule and work flow: adopted. Design moves from ChatGPT to Claude. `CLAUDE.md`, `AGENTS.md` and the master instructions may be updated in a separate P2 documentation PR.
+2. Identity (revised the same day): keep the current repository and account setup; the Worker keeps its current token and no machine account is created. A new GitHub App (never the release-authority app) is created only if needed later. Consequence: Worker failure notifications still reach the owner, and the owner-activity gate (#2644) stays off because Autopilot activity cannot be told apart from the owner's.
+3. Engine and cost: Workers AI stays. The paid GPT-4.1 overflow is turned off (option b); the #2631 daily cap is not needed for it.
+4. Codex: the coding workflow, manual runner and review bot stay disabled and are kept, not removed.
+5. Cleanup order: the recommended P3 order is followed. #2644 is enabled only after it is fixed; stale PRs are closed only from an owner-approved list; branches are never deleted.
+6. Automatic review: on request only.
+
+None of these decisions changes LIVE, risk, capital or AI authority: PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY.
+
+## Revision 3 (2026-10-14, owner: "complete the redesign centered on Claude")
+With decision 2 revised, the two-account structure is dropped. One Claude working session on the owner's account fills CORE plus operations, research and AIPOS records; a separate fresh Claude session (same account allowed) is the VALIDATOR for code and workflow PRs under `docs/GRILL_ME_PROTOCOL.md`; AUTOPILOT and the deterministic Audit and release bot are unchanged. An unset `NUSA_AGENT_ROLE` now means CORE (no added authority: no merge, no approval). Handoffs are `.aipos/handoffs/<date>-main-handoff.md`. Next phases: P4 paid overflow off, P1 follow-up on #2651/#2652, P3 stale-PR list for owner approval. Details: `docs/CLAUDE_CENTERED_OPERATING_MODEL.md` §0.
