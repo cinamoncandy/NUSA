@@ -893,7 +893,9 @@ current_release_api_read_recovery_20261014:
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: codex/release-api-read-recovery-20261014
   validation: "19 focused/1217 isolated files and build/typecheck/validate:full/security/lint PASS;24 existing warnings. Fresh reviewerP1 malformed main identity fixed and8 negative cases tested; freshreview nofindings."
-  next: "Latest-main coherent synchronization then exact-head CI; bounded GET recovery only, all authority gates unchanged."
+  synchronized_base: ae721916e5a469c14a07f909e4ed30878d6189a2
+  synchronized_validation: "Fresh20 focused tests/build/typecheck/validate:full/security/lint PASS. Full1217 passed before independent Research-only base merge; source workflow unchanged."
+  next: "Draft PR exact-head CI then independent Audit/Release; bounded GET recovery only, all authority gates unchanged."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_renderer_navigation_containment:
