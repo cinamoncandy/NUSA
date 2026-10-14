@@ -262,6 +262,25 @@
    "holdoutGapPerTrade": -0.0068,
    "preRegistered": true,
    "lesson": "No skill: 355 holdout trades, -0.404% per trade vs universe +0.271% (win 42.5%). Four ML models in a row picked markets that did worse than the market average on unseen data; the inverse is NOT a valid conclusion because it was seen on the holdout (it may only be tested on forward data)."
+  },
+  {
+   "id": "ML_TRADES_FLOW_15M_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-trades-flow.js (pre-registered 026562ac4; fetch-only fix 8958a6f8a); 7 days of public Upbit trade ticks 2026-10-06..12, 30 markets; manifest files sha256 3a51fc0205b0da5ffbe38fa23ac75c9b95f91c9b2fa45a0243611b01a359ddb6",
+   "dataType": "TRADES",
+   "timeframe": "15m-60m",
+   "universe": 30,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 1,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0025,
+   "preRegistered": true,
+   "lesson": "Order flow did not transfer: validation (1 day) +0.026% per trade vs universe -0.082%, but holdout (2 days, 144 trades) -0.532% vs universe -0.279%, win 33.3%, p 0.998. Fifth ML model in a row to pick worse-than-average markets on unseen data. Only 7 days of ticks exist publicly, so splits are tiny; the universe was re-selected after a transient HTTP 503 during the first fetch (same rule, fetch-time ticker)."
   }
  ]
 }
