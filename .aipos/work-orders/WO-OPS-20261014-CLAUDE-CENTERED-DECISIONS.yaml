@@ -1,0 +1,41 @@
+id: WO-OPS-20261014-CLAUDE-CENTERED-DECISIONS
+title: "Record the owner's six decisions on the Claude-centered operating model"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: ccr-d2d628af-2qz7pf
+parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+authority_impact: none
+owner_approval: "2026-10-14 in chat: hand design over from ChatGPT to Claude and answer the six decisions of docs/CLAUDE_CENTERED_OPERATING_MODEL.md section 10."
+scope_note: "Documentation and AIPOS records only. No code, workflow, label, protection, engine, token, PR state or authority change."
+objective: "Mark the operating-model ADR ACCEPTED and record the owner's decisions so later phase work orders (P1-P5) can cite them."
+decisions:
+  roles_and_flow: ADOPTED
+  identity: "New GitHub App for the Worker token, separate from the release-authority app; no machine account for now; owner creates it"
+  paid_overflow: "GPT-4.1 overflow OFF; Workers AI kept"
+  codex_assets: "Kept disabled, not removed"
+  cleanup_order: "Recommended P3 order; #2644 only after fix; close stale PRs only from an approved list; never delete branches"
+  automatic_review: "On request only"
+scope:
+  include:
+    - ".aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md"
+    - "docs/CLAUDE_CENTERED_OPERATING_MODEL.md"
+    - ".aipos/work-orders/WO-OPS-20261014-CLAUDE-CENTERED-DECISIONS.yaml"
+    - ".aipos/state.yaml entry current_ops_claude_centered_decisions_20261014"
+  exclude:
+    - "Turning off the paid overflow in code or settings, creating the GitHub App, editing CLAUDE.md/AGENTS.md, closing PRs or enabling #2644; each is its own phase work order."
+next:
+  - "P2 documentation PR (CLAUDE.md, AGENTS.md, master-instruction merge wording)."
+  - "P4 work order to switch the paid GPT-4.1 overflow off."
+  - "Owner creates the Worker GitHub App (P0)."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+  - "node scripts/aipos-work-order-index.js --check"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
