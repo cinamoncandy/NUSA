@@ -543,7 +543,7 @@ test("/health publishes the rule-replay parity as signed integer basis points an
 
 test("/health publishes the advisory meta-learning report with codes and integers only", async () => {
   const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "RESEARCH_NOT_DEPLOYABLE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY",
-    metaLearning: { experiments: 15, configurations: 264, discoveryPasses: 14, holdoutPasses: 0, overfitRatePercent: 100, validKnowledgePer100Configs: 0, exhausted: "dataType=CLOSE,methodClass=RULE", recommended: "TRADES+INTRADAY+ALL_KRW+ML", recommendedPrerequisites: "COLLECT_TRADES", nextHoldoutBarMicros: 189, runtimeEntries: 1, liveForwardEntries: 1, steeringMode: "DEPRIORITIZE_EXHAUSTED", longBarTickEvery: 4, note: "free text" } };
+    metaLearning: { experiments: 15, configurations: 264, discoveryPasses: 14, holdoutPasses: 0, overfitRatePercent: 100, validKnowledgePer100Configs: 0, exhausted: "dataType=CLOSE,methodClass=RULE", recommended: "TRADES+INTRADAY+ALL_KRW+ML", recommendedPrerequisites: "COLLECT_TRADES", nextHoldoutBarMicros: 189, runtimeEntries: 1, liveForwardEntries: 1, steeringMode: "DEPRIORITIZE_EXHAUSTED", longBarTickEvery: 4, paperPeriodsConsumed: 12, paperNetBp: -10, paperExcessBp: -15, paperEvidenceFingerprint: "a".repeat(64), note: "free text" } };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
     const meta = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.metaLearning;
     assert.equal(meta.recommended, "TRADES+INTRADAY+ALL_KRW+ML");
@@ -551,6 +551,7 @@ test("/health publishes the advisory meta-learning report with codes and integer
     assert.equal(meta.configurations, 264);
     assert.equal(meta.steeringMode, "DEPRIORITIZE_EXHAUSTED");
     assert.equal(meta.longBarTickEvery, 4);
+    assert.deepEqual([meta.paperPeriodsConsumed, meta.paperNetBp, meta.paperExcessBp, meta.paperEvidenceFingerprint], [12, -10, -15, "a".repeat(64)]);
     assert.equal(meta.note, undefined, "free text is never published");
   }, 42347);
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, metaLearning: { ...loop.metaLearning, steeringMode: "STOP_ALL" } } }) }, async (handle) => {
@@ -572,10 +573,19 @@ test("/health publishes the microstructure recorder counters as non-negative int
 });
 
 test("/health publishes the all-KRW order-book collector counters as non-negative integers only", async () => {
-  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, orderBookCollector: { rounds: 3, markets: 240, samplesStored: 700, failures: 1, lastRoundAt: 1_791_900_000_000, note: "x" } }) }, async (handle) => {
-    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, { rounds: 3, markets: 240, samplesStored: 700, failures: 1, lastRoundAt: 1_791_900_000_000 });
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, orderBookCollector: { rounds: 3, markets: 240, samplesStored: 700, failures: 1, rejected: 4, lastRoundAt: 1_791_900_000_000, note: "x" } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, { rounds: 3, markets: 240, samplesStored: 700, failures: 1, rejected: 4, lastRoundAt: 1_791_900_000_000 });
   }, 42350);
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, orderBookCollector: { rounds: 1.5, markets: 1, samplesStored: 0, failures: 0 } }) }, async (handle) => {
     assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, undefined);
   }, 42351);
+});
+
+test("/health publishes the stored-data integrity result as a status plus non-negative integers only", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, dataIntegrity: { status: "FAIL", observedAt: 1_792_000_000_000, candleFuture: 1, note: "x", bad: -2 } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, { status: "FAIL", observedAt: 1_792_000_000_000, candleFuture: 1 });
+  }, 42352);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, dataIntegrity: { status: "GOOD", candleFuture: 0 } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, undefined);
+  }, 42353);
 });

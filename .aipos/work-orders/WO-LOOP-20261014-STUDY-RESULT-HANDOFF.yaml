@@ -1,0 +1,21 @@
+id: WO-LOOP-20261014-STUDY-RESULT-HANDOFF
+title: "Autonomous Research handoff: the host ORDERBOOK study result feeds the runtime meta-learner without a human or AI session"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/orderbook-study-feeds-meta-learning
+owner_decision: "2026-10-14 in chat: '알아서 하게 해줘' - the loop must continue without this session (no credits later)."
+gap: "The pre-registered ORDERBOOK study (2026-10-29) only printed its result to the Research service log; recording it in the research ledger and therefore steering Research N+1 needed a human/AI session."
+change:
+  - "scripts/run-orderbook-study.js writes a final HOLDOUT_* result atomically to <state dir>/orderbook-study-result.json (schemaVersion 1, studyId, datasetFingerprint and all numeric fields); WAITING/INSUFFICIENT/DATA_INTEGRITY_FAIL write nothing. The nusa-research unit already has ReadWritePaths=/var/lib/nusa."
+  - "apps/cloud/src/researchStudyResult.ts parses it fail-closed (exact studyId, status, 64-hex dataset fingerprint, >= 4 eligible markets) into one ledger entry (ORDERBOOK, 60m, ALL_KRW, ML, 3 configurations); closedLearningProductionRuntime adds it to the reviewed ledger snapshot unless that snapshot already has the id."
+effect: "On the first meta-learning tick after the study writes its result, /health metaLearning (configurations, holdout passes, exhausted, recommended, steering) reflects it automatically."
+not_autonomous: "Code fixes after a data-integrity FAIL still need a coding agent; the Codex autopilot workflow is disabled_manually by the owner and was not re-enabled."
+validation: "tsc; researchStudyResult 3, researchMetaLearningRuntime 4, closed-learning-loop-status 20, cloud-runtime-liveness-health 33, run-orderbook-study 5, run-cloud-research-snapshot 8 pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

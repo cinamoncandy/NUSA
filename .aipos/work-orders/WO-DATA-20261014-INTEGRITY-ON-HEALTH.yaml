@@ -1,0 +1,18 @@
+id: WO-DATA-20261014-INTEGRITY-ON-HEALTH
+title: "Publish the daily stored-data integrity probe on /health (runtime.dataIntegrity)"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P1
+authority_impact: none
+domain: "Public Market Data / Data & Research Integrity"
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/data-integrity-on-health
+owner_decision: "2026-10-14 in chat: '알아서 하게 해줘' - the data state must be visible without a chat session or a manual diagnosis run."
+change: "run-data-integrity-probe.js writes its result atomically to <state dir>/data-integrity-result.json (schemaVersion 1, observedAt); dataIntegrityResult.ts parses it fail-closed; runtime /health publishes runtime.dataIntegrity (status PASS|WARN|FAIL plus non-negative integers only)."
+unchanged: "Display only; gates nothing; no PAPER/Risk/Governance/authority change."
+validation: "tsc; dataIntegrityResult 2, cloud-runtime-liveness-health 34, closed-learning-loop-status 20, run-data-integrity-probe 4 pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

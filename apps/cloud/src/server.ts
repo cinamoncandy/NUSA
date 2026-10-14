@@ -105,7 +105,8 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
   /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
   /** Research-only microstructure recorder counters (see marketMicrostructureRecorder.ts). */
-  readonly orderBookCollector?: { readonly rounds: number; readonly markets: number; readonly samplesStored: number; readonly failures: number; readonly lastRoundAt?: number };
+  readonly dataIntegrity?: Readonly<Record<string, string | number>>;
+  readonly orderBookCollector?: { readonly rounds: number; readonly markets: number; readonly samplesStored: number; readonly failures: number; readonly rejected?: number; readonly lastRoundAt?: number };
   readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly rejectedRows?: number; readonly lastRecordedAt?: number };
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
@@ -470,6 +471,9 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         meta.exhausted = rawMeta.exhausted;
         meta.recommendedPrerequisites = rawMeta.recommendedPrerequisites;
         meta.steeringMode = rawMeta.steeringMode;
+        if (Number.isSafeInteger(rawMeta.paperPeriodsConsumed) && Number(rawMeta.paperPeriodsConsumed) >= 0) meta.paperPeriodsConsumed = Number(rawMeta.paperPeriodsConsumed);
+        for (const key of ["paperNetBp", "paperExcessBp"] as const) if (Number.isSafeInteger(rawMeta[key]) && Math.abs(Number(rawMeta[key])) <= 1_000_000) meta[key] = Number(rawMeta[key]);
+        if (typeof rawMeta.paperEvidenceFingerprint === "string" && /^[a-f0-9]{64}$/.test(rawMeta.paperEvidenceFingerprint)) meta.paperEvidenceFingerprint = rawMeta.paperEvidenceFingerprint;
         if (Number.isSafeInteger(rawMeta.overfitRatePercent) && Number(rawMeta.overfitRatePercent) >= 0 && Number(rawMeta.overfitRatePercent) <= 100) meta.overfitRatePercent = Number(rawMeta.overfitRatePercent);
         if (typeof rawMeta.recommended === "string" && COMBO.test(rawMeta.recommended)) meta.recommended = rawMeta.recommended;
         loop.metaLearning = meta;
@@ -487,7 +491,15 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawCollector = source.orderBookCollector as Record<string, unknown> | null | undefined;
   let orderBookCollector: { orderBookCollector?: Record<string, number> } = {};
   if (rawCollector != null && typeof rawCollector === "object" && ["rounds", "markets", "samplesStored", "failures"].every((key) => Number.isSafeInteger(rawCollector[key]) && Number(rawCollector[key]) >= 0)) {
-    orderBookCollector = { orderBookCollector: { rounds: Number(rawCollector.rounds), markets: Number(rawCollector.markets), samplesStored: Number(rawCollector.samplesStored), failures: Number(rawCollector.failures), ...(Number.isSafeInteger(rawCollector.lastRoundAt) && Number(rawCollector.lastRoundAt) > 0 ? { lastRoundAt: Number(rawCollector.lastRoundAt) } : {}) } };
+    orderBookCollector = { orderBookCollector: { rounds: Number(rawCollector.rounds), markets: Number(rawCollector.markets), samplesStored: Number(rawCollector.samplesStored), failures: Number(rawCollector.failures), ...(Number.isSafeInteger(rawCollector.rejected) && Number(rawCollector.rejected) >= 0 ? { rejected: Number(rawCollector.rejected) } : {}), ...(Number.isSafeInteger(rawCollector.lastRoundAt) && Number(rawCollector.lastRoundAt) > 0 ? { lastRoundAt: Number(rawCollector.lastRoundAt) } : {}) } };
+  }
+  // Stored-data integrity probe: a fixed status plus non-negative integers only.
+  const rawIntegrity = source.dataIntegrity as Record<string, unknown> | null | undefined;
+  let dataIntegrity: { dataIntegrity?: Record<string, string | number> } = {};
+  if (rawIntegrity != null && typeof rawIntegrity === "object" && !Array.isArray(rawIntegrity) && (rawIntegrity.status === "PASS" || rawIntegrity.status === "WARN" || rawIntegrity.status === "FAIL")) {
+    const value: Record<string, string | number> = { status: rawIntegrity.status };
+    for (const [key, field] of Object.entries(rawIntegrity).slice(0, 40)) if (key !== "status" && /^[a-zA-Z0-9]{1,40}$/.test(key) && Number.isSafeInteger(field) && Number(field) >= 0) value[key] = Number(field);
+    dataIntegrity = { dataIntegrity: value };
   }
   const rawResearch = source.researchCollectionStatus;
   const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
@@ -506,7 +518,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     : {};
   // Build identity: only a full lowercase 40-hex commit is published, never other text.
   const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
-  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop, ...microstructure, ...orderBookCollector }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

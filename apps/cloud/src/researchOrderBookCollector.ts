@@ -20,10 +20,19 @@ export interface ResearchOrderBookCollectorStatus {
   readonly markets: number;
   readonly samplesStored: number;
   readonly failures: number;
+  /** Books rejected for a wrong market, a future or missing exchange timestamp, or invalid values. */
+  readonly rejected: number;
   readonly lastRoundAt?: number;
 }
 
 export const ORDERBOOK_COLLECTOR_INTERVAL_MS = 60_000;
+/**
+ * Upbit's REST order-book `timestamp` is the book's LAST CHANGE, not the observation time: an illiquid market's unchanged book is
+ * still its current state (measured 2026-10-14: 4 of 295 books older than 120 s, all illiquid). Rows are therefore stamped with
+ * the local observation time (as the WebSocket recorder does), which is when the state was actually known; the exchange timestamp
+ * is only checked for the future (beyond ORDERBOOK_MAX_FUTURE_MS of clock skew).
+ */
+export const ORDERBOOK_MAX_FUTURE_MS = 5_000;
 export const ORDERBOOK_COLLECTOR_RETENTION_MS = 14 * 24 * 3_600_000;
 const CHUNK = 20;
 const MARKET_LIST_TTL_MS = 6 * 3_600_000;
@@ -41,6 +50,7 @@ export class ResearchOrderBookCollector {
   private rounds = 0;
   private samplesStored = 0;
   private failures = 0;
+  private rejected = 0;
   private lastRoundAt: number | undefined;
   private markets: string[] = [];
   private marketsAt = 0;
@@ -88,14 +98,24 @@ export class ResearchOrderBookCollector {
       const targets = this.markets.filter((m) => !skip.has(m));
       for (let i = 0; i < targets.length; i += CHUNK) {
         try {
-          const books = await this.getJson(`https://api.upbit.com/v1/orderbook?markets=${targets.slice(i, i + CHUNK).join(",")}`);
+          const requested = targets.slice(i, i + CHUNK);
+          const books = await this.getJson(`https://api.upbit.com/v1/orderbook?markets=${requested.join(",")}`);
           if (!Array.isArray(books)) throw new Error("ORDERBOOK_INVALID");
-          const rows = (books as Book[]).filter((b) => b != null && Array.isArray(b.orderbook_units) && b.orderbook_units.length > 0).map((b) => {
+          // Data integrity: keep only books for a market this request asked for whose exchange timestamp is not in the future;
+          // anything else is counted, never stored. Rows are stamped with the local observation time (see ORDERBOOK_MAX_FUTURE_MS).
+          const roundNow = this.now;
+          const accepted = (books as Book[]).filter((b) => {
+            const ok = b != null && requested.includes(String(b.market)) && Array.isArray(b.orderbook_units) && b.orderbook_units.length > 0
+              && Number.isSafeInteger(b.timestamp) && b.timestamp > 0 && b.timestamp <= roundNow + ORDERBOOK_MAX_FUTURE_MS;
+            if (!ok) this.rejected += 1;
+            return ok;
+          });
+          const rows = accepted.map((b) => {
             const top = b.orderbook_units.slice(0, 5);
             return {
               market: String(b.market),
               sample: {
-                capturedAtMs: Number(b.timestamp),
+                capturedAtMs: roundNow,
                 bestBid: b.orderbook_units[0]!.bid_price,
                 bestAsk: b.orderbook_units[0]!.ask_price,
                 bidSize5: top.reduce((sum, u) => sum + u.bid_size, 0),
@@ -105,7 +125,9 @@ export class ResearchOrderBookCollector {
               },
             };
           });
-          stored += this.sink.appendOrderBookRound(rows).stored;
+          const result = this.sink.appendOrderBookRound(rows);
+          stored += result.stored;
+          this.rejected += result.rejected;
         } catch { this.failures += 1; }
         await (this.options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms))))(150);
       }
@@ -132,6 +154,6 @@ export class ResearchOrderBookCollector {
   }
 
   public status(): ResearchOrderBookCollectorStatus {
-    return Object.freeze({ rounds: this.rounds, markets: this.markets.length, samplesStored: this.samplesStored, failures: this.failures, ...(this.lastRoundAt === undefined ? {} : { lastRoundAt: this.lastRoundAt }) });
+    return Object.freeze({ rounds: this.rounds, markets: this.markets.length, samplesStored: this.samplesStored, failures: this.failures, rejected: this.rejected, ...(this.lastRoundAt === undefined ? {} : { lastRoundAt: this.lastRoundAt }) });
   }
 }
