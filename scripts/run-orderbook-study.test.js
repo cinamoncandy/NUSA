@@ -35,8 +35,19 @@ test("runs once the span is complete and reports only fixed numeric fields", () 
   assert.equal(result.markets, 6);
   assert.equal(result.eligible, 6);
   assert.equal(result.bar, Number((0.05 / 195).toPrecision(3)));
-  for (const [key, value] of Object.entries(result)) if (key !== "status") assert.ok(typeof value === "number" || typeof value === "boolean", key);
+  for (const [key, value] of Object.entries(result)) if (key !== "status" && key !== "datasetFingerprint") assert.ok(typeof value === "number" || typeof value === "boolean", key);
   assert.ok(result.holdoutTrades > 0);
+  assert.match(result.datasetFingerprint, /^[a-f0-9]{64}$/);
+  assert.ok(result.datasetRows > 0 && result.datasetFirstAt < result.datasetLastAt);
+  assert.equal(runStudy({ db: syntheticDb(6), now: END + 3 * 3_600_000 }).datasetFingerprint, result.datasetFingerprint, "deterministic identity for the same data");
+});
+
+test("a row stamped after the run time fails closed as DATA_FUTURE", () => {
+  const db = syntheticDb(6);
+  const now = END + 3 * 3_600_000;
+  db.prepare("INSERT INTO research_orderbook_samples VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run("KRW-M0", now + 600_000, 100, 101, 1, 1, 1, 1);
+  assert.deepEqual(runStudy({ db, now }), { status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" });
+  assert.notEqual(runStudy({ db, now: now + 600_000 }).status, "DATA_INTEGRITY_FAIL", "the same row is valid once its time has come");
 });
 
 test("too few eligible markets is reported, not guessed", () => {
