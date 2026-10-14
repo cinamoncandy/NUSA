@@ -42,3 +42,7 @@ test("no command can change the host or read credential files", () => {
     assert.doesNotMatch(commands, forbidden, `forbidden: ${forbidden}`);
   }
 });
+
+test("premiumIndex output keeps the exchange time so the record shows freshness, not only reachability", () => {
+  assert.match(commands, /\["symbol", "markPrice", "lastFundingRate", "nextFundingTime", "time", "fundingRate", "fundingTime", "code", "msg"\]/);
+});

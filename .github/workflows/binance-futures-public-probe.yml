@@ -44,7 +44,7 @@ jobs:
               let value;
               try { value = JSON.parse(fs.readFileSync(process.argv[1], "utf8").slice(0, 65536)); } catch { console.log("(body is not complete JSON)"); process.exit(0); }
               const pick = (o) => o && typeof o === "object" && !Array.isArray(o)
-                ? Object.fromEntries(["symbol", "markPrice", "lastFundingRate", "nextFundingTime", "fundingRate", "fundingTime", "code", "msg"].filter((k) => k in o).map((k) => [k, String(o[k]).slice(0, 80)]))
+                ? Object.fromEntries(["symbol", "markPrice", "lastFundingRate", "nextFundingTime", "time", "fundingRate", "fundingTime", "code", "msg"].filter((k) => k in o).map((k) => [k, String(o[k]).slice(0, 80)]))
                 : Array.isArray(o) ? { kind: "row", fields: o.length } : {};
               const out = Array.isArray(value) ? { rows: value.length, first: pick(value[0]) } : pick(value);
               console.log(JSON.stringify(out).slice(0, 600));

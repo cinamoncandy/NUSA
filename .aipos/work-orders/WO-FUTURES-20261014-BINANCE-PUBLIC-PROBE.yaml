@@ -13,7 +13,8 @@ change:
   - ".github/workflows/binance-futures-public-probe.yml: workflow_dispatch only, contents read, no secrets, no actions, no checkout; four bounded GETs of public paths; prints status codes, sizes and allowlisted fields."
   - "tests/binance-futures-public-probe-workflow.test.js pins those properties and forbids private/order endpoints."
 why_host: "This session's network policy blocks fapi.binance.com (proxy 403), and an earlier research run saw HTTP 451; only the PAPER host can answer."
-next: "After merge, dispatch once by hand (owner, or a session with workflow dispatch access) and record the status codes in this work order."
+next: "After merge, dispatch once by hand and record all four http= values, curl_exit values and the premiumIndex exchange time next to the run time in this work order (not only the verdict line)."
+review: "2026-10-14 non-author /grill-me review (comment 6161716342): no blocking findings; non-blocking exchange-time freshness field adopted."
 verification_commands:
   - "node --test tests/binance-futures-public-probe-workflow.test.js"
   - "node scripts/validate-workflow-authority-map.js && node scripts/validate-workflow-action-pins.js && node scripts/validate-workflow-action-inputs.js"
