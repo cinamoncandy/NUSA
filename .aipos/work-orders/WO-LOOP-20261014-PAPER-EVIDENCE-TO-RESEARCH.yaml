@@ -1,0 +1,22 @@
+id: WO-LOOP-20261014-PAPER-EVIDENCE-TO-RESEARCH
+title: "Performance Evidence N -> Research N+1: realized canonical PAPER periods feed the meta-learner"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/paper-ledger-feeds-meta-learning
+owner_decision: "2026-10-14 master instruction (section 2 and 8C): Research N+1 must actually consume PAPER Performance Evidence N, traceably."
+fresh_read_2026_10_14_0150Z:
+  main: 47b6da7a8 (runtime 2904e3353; #2689 not yet deployed)
+  paper: "12 realized owner-baseline periods; open period 12 (KRW-XRP) since 2026-10-13T15:30Z waits at WAITING_FOR_CANONICAL_BOUNDARY because PAPER is halted by the consecutive-loss limit (3 of 3 losing sells on KST day 2026-10-14; 174 BUY intents rejected CONSECUTIVE_LOSS_LIMIT). Correct behaviour; the limit stays 3. The halt resets at the KST day boundary (2026-10-14T15:00Z)."
+  loop: "cyclesEvaluated 0, cyclesRecorded 0, bootstrap RESEARCH_NOT_DEPLOYABLE (no holdout-qualified candidate). lastBlockedReason TICK_ERROR at 2026-10-14T00:52Z is persisted from the previous process; the current process (53 ticks) shows none, and its log window no longer covers it."
+gap: "Realized PAPER periods were recorded (BASELINE_PERIOD_OBSERVED) but no Research path read them; only the uncensored shadow fed meta-learning."
+change: "researchMetaLearningRuntime.paperLedgerForwardEntry: realized owner-baseline periods (canonical ledger realizedReturns vs benchmarkReturn) become one PAPER_FORWARD ledger entry (0 added configurations; PASS only with >= 20 periods, mean net > 0 and above mean benchmark). /health metaLearning publishes paperPeriodsConsumed, paperNetBp, paperExcessBp and paperEvidenceFingerprint (sha256 over sorted recordId:outcomeFingerprint), so the meta-learner decision (exhausted, recommended, steering) is traceable to the exact periods consumed."
+unchanged: "No PAPER, Risk, Governance, threshold, capital or authority change; failure memory and qualification rules untouched."
+validation: "tsc; researchMetaLearningRuntime 4, closed-learning-loop-status 20, cloud-runtime-liveness-health 33, research-ledger-snapshot 1 pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
