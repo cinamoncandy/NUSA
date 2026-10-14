@@ -32,16 +32,18 @@ describe("research all-KRW order-book collector", () => {
     assert.deepEqual({ ...collector.status() }, { rounds: 1, markets: 46, samplesStored: 45, failures: 0, rejected: 0, lastRoundAt: NOW });
   });
 
-  it("rejects stale, future and wrong-market books instead of storing them", async () => {
+  it("keeps an unchanged (old-timestamp) book at the observation time, and rejects future and wrong-market books", async () => {
     const stored: string[] = [];
+    const times: number[] = [];
     const stamps: Record<string, number> = { "KRW-OK": NOW - 1_000, "KRW-OLD": NOW - 121_000, "KRW-FUT": NOW + 6_000, "KRW-EDGE": NOW + 5_000 };
     const collector = new ResearchOrderBookCollector({
-      appendOrderBookRound: (rows) => { stored.push(...rows.map((r) => r.market)); return { stored: rows.length, rejected: 0 }; },
+      appendOrderBookRound: (rows) => { stored.push(...rows.map((r) => r.market)); times.push(...rows.map((r) => r.sample.capturedAtMs)); return { stored: rows.length, rejected: 0 }; },
       pruneOrderBookSamplesBefore: () => 0,
     }, { fetchImpl: fakeFetch(["KRW-OK", "KRW-OLD", "KRW-FUT", "KRW-EDGE", "KRW-SWAP"], false, (m) => stamps[m] ?? NOW, (m) => (m === "KRW-SWAP" ? "KRW-OTHER" : m)), now: () => NOW, sleep: async () => undefined });
-    assert.equal(await collector.collectOnce(), 2);
-    assert.deepEqual(stored.sort(), ["KRW-EDGE", "KRW-OK"]);
-    assert.equal(collector.status().rejected, 3, "stale, future and a market the request did not ask for");
+    assert.equal(await collector.collectOnce(), 3);
+    assert.deepEqual(stored.sort(), ["KRW-EDGE", "KRW-OK", "KRW-OLD"], "an illiquid market's unchanged book is its current state");
+    assert.ok(times.every((t) => t === NOW), "stamped with the observation time, never the exchange's last-change time");
+    assert.equal(collector.status().rejected, 2, "a future timestamp and a market the request did not ask for");
   });
 
   it("counts failures and never throws", async () => {

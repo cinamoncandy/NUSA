@@ -20,14 +20,18 @@ export interface ResearchOrderBookCollectorStatus {
   readonly markets: number;
   readonly samplesStored: number;
   readonly failures: number;
-  /** Books rejected for a wrong market, a stale or future exchange timestamp, or invalid values. */
+  /** Books rejected for a wrong market, a future or missing exchange timestamp, or invalid values. */
   readonly rejected: number;
   readonly lastRoundAt?: number;
 }
 
 export const ORDERBOOK_COLLECTOR_INTERVAL_MS = 60_000;
-/** A book older than this, or stamped later than now + ORDERBOOK_MAX_FUTURE_MS (clock skew), is rejected as stale or future. */
-export const ORDERBOOK_MAX_AGE_MS = 120_000;
+/**
+ * Upbit's REST order-book `timestamp` is the book's LAST CHANGE, not the observation time: an illiquid market's unchanged book is
+ * still its current state (measured 2026-10-14: 4 of 295 books older than 120 s, all illiquid). Rows are therefore stamped with
+ * the local observation time (as the WebSocket recorder does), which is when the state was actually known; the exchange timestamp
+ * is only checked for the future (beyond ORDERBOOK_MAX_FUTURE_MS of clock skew).
+ */
 export const ORDERBOOK_MAX_FUTURE_MS = 5_000;
 export const ORDERBOOK_COLLECTOR_RETENTION_MS = 14 * 24 * 3_600_000;
 const CHUNK = 20;
@@ -97,12 +101,12 @@ export class ResearchOrderBookCollector {
           const requested = targets.slice(i, i + CHUNK);
           const books = await this.getJson(`https://api.upbit.com/v1/orderbook?markets=${requested.join(",")}`);
           if (!Array.isArray(books)) throw new Error("ORDERBOOK_INVALID");
-          // Data integrity: keep only books for a market this request asked for, stamped by the exchange inside
-          // (now - ORDERBOOK_MAX_AGE_MS, now + ORDERBOOK_MAX_FUTURE_MS]; anything else is counted, never stored.
+          // Data integrity: keep only books for a market this request asked for whose exchange timestamp is not in the future;
+          // anything else is counted, never stored. Rows are stamped with the local observation time (see ORDERBOOK_MAX_FUTURE_MS).
           const roundNow = this.now;
           const accepted = (books as Book[]).filter((b) => {
             const ok = b != null && requested.includes(String(b.market)) && Array.isArray(b.orderbook_units) && b.orderbook_units.length > 0
-              && Number.isSafeInteger(b.timestamp) && b.timestamp > roundNow - ORDERBOOK_MAX_AGE_MS && b.timestamp <= roundNow + ORDERBOOK_MAX_FUTURE_MS;
+              && Number.isSafeInteger(b.timestamp) && b.timestamp > 0 && b.timestamp <= roundNow + ORDERBOOK_MAX_FUTURE_MS;
             if (!ok) this.rejected += 1;
             return ok;
           });
@@ -111,7 +115,7 @@ export class ResearchOrderBookCollector {
             return {
               market: String(b.market),
               sample: {
-                capturedAtMs: Number(b.timestamp),
+                capturedAtMs: roundNow,
                 bestBid: b.orderbook_units[0]!.bid_price,
                 bestAsk: b.orderbook_units[0]!.ask_price,
                 bidSize5: top.reduce((sum, u) => sum + u.bid_size, 0),
