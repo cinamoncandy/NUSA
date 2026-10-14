@@ -214,7 +214,6 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   private readonly fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
   private peakEquity: number;
   private lastLossSession: CloudPaperLossSessionSnapshot | null = null;
-  private lastDailyRealized: Readonly<{ evaluatedAt: number; realizedPnlKrw: number }> | null = null;
 
   public constructor(private readonly options: CloudPaperCanonicalRiskGatewayOptions) {
     if (!Number.isFinite(options.initialCapital) || options.initialCapital <= 0) throw new Error("cloud PAPER initial capital is invalid");
@@ -235,11 +234,6 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   /** The loss-limit counts from the latest evaluation, or null before any. Display only; never used for a decision. */
   public lossSession(): CloudPaperLossSessionSnapshot | null {
     return this.lastLossSession;
-  }
-
-  /** Today's (Asia/Seoul) realized PAPER P&L in KRW from the latest evaluation, or null before any. Display only for the owner's app; kept out of lossSession(), which public health exposes as integers only. */
-  public dailyRealized(): Readonly<{ evaluatedAt: number; realizedPnlKrw: number }> | null {
-    return this.lastDailyRealized;
   }
 
   public evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
@@ -272,7 +266,6 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const lossState = realizedLossState(input.state, input.now);
     if (Number.isFinite(lossState.dailyRealizedPnL)) {
       this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt });
-      this.lastDailyRealized = Object.freeze({ evaluatedAt: input.now, realizedPnlKrw: lossState.dailyRealizedPnL });
     }
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);

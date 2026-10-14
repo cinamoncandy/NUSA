@@ -7,7 +7,7 @@ import type { PublicCandle } from "./chartViewModel";
 import { buildHomeFieldInput } from "./homeFieldInput";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { haltCauseFromSnapshot } from "./haltReasonModel";
-import { buildLossLimitLine, buildTodayRealizedLine } from "./lossLimitModel";
+import { buildLossLimitLine } from "./lossLimitModel";
 import { describePaperOrderReason } from "./paperOrderReason";
 import { explainDecision } from "./whyNoTradeModel";
 import { useDailyCounts } from "./useDailyCounts";
@@ -55,8 +55,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const account = snapshot?.portfolio?.account ?? null;
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const orderReason = blocked ? null : describePaperOrderReason(heartbeat?.lastPaperDecisionOutcome);
-  const lossLimit = blocked ? null : buildLossLimitLine(heartbeat?.lossLimit, Date.now());
-  const todayRealized = blocked ? null : buildTodayRealizedLine(heartbeat?.todayRealized, Date.now());
+  const lossLimit = blocked ? null : buildLossLimitLine(heartbeat?.lossLimit, Date.now(), haltCause != null || field.phase === "HALTED");
   const model = buildNowScreen({
     phase: field.phase,
     phaseHeadline: field.headline,
@@ -84,7 +83,6 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
       <View style={styles.block}>
         <CalmBigNumber value={model.equity} caption={model.delta ?? undefined} captionTone={model.deltaTone} dim={model.dim} />
       </View>
-      {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
       {lossLimit == null ? null : <View style={styles.why} testID="now-loss-limit">
         <Text style={[styles.whyText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
       </View>}
