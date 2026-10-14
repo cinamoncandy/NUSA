@@ -1,4 +1,4 @@
-import { assessCodingRunnerReadiness, type CodingRunnerReadinessBlocker } from "./codingRunnerReadiness";
+import { assessCodingRunnerReadiness, isZeroCreditModeEnforced, type CodingRunnerReadinessBlocker } from "./codingRunnerReadiness";
 import { logAiCall } from "./aiCallTelemetry";
 import { selectJevCodingModel } from "./jevCodingModelTier";
 import {
@@ -1079,7 +1079,7 @@ export async function executeCodingRunner(
   options: CodingRunnerExecutionOptions = {},
 ): Promise<CodingRunnerResult> {
   const verifiedWorkflow = await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
-  const zeroCreditMode = env.NUSA_AUTOPILOT_ZERO_CREDIT_MODE?.trim().toLowerCase() === "true";
+  const zeroCreditMode = isZeroCreditModeEnforced(env.NUSA_AUTOPILOT_ZERO_CREDIT_MODE);
   const verifiedFailureEvidence = await verifiedJevCodingFailureEvidence(request, verifiedWorkflow, env.NUSA_GITHUB_TOKEN, fetchImpl);
   const jevFailureEvidence = !zeroCreditMode && isJevBoundedCodingAdmissionCandidate(request, env)
     ? verifiedFailureEvidence
