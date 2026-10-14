@@ -2822,6 +2822,14 @@ current_stall_metrics:
   owner_approval: "2026-10-06 in chat"
   finding: "PAPER halted with PAPER_WRITER_LEASE_LOST: a process stall above the 30 s writer lease loses it until restart; the stall source is unknown, measurement only"
 
+current_futures_binance_public_probe_20261014:
+  work_order: WO-FUTURES-20261014-BINANCE-PUBLIC-PROBE
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/binance-public-probe
+  validation: "3 workflow tests, 22 all-workflow scan tests and workflow authority/pin/input validators PASS."
+  next: "Review, CI, merge; then one manual dispatch to record Binance public reachability (expected answers 200 or 451/403)."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_handoff_main_20261014:
   status: RECORDED
   handoff: .aipos/handoffs/2026-10-14-main-handoff.md
