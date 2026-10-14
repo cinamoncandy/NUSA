@@ -54,6 +54,23 @@ describe("pre-registered regime long/short study", () => {
     assert.ok(paid.finalEquity < free.finalEquity);
   });
 
+  it("funding stamped at a trade's open bar is not paid; at its close bar it is (held into that moment)", () => {
+    const bars = series(600, 0.003);
+    const [trade] = run(bars).trades;
+    assert.ok(trade !== undefined);
+    const atOpen = run(bars, [[trade.openTime, 0.01, null]]).trades[0]!;
+    assert.equal(atOpen.net, trade.net);
+    const closeBar = trade.closeTime - (trade.closeTime % BAR);
+    if (closeBar < bars.at(-1)![0]) {
+      const atClose = run(bars, [[closeBar, 0.01, null]]).trades[0]!;
+      assert.ok(atClose.net < trade.net);
+    }
+  });
+
+  it("rejects an invalid symbol instead of silently trading nothing", () => {
+    assert.throws(() => runRegimeLongShortStudy({ bars: { X: series(300, 0) }, funding: {}, breakoutN: 50, costs: COSTS, startEquity: 1, fromMs: 0, toMs: 1, regimeSymbol: "X" }), /invalid futures symbol/);
+  });
+
   it("doubled costs lower the result", () => {
     const bars = series(600, 0.003);
     assert.ok(run(bars, [], DOUBLED).finalEquity < run(bars).finalEquity);
@@ -66,7 +83,7 @@ describe("pre-registered regime long/short study", () => {
   });
 
   it("the verdict needs every pre-registered check", () => {
-    const good: StudyResult = { trades: Array.from({ length: 30 }, (_, i) => ({ symbol: "S", side: "LONG" as const, openTime: i, closeTime: i, net: 1, returnOnMargin: 0.01, liquidated: false })), meanReturnOnMargin: 0.01, netBySymbol: { A: 1, B: 1, C: 1, D: -1, E: -1 }, shortNetInDownMonths: 5, maxDrawdown: 0.1, liquidations: 0, finalEquity: 1, monthRegimes: {} };
+    const good: StudyResult = { trades: Array.from({ length: 30 }, (_, i) => ({ symbol: "S", side: "LONG" as const, openTime: i, closeTime: i, net: 1, returnOnMargin: 0.01, liquidated: false })), meanReturnOnMargin: 0.01, netBySymbol: { A: 1, B: 1, C: 1, D: -1, E: -1 }, shortNetInDownMonths: 5, maxDrawdown: 0.1, liquidations: 0, finalEquity: 1, monthRegimes: {}, rejections: {} };
     assert.equal(preregisteredVerdict(good, good).pass, true);
     for (const broken of [{ meanReturnOnMargin: -0.01 }, { trades: good.trades.slice(0, 29) }, { netBySymbol: { A: 1, B: 1, C: -1, D: -1, E: -1 } }, { shortNetInDownMonths: 0 }, { maxDrawdown: 0.21 }, { liquidations: 1 }]) {
       assert.equal(preregisteredVerdict({ ...good, ...broken }, good).pass, false, JSON.stringify(Object.keys(broken)));

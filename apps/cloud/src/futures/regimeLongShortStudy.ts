@@ -49,6 +49,8 @@ export interface StudyResult {
   readonly liquidations: number;
   readonly finalEquity: number;
   readonly monthRegimes: Readonly<Record<string, "UP" | "DOWN">>;
+  /** Signalled orders that did not fill, counted by reason code (risk gate or simulator). */
+  readonly rejections: Readonly<Record<string, number>>;
 }
 
 const SMA = 200;
@@ -90,6 +92,11 @@ export function runRegimeLongShortStudy(input: StudyInput): StudyResult {
   const n = input.breakoutN;
   if (!Number.isInteger(n) || n < 2) throw new Error("STUDY_BREAKOUT_N_INVALID");
   const symbols = Object.keys(input.bars).sort();
+  for (const symbol of symbols) {
+    if (!/^[A-Z0-9]{2,20}USDT$/.test(symbol)) throw new Error(`invalid futures symbol: ${symbol}`);
+  }
+  const rejections: Record<string, number> = {};
+  const rejected = (reason: string): void => { rejections[reason] = (rejections[reason] ?? 0) + 1; };
   const index = new Map(symbols.map((symbol) => [symbol, new Map(input.bars[symbol]!.map((bar, i) => [bar[0], i]))]));
   const times = [...new Set(symbols.flatMap((symbol) => input.bars[symbol]!.map((bar) => bar[0])))].filter((t) => t >= input.fromMs && t < input.toMs).sort((a, b) => a - b);
   const limits = PAPER_FUTURES_OWNER_LIMITS;
@@ -127,6 +134,12 @@ export function runRegimeLongShortStudy(input: StudyInput): StudyResult {
       const bars = input.bars[symbol]!;
       const [, o, h, l, c] = bars[i]!;
       const ledgerFrom = account.ledger.length;
+      const fundingRows = input.funding[symbol] ?? [];
+
+      // 0. Funding stamped at this bar's open is paid by the position held into that moment, before any fill.
+      for (const [ft, rate, mark] of fundingRows) {
+        if (ft === t) account = applyFunding(account, symbol, rate, mark ?? o, ft, input.costs);
+      }
 
       // 1. The previous bar's signal fills at this bar's open.
       const action = pending.get(symbol);
@@ -135,6 +148,7 @@ export function runRegimeLongShortStudy(input: StudyInput): StudyResult {
       if (action?.kind === "CLOSE" && position != null) {
         const result = applyOrder(account, { id: `s${(seq += 1)}`, symbol, side: position.side === "LONG" ? "SHORT" : "LONG", quantity: position.quantity, leverage: position.leverage, marginMode: "ISOLATED", reduceOnly: true }, o, t, input.costs);
         if (result.status === "FILLED") account = result.account;
+        else rejected(result.reason);
       } else if (action?.kind === "OPEN" && position == null) {
         const quantity = (dayStartEquity * limits.maxPositionMarginRatio * limits.maxLeverage * SIZE_FRACTION) / o;
         const intent = { id: `s${(seq += 1)}`, symbol, side: action.side, quantity, leverage: limits.maxLeverage, marginMode: "ISOLATED" as const, reduceOnly: false };
@@ -145,13 +159,13 @@ export function runRegimeLongShortStudy(input: StudyInput): StudyResult {
             account = result.account;
             const opened = account.positions.find((p) => p.symbol === symbol)!;
             open.set(symbol, { side: action.side, openTime: t, openFee: result.entry.fee, margin: opened.isolatedMargin, funding: 0 });
-          }
-        }
+          } else rejected(result.reason);
+        } else decision.reasonCodes.forEach(rejected);
       }
 
-      // 2. Funding due during this bar while a position is open.
-      for (const [ft, rate, mark] of input.funding[symbol] ?? []) {
-        if (ft >= t && ft < t + BAR_MS) account = applyFunding(account, symbol, rate, mark ?? o, ft, input.costs);
+      // 2. Funding due later inside this bar while a position is open.
+      for (const [ft, rate, mark] of fundingRows) {
+        if (ft > t && ft < t + BAR_MS) account = applyFunding(account, symbol, rate, mark ?? o, ft, input.costs);
       }
 
       // 3. Liquidation against the bar's adverse extreme.
@@ -206,6 +220,7 @@ export function runRegimeLongShortStudy(input: StudyInput): StudyResult {
     liquidations: trades.filter((trade) => trade.liquidated).length,
     finalEquity: accountEquity(account, lastClose),
     monthRegimes: Object.freeze(months),
+    rejections: Object.freeze(rejections),
   });
 }
 
