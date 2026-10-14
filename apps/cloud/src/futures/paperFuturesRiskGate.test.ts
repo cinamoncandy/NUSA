@@ -57,4 +57,13 @@ describe("PAPER futures risk gate", () => {
   it("a reduce-only order that would add exposure is rejected", () => {
     assert.deepEqual(evaluatePaperFuturesOrder({ ...base, account: emptyPaperFuturesAccount(10_000), intent: intent({ reduceOnly: true }) }).reasonCodes, ["PAPER_FUTURES_REDUCE_ONLY_WOULD_INCREASE"]);
   });
+
+  it("rejects invalid quantities and flips on its own, without relying on the simulator", () => {
+    const opened = applyOrder(emptyPaperFuturesAccount(10_000), intent({ id: "p", side: "LONG" }), 60_000, NOW, COSTS);
+    assert.equal(opened.status, "FILLED");
+    for (const quantity of [Number.NaN, -0.01, 0, Number.POSITIVE_INFINITY]) {
+      assert.deepEqual(evaluatePaperFuturesOrder({ ...base, account: opened.account, intent: intent({ id: "q", quantity }) }).reasonCodes, ["PAPER_FUTURES_QUANTITY_INVALID"]);
+    }
+    assert.deepEqual(evaluatePaperFuturesOrder({ ...base, account: opened.account, intent: intent({ id: "f", side: "SHORT", quantity: 0.02 }) }).reasonCodes, ["PAPER_FUTURES_FLIP_NOT_ALLOWED"]);
+  });
 });

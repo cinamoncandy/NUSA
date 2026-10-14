@@ -2803,7 +2803,7 @@ current_futures_paper_core_20261014:
   work_order: WO-FUTURES-20261014-PAPER-CORE
   status: LOCAL_VALIDATED_PENDING_REVIEW_CI
   branch: claude/futures-paper-core
-  validation: "13 futures tests PASS; tsc, safety/ai-zero/portability/platform-independent/architecture validators PASS."
+  validation: "Pre-review P1/P2 fixed; 16 futures tests PASS; tsc and validators PASS."
   next: "Review, CI, merge; then futures research after the B0 probe answer. Not wired to runtime."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 

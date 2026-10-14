@@ -14,8 +14,10 @@ change:
   - "apps/cloud/src/futures/paperFuturesSimulator.ts: pure isolated-margin simulator (adverse slippage, taker fee, liquidation price, liquidation, funding, reduce-only, idempotent order ids)."
   - "apps/cloud/src/futures/paperFuturesRiskGate.ts: futures-only gate; reduce-only exposure cuts always allowed; new exposure must pass stale-mark, isolated-only, leverage, liquidation-distance, position-margin, consecutive-loss (KST day) and daily-loss checks; limits can only be tightened."
 not_changed: "Nothing is wired into the runtime, no market data is fetched, no credential exists, and the Upbit spot gateway, ledger and limits are untouched."
+review_corrections: "2026-10-14 independent pre-review: (P1) funding could drive isolated margin negative with a stale liquidation price; the liquidation price is now derived from current margin, recomputed on funding and partial close, and funding liquidates at once when the mark has crossed it; liquidations never book a gain. (P2) reserved funding:/liq: id prefixes rejected, liquidation ids de-duplicated, time validated; the gate rejects invalid quantity and flips itself and checks liquidation distance on the resulting position; remaining notes documented in the gate header."
 stated_simplifications:
-  - "Liquidation price omits tiered maintenance amounts; the 25% distance floor at 2x leverage keeps far away from it."
+  - "Liquidation price omits tiered maintenance amounts. At 2x a fresh position sits about 50% from liquidation, so the 25% floor is a backstop that bites after funding erodes margin."
+  - "The losing streak counts each losing close, so a trade closed in several losing slices counts more than once (safe side). Daily loss is realized only."
   - "One position per symbol; flipping through zero in one order is rejected."
   - "maxDailyLossRatio 5% and maxPositionMarginRatio 20% are conservative defaults chosen with the accepted limits; the owner may only tighten them."
 next:

@@ -9,11 +9,13 @@ import type {
  * Model (stated simplifications, all conservative or neutral):
  * - Linear USDT-margined contracts, ISOLATED margin only, one position per symbol.
  * - Fill price = reference price moved against the trader by slippage; fee = notional x taker rate.
- * - Liquidation price (isolated): LONG entry x (1 - 1/leverage + mmr), SHORT entry x (1 + 1/leverage - mmr).
- *   Real exchanges add tiered maintenance amounts; this omits them, which can only make the simulated liquidation
- *   later than reality for large notionals, so the risk gate's distance floor (25%) is kept far above it.
- * - Liquidation closes the whole position at its liquidation price and the isolated margin is lost.
- * - Funding: payment = quantity x mark x rate; LONG pays a positive rate, SHORT receives it. It moves isolated margin.
+ * - Liquidation price (isolated) is derived from the position's CURRENT isolated margin, so funding moves it:
+ *   LONG (entry*q - margin) / (q*(1 - mmr)), SHORT (entry*q + margin) / (q*(1 + mmr)). At opening this is about
+ *   entry x (1 - 1/leverage + mmr) for a long. Real exchanges add tiered maintenance amounts; this omits them.
+ * - Liquidation closes the whole position at its liquidation price and the isolated margin (never below 0) is lost.
+ * - Funding: payment = quantity x mark x rate; LONG pays a positive rate, SHORT receives it. It moves isolated margin,
+ *   recomputes the liquidation price and liquidates at once if the mark has already crossed it.
+ * - Ledger ids: order ids may not use the reserved "funding:" and "liq:" prefixes the simulator writes itself.
  */
 
 const EPS = 1e-12;
@@ -34,11 +36,19 @@ export function validateCostProfile(costs: PaperFuturesCostProfile): void {
   if (!(costs.maintenanceMarginRate > 0 && costs.maintenanceMarginRate < 0.1)) throw new Error("PAPER_FUTURES_MMR_INVALID");
 }
 
-export function liquidationPrice(side: PaperFuturesSide, entryPrice: number, leverage: number, maintenanceMarginRate: number): number {
+/** Isolated liquidation price from the position's current margin (see the model notes above). */
+export function liquidationPriceFromMargin(side: PaperFuturesSide, entryPrice: number, quantity: number, isolatedMargin: number, maintenanceMarginRate: number): number {
   return side === "LONG"
-    ? entryPrice * (1 - 1 / leverage + maintenanceMarginRate)
-    : entryPrice * (1 + 1 / leverage - maintenanceMarginRate);
+    ? Math.max(0, (entryPrice * quantity - isolatedMargin) / (quantity * (1 - maintenanceMarginRate)))
+    : (entryPrice * quantity + isolatedMargin) / (quantity * (1 + maintenanceMarginRate));
 }
+
+/** Liquidation price of a fresh position opened at `entryPrice` with margin notional/leverage. */
+export function liquidationPrice(side: PaperFuturesSide, entryPrice: number, leverage: number, maintenanceMarginRate: number): number {
+  return liquidationPriceFromMargin(side, entryPrice, 1, entryPrice / leverage, maintenanceMarginRate);
+}
+
+const RESERVED_ID = /^(funding|liq):/;
 
 /** Fill price for opening `side` exposure or closing it: always adverse to the trader. */
 export function adverseFillPrice(referencePrice: number, exposureSide: PaperFuturesSide, opening: boolean, slippageBps: number): number {
@@ -77,6 +87,7 @@ export function accountEquity(account: PaperFuturesAccount, markPrices: Readonly
  */
 export function applyOrder(account: PaperFuturesAccount, intent: PaperFuturesOrderIntent, referencePrice: number, at: number, costs: PaperFuturesCostProfile): PaperFuturesFillResult {
   validateCostProfile(costs);
+  if (RESERVED_ID.test(intent.id) || intent.id.trim() === "") return reject(account, "PAPER_FUTURES_ORDER_ID_RESERVED");
   if (account.ledger.some((entry) => entry.id === intent.id)) return reject(account, "PAPER_FUTURES_DUPLICATE_ORDER");
   if (!/^[A-Z0-9]{2,20}USDT$/.test(intent.symbol)) return reject(account, "PAPER_FUTURES_SYMBOL_INVALID");
   if (!finitePositive(intent.quantity) || !finitePositive(referencePrice) || !Number.isSafeInteger(at) || at < 0) return reject(account, "PAPER_FUTURES_INPUT_INVALID");
@@ -96,7 +107,8 @@ export function applyOrder(account: PaperFuturesAccount, intent: PaperFuturesOrd
     const realizedPnl = gross - fee;
     const remaining = current.quantity - intent.quantity;
     const entry: PaperFuturesLedgerEntry = Object.freeze({ id: intent.id, at, symbol: intent.symbol, kind: "CLOSE", side: current.side, quantity: intent.quantity, price, fee, realizedPnl });
-    const positions = remaining <= EPS ? others : [...others, Object.freeze({ ...current, quantity: remaining, isolatedMargin: current.isolatedMargin - releasedMargin })];
+    const keptMargin = current.isolatedMargin - releasedMargin;
+    const positions = remaining <= EPS ? others : [...others, Object.freeze({ ...current, quantity: remaining, isolatedMargin: keptMargin, liquidationPrice: liquidationPriceFromMargin(current.side, current.entryPrice, remaining, keptMargin, costs.maintenanceMarginRate) })];
     return Object.freeze({ status: "FILLED", account: freezeAccount(account.walletBalance + releasedMargin + realizedPnl, positions, [...account.ledger, entry]), entry });
   }
 
@@ -109,10 +121,11 @@ export function applyOrder(account: PaperFuturesAccount, intent: PaperFuturesOrd
   if (margin + fee > account.walletBalance + EPS) return reject(account, "PAPER_FUTURES_INSUFFICIENT_BALANCE");
   const quantity = (current?.quantity ?? 0) + intent.quantity;
   const entryPrice = current == null ? price : (current.entryPrice * current.quantity + price * intent.quantity) / quantity;
+  const isolatedMargin = (current?.isolatedMargin ?? 0) + margin;
   const position: PaperFuturesPosition = Object.freeze({
     symbol: intent.symbol, side: intent.side, quantity, entryPrice, leverage: intent.leverage, marginMode: "ISOLATED",
-    isolatedMargin: (current?.isolatedMargin ?? 0) + margin,
-    liquidationPrice: liquidationPrice(intent.side, entryPrice, intent.leverage, costs.maintenanceMarginRate),
+    isolatedMargin,
+    liquidationPrice: liquidationPriceFromMargin(intent.side, entryPrice, quantity, isolatedMargin, costs.maintenanceMarginRate),
     openedAt: current?.openedAt ?? at,
   });
   const entry: PaperFuturesLedgerEntry = Object.freeze({ id: intent.id, at, symbol: intent.symbol, kind: "OPEN", side: intent.side, quantity: intent.quantity, price, fee, realizedPnl: 0 });
@@ -121,27 +134,34 @@ export function applyOrder(account: PaperFuturesAccount, intent: PaperFuturesOrd
 
 /** Liquidate every isolated position whose mark price reached its liquidation price. */
 export function applyMarkPrices(account: PaperFuturesAccount, markPrices: Readonly<Record<string, number>>, at: number): PaperFuturesAccount {
+  if (!Number.isSafeInteger(at) || at < 0) throw new Error("PAPER_FUTURES_TIME_INVALID");
   const ledger = [...account.ledger];
   const positions: PaperFuturesPosition[] = [];
   for (const p of account.positions) {
     const mark = markPrices[p.symbol];
     const breached = Number.isFinite(mark) && (p.side === "LONG" ? mark! <= p.liquidationPrice : mark! >= p.liquidationPrice);
     if (!breached) { positions.push(p); continue; }
-    ledger.push(Object.freeze({ id: `liq:${p.symbol}:${at}`, at, symbol: p.symbol, kind: "LIQUIDATION", side: p.side, quantity: p.quantity, price: p.liquidationPrice, fee: 0, realizedPnl: -p.isolatedMargin }));
+    let id = `liq:${p.symbol}:${at}`;
+    for (let n = 2; ledger.some((entry) => entry.id === id); n += 1) id = `liq:${p.symbol}:${at}:${n}`;
+    ledger.push(Object.freeze({ id, at, symbol: p.symbol, kind: "LIQUIDATION", side: p.side, quantity: p.quantity, price: p.liquidationPrice, fee: 0, realizedPnl: -Math.max(0, p.isolatedMargin) }));
   }
   return positions.length === account.positions.length ? account : freezeAccount(account.walletBalance, positions, ledger);
 }
 
 /** Settle one funding interval for `symbol`. A positive rate moves LONG margin to SHORT; idempotent per (symbol, fundingTime). */
-export function applyFunding(account: PaperFuturesAccount, symbol: string, fundingRate: number, markPrice: number, fundingTime: number): PaperFuturesAccount {
+export function applyFunding(account: PaperFuturesAccount, symbol: string, fundingRate: number, markPrice: number, fundingTime: number, costs: PaperFuturesCostProfile): PaperFuturesAccount {
+  validateCostProfile(costs);
   if (!Number.isFinite(fundingRate) || Math.abs(fundingRate) > 0.05 || !finitePositive(markPrice) || !Number.isSafeInteger(fundingTime)) throw new Error("PAPER_FUTURES_FUNDING_INVALID");
   const id = `funding:${symbol}:${fundingTime}`;
   const position = account.positions.find((p) => p.symbol === symbol);
   if (position == null || account.ledger.some((entry) => entry.id === id)) return account;
   const amount = -sign(position.side) * position.quantity * markPrice * fundingRate;
-  const updated: PaperFuturesPosition = Object.freeze({ ...position, isolatedMargin: position.isolatedMargin + amount });
+  const isolatedMargin = position.isolatedMargin + amount;
+  const updated: PaperFuturesPosition = Object.freeze({ ...position, isolatedMargin, liquidationPrice: liquidationPriceFromMargin(position.side, position.entryPrice, position.quantity, isolatedMargin, costs.maintenanceMarginRate) });
   const entry: PaperFuturesLedgerEntry = Object.freeze({ id, at: fundingTime, symbol, kind: "FUNDING", side: position.side, quantity: position.quantity, price: markPrice, fee: 0, realizedPnl: amount });
-  return freezeAccount(account.walletBalance, [...account.positions.filter((p) => p.symbol !== symbol), updated], [...account.ledger, entry]);
+  const funded = freezeAccount(account.walletBalance, [...account.positions.filter((p) => p.symbol !== symbol), updated], [...account.ledger, entry]);
+  // Funding can move the liquidation price past the current mark: liquidate at once rather than carry negative margin.
+  return applyMarkPrices(funded, { [symbol]: markPrice }, fundingTime);
 }
 
 export { opposite as oppositeFuturesSide };
