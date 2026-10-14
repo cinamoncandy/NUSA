@@ -970,6 +970,16 @@ current_autopilot_repeated_deterministic_failure_stop:
   expected_efficiency: "Stop after the first bounded correction repeats the same deterministic failure code, avoiding additional proposal calls for that repeated failure. Actual token/credit savings are unmeasured."
   next: "Resolve the actionable AIPOS review threads; then fresh exact-head CI, independent Audit, and canonical Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_design_claude_v1_20261014:
+  work_order: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+  status: READY_FOR_REVIEW
+  authority_impact: none
+  design: docs/NUSA_CLAUDE_DESIGN_V1.md
+  finding: "Intraday SMA loses to fees; 186-189 configs with 0 holdout passes, first-screen passes only on daily bars; learning loop 0/7 for lack of a qualified candidate. Design: slow-bar regime research, forward-run wiring, Binance futures as a separate PAPER-only domain (data access first, then contracts, simulator, own risk gate), owner Now-tab with four answers, repository simplification."
+  next: "Owner decides adoption, futures risk limits, research direction and baseline handling."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_deterministic_coding_patches:
   work_order: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
   status: READY_FOR_REVIEW
