@@ -15,6 +15,13 @@ const sample = (at: number) => ({ capturedAtMs: at, bestBid: 100, bestAsk: 101, 
 const tick = (id: number, at: number) => ({ tradedAtMs: at, price: 100 + id, volume: 0.5, side: "BID" as const });
 
 describe("market microstructure store", () => {
+  it("stores a multi-market round in one go and prunes only the named markets by age", () => withStore((store) => {
+    assert.deepEqual(store.appendOrderBookRound([{ market: "KRW-A", sample: sample(10) }, { market: "KRW-B", sample: sample(10) }, { market: "bad", sample: sample(10) }, { market: "KRW-A", sample: sample(20) }]), { stored: 3, rejected: 1 });
+    assert.equal(store.pruneOrderBookSamplesBefore(["KRW-A"], 15), 1);
+    assert.deepEqual(store.readOrderBookSamples("KRW-A", 0, 99).map((s) => s.capturedAtMs), [20]);
+    assert.deepEqual(store.readOrderBookSamples("KRW-B", 0, 99).map((s) => s.capturedAtMs), [10], "other markets are untouched");
+  }));
+
   it("stores samples and ticks idempotently and reads them back in time order", () => withStore((store) => {
     assert.deepEqual(store.appendOrderBookSamples("KRW-BTC", [sample(2), sample(1)]), { stored: 2, rejected: 0 });
     assert.deepEqual(store.appendOrderBookSamples("KRW-BTC", [sample(2)]), { stored: 0, rejected: 0 });

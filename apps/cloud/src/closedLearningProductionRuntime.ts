@@ -4,6 +4,7 @@ import { canonicalResearchJson } from "../../../packages/contracts/src/researchR
 import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
 import { MarketMicrostructureRecorder, microstructureRecorderEnabled } from "./marketMicrostructureRecorder";
 import { SqliteMarketMicrostructureStore } from "../../../packages/storage/src/marketMicrostructureStore";
+import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled } from "./researchOrderBookCollector";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { replayPaperPeriodRule } from "./paperPeriodRuleReplay";
 import { composeResearchExperiments } from "./researchExperimentComposition";
@@ -135,6 +136,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
   // Research-only recording of the public order book and trades already streamed (Upbit keeps no history of either).
   const microstructureRecorder = microstructureRecorderEnabled(env) ? new MarketMicrostructureRecorder(new SqliteMarketMicrostructureStore(database)) : undefined;
+  // Research-only all-KRW order book, once a minute; markets the WebSocket recorder samples are left to it.
+  const orderBookCollector = researchOrderBookCollectorEnabled(env)
+    ? new ResearchOrderBookCollector(new SqliteMarketMicrostructureStore(database), { skipMarkets: () => microstructureRecorder?.recordedMarkets() ?? new Set<string>() })
+    : undefined;
   const loopStatus = new ClosedLearningLoopStatusTracker(closedLearningConfig.evaluationPeriodMs);
   // The last BLOCKED/ERROR reason survives a restart (display only; a reason seen by this process always wins).
   loopStatus.seedLastBlocked(readClosedLearningBlocked(config.cloudStateDbPath));
@@ -164,6 +169,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     () => loopStatus.snapshot(),
     () => researchExperiments?.experimentTicksByInterval() ?? null,
     microstructureRecorder,
+    orderBookCollector,
   );
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
