@@ -1,0 +1,27 @@
+id: WO-UI-20261014-NOW-LOSS-LIMIT
+title: "Now tab says when the consecutive-loss limit has paused buying"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/now-tab-loss-limit
+parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted 'all as recommended'; step 1 (Now tab four answers)."
+objective: "The owner sees in plain Korean that today's consecutive losses reached the limit and buying resumes at KST midnight, instead of an unknown reason."
+change:
+  - "packages/contracts: optional display-only heartbeat.lossLimit {consecutiveLossCount, maxConsecutiveLosses, evaluatedAt}; malformed values are dropped, never rejecting the snapshot."
+  - "apps/cloud/src/runtime.ts: heartbeat copies the canonical risk gateway's lossSession() counts; a failing read is ignored."
+  - "apps/mobile/src/lossLimitModel.ts + nowView.tsx: amber line when reached (STOPPED) or one loss before (WARNING); evaluations from an earlier KST day are not shown."
+not_changed: "The risk gateway, limit value (3), reset rule and every decision path are untouched. Display only."
+remaining: "Today's P&L line, learning and Autopilot lines are later steps of the same design."
+verification_commands:
+  - "npx tsc -p tsconfig.json && npx tsc -p apps/mobile/tsconfig.json --noEmit"
+  - "node --test tests/mobile-loss-limit.test.js"
+  - "node --test $(grep -rl -e nowView -e personalPaperOperations -e cloud/src/runtime -e readHeartbeat -e lossSession tests --include=*.js)"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

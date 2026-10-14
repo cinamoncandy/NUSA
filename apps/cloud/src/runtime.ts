@@ -37,7 +37,8 @@ import {
   type PersonalPaperOrderProjection,
   type PersonalPaperPortfolioProjection,
   type PersonalPaperRuntimeHaltReason,
-  type PersonalPaperRuntimeHeartbeat
+  type PersonalPaperRuntimeHeartbeat,
+  type PersonalPaperLossLimit
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { DashboardPrincipal } from "./mobileDashboardHttp";
@@ -235,13 +236,19 @@ export function startCloudRuntime(
   };
   // Display-only: the numbers and the strategy reason behind the latest canonical decision, so the app can say why nothing was traded.
   let lastDecisionDetail: PersonalPaperDecisionDetail | undefined;
+  // Display only: the consecutive-loss limit state the canonical risk gateway last evaluated. A failing read must never affect the heartbeat.
+  const lossLimitHeartbeat = (): { lossLimit?: PersonalPaperLossLimit } => {
+    let session: ReturnType<NonNullable<typeof productionPaperRiskGate>["lossSession"]> = null;
+    try { session = productionPaperRiskGate?.lossSession() ?? null; } catch { session = null; }
+    return session == null ? {} : { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt }) };
+  };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
     const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
     // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
     const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
-    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]) };
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]), ...lossLimitHeartbeat() };
     // Display only; a failing provider must never affect the heartbeat.
     let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }
