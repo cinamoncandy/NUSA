@@ -109,13 +109,27 @@ Before changing code:
 - Do not claim tests passed unless they were actually run or CI confirms them.
 - Update AIPOS state whenever architecture, scope, current work, or next work changes.
 
+## Operating roles (accepted 2026-10-14)
+
+Roles follow `docs/CLAUDE_CENTERED_OPERATING_MODEL.md` (ADR `ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL`, ACCEPTED). Design and implementation are Claude-centered; AIPOS and work orders stay vendor-neutral.
+
+- **CORE (+ operations, research, records)**: the Claude working session on the owner's account. Design, implementation, AIPOS records, operations checks, offline research, standing-approval PAPER deploys.
+- **VALIDATOR**: a separate fresh Claude session (same account allowed) that reviews code and workflow PRs it did not write.
+- **AUTOPILOT**: the Worker with Workers AI, limited to 150 changed lines in one file and allowed CI failures only.
+- **Gate (not AI)**: deterministic Audit and the release bot merge; no AI merges or approves its own PR.
+- A session learns its role from `NUSA_AGENT_ROLE` (`main`, or `validator`/`assistant` for a review session). If it is unset, act as CORE; every session starts with AIPOS recovery and verification, and no role may merge or approve.
+- Claim work by pushing a branch named after the work order before starting (no `agent/` prefix); search open PRs and branches with the same id first and leave existing work alone.
+- A PR that changes code or workflows opens as a **draft** and is reviewed by the role that did not write it, in a fresh session, under `docs/GRILL_ME_PROTOCOL.md`; blocking findings are inline review threads. The author marks it ready only after the review. Documentation-only `authority_impact: none` PRs use the lightweight path.
+- Automatic review on every PR is off; review runs on request. Codex workflows stay disabled and the paid GPT-4.1 overflow is off by owner decision.
+- Handoffs: `.aipos/handoffs/<date>-main-handoff.md` (older files may use other names). Read the most recent one.
+
 ## PR and CI noise prevention
 
 These rules are mandatory for every AI coding agent and are specifically intended to prevent repeated failing GitHub Actions runs and notification spam.
 
 1. **Do not open, reopen, or refresh a pull request before local validation passes.** At minimum run the relevant targeted tests plus `pnpm run preflight`; for changes that can affect repository-wide contracts, run the work-order validation command or `pnpm run validate:full` when available.
 2. **Verify repository reality before remote work.** Treat reported branch names, commit SHAs, PR state, and CI state as untrusted until the current repository or GitHub confirms them. Do not plan a push, PR, merge, or recovery around a missing/unreachable SHA.
-3. **Start remote CI from current `main`, but do not churn a validated head merely because `main` moved later.** Immediately before opening or materially refreshing a PR, fetch/inspect current `origin/main`. After CI has started on an exact head, if `main` advances, first inspect mergeability, branch-protection requirements, and whether the new base delta overlaps or semantically affects the PR. If the PR remains mergeable, the delta is non-overlapping/non-dependent, and protection does not require an up-to-date branch, preserve the already validated head and merge it without a stale-base refresh. Refresh and rerun only for a real conflict, semantic dependency, required up-to-date policy, or failed mergeability. This prevents harmless main churn from restarting expensive CI.
+3. **Start remote CI from current `main`, but do not churn a validated head merely because `main` moved later.** Immediately before opening or materially refreshing a PR, fetch/inspect current `origin/main`. After CI has started on an exact head, if `main` advances, first inspect mergeability, branch-protection requirements, and whether the new base delta overlaps or semantically affects the PR. If the PR remains mergeable, the delta is non-overlapping/non-dependent, and protection does not require an up-to-date branch, preserve the already validated head and let the release path merge it without a stale-base refresh. Refresh and rerun only for a real conflict, semantic dependency, required up-to-date policy, or failed mergeability. This prevents harmless main churn from restarting expensive CI.
 4. **One task = one active branch = one active PR.** Before creating a branch or PR, search for an existing open PR for the same task and continue there. Never create a follow-up PR merely because CI failed or because a still-mergeable PR fell behind `main`.
 5. **A closed PR is dead unless the owner explicitly asks to revive it.** Do not reopen a closed PR, push new commits to its old remote branch, or create another PR from that same branch automatically.
 6. **When CI fails, stop remote churn.** Diagnose locally, fix locally, and rerun the failing test locally. Push only after the local reproduction passes. Do not use GitHub CI as an iterative debugger.

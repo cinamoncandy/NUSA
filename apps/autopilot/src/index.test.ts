@@ -11,6 +11,15 @@ import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import type { CodingRuntime, WorkersAiBinding } from "./codingRunner";
 import { acquirePersistentExecution, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, ExecutionCoordinator, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
+it("health reports the same enforced default for missing or malformed credit posture", async () => {
+  for (const posture of [undefined, "", "tru", "1", "null", "true", "false"]) {
+    const response = await worker.fetch(new Request("https://example.test/health"), { NUSA_AUTOPILOT_ZERO_CREDIT_MODE: posture });
+    const health = await response.json() as { zeroCreditMode: string; aiCodingEngine: string };
+    assert.equal(health.zeroCreditMode, posture === "false" ? "DISABLED" : "ENFORCED");
+    if (posture !== "false") assert.equal(health.aiCodingEngine, "ZERO_CREDIT");
+  }
+});
+
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
 
@@ -607,6 +616,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       });
       const env = {
         NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "false",
         NUSA_GITHUB_TOKEN: "github-token",
         NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
         NUSA_AI_CODING_TOKEN: "ai-token",
@@ -666,6 +676,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       });
       const env = {
         NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "false",
         NUSA_GITHUB_TOKEN: "github-token",
         NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
         NUSA_AI_CODING_TOKEN: "ai-token",

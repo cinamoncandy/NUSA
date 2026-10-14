@@ -1,0 +1,34 @@
+id: WO-RESEARCH-20261013-META-LEARNER
+title: "Recursive self-improvement concept (owner definition) and its first meta-learning component: research ledger and meta-learner"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-meta-learner
+related_issues: [1605]
+owner_request: "2026-10-13 in chat: introduce the ability to learn how to improve the learning ability; owner defined the top-level learning capability (Recursive Self-Improving Investment Intelligence)."
+concept: docs/NUSA_RECURSIVE_SELF_IMPROVEMENT.md
+design:
+  ledger: "docs/research-ledger/experiments.json: append-only record of every research experiment (data type, timeframe, universe, method class, configurations, discovery/holdout passes, holdout gap)."
+  learner: "scripts/research-meta-learner.js: fixed policy. Lessons per dimension value; EXHAUSTED at >=50 configurations with 0 holdout passes; ranks untried combinations by novelty minus collection cost; reports the cumulative Bonferroni bar."
+  guard: "It only orders experiments. It cannot change a pass rule, threshold, holdout, risk setting or authority. The bar is cumulative across every experiment ever run, so learning more methods makes later tests stricter."
+pending_owner_decision: "Persist owner-baseline PAPER periods as OBSERVATION_ONLY learning records feeding Research N+1 failure attribution (no lineage or qualification claim)."
+first_run: "7 experiments, 173 configurations, 14 discovery passes, 0 holdout passes (100% overfit). EXHAUSTED: CLOSE data, both timeframes, five-market universe, hand-written rules. RECOMMENDED: OHLCV + INTRADAY + ALL_KRW + ML."
+verification_commands:
+  - "node scripts/research-meta-learner.js"
+  - "node scripts/validate-aipos-yaml.js"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+runtime_integration:
+  owner_request: "2026-10-13 in chat: complete meta-learning (do all of it)."
+  change:
+    - "packages/contracts/src/researchMetaLearning.ts: the single policy (lessons, exhaustion, ranking with collection cost, design-flaw retry, cumulative bar, efficiency metrics); the CLI transpiles it instead of keeping its own copy."
+    - "apps/cloud/src/researchLedgerSnapshot.ts: the ledger's policy fields compiled into the runtime; tests/research-ledger-snapshot.test.js fails on drift."
+    - "apps/cloud/src/researchMetaLearningRuntime.ts: every closed-learning tick evaluates the snapshot plus this process's runtime Research evaluations plus the live baseline SHADOW (replacing the recorded forward entry) and publishes closedLearningLoop.metaLearning on /health: counts, overfitRatePercent, validKnowledgePer100Configs, exhausted, recommended, recommendedPrerequisites, nextHoldoutBarMicros."
+  boundary: "Advisory and display only. It changes no Research schedule, budget, threshold, qualification, Risk or authority."
+  pending_owner_decision: "Steering runtime Research by the recommendation would reverse earlier owner decisions (failure memory record-only; adaptive research scheduling deferred). Not done."
+  validation: "policy tests 6, runtime tests 2, snapshot drift test, /health test; closed-learning, health and all compiled cloud tests 635 pass; CLI output unchanged (recommends TRADES+INTRADAY+ALL_KRW+ML)."

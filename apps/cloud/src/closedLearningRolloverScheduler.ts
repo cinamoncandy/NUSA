@@ -16,6 +16,8 @@ export type ClosedLearningRolloverStatus =
   | "WAITING_FOR_EVALUATION_WINDOW"
   | "WAITING_FOR_REALIZED_FILL"
   | "CLOSED_AND_EVALUATED"
+  /** An owner-baseline period closed. It has no Research lineage, so it is kept as a self-observation, not scored as a learning cycle. */
+  | "BASELINE_PERIOD_OBSERVED"
   | "BLOCKED";
 
 export interface ClosedLearningRolloverResult {
@@ -69,6 +71,7 @@ export interface ClosedLearningRolloverPort {
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
   readonly recordCycleFailure?: (input: { readonly closedPeriodId: string; readonly identity: ClosedLearningEvidenceIdentity; readonly stage: "CYCLE" | "FINALIZE"; readonly code: string }) => void;
+  readonly recordIdentityFailure?: (input: { readonly closedPeriod: PersistedPaperPeriodEnvelope; readonly code: string }) => void;
 }
 
 function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): number {
@@ -136,6 +139,19 @@ interface PreparedRollover {
 export class ClosedLearningRolloverScheduler {
   /** Realized-period record ids whose cycle did not finish in THIS process, with the in-process resume attempts used. */
   private readonly awaitingCycle = new Map<string, number>();
+  private failurePersistenceLost = false;
+
+  private assertFailurePersistence(): void {
+    if (this.failurePersistenceLost) throw new Error("CLOSED_LEARNING_FAILURE_PERSISTENCE_FAILED");
+  }
+
+  private recordIdentityFailure(closedPeriod: PersistedPaperPeriodEnvelope, error: unknown): void {
+    try { this.port.recordIdentityFailure?.({ closedPeriod, code: failureCode(error) }); }
+    catch {
+      this.failurePersistenceLost = true;
+      this.assertFailurePersistence();
+    }
+  }
 
   public constructor(private readonly port: ClosedLearningRolloverPort) {
     if (port.evaluationPeriodMs !== undefined && ![3_600_000, 86_400_000].includes(port.evaluationPeriodMs)) throw new Error("CLOSED_LEARNING_EVALUATION_PERIOD_INVALID");
@@ -171,7 +187,15 @@ export class ClosedLearningRolloverScheduler {
       return undefined;
     }
     this.awaitingCycle.set(latest.record.recordId, (attempts ?? 0) + 1);
-    const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
+    let identity: ClosedLearningEvidenceIdentity;
+    try {
+      identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
+    } catch (error) {
+      const observed = this.observeBaselinePeriod(latest, account, realized, error);
+      if (observed != null) return observed;
+      this.recordIdentityFailure(latest, error);
+      throw error;
+    }
     if (isRecorded(identity)) return undefined;
     return Object.freeze({
       closedRecordId: latest.record.recordId,
@@ -221,6 +245,29 @@ export class ClosedLearningRolloverScheduler {
       periodStartAt: account.updatedAt,
     });
     return Object.freeze({ status: "STALLED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `continued:${latest.record.recordId}` });
+  }
+
+  /**
+   * The owner baseline never has Research lineage, so its closed period cannot become a learning cycle and no lineage is invented.
+   * The durable realized period is the self-observation (outcome, cost and benchmark evidence are already immutable there); the
+   * baseline continues in a fresh period from the same canonical account boundary, exactly as a non-qualified cycle would. This
+   * replaces a BLOCKED retry loop that ended in the same continuation. Any other candidate, or any other error, is unchanged.
+   */
+  private observeBaselinePeriod(closed: PersistedPaperPeriodEnvelope, account: PaperAccountState, realizedPeriods: readonly PersistedPaperPeriodEnvelope[], error: unknown): ClosedLearningRolloverResult | undefined {
+    if ((error as { readonly code?: unknown } | null)?.code !== "PAPER_RESEARCH_LINEAGE_UNAVAILABLE") return undefined;
+    if (!(closed.candidateProvenance.length === 1 && closed.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID)) return undefined;
+    if (closed.record.market != null && this.isUnstreamed(closed.record.market)) return undefined;
+    this.awaitingCycle.delete(closed.record.recordId);
+    const periodIndex = nextPeriodIndex(realizedPeriods);
+    const reopened = this.port.openPeriodFromCanonicalAccount({
+      periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
+      periodIndex,
+      advisory: closed.record.advisory,
+      candidateProvenance: closed.candidateProvenance,
+      ...(closed.record.market == null ? {} : { market: closed.record.market }),
+      periodStartAt: account.updatedAt,
+    });
+    return Object.freeze({ status: "BASELINE_PERIOD_OBSERVED", periodId: reopened.periodId, reason: `observed:${closed.record.recordId}` });
   }
 
   private isUnstreamed(market: string): boolean {
@@ -335,7 +382,15 @@ export class ClosedLearningRolloverScheduler {
     // never the durable periods, decisions or failures.
     for (const key of this.awaitingCycle.keys()) if (key !== closed.record.recordId) this.awaitingCycle.delete(key);
     this.awaitingCycle.set(closed.record.recordId, 0);
-    const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
+    let identity: ClosedLearningEvidenceIdentity;
+    try {
+      identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
+    } catch (error) {
+      const observed = this.observeBaselinePeriod(closed, account, realizedPeriods, error);
+      if (observed != null) return observed;
+      this.recordIdentityFailure(closed, error);
+      throw error;
+    }
     return Object.freeze({ closedRecordId: closed.record.recordId, plan, account, realizedPeriods, identity });
   }
 
@@ -360,6 +415,7 @@ export class ClosedLearningRolloverScheduler {
   }
 
   public runOnce(): ClosedLearningRolloverResult {
+    this.assertFailurePersistence();
     let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
     let stage: "CYCLE" | "FINALIZE" = "CYCLE";
     try {
@@ -371,6 +427,7 @@ export class ClosedLearningRolloverScheduler {
       this.awaitingCycle.delete(prepared.closedRecordId);
       return result;
     } catch (error) {
+      this.assertFailurePersistence();
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
       if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
@@ -385,6 +442,7 @@ export class ClosedLearningRolloverScheduler {
 
   /** Async production path yields while Research/League evaluates the closed PAPER evidence. */
   public async runOnceAsync(): Promise<ClosedLearningRolloverResult> {
+    this.assertFailurePersistence();
     let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
     let stage: "CYCLE" | "FINALIZE" = "CYCLE";
     try {
@@ -398,6 +456,7 @@ export class ClosedLearningRolloverScheduler {
       this.awaitingCycle.delete(prepared.closedRecordId);
       return result;
     } catch (error) {
+      this.assertFailurePersistence();
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
       if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);

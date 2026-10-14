@@ -199,6 +199,23 @@ test("start recovers every longer bar length so its ticks are not stuck at RECOV
   } finally { composition.stop(); db.close(); }
 });
 
+test("meta-learning steering defers only the longer bar lengths, and a bad steering value falls back to every tick", () => {
+  const db = open();
+  const lines = [];
+  let every = 4;
+  const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_DAILY_BUDGET: "10", NUSA_RESEARCH_INTERVAL_MINUTES: "1,60", NUSA_RESEARCH_BACKFILL: "DISABLED" }), database: db, now: () => T_END, log: (l) => lines.push(l), longBarTickEvery: () => every });
+  try {
+    const deferred = () => lines.filter((l) => l.includes("tick 60m deferred by meta-learning steering")).length;
+    const firstTicks = () => lines.filter((l) => /^\[research-experiments\] tick (?!\d+m)/.test(l)).length;
+    for (let i = 0; i < 8; i += 1) composition.tickOnce();
+    assert.equal(firstTicks(), 8, "the first bar length (which collects candles) ticks every time");
+    assert.equal(deferred(), 6, "the 60m bar runs on ticks 0 and 4 only");
+    every = 0;
+    composition.tickOnce();
+    assert.equal(deferred(), 6, "an invalid steering value is treated as every tick");
+  } finally { composition.stop(); db.close(); }
+});
+
 test("the composition refills restart gaps in the recent history through the public candle fetcher", async () => {
   const db = open();
   const store = new SqliteResearchCandleStore(db, 200_000);

@@ -120,6 +120,7 @@ function harness(options: {
   awaitingGovernance?: boolean;
   closeError?: Error;
   cycleError?: Error;
+  identityError?: Error;
   retireMixed?: boolean;
   inspectMixed?: boolean;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
@@ -128,6 +129,7 @@ function harness(options: {
   const events: string[] = [];
   const openInputs: PaperRealizedPeriodOpenInput[] = [];
   const failures: Array<{ closedPeriodId: string; identity: ClosedLearningEvidenceIdentity; stage: "CYCLE" | "FINALIZE"; code: string }> = [];
+  const identityFailures: Array<{ closedPeriod: PersistedPaperPeriodEnvelope; code: string }> = [];
   const closed = envelope();
   const openPeriods = options.openPeriods ?? [plan(options.observation ?? "FILLED")];
   const realized = Object.freeze([...(options.priorRealized ?? []), closed]);
@@ -143,16 +145,58 @@ function harness(options: {
       return closed;
     },
     openPeriodFromCanonicalAccount: (input) => { openInputs.push(input); events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
-    buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
+    buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); if (options.identityError) throw options.identityError; return identity(); },
+    recordIdentityFailure: (failure) => { identityFailures.push(failure); },
     runClosedLearningCycle: () => { events.push("cycle"); if (options.cycleError) throw options.cycleError; return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
     recordCycleFailure: (failure) => { failures.push(failure); events.push(`failure:${failure.stage}:${failure.code}`); },
     ...(options.inspectMixed === true ? { inspectOpenPeriodForMixedBinding: (periodId: string) => { events.push(`inspect-mixed:${periodId}`); return { evidenceFingerprintSha256: "f".repeat(64) }; } } : {}),
     ...(options.retireMixed === false ? {} : { retireOpenPeriodForMixedBinding: (periodId: string) => { events.push(`retire-mixed:${periodId}`); return plan("FILLED", periodId); } }),
   };
-  return { scheduler: new ClosedLearningRolloverScheduler(port), events, openInputs, failures };
+  return { scheduler: new ClosedLearningRolloverScheduler(port), events, openInputs, failures, identityFailures, port };
 }
 
 describe("ClosedLearningRolloverScheduler", () => {
+  for (const resume of [false, true]) {
+    for (const asyncPath of [false, true]) {
+      it(`fails closed on identity receipt write failure (resume=${resume}, async=${asyncPath})`, async () => {
+        const h = harness({ now: NEXT_KST_DAY, identityError: new Error("identity unavailable") });
+        const scheduler = new ClosedLearningRolloverScheduler({
+          ...h.port,
+          ...(resume ? { listOpenPeriods: () => [], now: () => NEXT_KST_DAY + 1, isCycleRecorded: () => false } : {}),
+          recordIdentityFailure: () => { throw new Error("storage unavailable"); },
+        });
+        for (let attempt = 0; attempt < MAX_CYCLE_RESUME_ATTEMPTS + 2; attempt += 1) {
+          if (asyncPath) await assert.rejects(scheduler.runOnceAsync(), /CLOSED_LEARNING_FAILURE_PERSISTENCE_FAILED/);
+          else assert.throws(() => scheduler.runOnce(), /CLOSED_LEARNING_FAILURE_PERSISTENCE_FAILED/);
+        }
+        assert.equal(h.openInputs.length, 0);
+        assert.ok(!h.events.includes("cycle"));
+        assert.equal(h.events.filter((event) => event.startsWith("identity:")).length, 1);
+      });
+    }
+  }
+  for (const asyncPath of [false, true]) {
+    it(`captures a post-close identity failure before any cycle (${asyncPath ? "async" : "sync"})`, async () => {
+      const error = Object.assign(new Error("private diagnostic payload"), { code: "RISK_FINGERPRINT_INVALID" });
+      const h = harness({ now: NEXT_KST_DAY, identityError: error });
+      const result = asyncPath ? await h.scheduler.runOnceAsync() : h.scheduler.runOnce();
+      assert.equal(result.status, "BLOCKED");
+      assert.deepEqual(h.identityFailures, [{ closedPeriod: envelope(), code: "RISK_FINGERPRINT_INVALID" }]);
+      assert.equal(h.failures.length, 0);
+      assert.equal(h.openInputs.length, 0);
+      assert.ok(!h.events.includes("cycle"));
+      assert.doesNotMatch(JSON.stringify(h.identityFailures), /private diagnostic/);
+    });
+  }
+  it("captures the same closed identity failure after scheduler restart without repeating the close", () => {
+    const h = harness({ now: NEXT_KST_DAY, identityError: new Error("unstructured diagnostic") });
+    assert.equal(h.scheduler.runOnce().status, "BLOCKED");
+    const restarted = new ClosedLearningRolloverScheduler({ ...h.port, listOpenPeriods: () => [], now: () => NEXT_KST_DAY + 1, isCycleRecorded: () => false });
+    assert.equal(restarted.runOnce().status, "BLOCKED");
+    assert.deepEqual(h.identityFailures[1], h.identityFailures[0]);
+    assert.equal(h.identityFailures[0]?.code, "CLOSED_LEARNING_CYCLE_FAILED");
+    assert.equal(h.events.filter((event) => event.startsWith("close:")).length, 1);
+  });
   it("records bounded identity-only evidence when a prepared cycle fails after the period close", () => {
     const error = Object.assign(new Error("secret exception text with prices"), { code: "RESEARCH_WORKER_FAILED" });
     const { scheduler, failures } = harness({ now: NEXT_KST_DAY, cycleError: error });
@@ -613,5 +657,78 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
     assert.equal(next.status, "BLOCKED", "the existing stalled-continuation guard decides, and a non-baseline candidate is never moved");
     assert.equal(next.reason, "STALLED_PERIOD_MARKET_NOT_STREAMED");
     assert.equal(events.filter((item) => item === "cycle").length, 1, "no second cycle and no deployment on the dead market");
+  });
+});
+
+describe("closed-learning rollover keeps an owner-baseline period as a self-observation", () => {
+  class LineageUnavailable extends Error { readonly code = "PAPER_RESEARCH_LINEAGE_UNAVAILABLE"; }
+  const baselineProvenance = Object.freeze([{ candidateId: OWNER_BASELINE_CANDIDATE_ID, datasetId: "owner-baseline:upbit-public-ticker:KRW-BTC", datasetContentSha256: HASH }]);
+  const baselineEnvelope = (recordId: string, periodIndex: number) => Object.freeze({ ...envelope(recordId, periodIndex), candidateProvenance: baselineProvenance });
+
+  function baselinePort(options: { identityError: Error; candidate?: "baseline" | "challenger"; open?: boolean; clock?: number; streamed?: readonly string[] }) {
+    const events: string[] = [];
+    const closed = options.candidate === "challenger" ? envelope("record-0", 0) : baselineEnvelope("record-0", 0);
+    const openPlan = Object.freeze({ ...plan("FILLED", "owner-baseline:KRW-BTC:" + START), candidateProvenance: options.candidate === "challenger" ? plan().candidateProvenance : baselineProvenance });
+    const port: ClosedLearningRolloverPort = {
+      listOpenPeriods: () => (options.open === false ? [] : [openPlan]),
+      listRealizedPeriods: () => Object.freeze([closed]),
+      readCanonicalPaperAccount: () => account(NEXT_KST_DAY),
+      ...(options.clock === undefined ? {} : { now: () => options.clock! }),
+      ...(options.streamed === undefined ? {} : { streamedMarkets: () => options.streamed! }),
+      closePeriodFromCanonicalAccount: ({ periodId }) => { events.push(`close:${periodId}`); return closed; },
+      openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.candidateProvenance[0]?.candidateId}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
+      buildEvidenceIdentity: () => { events.push("identity"); throw options.identityError; },
+      isCycleRecorded: () => false,
+      runClosedLearningCycle: () => { events.push("cycle"); return cycle("INSUFFICIENT"); },
+      recordCycleFailure: (failure) => { events.push(`failure:${failure.code}`); },
+      recordIdentityFailure: (failure) => { events.push(`identity-failure:${failure.code}`); },
+    };
+    return { scheduler: new ClosedLearningRolloverScheduler(port), events };
+  }
+
+  it("observes the closed baseline period and continues the baseline in one step, with no cycle, failure record or invented lineage", () => {
+    const { scheduler, events } = baselinePort({ identityError: new LineageUnavailable("closed-learning evidence Research lineage is unavailable") });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "BASELINE_PERIOD_OBSERVED");
+    assert.equal(result.reason, "observed:record-0");
+    assert.equal(result.cycle, undefined);
+    assert.deepEqual(events, ["close:owner-baseline:KRW-BTC:" + START, "identity", `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${OWNER_BASELINE_CANDIDATE_ID}`]);
+  });
+
+  it("a challenger without lineage stays BLOCKED: only the owner baseline is an observation", () => {
+    const { scheduler, events } = baselinePort({ identityError: new LineageUnavailable("x"), candidate: "challenger" });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "BLOCKED");
+    assert.ok(!events.some((event) => event.startsWith("open:")));
+  });
+
+  it("any other identity failure of a baseline period stays BLOCKED", () => {
+    const { scheduler, events } = baselinePort({ identityError: new Error("closed-learning production risk fingerprint is invalid") });
+    assert.equal(scheduler.runOnce().status, "BLOCKED");
+    assert.ok(!events.some((event) => event.startsWith("open:")));
+  });
+
+  it("after a restart with no successor open, the baseline close is observed and continued instead of retried", () => {
+    const { scheduler, events } = baselinePort({ identityError: new LineageUnavailable("x"), open: false, clock: NEXT_KST_DAY + 1_000 });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "BASELINE_PERIOD_OBSERVED");
+    assert.deepEqual(events, ["identity", `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${OWNER_BASELINE_CANDIDATE_ID}`]);
+  });
+
+  it("never continues a baseline on a market the runtime no longer streams", () => {
+    const { scheduler, events } = baselinePort({ identityError: new LineageUnavailable("x"), open: false, clock: NEXT_KST_DAY + 1_000, streamed: ["KRW-ETH"] });
+    assert.notEqual(scheduler.runOnce().status, "BASELINE_PERIOD_OBSERVED");
+    assert.ok(!events.some((event) => event.includes(`:${OWNER_BASELINE_CANDIDATE_ID}`) && event.includes("KRW-BTC")));
+  });
+
+  it("the loop status counts realized baseline periods as observations and does not count them as cycles", () => {
+    const tracker = new ClosedLearningLoopStatusTracker(3_600_000);
+    tracker.observeRollover({ status: "BASELINE_PERIOD_OBSERVED", reason: "observed:record-1" }, NEXT_KST_DAY);
+    tracker.observePeriods(undefined, [baselineEnvelope("record-0", 0), baselineEnvelope("record-1", 1), envelope("record-2", 2)]);
+    const status = tracker.snapshot()!;
+    assert.equal(status.rollover, "BASELINE_PERIOD_OBSERVED");
+    assert.equal(status.cyclesEvaluated, 0);
+    assert.equal(status.evidence?.baselineObservations, 2);
+    assert.equal(status.evidence?.realizedPeriods, 3);
   });
 });

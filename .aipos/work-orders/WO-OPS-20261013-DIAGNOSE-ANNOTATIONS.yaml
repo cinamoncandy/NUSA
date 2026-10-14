@@ -1,0 +1,15 @@
+id: WO-OPS-20261013-DIAGNOSE-ANNOTATIONS
+title: "Host diagnosis publishes its read-only findings as job annotations"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P1
+authority_impact: none
+branch: claude/host-diagnose-annotations
+owner_decision: "2026-10-13 in chat: option B (owner approved running the modified read-only diagnosis from the branch during the outage)."
+why: "The diagnosis output lived only in the job log, which needs blob access; during the 2026-10-13 outage neither the session nor the owner on a phone could read it. Annotations are readable through the REST API."
+evidence: "Branch runs 38469226537 and the follow-up returned current_release=2bb279335, port 41731 closed, nusa active since 21:14:03 UTC, memory 460 MB available, disk 83%."
+limitation: "journalctl lines for the nusa unit came back empty for the runner account."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

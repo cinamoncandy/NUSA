@@ -109,6 +109,8 @@ export function composeResearchExperiments(input: {
   readonly log?: (line: string) => void;
   readonly fetchImpl?: typeof fetch;
   readonly sleep?: (ms: number) => Promise<void>;
+  /** Meta-learning steering: the longer bar lengths tick every N-th scheduled tick (1 = every tick). Read on every tick. */
+  readonly longBarTickEvery?: () => number;
 }): ResearchExperimentComposition | undefined {
   const log = input.log ?? (() => undefined);
   const parsed = readResearchExperimentSettings(input.env);
@@ -244,9 +246,16 @@ export function composeResearchExperiments(input: {
   let timer: ReturnType<typeof setInterval> | undefined;
   let first: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  let tickNumber = 0;
   const tickOnce = (): TickReport => {
     let first: TickReport | undefined;
+    let every = 1;
+    try { const n = input.longBarTickEvery?.() ?? 1; every = Number.isSafeInteger(n) && n >= 1 && n <= 24 ? n : 1; } catch { every = 1; }
+    const tickLongBars = tickNumber % every === 0;
+    tickNumber += 1;
     settings.intervalsMinutes.forEach((minutes, index) => {
+      // The first bar length also collects candles, so it always ticks; longer ones follow the meta-learning steering.
+      if (index > 0 && !tickLongBars) { log(`[research-experiments] tick ${minutes}m deferred by meta-learning steering (every ${every})`); return; }
       try {
         const report = orchestrators[index]!.tick();
         if (index === 0) first = report;

@@ -188,9 +188,9 @@ test("Oracle readiness rejects a stale release that serves health but omits a mo
 });
 
 
-  test("defaults Oracle startup readiness to the full bounded 180 second window", () => {
+  test("defaults Oracle startup readiness to the full bounded 300 second window", () => {
   const source = fs.readFileSync(script, "utf8");
-    assert.match(source, /NUSA_READY_STARTUP_WAIT_MS \|\| 180_000/);
+    assert.match(source, /NUSA_READY_STARTUP_WAIT_MS \|\| 300_000/);
     assert.match(source, /startupWaitMs > 300_000/);
 });
 

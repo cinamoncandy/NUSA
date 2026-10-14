@@ -13,7 +13,10 @@ concurrency:
 jobs:
   consume:
     # A repository_dispatch can arrive after main advances; stale requests are intentionally skipped.
-    if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' }}
+    # Autopilot coding is off unless the repository variable NUSA_AUTOPILOT_CODING_ENABLED is 'true'
+    # (owner decision 2026-10-13: the Workers AI engine merged 1 of 12 attempts and none in two weeks,
+    # while keeping it running cost more than it produced). Audit and Release do not use this job.
+    if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' && vars.NUSA_AUTOPILOT_CODING_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

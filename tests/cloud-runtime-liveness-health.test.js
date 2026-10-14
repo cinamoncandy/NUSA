@@ -362,18 +362,22 @@ test("/health publishes the loss-period evidence only as one coherent tuple, and
 test("/health publishes the durable cycle counts as integers inside the loop evidence, and drops anything malformed", async () => {
   const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "EXISTING_PAPER_STATE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY", lastCycleOutcome: "REJECTED",
     evidence: { cyclesRecorded: 3, lastCycleRecordedAt: 1_791_419_000_000, cycleId: "closed-learning:" + "a".repeat(64), cycleEvidenceFingerprint: "b".repeat(64), failuresRecorded: 1, latestFailureId: "closed-learning-failure:" + "c".repeat(64), latestFailurePeriodId: "period-1", latestFailureEvidenceId: "closed-learning-paper:e", latestFailureEvidenceFingerprint: "d".repeat(64), latestFailureSourceCommitSha: "e".repeat(40), latestFailureRuntimeSourceCommitSha: "f".repeat(40), latestFailureStage: "CYCLE", latestFailureCode: "RESEARCH_WORKER_FAILED", latestFailureRecordedAt: 1_791_419_000_001 } };
-  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+  for (const stage of ["IDENTITY", "CYCLE", "FINALIZE"]) {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { ...loop.evidence, latestFailureStage: stage } } }) }, async (handle) => {
     const body = JSON.parse((await request(handle.port, "/health")).body);
     assert.equal(body.runtime.closedLearningLoop.evidence.cyclesRecorded, 3);
     assert.equal(body.runtime.closedLearningLoop.evidence.latestFailureCode, "RESEARCH_WORKER_FAILED");
+    assert.equal(body.runtime.closedLearningLoop.evidence.latestFailureStage, stage);
     assert.equal(body.runtime.closedLearningLoop.evidence.failuresRecorded, 1);
     assert.equal(body.runtime.closedLearningLoop.evidence.lastCycleRecordedAt, 1_791_419_000_000);
     assert.equal(body.runtime.closedLearningLoop.lastCycleOutcome, "REJECTED");
   }, 42331);
-  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { cyclesRecorded: -1, lastCycleRecordedAt: "x", cycleId: "closed-learning:" + "a".repeat(64) } } }) }, async (handle) => {
+  }
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { cyclesRecorded: -1, lastCycleRecordedAt: "x", latestFailureStage: "UNKNOWN_STAGE", cycleId: "closed-learning:" + "a".repeat(64) } } }) }, async (handle) => {
     const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
     assert.equal(evidence.cyclesRecorded, undefined);
     assert.equal(evidence.lastCycleRecordedAt, undefined);
+    assert.equal(evidence.latestFailureStage, undefined);
     assert.equal(evidence.cycleId, "closed-learning:" + "a".repeat(64));
   }, 42332);
 });
@@ -518,4 +522,70 @@ test("/health publishes the baseline shadow totals as non-negative integers only
     assert.equal(evidence.shadowFeeBp, undefined);
     assert.equal(evidence.shadowGrossGainBp, 7);
   }, 42342);
+});
+
+test("/health publishes the rule-replay parity as signed integer basis points and counts, and drops malformed ones", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "RESEARCH_NOT_DEPLOYABLE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY",
+    evidence: { replayPeriodId: "closed-learning-rollover:9:1791825840978", replayBars: 60, replayTrades: 3, replayClosedNetBp: -123, replayOpenMarkBp: 0, replayPaperNetBp: -4, replayPaperNetKrw: -400 } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.deepEqual({ id: evidence.replayPeriodId, b: evidence.replayBars, t: evidence.replayTrades, c: evidence.replayClosedNetBp, o: evidence.replayOpenMarkBp, p: evidence.replayPaperNetBp }, { id: "closed-learning-rollover:9:1791825840978", b: 60, t: 3, c: -123, o: 0, p: -4 });
+    assert.equal(evidence.replayPaperNetKrw, undefined, "an unlisted key (any amount) is never published");
+  }, 42343);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, evidence: { replayTrades: -1, replayClosedNetBp: 1.5, replayPaperNetBp: "x", replayOpenMarkBp: -7 } } }) }, async (handle) => {
+    const evidence = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.evidence;
+    assert.equal(evidence.replayTrades, undefined);
+    assert.equal(evidence.replayClosedNetBp, undefined);
+    assert.equal(evidence.replayPaperNetBp, undefined);
+    assert.equal(evidence.replayOpenMarkBp, -7);
+  }, 42344);
+});
+
+test("/health publishes the advisory meta-learning report with codes and integers only", async () => {
+  const loop = { lastTickAt: 5, ticks: 5, cyclesEvaluated: 0, deployments: 0, bootstrap: "RESEARCH_NOT_DEPLOYABLE", rollover: "WAITING_FOR_CANONICAL_BOUNDARY",
+    metaLearning: { experiments: 15, configurations: 264, discoveryPasses: 14, holdoutPasses: 0, overfitRatePercent: 100, validKnowledgePer100Configs: 0, exhausted: "dataType=CLOSE,methodClass=RULE", recommended: "TRADES+INTRADAY+ALL_KRW+ML", recommendedPrerequisites: "COLLECT_TRADES", nextHoldoutBarMicros: 189, runtimeEntries: 1, liveForwardEntries: 1, steeringMode: "DEPRIORITIZE_EXHAUSTED", longBarTickEvery: 4, paperPeriodsConsumed: 12, paperNetBp: -10, paperExcessBp: -15, paperEvidenceFingerprint: "a".repeat(64), note: "free text" } };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: loop }) }, async (handle) => {
+    const meta = JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.metaLearning;
+    assert.equal(meta.recommended, "TRADES+INTRADAY+ALL_KRW+ML");
+    assert.equal(meta.exhausted, "dataType=CLOSE,methodClass=RULE");
+    assert.equal(meta.configurations, 264);
+    assert.equal(meta.steeringMode, "DEPRIORITIZE_EXHAUSTED");
+    assert.equal(meta.longBarTickEvery, 4);
+    assert.deepEqual([meta.paperPeriodsConsumed, meta.paperNetBp, meta.paperExcessBp, meta.paperEvidenceFingerprint], [12, -10, -15, "a".repeat(64)]);
+    assert.equal(meta.note, undefined, "free text is never published");
+  }, 42347);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, metaLearning: { ...loop.metaLearning, steeringMode: "STOP_ALL" } } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.metaLearning, undefined, "an unknown steering mode is never published");
+  }, 42349);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, closedLearningLoop: { ...loop, metaLearning: { ...loop.metaLearning, exhausted: "<script>" } } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.closedLearningLoop.metaLearning, undefined);
+  }, 42348);
+});
+
+test("/health publishes the microstructure recorder counters as non-negative integers only", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, microstructureRecorder: { orderBookSamples: 12, tradeTicks: 340, writeFailures: 0, rejectedRows: 2, lastRecordedAt: 1_791_900_000_000, secret: "x" } }) }, async (handle) => {
+    const runtime = JSON.parse((await request(handle.port, "/health")).body).runtime;
+    assert.deepEqual(runtime.microstructureRecorder, { orderBookSamples: 12, tradeTicks: 340, writeFailures: 0, rejectedRows: 2, lastRecordedAt: 1_791_900_000_000 });
+  }, 42345);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, microstructureRecorder: { orderBookSamples: -1, tradeTicks: 1, writeFailures: 0 } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.microstructureRecorder, undefined);
+  }, 42346);
+});
+
+test("/health publishes the all-KRW order-book collector counters as non-negative integers only", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, orderBookCollector: { rounds: 3, markets: 240, samplesStored: 700, failures: 1, rejected: 4, lastRoundAt: 1_791_900_000_000, note: "x" } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, { rounds: 3, markets: 240, samplesStored: 700, failures: 1, rejected: 4, lastRoundAt: 1_791_900_000_000 });
+  }, 42350);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, orderBookCollector: { rounds: 1.5, markets: 1, samplesStored: 0, failures: 0 } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.orderBookCollector, undefined);
+  }, 42351);
+});
+
+test("/health publishes the stored-data integrity result as a status plus non-negative integers only", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, dataIntegrity: { status: "FAIL", observedAt: 1_792_000_000_000, candleFuture: 1, note: "x", bad: -2 } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, { status: "FAIL", observedAt: 1_792_000_000_000, candleFuture: 1 });
+  }, 42352);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, dataIntegrity: { status: "GOOD", candleFuture: 0 } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, undefined);
+  }, 42353);
 });

@@ -1,0 +1,18 @@
+id: WO-OPS-20261013-READINESS-WAIT
+title: "Restore production: raise the release readiness startup budget to its 300 s maximum"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/release-readiness-wait
+owner_decision: "2026-10-13 in chat: option C (raise the readiness wait and redeploy)."
+incident: "oracle-paper-release runs 38464414541 and 38466962267 for 3098387b7 failed readiness; the rollback release refuses the database once migration 028 is applied, so the PAPER service stayed down (HTTP 502). During the second run the new release answered /health about 3 minutes after activation, just past the 180 s default."
+change: "scripts/oracle-readiness-check.js default NUSA_READY_STARTUP_WAIT_MS 180000 -> 300000 (the existing validated maximum). Ships with the release tree; the host-installed nusa-release-step is unchanged."
+limitation: "Root cause of the slow start is not confirmed (job log not readable from the session). If cold start exceeds 300 s the release fails again. The host-installed release step still rolls back onto a schema-incompatible release; changing that needs the owner to reinstall /opt/nusa/bin/nusa-release-step."
+validation: "tests/oracle-readiness-check.test.js 11 pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

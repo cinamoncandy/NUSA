@@ -1,0 +1,20 @@
+id: WO-RESEARCH-20261014-ORDERBOOK-COLLECTOR
+title: "Research-only all-KRW order-book collector (prerequisite COLLECT_ORDERBOOK of the meta-learner's recommendation)"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P1
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-orderbook-collector
+owner_decision: "2026-10-14 in chat: option A (add an all-KRW order-book collector; run the later study on the host and return only results)."
+reason: "After ML_TRADES_FLOW_15M_20261013 failed, the meta-learner recommends ORDERBOOK+INTRADAY+ALL_KRW+ML. The WebSocket recorder only samples the few subscribed markets (universe FIVE is exhausted) and Upbit keeps no order-book history."
+change: "apps/cloud/src/researchOrderBookCollector.ts: once a minute, /v1/orderbook for every KRW market in chunks of 20 (150 ms apart), one top-of-book summary per market into research_orderbook_samples via a new single-transaction appendOrderBookRound; markets the WebSocket recorder samples are skipped; rows pruned by age (14 days) hourly. No new migration. /health runtime.orderBookCollector {rounds, markets, samplesStored, failures, lastRoundAt}. Kill switch NUSA_RESEARCH_ORDERBOOK_COLLECTOR=DISABLED."
+resource_estimate: "About 12 public REST requests per minute; about 240 rows per minute (about 25 MB per day, about 350 MB at the 14-day retention). Watch host disk (83% on 2026-10-13) and memory after deploy."
+unchanged: "No order, PAPER, Risk, Governance, qualification, threshold, capital or authority change."
+next: "Once two or more weeks are stored: pre-register the ORDERBOOK study and run it on the host through a read-only dispatch workflow that returns only result lines (job annotations), since artifacts and logs are not readable from the session."
+validation: "tsc; researchOrderBookCollector 3, marketMicrostructureStore 5, marketMicrostructureRecorder 5, cloud-runtime-liveness-health 33, storage-migrations 11 pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
