@@ -66,4 +66,12 @@ describe("PAPER futures risk gate", () => {
     }
     assert.deepEqual(evaluatePaperFuturesOrder({ ...base, account: opened.account, intent: intent({ id: "f", side: "SHORT", quantity: 0.02 }) }).reasonCodes, ["PAPER_FUTURES_FLIP_NOT_ALLOWED"]);
   });
+
+  it("agrees with the simulator on float dust when closing a position exactly", () => {
+    const opened = applyOrder(emptyPaperFuturesAccount(10_000), intent({ id: "d", side: "LONG", quantity: 0.3 }), 60_000, NOW, COSTS);
+    assert.equal(opened.status, "FILLED");
+    const close = intent({ id: "dc", side: "SHORT", quantity: 0.1 + 0.2, reduceOnly: true }); // 0.30000000000000004
+    assert.equal(evaluatePaperFuturesOrder({ ...base, account: opened.account, intent: close }).status, "ALLOW");
+    assert.equal(applyOrder(opened.account, close, 60_000, NOW + 1, COSTS).status, "FILLED");
+  });
 });

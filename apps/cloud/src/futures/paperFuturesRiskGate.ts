@@ -1,6 +1,6 @@
 import { PAPER_FUTURES_OWNER_LIMITS, type PaperFuturesAccount, type PaperFuturesCostProfile, type PaperFuturesOrderIntent, type PaperFuturesRiskLimits } from "../../../../packages/contracts/src/paperFutures";
 import { paperTradingDayKey } from "../paperTradingDay";
-import { adverseFillPrice, liquidationPriceFromMargin } from "./paperFuturesSimulator";
+import { PAPER_FUTURES_QUANTITY_EPS, adverseFillPrice, liquidationPriceFromMargin } from "./paperFuturesSimulator";
 
 /**
  * Futures-only PAPER risk gate (design v1 §3, B3). Independent from the Upbit spot gateway: it reads only the futures
@@ -57,7 +57,7 @@ export function evaluatePaperFuturesOrder(input: Readonly<{
     return Object.freeze({ status: "REJECT", reasonCodes: Object.freeze(["PAPER_FUTURES_QUANTITY_INVALID"]) });
   }
   const current = account.positions.find((p) => p.symbol === intent.symbol);
-  if (current != null && current.side !== intent.side && intent.quantity > current.quantity) {
+  if (current != null && current.side !== intent.side && intent.quantity > current.quantity + PAPER_FUTURES_QUANTITY_EPS) {
     return Object.freeze({ status: "REJECT", reasonCodes: Object.freeze(["PAPER_FUTURES_FLIP_NOT_ALLOWED"]) });
   }
   const reducesExposure = current != null && current.side !== intent.side;

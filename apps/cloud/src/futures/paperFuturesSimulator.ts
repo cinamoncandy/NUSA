@@ -13,12 +13,17 @@ import type {
  *   LONG (entry*q - margin) / (q*(1 - mmr)), SHORT (entry*q + margin) / (q*(1 + mmr)). At opening this is about
  *   entry x (1 - 1/leverage + mmr) for a long. Real exchanges add tiered maintenance amounts; this omits them.
  * - Liquidation closes the whole position at its liquidation price and the isolated margin (never below 0) is lost.
+ *   When funding drives margin below 0 before a mark update, the excess funding debt appears only in that FUNDING
+ *   ledger row and is never charged to the wallet (isolated margin caps the loss); reconciliation must sum FUNDING and
+ *   LIQUIDATION rows together rather than read the shortfall as missing P&L.
  * - Funding: payment = quantity x mark x rate; LONG pays a positive rate, SHORT receives it. It moves isolated margin,
  *   recomputes the liquidation price and liquidates at once if the mark has already crossed it.
  * - Ledger ids: order ids may not use the reserved "funding:" and "liq:" prefixes the simulator writes itself.
  */
 
-const EPS = 1e-12;
+/** Quantity tolerance shared by the simulator and the futures risk gate so both treat float dust the same way. */
+export const PAPER_FUTURES_QUANTITY_EPS = 1e-12;
+const EPS = PAPER_FUTURES_QUANTITY_EPS;
 const sign = (side: PaperFuturesSide): 1 | -1 => (side === "LONG" ? 1 : -1);
 const opposite = (side: PaperFuturesSide): PaperFuturesSide => (side === "LONG" ? "SHORT" : "LONG");
 
