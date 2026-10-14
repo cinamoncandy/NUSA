@@ -22,7 +22,7 @@ Not changed: PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, ai
 
 ## Owner decisions (2026-10-14, in chat; recorded under WO-OPS-20261014-CLAUDE-CENTERED-DECISIONS)
 1. Roles, independence rule and work flow: adopted. Design moves from ChatGPT to Claude. `CLAUDE.md`, `AGENTS.md` and the master instructions may be updated in a separate P2 documentation PR.
-2. Identity: the Worker's GitHub token moves to a new GitHub App, separate from the release-authority app. No machine account is created for now. The owner creates the app; until then the owner-activity gate (#2644) stays off.
+2. Identity (revised the same day): keep the current repository and account setup; the Worker keeps its current token and no machine account is created. A new GitHub App (never the release-authority app) is created only if needed later. Consequence: Worker failure notifications still reach the owner, and the owner-activity gate (#2644) stays off because Autopilot activity cannot be told apart from the owner's.
 3. Engine and cost: Workers AI stays. The paid GPT-4.1 overflow is turned off (option b); the #2631 daily cap is not needed for it.
 4. Codex: the coding workflow, manual runner and review bot stay disabled and are kept, not removed.
 5. Cleanup order: the recommended P3 order is followed. #2644 is enabled only after it is fixed; stale PRs are closed only from an owner-approved list; branches are never deleted.

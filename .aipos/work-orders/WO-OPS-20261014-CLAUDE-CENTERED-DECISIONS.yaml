@@ -12,7 +12,7 @@ scope_note: "Documentation and AIPOS records only. No code, workflow, label, pro
 objective: "Mark the operating-model ADR ACCEPTED and record the owner's decisions so later phase work orders (P1-P5) can cite them."
 decisions:
   roles_and_flow: ADOPTED
-  identity: "New GitHub App for the Worker token, separate from the release-authority app; no machine account for now; owner creates it"
+  identity: "Keep current repository and account setup; Worker token unchanged; no machine account; a new GitHub App (never the release-authority app) only if needed later; #2644 stays off"
   paid_overflow: "GPT-4.1 overflow OFF; Workers AI kept"
   codex_assets: "Kept disabled, not removed"
   cleanup_order: "Recommended P3 order; #2644 only after fix; close stale PRs only from an approved list; never delete branches"
@@ -28,7 +28,6 @@ scope:
     - "Turning off the paid overflow in code or settings, creating the GitHub App, closing PRs or enabling #2644; each is its own phase work order."
 next:
   - "P4 work order to switch the paid GPT-4.1 overflow off."
-  - "Owner creates the Worker GitHub App (P0)."
 verification_commands:
   - "node scripts/validate-aipos-yaml.js"
   - "node scripts/validate-repository-truth.js"
