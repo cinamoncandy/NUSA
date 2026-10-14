@@ -2798,6 +2798,13 @@ current_stall_metrics:
   authority_impact: none
   owner_approval: "2026-10-06 in chat"
   finding: "PAPER halted with PAPER_WRITER_LEASE_LOST: a process stall above the 30 s writer lease loses it until restart; the stall source is unknown, measurement only"
+
+current_handoff_main_20261014:
+  status: RECORDED
+  handoff: .aipos/handoffs/2026-10-14-main-handoff.md
+  finding: "End-of-session handoff: owner decisions of 2026-10-14, four draft PRs (#2699, #2701, #2702, #2703) waiting for non-author review, and next safe actions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_health_error_class:
   work_order: WO-OPS-20261006-HEALTH-ERROR-CLASS
   status: READY_FOR_REVIEW
