@@ -37,10 +37,13 @@ import {
   type PersonalPaperOrderProjection,
   type PersonalPaperPortfolioProjection,
   type PersonalPaperRuntimeHaltReason,
-  type PersonalPaperRuntimeHeartbeat
+  type PersonalPaperRuntimeHeartbeat,
+  type PersonalPaperLossLimit,
+  type PersonalPaperTodayRealized
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { DashboardPrincipal } from "./mobileDashboardHttp";
+import { computeTodayRealizedPnlKrw } from "./paperTodayRealized";
 import type { CloudAiRuntime } from "./ai/runtime";
 import { AI_CALIBRATION_OUTCOME_DEFINITION_ID, attributionScope, createCloudAiRuntime } from "./ai/runtime";
 import { projectAiReadOnly } from "./ai/projection";
@@ -235,13 +238,28 @@ export function startCloudRuntime(
   };
   // Display-only: the numbers and the strategy reason behind the latest canonical decision, so the app can say why nothing was traded.
   let lastDecisionDetail: PersonalPaperDecisionDetail | undefined;
+  // Display only: the consecutive-loss limit state the canonical risk gateway last evaluated. A failing read must never affect the heartbeat.
+  const lossLimitHeartbeat = (): { lossLimit?: PersonalPaperLossLimit } => {
+    let session: ReturnType<NonNullable<typeof productionPaperRiskGate>["lossSession"]> = null;
+    try { session = productionPaperRiskGate?.lossSession() ?? null; } catch { session = null; }
+    return session == null ? {} : { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt }) };
+  };
+  // Display only: today's realized P&L from the PAPER loop's own fills, outside the RISK gateway. A failing read is ignored.
+  const todayRealizedHeartbeat = (): { todayRealized?: PersonalPaperTodayRealized } => {
+    try {
+      const now = Date.now();
+      const account = effectivePaperLoop?.snapshot();
+      const realizedPnlKrw = account == null ? null : computeTodayRealizedPnlKrw(account.fills, account.positions, now);
+      return realizedPnlKrw == null ? {} : { todayRealized: Object.freeze({ realizedPnlKrw, evaluatedAt: now }) };
+    } catch { return {}; }
+  };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
     const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
     // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
     const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
-    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]) };
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]), ...lossLimitHeartbeat(), ...todayRealizedHeartbeat() };
     // Display only; a failing provider must never affect the heartbeat.
     let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }
