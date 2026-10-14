@@ -1,0 +1,19 @@
+id: WO-DATA-20261014-ORDERBOOK-OBSERVATION-TIME
+title: "Stamp collected order books with the observation time; stop rejecting unchanged books of illiquid markets as stale"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+domain: "Public Market Data / Data & Research Integrity"
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/orderbook-observation-time
+runtime_evidence: "After #2692 deployed (9e2d4b3a6, verified /health.sourceCommitSha = main), orderBookCollector showed rejected 36 in 6 rounds. A direct measurement of all 295 KRW books on 2026-10-14 found 4 books with exchange timestamp older than 120 s (KRW-TFUEL 300 s, KRW-HP 165 s, KRW-MLK 135 s, KRW-JPYC 127 s; last trades 2-24 minutes earlier) and 18 slightly ahead of the local clock."
+root_cause: "Upbit's REST order-book timestamp is the book's last change, not the observation time. #2692 treated it as observation time and rejected unchanged books as stale, dropping valid current state of illiquid markets (a liquidity selection bias) and back-dating stored rows."
+change: "researchOrderBookCollector stores capturedAtMs = local observation time (consistent with the WebSocket recorder's receivedAt), keeps the exchange timestamp only as a future check (> now + 5 s) and the requested-market check; ORDERBOOK_MAX_AGE_MS removed."
+data_impact: "Rows written 2026-10-14 01:22Z..deploy carry exchange last-change times. The pre-registered ORDERBOOK study span starts 2026-10-15T00:00Z, so it is unaffected if this deploys on 2026-10-14; otherwise record the mixed window in the study ledger entry."
+validation: "tsc; researchOrderBookCollector 4 pass (illiquid book kept at observation time; future and wrong-market rejected)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
