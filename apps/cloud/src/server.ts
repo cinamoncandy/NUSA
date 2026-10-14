@@ -105,7 +105,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
   /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
   /** Research-only microstructure recorder counters (see marketMicrostructureRecorder.ts). */
-  readonly orderBookCollector?: { readonly rounds: number; readonly markets: number; readonly samplesStored: number; readonly failures: number; readonly lastRoundAt?: number };
+  readonly orderBookCollector?: { readonly rounds: number; readonly markets: number; readonly samplesStored: number; readonly failures: number; readonly rejected?: number; readonly lastRoundAt?: number };
   readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly rejectedRows?: number; readonly lastRecordedAt?: number };
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
@@ -487,7 +487,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawCollector = source.orderBookCollector as Record<string, unknown> | null | undefined;
   let orderBookCollector: { orderBookCollector?: Record<string, number> } = {};
   if (rawCollector != null && typeof rawCollector === "object" && ["rounds", "markets", "samplesStored", "failures"].every((key) => Number.isSafeInteger(rawCollector[key]) && Number(rawCollector[key]) >= 0)) {
-    orderBookCollector = { orderBookCollector: { rounds: Number(rawCollector.rounds), markets: Number(rawCollector.markets), samplesStored: Number(rawCollector.samplesStored), failures: Number(rawCollector.failures), ...(Number.isSafeInteger(rawCollector.lastRoundAt) && Number(rawCollector.lastRoundAt) > 0 ? { lastRoundAt: Number(rawCollector.lastRoundAt) } : {}) } };
+    orderBookCollector = { orderBookCollector: { rounds: Number(rawCollector.rounds), markets: Number(rawCollector.markets), samplesStored: Number(rawCollector.samplesStored), failures: Number(rawCollector.failures), ...(Number.isSafeInteger(rawCollector.rejected) && Number(rawCollector.rejected) >= 0 ? { rejected: Number(rawCollector.rejected) } : {}), ...(Number.isSafeInteger(rawCollector.lastRoundAt) && Number(rawCollector.lastRoundAt) > 0 ? { lastRoundAt: Number(rawCollector.lastRoundAt) } : {}) } };
   }
   const rawResearch = source.researchCollectionStatus;
   const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
