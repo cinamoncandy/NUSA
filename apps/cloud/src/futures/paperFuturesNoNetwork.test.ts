@@ -34,7 +34,9 @@ function reachableFiles(): { files: string[]; external: string[] } {
       else external.push(`${file} -> ${specifier}`);
     }
   }
-  return { files: [...seen].sort(), external };
+  // Report repository-relative paths with "/" on every OS (CI also runs on Windows, where join() yields "\\").
+  const posix = (file: string): string => file.replace(/\\/g, "/");
+  return { files: [...seen].map(posix).sort(), external: external.map(posix) };
 }
 
 describe("PAPER futures domain has no network or credential path", () => {
