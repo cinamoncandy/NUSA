@@ -11,10 +11,15 @@
  * different names now land at different places and merge cleanly. The file's existing order is not
  * changed; readers do not depend on it.
  *
- * Usage: node scripts/aipos-state-insert.js <entry.yaml>   (the file holds exactly one top-level key)
+ * Since 2026-10-14 the default is one file per entry, `.aipos/state.d/<key>.yaml`: name-order insertion still
+ * made neighbouring names conflict (two PRs adding alphabetically adjacent keys edit the same lines), while a new
+ * file per entry can never conflict with another PR. Validators read state.yaml control keys by name only, so the
+ * per-entry files need no reader changes. `--inline` keeps the old name-order insertion into state.yaml.
+ *
+ * Usage: node scripts/aipos-state-insert.js [--inline] <entry.yaml>   (the file holds exactly one top-level key)
  */
 
-const { readFileSync, writeFileSync } = require("node:fs");
+const { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const yaml = require("js-yaml");
 
@@ -58,21 +63,55 @@ function insertStateEntry(stateText, entryText) {
   return result;
 }
 
+const STATE_DIR = join(".aipos", "state.d");
+
+/** Keys already recorded in the per-entry directory (file name without .yaml). */
+function stateDirKeys(root) {
+  const dir = join(root, STATE_DIR);
+  return existsSync(dir) ? readdirSync(dir).filter((name) => name.endsWith(".yaml")).map((name) => name.slice(0, -5)) : [];
+}
+
+/** Pure: validates one entry for its own file and returns { name, text }, or throws. */
+function stateEntryFile(stateText, existingDirKeys, entryText) {
+  const entry = entryText.replace(/\s+$/, "");
+  const entryKeys = topLevelKeys(entry.split("\n"));
+  if (entryKeys.length !== 1 || entryKeys[0].index !== 0) throw new Error("ENTRY_MUST_BE_ONE_TOP_LEVEL_KEY");
+  const parsedEntry = yaml.load(entry);
+  if (!parsedEntry || typeof parsedEntry !== "object" || Object.keys(parsedEntry).length !== 1) throw new Error("ENTRY_INVALID_YAML");
+  const name = entryKeys[0].key;
+  if (name === "version") throw new Error("ENTRY_RESERVED_KEY:version");
+  const stateKeys = topLevelKeys(stateText.split("\n")).map(({ key }) => key);
+  if (stateKeys.includes(name) || existingDirKeys.includes(name)) throw new Error(`ENTRY_ALREADY_EXISTS:${name}`);
+  return { name, text: `${entry}\n` };
+}
+
 if (require.main === module) {
   // `pnpm run aipos:state-add -- <entry.yaml>` passes the `--` separator through.
-  const entryPath = process.argv.slice(2).find((argument) => argument !== "--");
+  const args = process.argv.slice(2).filter((argument) => argument !== "--");
+  const inline = args.includes("--inline");
+  const entryPath = args.find((argument) => argument !== "--inline");
   if (!entryPath) {
-    console.error("usage: node scripts/aipos-state-insert.js <entry.yaml>");
+    console.error("usage: node scripts/aipos-state-insert.js [--inline] <entry.yaml>");
     process.exit(2);
   }
-  const statePath = join(process.cwd(), ".aipos", "state.yaml");
+  const root = process.cwd();
+  const statePath = join(root, ".aipos", "state.yaml");
   try {
-    writeFileSync(statePath, insertStateEntry(readFileSync(statePath, "utf8"), readFileSync(entryPath, "utf8")));
-    console.log("AIPOS_STATE_INSERT OK");
+    const stateText = readFileSync(statePath, "utf8");
+    const entryText = readFileSync(entryPath, "utf8");
+    if (inline) {
+      writeFileSync(statePath, insertStateEntry(stateText, entryText));
+      console.log("AIPOS_STATE_INSERT OK (inline)");
+    } else {
+      const { name, text } = stateEntryFile(stateText, stateDirKeys(root), entryText);
+      mkdirSync(join(root, STATE_DIR), { recursive: true });
+      writeFileSync(join(root, STATE_DIR, `${name}.yaml`), text, { flag: "wx" });
+      console.log(`AIPOS_STATE_INSERT OK (${STATE_DIR.replace(/\\/g, "/")}/${name}.yaml)`);
+    }
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }
 
-module.exports = { insertStateEntry };
+module.exports = { insertStateEntry, stateEntryFile, stateDirKeys };

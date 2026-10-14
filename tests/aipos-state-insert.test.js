@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const yaml = require("js-yaml");
-const { insertStateEntry } = require("../scripts/aipos-state-insert.js");
+const { insertStateEntry, stateEntryFile } = require("../scripts/aipos-state-insert.js");
 
 const base = [
   "version: 1",
@@ -81,7 +81,24 @@ test("the documented pnpm form, which passes a `--` separator, reads the entry f
   writeFileSync(join(dir, ".aipos", "state.yaml"), base);
   writeFileSync(join(dir, "entry.yaml"), entry("current_golf"));
   const script = require.resolve("../scripts/aipos-state-insert.js");
-  const result = spawnSync(process.execPath, [script, "--", "entry.yaml"], { cwd: dir, encoding: "utf8", env: { ...process.env, NODE_PATH: join(__dirname, "..", "node_modules") } });
+  const env = { ...process.env, NODE_PATH: join(__dirname, "..", "node_modules") };
+  const result = spawnSync(process.execPath, [script, "--", "entry.yaml"], { cwd: dir, encoding: "utf8", env });
   assert.equal(result.status, 0, result.stderr);
-  assert.ok(Object.keys(yaml.load(readFileSync(join(dir, ".aipos", "state.yaml"), "utf8"))).includes("current_golf"));
+  assert.equal(readFileSync(join(dir, ".aipos", "state.yaml"), "utf8"), base, "the default never edits state.yaml");
+  assert.deepEqual(Object.keys(yaml.load(readFileSync(join(dir, ".aipos", "state.d", "current_golf.yaml"), "utf8"))), ["current_golf"]);
+  const again = spawnSync(process.execPath, [script, "--", "entry.yaml"], { cwd: dir, encoding: "utf8", env });
+  assert.notEqual(again.status, 0, "a second add of the same key is refused");
+  assert.match(again.stderr, /ENTRY_ALREADY_EXISTS:current_golf/);
+  writeFileSync(join(dir, "entry2.yaml"), entry("current_papa"));
+  const inline = spawnSync(process.execPath, [script, "--inline", "entry2.yaml"], { cwd: dir, encoding: "utf8", env });
+  assert.equal(inline.status, 0, inline.stderr);
+  assert.ok(Object.keys(yaml.load(readFileSync(join(dir, ".aipos", "state.yaml"), "utf8"))).includes("current_papa"));
+});
+
+test("per-entry files never touch the same lines, and refuse keys already in state.yaml or state.d", () => {
+  assert.deepEqual(stateEntryFile(base, [], entry("current_golf")), { name: "current_golf", text: entry("current_golf") });
+  assert.throws(() => stateEntryFile(base, [], entry("current_kilo")), /ENTRY_ALREADY_EXISTS:current_kilo/);
+  assert.throws(() => stateEntryFile(base, ["current_golf"], entry("current_golf")), /ENTRY_ALREADY_EXISTS:current_golf/);
+  assert.throws(() => stateEntryFile(base, [], "version: 2\n"), /ENTRY_RESERVED_KEY/);
+  assert.throws(() => stateEntryFile(base, [], `${entry("current_x")}current_y:\n  a: 1\n`), /ENTRY_MUST_BE_ONE_TOP_LEVEL_KEY/);
 });

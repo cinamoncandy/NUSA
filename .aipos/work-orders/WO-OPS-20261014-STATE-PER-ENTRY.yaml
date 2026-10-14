@@ -1,0 +1,27 @@
+id: WO-OPS-20261014-STATE-PER-ENTRY
+title: "New AIPOS state entries go to one file each (.aipos/state.d/<key>.yaml)"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/aipos-state-per-entry
+parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted (D: repository simplification); 'continue'."
+problem: "Name-order insertion into state.yaml still conflicts when two PRs add alphabetically adjacent keys; on 2026-10-14 alone #2702, #2703 and #2705 each needed a state.yaml conflict resolution."
+finding: "No validator or test reads every state.yaml entry: each reads fixed control keys by name (current_non_live_work_order, claimed_state, verified_state, in_progress, next, verification, base_commit, constitutional_transition_review, ...). Archiving old entries would not fix adjacent-key conflicts; a file per new entry does."
+change:
+  - "scripts/aipos-state-insert.js: default writes .aipos/state.d/<key>.yaml (refuses a key already in state.yaml or state.d, refuses 'version'); --inline keeps the old name-order insertion."
+  - "tests/aipos-state-insert.test.js: CLI default leaves state.yaml untouched, duplicate refused, --inline still works; pure stateEntryFile cases."
+  - "tests/aipos-state-dir.test.js: every state.d file holds exactly its own key and never duplicates state.yaml."
+  - "AGENTS.md: the state is state.yaml plus state.d/*.yaml; new entries use the per-entry file."
+not_changed: "Existing state.yaml entries and every validator stay as they are; no entry is moved."
+verification_commands:
+  - "node --test tests/aipos-state-insert.test.js tests/aipos-state-dir.test.js"
+  - "node scripts/validate-aipos-yaml.js && node scripts/aipos-work-order-index.js --check"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
