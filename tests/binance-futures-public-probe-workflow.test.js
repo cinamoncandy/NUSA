@@ -18,7 +18,7 @@ test("the Binance probe is dispatch-only, read-only, secret-free and runs no act
 test("every request is a bounded plain GET of a Binance public futures path, with no key or header", () => {
   const curls = commands.split("\n").filter((line) => /\bcurl\b/.test(line));
   assert.equal(curls.length, 1);
-  assert.match(curls[0], /curl -sS -m 8 --max-filesize 65536 -o \/tmp\/nusa-binance-probe\.json /);
+  assert.match(curls[0], /curl -sS -m 8 --max-filesize 65536 -o "\$probe" /);
   assert.match(curls[0], /"https:\/\/fapi\.binance\.com\$\{path\}"/);
   assert.doesNotMatch(curls[0], /\s-(X|d|H|T|u|F|K|b|c)\s|--(data|header|upload|user|form|request|config|cookie)|Authorization|Bearer|X-MBX-APIKEY|signature/i);
   const paths = [...commands.matchAll(/"(\/fapi\/v1\/[^"]+)"/g)].map((m) => m[1].split("?")[0]);
@@ -26,8 +26,19 @@ test("every request is a bounded plain GET of a Binance public futures path, wit
   assert.doesNotMatch(commands, /\/fapi\/v1\/(order|batchOrders|leverage|marginType|positionSide|account|balance|listenKey)/);
 });
 
+test("each request writes to a fresh per-run file that is emptied first, and a no-response request prints no stale body", () => {
+  assert.match(commands, /probe="\$\(mktemp \/tmp\/nusa-binance-probe\.XXXXXX\)" \|\| exit 1/);
+  assert.match(commands, /trap 'rm -f "\$probe"' EXIT/);
+  const loop = commands.slice(commands.indexOf("for path in"));
+  assert.ok(loop.indexOf(': > "$probe"') >= 0 && loop.indexOf(': > "$probe"') < loop.indexOf("curl "), "emptied before every request");
+  assert.match(loop, /if \[ "\$\{code:-000\}" = "000" \] \|\| \[ "\$size" = "0" \]; then echo "\(no response body\)"; continue; fi/);
+  assert.match(loop, /curl_exit=\$\{exit_code\}/);
+});
+
 test("no command can change the host or read credential files", () => {
-  for (const forbidden of [/\bsudo\b/, /systemctl/, /\brm\b/, /\bmv\b/, /\bcp\b/, /\bchmod\b/, /\bchown\b/, /\btee\b/, /\bwget\b/, /\bapt\b/, /\bkill\b/, /\.env\b/, /cloud-runtime/, /(^|\s)>\s*\/(?!dev\/null)/]) {
+  const rms = commands.split("\n").filter((line) => /\brm\b/.test(line));
+  assert.deepEqual(rms.map((line) => line.trim()), [`trap 'rm -f "$probe"' EXIT`], "the only removal is the probe's own mktemp file");
+  for (const forbidden of [/\bsudo\b/, /systemctl/, /\bmv\b/, /\bcp\b/, /\bchmod\b/, /\bchown\b/, /\btee\b/, /\bwget\b/, /\bapt\b/, /\bkill\b/, /\.env\b/, /cloud-runtime/, /(^|\s)>\s*\/(?!dev\/null)/]) {
     assert.doesNotMatch(commands, forbidden, `forbidden: ${forbidden}`);
   }
 });
