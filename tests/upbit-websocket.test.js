@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { execFileSync, spawnSync } = require("node:child_process");
+const { EventEmitter } = require("node:events");
 const {
   normalizeUpbitMarkets,
   parseUpbitPublicMessage,
@@ -15,6 +17,73 @@ const ticker = (overrides = {}) => ({
   trade_price: 100000000,
   trade_timestamp: 1000,
   ...overrides
+});
+
+test("retirement evidence binds the exact MARKET_DATA source without granting qualification", () => {
+  const { MODULE_QUALIFICATION_RECORDS_V1, isLevel10Qualified } = require("../dist/apps/cloud/src/moduleQualificationV1.js");
+  const record = MODULE_QUALIFICATION_RECORDS_V1.MARKET_DATA;
+  const blob = execFileSync("git", ["rev-parse", `HEAD:${record.sourceRef}`], { encoding: "utf8" }).trim();
+  assert.equal(record.sourceCommitSha, "7c5f75763e9bc3a673647dfa892a3a60d32967a9");
+  assert.equal(blob, "8b137a79820d06003479512b255731c227efa16d");
+  assert.equal(record.sourceBlobSha, blob);
+  assert.equal(isLevel10Qualified(record), false);
+  assert.equal(record.verificationAuthority, "INDEPENDENT_EVIDENCE_REQUIRED");
+  for (const [criterion, evidence] of Object.entries(record.criteria)) {
+    if (criterion === "CANONICAL_ENTRYPOINT") continue;
+    assert.equal(evidence.status, "UNVERIFIED", criterion);
+    assert.deepEqual(evidence.evidenceRefs, [], criterion);
+  }
+});
+
+test("stopping a real CONNECTING Node ws socket contains its asynchronous abort error", () => {
+  const result = spawnSync(process.execPath, ["-e", `
+    const WebSocket = require('ws');
+    const { UpbitWebSocketClient } = require(${JSON.stringify(require.resolve("../dist/apps/desktop/src/exchange/upbitWebSocket.js"))});
+    const socket = new WebSocket('ws://127.0.0.1:9');
+    if (socket.readyState !== WebSocket.CONNECTING) throw new Error('fixture not CONNECTING');
+    const client = new UpbitWebSocketClient('KRW-BTC', () => {}, () => {}, 2, 2000, { createSocket: () => socket });
+    client.start();
+    client.stop();
+    client.stop();
+    setImmediate(() => {
+      if (socket.readyState !== WebSocket.CLOSED || client.activeTimerCount() !== 0 || client.currentHealth() !== 'DISCONNECTED') process.exitCode = 2;
+    });
+  `], { encoding: "utf8", timeout: 5000 });
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("retired errors cannot mutate a replacement while active errors still degrade health", () => {
+  const sockets = [];
+  const client = new UpbitWebSocketClient("KRW-BTC", () => {}, () => {}, 2, 2000, {
+    createSocket: () => {
+      const socket = new EventEmitter();
+      socket.readyState = 0;
+      socket.close = () => { socket.readyState = 3; };
+      socket.send = () => {};
+      sockets.push(socket);
+      return socket;
+    }
+  });
+  try {
+    client.start();
+    sockets[0].emit("error", new Error("active failure"));
+    assert.equal(client.currentHealth(), "DEGRADED");
+    client.stop();
+    client.start();
+    assert.equal(client.currentHealth(), "CONNECTING");
+    assert.doesNotThrow(() => sockets[0].emit("error", new Error("late retirement failure")));
+    sockets[0].emit("open");
+    sockets[0].emit("pong");
+    sockets[0].emit("close");
+    assert.equal(client.currentHealth(), "CONNECTING");
+    assert.equal(client.lastPongTimestamp(), undefined);
+    assert.equal(client.activeTimerCount(), 1);
+    assert.equal(sockets[0].listenerCount("message"), 0);
+    sockets[1].emit("error", new Error("replacement failure"));
+    assert.equal(client.currentHealth(), "DEGRADED");
+  } finally { client.stop(); }
+  assert.equal(client.activeTimerCount(), 0);
 });
 
 test("market subscriptions are normalized, deduplicated, and validated", () => {
