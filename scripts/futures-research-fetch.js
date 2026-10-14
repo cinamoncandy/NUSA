@@ -25,6 +25,9 @@ const BAR_MS = 4 * 60 * 60 * 1000;
 const KLINE_LIMIT = 1500;
 const FUNDING_LIMIT = 1000;
 const ALLOWED_PATHS = new Set(["/fapi/v1/klines", "/fapi/v1/fundingRate"]);
+const FUNDING_INTERVAL_MS = 8 * 60 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 15_000;
+const MAX_BODY_BYTES = 2_000_000;
 
 function publicUrl(path, params) {
   if (!ALLOWED_PATHS.has(path)) throw new Error(`FUTURES_FETCH_PATH_NOT_ALLOWED:${path}`);
@@ -85,16 +88,24 @@ function summarizeKlines(rows) {
   return { rows: sorted, missingBars: gaps };
 }
 
+/** Funding settles every 8 hours on these symbols: count expected settlement times the history does not contain. */
+function missingFundingTimes(rows, startMs = START_MS, endMs = END_MS) {
+  const have = new Set(rows.map((row) => Math.round(row[0] / FUNDING_INTERVAL_MS)));
+  let missing = 0;
+  for (let t = Math.ceil(startMs / FUNDING_INTERVAL_MS) * FUNDING_INTERVAL_MS; t < endMs; t += FUNDING_INTERVAL_MS) if (!have.has(t / FUNDING_INTERVAL_MS)) missing += 1;
+  return missing;
+}
+
 const sha256 = (text) => createHash("sha256").update(text, "utf8").digest("hex");
 
 async function run(outDir, getJson, pauseMs = 250) {
   mkdirSync(outDir, { recursive: true });
   const manifest = { preregistration: "docs/RESEARCH_PREREG_2026-10-14_FUTURES_REGIME_LONG_SHORT.md", source: BASE, startMs: START_MS, endMs: END_MS, interval: "4h", files: {} };
-  const pause = () => new Promise((resolve) => setTimeout(resolve, pauseMs));
+  const paced = async (url) => { await new Promise((resolve) => setTimeout(resolve, pauseMs)); return getJson(url); };
   for (const symbol of SYMBOLS) {
-    const klines = summarizeKlines(await fetchKlines(async (url) => { await pause(); return getJson(url); }, symbol));
-    const funding = await fetchFunding(async (url) => { await pause(); return getJson(url); }, symbol);
-    for (const [name, rows, extra] of [[`${symbol}-4h.json`, klines.rows, { missingBars: klines.missingBars }], [`${symbol}-funding.json`, funding, {}]]) {
+    const klines = summarizeKlines(await fetchKlines(paced, symbol));
+    const funding = await fetchFunding(paced, symbol);
+    for (const [name, rows, extra] of [[`${symbol}-4h.json`, klines.rows, { missingBars: klines.missingBars }], [`${symbol}-funding.json`, funding, { missingFundingTimes: missingFundingTimes(funding) }]]) {
       const text = `${JSON.stringify(rows)}\n`;
       writeFileSync(join(outDir, name), text);
       manifest.files[name] = { rows: rows.length, firstMs: rows[0]?.[0] ?? null, lastMs: rows.at(-1)?.[0] ?? null, sha256: sha256(text), ...extra };
@@ -104,19 +115,28 @@ async function run(outDir, getJson, pauseMs = 250) {
   return manifest;
 }
 
-async function httpGetJson(url) {
-  const response = await fetch(url, { method: "GET", redirect: "error" });
+/** One bounded GET; a 429 or 5xx is retried once after the server's Retry-After (capped) or 5 s, anything else fails. */
+async function httpGetJson(url, attempt = 1) {
+  const response = await fetch(url, { method: "GET", redirect: "error", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  if ((response.status === 429 || response.status >= 500) && attempt === 1) {
+    const retryAfter = Math.min(60, Math.max(1, Number(response.headers.get("retry-after")) || 5));
+    await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+    return httpGetJson(url, 2);
+  }
   if (!response.ok) throw new Error(`FUTURES_FETCH_HTTP_${response.status}`);
-  return response.json();
+  const text = await response.text();
+  if (text.length > MAX_BODY_BYTES) throw new Error("FUTURES_FETCH_BODY_TOO_LARGE");
+  return JSON.parse(text);
 }
 
 if (require.main === module) {
+  if (Number(process.versions.node.split(".")[0]) < 18) { console.error(`FUTURES_FETCH_NODE_TOO_OLD:${process.versions.node}`); process.exit(2); }
   const outDir = process.argv[2];
   if (!outDir) { console.error("usage: node scripts/futures-research-fetch.js <out-dir>"); process.exit(2); }
   run(outDir, httpGetJson).then((manifest) => {
-    for (const [name, file] of Object.entries(manifest.files)) console.log(`${name} rows=${file.rows} sha256=${file.sha256}${file.missingBars === undefined ? "" : ` missingBars=${file.missingBars}`}`);
+    for (const [name, file] of Object.entries(manifest.files)) console.log(`${name} rows=${file.rows} sha256=${file.sha256}${file.missingBars === undefined ? "" : ` missingBars=${file.missingBars}`}${file.missingFundingTimes === undefined ? "" : ` missingFundingTimes=${file.missingFundingTimes}`}`);
     console.log("FUTURES_RESEARCH_FETCH OK");
   }).catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); });
 }
 
-module.exports = { SYMBOLS, START_MS, END_MS, publicUrl, fetchKlines, fetchFunding, summarizeKlines, run };
+module.exports = { SYMBOLS, START_MS, END_MS, publicUrl, fetchKlines, fetchFunding, summarizeKlines, missingFundingTimes, run };

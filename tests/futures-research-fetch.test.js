@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { SYMBOLS, START_MS, END_MS, publicUrl, fetchKlines, fetchFunding, summarizeKlines, run } = require("../scripts/futures-research-fetch.js");
+const { SYMBOLS, START_MS, END_MS, publicUrl, fetchKlines, fetchFunding, summarizeKlines, missingFundingTimes, run } = require("../scripts/futures-research-fetch.js");
 
 const BAR = 4 * 3600 * 1000;
 const kline = (t) => [t, "1", "2", "0.5", "1.5", "10", t + BAR - 1, "0", 0, "0", "0", "0"];
@@ -75,4 +75,20 @@ test("run writes one file per symbol and kind plus a SHA-256 manifest", async ()
 test("the fetch script sends no header, key or signature", () => {
   const source = fs.readFileSync(path.join(__dirname, "../scripts/futures-research-fetch.js"), "utf8");
   assert.doesNotMatch(source, /headers\s*:|X-MBX-APIKEY|signature|apiKey|secret|process\.env/i);
+});
+
+test("missing 8-hour funding settlements are counted, not filled", () => {
+  const H8 = 8 * 3600 * 1000;
+  const start = START_MS;
+  const rows = [[start, 0.0001, null], [start + 2 * H8, 0.0001, null]];
+  assert.equal(missingFundingTimes(rows, start, start + 3 * H8), 1);
+  assert.equal(missingFundingTimes(rows.concat([[start + H8 + 5, 0.0001, null]]), start, start + 3 * H8), 0, "a settlement a few ms off its slot still counts");
+});
+
+test("requests are bounded: timeout, body cap, one retry on 429/5xx, and a Node version guard", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../scripts/futures-research-fetch.js"), "utf8");
+  assert.match(source, /signal: AbortSignal\.timeout\(REQUEST_TIMEOUT_MS\)/);
+  assert.match(source, /if \(text\.length > MAX_BODY_BYTES\)/);
+  assert.match(source, /\(response\.status === 429 \|\| response\.status >= 500\) && attempt === 1/);
+  assert.match(source, /FUTURES_FETCH_NODE_TOO_OLD/);
 });
