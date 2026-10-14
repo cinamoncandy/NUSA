@@ -123,6 +123,7 @@ async function withStubbedFailureAndJevFetch<T>(run: () => Promise<T>): Promise<
 
 function baseEnv(coordinator: ExecutionCoordinatorNamespace): WorkerEnv {
   return {
+    NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "false",
     NUSA_GITHUB_REPOSITORY: request.repository,
     NUSA_CODING_RUNNER_TOKEN: "coding-token",
     NUSA_GITHUB_TOKEN: "github-token",

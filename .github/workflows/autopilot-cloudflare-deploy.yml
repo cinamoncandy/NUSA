@@ -32,7 +32,7 @@ env:
   # Single source of truth for the deployed credit posture: the same value is passed to wrangler
   # and used to derive the health value the deployed Worker must report back. Hardcoding the
   # expectation separately is what let the deploy gate drift from the deployed var.
-  NUSA_ZERO_CREDIT_MODE: "false"
+  NUSA_ZERO_CREDIT_MODE: "true"
   NUSA_WORKER_HEALTH_URL: https://nusa-autopilot.desporin12.workers.dev/health
 
 jobs:
@@ -234,6 +234,10 @@ jobs:
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
         run: |
           set -euo pipefail
+          case "${NUSA_ZERO_CREDIT_MODE:-}" in
+            true|false) ;;
+            *) echo '::error::ZERO_CREDIT_POSTURE_INVALID'; exit 1 ;;
+          esac
           pnpm dlx wrangler@4.127.1 deploy \
             --config apps/autopilot/wrangler.jsonc \
             --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}" \
@@ -248,6 +252,10 @@ jobs:
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
         run: |
           set -euo pipefail
+          case "${NUSA_ZERO_CREDIT_MODE:-}" in
+            true|false) ;;
+            *) echo '::error::ZERO_CREDIT_POSTURE_INVALID'; exit 1 ;;
+          esac
           expected_zero_credit="DISABLED"
           if [ "${NUSA_ZERO_CREDIT_MODE}" = "true" ]; then expected_zero_credit="ENFORCED"; fi
           echo "Expecting deployed zeroCreditMode=${expected_zero_credit}"

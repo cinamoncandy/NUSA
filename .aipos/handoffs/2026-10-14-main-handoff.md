@@ -31,3 +31,9 @@ PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZER
 3. Design D (simplification) one work order at a time: archive old `state.yaml` entries (validators read it; check them first), merge the duplicate maps, merge near-identical workflows (not the restricted-live ones without an owner decision).
 4. Design C remaining lines: learning status and Autopilot status on the Now tab.
 5. Futures B4 research with funding in costs after the probe answer.
+
+## Owner-requested implementation continuation (Codex)
+- UI design stopped at the owner's request; no mockup applied to product code.
+- PR2689 socket retirement fix merged47b6da7a; exact-head CI38495486276 and postCI38496114940 PASS. Release38495999097 Audit PASS, merge succeeded, but post-merge read failed with unexpected JSON EOF; entire Release run is FAIL, not claimed PASS.
+- Later Oracle38508906721PASS/sourcec9b96f8e contains47b6da7a. Public health2026-10-14T05:15:33.952Z HEALTHY,lastErrornull; learningcycles0,ResearchholdoutPasses0. Physical initiating cause of prior staging outages remains UNVERIFIED.
+- WO-OPS-20261014-RELEASE-API-READ-RECOVERY implements bounded GET-only recovery in existing Release step.19 focused/1217 isolated files and all recorded gates PASS at base785807df; fresh non-author P1 SHA-validation finding fixed. Latest-main synchronization/CI/Audit/Release pending; no approval, merge authority, paid overflow, LIVE or Risk-policy change.

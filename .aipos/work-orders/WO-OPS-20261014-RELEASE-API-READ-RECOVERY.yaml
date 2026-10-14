@@ -1,0 +1,33 @@
+id: WO-OPS-20261014-RELEASE-API-READ-RECOVERY
+title: Bound transient GitHub read recovery after canonical merge
+status: INTEGRATED_CANONICAL_RELEASE_VERIFIED
+pull_request: 2707
+pr_exact_head: 5e281fbdb05c42a6996f71d93070dc634657ba8c
+merge_commit: 990cb28134feb82e3c9c4679274eb50316f88ba1
+exact_head_ci: "38516904650 and companionsPASS."
+audit_release: "38517696695 audit/release and entireworkflowPASS; canonicalbotmerge."
+post_merge_ci: "38517809450PASS. CloudflareDeploy38518266302PASS; workflow-only scope may skip Worker deployment, not exact-runtime-SHA proof."
+runtime_limit: "No production transient EOF artificially induced. Local negative/recovery tests prove bounded semantics; real transient retry remains future evidence."
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: ae721916e5a469c14a07f909e4ed30878d6189a2
+implementation_branch: codex/release-api-read-recovery-20261014
+observed_gap: "Release38495999097 merged2689 then failed during post-merge CI read with unexpected end of JSON input. PostCI38496114940PASS. Later Oracle38508906721PASS/sourcec9b96f8e contains47b6da7a; publichealth2026-10-14T05:15:33.952Z HEALTHY,lastErrornull. No duplicate deployment needed."
+scope: "Existing canonical post-merge recovery step only. Bound transient GET retries; never repeat writes, merge or authority steps. Unknown/auth/config/quota errors and malformed evidence fail closed."
+impact: "Avoid preventable Release-tail failure and duplicate manual intervention; maximum3 read attempts,2/4-second backoff, no new scheduler."
+validation: "19 targeted tests and1217 isolated test files PASS;build,typecheck,validate:full,security:gate,lint,workflow action pins/inputs,work-order provenance,diff check PASS.24 existing lint warnings."
+review: "Fresh non-author review found P1 invalid main SHA could exit0. Both guards corrected;8 real extracted-step cases prove nonzeroexit andzeroPOST. Fresh19-test review PASS,no remainingP0/P1/P2;notAuditReleaseapproval."
+compatibility: "Non-rewriting mergeae721916->20f56b4d,workflow source unchanged. Fresh20 focused tests inclResearchledger,build/typecheck/validate:full/security/lint PASS;24 existing warnings. Full1217 suite PASS before this independent Research-only base merge, not claimed rerun afterward."
+verification_commands:
+  - node --test tests/release-api-read-recovery.test.js tests/autopilot-deterministic-audit-release.test.js
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Draft PR exact-head CI and canonical independent Audit/Release pending; do not claim integration or exercise this new retry in production before merge."

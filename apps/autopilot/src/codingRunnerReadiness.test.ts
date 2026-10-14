@@ -1,8 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessCodingRunnerReadiness } from "./codingRunnerReadiness";
+import { assessCodingRunnerReadiness, isZeroCreditModeEnforced } from "./codingRunnerReadiness";
 
 const base = { hasWorkersAiBinding: false, hasConfiguredEngine: false, hasGithubToken: false, zeroCreditMode: false };
+
+test("unverified credit posture never authorizes paid mode", () => {
+  for (const value of [undefined, "", " ", "true", "TRUE", "tru", "1", "null"]) assert.equal(isZeroCreditModeEnforced(value), true, String(value));
+  for (const value of ["false", "FALSE", " false "]) assert.equal(isZeroCreditModeEnforced(value), false, value);
+});
 
 test("a runner with an engine and a GitHub token is ready", () => {
   assert.deepEqual({ ...assessCodingRunnerReadiness({ ...base, hasWorkersAiBinding: true, hasGithubToken: true }) }, { ready: true, blockers: [] });
