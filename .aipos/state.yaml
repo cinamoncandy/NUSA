@@ -2708,6 +2708,15 @@ current_ui_liquid_rings:
   supersedes: crystal hero (WO-UI-20261005-CRYSTAL-GLASS figure)
   depends_on: PR 2513
   deploy: not_deployed_new_app_build_required
+
+current_ui_safety_futures_rows_20261014:
+  work_order: WO-UI-20261014-SAFETY-FUTURES-ROWS
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/safety-futures-rows
+  validation: "Safety/presentation/calm UI tests PASS; architecture findings=0; mobile lint PASS."
+  next: "Retarget to main after #2703 merges; fresh-session review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ui_startup_timing:
   work_order: WO-UI-20261005-STARTUP-TIMING
   status: READY_FOR_REVIEW
