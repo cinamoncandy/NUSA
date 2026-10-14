@@ -23,8 +23,15 @@ test("forward timeout/nonzero failures remain explicit while independent canonic
     let calls = 0;
     const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
       spawnSync: () => ++calls === 1 ? failure : { status: 0 } });
-    assert.equal(calls, 2); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
+    assert.equal(calls, 3); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
   }
+});
+
+test("an order-book study failure is logged and never blocks canonical Research", () => {
+  let calls = 0;
+  const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
+    spawnSync: () => ++calls === 2 ? { status: 1 } : { status: 0 } });
+  assert.equal(calls, 3); assert.equal(result.status, "COMPLETED");
 });
 
 test("accepts matching deployed source commit identities", () => {
@@ -78,9 +85,11 @@ test("runs bounded forward study then canonical preload + real public-market Res
     },
   });
   assert.equal(result.status, "COMPLETED");
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.deepEqual(calls[0].args, ["scripts/run-regime-forward-study.js"]);
   assert.equal(calls[0].options.timeout, 120000);
+  assert.deepEqual(calls[1].args, ["scripts/run-orderbook-study.js"]);
+  assert.equal(calls[1].options.timeout, 600000);
   assert.equal(result.learningLedgerPath, path.resolve("/var/lib/nusa/research-investment-learning.jsonl"));
   assert.equal(observed.executable, path.resolve("/usr/bin/node"));
   assert.deepEqual(observed.args, ["-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"]);
