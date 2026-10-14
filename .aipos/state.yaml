@@ -2867,6 +2867,14 @@ current_futures_paper_core_20261014:
   next: "Review, CI, merge; then futures research after the B0 probe answer. Not wired to runtime."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_futures_research_evaluator_20261014:
+  work_order: WO-FUTURES-20261014-RESEARCH-EVALUATOR
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/futures-research-evaluator
+  validation: "30 futures tests (9 new study tests) PASS; no-network guard covers the new module; architecture findings=0."
+  next: "Fresh-session review; then one holdout run on the frozen data."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_handoff_main_20261014:
   status: RECORDED
   handoff: .aipos/handoffs/2026-10-14-main-handoff.md
