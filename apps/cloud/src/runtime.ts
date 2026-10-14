@@ -38,7 +38,8 @@ import {
   type PersonalPaperPortfolioProjection,
   type PersonalPaperRuntimeHaltReason,
   type PersonalPaperRuntimeHeartbeat,
-  type PersonalPaperLossLimit
+  type PersonalPaperLossLimit,
+  type PersonalPaperTodayRealized
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { DashboardPrincipal } from "./mobileDashboardHttp";
@@ -237,10 +238,15 @@ export function startCloudRuntime(
   // Display-only: the numbers and the strategy reason behind the latest canonical decision, so the app can say why nothing was traded.
   let lastDecisionDetail: PersonalPaperDecisionDetail | undefined;
   // Display only: the consecutive-loss limit state the canonical risk gateway last evaluated. A failing read must never affect the heartbeat.
-  const lossLimitHeartbeat = (): { lossLimit?: PersonalPaperLossLimit } => {
+  const lossLimitHeartbeat = (): { lossLimit?: PersonalPaperLossLimit; todayRealized?: PersonalPaperTodayRealized } => {
     let session: ReturnType<NonNullable<typeof productionPaperRiskGate>["lossSession"]> = null;
+    let realized: ReturnType<NonNullable<typeof productionPaperRiskGate>["dailyRealized"]> = null;
     try { session = productionPaperRiskGate?.lossSession() ?? null; } catch { session = null; }
-    return session == null ? {} : { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt }) };
+    try { realized = productionPaperRiskGate?.dailyRealized() ?? null; } catch { realized = null; }
+    return {
+      ...(session == null ? {} : { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt }) }),
+      ...(realized == null ? {} : { todayRealized: Object.freeze({ realizedPnlKrw: realized.realizedPnlKrw, evaluatedAt: realized.evaluatedAt }) }),
+    };
   };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });

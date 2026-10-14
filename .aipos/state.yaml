@@ -2571,8 +2571,8 @@ current_ui_now_loss_limit_20261014:
   work_order: WO-UI-20261014-NOW-LOSS-LIMIT
   status: LOCAL_VALIDATED_PENDING_REVIEW_CI
   branch: claude/now-tab-loss-limit
-  validation: "tsc (root and mobile) PASS; 6 new tests and 393 related tests PASS; runtime dist test PASS."
-  next: "Non-author review, exact-head CI, Audit/Release; then today's P&L line."
+  validation: "tsc (root and mobile) PASS; 8 new tests, 405 related tests and 12 gateway/loss-lifecycle dist tests PASS."
+  next: "Non-author review, exact-head CI, Audit/Release; then learning and Autopilot lines."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ui_research_progress:

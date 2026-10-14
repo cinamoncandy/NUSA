@@ -1,5 +1,5 @@
 id: WO-UI-20261014-NOW-LOSS-LIMIT
-title: "Now tab says when the consecutive-loss limit has paused buying"
+title: "Now tab: consecutive-loss pause and today's realized P&L"
 status: LOCAL_VALIDATED_PENDING_REVIEW_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
@@ -13,8 +13,9 @@ change:
   - "packages/contracts: optional display-only heartbeat.lossLimit {consecutiveLossCount, maxConsecutiveLosses, evaluatedAt}; malformed values are dropped, never rejecting the snapshot."
   - "apps/cloud/src/runtime.ts: heartbeat copies the canonical risk gateway's lossSession() counts; a failing read is ignored."
   - "apps/mobile/src/lossLimitModel.ts + nowView.tsx: amber line when reached (STOPPED) or one loss before (WARNING); evaluations from an earlier KST day are not shown."
+  - "Today's realized P&L: the gateway keeps its own dailyRealizedPnL from each evaluation in a separate display-only accessor dailyRealized() (lossSession() stays integers-only for public health); heartbeat.todayRealized carries it to the app, which shows 'today confirmed P&L +/-N won' for today's KST day only."
 not_changed: "The risk gateway, limit value (3), reset rule and every decision path are untouched. Display only."
-remaining: "Today's P&L line, learning and Autopilot lines are later steps of the same design."
+remaining: "Learning and Autopilot lines are later steps of the same design."
 verification_commands:
   - "npx tsc -p tsconfig.json && npx tsc -p apps/mobile/tsconfig.json --noEmit"
   - "node --test tests/mobile-loss-limit.test.js"
