@@ -970,6 +970,17 @@ current_autopilot_repeated_deterministic_failure_stop:
   expected_efficiency: "Stop after the first bounded correction repeats the same deterministic failure code, avoiding additional proposal calls for that repeated failure. Actual token/credit savings are unmeasured."
   next: "Resolve the actionable AIPOS review threads; then fresh exact-head CI, independent Audit, and canonical Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_design_claude_v1_20261014:
+  work_order: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+  status: READY_FOR_REVIEW
+  authority_impact: none
+  design: docs/NUSA_CLAUDE_DESIGN_V1.md
+  finding: "Intraday SMA loses to fees; 186-189 configs with 0 holdout passes, first-screen passes only on daily bars; learning loop 0/7 for lack of a qualified candidate. Design: slow-bar regime research, forward-run wiring, Binance futures as a separate PAPER-only domain (data access first, then contracts, simulator, own risk gate), owner Now-tab with four answers, repository simplification."
+  owner_decisions: "2026-10-14 all as recommended: adopted; futures 2x/isolated/25%/loss-3; slow-bar regime research; baseline unchanged."
+  next: "Step 1: Now tab shows consecutive-loss stop and today P&L; then forward-run wiring, Binance data probe, simplification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_deterministic_coding_patches:
   work_order: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
   status: READY_FOR_REVIEW
@@ -2796,6 +2807,13 @@ current_stall_metrics:
   authority_impact: none
   owner_approval: "2026-10-06 in chat"
   finding: "PAPER halted with PAPER_WRITER_LEASE_LOST: a process stall above the 30 s writer lease loses it until restart; the stall source is unknown, measurement only"
+
+current_handoff_main_20261014:
+  status: RECORDED
+  handoff: .aipos/handoffs/2026-10-14-main-handoff.md
+  finding: "End-of-session handoff: owner decisions of 2026-10-14, four draft PRs (#2699, #2701, #2702, #2703) waiting for non-author review, and next safe actions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_health_error_class:
   work_order: WO-OPS-20261006-HEALTH-ERROR-CLASS
   status: READY_FOR_REVIEW
@@ -3450,6 +3468,17 @@ current_docs_handoff_research_status:
   handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
   finding: "The handoff now records the end-of-day state: the learning loop is still 0/7 (owner baseline has no Research lineage), breakout and SMA research found no candidate and the owner stopped it, the PR ledger (merged, closed, HOLD, open) and the four inputs needed from the owner on 2026-10-13."
   next: "After the owner supplies the two GitHub logins and the redesign direction, act one task per PR; keep HOLD PRs untouched until then."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_claude_centered_decisions_20261014:
+  work_order: WO-OPS-20261014-CLAUDE-CENTERED-DECISIONS
+  status: READY_FOR_REVIEW
+  authority_impact: none
+  decision: .aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md
+  finding: "Owner accepted the Claude-centered operating model on 2026-10-14: roles adopted (design moves from ChatGPT to Claude), current repository and Worker token kept (GitHub App only if needed later), paid GPT-4.1 overflow off, Codex kept disabled, recommended P3 cleanup order, review on request only."
+  p2: "CLAUDE.md, AGENTS.md Operating roles and master-instruction release-path merge wording updated in the same PR."
+  revision_3: "One Claude working session is CORE plus operations/research/records; a fresh session reviews code PRs; unset NUSA_AGENT_ROLE means CORE."
+  next: "P4 overflow-off work order; P1 follow-up on #2651/#2652; P3 stale-PR list. #2644 stays off."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_claude_centered_redesign:
