@@ -7,6 +7,7 @@ import type { PublicCandle } from "./chartViewModel";
 import { buildHomeFieldInput } from "./homeFieldInput";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { haltCauseFromSnapshot } from "./haltReasonModel";
+import { buildLearningLine } from "./learningLineModel";
 import { buildLossLimitLine, buildTodayRealizedLine } from "./lossLimitModel";
 import { describePaperOrderReason } from "./paperOrderReason";
 import { explainDecision } from "./whyNoTradeModel";
@@ -55,6 +56,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const account = snapshot?.portfolio?.account ?? null;
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const orderReason = blocked ? null : describePaperOrderReason(heartbeat?.lastPaperDecisionOutcome);
+  const learningLine = blocked ? null : buildLearningLine(snapshot?.research ?? null);
   const todayRealized = blocked ? null : buildTodayRealizedLine(heartbeat?.todayRealized, Date.now());
   const lossLimit = blocked ? null : buildLossLimitLine(heartbeat?.lossLimit, Date.now(), haltCause != null || field.phase === "HALTED");
   const model = buildNowScreen({
@@ -85,6 +87,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
         <CalmBigNumber value={model.equity} caption={model.delta ?? undefined} captionTone={model.deltaTone} dim={model.dim} />
       </View>
       {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
+      {learningLine == null ? null : <Text style={[styles.footnote, { color: learningLine.tone === "warn" ? calmColors.attention : calmColors.muted }]} testID="now-learning-line">배우고 있나 · {learningLine.value}</Text>}
       {lossLimit == null ? null : <View style={styles.why} testID="now-loss-limit">
         <Text style={[styles.whyText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
       </View>}

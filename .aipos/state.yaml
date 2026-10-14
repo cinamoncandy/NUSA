@@ -2603,6 +2603,14 @@ current_paper_baseline_multi_market:
   authority_impact: execution_exposure_paper_only
   deploy: not_deployed_server_deploy_required
 
+current_ui_now_learning_line_20261014:
+  work_order: WO-UI-20261014-NOW-LEARNING-LINE
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/now-learning-line
+  validation: "27 related mobile tests PASS; mobile lint PASS; architecture findings=0."
+  next: "Fresh-session review, CI, merge."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ui_now_loss_limit_20261014:
   work_order: WO-UI-20261014-NOW-LOSS-LIMIT
   status: LOCAL_VALIDATED_PENDING_REVIEW_CI
