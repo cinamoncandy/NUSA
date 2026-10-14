@@ -23,6 +23,7 @@ stated_simplifications:
 next:
   - "B0 data probe (#2702) result decides live-data PAPER vs stored-data research."
   - "B4: futures research with funding in costs; B5 shadow; B6 screen."
+no_network_guard: "apps/cloud/src/futures/paperFuturesNoNetwork.test.ts scans the futures sources and contract for fetch, URLs, exchange names/SDKs, sockets, keys, secrets and process.env; verified to fail when a network call is injected."
 verification_commands:
   - "npx tsc -p tsconfig.json"
   - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/futures/*.test.js"
