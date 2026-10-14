@@ -160,7 +160,18 @@ function runStudy({ db, now = Date.now() }) {
   };
 }
 
-module.exports = { runStudy, START, END };
+/** Durable handoff to the runtime meta-learner (researchStudyResult.ts reads it); written only for a final HOLDOUT_* result. */
+const RESULT_FILE = "orderbook-study-result.json";
+function writeResult(stateDbPath, result, fs = require("node:fs"), pathLib = require("node:path")) {
+  if (result.status !== "HOLDOUT_PASS" && result.status !== "HOLDOUT_FAIL") return false;
+  const target = pathLib.join(pathLib.dirname(stateDbPath), RESULT_FILE);
+  const temporary = `${target}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, studyId: "ML_ORDERBOOK_60M_20261029", ...result }));
+  fs.renameSync(temporary, target);
+  return true;
+}
+
+module.exports = { runStudy, writeResult, RESULT_FILE, START, END };
 
 if (require.main === module) {
   try {
@@ -168,6 +179,10 @@ if (require.main === module) {
     const path = String(process.env.NUSA_CLOUD_STATE_DB_PATH || "");
     if (!path.startsWith("/")) throw new Error("state path");
     const db = new DatabaseSync(path, { readOnly: true });
-    try { console.log("ORDERBOOK_STUDY", JSON.stringify(runStudy({ db }))); } finally { db.close(); }
+    try {
+      const result = runStudy({ db });
+      console.log("ORDERBOOK_STUDY", JSON.stringify(result));
+      writeResult(path, result);
+    } finally { db.close(); }
   } catch { console.error("ORDERBOOK_STUDY_FAILED_CLOSED"); process.exitCode = 1; }
 }
