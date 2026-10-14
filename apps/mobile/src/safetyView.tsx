@@ -4,6 +4,7 @@ import type { LiveReadinessMonitorViewProps } from "./liveReadinessMonitorView";
 import { buildLiveGates } from "./liveGateModel";
 import { liveUnavailableMessage } from "./fieldScreensModel";
 import { buildSafetyScreen } from "./safetyScreenModel";
+import { futuresSafetyRows } from "./futuresSafetyRows";
 import { CalmRow, CalmTitle } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
@@ -12,11 +13,15 @@ import { readableFont } from "./designSystem";
 export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAILED", refreshing, onRefresh }: LiveReadinessMonitorViewProps) {
   const [open, setOpen] = useState(false);
   const model = buildSafetyScreen(buildLiveGates(snapshot), snapshot?.blockers ?? []);
+  const futuresRows = futuresSafetyRows();
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} testID="safety-view">
     <CalmTitle text="안전" />
     <View style={styles.list}>
       {model.rows.map((row) => <CalmRow key={row.label} label={row.label} hint={row.hint} value={row.value} tone={row.tone} />)}
       {snapshot == null ? <CalmRow label="실거래 준비 정보" hint={liveUnavailableMessage(unavailableKind)} value="받지 못함" tone="ATTENTION" /> : null}
+    </View>
+    <View style={[styles.list, styles.section]} testID="safety-futures">
+      {futuresRows.map((row) => <CalmRow key={row.label} label={row.label} hint={row.hint} value={row.value} tone={row.tone} />)}
     </View>
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((value) => !value)} style={styles.fold} testID="safety-advanced-toggle">
       <Text style={styles.foldText}>고급 진단 (영문 원문·코드)</Text><Text style={styles.foldText}>{open ? "접기" : "펼치기"}</Text>
@@ -34,6 +39,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: calmColors.ground },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
   list: { paddingHorizontal: 20 },
+  section: { marginTop: 16 },
   fold: { marginHorizontal: 20, minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   foldText: { color: calmColors.muted, fontSize: readableFont(13) },
   advanced: { marginHorizontal: 20, gap: 6, paddingBottom: 8 },
