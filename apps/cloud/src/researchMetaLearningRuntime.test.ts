@@ -18,8 +18,8 @@ describe("runtime research meta-learning", () => {
     assert.equal(status.liveForwardEntries, 1);
     assert.equal(status.holdoutPasses, 0);
     assert.match(status.exhausted, /dataType=CLOSE/);
-    assert.equal(status.recommended, "TRADES+INTRADAY+ALL_KRW+ML");
-    assert.equal(status.recommendedPrerequisites, "COLLECT_TRADES");
+    assert.equal(status.recommended, "ORDERBOOK+INTRADAY+ALL_KRW+ML", "TRADES+INTRADAY+ALL_KRW+ML was tried on 2026-10-13 and failed its holdout");
+    assert.equal(status.recommendedPrerequisites, "COLLECT_ORDERBOOK");
     assert.equal(status.steeringMode, "DEPRIORITIZE_EXHAUSTED", "the runtime grid is exhausted and a recommendation exists");
     assert.equal(status.longBarTickEvery, META_DEPRIORITIZED_TICK_EVERY);
   });
