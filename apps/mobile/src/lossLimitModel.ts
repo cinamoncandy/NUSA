@@ -34,3 +34,20 @@ export function buildLossLimitLine(lossLimit: unknown, now: number, otherStopAct
   return null;
 }
 
+
+export interface TodayRealizedLine {
+  readonly tone: "LOSS" | "NORMAL";
+  readonly text: string;
+}
+
+/** Today's realized (closed-trade) PAPER P&L in KRW; null when missing, malformed, future or from an earlier KST day. */
+export function buildTodayRealizedLine(todayRealized: unknown, now: number): TodayRealizedLine | null {
+  if (todayRealized == null || typeof todayRealized !== "object" || Array.isArray(todayRealized)) return null;
+  const { realizedPnlKrw: pnl, evaluatedAt } = todayRealized as Record<string, unknown>;
+  if (typeof pnl !== "number" || !Number.isFinite(pnl) || !isInt(evaluatedAt, 0) || !Number.isFinite(now)) return null;
+  if (evaluatedAt > now || kstDay(evaluatedAt) !== kstDay(now)) return null;
+  const won = Math.round(pnl);
+  if (won === 0) return Object.freeze({ tone: "NORMAL", text: "오늘 확정 손익 0원" });
+  const amount = Math.abs(won).toLocaleString("ko-KR");
+  return Object.freeze({ tone: won < 0 ? "LOSS" : "NORMAL", text: `오늘 확정 손익 ${won > 0 ? "+" : "-"}${amount}원` });
+}

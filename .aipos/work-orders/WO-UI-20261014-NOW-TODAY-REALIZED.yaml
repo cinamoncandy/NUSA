@@ -1,0 +1,30 @@
+id: WO-UI-20261014-NOW-TODAY-REALIZED
+title: "Now tab: today's realized PAPER P&L, computed outside the RISK gateway"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: claude/now-tab-loss-limit
+branch: claude/now-today-realized
+parent: WO-UI-20261014-NOW-LOSS-LIMIT
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted (Now tab four answers); 'next'."
+objective: "The owner sees today's realized P&L without touching the requalification-pinned RISK gateway source."
+change:
+  - "apps/cloud/src/paperTodayRealized.ts: pure computeTodayRealizedPnlKrw(fills, now) mirroring the gateway's daily accounting (average entry incl. buy fees, sell fee deducted, today's KST sells only); null on an inconsistent ledger."
+  - "apps/cloud/src/runtime.ts: heartbeat.todayRealized from effectivePaperLoop.snapshot().fills; failures ignored."
+  - "packages/contracts: optional display-only todayRealized, malformed values dropped."
+  - "apps/mobile: Now tab line 'today confirmed P&L +/-N won', red when negative, today's KST day only, hidden when stale/blocked."
+not_changed: "cloudPaperCanonicalRiskGateway.ts is byte-identical to main; no decision path reads the value."
+stacked_on: "claude/now-tab-loss-limit (#2701); retarget to main after it merges."
+verification_commands:
+  - "npx tsc -p tsconfig.json && node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/paperTodayRealized.test.js dist/apps/cloud/src/cloudPaperCanonicalRiskGateway*.test.js"
+  - "node --test tests/mobile-loss-limit.test.js"
+  - "node scripts/validate-architecture.js && node scripts/lint-mobile.js"
+fill_cap_guard: "Non-author review (2026-10-14): PAPER state keeps only the newest fills, so older buys of an open position can be dropped and the average entry would be silently wrong. The helper now rebuilds per-market quantity from the retained fills and returns null (line hidden) unless it equals the account's own position quantity for every market."
+residual: "The figure reflects the loop's in-memory fills at heartbeat time; device rendering is HUMAN_ENVIRONMENT_ONLY."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
