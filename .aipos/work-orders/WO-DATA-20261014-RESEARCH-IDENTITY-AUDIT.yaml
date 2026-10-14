@@ -1,0 +1,21 @@
+id: WO-DATA-20261014-RESEARCH-IDENTITY-AUDIT
+title: "Audit: is the Research dataset identity computed from, and bound to, the actual stored candles?"
+status: COMPLETED_NO_CODE_CHANGE
+priority: P0
+authority_impact: none
+domain: "Public Market Data / Data & Research Integrity (master instruction sections 7-8)"
+repository: cinamoncandy/NUSA
+base: "origin/main d857e5d3f (runtime d857e5d3f, verified /health.sourceCommitSha)"
+question: "Does Research accept a caller-assembled or merely well-formed datasetContentSha256, or is it derived from and re-checked against the real stored data?"
+findings:
+  - "Identity is derived from content: researchExperimentRunner builds train/validation/holdout windows from the store and buildResearchProvenance sets datasetContentSha256 = candleChecksum(all window candles); windows must be interval-aligned, strictly increasing, disjoint and time-ordered (fail closed otherwise)."
+  - "Stored candles are immutable: SqliteResearchCandleStore.append rejects a different candle for an existing key (CANDLE_CONFLICT) and never updates; read() re-validates every row checksum. Only the oldest rows are pruned by retention."
+  - "The evaluator re-reads the stored candles for the role window and fails closed on CANDLE_COUNT_MISMATCH or CANDLE_MISMATCH (close time and close price point for point), so the evaluated rows are the hashed rows."
+  - "Qualification (researchCandidateGate) requires complete provenance, temporal integrity, holdout uniqueness/untouched, cost evidence bound to the same evaluationId/datasetId/datasetContentSha256, no future evaluation timestamps, and dataQualityFailures = 0."
+residual_risk: "The evaluator compares close/time only, not open/high/low, and does not recompute the provenance hash itself; with immutable checksummed rows this cannot diverge, so no code change is proportionate. Re-open if the candle store ever allows updates."
+conclusion: "No DATASET_IDENTITY gap in the candle Research path; the data domain's next transition is the first runtime DATA_INTEGRITY probe (2026-10-15 00:15Z run, check-in trig_01JZYTgf5Jgfr1PxPszND5dw)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

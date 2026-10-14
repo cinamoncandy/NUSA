@@ -5,6 +5,7 @@ import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProd
 import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator";
 import type { ClosedLearningCycleFailureReceipt } from "./closedLearningEvolutionLedgerRepository";
 import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integration";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -38,11 +39,28 @@ export type ClosedLearningLoopStatus = {
    * can be followed mechanically. Identifiers and fingerprints only; no amounts, prices, returns or free text.
    */
   readonly evidence?: ClosedLearningEvidenceCorrelation;
+  /** Research meta-learning report (packages/contracts/src/researchMetaLearning.ts), including the tick steering it applies. */
+  readonly metaLearning?: ClosedLearningMetaLearningStatus;
 };
+
+export type ClosedLearningMetaLearningStatus = Readonly<{
+  experiments: number; configurations: number; discoveryPasses: number; holdoutPasses: number;
+  /** Comma-separated dimension values, e.g. "dataType=CLOSE,methodClass=RULE"; empty when none. */
+  overfitRatePercent?: number; validKnowledgePer100Configs: number; exhausted: string; recommended?: string;
+  /** Comma-separated, e.g. "COLLECT_TRADES"; empty when the recommendation needs no collection. */
+  recommendedPrerequisites: string; nextHoldoutBarMicros: number; runtimeEntries: number; liveForwardEntries: number;
+  /** Runtime steering: longer-bar Research orchestrators tick every longBarTickEvery-th scheduled tick. */
+  steeringMode: "NORMAL" | "DEPRIORITIZE_EXHAUSTED"; longBarTickEvery: number;
+  /** Performance Evidence N consumed by meta-learning: realized canonical PAPER baseline periods and their identity. */
+  paperPeriodsConsumed: number; paperNetBp?: number; paperExcessBp?: number; paperEvidenceFingerprint?: string;
+}>;
 
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
-  realizedPeriods: number; realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
+  realizedPeriods: number;
+  /** Realized owner-baseline periods: durable self-observations without Research lineage, never counted as learning cycles. */
+  baselineObservations: number;
+  realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
   cycleId: string; cycleEvidenceId: string; cycleEvidenceFingerprint: string; decisionId: string; decisionReference: string; decisionCandidateId: string; deploymentId: string;
   /** Durable (survives restarts): how many cycles the ledger holds, and when the latest was recorded. */
   cyclesRecorded: number; lastCycleRecordedAt: number;
@@ -52,6 +70,12 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
    * Baseline SHADOW totals (hypothetical round trips of the baseline rule, whether or not Risk allowed a real order). Non-negative
    * integers in basis points and counts only; NOT PAPER evidence and never a promotion input (see paperBaselineShadow.ts).
    */
+  /**
+   * Parity check of the latest realized owner-baseline period: the period's realized PAPER return (account equity, after sizing,
+   * Risk and fees) next to a replay of the same rule on the same completed minute closes (one full hypothetical position). Signed
+   * basis points and counts; measurement only, never a Risk, qualification or Research input.
+   */
+  replayPeriodId: string; replayBars: number; replayTrades: number; replayClosedNetBp: number; replayOpenMarkBp: number; replayPaperNetBp: number;
   shadowSince: number; shadowTrades: number; shadowWins: number; shadowGrossGainBp: number; shadowGrossLossBp: number; shadowFeeBp: number;
 }>>;
 
@@ -78,6 +102,8 @@ export class ClosedLearningLoopStatusTracker {
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
   private durableFailure: ClosedLearningEvidenceCorrelation = {};
   private shadow: ClosedLearningEvidenceCorrelation = {};
+  private replay: ClosedLearningEvidenceCorrelation = {};
+  private metaLearning: ClosedLearningMetaLearningStatus | undefined;
 
   /** Reads the identities of the current open period and the latest realized period. */
   public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
@@ -92,6 +118,7 @@ export class ClosedLearningLoopStatusTracker {
         openFilledObservations: open.observations.filter((item) => item.status === "FILLED").length,
       }),
       realizedPeriods: realized.length,
+      baselineObservations: realized.filter((item) => item.candidateProvenance?.length === 1 && item.candidateProvenance[0]?.candidateId === OWNER_BASELINE_CANDIDATE_ID).length,
       ...(latest == null ? {} : {
         realizedPeriodId: latest.record.recordId,
         realizedPeriodEndAt: latest.record.periodEndAt,
@@ -119,6 +146,25 @@ export class ClosedLearningLoopStatusTracker {
       decisionCandidateId: latest.decision?.candidateId,
       deploymentId: latest.paperDeployment?.deploymentId,
     }).filter(([, value]) => typeof value === "string" && value.length > 0)));
+    this.publish();
+  }
+
+  /** Advisory meta-learning report; undefined withdraws it. */
+  public observeMetaLearning(report: ClosedLearningMetaLearningStatus | undefined): void {
+    this.metaLearning = report;
+    this.publish();
+  }
+
+  /** Display-only rule-replay parity of one realized baseline period; undefined or malformed withdraws the keys. */
+  public observeRuleReplay(replay: { readonly periodId: string; readonly bars: number; readonly trades: number; readonly closedNetReturn: number; readonly openMarkReturn: number; readonly paperNetReturn: number } | undefined): void {
+    const bp = (value: number) => Math.round(value * 10_000);
+    const ok = replay != null && typeof replay.periodId === "string" && replay.periodId.length > 0
+      && [replay.bars, replay.trades].every((value) => Number.isSafeInteger(value) && value >= 0)
+      && [replay.closedNetReturn, replay.openMarkReturn, replay.paperNetReturn].every((value) => Number.isFinite(value) && Math.abs(value) < 100);
+    this.replay = !ok || replay == null ? {} : Object.freeze({
+      replayPeriodId: replay.periodId, replayBars: replay.bars, replayTrades: replay.trades,
+      replayClosedNetBp: bp(replay.closedNetReturn), replayOpenMarkBp: bp(replay.openMarkReturn), replayPaperNetBp: bp(replay.paperNetReturn),
+    });
     this.publish();
   }
 
@@ -159,10 +205,11 @@ export class ClosedLearningLoopStatusTracker {
       ...this.periods,
       ...this.cycle,
       ...this.shadow,
+      ...this.replay,
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
-    const { evidence: _previousEvidence, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
+    const { evidence: _previousEvidence, metaLearning: _previousMeta, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
     let eligibleAt: number | undefined;
     const start = this.periods.openPeriodStartAt;
     if (["WAITING_FOR_KST_DAY_ROLLOVER", "WAITING_FOR_EVALUATION_WINDOW"].includes(rest.rollover) && start !== undefined && Number.isSafeInteger(start) && start >= 0 && start <= rest.lastTickAt && start <= 8_640_000_000_000_000) {
@@ -180,6 +227,7 @@ export class ClosedLearningLoopStatusTracker {
       ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),
       ...(this.lastBlocked === undefined ? {} : { lastBlockedReason: this.lastBlocked.reason, lastBlockedAt: this.lastBlocked.at }),
       ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
+      ...(this.metaLearning === undefined ? {} : { metaLearning: this.metaLearning }),
     }) as ClosedLearningLoopStatus;
   }
 

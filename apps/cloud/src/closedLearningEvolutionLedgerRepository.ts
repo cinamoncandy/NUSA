@@ -33,7 +33,8 @@ export interface ClosedLearningCycleFailureReceipt {
   readonly evidenceFingerprintSha256: string;
   readonly sourceCommitSha: string;
   readonly runtimeSourceCommitSha: string;
-  readonly stage: "CYCLE" | "FINALIZE";
+  /** IDENTITY binds a closed-period envelope; sourceCommitSha is observer code, not unavailable Research lineage. */
+  readonly stage: "IDENTITY" | "CYCLE" | "FINALIZE";
   readonly code: string;
   readonly recordedAt: number;
 }
@@ -52,7 +53,7 @@ function parseFailure(record: EvolutionRecord): ClosedLearningCycleFailureReceip
   if (receipt.failureId !== record.opportunityId || !FAILURE.test(receipt.failureId) || !boundedFailureIdentity(receipt.closedPeriodId)
     || !boundedFailureIdentity(receipt.evidenceId) || !HASH.test(receipt.evidenceFingerprintSha256)
     || !SHA1.test(receipt.sourceCommitSha) || !SHA1.test(receipt.runtimeSourceCommitSha)
-    || (receipt.stage !== "CYCLE" && receipt.stage !== "FINALIZE") || !CODE.test(receipt.code)
+    || (receipt.stage !== "IDENTITY" && receipt.stage !== "CYCLE" && receipt.stage !== "FINALIZE") || !CODE.test(receipt.code)
     || !Number.isSafeInteger(receipt.recordedAt) || receipt.recordedAt < 0
     || Object.keys(item).sort().join(",") !== "closedPeriodId,code,evidenceFingerprintSha256,evidenceId,failureId,recordedAt,runtimeSourceCommitSha,sourceCommitSha,stage") {
     throw new Error("closed learning durable failure receipt is malformed");
@@ -151,7 +152,7 @@ export class ClosedLearningEvolutionLedgerRepository implements ClosedLearningCy
   /** Append-only, replay-idempotent failure evidence in the existing hash-chained learning ledger. */
   public appendFailure(input: Omit<ClosedLearningCycleFailureReceipt, "failureId" | "recordedAt">): ClosedLearningCycleFailureReceipt {
     if (!boundedFailureIdentity(input.closedPeriodId) || !boundedFailureIdentity(input.evidenceId) || !HASH.test(input.evidenceFingerprintSha256) || !SHA1.test(input.sourceCommitSha)
-      || !SHA1.test(input.runtimeSourceCommitSha) || !CODE.test(input.code) || (input.stage !== "CYCLE" && input.stage !== "FINALIZE")) throw new Error("closed learning failure receipt input is invalid");
+      || !SHA1.test(input.runtimeSourceCommitSha) || !CODE.test(input.code) || (input.stage !== "IDENTITY" && input.stage !== "CYCLE" && input.stage !== "FINALIZE")) throw new Error("closed learning failure receipt input is invalid");
     const failureId = failureIdentity(input);
     const existing = this.failureSummary().receipts.find((item) => item.failureId === failureId);
     if (existing != null) return existing;

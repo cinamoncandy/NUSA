@@ -155,6 +155,26 @@ restart_units() {
   systemctl start "${RESEARCH_TIMER}"
 }
 
+# A release can only run on a database whose applied migrations it knows: the migration runner refuses "database contains
+# unknown migration" and the service never starts. After a release applies a new migration, rolling back to an older release
+# therefore turns a readiness failure into an outage (2026-10-13: 3098387b7 applied 028, rollback to 2bb279335 left PAPER down).
+# Returns 0 when every applied migration id is declared in the candidate release's storage source.
+rollback_schema_compatible() {
+  local dir="${1:-}" state_db known applied id
+  [ -d "$dir" ] || return 1
+  state_db="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_CLOUD_STATE_DB_PATH:-}")"
+  [[ "$state_db" = /* ]] || return 1
+  [ -f "$state_db" ] || return 0
+  known="$(grep -ohE 'id: "[0-9]{3}_[a-z0-9_]+"' "$dir"/packages/storage/src/*.ts 2>/dev/null | sed -E 's/id: "([^"]+)"/\1/' | sort -u)"
+  [ -n "$known" ] || return 1
+  applied="$(node -e 'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync(process.argv[1], { readOnly: true }); for (const row of db.prepare("SELECT id FROM schema_migrations").all()) console.log(row.id); db.close();' "$state_db" 2>/dev/null)" || return 1
+  while IFS= read -r id; do
+    [ -z "$id" ] && continue
+    grep -qxF "$id" <<<"$known" || { printf '%s\n' "nusa-release-step: rollback release does not know applied migration $id" >&2; return 1; }
+  done <<<"$applied"
+  return 0
+}
+
 rollback_and_restore() {
   local rollback_release
   rollback_release="$(previous_release)"
@@ -302,6 +322,11 @@ case "$verb" in
       fi
     fi
     if [ "$paper_ready" != true ] || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
+      if ! rollback_schema_compatible "$(previous_release)"; then
+        # Rolling back would leave nothing running. Keep the new release and its units active and fail the step loudly.
+        printf '%s\n' "nusa-release-step: activation of $1 did not prove readiness, but the previous release cannot open the migrated database; keeping $1 active (no rollback)" >&2
+        exit 1
+      fi
       printf '%s\n' "nusa-release-step: activation failed for $1; restoring previous release" >&2
       rollback_and_restore
       node "$(script_in "$(active_release)" oracle-readiness-check.js)" || die "rollback PAPER readiness failed"

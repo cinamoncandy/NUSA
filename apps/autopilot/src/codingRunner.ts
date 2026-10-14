@@ -167,6 +167,12 @@ export interface CodingRunnerExecutionOptions {
    * call inside that window. It does not serialize calls already in flight when a stop lands.
    */
   readonly providerWaitUntil?: (provider: string) => Promise<number | null>;
+  /**
+   * Reserve one paid overflow call against the owner-imposed daily cap. Returning false means the
+   * cap is reached; the reservation is atomic, so two concurrent executions cannot both spend the
+   * last call. Absent (or no cap configured) leaves spending bounded only by the purchased balance.
+   */
+  readonly reserveOverflowCall?: (provider: string) => Promise<boolean>;
 }
 
 export interface CodingRunnerResult {
@@ -217,6 +223,8 @@ const GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference/chat/completi
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_EDIT_TEXT_BYTES = 8_000;
+/** Autopilot takes light work only: at most this many added plus removed lines per proposal (docs/AUTOPILOT_LIGHT_TASK_GATE_DESIGN.md). */
+export const MAX_CODING_CHANGED_LINES = 150;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const MAX_CODING_PROPOSAL_CONTEXT_BYTES = 20_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 60_000;
@@ -378,7 +386,17 @@ function validateCodingEdit(value: unknown): CodingEdit {
   return Object.freeze({ path, expectedText, replacementText });
 }
 
-function validateCodingProposal(value: unknown): CodingProposal {
+/** Counts added and removed lines of a unified diff, excluding the file headers. */
+export function countChangedPatchLines(patch: string): number {
+  let count = 0;
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
+    if (line.startsWith("+") || line.startsWith("-")) count += 1;
+  }
+  return count;
+}
+
+export function validateCodingProposal(value: unknown): CodingProposal {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("CODING_PROPOSAL_INVALID");
   const proposal = value as Record<string, unknown>;
   const hasPatch = Object.prototype.hasOwnProperty.call(proposal, "patch") && proposal.patch !== undefined && proposal.patch !== null;
@@ -390,6 +408,7 @@ function validateCodingProposal(value: unknown): CodingProposal {
   }
   if (typeof proposal.patch !== "string") throw new Error("CODING_PROPOSAL_INVALID");
   if (new TextEncoder().encode(proposal.patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (countChangedPatchLines(proposal.patch) > MAX_CODING_CHANGED_LINES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
   if (/liveAuthority|productionMutationAllowed|aiAuthority|NUSA_|wrangler|\.github\//i.test(proposal.patch)) {
     throw new Error("CODING_PROPOSAL_AUTHORITY_SURFACE_FORBIDDEN");
   }
@@ -450,6 +469,7 @@ export function buildDeterministicCodingPatch(context: CodingProposalContext, ed
     "",
   ].join("\n");
   if (new TextEncoder().encode(patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (countChangedPatchLines(patch) > MAX_CODING_CHANGED_LINES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
   return patch;
 }
 
@@ -949,6 +969,32 @@ function githubModelsProviderStop(error: unknown, now: number): { readonly stopR
   return null;
 }
 
+/**
+ * Owner-imposed daily ceiling on paid overflow calls, enforced before the call is made.
+ *
+ * Reaching the cap is not a provider failure, so it reuses the provider boundary this module
+ * already records and honours: the overflow stops for the rest of the UTC day exactly as an
+ * exhausted balance does, which means the existing pre-checks, degradation and HARD_STOP
+ * classification apply unchanged. A reservation failure (coordinator unreachable) withholds the
+ * spend rather than granting it.
+ */
+async function paidOverflowCapReached(options: { readonly reserveOverflowCall?: (provider: string) => Promise<boolean> }): Promise<boolean> {
+  if (!options.reserveOverflowCall) return false;
+  try {
+    return !(await options.reserveOverflowCall("github-models"));
+  } catch {
+    return true;
+  }
+}
+
+function paidOverflowCapStop(now: number): { readonly stopReason: string; readonly nextRetryAt: number; readonly resumeCondition: string } {
+  return Object.freeze({
+    stopReason: "GITHUB_MODELS_DAILY_CAP_REACHED",
+    nextRetryAt: now + msUntilNextUtcDay(now),
+    resumeCondition: "owner-daily-overflow-cap-reset-and-exact-head-revalidation",
+  });
+}
+
 async function githubModelsProposal(request: CodingRunnerRequest, token: string, fetchImpl: FetchImpl, prompt: string): Promise<CodingProposal> {
   const response = await fetchImpl(GITHUB_MODELS_ENDPOINT, githubModelsCodingRequest(request, token, prompt));
   if (!response.ok) throw new Error(`GITHUB_MODELS_CODING_HTTP_${response.status}`);
@@ -1090,6 +1136,7 @@ export async function executeCodingRunner(
       escalationAllowed = false;
     }
   }
+  if (escalationAllowed && await paidOverflowCapReached(options)) escalationAllowed = false;
   if (escalationAllowed && repairGithubToken) {
     try {
       const proposal = await githubModelsProposal(request, repairGithubToken, fetchImpl, codingEditProposalPrompt(request));
@@ -1223,6 +1270,20 @@ export async function executeCodingRunner(
           }
         }
         const overflowAvailable = overflowWaitUntil === null || current >= overflowWaitUntil;
+        if (githubToken && !zeroCreditMode && overflowAvailable && await paidOverflowCapReached(options)) {
+          const capStop = paidOverflowCapStop(current);
+          return {
+            status: "BLOCKED_RATE_LIMIT",
+            reason: "WAITING_PROVIDER_CAPACITY",
+            proposalAttempts: attempt - 1,
+            failureStage: "proposal-parse",
+            provider: "github-models",
+            retryAfterMs: capStop.nextRetryAt - current,
+            nextRetryAt: capStop.nextRetryAt,
+            stopReason: capStop.stopReason,
+            resumeCondition: capStop.resumeCondition,
+          };
+        }
         if (githubToken && !zeroCreditMode && overflowAvailable) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
@@ -1297,6 +1358,21 @@ export async function executeCodingRunner(
           } catch {
             midAttemptOverflowAllowed = false;
           }
+        }
+        if (githubToken && midAttemptOverflowAllowed && await paidOverflowCapReached(options)) {
+          const capStoppedAt = now();
+          const capStop = paidOverflowCapStop(capStoppedAt);
+          return {
+            status: "BLOCKED_RATE_LIMIT",
+            reason: "WAITING_PROVIDER_CAPACITY",
+            proposalAttempts: Math.max(0, attempt - 1),
+            failureStage: "proposal-parse",
+            provider: "github-models",
+            retryAfterMs: capStop.nextRetryAt - capStoppedAt,
+            nextRetryAt: capStop.nextRetryAt,
+            stopReason: capStop.stopReason,
+            resumeCondition: capStop.resumeCondition,
+          };
         }
         if (githubToken && midAttemptOverflowAllowed) {
           try {

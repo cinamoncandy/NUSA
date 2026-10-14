@@ -1,11 +1,98 @@
 version: 1
+current_hourly_paper_retention_20261014:
+  work_order: WO-LEARNING-20261014-HOURLY-RETENTION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  validation: "Red100!=720 reproduced;26 focused tests and build/typecheck/validate:full/security/lint PASS,23 existing warnings. Independent review no actionable findings."
+  next: "Preserve bounded hourly horizon through existing Cloud producer;30-day scoring and qualification unchanged."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_learning_identity_failure_20261014:
+  work_order: WO-LEARNING-20261014-IDENTITY-FAILURE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  validation: "106 focused tests and build/typecheck/validate:full/security/lint PASS; full isolated suite running. Independent persistence P1 fixed, fresh review no actionable findings."
+  issue: 2589
+  next: "Persist actual post-close identity failure using existing ledger; no claimed cycle completion."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_strategy_parameter_boundary_20261013:
+  work_order: WO-LEARNING-20261013-STRATEGY-PARAMETER-BOUNDARY
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "47 focused and1202 isolated test files PASS;build,typecheck,validate:full,lint PASS. Canonical admission only; baseline pin/version unchanged."
+  next: "Fail closed on unsupported strategy fields; no masked-candidate promotion or risk relaxation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_runtime_proof_20261013:
+  work_order: WO-RESEARCH-20261013-RUNTIME-PROOF
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "Projection tests and fullworkorder gates PASS; independent record-integrity finding corrected. Actual extended diagnostic pending."
+  next: "Read-only research timer and bounded forward-log proof in existing host diagnostic."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_forward_runner_20261013:
+  work_order: WO-RESEARCH-20261013-FORWARD-RUNNER
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "20 focused tests and full work-order gates PASS,15 existing lint warnings. Review findings corrected; fresh review no actionable findings. Local WAITING probe only."
+  next: "Wire bounded study into existing Research service; future outcome and qualified candidate are not guaranteed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_holdout_boundary_20261013:
+  work_order: WO-RESEARCH-20261013-HOLDOUT-BOUNDARY
+  status: LOCAL_VALIDATED_PENDING_CI
+  validation: "6 focused tests,build,typecheck,validate:full,security,lint PASS;15 existing warnings. Independent read-only review no actionable findings."
+  next: "Offline input validation; collection and actual holdout evidence still pending."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_regime_research_resume_20261013:
+  work_order: WO-RESEARCH-20261013-REGIME-RESUME
+  status: CANDIDATE_ADAPTER_LOCAL_VALIDATED
+  validation: "35 focused tests,build,typecheck,validate:full,security,lint PASS;15 existing warnings. Research-only adapter, no deployed binding or candidate outcome claimed."
+  branch: codex/research-regime-resume-20261013
+  owner_authorization: "Explicit research resume; PAPER/SHADOW only."
+  next: "Independent review and canonical integration; dataset/provenance/holdout evaluator and deployed collection remain pending. No loss reset or early qualification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_learning_candidate_blocker_20261013:
+  work_order: WO-LEARNING-20261013-QUALIFIED-CANDIDATE-BLOCKER
+  status: RESEARCH_SCOPE_AUTHORIZED
+  observed_at: "2026-10-13T01:50:15.474Z"
+  evidence: "Health ticks120, cycles0, deployments0; bootstrap RESEARCH_NOT_DEPLOYABLE; baseline without Research lineage; consecutive losses3/limit3."
+  next: "Owner authorized bounded regime-aware research under WO-RESEARCH-20261013-REGIME-RESUME. No risk reset, lineage fabrication or qualification weakening."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_browser_performance_20261013:
+  work_order: WO-OPS-20261013-BROWSER-PERFORMANCE
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: codex/browser-performance-evidence-20261013
+  validation: "2 Node tests and7 real Chromium tests PASS; validate:full/security/lint PASS,15 existing warnings. Numeric synthetic observation in work order."
+  next: "Independent review then exact-head canonical CI/Audit/Release; not integrated yet."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_upbit_socket_retirement_20261014:
+  work_order: WO-OPS-20261014-UPBIT-SOCKET-RETIREMENT
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/upbit-retired-socket-error-20261014
+  validation: "Red retirement reproduced; exact-source pin repaired without promotion. Canonical base equality gate required merge2904e335:22 focused tests,1214 isolated files,build/typecheck/validate:full/security/lint PASS,24 existing warnings. Fresh review no findings. OldheadCI38494839917PASS not current approval."
+  next: "Exact-head canonical CI/Audit/Release; no active error or authority relaxation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_verification_first_20261013:
+  work_order: WO-OPS-20261013-VERIFICATION-FIRST
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/verification-first-20261013
+  owner_request: "AIPOS first, then implementation."
+  validation: "6 actual Chromium E2E and7 Node guard/CI tests PASS; build/typecheck/validate:full/security/lint and action pin/input validators PASS,15 existing warnings. Independent review3 P2 corrected, fresh review no findings."
+  remaining: "Fresh exact-head CI/Audit/Release. CPU/heap, full-product map, physical devices and measured AI concurrency expansion are staged, not claimed complete."
+  next: "Reuse canonical E2E/CI; source-bound Feature Map, browser error guard and scoped PR evidence. No parallel control plane or self-approval."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_baseline_recovery_20261012:
+  work_order: WO-LEARNING-20261012-BASELINE-ROLLOVER-RECOGNITION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/research-baseline-rollover-20261012
+  observed_runtime: "2026-10-13 09:08 KST: source4a26f767, hourly3600000, healthOK,1968 ticks,10 realized periods,0 actual cycles. Research10 completed sessions; baseline bootstrap still blocks."
+  prior_hourly_deployment: "38218434560 PASS, actual runtime revision verified."
+  validation: "Frozen codeb6aa4a17:49 focused tests and1193 isolated files PASS; build/typecheck/validate:full/security/lint PASS,15 existing warnings. AIPOS-only validation checkpoint; exact-head CI/Audit/Release/runtime pending."
+  next: "Restore strict canonical baseline recognition and preflight before binding mutations; no fabricated historical Research lineage."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_hourly_recovery_20261012:
   work_order: WO-LEARNING-20261012-HOURLY-RECOVERY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: DEPLOYED_WAITING_REAL_LEARNING_EVIDENCE
   owner_choice: ONE_HOUR_PAPER_EVALUATION
   branch: codex/learning-fast-recovery-20261012
   validation: "113 focused tests, 1192 isolated test files, build/typecheck/validate:full/security/lint PASS (15 existing lint warnings). Full suite required Git Bash PATH; initial ENOENT environmental failure retained, corrected without code/assertion weakening. Independent latest-diff review: no actionable P0/P1/P2, 94 tests plus SQLite persistence/replay."
-  remaining: "Fresh exact-head CI, independent Audit, Release and deployment; actual cycles remain zero and baseline genuine Research lineage missing."
+  actual_deployment: "PR2625 exacthead11cb1fcc canonicalCI38217186264 PASS; AuditRelease38217690396 PASS; merge4a26f767 postCI38217816720 PASS; Oracle38218434560 PASS; 2026-10-13 runtime source and hourly3600000 verified."
+  remaining: "Actual cycles remain zero; baseline recognition repair and genuine Research-qualified candidate required."
   next: "Publish bounded hourly-evaluation increment; do not claim actual cycle completion or bypass baseline Research lineage."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_upgrade_20261012:
@@ -68,6 +155,25 @@ current_learning_completion_20261012:
   next: "Actual cycle/Research/successor receipts after natural KST boundary remain required; canonical runtime polls automatically."
   complete: false
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_aipos_state_add_dashdash:
+  work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/aipos-state-add-dashdash
+  authority_impact: none
+  finding: "Follow-up to the name-order state insert: the documented `pnpm run aipos:state-add -- <entry.yaml>` passed the `--` separator as the file name and failed with ENOENT; the script now skips it. Found while recording the Autopilot coding-off decision."
+  next: "Use pnpm run aipos:state-add -- <entry.yaml> for new state entries."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_aipos_state_insert_order:
+  work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
+  status: READY_FOR_REVIEW
+  branch: claude/aipos-state-insert
+  authority_impact: none
+  finding: "Merge bottleneck: almost every PR appended to the end (or the top) of .aipos/state.yaml, so each merge left the other open PRs in conflict (71 state.yaml commits across 60 merges since 2026-10-10). New entries now go through scripts/aipos-state-insert.js, which places them before the entry whose name comes next in name order; six parallel additions to a copy of the real file merged with no conflict. AGENTS.md step 6 tells every agent to use it."
+  next: "Use pnpm run aipos:state-add for every new state entry."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_android_paper_runtime_truth_p0:
   work_order: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
   status: CANONICAL_BRANCH_RECOVERED_PENDING_EXACT_HEAD_CI
@@ -234,6 +340,16 @@ current_issue_2118_coverage_shard_rebalance:
   deployment: "CI-only diff; Cloudflare exact-main scope had no runtime delta and skipped Worker deploy; no Oracle application deployment required."
   remaining: "Coverage-shard rebalance subincrement complete. Broader CI p50/p95 and owner-latency plus worker WIP/throughput telemetry remain separate #2118/#2117/#903 work; do not infer WIP expansion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_wip_release_on_finish:
+  work_order: WO-AUTOPILOT-20261013-WIP-RELEASE-ON-FINISH
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-wip-release-on-finish
+  authority_impact: none
+  finding: "The GitHub Actions coding backend never released its active-WIP claim (completeActiveWip is only on the legacy /coding/execute path), so each attempt held the single slot until the 60-minute expiry. The execution consumer now calls an authenticated /coding/wip-release when its attempt ends, freeing the slot at once; the expiry remains the fallback. maxConcurrent stays 1 until successful coding throughput can be measured."
+  next: "After merge and deploy, check consumer logs for wip_release=released and that the next dispatch follows within minutes."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_autopilot_worker_deploy_scope:
   work_order: WO-OPS-20261002-CLOUDFLARE-RUNTIME-DELTA-DEPLOY
   status: MERGED_POST_MERGE_VALIDATION_AND_DEPLOY_SKIP_VERIFIED
@@ -854,6 +970,17 @@ current_autopilot_repeated_deterministic_failure_stop:
   expected_efficiency: "Stop after the first bounded correction repeats the same deterministic failure code, avoiding additional proposal calls for that repeated failure. Actual token/credit savings are unmeasured."
   next: "Resolve the actionable AIPOS review threads; then fresh exact-head CI, independent Audit, and canonical Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_design_claude_v1_20261014:
+  work_order: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+  status: READY_FOR_REVIEW
+  authority_impact: none
+  design: docs/NUSA_CLAUDE_DESIGN_V1.md
+  finding: "Intraday SMA loses to fees; 186-189 configs with 0 holdout passes, first-screen passes only on daily bars; learning loop 0/7 for lack of a qualified candidate. Design: slow-bar regime research, forward-run wiring, Binance futures as a separate PAPER-only domain (data access first, then contracts, simulator, own risk gate), owner Now-tab with four answers, repository simplification."
+  owner_decisions: "2026-10-14 all as recommended: adopted; futures 2x/isolated/25%/loss-3; slow-bar regime research; baseline unchanged."
+  next: "Step 1: Now tab shows consecutive-loss stop and today P&L; then forward-run wiring, Binance data probe, simplification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_deterministic_coding_patches:
   work_order: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
   status: READY_FOR_REVIEW
@@ -964,6 +1091,16 @@ latest_event_bridge_oidc_slice:
   scope: "Authenticate the existing GitHub event bridge with strict repository/workflow/event-bound OIDC while preserving fail-closed HMAC compatibility."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "NUSA_WEBHOOK_SECRET/OIDC runtime delivery and control-plane receipt remain external deployment evidence; no unauthenticated fallback is allowed."
+
+current_research_family_screen_20261013:
+  work_order: WO-RESEARCH-20261013-FAMILY-SCREEN
+  status: DAILY_SURVIVOR_FOUND_FORWARD_TEST_FROZEN
+  branch: claude/research-family-screen
+  finding: "Pre-registered Bollinger, squeeze and regime-filtered breakout screens on 250d and prior 383d 60m data: 0 of 6 settings survive. Learning loop still has no Research-qualifiable candidate; no threshold or risk change."
+  daily: "Pre-registered daily screen (1824 days): DONCHIAN_D N=20 passes, REGIME_DONCHIAN_D N=20 narrowly; not promotion evidence."
+  forward: "REGIME_BREAKOUT N=50 frozen for forward 60m data from 2026-10-14; verdict earliest 2026-12-13."
+  next: "Owner decides on registering a daily Donchian family for a formal Research experiment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
@@ -2041,6 +2178,16 @@ current_pr1991_review_hardening:
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_workspace_dirty:
+  work_order: WO-AUTOPILOT-20261013-WORKSPACE-DIRTY
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-workspace-dirty
+  authority_impact: none
+  finding: "After the stale-WIP fix the first real backlog dispatch (run 38375920359, issue #2118) failed with CODING_RUNTIME_WORKSPACE_DIRTY before any proposal: the freshness step added on 2026-10-12 writes artifacts/autopilot-execution/cited-workflow-runs.json, which unlike its siblings was not git-ignored. It is now ignored; the clean check stays fail-closed for every other path."
+  next: "After merge, the next consumer run should reach the coding engine; observe whether it produces an acceptable proposal."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_autopilot_zero_credit_mode:
   work_order: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
   status: IN_PROGRESS
@@ -2343,6 +2490,31 @@ current_research_evaluator_runner:
   branch: claude/nusa-repository-j93sd8-evaluators
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+
+current_research_meta_learner_20261013:
+  work_order: WO-RESEARCH-20261013-META-LEARNER
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/research-meta-learner
+  finding: "Research ledger plus a fixed-policy meta-learner fed by backtests and live PAPER shadow evidence. Meta-loop ran 4 chosen experiments today: all-KRW 60m ML v1 (design flaw -> retry rule learned), v2, daily, daily+external (Korea premium); all fail with no skill (picks below the market average). 12 experiments, 186 configurations, 0 holdout passes. The learner also learned that external history is free to test."
+  next: "Runtime meta-learning now evaluates the ledger, live runtime Research and live shadow on every tick (/health closedLearningLoop.metaLearning, advisory). Steering runtime Research by it needs the owner to reverse the record-only decision. Next data: order book and trades (#2679)."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_research_microstructure_recorder_20261013:
+  work_order: WO-RESEARCH-20261013-MICROSTRUCTURE-RECORDER
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/research-microstructure-recorder
+  finding: "Every data type with history is exhausted (0/189 holdout); order book and trades have no Upbit history. Added a research-only recorder of the already-streamed public order book and trades with /health counters."
+  next: "CI, Audit, Release, deploy; verify counters on /health; collect, then pre-register an order-book/trade-flow study."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_research_ohlcv_catalog_20261013:
+  work_order: WO-RESEARCH-20261013-OHLCV-CATALOG
+  status: COMPLETED_NO_SURVIVOR
+  branch: claude/research-family-screen
+  finding: "Pre-registered OHLCV catalog (38 configurations): 1 discovery pass (daily Keltner), 0 holdout passes. Cumulative 135 configurations today, 0 survivors."
+  next: "Owner decides on order-book collection or external data; forward test verdict earliest 2026-12-13. No threshold or risk change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_orchestrator_composition:
   work_order: WO-RESEARCH-20261002-ORCHESTRATOR-COMPOSITION
   status: READY_FOR_REVIEW
@@ -2626,6 +2798,13 @@ current_stall_metrics:
   authority_impact: none
   owner_approval: "2026-10-06 in chat"
   finding: "PAPER halted with PAPER_WRITER_LEASE_LOST: a process stall above the 30 s writer lease loses it until restart; the stall source is unknown, measurement only"
+
+current_handoff_main_20261014:
+  status: RECORDED
+  handoff: .aipos/handoffs/2026-10-14-main-handoff.md
+  finding: "End-of-session handoff: owner decisions of 2026-10-14, four draft PRs (#2699, #2701, #2702, #2703) waiting for non-author review, and next safe actions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_health_error_class:
   work_order: WO-OPS-20261006-HEALTH-ERROR-CLASS
   status: READY_FOR_REVIEW
@@ -2788,6 +2967,15 @@ current_research_longer_timeframes_proposal:
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('제안서 써줘'); implementation not approved"
   finding: "All tested families lose on 1-minute bars after costs; proposes a walk-forward Research comparison over 15/60/240-minute bars"
+
+current_research_strategy_catalog_20261013:
+  work_order: WO-RESEARCH-20261013-STRATEGY-CATALOG
+  status: COMPLETED_NO_SURVIVOR
+  branch: claude/research-family-screen
+  finding: "Pre-registered 97-configuration catalog (60m and daily, held-out final test, Bonferroni bar): 9 passed discovery, 0 passed the holdout; 8 of 9 lost money per trade on unseen data."
+  next: "No learning-loop candidate. Wait for the forward test (earliest 2026-12-13) or owner decision on richer data. No threshold or risk change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_timeframe_comparison:
   work_order: WO-RESEARCH-20261006-TIMEFRAME-COMPARISON
   status: READY_FOR_REVIEW
@@ -2803,6 +2991,15 @@ current_ops_clear_recovered_market_reject:
   owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
   finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+
+current_safety_gate_evidence_states_20261013:
+  work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
+  status: LOCAL_VALIDATED_PENDING_CI
+  branch: claude/safety-gates-evidence-states
+  finding: "Safety gates showed PASS on stale evidence; now PASS/FAIL/BLOCKED/STALE/CHECKING with per-source freshness."
+  next: "Exact-head CI, Audit, Release; then check the deployed app shows the new states."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_sec_shell_quote_advisory:
   work_order: WO-SEC-20261006-SHELL-QUOTE-ADVISORY
   status: READY_FOR_REVIEW
@@ -2980,6 +3177,24 @@ current_autopilot_runner_readiness:
   branch: claude/autopilot-runner-preflight
   authority_impact: none
   finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
+
+current_learning_methods_20261013:
+  work_order: WO-RESEARCH-20261013-LEARNING-METHODS
+  status: COMPLETED_ANALYSIS
+  branch: claude/research-family-screen
+  finding: "GLOBAL FIRST_BROKEN_TRANSITION is Research -> qualified candidate (market result: 0/135 holdout survivors, baseline gross-negative before fees). Loop plumbing and #2589 failure fields are deployed but unexercised. VERIFIED=false."
+  next: "Forward test verdict earliest 2026-12-13; owner decision on new data sources. No threshold or lineage change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_paper_rule_replay_20261013:
+  work_order: WO-LEARNING-20261013-PAPER-RULE-REPLAY
+  status: DEPLOYED_RUNTIME_VERIFIED
+  branch: claude/learning-paper-rule-replay
+  finding: "Research champion proxy (TP/SL exits) differs from the PAPER baseline (cross-down exit). Added an exact PAPER-rule replay per closed baseline period with signed-bp parity on /health; measurement only."
+  next: "Exact-head CI, Audit, Release, deploy; read the gap; owner decides on aligning the Research champion."
+  deployment: "Deployed 2026-10-13 (run 38412274680, main 2bb279335); /health replay for period closed-learning-rollover:9: 6 bars, 1 replay trade, replay net -26 bp, PAPER net -14 bp."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_pending_order_attribution_test:
   work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
   status: READY_FOR_REVIEW
@@ -3038,6 +3253,16 @@ current_learning_resume_failed_cycle:
   authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
   finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
   limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
+
+current_learning_baseline_observation_20261013:
+  work_order: WO-LEARNING-20261013-BASELINE-OBSERVATION
+  status: DEPLOYED_RUNTIME_VERIFIED
+  branch: claude/learning-baseline-observation
+  finding: "Closed owner-baseline periods hit PAPER_RESEARCH_LINEAGE_UNAVAILABLE, a BLOCKED retry loop, then a stalled reopen; now BASELINE_PERIOD_OBSERVED with immediate continuation and a baselineObservations count. No lineage or cycle invented."
+  next: "Exact-head CI, Audit, Release, deploy; verify on /health after the next baseline close; then feed observations to Research N+1."
+  deployment: "Deployed 2026-10-13 by oracle-paper-release run 38412274680 (success) at main 2bb279335; /health shows sourceCommitSha 2bb279335 and evidence.baselineObservations 10 of realizedPeriods 10."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_baseline_shadow:
   work_order: WO-LEARNING-20261008-BASELINE-SHADOW
   status: READY_FOR_REVIEW
@@ -3181,6 +3406,163 @@ current_autopilot_preflight_credit_posture:
   authority_impact: none
   finding: "After #2632 the deploy gate passes, but the trusted Credential Preflight still hardcoded zeroCreditMode ENFORCED; it now derives the expectation from the deploy workflow's NUSA_ZERO_CREDIT_MODE."
 
+current_autopilot_coding_off:
+  work_order: WO-AUTOPILOT-20261013-CODING-OFF
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-coding-off
+  authority_impact: none
+  owner_decision: "2026-10-13: option A. Keep the deterministic Audit, release bot and reconverge; turn Autopilot coding off; development is done by Claude sessions. Answers redesign decision 3."
+  finding: "Workers AI coding merged 1 of 12 PRs in its lifetime and none since 2026-09-28; in the week to 2026-10-13 it produced 0 of 119 merged PRs while 26 merged PRs concerned the Autopilot itself. The execution consumer's coding job now runs only when the repository variable NUSA_AUTOPILOT_CODING_ENABLED is 'true' (unset means off). Code is kept, so the choice is reversible."
+  next: "Re-enable only with a new owner decision, for example a measured trial of a Claude coding engine."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_completion_receipt_design:
+  work_order: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-DESIGN
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-completion-receipt
+  authority_impact: none
+  finding: "A design proposes one immutable completion receipt composed from existing evidence, remediation, execution-state and release-completion components; VALID_NO_ACTION never counts as verified useful completion. The four owner decisions took the recommended defaults (existing coordinator record, worker-runtime-scope required, release-app approval as Audit source, count-only exposure later); no receipt exists and the verified-completion flag stays false."
+
+current_docs_claude_handoff:
+  work_order: WO-DOCS-20261012-CLAUDE-HANDOFF
+  status: READY_FOR_REVIEW
+  branch: claude/claude-handoff
+  pull_request: 2640
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
+  finding: "CLAUDE.md defers to AGENTS.md; the full handoff (safety, state, open PRs, decisions, blockers, evidence, verification, next permitted actions) lives in the AIPOS handoff file so a new session on any account recovers from the repository."
+  next: "Re-verify main, PRs 2637/2638/2639/2633/2586 and runtime health, then continue existing PRs only; see the handoff file for the ordered next permitted actions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_light_task_gate:
+  work_order: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-light-task-gate-impl
+  authority_impact: none
+  finding: "A coding proposal or exact-edit patch over 150 added plus removed lines is now rejected as CODING_PROPOSAL_TOO_LARGE (existing reason, classification and bounded retry); the existing single-file rule already exceeds the design's 3-file default. Needs a Worker deploy to take effect."
+
+current_docs_handoff_evening_decisions:
+  work_order: WO-DOCS-20261012-HANDOFF-EVENING-DECISIONS
+  status: READY_FOR_REVIEW
+  branch: claude/handoff-evening-decisions
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
+  finding: "The handoff now records the owner's evening decisions: main/assistant Claude roles, GitHub account separation and a redesign on 2026-10-13, HOLD on the redesign-related PRs, the withdrawal of the Dokkebi / Dokkebiteo rename (name stays NUSA, AIPOS unchanged), and that the GitHub repository was already renamed to Dokkebi so the Worker allowlists hard-coded to cinamoncandy/NUSA need the owner to settle the repository name or a dual-name change. It also records that the owner disabled the Autopilot Codex Coding workflow after hourly failures drove repeated Autopilot repair dispatches, and that the Worker auto-deploys from main so the 150-line proposal limit is live."
+  next: "After the redesign and the two GitHub logins, act on the owner's decisions one task per PR; do not rename the repository or enable the owner-activity gate before their prerequisites."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_docs_handoff_research_status:
+  work_order: WO-DOCS-20261013-HANDOFF-RESEARCH-STATUS
+  status: READY_FOR_REVIEW
+  branch: claude/handoff-research-status
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
+  finding: "The handoff now records the end-of-day state: the learning loop is still 0/7 (owner baseline has no Research lineage), breakout and SMA research found no candidate and the owner stopped it, the PR ledger (merged, closed, HOLD, open) and the four inputs needed from the owner on 2026-10-13."
+  next: "After the owner supplies the two GitHub logins and the redesign direction, act one task per PR; keep HOLD PRs untouched until then."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_claude_centered_decisions_20261014:
+  work_order: WO-OPS-20261014-CLAUDE-CENTERED-DECISIONS
+  status: READY_FOR_REVIEW
+  authority_impact: none
+  decision: .aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md
+  finding: "Owner accepted the Claude-centered operating model on 2026-10-14: roles adopted (design moves from ChatGPT to Claude), current repository and Worker token kept (GitHub App only if needed later), paid GPT-4.1 overflow off, Codex kept disabled, recommended P3 cleanup order, review on request only."
+  p2: "CLAUDE.md, AGENTS.md Operating roles and master-instruction release-path merge wording updated in the same PR."
+  revision_3: "One Claude working session is CORE plus operations/research/records; a fresh session reviews code PRs; unset NUSA_AGENT_ROLE means CORE."
+  next: "P4 overflow-off work order; P1 follow-up on #2651/#2652; P3 stale-PR list. #2644 stays off."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_claude_centered_redesign:
+  work_order: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  status: READY_FOR_REVIEW
+  revision: 2
+  branch: claude/claude-centered-redesign
+  pull_request: 2650
+  authority_impact: none
+  decision: .aipos/decisions/ADR-OPS-20261013-CLAUDE-CENTERED-OPERATING-MODEL.md
+  design: docs/CLAUDE_CENTERED_OPERATING_MODEL.md
+  finding: "Revision 2 (re-reviewed against GitHub and the Worker, 2026-10-12 22:00-22:40 UTC): the notification flood is not Codex-specific; the Worker's scheduled runtime repairs any failed main-head run for 24 hours (230 consumer failures on 2026-10-12, eleven re-dispatches of one Codex failure about every 5 minutes) and the consumer runs are triggered as cinamoncandy, so failures notify the owner. Roles follow the governing charter: CORE is the main Claude on the owner's account, VALIDATOR/RESEARCH plus operations is the assistant Claude on one automation-only machine account, AUTOPILOT stays Workers AI with the 150-line one-file limit. Non-author review under GRILL_ME_PROTOCOL for code PRs, blocking findings as inline threads; branch claims replace claimed_by; the Worker token should move to a GitHub App separate from the release-authority app; the owner-activity gate (#2644) must not be enabled until a closed gate is a quiet NO_ACTION and the Worker identity is separated."
+  next: "Owner answers the six decisions; P1 (Autopilot repair-target allowlist, attempt cap, quiet stops) can start before P0 identity work with owner approval. HOLD PRs stay untouched until then."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_open_pr_inventory:
+  work_order: WO-OPS-20261013-OPEN-PR-INVENTORY
+  status: READY_FOR_REVIEW
+  branch: claude/open-pr-inventory
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  inventory: docs/OPEN_PR_INVENTORY_2026-10-13.md
+  finding: "46 open PRs (23 draft, 20 HOLD, 34 created before October) grouped into: redesign and Autopilot work in progress, October research records, an urgent owner decision (#2311 lowers the new PAPER account initial-capital default from 10,000,000 to 5,000 KRW and is neither draft nor HOLD), security authority-narrowing PRs worth re-checking, likely superseded PRs, and stale September feature/research PRs. Nothing was closed or changed."
+  owner_decisions: "2026-10-13: #2311 closed by the owner (PAPER initial-capital default stays KRW 10,000,000; branch kept). #1922 and #2060 closed on owner approval as superseded (#1921 consolidate decision; #2115); branches kept."
+  next: "Owner approves which other groups to close; closing follows only an approved list and never deletes branches."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_docs_assistant_handoff_20261013:
+  work_order: WO-DOCS-20261013-ASSISTANT-HANDOFF
+  status: READY_FOR_REVIEW
+  branch: claude/handoff-2026-10-13
+  authority_impact: none
+  handoff_file: .aipos/handoffs/2026-10-13-assistant-handoff.md
+  finding: "Session handoff: redesign revision 2 merged as PROPOSED (#2650); P1 Autopilot fixes #2651 (repair only code-check failures, scheduled and webhook paths) and #2652 (three attempts per work item) are drafts with green CI awaiting a non-author review; open-PR inventory #2653 confirms #1922 and #2060 as superseded; #2311 closed by the owner so the PAPER initial-capital default stays KRW 10,000,000."
+  next: "Owner: approve closing #1922 and #2060, review #2651/#2652 with the main Claude account, answer the six redesign decisions."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_reconverge_audited_prs:
+  work_order: WO-AUTOPILOT-20261013-RECONVERGE-AUDITED-PRS
+  status: READY_FOR_REVIEW
+  branch: claude/reconverge-audited-prs
+  authority_impact: none
+  finding: "Release bottleneck: Audit declines a green PR as stale whenever another merge moves main first (#2651 and #2652 on 2026-10-13), and the reconverge step only updated autopilot/* branches. It now also merges current main into same-repository PRs whose current head Audit attempted within 24 hours, with every existing guard kept; PRs Audit never attempted are untouched."
+  next: "After merge, watch the next reconverge run update a stale-declined PR; state.yaml append conflicts remain a separate bottleneck."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_repair_attempt_cap:
+  work_order: WO-AUTOPILOT-20261013-REPAIR-ATTEMPT-CAP
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-repair-attempt-cap
+  pull_request: 2652
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  finding: "Second P1 increment: scheduled evolution coding now asks the execution coordinator for at most three fresh acquisitions per logical work item and main SHA; further ticks return ATTEMPT_LIMIT_REACHED instead of re-dispatching the same unfixable work about every five minutes. Other acquire callers are unchanged."
+  next: "Non-author review; then the quiet-stop increment for the execution consumer. Independent of PR #2651."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_repair_target_allowlist:
+  work_order: WO-AUTOPILOT-20261013-REPAIR-TARGET-ALLOWLIST
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-repair-target-allowlist
+  pull_request: 2651
+  authority_impact: none
+  parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+  finding: "First P1 increment: the scheduled runtime and scheduled evolution coding now treat only failed CI and Autopilot Sandbox New-File Guard runs on main (push or manual) as repair targets, so failures of Autopilot's own workflows (Codex coding) or runtime evidence workflows no longer drive the five-minute re-dispatch loop seen on 2026-10-12. The webhook planner likewise ignores failed or cancelled non-code workflows (the 22:06 and 22:11 UTC failures were repairs of a cancelled Android release trigger run)."
+  next: "Non-author review, then the attempt-cap and quiet-stop increments; do not re-enable Codex coding or the owner gate before them."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_risk_loss_limit_comparison_tool:
+  work_order: WO-RISK-20261008-LOSS-LIMIT-COMPARISON-TOOL
+  status: READY_FOR_REVIEW
+  branch: claude/loss-limit-comparison
+  authority_impact: none
+  finding: "Added an offline deterministic comparison of consecutive-loss limits over a completed-sell sequence (tooling only, threshold stays 3); no real comparison exists yet because the ledger sequence is owner-authenticated, so issue 2575 item 5 remains open"
+
+current_owner_decisions_20261013:
+  work_order: WO-DOCS-20261013-OWNER-DECISIONS
+  status: READY_FOR_REVIEW
+  branch: docs/owner-decisions-20261013
+  authority_impact: none
+  owner_approval: "2026-10-13 in chat: owner adopted the assisting session's recommendation for all four open decisions, which was status quo on every one."
+  decisions: "HOLD PRs stay on HOLD (no prerequisite work requested); the two Jev domain-advisory PRs (2337, 2339) are left to their author, blockers recorded on the PRs; Autopilot Codex Coding stays disabled_manually because its failures came from the dedicated ChatGPT account usage limit, not from the repair-dispatch defects fixed today; the coding-remediation allowlist stays CI-only, since three tests pin the refusal of non-allowlisted workflows as a governance-visibility requirement."
+  corrected_stale_record: "An earlier handoff recorded that the Worker repository allowlist is hard-coded to cinamoncandy/NUSA and that the owner must settle the repository name after a rename to Dokkebi. Both halves are no longer true: repos/cinamoncandy/NUSA and repos/cinamoncandy/Dokkebi both resolve to id 1296492411 with canonical full_name cinamoncandy/NUSA (the rename was withdrawn, Dokkebi survives only as a redirect alias), and the allowlist is not hard-coded - index.ts resolves env.NUSA_GITHUB_REPOSITORY first and only falls back to DEFAULT_REPOSITORY, so a future rename is a binding change, not a code change."
+  verified_today: "Merged 2586, 2626, 2629, 2631, 2660, 2661. Zero workflow failures across the last 100 runs; Worker deploymentRevision matches exact main; security:gate PASS with zero unmitigated advisories and zero secret findings."
+  measurement_notes: "CI critical path is now ~344s and its bottleneck moved from validation (132s) to the coverage-core shards (202-249s), so further batching of validation's single-file node --test steps would cost failure-attribution granularity for no wall-clock gain. Shard cost evidence is already measured (355 per-file overrides above a p70 fallback from 4 source runs), so the residual 23% shard spread is not missing data."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_stale_wip_claim:
+  work_order: WO-AUTOPILOT-20261013-STALE-WIP-CLAIM
+  status: READY_FOR_REVIEW
+  branch: claude/autopilot-wip-bottleneck
+  authority_impact: none
+  finding: "Autopilot bottleneck: scheduled backlog coding was refused with WIP_LIMIT_REACHED on 116 of 120 ticks (07:05-09:03 UTC 2026-10-13) because an active-WIP claim is released only on successful coding; failed or unconsumed dispatches kept the single slot forever. Claims older than 60 minutes are now released at the next admission."
+  next: "After merge and Worker deploy, confirm /scheduled/status shows dispatches again; the three-attempt ceiling bounds repeats."
 current_research_breakout_walkforward:
   work_order: WO-RESEARCH-20261013-BREAKOUT-WALKFORWARD
   status: READY_FOR_REVIEW

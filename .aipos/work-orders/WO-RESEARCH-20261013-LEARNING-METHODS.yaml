@@ -1,0 +1,18 @@
+id: WO-RESEARCH-20261013-LEARNING-METHODS
+title: "Research which learning methods can honestly close the PAPER learning loop; name the first broken transition"
+status: COMPLETED_ANALYSIS
+priority: P0
+authority_impact: none
+related_issues: [1605, 2589]
+branch: claude/research-family-screen
+owner_request: "2026-10-13 in chat: research learning methods and learn (master instruction, P0 #1605/#2589)."
+first_broken_transition: "RESEARCH_TO_QUALIFIED_CANDIDATE: bootstrap RESEARCH_NOT_DEPLOYABLE; 0 of 135 pre-registered configurations pass the holdout; owner baseline periods lack Research lineage (PAPER_RESEARCH_LINEAGE_UNAVAILABLE)."
+cause: "Market result, not a code defect: baseline SHADOW is -390 bp gross before 2411 bp fees over 241 trades; simple rules overfit."
+verified: false
+note: docs/RESEARCH_NOTE_2026-10-13_LEARNING_METHODS.md
+next: "Keep the forward test (verdict earliest 2026-12-13); owner decides on order-book/external-data collection and on letting failure memory steer search. No threshold, lineage or risk change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

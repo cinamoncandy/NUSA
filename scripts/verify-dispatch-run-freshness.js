@@ -26,7 +26,15 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const REPAIRABLE_CONCLUSIONS = new Set(["failure", "cancelled", "timed_out"]);
+// The Worker is authoritative about what counts as repair evidence, and it accepts exactly one
+// conclusion (codingRunner.ts: `const allowedConclusions = failureRepair ? ["failure"] : ["success"]`).
+// A cited `cancelled` or `timed_out` run is parsed by the reason regex but then always rejected with
+// CODING_RUNNER_FAILURE_EVIDENCE_INVALID (409), so dispatching it can never succeed - it only burns a
+// consumer run per attempt. A cancellation is the absence of a verdict, not a negative one, which is
+// the same rule the Cloudflare deploy gate already applies to exact-head CI.
+const REPAIRABLE_CONCLUSIONS = new Set(["failure"]);
+// Terminal conclusions that look failure-shaped to the planner but carry no repairable verdict.
+const UNREPAIRABLE_FAILURE_SHAPED_CONCLUSIONS = new Set(["cancelled", "timed_out"]);
 
 function isFailureRepairReason(reason) {
   return typeof reason === "string" && reason.includes("gha:");
@@ -96,6 +104,9 @@ function citedRunNeedsRepair(reason, run, successorRuns) {
     }
     return { repair: true, reason: `run-still-${run.conclusion}` };
   }
+  if (UNREPAIRABLE_FAILURE_SHAPED_CONCLUSIONS.has(run.conclusion)) {
+    return { repair: false, reason: `run-not-repairable:${run.conclusion}` };
+  }
   return { repair: false, reason: `run-no-longer-failed:${run.conclusion}` };
 }
 
@@ -149,7 +160,7 @@ function main(argv) {
   console.error(`dispatch-freshness: repair=${decision.repair} (${decision.reason})`);
 }
 
-module.exports = { REPAIRABLE_CONCLUSIONS, isFailureRepairReason, citedRunNeedsRepair, supersedingSuccess };
+module.exports = { REPAIRABLE_CONCLUSIONS, UNREPAIRABLE_FAILURE_SHAPED_CONCLUSIONS, isFailureRepairReason, citedRunNeedsRepair, supersedingSuccess };
 
 if (require.main === module) {
   try {

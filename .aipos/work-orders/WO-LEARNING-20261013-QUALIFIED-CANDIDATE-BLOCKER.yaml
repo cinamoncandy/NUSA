@@ -1,0 +1,36 @@
+id: WO-LEARNING-20261013-QUALIFIED-CANDIDATE-BLOCKER
+title: Diagnose actual closed-learning candidate and account boundary waits
+status: DIAGNOSED_PENDING_RESEARCH_SCOPE
+priority: P1
+authority_impact: none
+base_commit: fa1e279d58916354da4c42c5ea9e01d146a5f875
+implementation_branch: codex/learning-blocker-evidence-20261013
+objective: "Resolve actual loop blocker without fabricating Research lineage, resetting losses or weakening qualification."
+observed_at: "2026-10-13T01:50:15.474Z"
+runtime_source: 68a61be7755459d54b4bd79d464b039a92227d24
+evidence:
+  source: https://nusa-api.duckdns.org/health
+  ticks: 120
+  cyclesRecorded: 0
+  deployments: 0
+  evaluationPeriodMs: 3600000
+  bootstrap: RESEARCH_NOT_DEPLOYABLE
+  rollover: WAITING_FOR_CANONICAL_BOUNDARY
+  candidate: owner-baseline-sma-5-20
+  lastHistoricalBlockedReason: PAPER_RESEARCH_LINEAGE_UNAVAILABLE
+  lastHistoricalBlockedAt: 1791829615717
+  consecutiveLossCount: 3
+  maxConsecutiveLosses: 3
+  researchTickStatus: OK
+analysis:
+  - "Scheduler waits when canonical account.updatedAt does not exceed periodStartAt; no filled observations in current period. Do not fabricate account movement."
+  - "Bootstrap replays Research; non-DEPLOYABLE results preserve reasons internally, but health currently exposes status only. Specific bootstrap reason is not established by health."
+  - "Research experiments show NO_EDGE/EXCESSIVE_DRAWDOWN; these aggregate counts are not the exact bootstrap rejection reason."
+  - "Owner baseline lacks qualifying Research lineage; cannot label baseline observation a validated learning cycle."
+  - "Prior handoff explicitly stopped additional SMA/breakout research; new research scope needs owner direction."
+validation: "Read-only health, source boundary inspection and open PR overlap check performed. No code change or test PASS claimed."
+next: "Obtain bounded new Research scope (e.g. preregistered regime-aware forward PAPER/SHADOW study), or remain collecting evidence. No immediate deployment or profitability promise."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

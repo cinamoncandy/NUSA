@@ -122,6 +122,28 @@ describe("NUSA autopilot dispatch planner", () => {
     assert.equal(failure.kind, "CI_FAILED");
   });
 
+  it("does not turn failed or cancelled non-code workflows into repair evidence", () => {
+    // 2026-10-12: a cancelled Android Stable Release Trigger run was dispatched as a repair.
+    for (const [name, conclusion] of [
+      ["Android Stable Release Trigger", "cancelled"],
+      ["Autopilot Codex Coding", "failure"],
+      ["Actual PAPER Public-Market Runtime Evidence", "failure"],
+      ["Autopilot Execution Consumer", "failure"],
+    ] as const) {
+      const plan = planGithubWebhookDispatch("workflow_run", {
+        action: "completed",
+        workflow_run: { id: 9, name, head_sha: "e".repeat(40), head_branch: "main", status: "completed", conclusion, event: "workflow_dispatch" },
+      });
+      assert.equal(plan.kind, "IGNORED", name);
+      assert.equal(plan.reason, "workflow-run-failure-not-repairable", name);
+    }
+    const guard = planGithubWebhookDispatch("workflow_run", {
+      action: "completed",
+      workflow_run: { id: 10, name: "Autopilot Sandbox New-File Guard", head_sha: "e".repeat(40), status: "completed", conclusion: "failure", event: "push" },
+    });
+    assert.equal(guard.kind, "CI_FAILED");
+  });
+
   it("does not advance the development loop for successful auxiliary workflows", () => {
     const plan = planGithubWebhookDispatch("workflow_run", {
       action: "completed",

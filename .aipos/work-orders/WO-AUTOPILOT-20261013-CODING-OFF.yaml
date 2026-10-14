@@ -1,0 +1,39 @@
+id: WO-AUTOPILOT-20261013-CODING-OFF
+title: "Turn Autopilot coding off by default and keep Audit, Release and reconverge"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-coding-off
+authority_impact: none
+parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
+owner_approval: "2026-10-13 in chat ('가 할게'): keep the deterministic Audit, release bot and reconverge; stop Autopilot coding; development is done by Claude sessions. Answers redesign decision 3 (engine and cost)."
+scope_note: "One condition on the execution consumer's coding job plus a test. Code is not removed; coding is re-enabled by setting the repository variable NUSA_AUTOPILOT_CODING_ENABLED to 'true'. No Worker, Audit, Release, Risk or authority change."
+objective: "Stop spending effort and notifications on an Autopilot coding engine that does not deliver, while keeping the release machinery that does."
+evidence_of_problem:
+  - "Workers AI coding (branches nusa/autopilot/*): 12 PRs in its lifetime, 1 merged (#2294, 2026-09-25), all on issue #2118, none since 2026-09-28."
+  - "Merged PRs 2026-10-06 to 2026-10-13: 119 in total; Claude sessions 75, Codex sessions 14, other session branches about 20, Codex-backed Autopilot 5, Workers AI Autopilot 0. 26 of the 119 titles concern the Autopilot itself."
+  - "The Codex-backed Autopilot coding workflow stays disabled_manually (owner decision recorded in current_owner_decisions_20261013)."
+scope:
+  include:
+    - ".github/workflows/autopilot-execution-consumer.yml (consume job requires vars.NUSA_AUTOPILOT_CODING_ENABLED == 'true')"
+    - "tests/autopilot-coding-switch.test.js"
+  exclude:
+    - "Removing Autopilot code, the Worker schedule, the deterministic Audit, the release bot or scripts/autopilot-reconverge.mjs."
+limitations:
+  - "The Worker still plans and dispatches coding requests; with the job skipped they end as skipped runs (no coding, no failure notification). Each such dispatch also leaves an active-WIP claim that the 60-minute expiry clears, so at most about one skipped run per hour is expected."
+  - "The repository variable list is not readable from this session; the variable is new, so it is assumed unset (coding off)."
+acceptance:
+  - "The consume job runs only for REPOSITORY_AUTOPILOT dispatches when the variable is 'true'; audit-request, release-handoff, audit-recovery and the deterministic Audit workflow do not reference the switch; the test fails without the change."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node --test tests/autopilot-coding-switch.test.js"
+  - "node --test tests/autopilot-*.test.js"
+evidence:
+  remaining: "Exact-head CI, deterministic Audit and Release; then consumer runs for coding dispatches should show the consume job skipped."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

@@ -344,6 +344,9 @@ export class UpbitWebSocketClient {
     this.socket = undefined;
     if (!socket) return;
     socket.removeAllListeners();
+    // Node ws emits an asynchronous error when close aborts CONNECTING. Keep a
+    // socket-local drain with no client references; active feed errors remain degraded.
+    socket.on("error", () => undefined);
     try { socket.close(); } catch { /* already closing; nothing left to release */ }
   }
 

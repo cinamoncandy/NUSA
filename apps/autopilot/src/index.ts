@@ -17,6 +17,8 @@ import {
   markPersistentExecutionDispatched,
   markPersistentExecutionRateLimitStopped,
   readProviderCapacityWait,
+  reservePaidOverflowCall,
+  utcDayKey,
   recordProviderCapacityWait,
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
@@ -46,6 +48,8 @@ export interface Env {
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
   NUSA_AUTOPILOT_ZERO_CREDIT_MODE?: string;
+  /** Owner-imposed ceiling on paid overflow calls per UTC day. Unset or 0 leaves no cap. */
+  NUSA_AUTOPILOT_PAID_OVERFLOW_DAILY_CAP?: string;
   NUSA_JEV_SHADOW_ENABLED?: string;
   NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
   NUSA_JEV_MODEL_TIERING_ENABLED?: string;
@@ -248,8 +252,15 @@ export async function handleCodingExecute(
     let result: Awaited<ReturnType<typeof executeCodingRunner>>;
     try {
       const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+      const parsedCap = Number(env.NUSA_AUTOPILOT_PAID_OVERFLOW_DAILY_CAP?.trim() || "0");
+      const paidOverflowDailyCap = Number.isSafeInteger(parsedCap) && parsedCap > 0 ? parsedCap : 0;
       result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher, {
         providerWaitUntil: async (provider: string) => (await readProviderCapacityWait(coordinator, provider))?.nextRetryAt ?? null,
+        // An unset or non-positive cap means the owner imposed none, so no reservation is taken and
+        // spending stays bounded only by the purchased balance.
+        ...(paidOverflowDailyCap > 0
+          ? { reserveOverflowCall: async (provider: string) => reservePaidOverflowCall(coordinator, { provider, day: utcDayKey(Date.now()), cap: paidOverflowDailyCap }) }
+          : {}),
       });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : "CODING_RUNNER_EXECUTION_FAILED";
