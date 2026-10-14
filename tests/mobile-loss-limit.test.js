@@ -5,7 +5,7 @@ const path = require("node:path");
 const ts = require("typescript");
 const shim = { exports: {} };
 new Function("module", "exports", ts.transpileModule(fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/lossLimitModel.ts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(shim, shim.exports);
-const { buildLossLimitLine } = shim.exports;
+const { buildLossLimitLine, buildTodayRealizedLine } = shim.exports;
 const view = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/nowView.tsx"), "utf8");
 const runtime = fs.readFileSync(path.resolve(__dirname, "../apps/cloud/src/runtime.ts"), "utf8");
 const contract = fs.readFileSync(path.resolve(__dirname, "../packages/contracts/src/personalPaperOperations.ts"), "utf8");
@@ -64,4 +64,24 @@ test("the RISK gateway source is not touched by this display change", () => {
   const { execFileSync } = require("node:child_process");
   const changed = execFileSync("git", ["diff", "--name-only", "origin/main", "--", "apps/cloud/src/cloudPaperCanonicalRiskGateway.ts"], { encoding: "utf8" }).trim();
   assert.equal(changed, "");
+});
+
+test("today's realized P&L reads as a signed won amount, only for today's KST day", () => {
+  assert.deepEqual({ ...buildTodayRealizedLine({ realizedPnlKrw: 12345.4, evaluatedAt: NOW }, NOW) }, { tone: "NORMAL", text: "오늘 확정 손익 +12,345원" });
+  assert.deepEqual({ ...buildTodayRealizedLine({ realizedPnlKrw: -8000, evaluatedAt: NOW }, NOW) }, { tone: "LOSS", text: "오늘 확정 손익 -8,000원" });
+  assert.equal(buildTodayRealizedLine({ realizedPnlKrw: 0.3, evaluatedAt: NOW }, NOW).text, "오늘 확정 손익 0원");
+  const kstMidnight = Date.UTC(2026, 9, 14, 15, 0, 0);
+  assert.equal(buildTodayRealizedLine({ realizedPnlKrw: 5, evaluatedAt: kstMidnight - 1 }, kstMidnight + 1), null);
+  for (const bad of [null, {}, { realizedPnlKrw: Number.NaN, evaluatedAt: NOW }, { realizedPnlKrw: "1", evaluatedAt: NOW }, { realizedPnlKrw: 1, evaluatedAt: NOW + 1 }]) {
+    assert.equal(buildTodayRealizedLine(bad, NOW), null, JSON.stringify(bad));
+  }
+});
+
+test("today's P&L is computed from the PAPER loop's fills outside RISK and wired to the Now tab", () => {
+  assert.match(runtime, /computeTodayRealizedPnlKrw\(fills, now\)/);
+  assert.match(runtime, /\.\.\.todayRealizedHeartbeat\(\)/);
+  assert.doesNotMatch(runtime, /dailyRealized\(\)/);
+  assert.match(contract, /if \(record\.todayRealized !== undefined && !isValidTodayRealized\(record\.todayRealized\)\) delete record\.todayRealized;/);
+  assert.match(view, /const todayRealized = blocked \? null : buildTodayRealizedLine\(heartbeat\?\.todayRealized, Date\.now\(\)\);/);
+  assert.match(view, /testID="now-today-realized"/);
 });
