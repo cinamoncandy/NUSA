@@ -1,4 +1,17 @@
 version: 1
+current_hourly_paper_retention_20261014:
+  work_order: WO-LEARNING-20261014-HOURLY-RETENTION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  validation: "Red100!=720 reproduced;26 focused tests and build/typecheck/validate:full/security/lint PASS,23 existing warnings. Independent review no actionable findings."
+  next: "Preserve bounded hourly horizon through existing Cloud producer;30-day scoring and qualification unchanged."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_learning_identity_failure_20261014:
+  work_order: WO-LEARNING-20261014-IDENTITY-FAILURE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  validation: "106 focused tests and build/typecheck/validate:full/security/lint PASS; full isolated suite running. Independent persistence P1 fixed, fresh review no actionable findings."
+  issue: 2589
+  next: "Persist actual post-close identity failure using existing ledger; no claimed cycle completion."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_strategy_parameter_boundary_20261013:
   work_order: WO-LEARNING-20261013-STRATEGY-PARAMETER-BOUNDARY
   status: LOCAL_VALIDATED_PENDING_CI

@@ -431,7 +431,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         latestFailureId: (v) => typeof v === "string" && ID.test(v), latestFailurePeriodId: (v) => typeof v === "string" && ID.test(v),
         latestFailureEvidenceId: (v) => typeof v === "string" && ID.test(v), latestFailureEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
         latestFailureSourceCommitSha: (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v), latestFailureRuntimeSourceCommitSha: (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v),
-        latestFailureStage: (v) => typeof v === "string" && /^(CYCLE|FINALIZE)$/.test(v), latestFailureCode: (v) => typeof v === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(v),
+        latestFailureStage: (v) => typeof v === "string" && /^(IDENTITY|CYCLE|FINALIZE)$/.test(v), latestFailureCode: (v) => typeof v === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(v),
         latestFailureRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, failuresRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         openPeriodStartAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, openObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
