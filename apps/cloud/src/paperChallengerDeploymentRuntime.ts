@@ -198,6 +198,20 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     const openPeriods = this.options.periods.listOpenPeriods?.() ?? [];
     if (openPeriods.length > 1) throw new Error("multiple PAPER periods are unsafe");
     const baseline = openPeriods[0];
+    if (baseline?.periodId === periodId) {
+      // A crash may leave the period open before the coordinator appends its receipt.
+      // Recheck current authorization and exact existing state, without reopening and
+      // discarding accumulated observations or mutating the binding.
+      const active = this.options.bindings.current(market, periodStartAt);
+      const existingBinding = bindPaperCandidateForExecution(baseline.advisory, baseline.candidateProvenance, candidateId, baseline.periodStartAt, artifact.candidateStrategy);
+      if (baseline.market !== market || baseline.periodStartAt !== periodStartAt
+        || existingBinding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256
+        || active?.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256
+        || active.researchLineage == null || !samePaperResearchLineage(active.researchLineage, researchLineage)) {
+        throw new Error("existing PAPER deployment replay state conflict");
+      }
+      return Object.freeze({ deploymentId: periodId, candidateId, candidateVersion, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    }
     if (baseline != null) {
       if (!isOwnerBaselinePeriodInput(baseline)) throw new Error("another PAPER realized period is already open");
       if (baseline.periodStartAt > periodStartAt) throw new Error("owner baseline replacement boundary conflicts");

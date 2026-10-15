@@ -7,6 +7,7 @@ import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PaperChallengerDeploymentRuntime, type QualifiedPaperChallengerArtifact } from "./paperChallengerDeploymentRuntime";
 import type { PaperResearchLineage } from "./paperResearchLineage";
 import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
+import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 const HASH = "a".repeat(64);
@@ -105,6 +106,55 @@ const governanceFor = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe("PaperChallengerDeploymentRuntime", () => {
+  it("replays an already-open exact deployment after receipt interruption without resetting observations", () => {
+    const ledger = new MemoryLedger();
+    const bindings = new PaperChallengerBindingLedger(ledger);
+    let open: PersistedPaperRealizedPeriodPlan | undefined;
+    let opens = 0;
+    let authorized = true;
+    const create = () => new PaperChallengerDeploymentRuntime({
+      artifacts: { read: () => artifact }, bindings,
+      periods: {
+        listRealizedPeriods: () => [], listOpenPeriods: () => open == null ? [] : [open],
+        openPeriodFromCanonicalAccount: (input) => {
+          opens += 1;
+          open = { ...input, schemaVersion: 1, observationIds: ["preserved-observation"], observations: [{ observationId: "preserved-observation", observedAt: input.periodStartAt, status: "WAIT" }] };
+          return open;
+        },
+      },
+      readCanonicalPaperAccount: () => account(),
+      governance: { requireExecutableChallenger: (request) => {
+        if (!authorized) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE");
+        return governanceFor().requireExecutableChallenger(request);
+      } },
+    });
+    const input = { cycleId: "interrupted-cycle", decision, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const };
+    const first = create().deploy(input);
+    const original = open;
+    const records = ledger.records.length;
+    assert.deepEqual(create().deploy(input), first);
+    assert.equal(opens, 1);
+    assert.equal(open, original);
+    assert.equal(ledger.records.length, records);
+    authorized = false;
+    assert.throws(() => create().deploy(input), /GOVERNANCE_APPROVAL_UNAVAILABLE/);
+    authorized = true;
+    open = { ...open!, market: "KRW-XRP" };
+    assert.throws(() => create().deploy(input), /conflict|already open/);
+    open = { ...original!, periodStartAt: original!.periodStartAt + 1 };
+    assert.throws(() => create().deploy(input), /conflict/);
+    open = { ...original!, advisory: { ...original!.advisory, generatedAt: new Date(999).toISOString() } };
+    assert.throws(() => create().deploy(input), /conflict/);
+    open = { ...original!, candidateProvenance: [{ ...original!.candidateProvenance[0]!, datasetContentSha256: "e".repeat(64) }] };
+    assert.throws(() => create().deploy(input), /conflict/);
+    assert.equal(opens, 1);
+    assert.equal(ledger.records.length, records);
+    open = original;
+    ledger.records.length = 0;
+    assert.throws(() => create().deploy(input), /conflict/);
+    assert.equal(opens, 1);
+    assert.equal(ledger.records.length, 0, "missing binding must not be recreated by receipt recovery");
+  });
   it("preflights canonical rollover baseline before any binding mutation and retires only once", () => {
     const start = Date.UTC(2026, 9, 12);
     const original = buildOwnerBaselinePaperPeriodInput({ market: "KRW-BTC", periodIndex: 5, periodStartAt: start, sourceCommitSha: "a".repeat(40) });
