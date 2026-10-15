@@ -1,0 +1,33 @@
+id: WO-POLICY-20261015-PAPER-LOSS-LIMIT
+title: Owner-approved removal of Cloud spot PAPER consecutive-loss halt
+status: IN_PROGRESS
+decision: OWNER_ACCEPTED
+branch: codex/paper-loss-limit-policy-20261015
+base_commit: 316fb0a0951c375ea90d49c0d73889efdc81892f
+priority: P1
+risk: HIGH
+authority_impact: PAPER_POLICY_ONLY_OWNER_APPROVED_NO_LIVE_AUTHORITY
+owner_authorization: "2026-10-15 owner explicitly selected limit-policy change, then confirmed PAPER 제한 해제. Not a counter reset."
+scope:
+  - Cloud Upbit spot PAPER consecutive-loss-count veto only.
+  - Preserve actual loss counters/history, KST chronology, daily loss, drawdown, exposure, rate, persistence, kill-switch and reconciliation checks.
+  - Desktop defaults, independent LIVE/REAL boundaries and separately governed futures are unchanged.
+  - Explicit policy field and truthful health/mobile projection; no fake large threshold or masked zero loss count.
+acceptance:
+  - Loss streak3 or greater alone no longer blocks owner-approved Cloud spot PAPER.
+  - Unknown/malformed policy fails closed and other Risk vetoes still apply.
+  - Default shared PAPER evaluator remains restrictive unless explicitly configured; no production or LIVE authority is granted.
+  - Health/UI does not claim that a disabled consecutive-loss gate is active.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Implement explicit Cloud spot PAPER policy with regression and independent gates. Oracle38688550321 failed/rolled back; publichealth recovered89a9ceca. Separate read-only writer-lease incident investigation ongoing. No loss-policy change applied yet."
