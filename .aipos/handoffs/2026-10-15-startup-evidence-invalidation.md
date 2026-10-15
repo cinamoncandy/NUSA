@@ -3,7 +3,7 @@
 Base:10c153464b40326a061e548cf44abfb479d07fc0.
 Branch:fix/paper-startup-evidence-invalidation-20261015.
 Work order:WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION.
-Frozen validated implementation:b11828bfe22f487b63cda5c61b944b41dff9271c.
+Frozen validated implementation:4373a9473eabbcc58683ce95ac3630199058db90.
 Later commits change evidence metadata only. Resolve the current Draft PR by this
 branch and bind CI/review to its exact published head, not only this source head.
 MergedPR2732 is not reopened; this fixes its reproduced invalidation residual.
@@ -28,18 +28,24 @@ scheduler, dependency, lease TTL, renewal/takeover rule, Risk, cost, qualificati
 or authority change. External commits still conservatively revalidate; a single
 expensive validation or unrelated startup delay can still consume lease time.
 
+Fresh non-author review found a remaining race: a commit after recovery reads but
+before the final evidence check was detected, yet the pre-change result was still
+returned. It also found that synchronous startup aborts after preparation did not
+always dispose the five native trackers. The repair retries validation at most
+three times, returns explicit RECOVERY_EVIDENCE_UNSTABLE FAIL_CLOSED if evidence
+never stabilizes, and cleans prepared evidence on every synchronous startup
+failure.
+
 ## Completed local gates
 
-170/170 focused tests PASS, including17 startup regressions. Full strict TS emit,
-root and mobile typecheck PASS in the10GB isolated environment using unchanged
-configuration, Node24.19/TS5.9.3. Verified1988 source/type hashes and exact canonical
-programme input sets:root1615/mobile739. A real dependency configuration was
-copied unchanged. Full repository validators, work-order index, changed JS lint
-and security PASS; zero secrets and zero unmitigated high/critical advisories.
-TypeScript is outside repository ESLint matching and is covered by the strict
-compiler. Local changed-test fast hook SKIPs by existing non-primary-CI policy;
-explicit170 tests supplied coverage. Receipt:
-.aipos/evidence/runtime-startup-validation-20261015.json.
+Current source head passes18/18 startup regressions, full strict TypeScript emit,
+root/mobile typecheck, validate:full, JS lint and security gate on Node24.21 /
+TypeScript5.9.3. Security reports zero secrets and zero unmitigated high/critical
+advisories. The local changed-test fast hook SKIPs by existing non-primary-CI
+policy; the explicit startup suite supplies changed-path coverage. Receipt:
+.aipos/evidence/runtime-startup-race-repair-validation-20261016.json. The earlier
+170/170 receipt remains historical evidence for b11828bfe, not current-head
+authority.
 
 Prior attempts are not success evidence: the640MB compiler OOMed; the parallel
 suite was cancelled with128 passes/4 cancellations; initial shared-symlink
@@ -56,6 +62,12 @@ PAPER_WRITER_LEASE_LOST and rolled back with actual readiness PASS. The precise
 host initiating blocking call remains unproven; no blind redeploy was attempted.
 Actual06:08 vs11:41 restart comparison preserves the114-fill ledger fingerprint,
 open period and realized outcome; observations518->684. This is not cycle replay.
+
+On2026-10-15T17:09Z, a governed abandoned-lease reset restored HTTP200 and Research
+READY/ticks on still-old runtime89a9ceca, then the scheduler failed closed with
+PAPER_WRITER_LEASE_LOST and the supervisor entered stale-lease restart failures.
+Pre/post recovery digests of every non-lease canonical table were identical.
+No second reset, blind restart or unreviewed deployment was attempted.
 
 RealizedPeriods15, baselineObservations15/meta-learning consumed15,
 cycles0/failures0/holdoutPasses0, bootstrapRESEARCH_NOT_DEPLOYABLE. Partial baseline
