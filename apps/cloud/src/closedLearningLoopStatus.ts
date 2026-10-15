@@ -32,6 +32,8 @@ export type ClosedLearningLoopStatus = {
    */
   readonly lastBlockedReason?: string;
   readonly lastBlockedAt?: number;
+  /** Bounded class of the most recent TICK_ERROR of THIS process (never the message): a fixed code so a failed tick can be root-caused. */
+  readonly lastErrorClass?: string;
   readonly deployments: number;
   /**
    * Correlation identities read from the canonical components (open PAPER period, latest realized period, latest
@@ -99,6 +101,7 @@ export class ClosedLearningLoopStatusTracker {
   /** The outcome of a cycle evaluated by THIS process (wins over the durable copy). */
   private processCycleOutcome: string | undefined;
   private lastBlocked: { reason: string; at: number } | undefined;
+  private lastErrorClass: string | undefined;
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
   private durableFailure: ClosedLearningEvidenceCorrelation = {};
   private shadow: ClosedLearningEvidenceCorrelation = {};
@@ -209,7 +212,7 @@ export class ClosedLearningLoopStatusTracker {
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
-    const { evidence: _previousEvidence, metaLearning: _previousMeta, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
+    const { evidence: _previousEvidence, metaLearning: _previousMeta, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, lastErrorClass: _previousErrorClass, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
     let eligibleAt: number | undefined;
     const start = this.periods.openPeriodStartAt;
     if (["WAITING_FOR_KST_DAY_ROLLOVER", "WAITING_FOR_EVALUATION_WINDOW"].includes(rest.rollover) && start !== undefined && Number.isSafeInteger(start) && start >= 0 && start <= rest.lastTickAt && start <= 8_640_000_000_000_000) {
@@ -226,6 +229,7 @@ export class ClosedLearningLoopStatusTracker {
       ...(eligibleAt === undefined ? {} : { nextEvaluationEligibleAt: eligibleAt }),
       ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),
       ...(this.lastBlocked === undefined ? {} : { lastBlockedReason: this.lastBlocked.reason, lastBlockedAt: this.lastBlocked.at }),
+      ...(this.lastErrorClass === undefined ? {} : { lastErrorClass: this.lastErrorClass }),
       ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
       ...(this.metaLearning === undefined ? {} : { metaLearning: this.metaLearning }),
     }) as ClosedLearningLoopStatus;
@@ -286,8 +290,9 @@ export class ClosedLearningLoopStatusTracker {
   }
 
   /** A tick that threw before a rollover result: recorded as ERROR without changing the counts. */
-  public observeError(now: number): void {
+  public observeError(now: number, errorClass?: string): void {
     this.lastBlocked = { reason: "TICK_ERROR", at: now };
+    this.lastErrorClass = errorClass !== undefined && CODE.test(errorClass) ? errorClass : undefined;
     const previous = this.status;
     this.status = Object.freeze({ ...(previous ?? { cyclesEvaluated: 0, deployments: 0 }), lastTickAt: now, ticks: (previous?.ticks ?? 0) + 1, bootstrap: this.bootstrap, rollover: "ERROR" }) as ClosedLearningLoopStatus;
     this.publish();
@@ -296,4 +301,11 @@ export class ClosedLearningLoopStatusTracker {
   public snapshot(): ClosedLearningLoopStatus | null {
     return this.status;
   }
+}
+
+/** Bounded, message-free class of a thrown value: a code property or the error name as an upper-case fixed code, else UNKNOWN_ERROR. */
+export function tickErrorClass(error: unknown): string {
+  const raw = error instanceof Error ? ((error as { code?: unknown }).code ?? error.name) : undefined;
+  const code = typeof raw === "string" ? raw.replace(/[^A-Za-z0-9]+/g, "_").toUpperCase().slice(0, 64) : "";
+  return CODE.test(code) ? code : "UNKNOWN_ERROR";
 }

@@ -401,7 +401,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
   let closedLearningLoop: { closedLearningLoop?: Record<string, string | number | Record<string, string | number>> } = {};
   const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
-  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason", "lastErrorClass"] as const;
   if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
     && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
     const loop: Record<string, string | number | Record<string, string | number>> = {};

@@ -16,7 +16,7 @@ import { buildCanonicalPaperCandidatePerformance, PAPER_COVERED_DAY_SCORING_VERS
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
-import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
+import { ClosedLearningLoopStatusTracker, tickErrorClass } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
@@ -433,7 +433,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       refreshDurableCycles();
       try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
       try { loopStatus.observeRuleReplay(latestBaselineRuleReplay(periods.listRealizedPeriods())); } catch { loopStatus.observeRuleReplay(undefined); }
-    })().catch((error: unknown) => { loopStatus.observeError(Date.now()); persistLastBlocked(); throw error; });
+    })().catch((error: unknown) => { loopStatus.observeError(Date.now(), tickErrorClass(error)); persistLastBlocked(); throw error; });
     closedLearningTick = task;
     task.then(
       () => { if (closedLearningTick === task) closedLearningTick = undefined; },
