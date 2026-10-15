@@ -124,6 +124,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     },
   });
 
+  // Evidence validation is read-only and can be expensive. Do it before owning the renewable
+  // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
+  let longBarTickEvery = 1;
+  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
+  researchExperiments?.prepareRecovery();
+
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
   const paperRepository = config.paperInitialCapitalKrw === undefined
@@ -135,8 +141,6 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
   // Meta-learning steering (researchMetaLearning.ts): starts NORMAL and follows the latest meta-learning evaluation.
-  let longBarTickEvery = 1;
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
   // Research-only recording of the public order book and trades already streamed (Upbit keeps no history of either).
   const microstructureRecorder = microstructureRecorderEnabled(env) ? new MarketMicrostructureRecorder(new SqliteMarketMicrostructureStore(database)) : undefined;
   // Research-only all-KRW order book, once a minute; markets the WebSocket recorder samples are left to it.
@@ -484,7 +488,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   initialTimer.unref?.();
   rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
   rolloverTimer.unref?.();
-  researchExperiments?.start();
+  try { researchExperiments?.start(); }
+  finally { researchExperiments?.finishPreparedRecovery(); }
 
   return Object.freeze({
     handle,

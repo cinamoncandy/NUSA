@@ -7,6 +7,7 @@ import { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
 import { collectClosedCandles } from "./researchCandleCollector";
 import { backfillMarket, createUpbitMinuteCandleFetcher, fillRecentGaps, type BackfillResult, type GapFillResult } from "./researchCandleBackfill";
 import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
+import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 
 /**
  * Composition of the continuous research experiments. DISABLED unless NUSA_CLOUD_RESEARCH_EXPERIMENTS is exactly
@@ -89,6 +90,9 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
 }
 
 export interface ResearchExperimentComposition {
+  /** Synchronous startup only: validate evidence without changing Research session state. */
+  readonly prepareRecovery: () => void;
+  readonly finishPreparedRecovery: () => void;
   readonly orchestrator: ResearchExperimentOrchestrator;
   /** One orchestrator per configured bar length, in settings order; `orchestrator` is the first. */
   readonly orchestrators: readonly ResearchExperimentOrchestrator[];
@@ -128,6 +132,31 @@ export function composeResearchExperiments(input: {
   const memory = new SqliteResearchMemoryRepository(db);
   const sessions = new SqliteResearchSessionRepository(db);
   const recovery = new ResearchRecoveryCoordinator({ repository: candidates, evaluationLedger: ledger, now });
+  let preparationActive = false;
+  let preparedRecovery: { readonly version: number; readonly changes: number; readonly result: ResearchRecoveryResult } | undefined;
+  const dataVersion = (): number => Number((db.connection.prepare("PRAGMA data_version").get() as { data_version: number }).data_version);
+  const totalChanges = (): number => Number((db.connection.prepare("SELECT total_changes() AS changes").get() as { changes: number }).changes);
+  const validateRecovery = (): ResearchRecoveryResult => {
+    preparedRecovery = undefined;
+    const before = dataVersion();
+    const changes = totalChanges();
+    const result = recovery.recover();
+    // Include same-connection writes, not only external commits. Legitimate account/session
+    // recovery can cause an extra validation; correctness takes precedence over reuse.
+    if (dataVersion() === before && totalChanges() === changes) preparedRecovery = { version: before, changes, result };
+    return result;
+  };
+  const prepareRecovery = (): void => {
+    preparationActive = true;
+    validateRecovery();
+  };
+  const startupRecovery = {
+    recover: (): ResearchRecoveryResult => {
+      if (!preparationActive) return recovery.recover();
+      if (preparedRecovery != null && dataVersion() === preparedRecovery.version && totalChanges() === preparedRecovery.changes) return preparedRecovery.result;
+      return validateRecovery();
+    },
+  };
 
   const market = settings.markets[0]!;
   const bars = new AggregatedResearchCandleSource(store, M);
@@ -146,7 +175,7 @@ export function composeResearchExperiments(input: {
       const coordinator = new ResearchRuntimeCoordinator({ champion: evaluatorFor(champion, "PAPER_ONLY"), challenger: evaluatorFor(challenger, "ZERO_AUTHORITY"), ledger });
       const runtime = new ResearchAutomationRuntime({
         coordinator, sessions, memory, registerCandidate: (identity) => { log(`[research-experiments] candidate gate eligible (not registered, governed promotion paths unchanged): ${identity.strategyId}@${identity.strategyVersion}`); return Object.freeze({ identity, lifecycle: "RESEARCHING" as const }); }, listCandidates: () => candidates.listCandidates(),
-        recovery, now, maxEvidenceAgeMs: 14 * DAY_MS,
+        recovery: startupRecovery, now, maxEvidenceAgeMs: 14 * DAY_MS,
       });
       return { variantId, champion: { strategy: champion, config: CHAMPION_PROXY }, challenger: { strategy: challenger, config }, runtime, ...(experimentFamilyPrefix == null ? {} : { experimentFamilyPrefix }) };
     };
@@ -269,6 +298,8 @@ export function composeResearchExperiments(input: {
     return first!;
   };
   return Object.freeze({
+    prepareRecovery,
+    finishPreparedRecovery: () => { preparationActive = false; preparedRecovery = undefined; },
     orchestrator,
     orchestrators,
     experimentTicksByInterval: () => {
@@ -288,6 +319,8 @@ export function composeResearchExperiments(input: {
         try { status = other.recover().status; } catch { status = "FAIL_CLOSED"; }
         log(`[research-experiments] recover ${settings.intervalsMinutes[index + 1]}m ${status}`);
       });
+      preparationActive = false;
+      preparedRecovery = undefined;
       scheduleBackfill(1, 20_000);
       first = setTimeout(() => { try { tickOnce(); } catch { /* isolated */ } }, 60_000);
       first.unref?.();
@@ -296,6 +329,6 @@ export function composeResearchExperiments(input: {
       if (settings.backfill) { gapTimer = setInterval(() => { void fillGaps(); }, 6 * 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
-    stop: () => { stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
+    stop: () => { preparationActive = false; preparedRecovery = undefined; stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });
 }
