@@ -4,7 +4,10 @@ import type { IndependentRiskLimits } from "./independentRiskGateway";
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {
-    if (name === "consecutiveLossLimitEnabled" && typeof value === "boolean") continue;
+    if (name === "consecutiveLossLimitEnabled") {
+      if (typeof value !== "boolean") throw new Error("cloud PAPER risk limit consecutiveLossLimitEnabled is invalid");
+      continue;
+    }
     if (!Number.isFinite(value) || value < 0) throw new Error(`cloud PAPER risk limit ${name} is invalid`);
   }
 }

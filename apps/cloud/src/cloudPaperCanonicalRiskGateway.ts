@@ -82,7 +82,10 @@ const dayStartedAt = (dayKey: string): number => paperTradingDayStartedAt(dayKey
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {
-    if (name === "consecutiveLossLimitEnabled" && typeof value === "boolean") continue;
+    if (name === "consecutiveLossLimitEnabled") {
+      if (typeof value !== "boolean") throw new Error("cloud PAPER loss enforcement policy is invalid");
+      continue;
+    }
     if (!Number.isFinite(value) || value < 0) throw new Error(`cloud PAPER risk limit ${name} is invalid`);
   }
   if (limits.maxOrdersPerSecond < 1 || limits.maxOrdersPerMinute < 1 || limits.maxSameSideStreak < 1 || limits.maxConsecutiveLosses < 1) {

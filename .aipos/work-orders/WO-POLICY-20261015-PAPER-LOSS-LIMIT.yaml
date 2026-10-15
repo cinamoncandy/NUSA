@@ -30,7 +30,7 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-validation: "Initial build sandbox EPERM corrected with owned-worktree permission; stale-dist results discarded.60 Risk/lifecycle/health/mobile tests PASS, independent verifier parity PASS. Fresh review found fingerprint boolean rejection and stale policy expectation; corrected and exact source pin rebound to git blobd5a6cbb1d4983c9c29ae52c873ab23a36aa10104. Requalification/full-suite pending."
+validation: "Initial build sandbox EPERM corrected; stale-dist results discarded.60 Risk/lifecycle/health/mobile tests PASS, verifier parity PASS. Review found fingerprint boolean rejection/stale policy assertion; corrected. Negative fingerprint test then exposed numeric0 accepted as flag; strict boolean branch fixed, source pin rebound to actual blobb b11085e9cef34130d9a4976cafcd69cbc1d775b (without separator). Final requalification/frozen full-suite pending."
 compatibility: "Optional boolean missing means enforced; malformed values fail closed. Cloud default false is explicit owner policy. Numeric reference3 retained for compatibility but enforcementfalse projected. Immutable past fills/losses/evidence unchanged; policy fingerprint changes intentionally."
 rollback: "Restore Cloud enforcementtrue via reviewed policy rollback; never erase counters or rewrite old evidence. No old evidence promoted to new policy proof."
 next: "Complete local requalification/full suite and fresh review, then draft PR/exact-head gates. Oracle38688550321 failed/rolled back; current runtime remains89a9ceca. No deployed policy change yet."
