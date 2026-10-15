@@ -2822,6 +2822,16 @@ current_ledger_rounding_tolerance:
   authority_impact: accounting_integrity_tolerance
   owner_approval: "2026-10-05 in chat"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+
+current_diagnose_health_freshness_20261015:
+  work_order: WO-OPS-20261015-DIAGNOSE-HEALTH-FRESHNESS
+  status: IN_PROGRESS
+  branch: codex/diagnose-health-freshness-20261015
+  finding: "Diagnostic38659737372 local curl7/http000 reused an old fixed response file. Six tests/full validation/security/workflow validators PASS. Non-author review no code findings but remote identity INSUFFICIENT_EVIDENCE; keep draft."
+  recovery: "Canonical PAPER Release38659917246 dispatched for exactmain72f9c9e0; outcome pending."
+  next: "Gates, fresh review, canonical integration; actual host recovery verification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_diagnose_health_probe:
   work_order: WO-OPS-20261006-DIAGNOSE-HEALTH-PROBE
   status: READY_FOR_REVIEW

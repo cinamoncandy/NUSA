@@ -1,0 +1,36 @@
+id: WO-OPS-20261015-DIAGNOSE-HEALTH-FRESHNESS
+title: Prevent failed host health probes from publishing stale response files
+status: IN_PROGRESS
+authority_impact: none
+priority: P0
+risk: LOW
+base_commit: 72f9c9e0f50c7820b82e7819171e7bbc2c519aa7
+branch: codex/diagnose-health-freshness-20261015
+parent_issue: 2589
+objective: "Restore truthful diagnosis while investigating actual PAPER health connection refusal."
+evidence:
+  incident_run: 38659737372
+  finding: "Local curl exited7/http000 on 2026-10-15T00:23:44Z, yet old fixed /tmp response exposed observedAt2026-10-14T23:36:06.834Z. Active systemd does not prove HTTP liveness."
+  recovery_run: 38659917246
+  recovery_scope: "Canonical exact-main PAPER Release72f9c9e0 with backup/preflight/rollback. Dispatched, not yet claimed deployed or recovered."
+scope:
+  - "Existing read-only host diagnosis only; run+attempt scoped runner.temp file, truncate before fetch and on curl/HTTP failure, explicit unavailable annotation."
+  - "Actual Bash regression with old file and failed/partial fetch."
+acceptance:
+  - "No failed probe can publish prior or partial health data as current evidence."
+  - "Keep one bounded plain loopback GET, no credentials, sudo or service/permission changes."
+  - "Local gates and fresh review precede PR; exact-head CI/Audit/Release precede integration."
+verification_commands:
+  - node --test tests/oracle-host-diagnose-workflow.test.js
+  - pnpm run validate:full
+  - node scripts/validate-workflow-action-pins.js
+  - node scripts/validate-workflow-action-inputs.js
+  - node scripts/validate-workflow-authority-map.js
+validation: "6 focused Bash/workflow tests, validate:full, security:gate and workflow pin/input/authority validators PASS; lint:scripts PASS with24 existing warnings."
+review: "Fresh non-author Hypatia: no P0/P1/P2 findings; independently tested success/HTTP22/partial28 paths. Full verdict INSUFFICIENT_EVIDENCE because reviewer could not independently query GitHub. Keep draft; not Audit/Release approval."
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Finish gates/review; track canonical PAPER recovery independently. Do not infer outage root cause from stale health."
