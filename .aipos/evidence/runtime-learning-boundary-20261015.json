@@ -32,7 +32,11 @@
     "candidateId": "owner-baseline-sma-5-20",
     "latestPeriodId": "closed-learning-rollover:14:1791992520845",
     "outcomeFingerprint": "523bafe976bb7e2a9eb4b83729fc33e0f108d540f7ae5c6c4094235f8f91f62e",
-    "costFingerprint": "a2725ec3fc68c7ee928c753134bd2369806b713e579da251639e80752b7db2a4"
+    "costFingerprint": "a2725ec3fc68c7ee928c753134bd2369806b713e579da251639e80752b7db2a4",
+    "lastBlockedReason": "TICK_ERROR",
+    "lastBlockedAt": 1792051251246,
+    "runtimeStartedAt": 1792051309732,
+    "historicalBlockedReasonScope": "Predates current process by58486ms; not attributed to a current cycle failure"
   },
   "logicalContractMapping": {
     "DATA_VERIFIED": {
@@ -70,7 +74,9 @@
   },
   "performance": {
     "status": "UNPROVEN",
-    "scope": "No same-condition candidate-vs-baseline improvement proof; no thresholds or costs changed"
+    "scope": "No same-condition candidate-vs-baseline improvement proof; no thresholds or costs changed",
+    "latestPeriodPaperReplayNetBp": -17,
+    "sameConditionQualifiedCandidateComparisonProven": false
   },
   "safety": {
     "mode": "PAPER_ONLY",
@@ -79,5 +85,11 @@
     "aiAuthority": "ZERO_AUTHORITY"
   },
   "AUTOPILOT_VERIFIED_COMPLETION_LOOP": false,
-  "VERIFIED": false
+  "VERIFIED": false,
+  "dataIntegrityProjection": {
+    "observedAt": 1792023471336,
+    "status": "WARN",
+    "staleSeries": 1,
+    "currentDatasetQualification": "UNPROVEN_FROM_THIS_HEALTH_PROJECTION"
+  }
 }

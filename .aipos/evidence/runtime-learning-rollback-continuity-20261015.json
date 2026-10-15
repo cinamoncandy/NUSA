@@ -1,0 +1,54 @@
+{
+  "evidenceKind": "ACTUAL_ROLLBACK_RESTART_IDENTITY_COMPARISON_NOT_CYCLE_REPLAY",
+  "records": [
+    {
+      "run": 38690343596,
+      "observedAt": "2026-10-15T06:08:45.530Z",
+      "source": "89a9cecab2602ee483877f835ac729026ba35d3f",
+      "startedAt": 1792044447552,
+      "ledger": {
+        "ledgerFingerprintSha256": "674ffebfacecbc9f974f0dbd4e06286fed77b1eb0eafbd30356fef6ed11931fb",
+        "fillCount": 114,
+        "openPositionCount": 0,
+        "lastFillAt": 1791994569151,
+        "ledgerUpdatedAt": 1791994569151
+      },
+      "openPeriod": "closed-learning-rollover:15:1791994569151",
+      "realizedOutcome": "523bafe976bb7e2a9eb4b83729fc33e0f108d540f7ae5c6c4094235f8f91f62e",
+      "realizedCost": "a2725ec3fc68c7ee928c753134bd2369806b713e579da251639e80752b7db2a4",
+      "realizedPeriods": 15,
+      "cycles": 0,
+      "failures": 0,
+      "openObservations": 518
+    },
+    {
+      "run": 38729127377,
+      "observedAt": "2026-10-15T11:41:55.347Z",
+      "source": "89a9cecab2602ee483877f835ac729026ba35d3f",
+      "startedAt": 1792051309732,
+      "ledger": {
+        "ledgerFingerprintSha256": "674ffebfacecbc9f974f0dbd4e06286fed77b1eb0eafbd30356fef6ed11931fb",
+        "fillCount": 114,
+        "openPositionCount": 0,
+        "lastFillAt": 1791994569151,
+        "ledgerUpdatedAt": 1791994569151
+      },
+      "openPeriod": "closed-learning-rollover:15:1791994569151",
+      "realizedOutcome": "523bafe976bb7e2a9eb4b83729fc33e0f108d540f7ae5c6c4094235f8f91f62e",
+      "realizedCost": "a2725ec3fc68c7ee928c753134bd2369806b713e579da251639e80752b7db2a4",
+      "realizedPeriods": 15,
+      "cycles": 0,
+      "failures": 0,
+      "openObservations": 684
+    }
+  ],
+  "safety": "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY",
+  "limitations": [
+    "Does not prove a qualified learning cycle, cycle-failure replay or new repair deployment.",
+    "No intentional production fault, ledger edit or forced restart performed."
+  ],
+  "sameLedgerFingerprint": true,
+  "sameOpenPeriod": true,
+  "sameRealizedOutcome": true,
+  "processRestartObserved": true
+}

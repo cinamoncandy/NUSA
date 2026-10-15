@@ -17,7 +17,7 @@ exposes global total_changes invalidation by legitimate writer/account/session
 writes. A separate controlled-clock test proves30,001ms under-lease revalidation
 loses the lease. This is isolated synthetic latency, not fabricated production
 failure or an Autopilot canary. Added baseline14 regressions passed12, failed2;
-changed-source repair16/16 PASS including five-table corruption, nullable-key
+changed-source repair17/17 PASS including five-table corruption, nullable-key
 bypass, schema/external changes, ordinary recovery and competing writer refusal.
 Full build/typecheck/validators/security are running, not claimed PASS.
 
@@ -43,3 +43,11 @@ limits; automatic Codex workflows are disabled by repository operating policy.
 Do not self-approve or turn transpilation into full typecheck evidence.
 PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false /
 aiAuthority=ZERO_AUTHORITY. VERIFIED=false. PERFORMANCE_IMPROVEMENT=UNPROVEN.
+
+Additional bounded concurrency regression: external corruption during the final
+variant tracker inspection made the first repair return READY. Baseline test
+failed; post-inspection data/schema version recheck now makes all17 PASS. The
+earlier full compiler was already running; latest committed-source full gates
+must execute before publication. Actual rollback continuity comparison now also
+records06:08 vs11:41 process restart with identical114-fill ledger, open period
+and realized outcome, observations518->684. This is not cycle replay acceptance.

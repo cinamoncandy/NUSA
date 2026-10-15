@@ -1,6 +1,6 @@
 id: WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION
 title: Preserve prepared Research evidence across unrelated PAPER startup writes
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa-runtime-sre
 branch: fix/paper-startup-evidence-invalidation-20261015
 base_commit: 10c153464b40326a061e548cf44abfb479d07fc0
@@ -12,6 +12,7 @@ evidence_scope: "Actual failed Oracle38700547000 reports lease loss/readiness fa
 scope:
   - "Reuse ResearchRecoveryCoordinator; track its exact existing SQLite evidence read set with startup-only SQLite sessions, external data_version and schema_version."
   - "Preserve same-connection corruption rejection, including nullable TEXT primary keys omitted by SQLite changesets."
+  - "Recheck data/schema versions after tracker inspection; final-variant external corruption must not reuse READY."
   - "Dispose tracking at startup end/stop; ordinary recurring recovery always revalidates."
   - "No new durable model, ledger, scheduler, Research engine, dependency, lease TTL/renewal/takeover change, Risk or qualification change."
 acceptance:
@@ -21,7 +22,7 @@ acceptance:
   - "Actual rollout/readiness and runtime learning/replay evidence remain separate acceptance gates."
 validation:
   baseline: "Existing9 tests PASS on exact-main compiled release; augmented regression12/14 PASS with two reproduced failures."
-  focused: "Patched changed-source transpile16/16 PASS; full build/typecheck pending."
+  focused: "Patched changed-source transpile17/17 PASS; full build/typecheck pending."
 safety:
   paper_only: true
   liveAuthority: NONE

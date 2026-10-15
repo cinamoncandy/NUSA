@@ -151,9 +151,12 @@ export function composeResearchExperiments(input: {
     return db.connection.prepare("SELECT 1 FROM research_candidates WHERE candidate_id IS NULL LIMIT 1").get() != null ||
       db.connection.prepare("SELECT 1 FROM research_promotion_commands WHERE command_id IS NULL LIMIT 1").get() != null;
   };
-  const evidenceUnchanged = (prepared: NonNullable<typeof preparedRecovery>): boolean =>
-    dataVersion() === prepared.version && schemaVersion() === prepared.schema && !hasNullEvidenceKey() &&
-    prepared.sessions.every((session) => session.changeset().byteLength === 0);
+  const evidenceUnchanged = (prepared: NonNullable<typeof preparedRecovery>): boolean => {
+    if (dataVersion() !== prepared.version || schemaVersion() !== prepared.schema || hasNullEvidenceKey()) return false;
+    const unchanged = prepared.sessions.every((session) => session.changeset().byteLength === 0);
+    // External commits can occur while the change trackers are inspected.
+    return unchanged && dataVersion() === prepared.version && schemaVersion() === prepared.schema;
+  };
   const validateRecovery = (): ResearchRecoveryResult => {
     clearPreparedRecovery();
     const sessions: EvidenceSession[] = [];

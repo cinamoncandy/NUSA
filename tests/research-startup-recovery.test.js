@@ -222,3 +222,33 @@ test("schema changes force fresh evidence validation", (t) => {
     assert.equal(calls, 2);
   } finally { composition.stop(); db.close(); }
 });
+
+
+test("external evidence commit during tracker inspection cannot reuse READY", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-startup-inspection-race-"));
+  const db = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const other = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const original = db.connection.createSession;
+  let armed = false;
+  let remainingVariants = 10; // The configured first-interval grid has ten variants.
+  t.mock.method(db.connection, "createSession", function (options) {
+    const session = original.call(this, options);
+    return {
+      changeset() {
+        if (armed && options.table === "research_evaluation_ledger" && --remainingVariants === 0) { armed = false; other.connection.exec("INSERT INTO research_champion_pointer VALUES (1, 'synthetic-missing', 1)"); }
+        return session.changeset();
+      },
+      close() { session.close(); },
+    };
+  });
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    armed = true;
+    const result = composition.orchestrator.recover();
+    assert.equal(armed, false, "external mutation must occur during the final variant inspection");
+    assert.equal(result.status, "FAIL_CLOSED");
+    assert.ok(result.reasons.includes("CHAMPION_POINTER_LIFECYCLE_MISMATCH"));
+    assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+  } finally { composition.stop(); other.close(); db.close(); rmSync(directory, { recursive: true, force: true }); }
+});
