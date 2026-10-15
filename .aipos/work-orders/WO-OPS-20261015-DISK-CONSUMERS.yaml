@@ -25,3 +25,4 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+followup_2026_10_15: "Diagnosis 38673436344 (after the first version merged and deployed 4263bcd45) saw /health time out (6 s, 0 bytes) right after the 40 s du. Cause not proven (the runtime had started 9 minutes earlier). The du listing now runs as the LAST step, after the health probe and annotations. The first listing reached only /var (1.1G) and /opt/actions-runner-nusa-codex-2 (873M) before the 40 s limit (du_exit=124); the main consumers are still unidentified."

@@ -37,14 +37,6 @@ jobs:
           ls -la /var/lib/nusa 2>&1 | head -40
           # No size walk of /opt/nusa/releases: du over its 11 GB took over a minute of disk I/O on the 1-vCPU host this job shares with the runtime.
           echo "== state sizes"; du -sh /var/lib/nusa /var/backups/nusa 2>&1 | head -10
-          # Where the rest of the 90%-full root disk goes: read-only, lowest I/O priority, hard 40 s limit, unreadable directories skipped.
-          echo "== disk consumers (top directories under /var /opt /home, swap, journal)"
-          journalctl --disk-usage 2>&1
-          # --exclude=releases: du walks everything below a directory to total it, so without it /opt would still walk the ~11 GB release tree.
-          # Totals under /opt therefore exclude releases; unreadable directories (e.g. /var/lib/nusa) are skipped and understate their parents.
-          ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 --exclude=releases /var /opt /home 2>/dev/null | sort -rh | head -15
-          echo "du_exit=${PIPESTATUS[0]} (124 = timed out so the listing is partial; 127 = ionice/nice missing)"
-          swapon --show 2>&1 | head -5
           echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
       - name: Service state and redacted recent errors
@@ -134,3 +126,16 @@ jobs:
           emit "diag-summary" "$summary"
           for n in 1 2 3 4 5; do part="${errors:$(( (n-1)*3500 )):3500}"; [ -n "$part" ] && emit "diag-nusa-log-$n" "$part"; done
           emit "diag-autopilot-log" "$autopilot"
+      # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
+      - name: Disk consumers (read-only, after the health probe)
+        shell: bash
+        run: |
+          set +e
+          # Where the rest of the 90%-full root disk goes: read-only, lowest I/O priority, hard 40 s limit, unreadable directories skipped.
+          echo "== disk consumers (top directories under /var /opt /home, swap, journal)"
+          journalctl --disk-usage 2>&1
+          # --exclude=releases: du walks everything below a directory to total it, so without it /opt would still walk the ~11 GB release tree.
+          # Totals under /opt therefore exclude releases; unreadable directories (e.g. /var/lib/nusa) are skipped and understate their parents.
+          ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 --exclude=releases /var /opt /home 2>/dev/null | sort -rh | head -15
+          echo "du_exit=${PIPESTATUS[0]} (124 = timed out so the listing is partial; 127 = ionice/nice missing)"
+          swapon --show 2>&1 | head -5

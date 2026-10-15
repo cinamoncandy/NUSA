@@ -83,3 +83,11 @@ test("the disk-consumer listing is time-boxed, lowest I/O priority, bounded, ski
   assert.match(commands, /du_exit=\$\{PIPESTATUS\[0\]\}/, "a timeout or missing tool is visible, not a silent empty listing");
   for (const line of commands.split("\n").filter((l) => /\bdu\b/.test(l) && /\/opt/.test(l))) assert.match(line, /--exclude=releases/, "any du over /opt skips the release tree");
 });
+
+test("the disk-consumer walk runs after the health probe and the annotations, so it cannot starve them", () => {
+  const names = [...text.matchAll(/^      - name: (.+)$/gm)].map((m) => m[1]);
+  assert.equal(names[names.length - 1], "Disk consumers (read-only, after the health probe)");
+  assert.ok(names.indexOf("Runtime liveness (local /health only)") < names.length - 1);
+  const first = text.split("      - name: Service state and redacted recent errors")[0];
+  assert.doesNotMatch(first, /\bdu -xh\b/, "no long du in the first step");
+});
