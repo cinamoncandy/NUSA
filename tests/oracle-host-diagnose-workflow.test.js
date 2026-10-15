@@ -76,8 +76,10 @@ test("the diagnosis does not walk the release directory, so it cannot load the h
   assert.match(commands, /ls -1 \/opt\/nusa\/releases[^\n]*wc -l/, "the release directories are only counted");
 });
 
-test("the disk-consumer listing is time-boxed, lowest I/O priority and bounded", () => {
-  assert.match(text, /ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 \/var \/opt \/home 2>\/dev\/null \| sort -rh \| head -15/);
-  assert.match(text, /journalctl --disk-usage/);
-  assert.doesNotMatch(text, /du [^\n]*\/opt\/nusa\/releases/, "no size walk of the release directory (11 GB, over a minute of I/O)");
+test("the disk-consumer listing is time-boxed, lowest I/O priority, bounded, skips the release tree and reports truncation", () => {
+  const commands = text.split("\n").filter((line) => !line.trimStart().startsWith("#")).join("\n");
+  assert.match(commands, /ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 --exclude=releases \/var \/opt \/home 2>\/dev\/null \| sort -rh \| head -15/);
+  assert.match(commands, /journalctl --disk-usage/);
+  assert.match(commands, /du_exit=\$\{PIPESTATUS\[0\]\}/, "a timeout or missing tool is visible, not a silent empty listing");
+  for (const line of commands.split("\n").filter((l) => /\bdu\b/.test(l) && /\/opt/.test(l))) assert.match(line, /--exclude=releases/, "any du over /opt skips the release tree");
 });

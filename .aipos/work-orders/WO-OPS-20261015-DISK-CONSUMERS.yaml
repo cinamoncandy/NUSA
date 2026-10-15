@@ -15,6 +15,8 @@ prohibited:
   - weakening the workflow read-only structural tests
 acceptance:
   - step is dispatch-only read-only, lowest I/O priority, hard 40 s limit, output bounded to 15 lines
+  - du excludes the release tree (--exclude=releases), so /opt totals exclude releases; unreadable directories understate their parents; du_exit is printed so a timeout (124) is visible
+  - independent review 2026-10-15 PASS_WITH_NOTES, no P0/P1; the three P2 notes (implicit release walk, weak test, silent truncation) are fixed
 validation:
   local: "oracle-host-diagnose-workflow and research-runtime-proof tests pass (9). preflight NOT RUN (Node 22 sandbox)."
 remaining: "CI, non-author review, Audit/Release, then one dispatch to read the listing. Cleanup, if any, is an owner decision."

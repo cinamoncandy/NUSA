@@ -40,7 +40,10 @@ jobs:
           # Where the rest of the 90%-full root disk goes: read-only, lowest I/O priority, hard 40 s limit, unreadable directories skipped.
           echo "== disk consumers (top directories under /var /opt /home, swap, journal)"
           journalctl --disk-usage 2>&1
-          ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 /var /opt /home 2>/dev/null | sort -rh | head -15
+          # --exclude=releases: du walks everything below a directory to total it, so without it /opt would still walk the ~11 GB release tree.
+          # Totals under /opt therefore exclude releases; unreadable directories (e.g. /var/lib/nusa) are skipped and understate their parents.
+          ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 --exclude=releases /var /opt /home 2>/dev/null | sort -rh | head -15
+          echo "du_exit=${PIPESTATUS[0]} (124 = timed out so the listing is partial; 127 = ionice/nice missing)"
           swapon --show 2>&1 | head -5
           echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
