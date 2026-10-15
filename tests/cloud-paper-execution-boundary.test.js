@@ -218,6 +218,17 @@ test("a superseded binding's open strategy order is cancelled, never continued, 
   assert.equal(loop.snapshot().fills.length, fillsBefore, "no fill is produced for the superseded binding");
 });
 
+test("a fill of a continued working order keeps the binding that created the order, never the current one", () => {
+  const { boundary } = build("ALLOW", { maxFillRatio: 0.5 });
+  const first = boundary.processTick(tick);
+  const originalBinding = first.fills[0].candidateProvenance.binding.bindingFingerprintSha256;
+  // No current decision for the market (no replacement information): the order continues, as before.
+  const second = boundary.processTick(Object.freeze({ ...tick, now: 2_100, observedAt: 2_050, decisions: Object.freeze([]) }));
+  assert.equal(second.status, "FILLED");
+  assert.equal(second.fills[0].candidateProvenance.binding.bindingFingerprintSha256, originalBinding, "attribution follows the order's creating binding");
+  assert.equal(second.fills[0].executionIntent.candidateBindingFingerprintSha256, originalBinding);
+});
+
 test("the same binding's open strategy order still continues", () => {
   const { loop, boundary } = build("ALLOW", { maxFillRatio: 0.5 });
   boundary.processTick(tick);
@@ -404,4 +415,16 @@ test("P0 uncertainty fails closed before risk evaluation and before mutation", (
   assert.equal(result.reason, "P0_STATE_UNVERIFIABLE");
   assert.equal(evaluations, 0);
   assert.deepEqual(loop.snapshot(), before);
+});
+
+test("a manual KRW BUY below the exchange minimum is rejected before any order, and SELL is unaffected", () => {
+  const { loop, boundary } = build("ALLOW");
+  const command = (side, quantity, key) => ({ schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, idempotencyKey: key, market: "KRW-BTC", side, orderType: "MARKET", quantity });
+  const context = { now: 1_700_000_000_100, marketPrice: 50_000_000, observedAt: 1_700_000_000_090, mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY" };
+  const before = loop.snapshot();
+  const small = boundary.submitManualOrder("owner", command("BUY", 0.00005, "manual-below-min-0001"), context);
+  assert.equal(small.status, "REJECTED");
+  assert.deepEqual(loop.snapshot(), before);
+  const ok = boundary.submitManualOrder("owner", command("BUY", 0.0002, "manual-at-min-00001"), context);
+  assert.notEqual(ok.reason, "PAPER_ORDER_BELOW_EXCHANGE_MINIMUM");
 });

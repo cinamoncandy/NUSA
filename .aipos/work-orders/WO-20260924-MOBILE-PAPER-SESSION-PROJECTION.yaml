@@ -23,7 +23,7 @@ structural_review:
     - "Background != logout: the AppState handler only resumes, never signs out"
     - "Workload ownership: PAPER runs on the Oracle server runtime, not the Android process"
   follow_up:
-    - "Native Keystore exception classification in NusaOwnerDeviceCredentialModule"
+    - "Native Keystore exception classification in NusaOwnerDeviceCredentialModule: implemented by WO-ISSUE-2260-MOBILE-DEVICEKEY-INSPECTION; delegated validation and Galaxy acceptance pending"
     - "Reconnect/resync idempotency for order/fill/Ledger was not re-verified in this change"
     - "Correlation id for one background/resume cycle across trust/session/transport telemetry"
 scope:

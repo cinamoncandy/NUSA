@@ -94,11 +94,16 @@ function runtimeWith(governance: ConstructorParameters<typeof PaperChallengerDep
 }
 
 describe("PaperChallengerPolicyApproval (ADR-0018)", () => {
-  it("is disabled unless the operator sets exactly ENABLED", () => {
-    assert.equal(paperChallengerPolicyEnabled({}), false);
+  it("is on by default on a PAPER host, off by exactly DISABLED, and fails closed on typos or non-PAPER modes", () => {
+    assert.equal(paperChallengerPolicyEnabled({}), true);
+    assert.equal(paperChallengerPolicyEnabled({ NUSA_MODE: "PAPER" }), true);
+    assert.equal(paperChallengerPolicyEnabled({ NUSA_PAPER_CHALLENGER_POLICY_APPROVAL: "ENABLED" }), true);
+    assert.equal(paperChallengerPolicyEnabled({ NUSA_PAPER_CHALLENGER_POLICY_APPROVAL: "DISABLED" }), false);
     assert.equal(paperChallengerPolicyEnabled({ NUSA_PAPER_CHALLENGER_POLICY_APPROVAL: "true" }), false);
     assert.equal(paperChallengerPolicyEnabled({ NUSA_PAPER_CHALLENGER_POLICY_APPROVAL: "enabled" }), false);
-    assert.equal(paperChallengerPolicyEnabled({ NUSA_PAPER_CHALLENGER_POLICY_APPROVAL: "ENABLED" }), true);
+    assert.equal(paperChallengerPolicyEnabled({ NUSA_PAPER_CHALLENGER_POLICY_APPROVAL: "" }), false);
+    assert.equal(paperChallengerPolicyEnabled({ NUSA_MODE: "LIVE" }), false);
+    assert.equal(paperChallengerPolicyEnabled({ NUSA_MODE: "LIVE", NUSA_PAPER_CHALLENGER_POLICY_APPROVAL: "ENABLED" }), false);
   });
 
   it("disabled policy reports approval unavailable and deploys nothing", () => {

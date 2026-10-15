@@ -1,0 +1,29 @@
+id: WO-UI-20261007-HERO-FLOW-DYNAMIC
+title: "Make the flow-field hero more dynamic: comets, swirling clusters, landing rings and order sparks"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/hero-flow-dynamic
+authority_impact: none
+owner_approval: "2026-10-07 in chat: the owner asked for the hero motion to be more dynamic and cooler ('더 역동적이고 멋지게'), was shown a v2 canvas prototype, and replied '좋아'"
+objective: "Make the approved flow-field hero (WO-UI-20261007-HERO-FLOW-FIELD) livelier without changing what it means. Ambient and decision comets with fading tails race along the streams, each cluster breathes and its particles swirl and twinkle at their own rates, a ring opens where a pulse lands, and a PAPER order opens three staggered lime rings, raises a beam and throws sparks."
+scope:
+  - "apps/mobile/src/holoModel.ts: HoloState gains orderBornMs (stamped when a PAPER order is observed, cleared after HOLO_ORDER_MS = 3600, and kept out of the quiet frame budget while in flight) and pure dynamics: flowCometProgress, flowCometDelaySec, flowCometStrand, flowAmbientComet, flowTailProgress, flowTailLight, flowSpark, flowOrderRing, flowArrivalRing, flowBreath, flowParticleSwirl, flowParticleTwinkle. Comets, sparks and rings are pure functions of time and the stamped decision / order times, so the picture needs no particle state."
+  - "apps/mobile/src/holoSphere.tsx: the renderer draws them. Comet tails and sparks are batched point groups by brightness, so a frame stays a few dozen draws; density (points) scales tails (head only below 0.5), sparks and cluster counts. Under reduce-motion and in the still figure nothing moves: no comets, rings, sparks, breathing or twinkle."
+  - "tests: order stamp lifecycle and quiet budget, comet chain order and bounds, tail geometry, spark and ring determinism and expiry, breathing and swirl bounds."
+  - "UI rule: HoloSphere is the one shared hero (HOME and every small mark), so every screen that shows it changes together."
+exclusions:
+  - "Hold and halt tints, lime reserved for a PAPER order in the normal tone, the halt dimming of streams out of risk, the entrance and the still-figure contract are unchanged. No runtime data, trading, risk, accounting, LIVE, credentials or AI authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only. Under halt the flow clock nearly stops, so ambient comets crawl; decision comets are not launched on a closed stream."
+rollback: "Revert the change."
+verification_commands:
+  - node_modules/.bin/tsc -p tsconfig.json
+  - node_modules/.bin/tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js
+residual: "Skia cannot run in this environment. The scenes (normal, decision in flight, order) were checked by drawing the compiled model with the renderer's draw order on a Chromium canvas. The web prototype used a persistent afterimage buffer; Skia redraws a picture each frame, so the afterimage is replaced by explicit comet tails and the look can differ on a device. Frame time with comets, tails and sparks all active must be checked on a physical device (HUMAN_ENVIRONMENT_ONLY); lower the density if a low-end phone stutters."

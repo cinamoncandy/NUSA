@@ -1,0 +1,33 @@
+id: WO-DOCS-20261013-ASSISTANT-HANDOFF
+title: "Record the 2026-10-13 assistant handoff in AIPOS"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/handoff-2026-10-13
+authority_impact: none
+owner_approval: "2026-10-13 in chat ('여기까지만 aipos에 인수인계 기록해')"
+scope_note: "Documentation only: a new handoff file and a pointer from the previous handoff."
+objective: "Make the session's outcome recoverable from the repository: redesign revision 2 merged as PROPOSED, the P1 Autopilot draft PRs, the open-PR inventory, the #2311 closure and the decisions still owed by the owner."
+scope:
+  include:
+    - ".aipos/handoffs/2026-10-13-assistant-handoff.md"
+    - ".aipos/handoffs/2026-10-12-claude-handoff.md (pointer)"
+  exclude:
+    - "Any code, workflow, label, PR state, protection or authority change."
+limitations:
+  - "Snapshot at 2026-10-13 00:05 UTC; PR and CI states must be re-verified."
+acceptance:
+  - "The handoff states what was done, the open PRs and what they wait on, the owner decisions still needed and the safe next actions."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/validate-repository-truth.js"
+evidence:
+  remaining: "Exact-head CI, deterministic Audit and Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

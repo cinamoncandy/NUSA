@@ -1,0 +1,23 @@
+id: WO-UI-20261001-MORE-GROUPS
+title: "More menu renewal: group destinations by task with plain Korean hints"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-more-renewal
+authority_impact: none
+objective: "Owner asked to keep improving the rest of the UI/UX. The More menu was a numbered list of ten rows with English duplicates as hints; the numbers implied an order that does not exist."
+scope:
+  - "moreMenuView.tsx: three groups (자산과 기록, 판단과 안전, 앱), each row a Korean title plus a short Korean description and a chevron; numbering removed; footer in Korean."
+  - "A module-load check fails if the groups ever stop covering every MORE_DESTINATIONS entry exactly once; row testIDs more-<Destination> are unchanged."
+exclusions:
+  - "Navigation targets and destinations are unchanged. No server, strategy, risk, execution, credential or LIVE change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/mobile-more-groups.test.js tests/mobile-field-screens.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

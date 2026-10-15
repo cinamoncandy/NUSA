@@ -1,4 +1,5 @@
 import { validateCircuitBreakerState, type EvolutionCircuitBreakerState } from "./evolveCircuitBreaker";
+import { evolutionHypothesisFromProblem, evolutionHypothesisKey, type EvolutionLearningRecord } from "./evolveLearningMemory";
 import { validateEvolutionOpportunity, type EvolutionOpportunity } from "./evolveOpportunity";
 import { rankEvolutionOpportunities, type EvolutionPriority } from "./evolveRanking";
 import { decideEvolutionSchedule, type EvolutionSchedulePolicy } from "./evolveScheduler";
@@ -9,6 +10,7 @@ export interface EvolutionAutonomousSelectionInput {
   readonly schedulePolicy: EvolutionSchedulePolicy;
   readonly activeExecutions: number;
   readonly elapsedSecondsSinceLastRun: number;
+  readonly learningRecords?: readonly EvolutionLearningRecord[];
 }
 
 export interface EvolutionAutonomousSelection {
@@ -58,11 +60,36 @@ export function selectNextEvolutionOpportunity(
   }
 
   if (!Array.isArray(input.opportunities)) throw new Error("EVOLVE_SELECTION_OPPORTUNITIES_INVALID");
+  if (input.learningRecords !== undefined && !Array.isArray(input.learningRecords)) {
+    throw new Error("EVOLVE_SELECTION_LEARNING_RECORDS_INVALID");
+  }
   for (const opportunity of input.opportunities) validateEvolutionOpportunity(opportunity);
+  const failedHypotheses = new Set(
+    (input.learningRecords ?? [])
+      .filter((record) => record.outcome === "FAILED" || record.outcome === "REGRESSION")
+      .map((record) => evolutionHypothesisKey(record.hypothesis)),
+  );
   const ranked = rankEvolutionOpportunities(input.opportunities);
-  const priority = ranked.find((candidate) => candidate.eligible && candidate.score > 0) ?? null;
+  const priority = ranked.find((candidate) => {
+    if (!candidate.eligible || candidate.score <= 0) return false;
+    const opportunity = input.opportunities.find((item) => item.id === candidate.opportunityId);
+    if (!opportunity) return false;
+    return !failedHypotheses.has(evolutionHypothesisKey(evolutionHypothesisFromProblem(opportunity.problem)));
+  }) ?? null;
   if (!priority) {
-    return Object.freeze({ selectedOpportunity: null, priority: null, reason: "no-eligible-opportunity", authority: AUTHORITY });
+    const hadSuppressed = ranked.some((candidate) => {
+      if (!candidate.eligible || candidate.score <= 0) return false;
+      const opportunity = input.opportunities.find((item) => item.id === candidate.opportunityId);
+      return opportunity
+        ? failedHypotheses.has(evolutionHypothesisKey(evolutionHypothesisFromProblem(opportunity.problem)))
+        : false;
+    });
+    return Object.freeze({
+      selectedOpportunity: null,
+      priority: null,
+      reason: hadSuppressed ? "failed-hypothesis-suppressed" : "no-eligible-opportunity",
+      authority: AUTHORITY,
+    });
   }
 
   const selectedOpportunity = input.opportunities.find((candidate) => candidate.id === priority.opportunityId) ?? null;
@@ -98,7 +125,15 @@ export function selectNonConflictingEvolutionOpportunities(input: EvolutionBound
   if (input.circuit.state !== "CLOSED") return Object.freeze({ selectedOpportunities: Object.freeze([]), priorities: Object.freeze([]), reason: "circuit-open", authority: AUTHORITY });
   const schedule = decideEvolutionSchedule(input.schedulePolicy, input.activeExecutions, input.elapsedSecondsSinceLastRun);
   if (!schedule.allowed) return Object.freeze({ selectedOpportunities: Object.freeze([]), priorities: Object.freeze([]), reason: schedule.reason, authority: AUTHORITY });
+  if (input.learningRecords !== undefined && !Array.isArray(input.learningRecords)) {
+    throw new Error("EVOLVE_SELECTION_LEARNING_RECORDS_INVALID");
+  }
   for (const opportunity of input.opportunities) validateEvolutionOpportunity(opportunity);
+  const failedHypotheses = new Set(
+    (input.learningRecords ?? [])
+      .filter((record) => record.outcome === "FAILED" || record.outcome === "REGRESSION")
+      .map((record) => evolutionHypothesisKey(record.hypothesis)),
+  );
   const activeConflictKeys = input.activeConflictKeys ?? [];
   if (!Array.isArray(activeConflictKeys) || activeConflictKeys.length > 32 || new Set(activeConflictKeys).size !== activeConflictKeys.length || activeConflictKeys.some((key: unknown) => typeof key !== "string" || !/^[A-Za-z0-9_.:/-]{1,200}$/.test(key))) throw new Error("EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID");
   const selectionLimit = Math.min(input.maxSelections, Math.max(0, input.schedulePolicy.maxConcurrent - input.activeExecutions));
@@ -109,6 +144,7 @@ export function selectNonConflictingEvolutionOpportunities(input: EvolutionBound
     if (!priority.eligible || priority.score <= 0 || selected.length >= selectionLimit) continue;
     const opportunity = input.opportunities.find((candidate) => candidate.id === priority.opportunityId);
     if (!opportunity?.canonicalOwner || !opportunity.conflictKeys?.length) continue;
+    if (failedHypotheses.has(evolutionHypothesisKey(evolutionHypothesisFromProblem(opportunity.problem)))) continue;
     if (opportunity.conflictKeys.some((key: string) => occupied.has(key))) continue;
     selected.push(opportunity);
     priorities.push(priority);

@@ -9,10 +9,10 @@ export const primaryDestinationLabels: Readonly<Record<PrimaryDestination, strin
 });
 
 export const primaryDestinationDisplayLabels: Readonly<Record<PrimaryDestination, string>> = Object.freeze({
-  Home: "NUSA",
-  Paper: "PAPER",
-  Live: "LIVE",
-  More: "더보기",
+  Home: "지금",
+  Paper: "학습",
+  Live: "안전",
+  More: "기록",
 });
 
 export type MoreDestination =

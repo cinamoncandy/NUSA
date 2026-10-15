@@ -1,0 +1,30 @@
+id: WO-RESEARCH-20261002-HOLDOUT-LEDGER
+title: "Durable holdout usage ledger so finalHoldoutUntouched is truthful across restarts (Stage 2b-7; additive migration, not wired, not deployed)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-holdout-ledger
+authority_impact: persistence-schema-additive
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "Provenance must state truthfully whether a holdout window was already used for a strategy configuration. Persist each holdout use durably and refuse a second use, including overlapping windows."
+scope:
+  - "Migration 027_research_holdout_usage: one new table research_holdout_usage (primary key strategy_config_hash, market, interval_ms, holdout window). No existing table or data is altered."
+  - "packages/storage/src/researchHoldoutLedger.ts: SqliteResearchHoldoutLedger. claim() is atomic and returns CLAIMED once, ALREADY_USED afterwards; isUsed(); overlapsUsedHoldout() treats an overlapping window of the same configuration as used; records are never updated or deleted by this class; invalid keys, evaluation ids and clocks throw."
+  - "Existing tests that pin the schema version and applied list now expect 027."
+  - "tests/research-holdout-ledger.test.js: single claim, separate keys, restart safety, overlap, invalid input."
+exclusions:
+  - "Not wired: nothing claims holdouts yet. Migration 027 runs only when a build containing it is deployed, and any server deploy needs explicit owner approval. No existing data changes."
+  - "No promotion threshold, capital, minimum-order, risk, execution, LIVE, credential, paid-AI or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "A second use of a holdout, or an overlapping one, is refused; invalid input throws."
+rollback: "Revert the commit; the extra empty table is harmless. No existing data is touched."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-holdout-ledger.test.js tests/research-candle-store.test.js tests/storage-migrations.test.js tests/research-memory-semantics.test.js
+  - node --test dist/packages/storage/src/cloudPaperAccountHistoryMigration.test.js
+  - pnpm run validate
+residual: "Evaluators, scheduler and flagged production composition not started. Not run: pnpm run validate (sandbox Node 22)."

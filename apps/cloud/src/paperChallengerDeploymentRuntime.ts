@@ -2,6 +2,7 @@ import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contract
 import type { PaperCandidateStrategySpec } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
 import type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { bindPaperCandidateForExecution } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
+import { isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
@@ -109,6 +110,8 @@ export interface QualifiedPaperChallengerArtifactReader {
 export interface CanonicalPaperPeriodPort {
   openPeriodFromCanonicalAccount(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan;
   listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[];
+  listOpenPeriods?: () => readonly PersistedPaperRealizedPeriodPlan[];
+  retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
 }
 
 export interface PaperChallengerDeploymentRuntimeOptions {
@@ -191,6 +194,30 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     });
     void authorization;
 
+    // Reject unsafe replacement before revoking or activating any binding.
+    const openPeriods = this.options.periods.listOpenPeriods?.() ?? [];
+    if (openPeriods.length > 1) throw new Error("multiple PAPER periods are unsafe");
+    const baseline = openPeriods[0];
+    if (baseline?.periodId === periodId) {
+      // A crash may leave the period open before the coordinator appends its receipt.
+      // Recheck current authorization and exact existing state, without reopening and
+      // discarding accumulated observations or mutating the binding.
+      const active = this.options.bindings.current(market, periodStartAt);
+      const existingBinding = bindPaperCandidateForExecution(baseline.advisory, baseline.candidateProvenance, candidateId, baseline.periodStartAt, artifact.candidateStrategy);
+      if (baseline.market !== market || baseline.periodStartAt !== periodStartAt
+        || existingBinding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256
+        || active?.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256
+        || active.researchLineage == null || !samePaperResearchLineage(active.researchLineage, researchLineage)) {
+        throw new Error("existing PAPER deployment replay state conflict");
+      }
+      return Object.freeze({ deploymentId: periodId, candidateId, candidateVersion, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    }
+    if (baseline != null) {
+      if (!isOwnerBaselinePeriodInput(baseline)) throw new Error("another PAPER realized period is already open");
+      if (baseline.periodStartAt > periodStartAt) throw new Error("owner baseline replacement boundary conflicts");
+      if (this.options.periods.retireOpenPeriodForReplacement == null) throw new Error("owner baseline replacement retirement unavailable");
+    }
+
     const prior = this.options.bindings.current(market, periodStartAt);
     if (prior != null && prior.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256) {
       // A qualified challenger is a PAPER-only handoff, not concurrent authority. Revoke the
@@ -214,6 +241,9 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
       this.options.bindings.activate(market, binding, researchLineage);
     }
 
+    if (baseline != null) {
+      this.options.periods.retireOpenPeriodForReplacement!(baseline.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:" + candidateId);
+    }
     const periodIndex = nextPeriodIndex(this.options.periods.listRealizedPeriods());
     this.options.periods.openPeriodFromCanonicalAccount({
       periodId,

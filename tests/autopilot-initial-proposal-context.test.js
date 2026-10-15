@@ -91,7 +91,7 @@ test("an issue's codingTarget reaches attempt 1 as an excerpt of that file", () 
   const readiness = deriveGithubIssueBacklogReadiness([{
     number: 903,
     title: "P1: Autonomous Development Control Plane increment",
-    body: `Bounded Autopilot work.\ncodingTarget: ${REAL_TARGET}\n${safety}`,
+    body: `Bounded Autopilot work.\ncodingTarget: ${REAL_TARGET}\ncanonicalOwner: autopilot\nconflictKeys: issue:903\n${safety}`,
     state: "open",
     author_association: "OWNER",
     labels: [],

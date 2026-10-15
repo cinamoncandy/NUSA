@@ -262,6 +262,48 @@ test("strict verdict schema rejects malformed, mutation-shaped, and inconsistent
   assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }), /AUDIT_VERDICT_NOTES_REQUIRED/);
   assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "FAIL", mergeAllowed: false }), /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
   assert.throws(() => validateAuditModelVerdict({ verdict: "FAIL", findings: [], blockers: [], safetyInvariantResult: "FAIL", mergeAllowed: false }), /AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED/);
+  // Observed on PR #2351 (run 36379058340): a bare prompt-example blocker with zero findings.
+  assert.throws(() => validateAuditModelVerdict({ verdict: "FAIL", findings: [], blockers: ["RELEASE_HANDOFF_MISSING"], safetyInvariantResult: "FAIL", mergeAllowed: false }), /AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "FAIL", findings: [{ code: "NOTE_ONLY", severity: "NOTE", message: "note", evidenceRef: null }], blockers: ["x"], safetyInvariantResult: "FAIL", mergeAllowed: false }), /AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED/);
+});
+
+test("an ungrounded FAIL is retried and a later grounded verdict is used", async () => {
+  const ungrounded = { response: JSON.stringify({ verdict: "FAIL", findings: [], blockers: ["RELEASE_HANDOFF_MISSING"], safetyInvariantResult: "FAIL", mergeAllowed: false }) };
+  const model = aiSequence([ungrounded, { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }]);
+  const result = await executeIndependentAudit(request, auditEnv(model as never), fetchSequence() as never);
+  assert.equal(result.verdict, "PASS");
+});
+
+test("bounded retry supplies validator repair context without changing the reviewed evidence", async () => {
+  const prompts: string[] = [];
+  let calls = 0;
+  const model = {
+    async run(_model: string, input: unknown) {
+      const prompt = (input as { prompt?: unknown }).prompt;
+      prompts.push(typeof prompt === "string" ? prompt : "");
+      calls += 1;
+      if (calls === 1) {
+        return { response: JSON.stringify({ verdict: "FAIL", findings: [], blockers: ["RELEASE_HANDOFF_MISSING"], safetyInvariantResult: "FAIL", mergeAllowed: false }) };
+      }
+      return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) };
+    },
+  };
+  const result = await executeIndependentAudit(request, auditEnv(model as never), fetchSequence() as never);
+  assert.equal(result.verdict, "PASS");
+  assert.equal(prompts.length, 2);
+  assert.doesNotMatch(prompts[0], /PREVIOUS RESPONSE REJECTED/);
+  assert.match(prompts[1], /Validator error: AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED/);
+  assert.match(prompts[1], /same exact diff/);
+  assert.match(prompts[1], new RegExp(`Exact head: ${HEAD}`));
+  assert.match(prompts[1], /CURRENT ADDED-LINE EVIDENCE REF/);
+});
+
+test("a persistently ungrounded FAIL fails closed instead of becoming a verdict", async () => {
+  const ungrounded = { response: JSON.stringify({ verdict: "FAIL", findings: [], blockers: ["RELEASE_HANDOFF_MISSING"], safetyInvariantResult: "FAIL", mergeAllowed: false }) };
+  await assert.rejects(
+    executeIndependentAudit(request, auditEnv(aiSequence([ungrounded, ungrounded, ungrounded]) as never), fetchSequence() as never),
+    /AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED/,
+  );
 });
 
 test("safety regression is preserved as FAIL and cannot become merge allowed", async () => {

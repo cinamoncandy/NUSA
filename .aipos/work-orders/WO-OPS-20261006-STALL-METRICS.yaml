@@ -1,0 +1,27 @@
+id: WO-OPS-20261006-STALL-METRICS
+title: "Measure how long the cloud runtime process is blocked and publish three numbers on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/health-stall-metrics
+authority_impact: none
+owner_approval: "2026-10-06 in chat ('학습 켜둔 채로 측정만 해줘'): measure only, research collection stays enabled"
+objective: "The owner's PAPER tab halted with 'paper account persistence failed: PAPER_WRITER_LEASE_LOST' and the previous start-up stop was PAPER_WRITER_CLOCK_ANOMALY. The writer lease lasts 30 s (heartbeat every 10 s, clock-advance limit 60 s), so a process stall above that loses it for good until restart. A host probe of /health on 127.0.0.1 also timed out after 6 s once, and the app's /api/paper-operations times out, so the process appears to stall. The cause (research experiments, swap on a 954 MB host, or something else) is unknown. Measure the stalls before changing anything."
+scope:
+  - "apps/cloud/src/eventLoopStallMonitor.ts: a 250 ms timer notes how late it ran; keeps the maximum lateness, the count of samples at least 1 s late and the time of the latest one. The timer is unref'd; a backwards clock step is ignored."
+  - "apps/cloud/src/runtime.ts: starts the monitor, adds its snapshot to the liveness source and stops it on shutdown."
+  - "apps/cloud/src/server.ts: /health publishes eventLoopMaxStallMs, eventLoopStallCount and lastEventLoopStallAt only when the source supplies them as finite non-negative numbers (count truncated); anything else is dropped. Existing allowlist behaviour is unchanged."
+  - "tests: monitor unit tests (on-time, thresholds, 6 s and 35 s stalls, clock step, start/stop idempotence) and /health tests (published as numbers, invalid values dropped, null timestamp)."
+exclusions:
+  - "Measurement only. Research collection stays enabled. No change to the writer lease timing, trading, risk, accounting, persistence, LIVE, credentials or AI authority. No value, id or detail is published."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Unsupplied or invalid measurements are omitted from /health."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/cloud-event-loop-stall-monitor.test.js tests/cloud-runtime-liveness-health.test.js
+residual: "After deploy, read the three numbers through the host diagnosis over several hours and correlate stalls with research ticks, memory and the lease. The decision on a fix (move research work off the main thread, memory, or lease timing) is separate and owner-approved. Deploying restarts the process, which clears the latched lease loss; it can recur until the stall is fixed."

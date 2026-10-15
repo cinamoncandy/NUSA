@@ -1,0 +1,24 @@
+id: WO-UI-20261002-SAFETY-LINE
+title: "Prototype layout step 1: app-wide safety line and LIVE remaining-first gates"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-safety-line
+authority_impact: none
+objective: "Owner approved the clean four-tab prototype layout (2026-10-02). This step brings its shared top safety line to every tab and its LIVE remaining/passed split."
+scope:
+  - "safetyLineModel.ts (pure): 안전 only for a verified session with a running runtime; 재연결 중, 연결 필요, 서버 미설정, 정지됨 otherwise; always followed by PAPER 전용 · LIVE 잠김."
+  - "SafetyLine presenter (via the presentation boundary) above every tab's content."
+  - "LIVE gates: remaining conditions first under 남은 조건 N개, then 통과 N개."
+exclusions:
+  - "The prototype's HOME 오늘의 기록 journal and PAPER seven-day equity chart need server event and equity-history projections that do not exist yet; they are not faked here."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-safety-line.test.js tests/mobile-presentation-boundary.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."

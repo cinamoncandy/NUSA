@@ -4,7 +4,10 @@ import type { CodingExecutionEnvelope } from "./codingExecutionEnvelope";
 import type { CodingProposal, CodingRunnerRequest, CodingRuntime, CodingRuntimeExecutionResult } from "./codingRunner";
 import { validatePatchInSandbox } from "./sandboxPatchValidator";
 
+const SHA256 = /^[a-f0-9]{64}$/i;
+
 function toSandboxEnvelope(request: CodingRunnerRequest): CodingExecutionEnvelope {
+  if (request.contractFingerprintSha256 != null && !SHA256.test(request.contractFingerprintSha256)) throw new Error("CODING_RUNTIME_CONTRACT_FINGERPRINT_INVALID");
   const envelope: CodingExecutionEnvelope = Object.freeze({
     cycleId: `runtime:${request.workflowRunId}`,
     workItemId: `sandbox-proposal:${request.headSha}`,
@@ -21,7 +24,11 @@ function toSandboxEnvelope(request: CodingRunnerRequest): CodingExecutionEnvelop
       "Build, architecture, safety, and AI architecture validation all pass.",
       "No LIVE or production authority is introduced.",
     ],
-    evidenceRefs: [`github:workflow-run:${request.workflowRunId}`, `github:commit:${request.headSha}`],
+    evidenceRefs: [
+      `github:workflow-run:${request.workflowRunId}`,
+      `github:commit:${request.headSha}`,
+      ...(request.contractFingerprintSha256 == null ? [] : [`execution-contract:${request.contractFingerprintSha256.toLowerCase()}`]),
+    ],
     allowedScope: ["apps/autopilot/"],
     forbiddenScope: [".github/", "live-trading", "production-authority", "secrets"],
     maxChangedFiles: 1,

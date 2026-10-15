@@ -1,0 +1,25 @@
+id: WO-FUTURES-20261014-RESEARCH-PREREG
+title: "Pre-register the futures regime long/short research before downloading any futures history"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/futures-research-preregistration
+parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted 'all as recommended' (B4 futures research after the core); research direction slow-bar regime families; 'continue'."
+document: docs/RESEARCH_PREREG_2026-10-14_FUTURES_REGIME_LONG_SHORT.md
+preconditions:
+  - "B0 public data probe passed (run 38520735288, all http=200)."
+  - "Futures core merged (#2703)."
+next:
+  - "Data step: a dispatch-only read-only workflow on the PAPER host downloads the pre-registered public klines and funding history; the raw files and SHA-256 hashes are committed before evaluation."
+  - "Evaluation step: an offline script using the merged simulator and risk gate, run once on the holdout."
+not_changed: "No code, data, strategy, limit or runtime change; documentation only."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  credentials: NONE
+  fail_closed: true

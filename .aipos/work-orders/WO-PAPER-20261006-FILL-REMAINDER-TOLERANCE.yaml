@@ -1,0 +1,26 @@
+id: WO-PAPER-20261006-FILL-REMAINDER-TOLERANCE
+title: "Settle a PAPER order as filled when the last fill leaves only float rounding"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/order-fill-remainder-tolerance
+authority_impact: execution_order_lifecycle_tolerance
+owner_approval: "2026-10-05 in chat (approved the fix, then allowed it again when the first edit was blocked)"
+objective: "After the ledger fix (#2525) the PAPER account runs again, but the owner's screen showed a SELL refused with FILLED_TRANSITION_MUST_CONSUME_REMAINING_QUANTITY. The execution loop treats a fill within 1e-8 of the remaining quantity as finishing the order, while transitionPaperOrderLifecycle required remaining quantity to be exactly 0, so a last-digit float remainder refused the fill and the order stayed stuck. Cause is inferred from code; the exact quantities were not read from the server."
+scope:
+  - "apps/cloud/src/paperOrderLifecycle.ts: a FILLED transition whose fill is within PAPER_FILL_REMAINDER_TOLERANCE (1e-8) of the remaining quantity settles as exactly filled (filled = requested, remaining = 0). A larger shortfall or overshoot, and any partial-fill overshoot, is refused as before."
+  - "tests/paper-order-fill-remainder-tolerance.test.js: rounding-level fills settle and validate; exact fills unchanged; 1.9 of 2, 2.0001 of 2, partial overshoot and a partial that consumes everything are refused."
+exclusions:
+  - "No change to capital, risk, order sizing, thresholds, LIVE, credentials or AI authority. The fill record and position keep the real fill quantity; only the order's lifecycle bookkeeping is snapped by at most 1e-8."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Quantities beyond 1e-8 are still refused."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/paper-order-fill-remainder-tolerance.test.js tests/cloud-paper-orderbook-working-restart.test.js
+  - node --test dist/apps/cloud/src/module10XS.test.js dist/apps/cloud/src/moduleReplacementPolicy10XS.test.js dist/apps/cloud/src/paperTradingExecutionLoop.requalification.test.js
+residual: "After deploy confirm on the app that the stuck SELL no longer shows as refused. The amber 'confirm needed' banner and the learning line were not diagnosed here."

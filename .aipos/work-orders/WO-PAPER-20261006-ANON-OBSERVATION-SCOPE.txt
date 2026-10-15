@@ -1,0 +1,14 @@
+IN_SCOPE
+- anonymousObservationScope.ts
+- anonymousObservationClient.ts
+- latest-main server.ts wiring
+- latest-main App.tsx pre-enrollment observation wiring
+- focused tests
+
+OUT_OF_SCOPE
+- /health replacement
+- REAL account observation
+- PAPER order submission changes
+- operator/session auth changes
+- risk/trading thresholds
+- LIVE authority

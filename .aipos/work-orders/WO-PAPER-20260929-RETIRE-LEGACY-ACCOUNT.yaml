@@ -1,0 +1,30 @@
+id: WO-PAPER-20260929-RETIRE-LEGACY-ACCOUNT
+title: "Delete the retired KRW 10,000,000 PAPER ledger (owner decision)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-retire-legacy-account
+authority_impact: paper_persistence
+owner_decision: "2026-09-29 owner, after being told the ledger is kept for audit/learning/rollback and that deletion is irreversible except from backup: \"지워\" (delete it)."
+objective: "PAPER now runs the KRW 10,000 account (paper-krw-10000). Remove the inactive paper-default (KRW 10,000,000) ledger."
+scope:
+  - "apps/cloud/src/paperAccountRetirement.ts: deletes a retired account's rows from cloud_paper_fill_ledger, cloud_paper_account_history, cloud_paper_legacy_reconciliation_receipts, cloud_paper_writer_leases and cloud_paper_accounts in one transaction at start-up; idempotent; refuses the active account and any id that is not a PAPER account id; writes paper-account-retirement.json with the deleted row counts."
+  - "deploy/oracle/paper-account.json retiredAccountIds [paper-default]; the launcher passes it as NUSA_PAPER_RETIRED_ACCOUNT_IDS."
+exclusions:
+  - "Research/League evidence, realized-period records, risk records and any LIVE or credential state are not touched."
+recovery: "The Oracle release workflow runs `nusa-release-step backup` (sqlite-backup.js) before every release, so the ledger remains recoverable from that pre-release backup."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "apps/cloud/src/paperAccountRetirement.test.ts: purge of the retired account, active account untouched, idempotent, active-account refusal, id validation."
+  - "Launcher-driven local run: paper-default rows deleted (fill ledger 1, history 1, account 1), receipt written, runtime started once."

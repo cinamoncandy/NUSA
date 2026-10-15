@@ -1,0 +1,26 @@
+id: WO-PAPER-20261006-RESEARCH-HEALTH-NOT-PAPER
+title: "Research that is still gathering data must not mark PAPER operations as degraded"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/research-health-not-paper
+authority_impact: health_classification_display
+owner_approval: "2026-10-06 in chat ('그 방향으로 진행해'): research DEGRADED/STALE no longer degrades PAPER; research FAIL_CLOSED still does"
+objective: "After research collection was enabled (#2520) the owner's PAPER tab shows a permanent amber banner 'PAPER 상태 확인 필요: 서버 상태가 정상으로 확인되지 않았습니다'. deriveHealth in packages/contracts/src/personalPaperOperations.ts returned DEGRADED for the whole PAPER snapshot when any research session existed whose health was not HEALTHY. A research session is DEGRADED while it has no experiments yet (needs days of candles) or when more than half of its experiments are inconclusive, and STALE when its evidence is old. Optional learning that is still gathering data therefore made the trading server look unhealthy. Only PAPER's own signals should."
+scope:
+  - "packages/contracts/src/personalPaperOperations.ts deriveHealth: the research DEGRADED/STALE/recovery clause is removed from the DEGRADED condition. Research FAIL_CLOSED health or recovery still returns FAIL_CLOSED exactly as before; dashboard degradation, a non-READY/RUNNING runtime state, non-ONLINE transport and pending writes still return DEGRADED."
+  - "tests/personal-paper-operations.test.js: research DEGRADED and STALE leave PAPER HEALTHY and ready; research FAIL_CLOSED (health and recovery) still fails closed; PAPER's own degraders (transport, pending writes, dashboard health, runtime state) still degrade."
+exclusions:
+  - "readyForPaperOperations is unchanged (it only blocks on FAIL_CLOSED, mode, trading-allowed and kill switches). No change to research itself, to trading, risk, accounting, persistence, LIVE, credentials or AI authority. The research session health value is still carried in the snapshot unchanged."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Research FAIL_CLOSED still makes the whole PAPER snapshot FAIL_CLOSED; every PAPER-owned degrader still degrades it."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/personal-paper-operations.test.js tests/mobile-halt-reason.test.js tests/mobile-home-field-input.test.js tests/mobile-learning-line.test.js
+  - node scripts/lint-mobile.js
+residual: "After deploy the amber banner should disappear while research is still gathering data. The learning tile itself still shows the research state separately (HOME learning line), and whether research is actually collecting is read from /health researchCollectionStatus (#2532)."

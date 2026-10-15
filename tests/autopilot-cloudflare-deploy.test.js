@@ -2,9 +2,27 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const { spawnSync } = require("node:child_process");
+const yaml = require("js-yaml");
+const { readNulDelimitedPaths, selectLastSuccessfulDeploymentSha, workerRuntimeChanged } = require("../scripts/autopilot-worker-deploy-scope");
 
 const workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "autopilot-cloudflare-deploy.yml"), "utf8");
 const readiness = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "cloudflare-deployment-readiness.yml"), "utf8");
+
+test("missing or malformed credit posture stops before deployment or health acceptance", () => {
+  const steps = yaml.load(workflow).jobs.deploy.steps.filter(step => /^(Deploy exact CI-verified revision|Verify deployed Worker reports)/.test(step.name ?? ""));
+  assert.equal(steps.length, 2);
+  for (const step of steps) for (const posture of [undefined, "", "tru", "1", "falsejunk"]) {
+    const env = { ...process.env, HEAD_SHA: "a".repeat(40) };
+    if (posture === undefined) delete env.NUSA_ZERO_CREDIT_MODE;
+    else env.NUSA_ZERO_CREDIT_MODE = posture;
+    const result = spawnSync("bash", ["-c", `pnpm() { echo UNEXPECTED_DEPLOY; }; curl() { echo UNEXPECTED_NETWORK; }; ${step.run}`], { encoding: "utf8", timeout: 5000, env });
+    assert.ifError(result.error);
+    assert.equal(result.status, 1, `${step.name}:${posture}`);
+    assert.match(result.stdout, /ZERO_CREDIT_POSTURE_INVALID/);
+    assert.doesNotMatch(result.stdout, /UNEXPECTED_DEPLOY|UNEXPECTED_NETWORK/);
+  }
+});
 
 test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /workflow_run:\s*\n\s*workflows: \[CI\]/);
@@ -28,6 +46,32 @@ test("deployment is Worker-only and has no paid Cloudflare Containers rollout", 
   assert.doesNotMatch(workflow, /CONTAINERS_ROLLOUT/);
   assert.doesNotMatch(workflow, /--containers-rollout/);
   assert.doesNotMatch(workflow, /containers list/);
+});
+
+test("the deployed credit posture has one source of truth the health gate cannot drift from", () => {
+  // Regression: the deploy passed NUSA_AUTOPILOT_ZERO_CREDIT_MODE:false while the health gate
+  // separately hardcoded "ENFORCED", so every deploy failed verification, no exact-main deploy
+  // succeeded, and Credential Preflight froze Release behind the canonical P0.
+  assert.match(workflow, /NUSA_ZERO_CREDIT_MODE: "(true|false)"/);
+  assert.match(workflow, /--var "NUSA_AUTOPILOT_ZERO_CREDIT_MODE:\$\{NUSA_ZERO_CREDIT_MODE\}"/);
+  assert.match(workflow, /expected_zero_credit="DISABLED"/);
+  assert.match(workflow, /if \[ "\$\{NUSA_ZERO_CREDIT_MODE\}" = "true" \]; then expected_zero_credit="ENFORCED"; fi/);
+  assert.match(workflow, /\[ "\$zero_credit" = "\$expected_zero_credit" \]/);
+  // The gate must never reintroduce a literal expectation alongside the deployed value.
+  assert.doesNotMatch(workflow, /\[ "\$zero_credit" = "(ENFORCED|DISABLED)" \]/);
+  // The health gate still verifies the full fail-closed authority set.
+  assert.match(workflow, /\[ "\$live" = "NONE" \]/);
+  assert.match(workflow, /\[ "\$mutation" = "false" \]/);
+  assert.match(workflow, /\[ "\$ai" = "ZERO_AUTHORITY" \]/);
+});
+
+test("Jev shadow deployment does not override the global release freeze", () => {
+  // Owner-imposed ceiling on paid overflow calls per UTC day. The deploy must always pass one, so a
+  // deployment can never leave spending bounded only by the purchased balance.
+  assert.match(workflow, /--var "NUSA_AUTOPILOT_PAID_OVERFLOW_DAILY_CAP:\d+"/);
+  assert.match(workflow, /--var "NUSA_JEV_SHADOW_ENABLED:true"/);
+  assert.match(workflow, /--var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"/);
+  assert.doesNotMatch(workflow, /--var "NUSA_GLOBAL_RELEASE_FREEZE:false"/);
 });
 
 test("deployment fail-closes and synchronizes the persistent runtime secret before Worker deploy", () => {
@@ -125,4 +169,95 @@ test("a cancelled duplicate does not count as a failed verdict, a real failure s
   assert.match(step, /console\.log\('pending'\)/);
   assert.match(step, /Timed out waiting for exact-head CI/);
   assert.match(step, /exit 1/);
+});
+
+test("Worker deployment scope includes only runtime source and build inputs", () => {
+  for (const file of [
+    "apps/autopilot/src/worker.ts",
+    "apps/autopilot/wrangler.jsonc",
+    "packages/contracts/src/referenceIntelligence.ts",
+    "apps/cloud/src/ai/jevShadowProvider.ts",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.json",
+    "tsconfig.base.json",
+  ]) {
+    assert.equal(workerRuntimeChanged([file]), true, `${file} affects the Worker runtime or build`);
+  }
+});
+
+test("tests, docs, mobile, AIPOS, and workflow-only changes skip Worker deployment", () => {
+  assert.equal(workerRuntimeChanged([
+    "tests/autopilot-cloudflare-deploy.test.js",
+    ".aipos/state.yaml",
+    "docs/operations.md",
+    "apps/mobile/App.tsx",
+    ".github/workflows/autopilot-deterministic-audit-release.yml",
+  ]), false);
+  assert.equal(workerRuntimeChanged([]), false);
+});
+
+test("NUL-delimited git paths preserve spaces and reject malformed input", () => {
+  assert.deepEqual(readNulDelimitedPaths(Buffer.from("apps/autopilot/src/worker test.ts\0docs/a b.md\0")), [
+    "apps/autopilot/src/worker test.ts",
+    "docs/a b.md",
+  ]);
+  assert.throws(() => readNulDelimitedPaths(Buffer.from("docs/no-terminator")), /NUL terminated/);
+  assert.throws(() => workerRuntimeChanged(["../apps/autopilot/src/worker.ts"]), /invalid repository path/);
+});
+
+test("deployment baseline uses newest successful exact-main workflow run, not a queued or failed run", () => {
+  const sha = (digit) => digit.repeat(40);
+  const pages = [{ workflow_runs: [
+    { id: 7, status: "completed", conclusion: "failure", head_branch: "main", head_repository: { full_name: "cinamoncandy/NUSA" }, head_sha: sha("7"), created_at: "2026-10-02T10:00:00Z" },
+    { id: 8, status: "in_progress", conclusion: null, head_branch: "main", head_repository: { full_name: "cinamoncandy/NUSA" }, head_sha: sha("8"), created_at: "2026-10-02T11:00:00Z" },
+    { id: 9, status: "completed", conclusion: "success", head_branch: "feature", head_repository: { full_name: "cinamoncandy/NUSA" }, head_sha: sha("9"), created_at: "2026-10-02T12:00:00Z" },
+    { id: 10, status: "completed", conclusion: "success", head_branch: "main", head_repository: { full_name: "other/repo" }, head_sha: sha("a"), created_at: "2026-10-02T13:00:00Z" },
+    { id: 11, status: "completed", conclusion: "success", head_branch: "main", head_repository: { full_name: "cinamoncandy/NUSA" }, head_sha: sha("b"), created_at: "2026-10-02T14:00:00Z" },
+  ] }];
+  assert.equal(selectLastSuccessfulDeploymentSha(pages, 12, "cinamoncandy/NUSA"), sha("b"));
+  assert.equal(selectLastSuccessfulDeploymentSha(pages[0], 12, "cinamoncandy/NUSA"), sha("b"));
+  assert.equal(selectLastSuccessfulDeploymentSha([{ workflow_runs: [] }], 12, "cinamoncandy/NUSA"), null);
+  assert.throws(() => selectLastSuccessfulDeploymentSha([{}], 12, "cinamoncandy/NUSA"), /malformed/);
+});
+
+test("deploy scope runs after exact-main check, skips mutations, and preserves explicit dispatch", () => {
+  const scopeIndex = workflow.indexOf("Determine whether exact main changes Worker runtime inputs");
+  const credentialIndex = workflow.indexOf("Verify Cloudflare deployment credentials and account access");
+  const secretIndex = workflow.indexOf("Sync persistent Autopilot runtime bearer secret");
+  const deployIndex = workflow.indexOf("Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime");
+  const scope = workflow.slice(scopeIndex, credentialIndex);
+
+  assert.ok(scopeIndex > workflow.indexOf("Verify exact current main revision"));
+  assert.ok(credentialIndex > scopeIndex);
+  assert.ok(secretIndex > credentialIndex);
+  assert.ok(deployIndex > secretIndex);
+  assert.match(scope, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/runs\?branch=main&status=completed&per_page=100/);
+  assert.match(scope, /--last-successful-deployment/);
+  assert.match(scope, /git merge-base --is-ancestor "\$baseline" "\$HEAD_SHA"/);
+  assert.match(scope, /git diff --no-renames --name-only -z "\$baseline" "\$HEAD_SHA"/);
+  assert.match(scope, /scripts\/autopilot-worker-deploy-scope\.js/);
+  assert.match(scope, /workflow_dispatch/);
+  assert.match(scope, /ACTOR.*github\.actor/);
+  assert.match(scope, /\$ACTOR.*github-actions\[bot\]/);
+  assert.match(scope, /worker_runtime_changed=true/);
+  assert.match(scope, /exit 1/);
+  assert.match(workflow, /fetch-depth: 0/, "full exact-main ancestry must be available to compare from the last deployment");
+
+  for (const step of ["Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime", "Verify deployed Worker reports the exact-head revision and fail-closed authority"]) {
+    const index = workflow.indexOf(step);
+    const conditionStart = workflow.indexOf("if:", index);
+    assert.match(workflow.slice(conditionStart, workflow.indexOf("\n", conditionStart)), /steps\.deploy_scope\.outputs\.worker_runtime_changed == 'true'/, `${step} must be gated by a relevant exact-main delta`);
+  }
+  // A rotated credential must reach the live Worker even when the rollout is skipped.
+  for (const step of ["Verify Cloudflare deployment credentials and account access", "Sync persistent Autopilot runtime bearer secret", "Sync Worker GitHub API credential"]) {
+    const index = workflow.indexOf(step);
+    const conditionStart = workflow.indexOf("if:", index);
+    const condition = workflow.slice(conditionStart, workflow.indexOf("\n", conditionStart));
+    assert.match(condition, /steps\.revision\.outputs\.current == 'true'/);
+    assert.doesNotMatch(condition, /worker_runtime_changed/, `${step} must run on every exact-main deploy run`);
+  }
+
+  assert.doesNotMatch(workflow, /\.github\/workflows\/autopilot-cloudflare-deploy\.yml\"/);
 });

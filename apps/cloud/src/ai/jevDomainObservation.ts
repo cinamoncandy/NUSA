@@ -7,6 +7,10 @@ import {
   validateJevResearchAttentionShadowDecision,
   type JevResearchAttentionModelOutput,
 } from "./jevResearchAttentionShadow";
+import {
+  validateJevMarketMicrostructureDecision,
+  type JevMarketMicrostructureModelOutput,
+} from "./jevMarketMicrostructureShadow";
 
 export const JEV_DOMAIN_OBSERVATION_SCHEMA_VERSION = 1 as const;
 
@@ -42,6 +46,7 @@ export type JevDomainTaskType =
   | "TEST_SCOPE_RECOMMENDATION"
   | "DATA_INTEGRITY_ANOMALY_CLASSIFICATION"
   | "MARKET_DATA_INCIDENT_CLASSIFICATION"
+  | "MARKET_MICROSTRUCTURE_ADVISORY_SHADOW"
   | "HYPOTHESIS_DUPLICATE_CLASSIFICATION"
   | "STRATEGY_FAMILY_MATCH_CLASSIFICATION"
   | "GOVERNANCE_EVIDENCE_READINESS_CLASSIFICATION"
@@ -79,6 +84,7 @@ export type JevDecisionSchema =
   | "WORKFLOW_FAILURE_V1"
   | "RESEARCH_ATTENTION_V1"
   | "DOMAIN_ADVISORY_V1"
+  | "MARKET_MICROSTRUCTURE_V1"
   | "UNAVAILABLE";
 
 export type JevDecisionPrimitive = string | number | boolean | null;
@@ -222,6 +228,13 @@ export const JEV_TASK_TYPE_POLICIES: readonly JevTaskTypePolicy[] = Object.freez
   policy("TEST_SCOPE_RECOMMENDATION", "AUTOPILOT_DEVELOPMENT", "Development deterministic validation policy", Object.freeze(["OBSERVE", "RECOMMEND_TEST_SCOPE", "RECOMMEND_ESCALATION"]), "DOMAIN_ADVISORY_V1", ["FOCUSED", "SUBSYSTEM", "FULL", "HUMAN_REVIEW"]),
   policy("DATA_INTEGRITY_ANOMALY_CLASSIFICATION", "DATA_RESEARCH_INTEGRITY", "Data & Research Integrity deterministic validators", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["VALID", "ANOMALY", "STALE", "LEAKAGE_RISK", "UNKNOWN"]),
   policy("MARKET_DATA_INCIDENT_CLASSIFICATION", "MARKET_DATA", "Market Data deterministic connectivity and freshness state", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["HEALTHY", "DISCONNECT", "STALE", "GAP", "SEQUENCE", "PROVIDER_DEGRADED", "UNKNOWN"]),
+  policy(
+    "MARKET_MICROSTRUCTURE_ADVISORY_SHADOW",
+    "MARKET_DATA",
+    "Market Data public orderbook evidence and Portfolio/Risk advisory boundary",
+    Object.freeze(["OBSERVE", "ESCALATE"]),
+    "MARKET_MICROSTRUCTURE_V1",
+  ),
   policy("HYPOTHESIS_DUPLICATE_CLASSIFICATION", "AXIOM_RESEARCH", "AXIOM deterministic research/evidence lifecycle", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["DUPLICATE", "RELATED", "DISTINCT", "UNKNOWN"]),
   policy("STRATEGY_FAMILY_MATCH_CLASSIFICATION", "STRATEGY_FAMILY", "Strategy Family canonical registry", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["MATCH", "POSSIBLE_MATCH", "NO_MATCH", "UNKNOWN"]),
   policy("GOVERNANCE_EVIDENCE_READINESS_CLASSIFICATION", "STRATEGY_GOVERNANCE", "Strategy Governance deterministic lifecycle", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["READY", "INCOMPLETE", "STALE", "INVALID", "UNKNOWN"]),
@@ -378,11 +391,13 @@ function validateTaskDecision(
   policy: JevTaskTypePolicy,
   value: Readonly<Record<string, unknown>>,
 ): JevStructuredDecision {
-  let validated: JevShadowDecision | JevResearchAttentionModelOutput;
+  let validated: JevShadowDecision | JevResearchAttentionModelOutput | JevMarketMicrostructureModelOutput;
   if (policy.decisionSchema === "WORKFLOW_FAILURE_V1") {
     validated = validateJevShadowDecision(value);
   } else if (policy.decisionSchema === "RESEARCH_ATTENTION_V1") {
     validated = validateJevResearchAttentionShadowDecision(value);
+  } else if (policy.decisionSchema === "MARKET_MICROSTRUCTURE_V1") {
+    validated = validateJevMarketMicrostructureDecision(value);
   } else if (policy.decisionSchema === "DOMAIN_ADVISORY_V1") {
     return safeDecision(
       validateDomainAdvisoryDecision(policy, value) as unknown as Readonly<Record<string, unknown>>,
@@ -462,7 +477,7 @@ export function createJevDomainObservation(
       throw new Error("JEV_DECISION_ENVELOPE_MISMATCH");
     }
   }
-  if (taskPolicy.decisionSchema === "RESEARCH_ATTENTION_V1") {
+  if (taskPolicy.decisionSchema === "RESEARCH_ATTENTION_V1" || taskPolicy.decisionSchema === "MARKET_MICROSTRUCTURE_V1") {
     if (
       decision.confidence !== input.confidence ||
       decision.reasonCode !== input.reasonCode

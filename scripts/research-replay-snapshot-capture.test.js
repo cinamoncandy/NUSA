@@ -19,7 +19,11 @@ function dependencies() {
     calls,
     leagueBridge,
     loadSnapshotModules: () => ({
-      createResearchRunReplaySnapshot: (candidates, options, run) => Object.freeze({ schemaVersion: 1, candidates, options, originalRunFingerprintSha256: run.provenance.runFingerprintSha256, snapshotSha256: "c".repeat(64) }),
+      createResearchRunReplaySnapshot: (candidates, options, run) => {
+        assert.deepEqual(Object.keys(run).sort(), ["provenance"], "capture must not retain the full League result into snapshot persistence");
+        assert.deepEqual(Object.keys(run.provenance).sort(), ["runFingerprintSha256", "sourceCommitSha"]);
+        return Object.freeze({ schemaVersion: 1, candidates, options, originalRunFingerprintSha256: run.provenance.runFingerprintSha256, snapshotSha256: "c".repeat(64) });
+      },
       FileResearchRunReplaySnapshotStore: Store
     })
   };
@@ -44,6 +48,16 @@ test("captures exact canonical League inputs and persists one immutable replay s
 test("fails closed when no canonical League run was captured", () => {
   const capture = createCapture(env, dependencies());
   assert.throws(() => capture.persistCapturedSnapshot(), /no canonical League result/);
+});
+
+test("fails closed when canonical League provenance is unavailable", () => {
+  const deps = dependencies();
+  deps.leagueBridge.buildResearchRunLeague = () => Object.freeze({ provenance: Object.freeze({}) });
+  const capture = createCapture(env, deps);
+  assert.throws(
+    () => capture.wrappedBuildResearchRunLeague(Object.freeze([{ id: "c1" }]), Object.freeze({})),
+    /canonical Research League provenance is invalid/,
+  );
 });
 
 test("uses the durable Cloud-state sibling path when no explicit replay snapshot path is supplied", () => {

@@ -84,7 +84,7 @@ When root disk pressure is high, use the privileged helper rather than ad-hoc wi
 sudo /opt/nusa/bin/nusa-release-step prune
 ```
 
-The prune operation validates every direct child of `/opt/nusa/releases` as a real 40-hex release directory before deleting anything. It always preserves the active release, the rollback release recorded in `.previous-release`, and the four newest additional releases. It never touches `/var/lib/nusa` or `/var/backups/nusa`.
+The prune operation validates every direct child of `/opt/nusa/releases` as a real 40-hex release directory before deleting anything. It always preserves the active release, the rollback release recorded in `.previous-release`, and the two newest additional releases (RELEASE_RETENTION=2; it was 4 until 2026-10-15, when the root disk reached 91% with seven releases of about 1.6 GB each). It never touches `/var/lib/nusa` or `/var/backups/nusa`.
 
 ## Preflight validation
 
@@ -96,6 +96,18 @@ sudo node scripts/oracle-validate.js
 ```
 
 `oracle-validate` fails closed if the environment file, backup directory, service unit, localhost binding, token strength, persistent database location, or current symlink contract is invalid.
+
+## When to dispatch the release workflow
+The workflow verifies that the requested source is the current protected main at two points only: when the build job
+starts, and once more at the start of the host job, before the download. Nothing re-checks main after that, so a merge
+that lands after the host job's recheck is not detected and the already-built source is still activated. A merge that
+lands earlier is caught: the build job or the host recheck stops with "Protected main moved after build" and the host is
+unchanged (seen in run 87). Do not rely on the gate to cover the rest of the roughly 5-minute run. To avoid wasted or
+stale releases:
+1. Dispatch only when no merge is queued or in flight, and take `source_sha` from the current main tip.
+2. Wait for the post-merge `CI` push run on that exact SHA to be green; the workflow requires it and fails otherwise.
+3. If main moved before the host recheck, nothing was changed on the host; repeat steps 1-2 with the new tip. If main may
+   have moved after it, check which commit is active before assuming the release matches the latest main.
 
 ## Atomic release switch
 

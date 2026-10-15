@@ -14,6 +14,7 @@ function namespace(acquired = true, record: Record<string, unknown> | null = nul
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/evolve-learning-memory")) return new Response(JSON.stringify({ value: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/provider-capacity-wait")) {
           if (providerWait === "unavailable") return new Response("unavailable", { status: 503 });
           return new Response(JSON.stringify({ wait: providerWait }), { status: 200, headers: { "content-type": "application/json" } });

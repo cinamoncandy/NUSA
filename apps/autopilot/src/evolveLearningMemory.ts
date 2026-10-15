@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { EvolutionOutcome } from "./evolveOutcome";
 
 export interface EvolutionLearningRecord {
@@ -33,6 +34,22 @@ const OUTCOMES = new Set<EvolutionOutcome>([
   "REGRESSION",
   "UNKNOWN",
 ]);
+
+function hypothesisSha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function evolutionHypothesisFromProblem(problem: string): string {
+  const normalized = problem.trim().replace(/\s+/g, " ");
+  if (!normalized) throw new Error("EVOLVE_HYPOTHESIS_PROBLEM_REQUIRED");
+  return `Address ${normalized.slice(0, 400)} with a bounded, reversible change.`;
+}
+
+export function evolutionHypothesisKey(hypothesis: string): string {
+  const normalized = hypothesis.trim().replace(/\s+/g, " ").toLowerCase();
+  if (!normalized) throw new Error("EVOLVE_HYPOTHESIS_REQUIRED");
+  return hypothesisSha256(normalized);
+}
 
 export function createEvolutionLearningRecord(input: EvolutionLearningRecord): EvolutionLearningRecord {
   if (!OUTCOMES.has(input.outcome)) throw new Error("EVOLVE_MEMORY_OUTCOME_INVALID");

@@ -3,19 +3,32 @@ import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integ
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
+import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
 
 export type ClosedLearningRolloverStatus =
   | "NO_OPEN_PERIOD"
+  | "ACCOUNT_REPLACED_PERIOD_REOPENED"
+  | "STALLED_PERIOD_REOPENED"
+  | "UNSTREAMED_MARKET_PERIOD_RETIRED"
+  | "MIXED_BINDING_PERIOD_RETIRED"
   | "WAITING_FOR_CANONICAL_BOUNDARY"
   | "WAITING_FOR_KST_DAY_ROLLOVER"
+  | "WAITING_FOR_EVALUATION_WINDOW"
   | "WAITING_FOR_REALIZED_FILL"
   | "CLOSED_AND_EVALUATED"
+  /** An owner-baseline period closed. It has no Research lineage, so it is kept as a self-observation, not scored as a learning cycle. */
+  | "BASELINE_PERIOD_OBSERVED"
   | "BLOCKED";
 
 export interface ClosedLearningRolloverResult {
   readonly status: ClosedLearningRolloverStatus;
   readonly periodId?: string;
   readonly reason?: string;
+  /** Present with MIXED_BINDING_PERIOD_RETIRED: the deterministic retirement receipt fingerprint. */
+  readonly retirementEvidenceFingerprintSha256?: string;
+  /** Present with MIXED_BINDING_PERIOD_RETIRED: the period opened in the same step from the retired plan's own candidate. */
+  readonly replacementPeriodId?: string;
+  readonly replacementCandidateId?: string;
   readonly cycle?: ClosedLearningCycleResult;
 }
 
@@ -28,11 +41,37 @@ export interface ClosedLearningRolloverPort {
   readonly listOpenPeriods: () => readonly PersistedPaperRealizedPeriodPlan[];
   readonly listRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
+  /**
+   * Real wall clock used only for KST eligibility and to bound restart recovery to the closed
+   * period's trading day. It never becomes the period end or any account value: the period still
+   * closes at the exact canonical account `updatedAt`.
+   */
+  readonly now?: () => number;
+  readonly evaluationPeriodMs?: number;
   readonly closePeriodFromCanonicalAccount: (input: { readonly periodId: string; readonly periodEndAt: number }) => PersistedPaperPeriodEnvelope;
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
+  /** Retires an open period whose canonical PAPER account was replaced (different initial capital). */
+  readonly retireOpenPeriodForAccountChange?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
+  readonly retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
+  /** Markets the runtime streams public tickers for; a period's benchmark can only come from one of these. */
+  readonly streamedMarkets?: () => readonly string[];
+  /** Retires an open period bound to a market that is no longer streamed (its benchmark can never exist). */
+  readonly retireOpenPeriodForUnstreamedMarket?: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
+  /** Retires an open period whose fills mix candidate bindings (it can never be attributed to one strategy version). Nothing is closed or scored. */
+  readonly inspectOpenPeriodForMixedBinding?: (periodId: string) => { readonly evidenceFingerprintSha256: string } | null;
+  readonly retireOpenPeriodForMixedBinding?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
+  /** A fresh owner-baseline period for the runtime's current market, built by the canonical owner-baseline builder. */
+  readonly buildOwnerBaselinePeriod?: (input: { readonly periodIndex: number; readonly periodStartAt: number }) => PaperRealizedPeriodOpenInput | undefined;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
+  /**
+   * Whether the durable cycle ledger already holds the cycle for this exact evidence identity. Absent, a closed period whose cycle
+   * threw is never retried (the previous behaviour); present, the scheduler resumes it before continuing the candidate.
+   */
+  readonly isCycleRecorded?: (identity: ClosedLearningEvidenceIdentity) => boolean;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
+  readonly recordCycleFailure?: (input: { readonly closedPeriodId: string; readonly identity: ClosedLearningEvidenceIdentity; readonly stage: "CYCLE" | "FINALIZE"; readonly code: string }) => void;
+  readonly recordIdentityFailure?: (input: { readonly closedPeriod: PersistedPaperPeriodEnvelope; readonly code: string }) => void;
 }
 
 function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): number {
@@ -43,6 +82,24 @@ function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): numb
   return maximum + 1;
 }
 
+/**
+ * A blocked rollover reason leads with the failing step's stable error code (for example
+ * "MISSING_BENCHMARK_EVIDENCE:<message>"), so the read-only loop status can say why it is blocked without
+ * publishing free text. Errors without a code keep their message.
+ */
+function blockedReason(error: unknown): string {
+  const message = error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED";
+  const errorCode = (error as { readonly code?: unknown } | null)?.code;
+  return typeof errorCode === "string" && /^[A-Z][A-Z0-9_]{2,63}$/.test(errorCode) && !message.startsWith(`${errorCode}:`) ? `${errorCode}:${message}` : message;
+}
+
+function failureCode(error: unknown): string {
+  const explicit = (error as { readonly code?: unknown } | null)?.code;
+  if (typeof explicit === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(explicit)) return explicit;
+  const head = blockedReason(error).split(":")[0]!;
+  return /^[A-Z][A-Z0-9_]{1,63}$/.test(head) ? head : "CLOSED_LEARNING_CYCLE_FAILED";
+}
+
 function hasRealizedFill(plan: PersistedPaperRealizedPeriodPlan): boolean {
   return plan.observations.some((item) => item.status === "FILLED");
 }
@@ -51,8 +108,16 @@ function stableOpenPeriods(input: readonly PersistedPaperRealizedPeriodPlan[]): 
   return Object.freeze([...input].sort((left, right) => left.periodIndex - right.periodIndex || left.periodId.localeCompare(right.periodId)));
 }
 
+/** What finalize needs from the period it continues: the open plan, or the latest realized period when a cycle is resumed. */
+type ContinuationSource = Pick<PersistedPaperRealizedPeriodPlan, "periodId" | "advisory" | "candidateProvenance" | "market">;
+
+/** How many ticks a closed period's failed cycle is retried before PAPER continues without it (so a persistent failure cannot stall PAPER with no open period). */
+export const MAX_CYCLE_RESUME_ATTEMPTS = 5;
+
 interface PreparedRollover {
-  readonly plan: PersistedPaperRealizedPeriodPlan;
+  /** The realized-period record this rollover closed or resumed, so a failed cycle can be resumed on the next tick. */
+  readonly closedRecordId: string;
+  readonly plan: ContinuationSource;
   readonly account: PaperAccountState;
   readonly realizedPeriods: readonly PersistedPaperPeriodEnvelope[];
   readonly identity: ClosedLearningEvidenceIdentity;
@@ -62,8 +127,9 @@ interface PreparedRollover {
  * Production-safe closed-learning rollover boundary.
  *
  * This scheduler never invents a wall-clock account snapshot. It may close a period only at the
- * exact canonical PAPER account `updatedAt`, and only after that boundary has crossed the existing
- * Asia/Seoul trading-day boundary. A period without a real FILLED observation remains open.
+ * exact canonical PAPER account `updatedAt`, and only after that boundary, or the wall clock when the
+ * account is idle, has crossed the existing Asia/Seoul boundary or configured evaluation window.
+ * A period without a real FILLED observation remains open. Risk's trading-day policy is unchanged.
  *
  * Evidence identity construction is deliberately injected: source commit, cost model, risk hash,
  * champion identity, evidence fingerprints, and which realized periods belong to one immutable
@@ -71,35 +137,261 @@ interface PreparedRollover {
  * complete realized denominator to that builder and refuses to synthesize any identity itself.
  */
 export class ClosedLearningRolloverScheduler {
-  public constructor(private readonly port: ClosedLearningRolloverPort) {}
+  /** Realized-period record ids whose cycle did not finish in THIS process, with the in-process resume attempts used. */
+  private readonly awaitingCycle = new Map<string, number>();
+  private failurePersistenceLost = false;
+
+  private assertFailurePersistence(): void {
+    if (this.failurePersistenceLost) throw new Error("CLOSED_LEARNING_FAILURE_PERSISTENCE_FAILED");
+  }
+
+  private recordIdentityFailure(closedPeriod: PersistedPaperPeriodEnvelope, error: unknown): void {
+    try { this.port.recordIdentityFailure?.({ closedPeriod, code: failureCode(error) }); }
+    catch {
+      this.failurePersistenceLost = true;
+      this.assertFailurePersistence();
+    }
+  }
+
+  public constructor(private readonly port: ClosedLearningRolloverPort) {
+    if (port.evaluationPeriodMs !== undefined && ![3_600_000, 86_400_000].includes(port.evaluationPeriodMs)) throw new Error("CLOSED_LEARNING_EVALUATION_PERIOD_INVALID");
+  }
+
+  /**
+   * A period's close is durable but its cycle can throw or the process can stop before it starts. Resume a gap created in this
+   * process as before. After restart, resume only when no successor is open, the canonical account has not advanced past the exact
+   * close boundary, and the real clock is still on that KST trading day. This excludes old periods and periods whose successor was
+   * retired after account activity. The coordinator replays the same immutable identity; bounded retries and streamed-market checks
+   * still apply. Nothing is synthesized.
+   */
+  private resumeUnrecordedCycle(): ClosedLearningRolloverResult | PreparedRollover | undefined {
+    const isRecorded = this.port.isCycleRecorded;
+    if (isRecorded == null) return undefined;
+    const realized = this.port.listRealizedPeriods();
+    if (realized.length === 0) return undefined;
+    const latest = [...realized].sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0]!;
+    const attempts = this.awaitingCycle.get(latest.record.recordId);
+    if (attempts !== undefined && attempts >= MAX_CYCLE_RESUME_ATTEMPTS) return undefined;
+    // The same streamed-market guard as the stalled-continuation path: a dead market must never receive a successor or a deployment.
+    if (latest.record.market != null && this.isUnstreamed(latest.record.market)) return undefined;
+    const account = this.port.readCanonicalPaperAccount();
+    if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) return undefined;
+    if (attempts === undefined) {
+      // Across a restart, do not replay old learning into a successor period. A missing cycle is
+      // recoverable only at the exact durable close boundary and during that same KST trading day.
+      const now = this.port.now?.();
+      if (account.updatedAt !== latest.record.periodEndAt || now == null || !Number.isSafeInteger(now) || now < latest.record.periodEndAt
+        || tradingDayKey(now) !== tradingDayKey(latest.record.periodEndAt)) return undefined;
+    } else if (account.updatedAt < latest.record.periodEndAt) {
+      // The immutable close may be resumed at the exact same account boundary; never regress it.
+      return undefined;
+    }
+    this.awaitingCycle.set(latest.record.recordId, (attempts ?? 0) + 1);
+    let identity: ClosedLearningEvidenceIdentity;
+    try {
+      identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
+    } catch (error) {
+      const observed = this.observeBaselinePeriod(latest, account, realized, error);
+      if (observed != null) return observed;
+      this.recordIdentityFailure(latest, error);
+      throw error;
+    }
+    if (isRecorded(identity)) return undefined;
+    return Object.freeze({
+      closedRecordId: latest.record.recordId,
+      plan: Object.freeze({ periodId: latest.record.recordId, advisory: latest.record.advisory, candidateProvenance: latest.candidateProvenance, ...(latest.record.market == null ? {} : { market: latest.record.market }) }),
+      account,
+      realizedPeriods: Object.freeze([...realized]),
+      identity,
+    });
+  }
+
+  /**
+   * A period can be closed without a successor when the cycle throws after the close (the close
+   * is durable, the successor open in finalize never runs). Realized history then also blocks the
+   * owner-baseline bootstrap, so PAPER would stall forever with no open period. Continue the most
+   * recent realized period's immutable candidate/advisory from the real canonical account boundary,
+   * exactly as finalize would have. No fill, return or account value is synthesized.
+   */
+  private reopenStalledContinuation(): ClosedLearningRolloverResult {
+    const realized = this.port.listRealizedPeriods();
+    if (realized.length === 0) return Object.freeze({ status: "NO_OPEN_PERIOD" });
+    const latest = [...realized].sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0]!;
+    const account = this.port.readCanonicalPaperAccount();
+    if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) {
+      return Object.freeze({ status: "BLOCKED", reason: "CANONICAL_PAPER_ACCOUNT_UNAVAILABLE" });
+    }
+    const boundedRecoveryExhausted = (this.awaitingCycle.get(latest.record.recordId) ?? -1) >= MAX_CYCLE_RESUME_ATTEMPTS;
+    if (account.updatedAt < latest.record.periodEndAt || (account.updatedAt === latest.record.periodEndAt && !boundedRecoveryExhausted)) {
+      return Object.freeze({ status: "NO_OPEN_PERIOD", reason: "WAITING_FOR_CANONICAL_BOUNDARY" });
+    }
+    const periodIndex = nextPeriodIndex(realized);
+    if (latest.record.market != null && this.isUnstreamed(latest.record.market)) {
+      // The latest candidate was bound to a market this runtime no longer streams, so a continuation there could
+      // never be benchmarked. Only the owner baseline may restart on the current market, through its canonical
+      // builder (its provenance names the market); any other candidate stays blocked rather than being moved.
+      const ownerBaseline = latest.candidateProvenance.length === 1 && latest.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID;
+      const input = ownerBaseline ? this.port.buildOwnerBaselinePeriod?.({ periodIndex, periodStartAt: account.updatedAt }) : undefined;
+      if (input == null || input.market == null || this.isUnstreamed(input.market)) return Object.freeze({ status: "BLOCKED", reason: "STALLED_PERIOD_MARKET_NOT_STREAMED" });
+      const reopened = this.port.openPeriodFromCanonicalAccount(input);
+      return Object.freeze({ status: "STALLED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `continued:${latest.record.recordId}` });
+    }
+    const reopened = this.port.openPeriodFromCanonicalAccount({
+      periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
+      periodIndex,
+      advisory: latest.record.advisory,
+      candidateProvenance: latest.candidateProvenance,
+      ...(latest.record.market == null ? {} : { market: latest.record.market }),
+      periodStartAt: account.updatedAt,
+    });
+    return Object.freeze({ status: "STALLED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `continued:${latest.record.recordId}` });
+  }
+
+  /**
+   * The owner baseline never has Research lineage, so its closed period cannot become a learning cycle and no lineage is invented.
+   * The durable realized period is the self-observation (outcome, cost and benchmark evidence are already immutable there); the
+   * baseline continues in a fresh period from the same canonical account boundary, exactly as a non-qualified cycle would. This
+   * replaces a BLOCKED retry loop that ended in the same continuation. Any other candidate, or any other error, is unchanged.
+   */
+  private observeBaselinePeriod(closed: PersistedPaperPeriodEnvelope, account: PaperAccountState, realizedPeriods: readonly PersistedPaperPeriodEnvelope[], error: unknown): ClosedLearningRolloverResult | undefined {
+    if ((error as { readonly code?: unknown } | null)?.code !== "PAPER_RESEARCH_LINEAGE_UNAVAILABLE") return undefined;
+    if (!(closed.candidateProvenance.length === 1 && closed.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID)) return undefined;
+    if (closed.record.market != null && this.isUnstreamed(closed.record.market)) return undefined;
+    this.awaitingCycle.delete(closed.record.recordId);
+    const periodIndex = nextPeriodIndex(realizedPeriods);
+    const reopened = this.port.openPeriodFromCanonicalAccount({
+      periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
+      periodIndex,
+      advisory: closed.record.advisory,
+      candidateProvenance: closed.candidateProvenance,
+      ...(closed.record.market == null ? {} : { market: closed.record.market }),
+      periodStartAt: account.updatedAt,
+    });
+    return Object.freeze({ status: "BASELINE_PERIOD_OBSERVED", periodId: reopened.periodId, reason: `observed:${closed.record.recordId}` });
+  }
+
+  private isUnstreamed(market: string): boolean {
+    const streamed = this.port.streamedMarkets?.();
+    return streamed != null && streamed.length > 0 && !streamed.map((value) => value.trim().toUpperCase()).includes(market.trim().toUpperCase());
+  }
+
+  /**
+   * Retires a period whose fills mix candidate bindings and opens its replacement in the same step, from the retired plan's own
+   * advisory, candidate provenance and market at the canonical account boundary (as the account-replaced path does). The
+   * replacement therefore never depends on realized history, which may be empty or may belong to a superseded candidate.
+   */
+  private retireMixedAndReplace(plan: PersistedPaperRealizedPeriodPlan, account: PaperAccountState, evidenceFingerprintSha256?: string): ClosedLearningRolloverResult {
+    this.port.retireOpenPeriodForMixedBinding!(plan.periodId);
+    const periodIndex = nextPeriodIndex(this.port.listRealizedPeriods());
+    const reopened = this.port.openPeriodFromCanonicalAccount({
+      periodId: `closed-learning-mixed-binding-replaced:${periodIndex}:${account.updatedAt}`,
+      periodIndex,
+      advisory: plan.advisory,
+      candidateProvenance: plan.candidateProvenance,
+      ...(plan.market == null ? {} : { market: plan.market }),
+      periodStartAt: account.updatedAt,
+    });
+    return Object.freeze({
+      status: "MIXED_BINDING_PERIOD_RETIRED",
+      periodId: plan.periodId,
+      reason: "CANDIDATE_BINDING_MIXED",
+      replacementPeriodId: reopened.periodId,
+      ...(plan.candidateProvenance[0] == null ? {} : { replacementCandidateId: plan.candidateProvenance[0].candidateId }),
+      ...(evidenceFingerprintSha256 === undefined ? {} : { retirementEvidenceFingerprintSha256: evidenceFingerprintSha256 }),
+    });
+  }
 
   private prepare(): ClosedLearningRolloverResult | PreparedRollover {
     const periods = stableOpenPeriods(this.port.listOpenPeriods());
-    if (periods.length === 0) return Object.freeze({ status: "NO_OPEN_PERIOD" });
+    if (periods.length === 0) return this.resumeUnrecordedCycle() ?? this.reopenStalledContinuation();
     if (periods.length > 1) return Object.freeze({ status: "BLOCKED", reason: "MULTIPLE_OPEN_PAPER_PERIODS" });
 
     const plan = periods[0]!;
+    if (plan.market != null && this.isUnstreamed(plan.market)) {
+      // Its benchmark can only come from that market's ticker store, which this runtime no longer feeds, so the
+      // period can never close. Retire it (nothing is closed or scored); the next tick starts a fresh period.
+      if (this.port.retireOpenPeriodForUnstreamedMarket == null) return Object.freeze({ status: "BLOCKED", periodId: plan.periodId, reason: "UNSTREAMED_MARKET_RETIREMENT_UNAVAILABLE" });
+      this.port.retireOpenPeriodForUnstreamedMarket(plan.periodId, this.port.streamedMarkets?.() ?? []);
+      return Object.freeze({ status: "UNSTREAMED_MARKET_PERIOD_RETIRED", periodId: plan.periodId, reason: "MARKET_NOT_STREAMED" });
+    }
     const account = this.port.readCanonicalPaperAccount();
     if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) {
       return Object.freeze({ status: "BLOCKED", periodId: plan.periodId, reason: "CANONICAL_PAPER_ACCOUNT_UNAVAILABLE" });
     }
+    if (plan.accountBoundary != null && plan.accountBoundary.initialCapital !== account.initialCapital) {
+      // The owner replaced the PAPER account (different initial capital). The old period can never
+      // reconcile against the new account, so retire it and continue the same candidate/advisory
+      // in a fresh period opened from the new account.
+      if (this.port.retireOpenPeriodForAccountChange == null) {
+        return Object.freeze({ status: "BLOCKED", periodId: plan.periodId, reason: "PAPER_ACCOUNT_REPLACED_RETIREMENT_UNAVAILABLE" });
+      }
+      this.port.retireOpenPeriodForAccountChange(plan.periodId);
+      const periodIndex = nextPeriodIndex(this.port.listRealizedPeriods());
+      const reopened = this.port.openPeriodFromCanonicalAccount({
+        periodId: `closed-learning-account-replaced:${periodIndex}:${account.updatedAt}`,
+        periodIndex,
+        advisory: plan.advisory,
+        candidateProvenance: plan.candidateProvenance,
+        ...(plan.market == null ? {} : { market: plan.market }),
+        periodStartAt: account.updatedAt,
+      });
+      return Object.freeze({ status: "ACCOUNT_REPLACED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `retired:${plan.periodId}` });
+    }
     if (account.updatedAt <= plan.periodStartAt) {
       return Object.freeze({ status: "WAITING_FOR_CANONICAL_BOUNDARY", periodId: plan.periodId });
     }
-    if (tradingDayKey(account.updatedAt) === tradingDayKey(plan.periodStartAt)) {
-      return Object.freeze({ status: "WAITING_FOR_KST_DAY_ROLLOVER", periodId: plan.periodId });
+    // Fills are immutable, so a window that already mixes candidate bindings can never become scorable. Retire it as soon
+    // as the canonical ledger proves the mix, not only when the trading day closes (no evidence is scored or synthesized).
+    if (this.port.inspectOpenPeriodForMixedBinding != null && this.port.retireOpenPeriodForMixedBinding != null) {
+      const mixed = this.port.inspectOpenPeriodForMixedBinding(plan.periodId);
+      if (mixed != null) return this.retireMixedAndReplace(plan, account, mixed.evidenceFingerprintSha256);
+    }
+    // The account does not change while PAPER is idle or risk-blocked (for example a consecutive-loss halt), and then
+    // its `updatedAt` never crosses the day boundary. Elapsed trading days therefore also count by the wall clock,
+    // while the period still ends only at the canonical account boundary above.
+    const startDay = tradingDayKey(plan.periodStartAt);
+    const clock = this.port.now?.();
+    const clockCrossed = clock !== undefined && Number.isSafeInteger(clock) && clock >= account.updatedAt && tradingDayKey(clock) !== startDay;
+    const interval = this.port.evaluationPeriodMs;
+    const observedClock = clock !== undefined && Number.isSafeInteger(clock) && clock >= account.updatedAt ? clock : account.updatedAt;
+    const intervalCrossed = interval !== undefined && observedClock - plan.periodStartAt >= interval;
+    if (tradingDayKey(account.updatedAt) === startDay && !clockCrossed && !intervalCrossed) {
+      return Object.freeze({ status: interval === 3_600_000 ? "WAITING_FOR_EVALUATION_WINDOW" : "WAITING_FOR_KST_DAY_ROLLOVER", periodId: plan.periodId });
     }
     if (!hasRealizedFill(plan)) {
       return Object.freeze({ status: "WAITING_FOR_REALIZED_FILL", periodId: plan.periodId });
     }
 
-    const closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
+    let closed: PersistedPaperPeriodEnvelope;
+    try {
+      closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
+    } catch (error) {
+      // A window that mixes strategy versions can never be scored. The reconciler's guard stays as it is; the period is
+      // retired unscored so the loop is not blocked on it forever, and the next tick continues in a fresh period.
+      if ((error as { readonly code?: unknown } | null)?.code === "CANDIDATE_BINDING_MIXED" && this.port.retireOpenPeriodForMixedBinding != null) {
+        return this.retireMixedAndReplace(plan, account);
+      }
+      throw error;
+    }
     const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
     if (!realizedPeriods.some((item) => item.record.recordId === closed.record.recordId)) {
       throw new Error("closed PAPER period is missing from the durable realized denominator");
     }
-    const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
-    return Object.freeze({ plan, account, realizedPeriods, identity });
+    // Identity construction itself may fail after the durable close. It must also have a bounded recovery.
+    // Only the latest close is eligible for this recovery path; discard obsolete retry bookkeeping,
+    // never the durable periods, decisions or failures.
+    for (const key of this.awaitingCycle.keys()) if (key !== closed.record.recordId) this.awaitingCycle.delete(key);
+    this.awaitingCycle.set(closed.record.recordId, 0);
+    let identity: ClosedLearningEvidenceIdentity;
+    try {
+      identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
+    } catch (error) {
+      const observed = this.observeBaselinePeriod(closed, account, realizedPeriods, error);
+      if (observed != null) return observed;
+      this.recordIdentityFailure(closed, error);
+      throw error;
+    }
+    return Object.freeze({ closedRecordId: closed.record.recordId, plan, account, realizedPeriods, identity });
   }
 
   private finalize(prepared: PreparedRollover, cycle: ClosedLearningCycleResult): ClosedLearningRolloverResult {
@@ -123,37 +415,56 @@ export class ClosedLearningRolloverScheduler {
   }
 
   public runOnce(): ClosedLearningRolloverResult {
+    this.assertFailurePersistence();
     let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
+    let stage: "CYCLE" | "FINALIZE" = "CYCLE";
     try {
       prepared = this.prepare();
       if ("status" in prepared) return prepared;
-      return this.finalize(prepared, this.port.runClosedLearningCycle(prepared.identity));
+      const cycle = this.port.runClosedLearningCycle(prepared.identity);
+      stage = "FINALIZE";
+      const result = this.finalize(prepared, cycle);
+      this.awaitingCycle.delete(prepared.closedRecordId);
+      return result;
     } catch (error) {
+      this.assertFailurePersistence();
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
+      // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
+      if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
+      if (prepared != null && !("status" in prepared)) this.port.recordCycleFailure?.({ closedPeriodId: prepared.closedRecordId, identity: prepared.identity, stage, code: failureCode(error) });
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
-        reason: error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED",
+        reason: blockedReason(error),
       });
     }
   }
 
   /** Async production path yields while Research/League evaluates the closed PAPER evidence. */
   public async runOnceAsync(): Promise<ClosedLearningRolloverResult> {
+    this.assertFailurePersistence();
     let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
+    let stage: "CYCLE" | "FINALIZE" = "CYCLE";
     try {
       prepared = this.prepare();
       if ("status" in prepared) return prepared;
       const cycle = this.port.runClosedLearningCycleAsync == null
         ? this.port.runClosedLearningCycle(prepared.identity)
         : await this.port.runClosedLearningCycleAsync(prepared.identity);
-      return this.finalize(prepared, cycle);
+      stage = "FINALIZE";
+      const result = this.finalize(prepared, cycle);
+      this.awaitingCycle.delete(prepared.closedRecordId);
+      return result;
     } catch (error) {
+      this.assertFailurePersistence();
       const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
+      // The close is durable but the cycle (or its finalize) did not finish: remember it so the next tick resumes it, bounded.
+      if (prepared != null && !("status" in prepared) && !this.awaitingCycle.has(prepared.closedRecordId)) this.awaitingCycle.set(prepared.closedRecordId, 0);
+      if (prepared != null && !("status" in prepared)) this.port.recordCycleFailure?.({ closedPeriodId: prepared.closedRecordId, identity: prepared.identity, stage, code: failureCode(error) });
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
-        reason: error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED",
+        reason: blockedReason(error),
       });
     }
   }

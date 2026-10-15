@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const EXPECTED_PAPER_ADAPTER_BLOB = "e78873cf99c5cd00f8c18892285707c06bdfb9a2";
+const EXPECTED_PAPER_ADAPTER_BLOB = "33ebd499ca396a73b8fcbcab896b7df7a6008984";
 
 function gitBlobSha(content: string): string {
   // Git stores this repository's TypeScript sources with LF. Windows checkout may materialize
@@ -18,8 +18,12 @@ describe("PAPER_ADAPTER exact-source re-qualification evidence", () => {
     const source = readFileSync("apps/cloud/src/paperTradingExecutionLoop.ts", "utf8");
     assert.equal(gitBlobSha(source), EXPECTED_PAPER_ADAPTER_BLOB);
     assert.match(source, /workingOrders/);
+    // Owner capital switch (WO-PAPER-20260929-CAPITAL-10000-ACCOUNT): one account per capital.
+    assert.match(source, /export function paperAccountIdForCapital/);
+    assert.match(source, /this\.accountId = options\.accountId \?\? LEGACY_PAPER_ACCOUNT_ID/);
     assert.match(source, /assertPaperAccountingReconciled/);
     assert.match(source, /loadHistory\(\): readonly PaperAccountState\[\]/);
+    assert.match(source, /verifyWriterLease\(\): void \{\s*this\.db\.transaction\(\(\) => this\.assertLeaseHeld\(\)\)/);
     assert.match(source, /cloud_paper_account_history/);
     assert.match(source, /paper cancelled order\/fill reconciliation mismatch/);
     assert.match(source, /validatePaperExecutionIntent\(fill\.executionIntent\)/);

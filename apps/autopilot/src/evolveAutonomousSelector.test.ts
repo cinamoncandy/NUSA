@@ -51,6 +51,27 @@ test("fails closed when the circuit is open", () => {
   assert.equal(result.reason, "circuit-open");
 });
 
+test("suppresses an identical previously failed hypothesis deterministically", () => {
+  const input = baseInput();
+  const result = selectNextEvolutionOpportunity({
+    ...input,
+    learningRecords: [{
+      opportunityId: "prior",
+      problem: "Improve higher",
+      evidenceReferences: ["ci:prior"],
+      hypothesis: "Address Improve higher with a bounded, reversible change.",
+      changeReference: "change:prior",
+      validationStatus: "VALIDATED",
+      outcome: "REGRESSION",
+      failureReason: "outcome:regression",
+      rollbackReference: null,
+      reusable: false,
+      recordedAt: "2026-08-29T00:00:00.000Z",
+    }],
+  });
+  assert.equal(result.selectedOpportunity?.id, "lower");
+});
+
 test("fails closed when autonomous scheduling is denied", () => {
   const input = baseInput();
   const result = selectNextEvolutionOpportunity({ ...input, elapsedSecondsSinceLastRun: 10 });

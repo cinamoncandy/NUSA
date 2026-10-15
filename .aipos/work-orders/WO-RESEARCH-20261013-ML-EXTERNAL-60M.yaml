@@ -1,0 +1,21 @@
+id: WO-RESEARCH-20261013-ML-EXTERNAL-60M
+title: "EXTERNAL + 60m + all KRW + ML (hourly Korea premium and global BTC momentum)"
+status: COMPLETED_NO_SURVIVOR
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-meta-learner
+related_issues: [1605]
+owner_request: "2026-10-13 in chat: do anything that could make a profit (within PAPER_ONLY, no threshold or risk loosening)."
+pre_registration:
+  committed_before_external_fetch: true
+  script: scripts/research-ml-external-60m.js
+  only_differences_from_v2: "three EXTERNAL features (hourly premium level, its 24h change, Coinbase BTC 24h return); K = 186 + 3 = 189"
+  data: "Same 60m manifest as WO-RESEARCH-20261013-ML-ALLKRW (393a8925...) plus external.json."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+result: "FAIL (no skill): 355 holdout trades, -0.404% per trade (2x -0.603%) vs universe +0.271%, win rate 42.5%, p 0.95. external.json sha256 43d0e59d9cfdc5cafbc4a97dd273153909ae08c1c80a7f19a8ca030dd1d6a536."

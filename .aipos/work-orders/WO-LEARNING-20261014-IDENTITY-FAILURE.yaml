@@ -1,0 +1,32 @@
+id: WO-LEARNING-20261014-IDENTITY-FAILURE
+title: Persist post-close identity failures in canonical learning ledger
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+validation: "106 focused tests PASS including actual SQLite close/reopen, replay, tamper and sync/async persistence failure. Build/typecheck/validate:full/security/lint PASS; 23 existing lint warnings. Full isolated suite running, not claimed PASS. Initial local health-test edit had syntax error, corrected and retested before remote push."
+review: "Independent read-only review found persistence-error containment P1; corrected with sticky fail-closed latch and 4 regression cases. Fresh review no actionable P0/P1/P2; not Audit approval."
+remaining: "Exact-head CI, independent Audit/Release, deployment and genuine runtime failure evidence pending. This does not complete #1605 or full #2589 acceptance."
+priority: P0
+risk: MEDIUM
+authority_impact: none
+base_commit: 08641b68eaf59b25776231e01a127572c5237906
+issue: 2589
+scope: "Existing rollover and Evolution learning ledger; capture identity-builder failures after durable close and during resume. No second ledger/scheduler, no Research lineage invention."
+impact: "Preserve diagnostic evidence across restart and replay, enabling the next minimal root-cause repair. No completed cycle or investment benefit claimed."
+compatibility: "Add IDENTITY stage; existing CYCLE/FINALIZE receipts remain unchanged. IDENTITY evidence refers to a closed-period envelope, and source SHA denotes observer runtime, not Research lineage. Deploy reader/writer together; old reader fails closed on new stage. No destructive migration."
+acceptance:
+  - "Synchronous and asynchronous identity failures persist stable code and closed-period fingerprint without exception text."
+  - "Restart replay is idempotent; prior receipts survive success."
+  - "Expected baseline self-observation produces no failure or synthetic cycle."
+  - "Tampered receipts fail closed; no Risk or qualification weakening."
+verification_commands:
+  - node --test dist/apps/cloud/src/closedLearningRolloverScheduler.test.js tests/closed-learning-loop-status.test.js tests/cloud-runtime-liveness-health.test.js
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run lint
+  - pnpm run security:gate
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Exact-head CI and independent Audit/Release; preserve real candidate qualification and future holdout boundaries."

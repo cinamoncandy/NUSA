@@ -62,7 +62,7 @@ test("#637: Home gives Cloud PAPER precedence and otherwise renders shared LOCAL
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /\{krw\(account\?\.equity\)\}/);
-  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
+  assert.match(home, /총 손익 \{signedMoney\(totalPnl\)\}/);
   assert.doesNotMatch(home, /home-local-paper-note/);
 });
 

@@ -15,6 +15,8 @@ import {
   type JevResearchAttentionAxiomOutcome,
   type JevResearchAttentionShadowReceipt,
 } from "./ai/jevResearchAttentionShadow";
+import { projectJevResearchAttentionDomainObservation } from "./ai/jevDomainObservationProjection";
+import type { JevDomainObservation } from "./ai/jevDomainObservation";
 
 export interface ResearchIntelligenceAttentionShadowObserver {
   observe(
@@ -40,6 +42,8 @@ export interface ResearchIntelligenceScoutResult {
   readonly axiomHandoffs: readonly AxiomResearchIntelligenceHandoff[];
   readonly records: readonly ResearchIntelligenceRecord[];
   readonly jevAttentionShadows: readonly JevResearchAttentionShadowReceipt[];
+  /** Canonical metadata-only Jev envelopes; never used for AXIOM routing. */
+  readonly jevDomainObservations: readonly JevDomainObservation[];
   readonly jevAttentionMetrics: Readonly<{
     evaluated: number;
     reviewSoon: number;
@@ -295,6 +299,7 @@ export class ResearchIntelligenceScout {
     const records: ResearchIntelligenceRecord[] = [];
     const axiomHandoffs: AxiomResearchIntelligenceHandoff[] = [];
     const jevAttentionShadows: JevResearchAttentionShadowReceipt[] = [];
+    const jevDomainObservations: JevDomainObservation[] = [];
     const sourceErrors: Array<{ sourceId: string; reason: string }> = [];
     let discovered = 0;
     let duplicatesSuppressed = 0;
@@ -307,6 +312,7 @@ export class ResearchIntelligenceScout {
       try {
         const receipt = await this.attentionObserver.observe(record, axiomHandoffOutcome);
         jevAttentionShadows.push(receipt);
+        jevDomainObservations.push(projectJevResearchAttentionDomainObservation(receipt));
       } catch {
         // Shadow must never interrupt the canonical deterministic path.
       }
@@ -369,6 +375,7 @@ export class ResearchIntelligenceScout {
       axiomHandoffs: Object.freeze(axiomHandoffs),
       records: Object.freeze(records),
       jevAttentionShadows: Object.freeze(jevAttentionShadows),
+      jevDomainObservations: Object.freeze(jevDomainObservations),
       jevAttentionMetrics: summarizeJevResearchAttentionShadows(
         Object.freeze(jevAttentionShadows),
       ),

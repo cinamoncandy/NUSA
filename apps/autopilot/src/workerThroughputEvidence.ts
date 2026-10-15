@@ -86,6 +86,8 @@ export interface ThroughputWindow {
    * null is not 0. Reporting an unmeasured value as 0 would read as idle capacity.
    */
   readonly ciUtilization: number | null;
+  /** Optional measured saturation; absent windows retain the legacy utilization signal. */
+  readonly ciSaturation?: number | null;
   /**
    * Verified tasks per hour from the previous comparable window, or null when there is no prior
    * window. null is not a flat trend: a trend needs two measurements.
@@ -104,6 +106,7 @@ export interface WorkerThroughputSummary {
   readonly reworkRate: number | null;
   readonly throughputTrend: number | null;
   readonly ciUtilization: number | null;
+  readonly ciSaturation?: number | null;
   /** Every input that could not be measured, named. */
   readonly unmeasured: readonly string[];
 }
@@ -154,6 +157,7 @@ export function summariseWorkerThroughput(window: ThroughputWindow): WorkerThrou
       reworkRate: null,
       throughputTrend: null,
       ciUtilization: null,
+      ciSaturation: null,
       unmeasured: Object.freeze(["window"]),
     });
   }
@@ -178,6 +182,10 @@ export function summariseWorkerThroughput(window: ThroughputWindow): WorkerThrou
   const ciMeasured = boundedRate(window.ciUtilization);
   if (!ciMeasured) unmeasured.push("ci-utilization");
   const ciUtilization = ciMeasured ? round4(window.ciUtilization as number) : null;
+  const saturationPresent = window.ciSaturation !== undefined;
+  const saturationMeasured = !saturationPresent || boundedRate(window.ciSaturation);
+  if (!saturationMeasured) unmeasured.push("ci-saturation");
+  const ciSaturation = saturationPresent && saturationMeasured ? round4(window.ciSaturation as number) : null;
 
   // VERIFIED requires every input the advisor reads. INSUFFICIENT is reserved for a window that is
   // structurally sound and simply too small; anything else unmeasured is UNKNOWN.
@@ -197,6 +205,7 @@ export function summariseWorkerThroughput(window: ThroughputWindow): WorkerThrou
     reworkRate,
     throughputTrend,
     ciUtilization,
+    ciSaturation,
     unmeasured: Object.freeze([...unmeasured]),
   });
 }
@@ -222,6 +231,8 @@ export function toConcurrencyEvidence(summary: WorkerThroughputSummary, currentW
     conflictRate: verified && summary.conflictRate !== null ? summary.conflictRate : 1,
     reworkRate: verified && summary.reworkRate !== null ? summary.reworkRate : 1,
     ciUtilization: verified && summary.ciUtilization !== null ? summary.ciUtilization : 1,
+    ...(summary.ciSaturation !== null && summary.ciSaturation !== undefined ? { ciSaturation: summary.ciSaturation } : {}),
+    ...(summary.unmeasured.includes("ci-saturation") ? { invalidCiSaturationEvidence: true } : {}),
   });
 }
 

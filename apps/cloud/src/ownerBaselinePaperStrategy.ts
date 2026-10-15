@@ -1,0 +1,141 @@
+import { createHash } from "node:crypto";
+import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
+import { bindPaperCandidateForExecution, type PaperCandidateStrategySpec } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
+import type { PaperCandidateExecutionBinding } from "./cioDecisionEngine";
+import type { PaperCandidateBindingProvider } from "./cloudRuntimeDashboardHydrator";
+
+/**
+ * Owner-approved PAPER baseline strategy (owner decision 2026-09-29, WO-PAPER-20260929-OWNER-BASELINE-STRATEGY).
+ *
+ * Automatic PAPER execution normally follows only a Research/League challenger that passed
+ * qualification. Until one qualifies, PAPER sat idle and produced no fills to learn from. The owner
+ * explicitly approved trading PAPER with a fixed, unqualified baseline in that gap. This provider
+ * returns the bound challenger whenever one exists and otherwise a deterministic SMA 5/20 baseline
+ * binding, so a qualified challenger always takes precedence.
+ *
+ * The baseline is PAPER-only: it goes through the same canonical decision, portfolio, risk, kill
+ * switch and execution boundary as a challenger, and grants no LIVE, credential or production
+ * authority. NUSA_PAPER_OWNER_BASELINE_STRATEGY=DISABLED turns it off; any non-PAPER mode never
+ * gets it.
+ */
+export const OWNER_BASELINE_STRATEGY_ENV = "NUSA_PAPER_OWNER_BASELINE_STRATEGY";
+export const OWNER_BASELINE_CANDIDATE_ID = "owner-baseline-sma-5-20";
+export const OWNER_BASELINE_REASON = "OWNER_BASELINE_PAPER_NOT_QUALIFIED";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const SHA40 = /^[a-f0-9]{40}$/;
+const sha256 = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+export function isOwnerBaselineSourceCommitSha(value: string): boolean {
+  return SHA40.test(value.trim().toLowerCase());
+}
+
+export function ownerBaselineAdvisory(market: string, periodStartAt: number): LeagueCapitalAllocationAdvisory {
+  if (!Number.isSafeInteger(periodStartAt) || periodStartAt < DAY_MS) throw new Error("owner baseline period start is invalid");
+  const normalizedMarket = market.trim().toUpperCase();
+  if (!/^KRW-[A-Z0-9-]+$/.test(normalizedMarket)) throw new Error("owner baseline market is invalid");
+  const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
+  const kstShifted = periodStartAt + KST_OFFSET_MS;
+  const kstDayStart = Math.floor(kstShifted / DAY_MS) * DAY_MS - KST_OFFSET_MS;
+  const generatedAt = kstDayStart - 1;
+  return Object.freeze({
+    schemaVersion: 1,
+    generatedAt: new Date(generatedAt).toISOString(),
+    policy: Object.freeze({ maximumCandidateWeight: 1, minimumEvidenceBreadth: 0, maximumCandidateCount: 1, maximumFamilyWeight: 1 }),
+    entries: Object.freeze([Object.freeze({
+      id: OWNER_BASELINE_CANDIDATE_ID,
+      familyId: "sma-crossover",
+      rank: 1,
+      leagueScore: 0,
+      evidenceBreadth: 0,
+      researchWeight: 1,
+      reasons: Object.freeze([OWNER_BASELINE_REASON]),
+      sourceDatasetIds: Object.freeze([datasetId]),
+    })]),
+    excludedCandidateIds: Object.freeze([]),
+    reasons: Object.freeze([OWNER_BASELINE_REASON]),
+    provenance: Object.freeze({ sourceDatasetIds: Object.freeze([datasetId]) }),
+  });
+}
+
+export function ownerBaselineCandidateProvenance(market: string, specificationHash: string): Readonly<{ candidateId: string; datasetId: string; datasetContentSha256: string }> {
+  const normalizedMarket = market.trim().toUpperCase();
+  const datasetId = `owner-baseline:upbit-public-ticker:${normalizedMarket}`;
+  return Object.freeze({
+    candidateId: OWNER_BASELINE_CANDIDATE_ID,
+    datasetId,
+    datasetContentSha256: sha256({ datasetId, specificationHash }),
+  });
+}
+
+export function ownerBaselineStrategyEnabled(env: NodeJS.ProcessEnv): boolean {
+  const mode = env.NUSA_MODE;
+  if (mode !== undefined && mode !== "PAPER") return false;
+  const value = env[OWNER_BASELINE_STRATEGY_ENV];
+  return value === undefined || value === "ENABLED";
+}
+
+/**
+ * The code identity of the owner baseline strategy. It deliberately is NOT the deployed commit.
+ *
+ * The strategy specification is part of the binding, and the binding fingerprint is part of every fill. With the commit SHA in
+ * it, each deploy minted a new fingerprint for the very same strategy: fills on either side of a deploy landed in one learning
+ * period under two bindings, and the period could never be scored (CANDIDATE_BINDING_MIXED). The identity is derived from an
+ * explicit implementation version instead, so it changes only when the strategy's behaviour is deliberately re-versioned. The golden
+ * decision test in ownerBaselinePaperStrategy.test.ts fails if the behaviour changes without a version bump.
+ */
+export const OWNER_BASELINE_IMPLEMENTATION_VERSION = "owner-baseline-sma-5-20/implementation-1";
+export const OWNER_BASELINE_CODE_IDENTITY: string = sha256({ ownerBaselineImplementation: OWNER_BASELINE_IMPLEMENTATION_VERSION }).slice(0, 40);
+
+/**
+ * `sourceCommitSha` is still required and validated: without an exact source identity the baseline fails closed, as before. It no
+ * longer enters the strategy specification or the binding fingerprint.
+ */
+export function ownerBaselineStrategySpec(sourceCommitSha: string): PaperCandidateStrategySpec {
+  const deployedCommit = sourceCommitSha.trim().toLowerCase();
+  if (!isOwnerBaselineSourceCommitSha(deployedCommit)) throw new Error("owner baseline strategy requires the exact 40-hex source commit");
+  const parameters = Object.freeze({ shortPeriod: 5, longPeriod: 20 });
+  const identity = { candidateId: OWNER_BASELINE_CANDIDATE_ID, familyId: "sma-crossover", lineageId: "owner-baseline", parameters, costModelVersion: "nusa-paper-cost-v1" };
+  return Object.freeze({ ...identity, specificationHash: sha256(identity), codeSha: OWNER_BASELINE_CODE_IDENTITY });
+}
+
+/** Deterministic baseline binding for one market and Asia/Seoul day, so a restart or a deploy keeps the same binding. */
+export function ownerBaselineBinding(market: string, decisionAt: number, sourceCommitSha: string): PaperCandidateExecutionBinding {
+  if (!Number.isSafeInteger(decisionAt) || decisionAt < DAY_MS) throw new Error("owner baseline decision time is invalid");
+  const normalizedMarket = market.trim().toUpperCase();
+  const strategy = ownerBaselineStrategySpec(sourceCommitSha);
+  const kstShifted = decisionAt + KST_OFFSET_MS;
+  const periodStartAt = Math.floor(kstShifted / DAY_MS) * DAY_MS - KST_OFFSET_MS;
+  const advisory = ownerBaselineAdvisory(normalizedMarket, periodStartAt);
+  return bindPaperCandidateForExecution(
+    advisory,
+    [ownerBaselineCandidateProvenance(normalizedMarket, strategy.specificationHash)],
+    OWNER_BASELINE_CANDIDATE_ID,
+    periodStartAt,
+    strategy,
+  ) as PaperCandidateExecutionBinding;
+}
+
+export class OwnerBaselinePaperBindingProvider implements PaperCandidateBindingProvider {
+  public constructor(private readonly options: Readonly<{
+    challenger?: PaperCandidateBindingProvider;
+    sourceCommitSha: string;
+    enabled: boolean;
+    /** Markets the baseline may trade (the configured list, 1-5). Empty or absent means none. */
+    baselineMarkets?: readonly string[];
+  }>) {}
+
+  public read(market: string, decisionAt: number): PaperCandidateExecutionBinding | undefined {
+    const challenger = this.options.challenger?.read(market, decisionAt);
+    if (challenger != null || !this.options.enabled) return challenger;
+    const normalizedMarket = market.trim().toUpperCase();
+    const allowed = (this.options.baselineMarkets ?? []).map((item) => item.trim().toUpperCase());
+    if (!allowed.includes(normalizedMarket)) return undefined;
+    try {
+      return ownerBaselineBinding(normalizedMarket, decisionAt, this.options.sourceCommitSha);
+    } catch {
+      return undefined; // fail closed: no baseline means no automatic PAPER action
+    }
+  }
+}

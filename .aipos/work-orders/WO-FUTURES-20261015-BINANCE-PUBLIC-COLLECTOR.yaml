@@ -1,0 +1,31 @@
+id: WO-FUTURES-20261015-BINANCE-PUBLIC-COLLECTOR
+title: "Research-only public Binance USD-M futures collector (BTCUSDT, ETHUSDT)"
+status: IN_PROGRESS
+priority: P2
+owner: market-data
+repository: cinamoncandy/NUSA
+base_branch: main
+objective: "Record public mark/index/funding and closed 4h klines so a futures research question (B4) can be answered from data. No futures trade can result without a qualified strategy (B4 research -> B5 shadow -> PAPER)."
+first_broken_transition: "No futures market data is recorded anywhere; B0 probe (run 38520914940) showed the four public endpoints return 200 from a GitHub-hosted runner. Reachability from the PAPER host is NOT yet proven."
+scope:
+  - migration_030_research_futures_public
+  - collector_marks_every_minute_funding_and_closed_4h_klines_hourly
+  - health_counters_runtime_futuresCollector
+  - kill_switch_NUSA_RESEARCH_FUTURES_COLLECTOR_DISABLED
+prohibited:
+  - api_key_account_order_or_position_endpoint
+  - live_order_or_authority_change
+  - feeding_paper_risk_governance_or_qualification
+acceptance:
+  - wrong symbol, future exchange time, forming candle and invalid rows are never stored
+  - rows are stamped with the observation time; replay is idempotent
+  - HTTP failures (e.g. 451) are counted, never thrown
+  - /health runtime.futuresCollector shows rounds>0, marksStored>0, failures=0 on the PAPER host (NOT RUN until deployed)
+validation:
+  local: "build; research-futures-collector, storage-migrations, closed-learning-loop-status, cloud-runtime-liveness-health tests pass (69+35). preflight NOT RUN (Node 22 sandbox)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "CI, non-author /grill-me review, Audit/Release, deploy, then read /health runtime.futuresCollector via oracle-host-diagnose."

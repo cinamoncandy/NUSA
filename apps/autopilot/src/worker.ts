@@ -1,7 +1,10 @@
 import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
-import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordProviderCapacityWait, releasePersistentExecution } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordCodingExecutionEvidence, recordProviderCapacityWait, releaseActiveWip, releasePersistentExecution } from "./executionCoordinator";
+import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
+import { reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
 import {
   CodingRunnerEvidenceError,
+  CodingRunnerHttpEvidenceError,
   executeCodingRunner,
   validateCodingRunnerRequest,
   verifyCodingRunnerRequestAgainstGitHub,
@@ -14,6 +17,7 @@ import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
 import { verifyGithubActionsOidcToken, verifyGithubReleaseControlOidcToken } from "./githubActionsOidc";
 import { AUDIT_PROVIDER, executeIndependentAudit, executeProviderGatedAudit, validateAuditRunnerRequest } from "./auditRunner";
 import { classifyAiBudgetState } from "./aiBudgetState";
+import { decideCodingRunnerNoAction } from "./codingRunnerRemediation";
 
 export { ExecutionCoordinator };
 
@@ -120,6 +124,39 @@ function validatePublishedFiles(value: unknown): readonly { readonly path: strin
   return Object.freeze([Object.freeze({ path, content })]);
 }
 
+const WIP_RELEASE_IDENTITY = /^[A-Za-z0-9_.:|-]{1,512}$/;
+
+/**
+ * The execution consumer calls this when its coding attempt ends, successfully or not, so the single
+ * active-WIP slot is freed at once instead of after ACTIVE_WIP_CLAIM_MAX_AGE_MS. Same authentication as
+ * /coding/propose. It can only remove the claim whose dedupe key and execution id both match.
+ */
+export async function handleCodingWipRelease(request: Request, env: WorkerEnv): Promise<Response> {
+  const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
+  const authority = { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" } as const;
+  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!await verifyCodingAuthorization(provided, env.NUSA_CODING_RUNNER_TOKEN?.trim(), allowedRepository)) {
+    return json({ released: false, error: "CODING_RUNNER_UNAUTHORIZED", ...authority }, 401);
+  }
+  let body: { dedupeKey?: unknown; executionId?: unknown };
+  try {
+    body = await request.json() as { dedupeKey?: unknown; executionId?: unknown };
+  } catch {
+    return json({ released: false, error: "WIP_RELEASE_REQUEST_INVALID", ...authority }, 400);
+  }
+  if (typeof body?.dedupeKey !== "string" || !WIP_RELEASE_IDENTITY.test(body.dedupeKey)
+    || typeof body.executionId !== "string" || !WIP_RELEASE_IDENTITY.test(body.executionId)) {
+    return json({ released: false, error: "WIP_RELEASE_REQUEST_INVALID", ...authority }, 400);
+  }
+  if (!env.NUSA_EXECUTION_COORDINATOR) return json({ released: false, error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", ...authority }, 503);
+  try {
+    const result = await releaseActiveWip(env.NUSA_EXECUTION_COORDINATOR, { dedupeKey: body.dedupeKey, executionId: body.executionId });
+    return json({ ...result, ...authority }, 200);
+  } catch {
+    return json({ released: false, error: "ACTIVE_WIP_RELEASE_FAILED", ...authority }, 503);
+  }
+}
+
 export async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<Response> {
   const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
@@ -137,17 +174,17 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
       // budget as independent Audit; without this, a proposal request never saw a provider stop
       // recorded by the other entry points, and never recorded its own, so the shared budget kept
       // taking real calls from whichever entry point a distinct task happened to arrive through.
-      ...(coordinator ? { providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null } : {}),
+      ...(coordinator ? { providerWaitUntil: async (provider: string) => (await readProviderCapacityWait(coordinator, provider))?.nextRetryAt ?? null } : {}),
     });
     if (result.status === "BLOCKED_RATE_LIMIT") {
-      if (coordinator && result.provider === "workers-ai" && result.stopReason && result.stopReason !== "WAITING_PROVIDER_CAPACITY" && Number.isSafeInteger(result.nextRetryAt)) {
+      if (coordinator && result.provider && result.stopReason && result.stopReason !== "WAITING_PROVIDER_CAPACITY" && Number.isSafeInteger(result.nextRetryAt)) {
         const stoppedAt = Date.now();
         try {
           await recordProviderCapacityWait(coordinator, {
             schemaVersion: 1,
             taskId: `proposal:${runnerRequest.dedupeKey}`,
             executionId: runnerRequest.executionId,
-            provider: "workers-ai",
+            provider: result.provider,
             headSha: runnerRequest.headSha,
             stopReason: result.stopReason,
             stoppedAt,
@@ -166,6 +203,8 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
         accepted: false,
         status: "CODING_PROPOSAL_FAILED_CLOSED",
         error: result.reason ?? "WAITING_PROVIDER_CAPACITY",
+        httpStatus: result.httpStatus ?? null,
+        provider: result.provider ?? null,
         providerStopReason: result.stopReason ?? null,
         nextRetryAt: result.nextRetryAt ?? null,
         liveAuthority: "NONE",
@@ -173,8 +212,27 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
         aiAuthority: "ZERO_AUTHORITY",
       }, 409);
     }
+    if (result.status === "JEV_ROUTING_ABSTAINED") {
+      return json({
+        accepted: true,
+        status: "JEV_ROUTING_ABSTAINED",
+        reason: result.reason ?? "NON_CODE_AUTOFIX_FORBIDDEN",
+        jevAdmissionAction: result.jevAdmissionAction ?? "ABSTAIN_EXPENSIVE_INFERENCE",
+        jevRequiredModel: result.jevRequiredModel ?? null,
+        jevConfidence: result.jevConfidence ?? 0,
+        headSha: runnerRequest.headSha,
+        workflowRunId: runnerRequest.workflowRunId,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      });
+    }
     if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch?.trim()) {
-      throw new Error(result.reason || "CODING_PROPOSAL_UNAVAILABLE");
+      const reason = result.reason || "CODING_PROPOSAL_UNAVAILABLE";
+      if (typeof result.httpStatus === "number" && Number.isSafeInteger(result.httpStatus)) {
+        throw new CodingRunnerHttpEvidenceError(reason, result.httpStatus);
+      }
+      throw new Error(reason);
     }
     return json({
       accepted: true,
@@ -187,11 +245,17 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
       aiAuthority: "ZERO_AUTHORITY",
     });
   } catch (error) {
+    const reason = error instanceof Error ? error.message : "CODING_PROPOSAL_FAILED";
+    const decisionReason = reason === "NO_ACTION_WARRANTED" ? "CODING_RUNNER_NO_ACTION_EVIDENCE_MISSING" : reason;
+    const httpStatus = error instanceof CodingRunnerHttpEvidenceError ? error.httpStatus : null;
+    const remediationDecision = decideCodingRunnerNoAction(decisionReason, 0, 3, httpStatus ?? undefined);
     return json({
       accepted: false,
       status: "CODING_PROPOSAL_FAILED_CLOSED",
-      error: error instanceof Error ? error.message : "CODING_PROPOSAL_FAILED",
+      error: reason,
       failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
+      httpStatus,
+      remediationDecision,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
@@ -199,7 +263,7 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
   }
 }
 
-async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Response> {
+export async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Response> {
   const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (!await verifyCodingAuthorization(provided, env.NUSA_CODING_RUNNER_TOKEN?.trim(), allowedRepository)) {
@@ -221,15 +285,29 @@ async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Re
     });
     const publisher = new GithubValidatedPatchPublisher({ token: env.NUSA_GITHUB_TOKEN, allowedRepository });
     const published = await publisher.publish(runnerRequest, runtime);
-    return json({
-      accepted: true,
-      status: "EXECUTION_ACCEPTED",
+    if (!env.NUSA_EXECUTION_COORDINATOR) throw new Error("PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
+    const outcome = Object.freeze({
+      status: "EXECUTION_ACCEPTED" as const,
       backend: runtime.backend,
       checkpointId: runtime.checkpointId,
-      workspaceVerified: true,
-      proposalValidated: true,
+      workspaceVerified: true as const,
+      proposalValidated: true as const,
       changedFiles: runtime.changedFiles,
       ...published,
+    });
+    const evidenceDecision = createCodingExecutionEvidence(runnerRequest, outcome, Date.now());
+    if (evidenceDecision.status !== "RECORDED") throw new Error(`CODING_EVIDENCE_${evidenceDecision.reason}`);
+    const persistedEvidence = await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
+    const nextCanonicalTransition = reconcileCodingExecutionEvidence(
+      { executionId: runnerRequest.executionId, dedupeKey: runnerRequest.dedupeKey, status: "CODING_DISPATCHED" },
+      persistedEvidence,
+    );
+    return json({
+      accepted: true,
+      ...outcome,
+      executionEvidence: persistedEvidence,
+      executionEvidencePersisted: true,
+      nextCanonicalTransition,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
@@ -240,6 +318,7 @@ async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Re
       status: "CODING_PUBLISH_FAILED_CLOSED",
       error: error instanceof Error ? error.message : "CODING_PUBLISH_FAILED",
       failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
+      httpStatus: error instanceof CodingRunnerHttpEvidenceError ? error.httpStatus : null,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
@@ -415,6 +494,10 @@ const worker = {
 
     if (request.method === "POST" && url.pathname === "/coding/propose") {
       return handleCodingProposal(request, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/coding/wip-release") {
+      return handleCodingWipRelease(request, env);
     }
 
     if (request.method === "POST" && url.pathname === "/coding/publish") {

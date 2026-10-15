@@ -116,6 +116,14 @@ test("A: REVIEW_SOON shadow receipt preserves AXIOM handoff", async () => {
   assert.equal(receipt.axiomConsumed, "UNKNOWN");
   assert.equal(receipt.linkedHypothesisId, null);
   assert.equal(receipt.linkedOutcomeId, null);
+  assert.equal(result.jevDomainObservations.length, 1);
+  const observation = result.jevDomainObservations[0];
+  assert.equal(observation.taskType, "RESEARCH_INTELLIGENCE_ATTENTION_SHADOW");
+  assert.equal(observation.domain, "AXIOM_RESEARCH");
+  assert.equal(observation.inputFingerprint, `sha256:${receipt.inputHash}`);
+  assert.equal(observation.decision.decision, "REVIEW_SOON");
+  assert.equal(observation.usableForRouting, false);
+  assert.equal(observation.aiAuthority, "ZERO_AUTHORITY");
   assertAuthority(receipt, "receipt authority");
   assertAuthority(result, "result authority");
   assertJevResearchAttentionShadowInputHash(receipt, result.records[0]);

@@ -1,0 +1,28 @@
+id: WO-UI-20261005-STARTUP-TIMING
+title: "Read-only cold-start timing in Settings (advanced) to find where the 3 s connection wait goes"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/startup-timing
+authority_impact: none
+objective: "The owner measured about 3 s from opening the app to a connected server and finds it long; the screen shows the cached data with a reconnecting notice meanwhile. The code path (settings read, silent DeviceKey proof, first PAPER projection) cannot be timed from the repository, and the previous three UI iterations were made blind. Measure first, then optimise the step that actually costs time."
+scope:
+  - "apps/mobile/src/startupTiming.ts (new, dependency-free): records the first time each startup step happens in the process (appStart, endpointReady, sessionVerified, firstData) and formats a one-line summary."
+  - "apps/mobile/src/paperConnectionSession.ts: two markStartup calls (endpoint configured, session verified). No change to restore logic, retries, VERIFIED rules or fail-closed behaviour."
+  - "apps/mobile/App.tsx: markStartup at module load and when the first READY projection arrives."
+  - "apps/mobile/src/settingsView.tsx: one DataRow, 'Start delay', in the advanced device card."
+  - "tests/mobile-startup-timing.test.js (5): partial and full summaries, first-call-wins (a foreground resume cannot rewrite the cold start), data-before-auth labelling, wiring pins."
+exclusions:
+  - "No change to authentication, the connection state shown to the owner (the reconnecting notice is deliberately unchanged: hiding uncertain state would break the fail-closed display rule), data fetching, risk, execution, accounting, LIVE, credentials or AI authority. Nothing is stored or sent off the device."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; the timing cannot influence any decision."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+residual: "Not seen on a device. The value is only useful after the next Android build is installed and the owner reads the Settings row after a cold start; the optimisation itself is a follow-up chosen from that measurement."

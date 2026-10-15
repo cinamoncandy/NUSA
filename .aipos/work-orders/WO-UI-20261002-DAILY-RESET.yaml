@@ -1,0 +1,24 @@
+id: WO-UI-20261002-DAILY-RESET
+title: "HOME decision and PAPER order numbers reset every day at 09:00 KST"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-daily-reset
+authority_impact: none
+objective: "Owner: the main-tab decision numbers reset at 09:00 every day. The server counters are cumulative; HOME now shows the count since the latest 09:00 KST (00:00 UTC) window."
+scope:
+  - "dailyResetModel.ts: pure window/baseline math; a server counter that goes backwards (restart) rebases."
+  - "useDailyCounts.ts: persists the per-window baseline in AsyncStorage (display only)."
+  - "homeView.tsx: decision rings and intelligence field use the daily counts."
+exclusions:
+  - "Baseline is the first observation inside a window, so an app not open at 09:00 counts from its first sync after 09:00. No server, accounting, trading, risk or LIVE change; other tabs show server totals unchanged."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/mobile-daily-reset.test.js
+  - pnpm run validate
+residual: "Physical Android acceptance is HUMAN_ENVIRONMENT_ONLY."

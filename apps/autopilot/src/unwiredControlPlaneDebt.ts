@@ -51,9 +51,15 @@ export const UNWIRED_CONTROL_PLANE_DEBT: readonly string[] = Object.freeze([
   "evolveStrategyLifecyclePolicy.ts#decideStrategyEdgeDecayContainment",
   "evolveValidation.ts#createEvolutionValidationResult",
   "executionCoordinator.ts#clearPersistentControlPlaneHold",
-  "executionCoordinator.ts#createEvolutionLearningMemoryStorage",
   "opportunityPlanner.ts#planOpportunity",
   "opportunityPlanner.ts#rankOpportunities",
+  // #2185 intentionally lands the deterministic provider-local primitive before runtime wiring;
+  // these entries are removed only when the canonical provider caller consumes the state machine.
+  "providerBackpressure.ts#admitProviderRequest",
+  "providerBackpressure.ts#createProviderBackpressureState",
+  "providerBackpressure.ts#recordProviderCompletion",
+  "providerBackpressure.ts#recordProviderRateLimit",
+  "providerBackpressure.ts#recordProviderSuccess",
   "outcomeFeedback.ts#assessOutcome",
   "referenceIntelligenceIssueHandoff.ts#buildReferenceOwnerIssueDraft",
   // #2128 states plainly that the worker pool creates no branches, worktrees or side effects, so

@@ -12,7 +12,7 @@ test("managed PAPER launcher targets the canonical closed-learning production ro
     /PRODUCTION_RUNTIME_ENTRYPOINT\s*=\s*["']dist\/apps\/cloud\/src\/closedLearningProductionRuntime\.js["']/,
   );
   assert.match(productionSource, /startClosedLearningProductionRuntime/);
-  assert.match(productionSource, /new SqliteCloudPaperAccountRepository\(database\)/);
+  assert.match(productionSource, /new SqliteCloudPaperAccountRepository\(database, \{ accountId: paperAccountIdForCapital\(config\.paperInitialCapitalKrw\) \}\)/);
   assert.match(productionSource, /new PaperTradingExecutionLoop\(/);
   assert.match(productionSource, /new PaperChallengerBindingLedger\(/);
   assert.match(productionSource, /new ClosedLearningProductionResearchAdapter\(/);

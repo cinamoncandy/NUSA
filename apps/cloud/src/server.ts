@@ -54,11 +54,13 @@ import {
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
 import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./publicUpbitQuotationHttp";
+import { anonymousObservationEnabled, createAnonymousObservationScope, hasAuthorizationHeader, isAnonymousObservationRoute, type AnonymousObservationScope } from "./observation/anonymousObservationScope";
 import { handleLiveReadinessHttp, type LiveReadinessHttpDependencies } from "./liveReadinessHttp";
 import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependencies } from "./engineeringOperationsHttp";
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
 import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
 import type { UxTelemetryStorage } from "./uxTelemetryJournal";
+import { COMPONENT_HEALTH_STATES, type ComponentHealthResult } from "./componentHealth";
 
 /**
  * Evidence that the continuous PAPER runtime is alive, not merely that the process answers HTTP.
@@ -83,7 +85,40 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly decisionCount: number;
   readonly paperOrderCount: number;
   readonly paperFillCount: number;
+  /** Coded `STATUS:REASON` of the latest PAPER boundary decision, e.g. `BLOCKED:PAPER_INVESTMENT_ALLOCATION_EXCEEDED`. */
+  readonly lastPaperDecisionOutcome?: string | null;
   readonly lastError: string | null;
+  /** Why the previous runtime process stopped, when a failure record exists. */
+  readonly previousStop?: string;
+  /** Display-only event-loop stall measurement (milliseconds, a count and a timestamp), present when the runtime measures it. */
+  readonly eventLoopMaxStallMs?: number;
+  readonly eventLoopStallCount?: number;
+  readonly lastEventLoopStallAt?: number | null;
+  /** Display-only research candle collection status (a code and two counts), present when the runtime reports it. */
+  readonly researchCollectionStatus?: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE";
+  readonly researchCandleCount?: number;
+  readonly researchRequiredCandles?: number;
+  /** Cumulative PAPER decision-funnel counts since the runtime started: fixed codes and integer counts only. */
+  readonly paperFunnel?: { readonly since: number; readonly counts: Readonly<Record<string, number>> };
+  /** Counts behind the consecutive-loss limit as of the latest risk evaluation: integers and one timestamp only. */
+  /** Today's completed and losing sells per strategy family code (fixed codes, integers only). */
+  readonly paperLossAttribution?: { readonly evaluatedAt: number; readonly byFamily: Readonly<Record<string, { readonly completedSells: number; readonly losingSells: number }>> };
+  /** Research experiment outcome counts since start (fixed codes, integers) and the latest tick status. */
+  /** Research-only microstructure recorder counters (see marketMicrostructureRecorder.ts). */
+  readonly dataIntegrity?: Readonly<Record<string, string | number>>;
+  readonly orderBookCollector?: { readonly rounds: number; readonly markets: number; readonly samplesStored: number; readonly failures: number; readonly rejected?: number; readonly lastRoundAt?: number };
+  readonly futuresCollector?: { readonly rounds: number; readonly marksStored: number; readonly fundingStored: number; readonly klinesStored: number; readonly failures: number; readonly rejected: number; readonly lastRoundAt?: number };
+  readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly rejectedRows?: number; readonly lastRecordedAt?: number };
+  readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
+  /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
+  readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
+  /** Canonical PAPER ledger identity: a 64-hex fingerprint of ledger truth and integer counts/times only. */
+  readonly paperLedger?: { readonly ledgerFingerprintSha256: string; readonly fillCount: number; readonly openPositionCount: number; readonly lastFillAt?: number; readonly ledgerUpdatedAt: number };
+  /** Production closed-learning loop status: fixed codes and integers only. */
+  readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
+  /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
+  readonly sourceCommitSha?: string;
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly consecutiveLossLimitEnabled?: boolean; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }
 
 export interface CloudReadinessSnapshot {
@@ -117,6 +152,8 @@ export interface CloudDashboardServerOptions {
   readonly readiness?: () => CloudReadinessSnapshot;
   /** Continuous PAPER runtime liveness, surfaced on /health so 24-hour operation is observable. */
   readonly runtimeLiveness?: () => CloudRuntimeLivenessSnapshot;
+  /** Deterministic process/workload health; HTTP 200 alone never implies workload health. */
+  readonly runtimeHealth?: () => Readonly<{ process: ComponentHealthResult; workload: ComponentHealthResult }>;
   /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
   /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
@@ -230,6 +267,16 @@ const auditHttpResponse = (
 const PUBLIC_LIVENESS_TIMESTAMPS = ["startedAt", "lastHeartbeatAt", "lastMarketEventAt", "lastPaperDecisionAt", "lastPaperOrderAt", "lastPaperFillAt"] as const;
 const PUBLIC_LIVENESS_COUNTERS = ["eventCount", "decisionCount", "paperOrderCount", "paperFillCount"] as const;
 const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
+const PUBLIC_DECISION_OUTCOME_CODE = /^[A-Z]{3,12}:[A-Z0-9_.:+-]{1,100}$/;
+// The runtime's own failure phrases ("paper account persistence failed: <detail>"). Only the phrase before the first colon can
+// become public, and only when it is plain lowercase words starting with "paper": no digits, so no values, ids or keys, and the
+// detail after the colon never leaves the authenticated route.
+const PUBLIC_PAPER_FAILURE_PHRASE = /^paper [a-z ]{2,70}$/;
+function publicLivenessErrorClass(raw: string): string | undefined {
+  const separator = raw.indexOf(":");
+  const phrase = (separator < 0 ? raw : raw.slice(0, separator)).trim();
+  return PUBLIC_PAPER_FAILURE_PHRASE.test(phrase) ? phrase.toUpperCase().replace(/ +/g, "_") : undefined;
+}
 
 /**
  * `/health` is unauthenticated, so the runtime object is rebuilt here from a fixed allowlist instead
@@ -237,6 +284,22 @@ const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
  * identifier, a price -- cannot make it public, and an error that is not a bare code is replaced by
  * a fixed code rather than published as free text.
  */
+/**
+ * Period evidence for the loss session is published only as one coherent tuple: a date key, exactly the start of that Asia/Seoul day,
+ * and the time of the last loss that extended the streak (null at 0), ordered start <= lastIncrementAt <= evaluatedAt. Anything partial or
+ * contradictory is omitted whole, so public health data never reports an impossible loss period.
+ */
+function periodEvidence(raw: Record<string, unknown>): Record<string, unknown> {
+  const { periodIdentity, periodStartedAt, lastIncrementAt, evaluatedAt } = raw;
+  if (typeof periodIdentity !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(periodIdentity)) return {};
+  if (!Number.isSafeInteger(periodStartedAt) || Number(periodStartedAt) !== Date.parse(`${periodIdentity}T00:00:00+09:00`)) return {};
+  if (!Number.isSafeInteger(evaluatedAt) || Number(periodStartedAt) > Number(evaluatedAt)) return {};
+  if (lastIncrementAt !== null) {
+    if (!Number.isSafeInteger(lastIncrementAt) || Number(lastIncrementAt) < Number(periodStartedAt) || Number(lastIncrementAt) > Number(evaluatedAt)) return {};
+  }
+  return { periodIdentity, periodStartedAt: Number(periodStartedAt), lastIncrementAt: lastIncrementAt === null ? null : Number(lastIncrementAt) };
+}
+
 function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntimeLivenessSnapshot {
   const source = value as unknown as Record<string, unknown>;
   const timestamp = (key: string): number | null => {
@@ -250,10 +313,244 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawError = source.lastError;
   const lastError = rawError === null || rawError === undefined
     ? null
-    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError : "LIVENESS_ERROR_UNCLASSIFIED";
+    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError
+      : (typeof rawError === "string" ? publicLivenessErrorClass(rawError) : undefined) ?? "LIVENESS_ERROR_UNCLASSIFIED";
   const timestamps = Object.fromEntries(PUBLIC_LIVENESS_TIMESTAMPS.map((key) => [key, timestamp(key)]));
   const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
-  return Object.freeze({ ...timestamps, ...counters, lastError }) as unknown as CloudRuntimeLivenessSnapshot;
+  const rawPreviousStop = source.previousStop;
+  const previousStop = typeof rawPreviousStop === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawPreviousStop) ? rawPreviousStop : undefined;
+  const rawOutcome = source.lastPaperDecisionOutcome;
+  const lastPaperDecisionOutcome = typeof rawOutcome === "string" && PUBLIC_DECISION_OUTCOME_CODE.test(rawOutcome) ? rawOutcome : undefined;
+  // Optional stall measurement: published only as finite non-negative numbers, and only when the source supplies them.
+  const optionalNumber = (key: string): number | undefined => {
+    const raw = source[key];
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : undefined;
+  };
+  const maxStall = optionalNumber("eventLoopMaxStallMs");
+  const stallCount = optionalNumber("eventLoopStallCount");
+  const lastStallAt = source.lastEventLoopStallAt === null ? null : optionalNumber("lastEventLoopStallAt");
+  const stall = {
+    ...(maxStall === undefined ? {} : { eventLoopMaxStallMs: maxStall }),
+    ...(stallCount === undefined ? {} : { eventLoopStallCount: Math.trunc(stallCount) }),
+    ...(lastStallAt === undefined ? {} : { lastEventLoopStallAt: lastStallAt }),
+  };
+  // Research collection status: one of four fixed codes plus two counts, nothing else (no market, time or detail).
+  // Decision funnel: keys are fixed stage/status/reason codes and values are integers, at most 80 keys; anything else is dropped.
+  const FUNNEL_KEY = /^(OTHER|[A-Z][A-Z_]{1,23}:(PASS|SKIP|FAIL)(:[A-Z][A-Z0-9_]{1,47})?)$/;
+  const rawFunnel = source.paperFunnel as { since?: unknown; counts?: unknown } | null | undefined;
+  let funnel: { paperFunnel?: { since: number; counts: Record<string, number> } } = {};
+  if (rawFunnel != null && typeof rawFunnel === "object" && typeof rawFunnel.since === "number" && Number.isFinite(rawFunnel.since) && rawFunnel.since >= 0 && rawFunnel.counts != null && typeof rawFunnel.counts === "object" && !Array.isArray(rawFunnel.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawFunnel.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 80) break;
+      if (FUNNEL_KEY.test(key) && typeof value === "number" && Number.isSafeInteger(value) && value >= 0) counts[key] = value;
+    }
+    funnel = { paperFunnel: { since: rawFunnel.since, counts } };
+  }
+  // Loss-limit counts: exactly five non-negative integers (one of them a timestamp), or nothing; plus optional bounded period evidence.
+  const rawLoss = source.paperLossSession as Record<string, unknown> | null | undefined;
+  const LOSS_KEYS = ["evaluatedAt", "consecutiveLossCount", "maxConsecutiveLosses", "todayCompletedSells", "todayLosingSells"] as const;
+  const lossSession = rawLoss != null && typeof rawLoss === "object" && LOSS_KEYS.every((key) => Number.isSafeInteger(rawLoss[key]) && Number(rawLoss[key]) >= 0)
+    ? {
+        paperLossSession: {
+          ...Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])),
+          ...(typeof rawLoss.consecutiveLossLimitEnabled === "boolean" ? { consecutiveLossLimitEnabled: rawLoss.consecutiveLossLimitEnabled } : {}),
+          ...periodEvidence(rawLoss),
+        },
+      }
+    : {};
+  // Loss attribution: at most 8 fixed family codes, each with two non-negative integers.
+  const FAMILY_CODE = /^(SMA_CROSSOVER|RSI_MEAN_REVERSION|DONCHIAN_BREAKOUT|OTHER_FAMILY|UNATTRIBUTED)$/;
+  const rawAttribution = source.paperLossAttribution as { evaluatedAt?: unknown; byFamily?: unknown } | null | undefined;
+  let lossAttribution: { paperLossAttribution?: { evaluatedAt: number; byFamily: Record<string, { completedSells: number; losingSells: number }> } } = {};
+  if (rawAttribution != null && typeof rawAttribution === "object" && Number.isSafeInteger(rawAttribution.evaluatedAt) && Number(rawAttribution.evaluatedAt) >= 0 && rawAttribution.byFamily != null && typeof rawAttribution.byFamily === "object" && !Array.isArray(rawAttribution.byFamily)) {
+    const byFamily: Record<string, { completedSells: number; losingSells: number }> = {};
+    for (const [key, value] of Object.entries(rawAttribution.byFamily as Record<string, unknown>)) {
+      if (Object.keys(byFamily).length >= 8) break;
+      const entry = value as { completedSells?: unknown; losingSells?: unknown } | null;
+      if (FAMILY_CODE.test(key) && entry != null && typeof entry === "object" && Number.isSafeInteger(entry.completedSells) && Number.isSafeInteger(entry.losingSells) && Number(entry.losingSells) >= 0 && Number(entry.completedSells) >= Number(entry.losingSells)) {
+        byFamily[key] = { completedSells: Number(entry.completedSells), losingSells: Number(entry.losingSells) };
+      }
+    }
+    lossAttribution = { paperLossAttribution: { evaluatedAt: Number(rawAttribution.evaluatedAt), byFamily } };
+  }
+  // Research experiment ticks: a fixed status code, three integers and at most 40 code-keyed integer counts.
+  const publicTicks = (raw: Record<string, unknown> | null | undefined): { lastTickAt: number; lastStatus: string; ticks: number; sessionsStarted: number; counts: Record<string, number> } | undefined => {
+    if (raw == null || typeof raw !== "object" || typeof raw.lastStatus !== "string" || !["OK", "RECOVERY_NOT_READY", "ERROR"].includes(raw.lastStatus)
+      || !["lastTickAt", "ticks", "sessionsStarted"].every((key) => Number.isSafeInteger(raw[key]) && Number(raw[key]) >= 0)
+      || raw.counts == null || typeof raw.counts !== "object" || Array.isArray(raw.counts)) return undefined;
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(raw.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 40) break;
+      if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value) && Number(value) >= 0) counts[key] = Number(value);
+    }
+    return { lastTickAt: Number(raw.lastTickAt), lastStatus: raw.lastStatus, ticks: Number(raw.ticks), sessionsStarted: Number(raw.sessionsStarted), counts };
+  };
+  const ticksSummary = publicTicks(source.researchExperimentTicks as Record<string, unknown> | null | undefined);
+  const experimentTicks = ticksSummary === undefined ? {} : { researchExperimentTicks: ticksSummary };
+  // The same summary per research bar length; only the declared lengths are accepted as keys.
+  const rawByInterval = source.researchExperimentTicksByInterval as Record<string, unknown> | null | undefined;
+  let experimentTicksByInterval: { researchExperimentTicksByInterval?: Record<string, ReturnType<typeof publicTicks>> } = {};
+  if (rawByInterval != null && typeof rawByInterval === "object" && !Array.isArray(rawByInterval)) {
+    const byInterval: Record<string, ReturnType<typeof publicTicks>> = {};
+    for (const [key, value] of Object.entries(rawByInterval)) {
+      const summary = /^(1|15|60|240)m$/.test(key) ? publicTicks(value as Record<string, unknown> | null) : undefined;
+      if (summary !== undefined) byInterval[key] = summary;
+    }
+    if (Object.keys(byInterval).length > 0) experimentTicksByInterval = { researchExperimentTicksByInterval: byInterval };
+  }
+  // Closed-learning loop: integers for the counters and the tick time, fixed codes for the steps; nothing else.
+  const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
+  let closedLearningLoop: { closedLearningLoop?: Record<string, string | number | Record<string, string | number>> } = {};
+  const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason", "lastErrorClass"] as const;
+  if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
+    && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
+    const loop: Record<string, string | number | Record<string, string | number>> = {};
+    for (const key of LOOP_INTS) loop[key] = Number(rawLoop[key]);
+    for (const key of LOOP_CODES) { const value = rawLoop[key]; if (typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)) loop[key] = value; }
+    if ((loop.rollover === "BLOCKED" || loop.rollover === "ERROR") && typeof rawLoop.currentBlockedReason === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(rawLoop.currentBlockedReason)) loop.currentBlockedReason = rawLoop.currentBlockedReason;
+    const eligibleAt = rawLoop.nextEvaluationEligibleAt;
+    const cadence = rawLoop.evaluationPeriodMs;
+    if (cadence === 3_600_000 || cadence === 86_400_000) loop.evaluationPeriodMs = cadence;
+    const periodStart = (rawLoop.evidence as Record<string, unknown> | null)?.openPeriodStartAt;
+    const isHourlyBoundary = cadence === 3_600_000 && Number.isSafeInteger(periodStart) && Number(periodStart) >= 0 && Number(periodStart) <= Number(loop.lastTickAt) && Number(eligibleAt) === Number(periodStart) + cadence;
+    if (["WAITING_FOR_KST_DAY_ROLLOVER", "WAITING_FOR_EVALUATION_WINDOW"].includes(String(loop.rollover)) && Number.isSafeInteger(eligibleAt) && Number(eligibleAt) > Number(loop.lastTickAt)
+      && Number(eligibleAt) <= Number(loop.lastTickAt) + 86_400_000 && Number(eligibleAt) <= 8_640_000_000_000_000 && (isHourlyBoundary || Number(eligibleAt) % 86_400_000 === 54_000_000)) loop.nextEvaluationEligibleAt = Number(eligibleAt);
+    if (loop.lastBlockedReason !== undefined && Number.isSafeInteger(rawLoop.lastBlockedAt) && Number(rawLoop.lastBlockedAt) >= 0) loop.lastBlockedAt = Number(rawLoop.lastBlockedAt);
+    else delete loop.lastBlockedReason;
+    // Correlation identities: fixed keys only; identifiers, 64-hex fingerprints, KRW markets and integers.
+    const rawEvidence = rawLoop.evidence as Record<string, unknown> | null | undefined;
+    if (rawEvidence != null && typeof rawEvidence === "object" && !Array.isArray(rawEvidence)) {
+      const ID = /^[A-Za-z0-9_.:\/#@-]{1,160}$/;
+      const HEX = /^[a-f0-9]{64}$/;
+      const rules: Record<string, (value: unknown) => boolean> = {
+        openPeriodId: (v) => typeof v === "string" && ID.test(v), openMarket: (v) => typeof v === "string" && /^KRW-[A-Z0-9]{1,15}$/.test(v),
+        openCandidateId: (v) => typeof v === "string" && ID.test(v), realizedPeriodId: (v) => typeof v === "string" && ID.test(v),
+        cycleId: (v) => typeof v === "string" && ID.test(v), cycleEvidenceId: (v) => typeof v === "string" && ID.test(v),
+        decisionId: (v) => typeof v === "string" && ID.test(v), decisionReference: (v) => typeof v === "string" && ID.test(v),
+        decisionCandidateId: (v) => typeof v === "string" && ID.test(v), deploymentId: (v) => typeof v === "string" && ID.test(v),
+        realizedOutcomeFingerprint: (v) => typeof v === "string" && HEX.test(v), realizedCostEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        cycleEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        latestFailureId: (v) => typeof v === "string" && ID.test(v), latestFailurePeriodId: (v) => typeof v === "string" && ID.test(v),
+        latestFailureEvidenceId: (v) => typeof v === "string" && ID.test(v), latestFailureEvidenceFingerprint: (v) => typeof v === "string" && HEX.test(v),
+        latestFailureSourceCommitSha: (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v), latestFailureRuntimeSourceCommitSha: (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v),
+        latestFailureStage: (v) => typeof v === "string" && /^(IDENTITY|CYCLE|FINALIZE)$/.test(v), latestFailureCode: (v) => typeof v === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(v),
+        latestFailureRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, failuresRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        openPeriodStartAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0, openObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        openFilledObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0, realizedPeriods: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        baselineObservations: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        realizedPeriodEndAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        // Rule-replay parity: one period id, counts, and SIGNED basis points (returns can be negative); no amount or price.
+        replayPeriodId: (v) => typeof v === "string" && ID.test(v), replayBars: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        replayTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0, replayClosedNetBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) < 1_000_000,
+        replayOpenMarkBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) < 1_000_000, replayPaperNetBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) < 1_000_000,
+        cyclesRecorded: (v) => Number.isSafeInteger(v) && Number(v) >= 0, lastCycleRecordedAt: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        // Baseline shadow totals: counts and basis points as non-negative integers; no amount or price.
+        shadowSince: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        shadowWins: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowGrossGainBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        shadowGrossLossBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowFeeBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+      };
+      const evidence: Record<string, string | number> = {};
+      for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }
+      if (Object.keys(evidence).length > 0) loop.evidence = evidence;
+    }
+    // Meta-learning: integers, fixed dimension/combination codes and code lists only.
+    const rawMeta = rawLoop.metaLearning as Record<string, unknown> | null | undefined;
+    if (rawMeta != null && typeof rawMeta === "object" && !Array.isArray(rawMeta)) {
+      const ints = ["experiments", "configurations", "discoveryPasses", "holdoutPasses", "nextHoldoutBarMicros", "runtimeEntries", "liveForwardEntries", "longBarTickEvery"] as const;
+      const LIST = /^$|^[A-Za-z]+=[A-Z_]+(,[A-Za-z]+=[A-Z_]+)*$/;
+      const PREREQ = /^$|^COLLECT_[A-Z]+(,COLLECT_[A-Z]+)*$/;
+      const COMBO = /^[A-Z]+\+[A-Z]+\+[A-Z_]+\+[A-Z]+$/;
+      if (ints.every((key) => Number.isSafeInteger(rawMeta[key]) && Number(rawMeta[key]) >= 0)
+        && typeof rawMeta.validKnowledgePer100Configs === "number" && Number.isFinite(rawMeta.validKnowledgePer100Configs) && rawMeta.validKnowledgePer100Configs >= 0 && rawMeta.validKnowledgePer100Configs <= 100
+        && typeof rawMeta.exhausted === "string" && LIST.test(rawMeta.exhausted) && rawMeta.exhausted.length <= 400
+        && typeof rawMeta.recommendedPrerequisites === "string" && PREREQ.test(rawMeta.recommendedPrerequisites)
+        && (rawMeta.steeringMode === "NORMAL" || rawMeta.steeringMode === "DEPRIORITIZE_EXHAUSTED")) {
+        const meta: Record<string, string | number> = {};
+        for (const key of ints) meta[key] = Number(rawMeta[key]);
+        meta.validKnowledgePer100Configs = rawMeta.validKnowledgePer100Configs;
+        meta.exhausted = rawMeta.exhausted;
+        meta.recommendedPrerequisites = rawMeta.recommendedPrerequisites;
+        meta.steeringMode = rawMeta.steeringMode;
+        if (Number.isSafeInteger(rawMeta.paperPeriodsConsumed) && Number(rawMeta.paperPeriodsConsumed) >= 0) meta.paperPeriodsConsumed = Number(rawMeta.paperPeriodsConsumed);
+        for (const key of ["paperNetBp", "paperExcessBp"] as const) if (Number.isSafeInteger(rawMeta[key]) && Math.abs(Number(rawMeta[key])) <= 1_000_000) meta[key] = Number(rawMeta[key]);
+        if (typeof rawMeta.paperEvidenceFingerprint === "string" && /^[a-f0-9]{64}$/.test(rawMeta.paperEvidenceFingerprint)) meta.paperEvidenceFingerprint = rawMeta.paperEvidenceFingerprint;
+        if (Number.isSafeInteger(rawMeta.overfitRatePercent) && Number(rawMeta.overfitRatePercent) >= 0 && Number(rawMeta.overfitRatePercent) <= 100) meta.overfitRatePercent = Number(rawMeta.overfitRatePercent);
+        if (typeof rawMeta.recommended === "string" && COMBO.test(rawMeta.recommended)) meta.recommended = rawMeta.recommended;
+        loop.metaLearning = meta;
+      }
+    }
+    if (loop.bootstrap !== undefined && loop.rollover !== undefined) closedLearningLoop = { closedLearningLoop: loop };
+  }
+  // Microstructure recorder: non-negative integer counters and one timestamp only.
+  const rawMicro = source.microstructureRecorder as Record<string, unknown> | null | undefined;
+  let microstructure: { microstructureRecorder?: Record<string, number> } = {};
+  if (rawMicro != null && typeof rawMicro === "object" && ["orderBookSamples", "tradeTicks", "writeFailures"].every((key) => Number.isSafeInteger(rawMicro[key]) && Number(rawMicro[key]) >= 0)) {
+    microstructure = { microstructureRecorder: { orderBookSamples: Number(rawMicro.orderBookSamples), tradeTicks: Number(rawMicro.tradeTicks), writeFailures: Number(rawMicro.writeFailures), ...(Number.isSafeInteger(rawMicro.rejectedRows) && Number(rawMicro.rejectedRows) >= 0 ? { rejectedRows: Number(rawMicro.rejectedRows) } : {}), ...(Number.isSafeInteger(rawMicro.lastRecordedAt) && Number(rawMicro.lastRecordedAt) > 0 ? { lastRecordedAt: Number(rawMicro.lastRecordedAt) } : {}) } };
+  }
+  // All-KRW order-book collector: non-negative integer counters and one timestamp only.
+  const rawCollector = source.orderBookCollector as Record<string, unknown> | null | undefined;
+  let orderBookCollector: { orderBookCollector?: Record<string, number> } = {};
+  if (rawCollector != null && typeof rawCollector === "object" && ["rounds", "markets", "samplesStored", "failures"].every((key) => Number.isSafeInteger(rawCollector[key]) && Number(rawCollector[key]) >= 0)) {
+    orderBookCollector = { orderBookCollector: { rounds: Number(rawCollector.rounds), markets: Number(rawCollector.markets), samplesStored: Number(rawCollector.samplesStored), failures: Number(rawCollector.failures), ...(Number.isSafeInteger(rawCollector.rejected) && Number(rawCollector.rejected) >= 0 ? { rejected: Number(rawCollector.rejected) } : {}), ...(Number.isSafeInteger(rawCollector.lastRoundAt) && Number(rawCollector.lastRoundAt) > 0 ? { lastRoundAt: Number(rawCollector.lastRoundAt) } : {}) } };
+  }
+  // Public futures collector: non-negative integer counters and one timestamp only.
+  const rawFutures = source.futuresCollector as Record<string, unknown> | null | undefined;
+  let futuresCollector: { futuresCollector?: Record<string, number> } = {};
+  const futuresKeys = ["rounds", "marksStored", "fundingStored", "klinesStored", "failures", "rejected"];
+  if (rawFutures != null && typeof rawFutures === "object" && futuresKeys.every((key) => Number.isSafeInteger(rawFutures[key]) && Number(rawFutures[key]) >= 0)) {
+    futuresCollector = { futuresCollector: { ...Object.fromEntries(futuresKeys.map((key) => [key, Number(rawFutures[key])])), ...(Number.isSafeInteger(rawFutures.lastRoundAt) && Number(rawFutures.lastRoundAt) > 0 ? { lastRoundAt: Number(rawFutures.lastRoundAt) } : {}) } };
+  }
+  // Stored-data integrity probe: a fixed status plus non-negative integers only.
+  const rawIntegrity = source.dataIntegrity as Record<string, unknown> | null | undefined;
+  let dataIntegrity: { dataIntegrity?: Record<string, string | number> } = {};
+  if (rawIntegrity != null && typeof rawIntegrity === "object" && !Array.isArray(rawIntegrity) && (rawIntegrity.status === "PASS" || rawIntegrity.status === "WARN" || rawIntegrity.status === "FAIL")) {
+    const value: Record<string, string | number> = { status: rawIntegrity.status };
+    for (const [key, field] of Object.entries(rawIntegrity).slice(0, 40)) if (key !== "status" && /^[a-zA-Z0-9]{1,40}$/.test(key) && Number.isSafeInteger(field) && Number(field) >= 0) value[key] = Number(field);
+    dataIntegrity = { dataIntegrity: value };
+  }
+  const rawResearch = source.researchCollectionStatus;
+  const research = typeof rawResearch === "string" && ["COLLECTING", "DISABLED", "INVALID", "UNAVAILABLE"].includes(rawResearch)
+    ? {
+      researchCollectionStatus: rawResearch,
+      ...(optionalNumber("researchCandleCount") === undefined ? {} : { researchCandleCount: Math.trunc(optionalNumber("researchCandleCount") as number) }),
+      ...(optionalNumber("researchRequiredCandles") === undefined ? {} : { researchRequiredCandles: Math.trunc(optionalNumber("researchRequiredCandles") as number) }),
+    }
+    : {};
+  // Ledger identity: a 64-hex fingerprint and non-negative integers; no amount is ever published.
+  const rawLedger = source.paperLedger as Record<string, unknown> | null | undefined;
+  const nonNegative = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+  const paperLedger = rawLedger != null && typeof rawLedger === "object" && typeof rawLedger.ledgerFingerprintSha256 === "string" && /^[a-f0-9]{64}$/.test(rawLedger.ledgerFingerprintSha256)
+    && nonNegative(rawLedger.fillCount) && nonNegative(rawLedger.openPositionCount) && nonNegative(rawLedger.ledgerUpdatedAt) && (rawLedger.lastFillAt === undefined || nonNegative(rawLedger.lastFillAt))
+    ? { paperLedger: { ledgerFingerprintSha256: rawLedger.ledgerFingerprintSha256, fillCount: rawLedger.fillCount, openPositionCount: rawLedger.openPositionCount, ...(rawLedger.lastFillAt === undefined ? {} : { lastFillAt: rawLedger.lastFillAt }), ledgerUpdatedAt: rawLedger.ledgerUpdatedAt } }
+    : {};
+  // Build identity: only a full lowercase 40-hex commit is published, never other text.
+  const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
+  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...futuresCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
+}
+
+const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);
+function publicComponentHealth(value: ComponentHealthResult, componentId: "PAPER_PROCESS" | "PAPER_WORKLOAD"): ComponentHealthResult | null {
+  if (value == null || typeof value !== "object") return null;
+  const provenance = componentId === "PAPER_PROCESS" ? "cloud-runtime-heartbeat" : "cloud-paper-market-events";
+  const evidencePrefix = componentId === "PAPER_PROCESS" ? "heartbeat" : "market-event";
+  if (value.componentId !== componentId || !COMPONENT_HEALTH_STATES.includes(value.state)
+    || !PUBLIC_HEALTH_REASONS.has(value.reasonCode) || !Number.isSafeInteger(value.evaluatedAt)
+    || value.evaluatedAt < 0 || typeof value.fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(value.fingerprint)) return null;
+  if (value.observedAt !== undefined && (!Number.isSafeInteger(value.observedAt) || value.observedAt < 0 || value.observedAt > value.evaluatedAt)) return null;
+  if (value.provenance !== undefined && value.provenance !== provenance) return null;
+  if (value.evidenceId !== undefined && (typeof value.evidenceId !== "string" || !new RegExp(`^${evidencePrefix}:\\d+:\\d+(?::\\d+)?$`).test(value.evidenceId))) return null;
+  return Object.freeze({ componentId, state: value.state, reasonCode: value.reasonCode,
+    evaluatedAt: value.evaluatedAt, ...(value.observedAt === undefined ? {} : { observedAt: value.observedAt }),
+    ...(value.provenance === undefined ? {} : { provenance }),
+    ...(value.evidenceId === undefined ? {} : { evidenceId: value.evidenceId }), fingerprint: value.fingerprint });
+}
+function publicRuntimeHealth(value: ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined): ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined {
+  if (value == null || typeof value !== "object") return undefined;
+  const process = publicComponentHealth(value.process, "PAPER_PROCESS");
+  const workload = publicComponentHealth(value.workload, "PAPER_WORKLOAD");
+  return process === null || workload === null ? undefined : Object.freeze({ process, workload });
 }
 
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
@@ -276,6 +573,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   const desktopSessionService = options.desktopSessionService ?? (ownedUserDb == null ? undefined : new DesktopSessionService(ownedUserDb, userAccessRepository));
   const mobileSessionService = options.mobileSessionService ?? (ownedUserDb == null ? undefined : new MobileSessionService(ownedUserDb, userAccessRepository));
   const ownerDeviceCredentialService = options.ownerDeviceCredentialService ?? (ownedUserDb == null || mobileSessionService == null ? undefined : new OwnerDeviceCredentialService(ownedUserDb, userAccessRepository, mobileSessionService));
+  const anonymousObservation: AnonymousObservationScope | null = anonymousObservationEnabled() ? createAnonymousObservationScope() : null;
 
   const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
   if (ownerPrincipal != null) {
@@ -413,11 +711,13 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         // `runtime` appears only when a liveness source is wired, and carries the counters that
         // show whether the continuous PAPER loop is actually ticking.
         const liveness = options.runtimeLiveness?.();
+        const runtimeHealth = publicRuntimeHealth(options.runtimeHealth?.());
         respond("health", dashboardJsonResponse(200, {
           ok: true,
           observedAt: new Date().toISOString(),
           capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
-          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) })
+          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) }),
+          ...(runtimeHealth === undefined ? {} : { runtimeHealth })
         }));
         return;
       }
@@ -429,6 +729,18 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
 
       const body = req.method === "POST" || req.method === "PUT" ? await readRequestBody(req) : undefined;
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
+
+      const servedAnonymously = anonymousObservation != null && isAnonymousObservationRoute(req.url) && !hasAuthorizationHeader(dashboardRequest.headers);
+      const observationRequest: DashboardHttpRequest = servedAnonymously && anonymousObservation != null
+        ? Object.freeze({ ...dashboardRequest, headers: Object.freeze({ ...dashboardRequest.headers, authorization: `Bearer ${anonymousObservation.sentinel}` }) })
+        : dashboardRequest;
+      const observationTokenVerifier: DashboardTokenVerifier = Object.freeze({
+        ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
+        verify(token: string) {
+          if (servedAnonymously && anonymousObservation != null && token === anonymousObservation.sentinel) { requestPrincipal = anonymousObservation.principal; return anonymousObservation.principal; }
+          return requestTokenVerifier.verify(token);
+        }
+      });
 
       if (desktopSessionService != null && req.url === "/api/operator/desktop-bootstrap") {
         respond("desktop_bootstrap_issue", handleDesktopBootstrapIssueHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
@@ -557,13 +869,13 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         }));
         return;
       }
-      if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/shadow-operations") { respond("shadow_operations", handleShadowOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadShadowOperations ?? (() => { throw new Error("SHADOW operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/shadow-operations") { respond("shadow_operations", handleShadowOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadShadowOperations ?? (() => { throw new Error("SHADOW operations snapshot not configured"); }) })); return; }
       if (req.url === "/api/real-readonly-operations") { respond("real_readonly_operations", handleRealReadOnlyOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadRealReadOnlyOperations ?? (() => { throw new Error("REAL_READ_ONLY operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/live-readiness") { respond("live_readiness", handleLiveReadinessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadLiveReadiness ?? (() => { throw new Error("LIVE readiness source not configured"); }) })); return; }
-      if (req.url === "/api/engineering-operations") { respond("engineering_operations", handleEngineeringOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadEngineeringOperations ?? (() => { throw new Error("Engineering OS snapshot not configured"); }) })); return; }
-      if (req.url === "/api/evolution-learning") { respond("evolution_learning", handleEvolutionLearningSupervisorHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadEvolutionLearning ?? (() => { throw new Error("Evolution learning snapshot not configured"); }) })); return; }
-      if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadDashboard: options.loadDashboard })); return; }
+      if (req.url === "/api/live-readiness") { respond("live_readiness", handleLiveReadinessHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadLiveReadiness ?? (() => { throw new Error("LIVE readiness source not configured"); }) })); return; }
+      if (req.url === "/api/engineering-operations") { respond("engineering_operations", handleEngineeringOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadEngineeringOperations ?? (() => { throw new Error("Engineering OS snapshot not configured"); }) })); return; }
+      if (req.url === "/api/evolution-learning") { respond("evolution_learning", handleEvolutionLearningSupervisorHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadEvolutionLearning ?? (() => { throw new Error("Evolution learning snapshot not configured"); }) })); return; }
+      if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadDashboard: options.loadDashboard })); return; }
       if (req.url === "/api/operator/users") { respond("operator_users", handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, repository: userAccessRepository })); return; }
       if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {
         let payload: unknown = null;

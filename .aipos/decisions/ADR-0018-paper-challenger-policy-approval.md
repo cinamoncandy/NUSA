@@ -48,3 +48,18 @@ of it existed. Consequences on latest main:
 - HUMAN approval remains valid through the same port for any future owner-command path.
 - Reverting is setting the switch off; already-bound challengers keep their immutable binding and
   are replaced or revoked only through the existing PAPER binding machinery.
+
+## Amendment 2026-09-28: on by default
+
+The owner's standing rule is that everything runs automatically and the only owner decision is
+LIVE approval. With the switch off by default, no Research-qualified candidate ever reached PAPER
+on the production host, so PAPER observed the market without producing new challengers. On
+2026-09-28 the owner chose to enable the policy by default.
+
+- `paperChallengerPolicyEnabled` returns true when the variable is absent or exactly `ENABLED`.
+- Exactly `DISABLED` is the operator off switch. Any other value fails closed (off), so a typo
+  never grants approval.
+- A host whose `NUSA_MODE` is set to anything other than `PAPER` never gets policy approval.
+- Nothing else changes: approval still requires the stored qualified Research artifact, PAPER-only
+  authority, matching identity and valid lineage. CHAMPION promotion, capital allocation and LIVE
+  keep their existing owners; AI authority stays ZERO.

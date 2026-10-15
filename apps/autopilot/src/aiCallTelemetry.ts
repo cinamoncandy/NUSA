@@ -3,7 +3,7 @@
  * split, retry counts, context size) rest on observed usage instead of guesses. Numbers only: the
  * prompt and response bodies are never logged.
  */
-export type AiCaller = "C1_CODING" | "C2_AUDIT";
+export type AiCaller = "C1_CODING" | "C2_AUDIT" | "C3_JEV";
 
 export interface AiCallUsage {
   readonly promptTokens: number | null;

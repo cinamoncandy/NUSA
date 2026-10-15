@@ -21,7 +21,7 @@ function run(): ResearchRunLeagueResult {
       runFingerprintSha256: fingerprint,
       sourceCommitSha: H40,
       costModelVersion: "cost-v1",
-      dataset: { datasetId: "dataset-a", contentSha256: H64, source: "fixture", market: "KRW-BTC", interval: "1d", startOpenTime: 1, endCloseTime: 2 },
+      dataset: { datasetId: "dataset-a", contentSha256: H64, source: "fixture", market: "KRW-BTC", interval: "1d", candleCount: 2, startOpenTime: 1, endCloseTime: 2 },
       candidateBindings: ids.map((candidateId) => ({ candidateId, familyId: "trend", lineageId: "trend-v1", specificationHash: "d".repeat(64), datasetId: "dataset-a", datasetContentSha256: H64, parameters: { p: 1 } })),
       benchmarkIdentity: { kind: "BUY_AND_HOLD", evidenceSha256: "e".repeat(64) },
       evidenceIdentity: { dsrSha256: "f".repeat(64), regimeSha256: "1".repeat(64), oosObservationSha256: "2".repeat(64) },

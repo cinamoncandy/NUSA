@@ -1,5 +1,7 @@
 "use strict";
 
+const { canonicalCostStressResultSha256 } = require("../../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
+
 /**
  * Projects the existing execution-cost stress engine's evidence into the compact JSON shape
  * emitted by the canonical real-market research run. It performs no stress calculation and
@@ -35,15 +37,18 @@ function projectExecutionCostStress(stress) {
       closedTradeProfitFactor: scenarioResult.closedTradeProfitFactor ?? null,
       totalTradingCost: scenarioResult.totalTradingCost,
       benchmarkOutperformance: scenarioResult.benchmarkOutperformance,
+      totalOosClosedTrades: scenarioResult.walkForwardResult?.combinedOutOfSampleMetrics?.totalOosClosedTrades,
       warnings: scenarioResult.warnings
     };
   };
 
+  const scenarios = stress.scenarios.map(projectScenario);
+  const baseline = projectScenario(stress.baseline);
   return {
     selectionMode: stress.selectionMode,
-    identity: stress.identity,
-    baseline: projectScenario(stress.baseline),
-    scenarios: stress.scenarios.map(projectScenario),
+    identity: { ...stress.identity, resultSha256: canonicalCostStressResultSha256(scenarios, stress.identity.selectionMode ?? stress.selectionMode) },
+    baseline,
+    scenarios,
     degradation: stress.degradation,
     breakEvenEstimate: stress.breakEvenEstimate,
     robustnessScore: stress.robustnessScore,

@@ -10,6 +10,16 @@ const pollMs = Number(process.env.NUSA_AUTOPILOT_READY_POLL_MS || 500);
 const intervalMs = Number(process.env.NUSA_AUTOPILOT_INTERVAL_MS || 60_000);
 const maxAgeMs = Math.max(5_000, Math.min(300_000, intervalMs * 2));
 
+function blockedFailureCode(state) {
+  if (state.lastResult?.status !== "BLOCKED") return "REASON_UNAVAILABLE";
+  const reason = state.lastResult.reason;
+  if (typeof reason !== "string") return "REASON_UNAVAILABLE";
+  if (/^AUTOPILOT_TICK_HTTP_[345][0-9]{2}$/.test(reason)) return reason;
+  if (["AUTOPILOT_TICK_STATUS_UNSUPPORTED", "AUTOPILOT_TICK_RESPONSE_INVALID", "AUTOPILOT_RUNTIME_ENDPOINT_OR_TOKEN_REQUIRED", "AUTOPILOT_TICK_FAILED"].includes(reason)) return reason;
+  if (reason === "fetch failed") return "AUTOPILOT_TICK_FETCH_FAILED";
+  return "REASON_UNAVAILABLE";
+}
+
 function readState() {
   const parsed = JSON.parse(fs.readFileSync(statePath, "utf8"));
   const validation = validateState(parsed);
@@ -18,7 +28,8 @@ function readState() {
   if (parsed.liveAuthority !== SAFETY.liveAuthority || parsed.productionMutationAllowed !== false || parsed.aiAuthority !== SAFETY.aiAuthority) {
     throw new Error("AUTOPILOT_SAFETY_INVARIANT_INVALID");
   }
-  if (parsed.status === "BLOCKED" || parsed.status === "STOPPED") throw new Error(`AUTOPILOT_NOT_READY:${parsed.status}`);
+  if (parsed.status === "BLOCKED") throw new Error(`AUTOPILOT_NOT_READY:BLOCKED:${blockedFailureCode(parsed)}`);
+  if (parsed.status === "STOPPED") throw new Error("AUTOPILOT_NOT_READY:STOPPED");
   if (!Number.isSafeInteger(parsed.lastHeartbeatAt) || Date.now() - parsed.lastHeartbeatAt > maxAgeMs) throw new Error("AUTOPILOT_HEARTBEAT_STALE");
   return parsed;
 }
@@ -48,4 +59,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { maxAgeMs, readState, statePath };
+module.exports = { blockedFailureCode, maxAgeMs, readState, statePath };

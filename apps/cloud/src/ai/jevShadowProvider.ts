@@ -28,6 +28,8 @@ const namedError = (name: string, message: string): Error => {
   return error;
 };
 
+export type JevProviderMode = "SHADOW" | "BOUNDED_ROUTING";
+
 export class JevShadowProvider {
   #apiKey: string;
   private readonly endpoint: string;
@@ -43,7 +45,7 @@ export class JevShadowProvider {
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 100 || this.timeoutMs > 10_000) throw new Error("Jev provider timeout invalid");
   }
 
-  public async classify(input: Readonly<Record<string, unknown>>): Promise<JevShadowDecision> {
+  private async request(input: Readonly<Record<string, unknown>>, mode: JevProviderMode): Promise<JevShadowDecision> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let response: JevHttpResponse;
@@ -51,7 +53,7 @@ export class JevShadowProvider {
       response = await this.fetchImpl(this.endpoint, {
         method: "POST",
         headers: Object.freeze({ Authorization: `Bearer ${this.#apiKey}`, "Content-Type": "application/json" }),
-        body: JSON.stringify({ input, authority: "ZERO_AUTHORITY", mode: "SHADOW" }),
+        body: JSON.stringify({ input, authority: "ZERO_AUTHORITY", mode }),
         signal: controller.signal
       });
     } catch (error) {
@@ -65,6 +67,14 @@ export class JevShadowProvider {
     try { parsed = JSON.parse(await response.text()) as unknown; }
     catch { throw namedError("MalformedJevResponseError", "Jev provider response malformed"); }
     return parsed as JevShadowDecision;
+  }
+
+  public classify(input: Readonly<Record<string, unknown>>): Promise<JevShadowDecision> {
+    return this.request(input, "SHADOW");
+  }
+
+  public classifyBounded(input: Readonly<Record<string, unknown>>): Promise<JevShadowDecision> {
+    return this.request(input, "BOUNDED_ROUTING");
   }
 }
 

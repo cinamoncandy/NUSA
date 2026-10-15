@@ -1,4 +1,11 @@
+import { assessCodingRunnerReadiness, isZeroCreditModeEnforced, type CodingRunnerReadinessBlocker } from "./codingRunnerReadiness";
 import { logAiCall } from "./aiCallTelemetry";
+import { selectJevCodingModel } from "./jevCodingModelTier";
+import {
+  decideJevBoundedCodingAdmission,
+  isJevBoundedCodingAdmissionCandidate,
+  type JevCodingFailureEvidence,
+} from "./jevBoundedCodingAdmission";
 export interface CodingProposalContext {
   readonly path: string;
   readonly startLine: number;
@@ -21,6 +28,8 @@ export interface CodingRunnerRequest {
   readonly proposalContext?: CodingProposalContext;
   readonly executionId: string;
   readonly dedupeKey: string;
+  /** Immutable parent CodingExecutionEnvelope fingerprint when present. */
+  readonly contractFingerprintSha256?: string;
   readonly mutationAllowed: false;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -32,6 +41,17 @@ export interface CodingRunnerEnv {
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
+  NUSA_AUTOPILOT_ZERO_CREDIT_MODE?: string;
+  NUSA_JEV_SHADOW_ENABLED?: string;
+  NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
+  NUSA_JEV_MODEL_TIERING_ENABLED?: string;
+  NUSA_AI_CODING_MODEL_LUNA?: string;
+  NUSA_AI_CODING_MODEL_TERRA?: string;
+  NUSA_AI_CODING_MODEL_SOL?: string;
+  NUSA_AI_CODING_MODEL_ASTRA?: string;
+  NUSA_JEV_API_KEY?: string;
+  NUSA_JEV_ENDPOINT?: string;
+  NUSA_JEV_TIMEOUT_MS?: string;
   NUSA_GITHUB_REPOSITORY?: string;
   NUSA_GITHUB_TOKEN?: string;
   AI?: WorkersAiBinding;
@@ -103,6 +123,27 @@ export interface CodingRunnerFailureEvidence {
   readonly headSha: string;
 }
 
+interface VerifiedCodingWorkflowEvidence {
+  readonly workflowRunId: number;
+  readonly workflowId?: number;
+  readonly workflowPath?: string;
+  readonly workflowName: string | null;
+  readonly workflowEvent: string | null;
+  readonly workflowStatus: "completed";
+  readonly workflowConclusion: string;
+  readonly headSha: string;
+}
+
+export class CodingRunnerHttpEvidenceError extends Error {
+  readonly httpStatus: number;
+
+  constructor(message: string, httpStatus: number) {
+    super(message);
+    this.name = "CodingRunnerHttpEvidenceError";
+    this.httpStatus = httpStatus;
+  }
+}
+
 export class CodingRunnerEvidenceError extends Error {
   readonly evidence: CodingRunnerFailureEvidence;
 
@@ -116,6 +157,8 @@ export class CodingRunnerEvidenceError extends Error {
 export interface CodingRunnerExecutionOptions {
   readonly maxProposalAttempts?: number;
   readonly now?: () => number;
+  /** Test/runtime adapter for the bounded Jev admission call. Production normally uses the configured Jev provider. */
+  readonly jevAdmissionClassify?: (input: Readonly<Record<string, unknown>>) => Promise<unknown>;
   /**
    * Consulted immediately before every Workers AI call, after GitHub evidence verification. Returns
    * the provider's recorded retry time when it is still inside its wait window, or null when a call
@@ -123,7 +166,13 @@ export interface CodingRunnerExecutionOptions {
    * still verifying evidence when another execution recorded a provider stop does not then spend a
    * call inside that window. It does not serialize calls already in flight when a stop lands.
    */
-  readonly providerWaitUntil?: () => Promise<number | null>;
+  readonly providerWaitUntil?: (provider: string) => Promise<number | null>;
+  /**
+   * Reserve one paid overflow call against the owner-imposed daily cap. Returning false means the
+   * cap is reached; the reservation is atomic, so two concurrent executions cannot both spend the
+   * last call. Absent (or no cap configured) leaves spending bounded only by the purchased balance.
+   */
+  readonly reserveOverflowCall?: (provider: string) => Promise<boolean>;
 }
 
 export interface CodingRunnerResult {
@@ -149,6 +198,12 @@ export interface CodingRunnerResult {
   readonly resumeCondition?: string;
   readonly fallbackProvider?: "github-models";
   readonly fallbackFailureReason?: string;
+  readonly jevAdmissionAction?: "PROCEED_EXISTING" | "ABSTAIN_EXPENSIVE_INFERENCE";
+  readonly jevAdmissionReason?: string;
+  readonly jevRequiredModel?: string | null;
+  readonly jevConfidence?: number;
+  /** What the runner lacks to execute, named; present on INTERFACE_READY results only. */
+  readonly readinessBlockers?: readonly CodingRunnerReadinessBlocker[];
 }
 
 interface HttpResponse {
@@ -168,6 +223,8 @@ const GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference/chat/completi
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_EDIT_TEXT_BYTES = 8_000;
+/** Autopilot takes light work only: at most this many added plus removed lines per proposal (docs/AUTOPILOT_LIGHT_TASK_GATE_DESIGN.md). */
+export const MAX_CODING_CHANGED_LINES = 150;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const MAX_CODING_PROPOSAL_CONTEXT_BYTES = 20_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 60_000;
@@ -250,6 +307,7 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
   if (typeof request.headSha !== "string" || !SHA40.test(request.headSha)) throw new Error("CODING_RUNNER_HEAD_SHA_INVALID");
   if (typeof request.executionId !== "string" || !EXECUTION_ID.test(request.executionId)) throw new Error("CODING_RUNNER_EXECUTION_ID_INVALID");
   if (typeof request.dedupeKey !== "string" || !DEDUPE_KEY.test(request.dedupeKey)) throw new Error("CODING_RUNNER_DEDUPE_KEY_INVALID");
+  if (request.contractFingerprintSha256 !== undefined && (typeof request.contractFingerprintSha256 !== "string" || !/^[a-f0-9]{64}$/i.test(request.contractFingerprintSha256))) throw new Error("CODING_RUNNER_CONTRACT_FINGERPRINT_INVALID");
   if (request.liveAuthority !== "NONE") throw new Error("CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN");
   if (request.productionMutationAllowed !== false || request.mutationAllowed !== false) throw new Error("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
   if (request.aiAuthority !== "ZERO_AUTHORITY") throw new Error("CODING_RUNNER_AI_AUTHORITY_INVALID");
@@ -328,7 +386,17 @@ function validateCodingEdit(value: unknown): CodingEdit {
   return Object.freeze({ path, expectedText, replacementText });
 }
 
-function validateCodingProposal(value: unknown): CodingProposal {
+/** Counts added and removed lines of a unified diff, excluding the file headers. */
+export function countChangedPatchLines(patch: string): number {
+  let count = 0;
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
+    if (line.startsWith("+") || line.startsWith("-")) count += 1;
+  }
+  return count;
+}
+
+export function validateCodingProposal(value: unknown): CodingProposal {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("CODING_PROPOSAL_INVALID");
   const proposal = value as Record<string, unknown>;
   const hasPatch = Object.prototype.hasOwnProperty.call(proposal, "patch") && proposal.patch !== undefined && proposal.patch !== null;
@@ -340,6 +408,7 @@ function validateCodingProposal(value: unknown): CodingProposal {
   }
   if (typeof proposal.patch !== "string") throw new Error("CODING_PROPOSAL_INVALID");
   if (new TextEncoder().encode(proposal.patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (countChangedPatchLines(proposal.patch) > MAX_CODING_CHANGED_LINES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
   if (/liveAuthority|productionMutationAllowed|aiAuthority|NUSA_|wrangler|\.github\//i.test(proposal.patch)) {
     throw new Error("CODING_PROPOSAL_AUTHORITY_SURFACE_FORBIDDEN");
   }
@@ -400,6 +469,7 @@ export function buildDeterministicCodingPatch(context: CodingProposalContext, ed
     "",
   ].join("\n");
   if (new TextEncoder().encode(patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (countChangedPatchLines(patch) > MAX_CODING_CHANGED_LINES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
   return patch;
 }
 
@@ -554,25 +624,45 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   request: CodingRunnerRequest,
   githubToken: string | undefined,
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
-): Promise<void> {
+): Promise<VerifiedCodingWorkflowEvidence> {
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
 
   const commitResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}`, githubToken, fetchImpl);
-  if (commitResponse.status !== 200) throw new Error("CODING_RUNNER_HEAD_SHA_UNVERIFIED");
+  if (commitResponse.status !== 200) throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_HEAD_SHA_UNVERIFIED", commitResponse.status);
   const commit = object(await commitResponse.json());
   if (typeof commit.sha !== "string" || commit.sha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_RUNNER_HEAD_SHA_MISMATCH");
 
   const runResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}`, githubToken, fetchImpl);
-  if (runResponse.status !== 200) throw new Error("CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED");
+  if (runResponse.status !== 200) throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED", runResponse.status);
   const run = object(await runResponse.json());
   const runRepository = object(run.repository);
   if (run.id !== request.workflowRunId) throw new Error("CODING_RUNNER_WORKFLOW_RUN_ID_MISMATCH");
   if (typeof run.head_sha !== "string" || run.head_sha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_RUNNER_WORKFLOW_HEAD_MISMATCH");
   if (runRepository.full_name !== request.repository) throw new Error("CODING_RUNNER_WORKFLOW_REPOSITORY_MISMATCH");
   if (run.status !== "completed") throw new Error("CODING_RUNNER_WORKFLOW_NOT_COMPLETED");
-  const failureRepair = request.reason.includes("gha:");
-  const allowedConclusions = failureRepair ? ["failure", "cancelled", "timed_out"] : ["success"];
-  if (typeof run.conclusion !== "string" || !allowedConclusions.includes(run.conclusion)) {
+
+  // Two canonical failure-reason identities: `gha:<runId>:<sha>:<conclusion>` (planner) and the evolve discovery
+  // observation `gha:<workflow>:<sha>:<conclusion>`, which carries no run id. The cited run id is bound by the GitHub
+  // fetch above (id, head sha, repository). For the named form the commit and the failed conclusion must match that
+  // verified run; the workflow label is not compared, because discovery normalizes it and may select a different
+  // failing workflow of the same commit than the cited run, and the label carries no authority.
+  const numericReason = request.reason.match(/(?:^|:)gha:(?:[^:]+:)?(\d+):([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i);
+  const namedReason = numericReason === null
+    ? request.reason.match(/(?:^|:)gha:([A-Za-z][A-Za-z0-9_-]{0,63}):([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i)
+    : null;
+  const failureReason = numericReason ?? namedReason;
+  const failureRepair = failureReason !== null;
+  if (numericReason
+    && (Number(numericReason[1]) !== request.workflowRunId
+      || numericReason[2].toLowerCase() !== request.headSha.toLowerCase())) {
+    throw new Error("CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH");
+  }
+  if (namedReason && namedReason[2].toLowerCase() !== request.headSha.toLowerCase()) {
+    throw new Error("CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH");
+  }
+  const allowedConclusions = failureRepair ? ["failure"] : ["success"];
+  if (typeof run.conclusion !== "string" || !allowedConclusions.includes(run.conclusion)
+    || (failureReason && run.conclusion !== failureReason[3].toLowerCase())) {
     const code = failureRepair ? "CODING_RUNNER_FAILURE_EVIDENCE_INVALID" : "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL";
     throw new CodingRunnerEvidenceError(code, {
       code,
@@ -584,7 +674,164 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
       headSha: request.headSha.toLowerCase(),
     });
   }
+  if (failureRepair) {
+    try {
+      assertCodingRemediationWorkflowIdentity(run, namedReason);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "WORKFLOW_NOT_ELIGIBLE";
+      throw new CodingRunnerEvidenceError(code, {
+        code,
+        workflowRunId: request.workflowRunId,
+        workflowName: typeof run.name === "string" ? run.name : null,
+        workflowEvent: typeof run.event === "string" ? run.event : null,
+        workflowStatus: "completed",
+        workflowConclusion: run.conclusion,
+        headSha: request.headSha.toLowerCase(),
+      });
+    }
+    const mainResponse = await githubEvidenceGet(
+      `${GITHUB_API_ORIGIN}/repos/${repository}/branches/main`,
+      githubToken,
+      fetchImpl,
+    );
+    if (mainResponse.status !== 200) {
+      throw new CodingRunnerHttpEvidenceError("CODING_RUNNER_MAIN_SHA_UNVERIFIED", mainResponse.status);
+    }
+    const mainPayload = object(await mainResponse.json());
+    const mainCommit = object(mainPayload.commit);
+    if (typeof mainCommit.sha !== "string" || mainCommit.sha.toLowerCase() !== request.headSha.toLowerCase()) {
+      throw new Error("CODING_RUNNER_WORKFLOW_HEAD_STALE");
+    }
+  }
   if (typeof run.head_branch !== "string" || !run.head_branch.trim()) throw new Error("CODING_RUNNER_WORKFLOW_BRANCH_INVALID");
+  return Object.freeze({
+    workflowRunId: request.workflowRunId,
+    ...(Number.isSafeInteger(run.workflow_id) ? { workflowId: Number(run.workflow_id) } : {}),
+    ...(typeof run.path === "string" ? { workflowPath: run.path } : {}),
+    workflowName: typeof run.name === "string" ? run.name : null,
+    workflowEvent: typeof run.event === "string" ? run.event : null,
+    workflowStatus: "completed",
+    workflowConclusion: run.conclusion,
+    headSha: request.headSha.toLowerCase(),
+  });
+}
+
+const SAFE_FAILURE_LABEL = /^[A-Za-z0-9_.:/ ()\[\]-]{1,128}$/;
+const SENSITIVE_FAILURE_LABEL = /bearer\s+[A-Za-z0-9._~+\/-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9-]{16,}\b|\bAKIA[0-9A-Z]{16}\b/i;
+const FAILURE_CONCLUSIONS = new Set(["failure", "cancelled", "timed_out"]);
+
+const CODING_REMEDIATION_WORKFLOW_ALLOWLIST = new Map([
+  [311000286, Object.freeze({ name: "CI", path: ".github/workflows/ci.yml" })],
+]);
+const CODING_REMEDIATION_EVENTS = new Set(["push", "workflow_dispatch"]);
+const CODING_REMEDIATION_FAILURE_STEPS = new Set(["Typecheck", "Build", "Lint"]);
+
+function normalizeWorkflowLabel(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function workflowFailureStopCode(run: Record<string, unknown>): string {
+  const workflowPath = typeof run.path === "string" ? run.path.toLowerCase() : "";
+  if (workflowPath.includes("audit")) return "AUDIT_BLOCKED";
+  if (workflowPath.includes("release")) return "RELEASE_BLOCKED";
+  if (/deploy|promot|runtime-proof|deployment/.test(workflowPath)) return "DEPLOYMENT_FAILURE";
+  if (/credential|permission|authority/.test(workflowPath)) return "PERMISSION_FAILURE";
+  return "WORKFLOW_NOT_ELIGIBLE";
+}
+
+function assertCodingRemediationWorkflowIdentity(
+  run: Record<string, unknown>,
+  failureReason: RegExpMatchArray | null,
+): void {
+  if (!Number.isSafeInteger(run.workflow_id)
+    || typeof run.path !== "string" || !run.path.trim()
+    || typeof run.name !== "string" || !run.name.trim()
+    || typeof run.event !== "string" || !run.event.trim()) {
+    throw new Error("WORKFLOW_IDENTITY_MISSING");
+  }
+  const allowlisted = CODING_REMEDIATION_WORKFLOW_ALLOWLIST.get(Number(run.workflow_id));
+  if (!allowlisted) throw new Error(workflowFailureStopCode(run));
+  if (run.path !== allowlisted.path || run.name !== allowlisted.name
+    || !CODING_REMEDIATION_EVENTS.has(run.event) || run.head_branch !== "main") {
+    throw new Error("WORKFLOW_IDENTITY_MISMATCH");
+  }
+  if (failureReason
+    && normalizeWorkflowLabel(failureReason[1]) !== normalizeWorkflowLabel(allowlisted.name)) {
+    throw new Error("WORKFLOW_IDENTITY_MISMATCH");
+  }
+}
+
+function safeFailureLabel(value: unknown): string | null {
+  return typeof value === "string"
+    && SAFE_FAILURE_LABEL.test(value)
+    && !SENSITIVE_FAILURE_LABEL.test(value)
+    ? value
+    : null;
+}
+
+async function verifiedJevCodingFailureEvidence(
+  request: CodingRunnerRequest,
+  verified: VerifiedCodingWorkflowEvidence,
+  githubToken: string | undefined,
+  fetchImpl: FetchImpl,
+): Promise<JevCodingFailureEvidence | null> {
+  if (!FAILURE_CONCLUSIONS.has(verified.workflowConclusion)) return null;
+  const repository = request.repository.split("/").map(encodeURIComponent).join("/");
+  const jobsResponse = await githubEvidenceGet(
+    `${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}/jobs?per_page=100`,
+    githubToken,
+    fetchImpl,
+  );
+  if (jobsResponse.status !== 200) throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
+  let payload: Record<string, unknown>;
+  try {
+    payload = object(await jobsResponse.json());
+  } catch {
+    throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
+  }
+  if (!Array.isArray(payload.jobs) || (Number.isSafeInteger(payload.total_count) && Number(payload.total_count) > 100)) {
+    throw new Error("ACTIONABLE_FAILURE_EVIDENCE_UNVERIFIED");
+  }
+
+  const failedJobs: string[] = [];
+  const failedSteps: string[] = [];
+  let unclassifiedFailedStep = false;
+  for (const rawJob of payload.jobs.slice(0, 100)) {
+    if (!rawJob || typeof rawJob !== "object" || Array.isArray(rawJob)) continue;
+    const job = rawJob as Record<string, unknown>;
+    if (Number.isSafeInteger(job.run_id) && job.run_id !== request.workflowRunId) continue;
+    const conclusion = typeof job.conclusion === "string" ? job.conclusion : "";
+    const jobName = safeFailureLabel(job.name);
+    if (FAILURE_CONCLUSIONS.has(conclusion) && jobName) {
+      failedJobs.push(jobName);
+    }
+    if (!Array.isArray(job.steps)) continue;
+    for (const rawStep of job.steps) {
+      if (!rawStep || typeof rawStep !== "object" || Array.isArray(rawStep)) continue;
+      const step = rawStep as Record<string, unknown>;
+      const stepConclusion = typeof step.conclusion === "string" ? step.conclusion : "";
+      const stepName = safeFailureLabel(step.name);
+      if (FAILURE_CONCLUSIONS.has(stepConclusion)) {
+        if (!stepName) unclassifiedFailedStep = true;
+        else if (failedSteps.length < 16) failedSteps.push(stepName);
+        else unclassifiedFailedStep = true;
+      }
+    }
+  }
+  if (failedSteps.length === 0
+    || unclassifiedFailedStep
+    || failedSteps.some((step) => !CODING_REMEDIATION_FAILURE_STEPS.has(step))) {
+    throw new Error("ACTIONABLE_FAILURE_NOT_ALLOWLISTED");
+  }
+  return Object.freeze({
+    workflowRunId: request.workflowRunId,
+    headSha: request.headSha.toLowerCase(),
+    workflowName: verified.workflowName,
+    workflowEvent: verified.workflowEvent,
+    workflowConclusion: verified.workflowConclusion as "failure" | "cancelled" | "timed_out",
+    failedJobs: Object.freeze(failedJobs.slice(0, 8)),
+    failedSteps: Object.freeze(failedSteps.slice(0, 16)),
+  });
 }
 
 function codingEngineRequest(request: CodingRunnerRequest, token: string, structured = false): RequestInit {
@@ -690,6 +937,64 @@ function githubModelsCodingRequest(request: CodingRunnerRequest, token: string, 
   };
 }
 
+/**
+ * Capacity/credit boundary of the GitHub Models overflow provider.
+ *
+ * githubModelsProposal throws GITHUB_MODELS_CODING_HTTP_<status> for every non-ok answer, and the
+ * remediation classifier only treats 5xx as transient. A 402 (billing/quota exhausted) or 429
+ * (backpressure) therefore recorded no stop of its own, so the overflow was re-attempted on every
+ * later dispatch — spending into a boundary that had already been reported. Mapping them to a real
+ * provider stop is what makes the free-first -> overflow routing stop at the credit boundary
+ * instead of hammering it: 429 clears on a minute scale, an exhausted balance does not, so it
+ * holds until the next UTC day.
+ */
+function githubModelsProviderStop(error: unknown, now: number): { readonly stopReason: string; readonly nextRetryAt: number; readonly resumeCondition: string } | null {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const status = /^GITHUB_MODELS_CODING_HTTP_(\d{3})$/.exec(message)?.[1];
+  if (status === "402") {
+    const retryAfterMs = msUntilNextUtcDay(now);
+    return Object.freeze({
+      stopReason: "GITHUB_MODELS_CREDITS_EXHAUSTED",
+      nextRetryAt: now + retryAfterMs,
+      resumeCondition: "paid-credit-topup-or-next-utc-day-and-exact-head-revalidation",
+    });
+  }
+  if (status === "429") {
+    return Object.freeze({
+      stopReason: "GITHUB_MODELS_RATE_LIMITED",
+      nextRetryAt: now + MAX_RATE_LIMIT_BACKOFF_MS,
+      resumeCondition: "provider-capacity-and-exact-head-revalidation",
+    });
+  }
+  return null;
+}
+
+/**
+ * Owner-imposed daily ceiling on paid overflow calls, enforced before the call is made.
+ *
+ * Reaching the cap is not a provider failure, so it reuses the provider boundary this module
+ * already records and honours: the overflow stops for the rest of the UTC day exactly as an
+ * exhausted balance does, which means the existing pre-checks, degradation and HARD_STOP
+ * classification apply unchanged. A reservation failure (coordinator unreachable) withholds the
+ * spend rather than granting it.
+ */
+async function paidOverflowCapReached(options: { readonly reserveOverflowCall?: (provider: string) => Promise<boolean> }): Promise<boolean> {
+  if (!options.reserveOverflowCall) return false;
+  try {
+    return !(await options.reserveOverflowCall("github-models"));
+  } catch {
+    return true;
+  }
+}
+
+function paidOverflowCapStop(now: number): { readonly stopReason: string; readonly nextRetryAt: number; readonly resumeCondition: string } {
+  return Object.freeze({
+    stopReason: "GITHUB_MODELS_DAILY_CAP_REACHED",
+    nextRetryAt: now + msUntilNextUtcDay(now),
+    resumeCondition: "owner-daily-overflow-cap-reset-and-exact-head-revalidation",
+  });
+}
+
 async function githubModelsProposal(request: CodingRunnerRequest, token: string, fetchImpl: FetchImpl, prompt: string): Promise<CodingProposal> {
   const response = await fetchImpl(GITHUB_MODELS_ENDPOINT, githubModelsCodingRequest(request, token, prompt));
   if (!response.ok) throw new Error(`GITHUB_MODELS_CODING_HTTP_${response.status}`);
@@ -773,7 +1078,30 @@ export async function executeCodingRunner(
   publisher?: CodingPublisher,
   options: CodingRunnerExecutionOptions = {},
 ): Promise<CodingRunnerResult> {
-  await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
+  const verifiedWorkflow = await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
+  const zeroCreditMode = isZeroCreditModeEnforced(env.NUSA_AUTOPILOT_ZERO_CREDIT_MODE);
+  const verifiedFailureEvidence = await verifiedJevCodingFailureEvidence(request, verifiedWorkflow, env.NUSA_GITHUB_TOKEN, fetchImpl);
+  const jevFailureEvidence = !zeroCreditMode && isJevBoundedCodingAdmissionCandidate(request, env)
+    ? verifiedFailureEvidence
+    : null;
+  const jevAdmission = await decideJevBoundedCodingAdmission(
+    request,
+    zeroCreditMode ? { ...env, NUSA_JEV_BOUNDED_ROUTING_ENABLED: "false" } : env,
+    options.jevAdmissionClassify ? { classify: options.jevAdmissionClassify } : {},
+    jevFailureEvidence,
+  );
+  if (jevAdmission.action === "ABSTAIN_EXPENSIVE_INFERENCE") {
+    return {
+      status: "JEV_ROUTING_ABSTAINED",
+      reason: jevAdmission.reasonCode,
+      proposalAttempts: 0,
+      failureStage: "proposal-parse",
+      jevAdmissionAction: jevAdmission.action,
+      jevAdmissionReason: jevAdmission.reasonCode,
+      jevRequiredModel: jevAdmission.requiredModel,
+      jevConfidence: jevAdmission.confidence,
+    };
+  }
   const maxProposalAttempts = options.maxProposalAttempts ?? MAX_WORKERS_AI_PROPOSAL_ATTEMPTS;
   if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
     throw new Error("CODING_PROPOSAL_ATTEMPT_LIMIT_INVALID");
@@ -786,7 +1114,8 @@ export async function executeCodingRunner(
   // remains subject to the same sandbox validation/publish gates. If unavailable, keep the current
   // provider path unchanged.
   const sandboxRepairEscalation = Boolean(
-    env.AI
+    !zeroCreditMode
+    && env.AI
     && request.proposalContext
     && (
       request.proposalFeedback?.includes("SANDBOX_PATCH_APPLY_CHECK_FAILED")
@@ -794,7 +1123,21 @@ export async function executeCodingRunner(
     ),
   );
   const repairGithubToken = env.NUSA_GITHUB_TOKEN?.trim();
-  if (sandboxRepairEscalation && repairGithubToken) {
+  // The escalation spends on the same overflow balance, so it must honour that provider's recorded
+  // boundary. This stays protection-only: an active or unreadable wait simply skips the escalation
+  // and leaves the documented best-effort contract ("keep the current provider path unchanged")
+  // intact rather than introducing a new blocked result here.
+  let escalationAllowed = sandboxRepairEscalation && Boolean(repairGithubToken);
+  if (escalationAllowed && options.providerWaitUntil) {
+    try {
+      const overflowWait = await options.providerWaitUntil("github-models");
+      if (overflowWait !== null && now() < overflowWait) escalationAllowed = false;
+    } catch {
+      escalationAllowed = false;
+    }
+  }
+  if (escalationAllowed && await paidOverflowCapReached(options)) escalationAllowed = false;
+  if (escalationAllowed && repairGithubToken) {
     try {
       const proposal = await githubModelsProposal(request, repairGithubToken, fetchImpl, codingEditProposalPrompt(request));
       return await executeProposal(request, proposal, runtime, publisher);
@@ -807,9 +1150,69 @@ export async function executeCodingRunner(
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
   // Prefer the binding-backed Workers AI path whenever it is available. A stale or retired
   // configured endpoint must not shadow the canonical Worker AI binding in production.
-  const useConfiguredEngine = Boolean(endpoint && token && !env.AI);
+  const useConfiguredEngine = Boolean(!zeroCreditMode && endpoint && token && !env.AI);
   if (useConfiguredEngine) {
+    if (options.providerWaitUntil) {
+      let waitUntil: number | null;
+      try {
+        waitUntil = await options.providerWaitUntil("configured-coding-engine");
+      } catch {
+        return { status: "EXECUTION_FAILED", reason: "PROVIDER_CAPACITY_STATE_UNAVAILABLE", proposalAttempts: 0, failureStage: "proposal-parse" };
+      }
+      const current = now();
+      if (waitUntil !== null && current < waitUntil) {
+        return {
+          status: "BLOCKED_RATE_LIMIT",
+          reason: "WAITING_PROVIDER_CAPACITY",
+          proposalAttempts: 0,
+          failureStage: "proposal-parse",
+          provider: "configured-coding-engine",
+          retryAfterMs: waitUntil - current,
+          nextRetryAt: waitUntil,
+          stopReason: "WAITING_PROVIDER_CAPACITY",
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        };
+      }
+    }
     const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!, Boolean(request.proposalContext)));
+    // 402 Payment Required is the standard "out of credit" answer from a paid inference endpoint.
+    // Unlike 429 (transient backpressure, minute-scale backoff) an exhausted balance does not
+    // recover on its own, so it must not be retried against the same empty balance: it records a
+    // hard stop for the rest of the UTC day, which aiBudgetState classifies as HARD_STOP because
+    // the reason is absent from SOFT_BUDGET_STOP_REASONS. The persisted wait is what lets the
+    // caller stop spending and degrade instead of re-billing a dead balance on every dispatch.
+    if (response.status === 402) {
+      const current = now();
+      const retryAfterMs = msUntilNextUtcDay(current);
+      return {
+        status: "BLOCKED_RATE_LIMIT",
+        reason: "WAITING_PROVIDER_CAPACITY",
+        httpStatus: response.status,
+        proposalAttempts: 1,
+        failureStage: "proposal-parse",
+        provider: "configured-coding-engine",
+        retryAfterMs,
+        nextRetryAt: current + retryAfterMs,
+        stopReason: "PAID_CODING_CREDITS_EXHAUSTED",
+        resumeCondition: "paid-credit-topup-or-next-utc-day-and-exact-head-revalidation",
+      };
+    }
+    if (response.status === 429) {
+      const current = now();
+      const retryAfterMs = MAX_RATE_LIMIT_BACKOFF_MS;
+      return {
+        status: "BLOCKED_RATE_LIMIT",
+        reason: "WAITING_PROVIDER_CAPACITY",
+        httpStatus: response.status,
+        proposalAttempts: 1,
+        failureStage: "proposal-parse",
+        provider: "configured-coding-engine",
+        retryAfterMs,
+        nextRetryAt: current + retryAfterMs,
+        stopReason: "PROVIDER_RATE_LIMITED",
+        resumeCondition: "provider-capacity-and-exact-head-revalidation",
+      };
+    }
     if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: "coding-engine-request-failed" };
     if (!runtime) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status };
     try {
@@ -819,9 +1222,26 @@ export async function executeCodingRunner(
     }
   }
 
-  if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
-  const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
+  if (!env.AI) {
+    const readiness = assessCodingRunnerReadiness({
+      hasWorkersAiBinding: false,
+      hasConfiguredEngine: Boolean(endpoint && token),
+      hasGithubToken: Boolean(env.NUSA_GITHUB_TOKEN?.trim()),
+      zeroCreditMode,
+    });
+    return { status: "INTERFACE_READY", reason: zeroCreditMode ? "zero-credit-paid-engine-disabled" : "ai-coding-engine-not-configured", readinessBlockers: readiness.blockers };
+  }
+  const tierSelection = selectJevCodingModel(jevAdmission, env);
+  const tierConfiguredModel = tierSelection?.model?.trim();
+  const tierModel = tierConfiguredModel
+    && validWorkersAiModel(tierConfiguredModel)
+    && !UNUSABLE_CODING_WORKERS_AI_MODELS.has(tierConfiguredModel)
+    ? tierConfiguredModel
+    : null;
+  const configuredModel = tierModel ?? env.NUSA_AI_CODING_MODEL?.trim();
   // Dashboard vars can outlive provider deprecations or retain a model that cannot satisfy the current JSON-schema contract.
+  // A Jev tier can only replace the canonical model when the selected tier model is explicitly configured
+  // and already satisfies the same Workers AI model + structured-output allowlist.
   const model = !configuredModel || UNUSABLE_CODING_WORKERS_AI_MODELS.has(configuredModel)
     ? DEFAULT_WORKERS_AI_MODEL
     : configuredModel;
@@ -833,18 +1253,56 @@ export async function executeCodingRunner(
     if (options.providerWaitUntil) {
       let waitUntil: number | null;
       try {
-        waitUntil = await options.providerWaitUntil();
+        waitUntil = await options.providerWaitUntil("workers-ai");
       } catch {
         return { status: "EXECUTION_FAILED", reason: "PROVIDER_CAPACITY_STATE_UNAVAILABLE", proposalAttempts: attempt - 1, failureStage: "proposal-parse" };
       }
       const current = now();
       if (waitUntil !== null && current < waitUntil) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken) {
+        let overflowWaitUntil: number | null = null;
+        if (githubToken && !zeroCreditMode && options.providerWaitUntil) {
+          try {
+            overflowWaitUntil = await options.providerWaitUntil("github-models");
+          } catch {
+            // An unreadable overflow wait must not grant spending: skip the overflow this round.
+            overflowWaitUntil = Number.MAX_SAFE_INTEGER;
+          }
+        }
+        const overflowAvailable = overflowWaitUntil === null || current >= overflowWaitUntil;
+        if (githubToken && !zeroCreditMode && overflowAvailable && await paidOverflowCapReached(options)) {
+          const capStop = paidOverflowCapStop(current);
+          return {
+            status: "BLOCKED_RATE_LIMIT",
+            reason: "WAITING_PROVIDER_CAPACITY",
+            proposalAttempts: attempt - 1,
+            failureStage: "proposal-parse",
+            provider: "github-models",
+            retryAfterMs: capStop.nextRetryAt - current,
+            nextRetryAt: capStop.nextRetryAt,
+            stopReason: capStop.stopReason,
+            resumeCondition: capStop.resumeCondition,
+          };
+        }
+        if (githubToken && !zeroCreditMode && overflowAvailable) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
           } catch (error) {
+            const overflowStop = githubModelsProviderStop(error, current);
+            if (overflowStop) {
+              return {
+                status: "BLOCKED_RATE_LIMIT",
+                reason: "WAITING_PROVIDER_CAPACITY",
+                proposalAttempts: attempt - 1,
+                failureStage: "proposal-parse",
+                provider: "github-models",
+                retryAfterMs: overflowStop.nextRetryAt - current,
+                nextRetryAt: overflowStop.nextRetryAt,
+                stopReason: overflowStop.stopReason,
+                resumeCondition: overflowStop.resumeCondition,
+              };
+            }
             return {
               status: "BLOCKED_RATE_LIMIT",
               reason: "WAITING_PROVIDER_CAPACITY",
@@ -892,11 +1350,50 @@ export async function executeCodingRunner(
       const rateLimitReason = workersAiRateLimitReason(error);
       if (rateLimitReason) {
         const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-        if (githubToken) {
+        let midAttemptOverflowAllowed = Boolean(githubToken) && !zeroCreditMode;
+        if (midAttemptOverflowAllowed && options.providerWaitUntil) {
+          try {
+            const overflowWait = await options.providerWaitUntil("github-models");
+            if (overflowWait !== null && now() < overflowWait) midAttemptOverflowAllowed = false;
+          } catch {
+            midAttemptOverflowAllowed = false;
+          }
+        }
+        if (githubToken && midAttemptOverflowAllowed && await paidOverflowCapReached(options)) {
+          const capStoppedAt = now();
+          const capStop = paidOverflowCapStop(capStoppedAt);
+          return {
+            status: "BLOCKED_RATE_LIMIT",
+            reason: "WAITING_PROVIDER_CAPACITY",
+            proposalAttempts: Math.max(0, attempt - 1),
+            failureStage: "proposal-parse",
+            provider: "github-models",
+            retryAfterMs: capStop.nextRetryAt - capStoppedAt,
+            nextRetryAt: capStop.nextRetryAt,
+            stopReason: capStop.stopReason,
+            resumeCondition: capStop.resumeCondition,
+          };
+        }
+        if (githubToken && midAttemptOverflowAllowed) {
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
           } catch (fallbackError) {
+            const overflowStop = githubModelsProviderStop(fallbackError, now());
+            if (overflowStop) {
+              const stoppedAt = now();
+              return {
+                status: "BLOCKED_RATE_LIMIT",
+                reason: "WAITING_PROVIDER_CAPACITY",
+                proposalAttempts: Math.max(0, attempt - 1),
+                failureStage: "proposal-parse",
+                provider: "github-models",
+                retryAfterMs: overflowStop.nextRetryAt - stoppedAt,
+                nextRetryAt: overflowStop.nextRetryAt,
+                stopReason: overflowStop.stopReason,
+                resumeCondition: overflowStop.resumeCondition,
+              };
+            }
             return {
               status: "BLOCKED_RATE_LIMIT",
               reason: rateLimitReason,

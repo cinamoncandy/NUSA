@@ -6,7 +6,8 @@ repository: cinamoncandy/NUSA
 parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
 parent_pr: 2329
 base_branch: main
-base_commit: 04a17e14130139168ad515417641f52c440cbab6
+base_commit: 10c153464b40326a061e548cf44abfb479d07fc0
+prior_head: c2bb97df9a40f52b463010b83674225acf0182b3
 implementation_branch: feat/2326-jev-domain-advisory-validators
 authority_impact: none
 objective: "Complete the registered NUSA-wide Jev SHADOW task contract by replacing UNAVAILABLE placeholder validators with one bounded DOMAIN_ADVISORY_V1 schema and task-specific classification vocabularies."
@@ -27,16 +28,20 @@ acceptance:
   - "Unknown classifications, arbitrary fields, invalid severity, model/reason/confidence mismatch fail closed."
   - "Task classification vocabulary is immutable repository policy, not model-provided free text."
   - "Existing workflow/research-specific validators remain unchanged."
+  - "Keep main MARKET_MICROSTRUCTURE_V1 policy, validator and vocabulary unchanged; no generic microstructure labels are invented."
   - "All protected-action prohibitions and ZERO_AUTHORITY invariants remain mechanical."
 evidence:
-  implementation_status: READY_FOR_REVIEW
-  implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
-  local_validation: "Focused jev-domain-observation registry tests 17/17 PASS across all 17 domains and all 18 generic advisory task validators; isolated TypeScript compile of registry/workflow/research validators PASS; AIPOS YAML PASS; git diff --check PASS."
-  external_validation: "Parent #2329 is merged in protected main 04a17e14130139168ad515417641f52c440cbab6. Branch was reconverged to that main; fresh exact-head CI/Audit/Release is the next gate."
+  prior_implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
+  prior_validation: "Historical17/17 generic registry tests; not current-main acceptance."
+  current_main_reconvergence: "Both DOMAIN_ADVISORY_V1 and existing MARKET_MICROSTRUCTURE_V1 coexist. The specialized market contract is unchanged and requires no new classification vocabulary."
+  current_validation: PENDING
+  independent_review: PENDING_FRESH_NON_AUTHOR_VALIDATOR
+  exact_head_ci: PENDING
+  audit_release_runtime: PENDING
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Run fresh exact-head CI, then independent Audit and canonical Release. Do not promote any task above SHADOW."
+next_permitted_action: "Validate reconvergence locally, refresh existing PR2337 as Draft, obtain fresh review/exact-head CI, then canonical Audit/Release and actual SHADOW runtime evidence. Never promote routing or authority."

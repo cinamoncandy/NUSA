@@ -142,6 +142,7 @@ describe("canonical PAPER realized-period producer", () => {
       assert.equal(realized.record.costEvidence.evidenceKind, "OBSERVED");
       assert.match(realized.record.costEvidence.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
       assert.equal(realized.record.benchmarkEvidenceId, "benchmark-canonical");
+      assert.equal(realized.record.benchmarkInputFingerprintSha256, HASH);
       assert.match(realized.record.canonicalOutcomeReceiptFingerprint ?? "", /^[a-f0-9]{64}$/);
 
       const restarted = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(first.db), options);

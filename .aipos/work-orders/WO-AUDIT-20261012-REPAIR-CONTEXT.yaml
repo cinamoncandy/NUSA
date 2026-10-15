@@ -1,0 +1,29 @@
+id: WO-AUDIT-20261012-REPAIR-CONTEXT
+title: "Separate model response repair feedback from repository evidence"
+status: MERGED
+pull_request: 2623
+merge_commit: 957ef5385969f4f12b1310c4519c8654f3a67aed
+external_evidence: "Exact head20c1584d CI38209662232 and companions PASS; independent38-test review no actionable findings; canonical Audit38210084371 PASS and expected-head merge. Actual Worker update pending."
+priority: P1
+base_commit: d6725778260d06a2308152f6c59d38f7ad64cc1b
+implementation_branch: codex/audit-repair-context-provenance-20261012
+authority_impact: none
+risk: MEDIUM
+observed_evidence: "Audit38207700626 for PR2622 returned FAIL/safety FAIL citing previous AUDIT_VERDICT_JSON_INVALID as an alleged repository incompatibility at state.yaml:+16, without reproduction. Earlier Audit38191846340 also FAIL; neither overridden."
+scope: "Clarify provenance of the existing bounded model-output repair prompt. No parser relaxation, forced PASS, verdict rewrite, provider switch, retry increase or Release change."
+acceptance:
+  - "Repair feedback explicitly concerns response serialization, not source correctness or safety."
+  - "A real grounded BLOCKER remains FAIL/mergeAllowed=false after response repair."
+  - "Repeated invalid model output still fails closed at the existing retry bound."
+verification_commands:
+  - "pnpm run build"
+  - "node --test dist/apps/autopilot/src/auditRunner*.test.js"
+  - "pnpm run typecheck"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: "Build/typecheck/validate:full/security gate PASS. All 38 Audit runner regressions PASS, including genuine FAIL preservation and existing three-attempt termination. Initial test wrongly assumed two attempts; corrected to the unchanged production constant of three, not a runtime relaxation."
+next: "Independent exact-diff review and fresh CI before governed Release. Actual provider behavior and learning PR2622 remain unverified; prior Audit FAILs are not rewritten."

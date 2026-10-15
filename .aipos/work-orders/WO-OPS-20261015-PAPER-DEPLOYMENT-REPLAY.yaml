@@ -1,0 +1,30 @@
+id: WO-OPS-20261015-PAPER-DEPLOYMENT-REPLAY
+title: Resume exact PAPER deployment without reopening its period
+status: VERIFYING
+priority: P1
+risk: HIGH
+authority_impact: recovery-only-no-authority-expansion
+base_commit: aa7496402351cd9a74ecbf294baa0a6ab66104a0
+branch: codex/paper-deployment-exact-replay-20261015
+objective: "Recover the exact existing authorized binding/period after deployment succeeds but coordinator receipt append fails."
+scope: "Existing deployment adapter only; current Governance, lineage, binding and period evidence must match. No second scheduler/ledger or permission grant."
+acceptance:
+  - Exact same account boundary, artifact, period and active binding replay returns identical receipt without mutation or observation reset.
+  - Missing/different binding, lineage, period, market or evidence remains fail-closed.
+  - Current Governance approval is checked even for replay.
+  - Different account boundary is not silently accepted.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - node --test dist/apps/cloud/src/paperChallengerDeploymentRuntime.test.js dist/apps/cloud/src/closedLearningInitialPaperBootstrap.test.js
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: "Red already-open conflict reproduced;28 bootstrap/deployment tests and36 including coordinator PASS after fix. Corrected initial dot-output count40 against explicit TAP summary36. Build/typecheck/validate:full/security PASS;lint PASS24 existing warnings. pnpm test PASS1229 isolated files including corrected paired fixture; only generated isolated-test-failure.txt deletion restored."
+independent_review: "Fresh Parfit PASS after P2 paired observation fixture correction;28 targeted tests independently PASS. Exact two-file diff SHA25608e464252c83df517865928a54057bcd8aaa230be33f6d06cec8d0adf80318c4. Stateful-port test only, not SQLite restart proof; not Audit/Release."
+next: "Finish full suite before draft PR; confirm committed review and exact-head CI/Audit/Release. Not actual production cycle evidence; advanced account boundary replay is not authorized by this change."

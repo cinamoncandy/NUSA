@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, readProviderCapacityWait, recordProviderCapacityWait, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, ACTIVE_WIP_CLAIM_MAX_AGE_MS, AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, readProviderCapacityWait, recordProviderCapacityWait, reservePaidOverflowCall, utcDayKey, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, recoverPersistentAuditDispatch, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -44,15 +44,16 @@ class TransactionalRacyStorage {
   }
 }
 
-function codingEvidence(recordedAtMs: number) {
+function codingEvidence(recordedAtMs: number, identitySeed = recordedAtMs) {
+  const identity = identitySeed + 1;
   const decision = createCodingExecutionEvidence({
     kind: "REPOSITORY_AUTOPILOT",
     repository: "cinamoncandy/NUSA",
     headSha: "a".repeat(40),
-    workflowRunId: recordedAtMs + 1,
+    workflowRunId: identity,
     reason: "gha:CI:success",
-    executionId: `github:delivery-${recordedAtMs + 1}`,
-    dedupeKey: `ci:${recordedAtMs + 1}:${"a".repeat(40)}`,
+    executionId: `github:delivery-${identity}`,
+    dedupeKey: `ci:${identity}:${"a".repeat(40)}`,
     mutationAllowed: false,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
@@ -61,7 +62,7 @@ function codingEvidence(recordedAtMs: number) {
     status: "EXECUTION_ACCEPTED",
     reason: "validated",
     backend: "cloudflare-sandbox",
-    checkpointId: `checkpoint:${recordedAtMs + 1}`,
+    checkpointId: `checkpoint:${identity}`,
     workspaceVerified: true,
     proposalValidated: true,
     changedFiles: ["apps/autopilot/src/index.ts"],
@@ -177,6 +178,36 @@ describe("persistent execution coordination", () => {
     assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 201, leaseExpiresAt: 1_101 }), { acquired: true });
   });
 
+  it("caps fresh acquisitions of one identity only when the caller asks, and keeps the count across handoff", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const request = { dedupeKey: "evolve-coding:cap", executionId: "evolve-coding:cap", now: 100, leaseExpiresAt: 1_000, maxAcquisitions: 2 };
+    assert.deepEqual(await acquirePersistentExecution(namespace, request), { acquired: true });
+    // The consumer takes the lease over and then fails closed; the count must survive both steps.
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 110, leaseExpiresAt: 1_000 }), { acquired: true });
+    await releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 });
+    assert.equal((await readPersistentExecution(namespace, request.dedupeKey))?.acquisitionCount, 1);
+    assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 300, leaseExpiresAt: 1_300 }), { acquired: true });
+    await releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 400 });
+    assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 500, leaseExpiresAt: 1_500 }), { acquired: false, reason: "ATTEMPT_LIMIT_REACHED" });
+    assert.equal((await readPersistentExecution(namespace, request.dedupeKey))?.state, "RELEASED");
+    // Callers that do not ask for a ceiling keep the previous unbounded behaviour.
+    const { maxAcquisitions: _unused, ...unbounded } = request;
+    assert.deepEqual(await acquirePersistentExecution(namespace, { ...unbounded, now: 600, leaseExpiresAt: 1_600 }), { acquired: true });
+  });
+
+  it("rejects an attempt ceiling outside 1-10", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    for (const maxAcquisitions of [0, 11, 1.5, "3"]) {
+      const response = await coordinator.fetch(new Request("https://execution-coordinator/acquire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dedupeKey: "k", executionId: "e", now: 1, leaseExpiresAt: 2, maxAcquisitions }) }));
+      assert.equal(response.status, 400, String(maxAcquisitions));
+    }
+  });
+
   it("persists a rate-limit stop, suppresses early replays, and resumes the same identity once due", async () => {
     const ns = memoryNamespace();
     const request = {
@@ -237,6 +268,19 @@ describe("persistent execution coordination", () => {
     );
   });
 
+  it("waits for Audit dispatch materialization and preserves the one recovery budget across a released retry", async () => {
+    const ns = memoryNamespace();
+    const request = { dedupeKey: "audit:materialization:abc", executionId: "audit:materialization", now: 100, leaseExpiresAt: 1_000 };
+    assert.deepEqual(await acquirePersistentExecution(ns, request), { acquired: true });
+    await markPersistentExecutionDispatched(ns, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 });
+    assert.deepEqual(await recoverPersistentAuditDispatch(ns, { ...request, now: 200 + AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS - 1, leaseExpiresAt: 40_000 }), { recovered: false, reason: "AUDIT_DISPATCH_MATERIALIZATION_PENDING" });
+    assert.deepEqual(await recoverPersistentAuditDispatch(ns, { ...request, now: 200 + AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, leaseExpiresAt: 40_000 }), { recovered: true });
+    await releasePersistentExecution(ns, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 30_201 });
+    assert.deepEqual(await acquirePersistentExecution(ns, { ...request, now: 30_202, leaseExpiresAt: 40_000 }), { acquired: true });
+    await markPersistentExecutionDispatched(ns, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 30_203 });
+    assert.deepEqual(await recoverPersistentAuditDispatch(ns, { ...request, now: 30_203 + AUDIT_DISPATCH_MATERIALIZATION_GRACE_MS, leaseExpiresAt: 70_000 }), { recovered: false, reason: "AUDIT_DISPATCH_RECOVERY_EXHAUSTED" });
+  });
+
   it("persists, replays, orders, and deduplicates coding evidence without mutation", async () => {
     const storage = new MemoryStorage();
     const coordinator = new ExecutionCoordinator({ storage });
@@ -250,6 +294,10 @@ describe("persistent execution coordination", () => {
 
     assert.equal((await post(first)).status, 200);
     assert.equal((await post(first)).status, 200);
+    const replayWithFreshTimestamp = codingEvidence(101, 100);
+    const replayResponse = await post(replayWithFreshTimestamp);
+    assert.equal(replayResponse.status, 200);
+    assert.equal((await replayResponse.json() as { evidence: { evidenceId: string } }).evidence.evidenceId, first.evidenceId);
     assert.equal((await post(second)).status, 200);
     const response = await coordinator.fetch(new Request("https://execution-coordinator/coding-evidence-history"));
     assert.equal(response.status, 200);
@@ -421,6 +469,29 @@ describe("persistent control-plane HOLD", () => {
     assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
     assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
   });
+  it("releases an active-WIP claim that outlived any possible running work so backlog coding is not blocked forever", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    const admit = async (dedupeKey: string, claimedAt: number) => {
+      const response = await coordinator.fetch(new Request("https://execution-coordinator/active-wip/admit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ dedupeKey, executionId: `exec:${dedupeKey}`, canonicalOwner: "apps/autopilot", conflictKeys: [`key:${dedupeKey}`], claimedAt, maxConcurrent: 1 }),
+      }));
+      return { status: response.status, body: await response.json() as { admitted: boolean; reason?: string; expiredClaims?: { dedupeKey: string }[] } };
+    };
+    const start = 1_000_000;
+    // A failed dispatch never completes its claim.
+    assert.equal((await admit("issue-1", start)).status, 201);
+    const blocked = await admit("issue-2", start + ACTIVE_WIP_CLAIM_MAX_AGE_MS - 1);
+    assert.equal(blocked.status, 409);
+    assert.equal(blocked.body.reason, "WIP_LIMIT_REACHED");
+    const resumed = await admit("issue-2", start + ACTIVE_WIP_CLAIM_MAX_AGE_MS);
+    assert.equal(resumed.status, 201);
+    assert.deepEqual(resumed.body.expiredClaims?.map((claim) => claim.dedupeKey), ["issue-1"]);
+    // The released item may be claimed again later; a fresh claim still holds the slot.
+    assert.equal((await admit("issue-1", start + ACTIVE_WIP_CLAIM_MAX_AGE_MS + 1)).body.reason, "WIP_LIMIT_REACHED");
+  });
+
   it("atomically admits independent WIP while rejecting conflict and capacity overflow", async () => {
     const storage = new TransactionalRacyStorage();
     const coordinator = new ExecutionCoordinator({ storage });
@@ -490,6 +561,74 @@ describe("persistent control-plane HOLD", () => {
     assert.equal((await post({ ...base, maxConcurrent: 9 })).status, 400);
   });
 
+});
+
+// idFromName-aware namespace: the production helpers isolate state per Durable Object id, so a
+// stub that collapses every id into one coordinator cannot express provider/day isolation at all.
+function keyedMemoryNamespace(): ExecutionCoordinatorNamespace {
+  const coordinators = new Map<string, ExecutionCoordinator>();
+  const namespace = {
+    idFromName: (name: string) => name,
+    get: (id: unknown) => {
+      const key = String(id);
+      let coordinator = coordinators.get(key);
+      if (!coordinator) {
+        coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+        coordinators.set(key, coordinator);
+      }
+      const bound = coordinator;
+      return { fetch: (input: RequestInfo | URL, init?: RequestInit) => bound.fetch(new Request(input, init)) };
+    },
+  };
+  return namespace as unknown as ExecutionCoordinatorNamespace;
+}
+
+describe("paid overflow daily cap", () => {
+  it("reserves atomically up to the cap and refuses beyond it", async () => {
+    const ns = memoryNamespace();
+    const input = { provider: "github-models", day: "2026-10-12", cap: 2 };
+    assert.equal(await reservePaidOverflowCall(ns, input), true);
+    assert.equal(await reservePaidOverflowCall(ns, input), true);
+    assert.equal(await reservePaidOverflowCall(ns, input), false, "the cap must not be exceeded");
+    assert.equal(await reservePaidOverflowCall(ns, input), false, "a refusal must not consume budget either");
+  });
+
+  it("gives each UTC day and each provider its own budget", async () => {
+    const ns = keyedMemoryNamespace();
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "github-models", day: "2026-10-12", cap: 1 }), true);
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "github-models", day: "2026-10-12", cap: 1 }), false);
+    // A new day resets the count without any cleanup step.
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "github-models", day: "2026-10-13", cap: 1 }), true);
+    // Same day, different provider: an exhausted budget must not spill across providers. This only
+    // means anything against an idFromName-aware namespace.
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "configured-coding-engine", day: "2026-10-12", cap: 1 }), true);
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "configured-coding-engine", day: "2026-10-12", cap: 1 }), false);
+    // ...and the first provider is still exhausted for its own day.
+    assert.equal(await reservePaidOverflowCall(ns, { provider: "github-models", day: "2026-10-12", cap: 1 }), false);
+  });
+
+  it("refuses concurrent reservations past the cap instead of letting both spend", async () => {
+    const ns = memoryNamespace();
+    const input = { provider: "github-models", day: "2026-10-12", cap: 3 };
+    const granted = (await Promise.all(Array.from({ length: 8 }, () => reservePaidOverflowCall(ns, input)))).filter(Boolean);
+    assert.equal(granted.length, 3, "exactly the cap may be granted across concurrent callers");
+  });
+
+  it("rejects a malformed cap or day rather than granting spend", async () => {
+    const ns = memoryNamespace();
+    for (const bad of [
+      { provider: "github-models", day: "12-10-2026", cap: 1 },
+      { provider: "github-models", day: "2026-10-12", cap: -1 },
+      { provider: "github-models", day: "2026-10-12", cap: 1.5 },
+    ]) {
+      await assert.rejects(() => reservePaidOverflowCall(ns, bad), /PAID_OVERFLOW_RESERVE_FAILED/);
+    }
+  });
+
+  it("derives the UTC day key the cap and the provider stop share", () => {
+    assert.equal(utcDayKey(Date.UTC(2026, 9, 12, 23, 59, 59)), "2026-10-12");
+    assert.equal(utcDayKey(Date.UTC(2026, 9, 13, 0, 0, 0)), "2026-10-13");
+  });
 });
 
 describe("provider capacity wait", () => {

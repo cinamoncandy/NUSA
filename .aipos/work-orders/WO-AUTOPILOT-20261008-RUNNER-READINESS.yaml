@@ -1,0 +1,36 @@
+id: WO-AUTOPILOT-20261008-RUNNER-READINESS
+title: "Coding runner readiness preflight names what is missing (Autopilot completion convergence, P0 step 3)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/autopilot-runner-preflight
+authority_impact: none
+owner_approval: "2026-10-08 in chat ('다 해', '다음')"
+scope_note: "Additive diagnostics on an already-returned INTERFACE_READY result. Presence checks only; no secret value is read or returned; no behavior, status or call order changes."
+objective: "When the runner cannot execute, say exactly which configuration is missing (engine, zero-credit mode, GitHub token) instead of only 'not configured'."
+scope:
+  include:
+    - "apps/autopilot/src/codingRunnerReadiness.ts: assessCodingRunnerReadiness(input) -> {ready, blockers}."
+    - "INTERFACE_READY results carry readinessBlockers."
+  exclude:
+    - "Changing when the runner executes, reordering GitHub verification, bounded recovery, checkpoint/resume, canary, receipts; credentials, Risk, Release, Audit, LIVE."
+acceptance:
+  - "Missing engine, zero-credit mode and missing token are named; existing statuses and reasons are unchanged."
+  - "PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/codingRunner.test.js dist/apps/autopilot/src/codingRunnerReadiness.test.js tests/autopilot-control-plane-wiring.test.js"
+evidence:
+  local_validation:
+    environment: "Node 22 sandbox (check-runtime and validate:full need Node 24 and are left to CI)"
+    commands:
+      - "npx tsc -p tsconfig.json -> clean"
+      - "node -r ./tests/register-dist.cjs --test dist/apps/autopilot/src/codingRunner.test.js dist/apps/autopilot/src/codingRunnerReadiness.test.js tests/autopilot-control-plane-wiring.test.js -> 70 pass, 0 fail"
+  remaining: "Exact-head CI, independent Audit and Release; the Autopilot worker deploys normally."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

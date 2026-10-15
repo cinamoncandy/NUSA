@@ -1,0 +1,2 @@
+DO_NOT_DEPLOY=true
+Reason: isolated modules are committed but latest-main server/App integration is not yet committed. Runtime remains unchanged and safe. Deployment before integration+CI+Audit+merge is prohibited.

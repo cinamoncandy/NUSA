@@ -1,0 +1,27 @@
+id: WO-RESEARCH-20261013-FORWARD-RUNNER
+title: Connect fixed forward study to canonical Research service
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P1
+authority_impact: none
+risk: MEDIUM
+base_commit: 89d5aafd110f60f479adaf94776f3b3e7707e4aa
+validation: "20 focused tests PASS; build,typecheck,validate:full,lint,security PASS (15 existing warnings). Independent review3 findings plus atomic-publication P2 fixed; fresh review no actionable P0/P1/P2. Actual local CLI WAITING_HOLDOUT, not deployed proof."
+remaining: "Exact-head CI/Audit/Release and Oracle deployment; actual future holdout and qualified candidate remain unproven. RESEARCH_SCREEN_PASS is NOT_QUALIFIED."
+scope: "Existing Research service invokes one bounded forward-study child; no new timer. Before holdout completion no API or backtest. After completion fixed public60m data retrieval, canonical input validation, paired base/2x cost and six-block research screen. Never writes a qualified artifact or broker binding."
+impact: "Remove manual research execution dependency while retaining actual future evidence boundary."
+acceptance:
+  - "Waiting and invalid data never count as success; no new schedulers or hot retry."
+  - "Reuse canonical public Upbit fetch and backtest; no ticker-derived data relabeling."
+  - "Preserve all failures, source identity and fingerprints; public-data-only outputs."
+verification_commands:
+  - node --test tests/regime-forward-runner.test.js scripts/run-cloud-research-snapshot.test.js
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run lint
+  - pnpm run security:gate
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Implement and validate; canonical CI/Audit/Release then exact-main Oracle PAPER deployment. Actual60-day outcome remains external evidence, not implementation completion."
