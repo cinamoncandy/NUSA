@@ -52,6 +52,9 @@ function run(options = {}) {
   // Read-only runtime evidence of the stored research data (never blocks Research).
   const integrity = spawn(executable, ["scripts/run-data-integrity-probe.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 120000 });
   if (integrity.error || integrity.signal || integrity.status !== 0) console.error("[cloud-research-snapshot] DATA_INTEGRITY_PROBE_FAILED_CLOSED");
+  // Pre-registered RAIM market-making study (read-only; WAITING_DATA until its window is collected). Its failure never blocks Research.
+  const raim = spawn(executable, ["scripts/run-raim-study.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 600000 });
+  if (raim.error || raim.signal || raim.status !== 0) console.error("[cloud-research-snapshot] RAIM_STUDY_FAILED_CLOSED");
   const args = ["-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"];
   const result = spawn(executable, args, { cwd, env, stdio: "inherit", shell: false });
   if (result.error) throw result.error;
