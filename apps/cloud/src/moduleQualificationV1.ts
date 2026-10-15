@@ -33,7 +33,7 @@ export const MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1: Readonly<Record<Modul
   INTELLIGENCE: "c0286d1056d554e1a9be604c2b9fe1eb02a9f8d9",
   STRATEGY: "6f7395f2e37db73df42bc33d0a697020d38b8d7c",
   DECISION: "904b3e78562ca3f2350133942d2743ac49babd51",
-  RISK: "392175413cb7843889d47331fad1b997d3bdf838",
+  RISK: "bb11085e9cef34130d9a4976cafcd69cbc1d775b",
   PORTFOLIO: "8da5e80589e03004c3d4147528b97da5c473c40a",
   EXECUTION: "17a9b4face35b7d3e0141ec4b04bc6b11c80d714",
   PAPER_ADAPTER: "33ebd499ca396a73b8fcbcab896b7df7a6008984",
@@ -80,7 +80,7 @@ export const MODULE_QUALIFICATION_RECORDS_V1: Readonly<Record<ModuleStage, Modul
     return [stage, Object.freeze({
       schemaVersion: 1 as const,
       stage,
-      sourceCommitSha: stage === "MARKET_DATA" ? "7c5f75763e9bc3a673647dfa892a3a60d32967a9" : stage === "PAPER_ADAPTER" ? "4ef7ac29ad622d939f29e3fb12b2caa9e6fec016" : stage === "RISK" ? "bc19f6d13a17b06aaee8fc852215414a2d2679dc" : MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
+      sourceCommitSha: stage === "MARKET_DATA" ? "7c5f75763e9bc3a673647dfa892a3a60d32967a9" : stage === "PAPER_ADAPTER" ? "4ef7ac29ad622d939f29e3fb12b2caa9e6fec016" : stage === "RISK" ? "9be781fe1df0acd96abca8c815dc0019091d2247" : MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
       sourceBlobSha,
       sourceRef: MODULE_RUNTIME_BINDING_BY_STAGE_10XS[stage].canonicalEntrypoint,
       verificationAuthority: "INDEPENDENT_EVIDENCE_REQUIRED" as const,
