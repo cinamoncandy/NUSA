@@ -74,6 +74,6 @@ export function compareOnSameInput(o: { spec: VenueSpec; assumptions: readonly S
   if (candidate.status === "BLOCKED") return { status: "BLOCKED", blockedBy: candidate.unknownFields };
   const inputFingerprint = createHash("sha256").update(JSON.stringify([o.books, o.trades])).digest("hex");
   const deltaNetPnl = candidate.netPnl - baseline.netPnl;
-  const enough = baseline.fills >= P.minFillsForVerdict && candidate.fills >= P.minFillsForVerdict;
+  const enough = baseline.filledOrders >= P.minFillsForVerdict && candidate.filledOrders >= P.minFillsForVerdict;
   return { status: "COMPARED", inputFingerprint, baseline, candidate, deltaNetPnl, verdict: !enough ? "INSUFFICIENT" : deltaNetPnl > 0 ? "CANDIDATE_AHEAD_NOT_VALIDATED" : "NO_IMPROVEMENT" };
 }

@@ -26,7 +26,8 @@ test("conservative fills: only strictly through the quote, after latency; fees a
   assert.equal(r.fills, 2); assert.equal(r.quotesPlaced, 5); assert.equal(r.cancels, 2);
   assert.equal(r.endInventory, 0.5);
   assert.ok(Math.abs(r.feePaid - 7.505) < 1e-9);
-  assert.ok(Math.abs(r.netPnl - 7.495) < 1e-9);
+  assert.ok(Math.abs(r.netPnl - (-0.005)) < 1e-9, "leftover inventory is valued at the last bid net of fee, not at the mid");
+  assert.equal(r.filledOrders, 2);
   assert.deepEqual(r.assumptions, ["QUANTITY_STEP_IGNORED", "SINGLE_LISTED_FEE"]);
   assert.equal(simulateQuoting(base).fingerprint, r.fingerprint, "deterministic");
 });
@@ -37,4 +38,13 @@ test("no short selling, inventory cap, minimum notional and unordered input fail
   assert.equal(simulateQuoting({ ...base, quote: (b) => ({ bid: b.bestBid, ask: b.bestAsk, size: 0.1 }) }).quotesPlaced, 0, "below 5,000 KRW is never placed");
   const bad = simulateQuoting({ ...base, trades: [trades[3], trades[0]] });
   assert.equal(bad.status, "BLOCKED"); assert.deepEqual(bad.unknownFields, ["INPUT_INVALID_OR_UNORDERED"]);
+});
+
+test("a trade exactly AT the quote never fills; partial fills of one order count once; the latency boundary admits t = since + latency", () => {
+  const only = (tr) => simulateQuoting({ ...base, trades: tr });
+  assert.equal(only([{ t: 2000, price: 10000, volume: 5, side: "ASK" }]).fills, 0);
+  const two = only([{ t: 2000, price: 9990, volume: 0.3, side: "ASK" }, { t: 2100, price: 9990, volume: 0.3, side: "ASK" }]);
+  assert.equal(two.fills, 2); assert.equal(two.filledOrders, 1); assert.ok(two.fillRate <= 1);
+  assert.equal(only([{ t: 999, price: 9990, volume: 1, side: "ASK" }]).fills, 0, "inside the latency");
+  assert.equal(only([{ t: 1000, price: 9990, volume: 1, side: "ASK" }]).fills, 1, "at the latency boundary");
 });

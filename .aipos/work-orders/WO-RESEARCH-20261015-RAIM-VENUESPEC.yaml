@@ -30,3 +30,4 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+review_2026_10_15: "Independent fresh review PASS_WITH_NOTES, no P0. Fixed - study written once (never re-run or overwritten after a final result), books and trades bounded to the top 20 markets, DATA_INVALID distinct from BLOCKED_SPEC, leftover inventory valued at last bid net of fee, fills counted per filled order, no look-ahead in the spread-capture reference mid, fee scope and selection effect documented. Not fixed (documented) - queue assumption beyond strictly-through plus latency, tick bands are global rather than per pair."

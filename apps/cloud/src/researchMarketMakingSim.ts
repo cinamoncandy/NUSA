@@ -32,7 +32,7 @@ export type SimResult =
     readonly status: "SIMULATED";
     readonly independent: false;
     readonly assumptions: readonly SimulationAssumption[];
-    readonly quotesPlaced: number; readonly cancels: number; readonly fills: number; readonly fillRate: number;
+    readonly quotesPlaced: number; readonly cancels: number; readonly fills: number; readonly filledOrders: number; readonly fillRate: number;
     readonly tradedNotional: number; readonly feePaid: number; readonly netPnl: number; readonly netBp: number;
     readonly avgSpreadCaptureBp: number; readonly avgAdverseSelectionBp: number;
     readonly maxInventory: number; readonly maxDrawdown: number; readonly endInventory: number;
@@ -59,8 +59,8 @@ export function simulateQuoting(o: SimOptions): SimResult {
   const latency = o.latencyMs ?? 1000;
   const horizon = o.adverseHorizonMs ?? 60_000;
   let cash = 0; let inventory = 0; let fees = 0; let notional = 0;
-  let placed = 0; let cancels = 0; let fills = 0; let peakInv = 0; let peak = 0; let maxDd = 0;
-  let live: { bid?: number; ask?: number; bidLeft: number; askLeft: number; since: number } | undefined;
+  let placed = 0; let cancels = 0; let fills = 0; let filledOrders = 0; let peakInv = 0; let peak = 0; let maxDd = 0;
+  let live: { bid?: number; ask?: number; bidLeft: number; askLeft: number; since: number; bidHit: boolean; askHit: boolean } | undefined;
   const captures: number[] = []; const fillList: { t: number; side: "BID" | "ASK"; price: number }[] = [];
   let ti = 0;
   const equity = (mid: number): number => cash + inventory * mid;
@@ -73,10 +73,10 @@ export function simulateQuoting(o: SimOptions): SimResult {
       if (live === undefined || tr.t < live.since + latency) continue;
       if (live.bid !== undefined && tr.side === "ASK" && tr.price < live.bid && live.bidLeft > 0) {
         const q = Math.min(live.bidLeft, tr.volume, Math.max(0, o.maxInventory - inventory));
-        if (q > 0) { live.bidLeft -= q; inventory += q; const n = q * live.bid; cash -= n; fees += n * feeRate; notional += n; fills += 1; fillList.push({ t: tr.t, side: "BID", price: live.bid }); }
+        if (q > 0) { live.bidLeft -= q; inventory += q; const n = q * live.bid; cash -= n; fees += n * feeRate; notional += n; fills += 1; if (!live.bidHit) { live.bidHit = true; filledOrders += 1; } fillList.push({ t: tr.t, side: "BID", price: live.bid }); }
       } else if (live.ask !== undefined && tr.side === "BID" && tr.price > live.ask && live.askLeft > 0) {
         const q = Math.min(live.askLeft, tr.volume, inventory);
-        if (q > 0) { live.askLeft -= q; inventory -= q; const n = q * live.ask; cash += n; fees += n * feeRate; notional += n; fills += 1; fillList.push({ t: tr.t, side: "ASK", price: live.ask }); }
+        if (q > 0) { live.askLeft -= q; inventory -= q; const n = q * live.ask; cash += n; fees += n * feeRate; notional += n; fills += 1; if (!live.askHit) { live.askHit = true; filledOrders += 1; } fillList.push({ t: tr.t, side: "ASK", price: live.ask }); }
       }
       peakInv = Math.max(peakInv, inventory);
     }
@@ -94,26 +94,29 @@ export function simulateQuoting(o: SimOptions): SimResult {
       const okAsk = ask !== undefined && ask * Math.min(want.size, inventory) >= minN ? ask : undefined;
       if (okBid !== undefined || okAsk !== undefined) {
         placed += (okBid !== undefined ? 1 : 0) + (okAsk !== undefined ? 1 : 0);
-        live = { ...(okBid !== undefined ? { bid: okBid } : {}), ...(okAsk !== undefined ? { ask: okAsk } : {}), bidLeft: want.size, askLeft: Math.min(want.size, inventory), since: book.t };
+        live = { ...(okBid !== undefined ? { bid: okBid } : {}), ...(okAsk !== undefined ? { ask: okAsk } : {}), bidLeft: want.size, askLeft: Math.min(want.size, inventory), since: book.t, bidHit: false, askHit: false };
       }
     }
   }
-  // Spread capture and adverse selection are measured against the mid at the fill and at fill + horizon (the next book at or after it).
+  // Spread capture and adverse selection are measured against the last mid at or before the fill and the first mid at or after fill + horizon.
+  // m0 is the mid of the last book AT OR BEFORE the fill (no look-ahead); m1 is the first book at or after fill + horizon.
+  const midAtOrBefore = (t: number): number | undefined => { let r: SimBook | undefined; for (const b of o.books) { if (b.t > t) break; r = b; } return r === undefined ? undefined : (r.bestBid + r.bestAsk) / 2; };
   const midAt = (t: number): number | undefined => { const b = o.books.find((x) => x.t >= t); return b === undefined ? undefined : (b.bestBid + b.bestAsk) / 2; };
   const adverse: number[] = [];
   for (const f of fillList) {
-    const m0 = midAt(f.t); const m1 = midAt(f.t + horizon);
+    const m0 = midAtOrBefore(f.t); const m1 = midAt(f.t + horizon);
     if (m0 === undefined || m1 === undefined) continue;
     captures.push(((f.side === "BID" ? m0 - f.price : f.price - m0) / m0) * 10_000);
     adverse.push(((f.side === "BID" ? m1 - m0 : m0 - m1) / m0) * 10_000);
   }
   const avg = (a: number[]): number => (a.length === 0 ? 0 : a.reduce((s, x) => s + x, 0) / a.length);
-  const lastMid = o.books.length === 0 ? 0 : (o.books[o.books.length - 1]!.bestBid + o.books[o.books.length - 1]!.bestAsk) / 2;
-  const netPnl = equity(lastMid) - fees;
-  const body = { assumptions: [...o.assumptions].sort(), placed, cancels, fills, notional, fees, netPnl, peakInv, maxDd, inventory, books: o.books.length, trades: o.trades.length };
+  // Conservative exit: leftover inventory is valued at the LAST BEST BID net of the same fee rate, not at the mid.
+  const lastBid = o.books.length === 0 ? 0 : o.books[o.books.length - 1]!.bestBid;
+  const netPnl = cash + inventory * lastBid * (1 - feeRate) - fees;
+  const body = { assumptions: [...o.assumptions].sort(), placed, cancels, fills, filledOrders, notional, fees, netPnl, peakInv, maxDd, inventory, books: o.books.length, trades: o.trades.length };
   return {
     status: "SIMULATED", independent: false, assumptions: [...o.assumptions].sort(),
-    quotesPlaced: placed, cancels, fills, fillRate: placed === 0 ? 0 : fills / placed, tradedNotional: notional, feePaid: fees, netPnl,
+    quotesPlaced: placed, cancels, fills, filledOrders, fillRate: placed === 0 ? 0 : filledOrders / placed, tradedNotional: notional, feePaid: fees, netPnl,
     netBp: notional === 0 ? 0 : (netPnl / notional) * 10_000, avgSpreadCaptureBp: avg(captures), avgAdverseSelectionBp: avg(adverse),
     maxInventory: peakInv, maxDrawdown: maxDd, endInventory: inventory,
     fingerprint: createHash("sha256").update(JSON.stringify(body)).digest("hex"),

@@ -13,7 +13,10 @@ export interface VenueSpec {
   readonly tickBands: Known<readonly { readonly minPrice: number; readonly tick: number }[]>;
   readonly quantityStep: Known<number>;
   readonly minOrderNotional: Known<number>;
-  /** One listed rate (bp) for the market, as the official docs state it. It does NOT say whether maker and taker differ. */
+  /**
+   * One listed rate (bp) for the market, as the official docs state it. SCOPE: the Upbit Strategy Toolkit backtest's built-in market
+   * rule, NOT the exchange fee schedule; it does NOT say whether maker and taker differ. Tick bands are global and may differ per pair.
+   */
   readonly listedFeeBp: Known<number>;
   readonly makerFeeBp: Known<number>;
   readonly takerFeeBp: Known<number>;

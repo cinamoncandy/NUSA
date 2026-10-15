@@ -38,7 +38,7 @@ test("runs once complete: fixed fields only, deterministic identity, never indep
   assert.equal(result.eligible, 6); assert.equal(result.independent, false);
   assert.match(result.datasetFingerprint, /^[a-f0-9]{64}$/);
   for (const [key, value] of Object.entries(result)) if (key !== "status" && key !== "datasetFingerprint") assert.ok(typeof value === "number" || typeof value === "boolean", key);
-  assert.ok(result.baselineFills > 0);
+  assert.ok(result.baselineFilledOrders > 0);
   assert.equal(runStudy({ db: syntheticDb(6), now }).datasetFingerprint, result.datasetFingerprint);
 });
 
@@ -55,4 +55,15 @@ test("too few eligible markets is reported, not guessed; only a final result is 
   assert.equal(writeResult("/var/lib/nusa/state.sqlite", { status: "WAITING_DATA" }, fs), false);
   assert.equal(writeResult("/var/lib/nusa/state.sqlite", { status: "HOLDOUT_FAIL", eligible: 4 }, fs), true);
   assert.equal(writes[0][0], `/var/lib/nusa/${RESULT_FILE}.tmp`);
+});
+
+test("evaluated once: a recorded final result is never overwritten, and a dirty row is DATA_INVALID not a spec block", () => {
+  const { recordedResult } = require("./run-raim-study.js");
+  const files = new Map([[`/var/lib/nusa/${RESULT_FILE}`, JSON.stringify({ status: "HOLDOUT_FAIL" })]]);
+  const fs = { readFileSync: (p) => { if (!files.has(p)) throw new Error("ENOENT"); return files.get(p); }, writeFileSync: (p, c) => files.set(p, c), renameSync: () => { throw new Error("must not rename"); } };
+  assert.equal(recordedResult("/var/lib/nusa/state.sqlite", fs).status, "HOLDOUT_FAIL");
+  assert.equal(writeResult("/var/lib/nusa/state.sqlite", { status: "HOLDOUT_PASS", eligible: 4 }, fs), false);
+  const db = syntheticDb(6);
+  db.prepare("INSERT INTO research_trade_ticks_v2 VALUES (?, ?, ?, ?, ?)").run("KRW-M0", START + 5 * M, 10_000, 0, "ASK");
+  assert.deepEqual(runStudy({ db, now }), { status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_INVALID" });
 });
