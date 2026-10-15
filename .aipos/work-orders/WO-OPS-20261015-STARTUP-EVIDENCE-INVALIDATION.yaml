@@ -1,0 +1,44 @@
+id: WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION
+title: Preserve prepared Research evidence across unrelated PAPER startup writes
+status: READY_FOR_REVIEW
+owner: nusa-runtime-sre
+branch: fix/paper-startup-evidence-invalidation-20261015
+base_commit: 10c153464b40326a061e548cf44abfb479d07fc0
+parent: WO-OPS-20261015-RESEARCH-STARTUP-RECOVERY
+issues: [1605, 2589, 1816]
+authority_impact: startup-evidence-cache-freshness-only
+root_cause: "The global same-connection total_changes token includes legitimate PAPER writer/account and Research session writes; these invalidate prepared evidence and re-enter full validation while the renewable lease is held. A detected commit racing fresh validation was closed but its pre-change READY result was still returned, and synchronous startup aborts after preparation did not always dispose native evidence trackers."
+evidence_scope: "Actual failed Oracle38700547000 reports lease loss/readiness failure and rollback; the precise host blocking call is unproven. Isolated compiled production-path controlled-clock reproduction proves this structural vulnerability, not the historical host cause."
+scope:
+  - "Reuse ResearchRecoveryCoordinator; track its exact existing SQLite evidence read set with startup-only SQLite sessions, external data_version and schema_version."
+  - "Preserve same-connection corruption rejection, including nullable TEXT primary keys omitted by SQLite changesets."
+  - "Recheck data/schema versions after tracker inspection; final-variant external corruption must not reuse READY."
+  - "Retry fresh evidence validation at most three times; unstable evidence returns explicit RECOVERY_EVIDENCE_UNSTABLE FAIL_CLOSED."
+  - "Dispose tracking at startup end and every synchronous startup abort; ordinary recurring recovery always revalidates."
+  - "No new durable model, ledger, scheduler, Research engine, dependency, lease TTL/renewal/takeover change, Risk or qualification change."
+acceptance:
+  - "Production boundary includes actual first-orchestrator recovery and retains valid writer lease after delayed pre-lease preparation."
+  - "Changed candidate/evaluation/audit/command evidence, external commits and schema changes invalidate prepared results; corrupted evidence fails closed."
+  - "Build/typecheck/full validators and focused recovery tests pass; independent fresh review and exact-head CI precede canonical Audit/Release."
+  - "Actual rollout/readiness and runtime learning/replay evidence remain separate acceptance gates."
+validation:
+  source_head: 2e9aa095aa057c3c6e3a5e544af999dc29293072
+  baseline: "Existing9 tests PASS; augmented baseline12/14 exposed missing actual recovery coverage and schema invalidation. Final-variant external-commit regression also failed before repair."
+  focused: PASS_STARTUP_19_OF_19_AND_COMBINED_DAEMON_23_OF_23
+  full_typescript_emit: PASS_NODE24_21_TYPESCRIPT5_9_3
+  root_and_mobile_typecheck: PASS
+  repository_validation: PASS_VALIDATE_FULL
+  work_order_index: PASS
+  javascript_lint: PASS
+  security: PASS_ZERO_SECRETS_ZERO_UNMITIGATED_HIGH_CRITICAL
+  receipt: .aipos/evidence/runtime-startup-race-repair-validation-20261016.json
+  independent_review: PENDING_REVALIDATION_AFTER_SOURCE_HEAD_CHANGE
+  exact_head_ci: PENDING_AFTER_RUN_38815103630_EXPOSED_AND_LOCAL_REPAIR_FIXED_INDENTATION_COUPLED_DAEMON_TEST
+  audit_release_runtime: PENDING
+limitations: "Actual host initiating blocking call remains unproven; external commits still conservatively force full validation; no claim all startup delays, qualified cycle replay or investment improvement are solved."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Draft exact-head CI and separate fresh VALIDATOR review; keep Draft until review. Then canonical Audit/Release and actual exact-main runtime acceptance. No direct merge."
