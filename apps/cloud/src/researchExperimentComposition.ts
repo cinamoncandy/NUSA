@@ -133,18 +133,43 @@ export function composeResearchExperiments(input: {
   const sessions = new SqliteResearchSessionRepository(db);
   const recovery = new ResearchRecoveryCoordinator({ repository: candidates, evaluationLedger: ledger, now });
   let preparationActive = false;
-  let preparedRecovery: { readonly version: number; readonly changes: number; readonly result: ResearchRecoveryResult } | undefined;
+  type EvidenceSession = ReturnType<typeof db.connection.createSession>;
+  let preparedRecovery: { readonly version: number; readonly schema: number; readonly sessions: readonly EvidenceSession[]; readonly result: ResearchRecoveryResult } | undefined;
+  // Exact read set of ResearchRecoveryCoordinator and its two repositories. PAPER lease,
+  // account and Research session-state writes are not inputs to evidence validation.
+  const recoveryEvidenceTables = ["research_evaluation_ledger", "research_candidates", "research_champion_pointer", "research_promotion_commands", "research_promotion_audit"] as const;
   const dataVersion = (): number => Number((db.connection.prepare("PRAGMA data_version").get() as { data_version: number }).data_version);
-  const totalChanges = (): number => Number((db.connection.prepare("SELECT total_changes() AS changes").get() as { changes: number }).changes);
-  const validateRecovery = (): ResearchRecoveryResult => {
+  const schemaVersion = (): number => Number((db.connection.prepare("PRAGMA schema_version").get() as { schema_version: number }).schema_version);
+  const clearPreparedRecovery = (): void => {
+    const previous = preparedRecovery;
     preparedRecovery = undefined;
-    const before = dataVersion();
-    const changes = totalChanges();
-    const result = recovery.recover();
-    // Include same-connection writes, not only external commits. Legitimate account/session
-    // recovery can cause an extra validation; correctness takes precedence over reuse.
-    if (dataVersion() === before && totalChanges() === changes) preparedRecovery = { version: before, changes, result };
-    return result;
+    for (const session of previous?.sessions ?? []) session.close();
+  };
+  const hasNullEvidenceKey = (): boolean => {
+    // SQLite changesets omit rows with NULL primary keys; the legacy TEXT PRIMARY KEY
+    // schema permits them. Never reuse READY over such malformed evidence.
+    return db.connection.prepare("SELECT 1 FROM research_candidates WHERE candidate_id IS NULL LIMIT 1").get() != null ||
+      db.connection.prepare("SELECT 1 FROM research_promotion_commands WHERE command_id IS NULL LIMIT 1").get() != null;
+  };
+  const evidenceUnchanged = (prepared: NonNullable<typeof preparedRecovery>): boolean =>
+    dataVersion() === prepared.version && schemaVersion() === prepared.schema && !hasNullEvidenceKey() &&
+    prepared.sessions.every((session) => session.changeset().byteLength === 0);
+  const validateRecovery = (): ResearchRecoveryResult => {
+    clearPreparedRecovery();
+    const sessions: EvidenceSession[] = [];
+    try {
+      for (const table of recoveryEvidenceTables) sessions.push(db.connection.createSession({ table }));
+      const version = dataVersion();
+      const schema = schemaVersion();
+      const result = recovery.recover();
+      const prepared = { version, schema, sessions, result };
+      if (evidenceUnchanged(prepared)) preparedRecovery = prepared;
+      else for (const session of sessions) session.close();
+      return result;
+    } catch (error) {
+      for (const session of sessions) session.close();
+      throw error;
+    }
   };
   const prepareRecovery = (): void => {
     preparationActive = true;
@@ -153,7 +178,7 @@ export function composeResearchExperiments(input: {
   const startupRecovery = {
     recover: (): ResearchRecoveryResult => {
       if (!preparationActive) return recovery.recover();
-      if (preparedRecovery != null && dataVersion() === preparedRecovery.version && totalChanges() === preparedRecovery.changes) return preparedRecovery.result;
+      if (preparedRecovery != null && evidenceUnchanged(preparedRecovery)) return preparedRecovery.result;
       return validateRecovery();
     },
   };
@@ -299,7 +324,7 @@ export function composeResearchExperiments(input: {
   };
   return Object.freeze({
     prepareRecovery,
-    finishPreparedRecovery: () => { preparationActive = false; preparedRecovery = undefined; },
+    finishPreparedRecovery: () => { preparationActive = false; clearPreparedRecovery(); },
     orchestrator,
     orchestrators,
     experimentTicksByInterval: () => {
@@ -320,7 +345,7 @@ export function composeResearchExperiments(input: {
         log(`[research-experiments] recover ${settings.intervalsMinutes[index + 1]}m ${status}`);
       });
       preparationActive = false;
-      preparedRecovery = undefined;
+      clearPreparedRecovery();
       scheduleBackfill(1, 20_000);
       first = setTimeout(() => { try { tickOnce(); } catch { /* isolated */ } }, 60_000);
       first.unref?.();
@@ -329,6 +354,6 @@ export function composeResearchExperiments(input: {
       if (settings.backfill) { gapTimer = setInterval(() => { void fillGaps(); }, 6 * 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
-    stop: () => { preparationActive = false; preparedRecovery = undefined; stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
+    stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });
 }

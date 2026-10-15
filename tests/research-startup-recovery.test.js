@@ -158,7 +158,9 @@ for (const competingOwner of [false, true]) {
     t.mock.method(runtime, "startCloudRuntime", (...args) => {
       repository = args[5];
       repository.verifyWriterLease();
-      assert.equal(validations, 1);
+      assert.equal(args[9].recover().status, "READY");
+      repository.verifyWriterLease();
+      assert.equal(validations, 1, "legitimate writer/session writes must not replay evidence validation under the lease");
       throw boundary; // No listener, timers, market connection, or autonomous execution.
     });
     try {
@@ -175,3 +177,48 @@ for (const competingOwner of [false, true]) {
     } finally { repository?.close(); owner?.close(); db.close(); }
   });
 }
+
+for (const table of ["research_evaluation_ledger", "research_promotion_audit", "research_promotion_commands", "research_candidates"]) {
+  test(`same-connection corruption of ${table} invalidates prepared evidence`, () => {
+    const db = new storage.SqliteDatabase(":memory:");
+    const composition = composeResearchExperiments({ env, database: db });
+    try {
+      composition.prepareRecovery();
+      if (table === "research_evaluation_ledger") db.connection.exec("INSERT INTO research_evaluation_ledger VALUES (1, 'synthetic', 'bad', '{', 'bad')");
+      else if (table === "research_promotion_audit") db.connection.exec("INSERT INTO research_promotion_audit VALUES (1, 'synthetic', 'bad', '{', 'bad')");
+      else if (table === "research_candidates") db.connection.exec("INSERT INTO research_candidates VALUES ('synthetic', '{', 'DRAFT', 1, 'bad')");
+      else db.connection.exec("INSERT INTO research_promotion_commands VALUES ('synthetic', 'bad', '{', 1)");
+      assert.equal(composition.orchestrator.recover().status, "FAIL_CLOSED");
+      assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+    } finally { composition.stop(); db.close(); }
+  });
+}
+
+for (const table of ["research_candidates", "research_promotion_commands"]) {
+test(`NULL primary key in ${table} cannot evade SQLite change tracking`, () => {
+  const db = new storage.SqliteDatabase(":memory:");
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    if (table === "research_candidates") db.connection.exec("INSERT INTO research_candidates VALUES (NULL, '{', 'DRAFT', 1, 'bad')");
+    else db.connection.exec("INSERT INTO research_promotion_commands VALUES (NULL, 'bad', '{', 1)");
+    assert.equal(composition.orchestrator.recover().status, "FAIL_CLOSED");
+    assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+  } finally { composition.stop(); db.close(); }
+});
+
+}
+
+test("schema changes force fresh evidence validation", (t) => {
+  const db = new storage.SqliteDatabase(":memory:");
+  const original = ResearchRecoveryCoordinator.prototype.recover;
+  let calls = 0;
+  t.mock.method(ResearchRecoveryCoordinator.prototype, "recover", function () { calls++; return original.call(this); });
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    db.connection.exec("CREATE TABLE synthetic_unrelated_schema (id INTEGER PRIMARY KEY)");
+    assert.equal(composition.orchestrator.recover().status, "READY");
+    assert.equal(calls, 2);
+  } finally { composition.stop(); db.close(); }
+});
