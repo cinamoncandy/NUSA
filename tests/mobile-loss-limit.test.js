@@ -60,10 +60,20 @@ test("with another stop in force the line never promises a midnight restart", ()
   assert.match(view, /buildLossLimitLine\(heartbeat\?\.lossLimit, Date\.now\(\), haltCause != null \|\| field\.phase === "HALTED"\)/);
 });
 
-test("the RISK gateway source is not touched by this display change", () => {
-  const { execFileSync } = require("node:child_process");
-  const changed = execFileSync("git", ["diff", "--name-only", "origin/main", "--", "apps/cloud/src/cloudPaperCanonicalRiskGateway.ts"], { encoding: "utf8" }).trim();
-  assert.equal(changed, "");
+test("the display is read-only for both active and owner-disabled PAPER policies", () => {
+  for (const enabled of [true, false]) {
+    const payload = Object.freeze({ consecutiveLossCount: 3, maxConsecutiveLosses: 3, evaluatedAt: NOW, consecutiveLossLimitEnabled: enabled });
+    const before = JSON.stringify(payload);
+    const line = buildLossLimitLine(payload, NOW);
+    assert.equal(JSON.stringify(payload), before);
+    assert.equal(line.state, enabled ? "STOPPED" : "DISABLED");
+    if (!enabled) {
+      assert.match(line.text, /제한 해제/);
+      assert.doesNotMatch(line.text, /자정에 다시 시작|새로 사지 않아요/);
+    }
+  }
+  const source = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/lossLimitModel.ts"), "utf8");
+  assert.doesNotMatch(source, /\bimport\b|\brequire\s*\(|\bfetch\s*\(|\.evaluate\s*\(|\.execute\s*\(/);
 });
 
 test("today's realized P&L reads as a signed won amount, only for today's KST day", () => {

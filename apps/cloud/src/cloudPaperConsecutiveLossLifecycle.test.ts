@@ -32,7 +32,7 @@ function request(s: PaperAccountState, now: number, n: number): CloudPaperRiskRe
   return { path: "STRATEGY", commandId: `c${n}`, signalId: `sig${n}`, clientOrderId: `o${n}`, strategyId: "t", market: M, side: "BUY", quantity: 1, price: 100, now, observedAt: now - 1000, maximumMarketAgeMs: 60_000, killSwitchActive: false, openP0: false, overallHealth: "HEALTHY", state: s };
 }
 function gate(db = new SqliteDatabase(":memory:")): CloudPaperCanonicalRiskGateway {
-  return new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 1_000_000, sourceCommitSha: "test" });
+  return new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 1_000_000, sourceCommitSha: "test", limits: { ...CLOUD_PAPER_RISK_LIMITS, consecutiveLossLimitEnabled: true } });
 }
 
 describe("consecutive-loss streak lifecycle (threshold 3, KST trading day)", () => {

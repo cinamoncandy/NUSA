@@ -3012,6 +3012,16 @@ current_ui_hero_ridge:
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('이거로 할게' on the ridge prototype)"
   finding: "Hero replaced by a ridge landscape; decisions roll a wave from the horizon, a PAPER order raises a lime peak and beam"
+
+current_paper_loss_policy_20261015:
+  work_order: WO-POLICY-20261015-PAPER-LOSS-LIMIT
+  status: IMPLEMENTED_LOCAL_VERIFYING_NOT_DEPLOYED
+  branch: codex/paper-loss-limit-policy-20261015
+  owner_decision: "PAPER 제한 해제; Cloud spot consecutive-loss veto only, not counter reset."
+  evidence: "60 focused tests and13 requalification/registry tests PASS. Final frozen1230 isolated files PASS; build/typecheck/fullvalidators/security PASS;lint PASS24 warnings. Review2 P1 fixed, fresh review no remaining findings. Exact-head CI pending, no operational policy change."
+  next: "Fresh review and full local gates before draft PR. Prior rollout failed/rolled back; do not claim operational policy applied."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_paper_loss_session_counts:
   work_order: WO-PAPER-20261006-LOSS-SESSION-COUNTS
   status: READY_FOR_REVIEW

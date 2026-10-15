@@ -118,7 +118,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
   readonly sourceCommitSha?: string;
-  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly consecutiveLossLimitEnabled?: boolean; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }
 
 export interface CloudReadinessSnapshot {
@@ -354,6 +354,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     ? {
         paperLossSession: {
           ...Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])),
+          ...(typeof rawLoss.consecutiveLossLimitEnabled === "boolean" ? { consecutiveLossLimitEnabled: rawLoss.consecutiveLossLimitEnabled } : {}),
           ...periodEvidence(rawLoss),
         },
       }

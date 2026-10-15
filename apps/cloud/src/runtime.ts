@@ -245,7 +245,7 @@ export function startCloudRuntime(
   const lossLimitHeartbeat = (): { lossLimit?: PersonalPaperLossLimit } => {
     let session: ReturnType<NonNullable<typeof productionPaperRiskGate>["lossSession"]> = null;
     try { session = productionPaperRiskGate?.lossSession() ?? null; } catch { session = null; }
-    return session == null ? {} : { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt }) };
+    return session == null ? {} : { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt, ...(session.consecutiveLossLimitEnabled === undefined ? {} : { consecutiveLossLimitEnabled: session.consecutiveLossLimitEnabled }) }) };
   };
   // Display only: today's realized P&L from the PAPER loop's own fills, outside the RISK gateway. A failing read is ignored.
   const todayRealizedHeartbeat = (): { todayRealized?: PersonalPaperTodayRealized } => {

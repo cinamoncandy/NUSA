@@ -11,7 +11,7 @@ import type { PaperAccountState } from "./paperTradingExecutionLoop";
 const ACCOUNT_ID = "paper-default";
 const MANUAL_APPROVAL_TTL_MS = 60_000;
 
-/** Same conservative PAPER envelope already used by the desktop canonical composition. */
+/** Owner-approved Cloud spot PAPER policy; only the consecutive-loss veto is disabled. */
 export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
   maxOrderNotional: 2_000_000,
   maxPositionNotional: 2_000_000,
@@ -25,6 +25,7 @@ export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
   maxDailySellNotional: 2_000_000,
   maxDailyLoss: 1_000_000,
   maxConsecutiveLosses: 3,
+  consecutiveLossLimitEnabled: false,
   maxSessionDrawdownRatio: 0.2,
   maxPriceDeviationRatio: 0.05
 });
@@ -56,10 +57,11 @@ export interface CloudPaperRiskGate {
 }
 
 /**
- * Display-only counts behind the consecutive-loss limit, as of the latest risk evaluation: today's (UTC) completed sell
+ * Display-only counts and explicit enforcement policy, as of the latest risk evaluation: today's (KST) completed sell
  * orders, how many of them lost, the current losing streak and the configured limit. Integers only (no money, market or id).
  */
 export interface CloudPaperLossSessionSnapshot {
+  readonly consecutiveLossLimitEnabled?: boolean;
   readonly evaluatedAt: number;
   readonly consecutiveLossCount: number;
   readonly maxConsecutiveLosses: number;
@@ -80,6 +82,10 @@ const dayStartedAt = (dayKey: string): number => paperTradingDayStartedAt(dayKey
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {
+    if (name === "consecutiveLossLimitEnabled") {
+      if (typeof value !== "boolean") throw new Error("cloud PAPER loss enforcement policy is invalid");
+      continue;
+    }
     if (!Number.isFinite(value) || value < 0) throw new Error(`cloud PAPER risk limit ${name} is invalid`);
   }
   if (limits.maxOrdersPerSecond < 1 || limits.maxOrdersPerMinute < 1 || limits.maxSameSideStreak < 1 || limits.maxConsecutiveLosses < 1) {
@@ -265,7 +271,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const notionals = dailyNotional(input.state, input.now);
     const lossState = realizedLossState(input.state, input.now);
     if (Number.isFinite(lossState.dailyRealizedPnL)) {
-      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt });
+      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, consecutiveLossLimitEnabled: this.limits.consecutiveLossLimitEnabled !== false, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt });
     }
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);
