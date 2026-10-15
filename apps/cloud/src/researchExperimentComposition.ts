@@ -157,22 +157,32 @@ export function composeResearchExperiments(input: {
     // External commits can occur while the change trackers are inspected.
     return unchanged && dataVersion() === prepared.version && schemaVersion() === prepared.schema;
   };
+  const recoveryValidationAttempts = 3;
   const validateRecovery = (): ResearchRecoveryResult => {
     clearPreparedRecovery();
-    const sessions: EvidenceSession[] = [];
-    try {
-      for (const table of recoveryEvidenceTables) sessions.push(db.connection.createSession({ table }));
-      const version = dataVersion();
-      const schema = schemaVersion();
-      const result = recovery.recover();
-      const prepared = { version, schema, sessions, result };
-      if (evidenceUnchanged(prepared)) preparedRecovery = prepared;
-      else for (const session of sessions) session.close();
-      return result;
-    } catch (error) {
-      for (const session of sessions) session.close();
-      throw error;
+    for (let attempt = 0; attempt < recoveryValidationAttempts; attempt++) {
+      const sessions: EvidenceSession[] = [];
+      let retained = false;
+      try {
+        for (const table of recoveryEvidenceTables) sessions.push(db.connection.createSession({ table }));
+        const version = dataVersion();
+        const schema = schemaVersion();
+        const result = recovery.recover();
+        const prepared = { version, schema, sessions, result };
+        if (evidenceUnchanged(prepared)) {
+          preparedRecovery = prepared;
+          retained = true;
+          return result;
+        }
+      } finally {
+        if (!retained) for (const session of sessions) session.close();
+      }
     }
+    return Object.freeze({
+      status: "FAIL_CLOSED",
+      snapshot: null,
+      reasons: Object.freeze(["RECOVERY_EVIDENCE_UNSTABLE"]),
+    });
   };
   const prepareRecovery = (): void => {
     preparationActive = true;

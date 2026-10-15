@@ -133,6 +133,15 @@ test("start disposes prepared evidence before recurring recovery", (t) => {
 for (const competingOwner of [false, true]) {
   test(`production validates before acquiring writer lease, without starting runtime (competing=${competingOwner})`, (t) => {
     const db = new storage.SqliteDatabase(":memory:");
+    const createSession = db.connection.createSession;
+    let closedEvidenceTrackers = 0;
+    t.mock.method(db.connection, "createSession", function (options) {
+      const session = createSession.call(this, options);
+      return {
+        changeset() { return session.changeset(); },
+        close() { closedEvidenceTrackers++; session.close(); },
+      };
+    });
     const accountId = paperAccountIdForCapital(10000000);
     let now = 1000000;
     t.mock.method(Date, "now", () => now);
@@ -174,6 +183,7 @@ for (const competingOwner of [false, true]) {
         assert.equal(validations, 1);
         repository.verifyWriterLease();
       }
+      assert.equal(closedEvidenceTrackers, 5, "every prepared evidence tracker closes when startup aborts");
     } finally { repository?.close(); owner?.close(); db.close(); }
   });
 }
@@ -249,6 +259,53 @@ test("external evidence commit during tracker inspection cannot reuse READY", (t
     assert.equal(armed, false, "external mutation must occur during the final variant inspection");
     assert.equal(result.status, "FAIL_CLOSED");
     assert.ok(result.reasons.includes("CHAMPION_POINTER_LIFECYCLE_MISMATCH"));
+    assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+  } finally { composition.stop(); other.close(); db.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("fresh validation retries a final-variant external commit instead of returning stale READY", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-startup-fresh-validation-race-"));
+  const db = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const other = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const createSession = db.connection.createSession;
+  const recover = ResearchRecoveryCoordinator.prototype.recover;
+  let armedInspection = false;
+  let armedFreshValidation = false;
+  let remainingVariants = 10;
+  let validations = 0;
+  t.mock.method(ResearchRecoveryCoordinator.prototype, "recover", function () {
+    validations++;
+    const result = recover.call(this);
+    if (armedFreshValidation) {
+      armedFreshValidation = false;
+      other.connection.exec("INSERT INTO research_champion_pointer VALUES (1, 'synthetic-missing', 1)");
+    }
+    return result;
+  });
+  t.mock.method(db.connection, "createSession", function (options) {
+    const session = createSession.call(this, options);
+    return {
+      changeset() {
+        if (armedInspection && options.table === "research_evaluation_ledger" && --remainingVariants === 0) {
+          armedInspection = false;
+          other.connection.exec("CREATE TABLE synthetic_final_variant_change (id INTEGER PRIMARY KEY)");
+          armedFreshValidation = true;
+        }
+        return session.changeset();
+      },
+      close() { session.close(); },
+    };
+  });
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    armedInspection = true;
+    const result = composition.orchestrator.recover();
+    assert.equal(armedInspection, false, "external mutation must invalidate the final cached variant");
+    assert.equal(armedFreshValidation, false, "second mutation must land after fresh recovery reads");
+    assert.equal(result.status, "FAIL_CLOSED");
+    assert.ok(result.reasons.includes("CHAMPION_POINTER_LIFECYCLE_MISMATCH"));
+    assert.equal(validations, 3, "unstable READY is discarded and the changed evidence is re-read");
     assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
   } finally { composition.stop(); other.close(); db.close(); rmSync(directory, { recursive: true, force: true }); }
 });

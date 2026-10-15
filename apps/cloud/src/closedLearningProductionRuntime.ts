@@ -129,6 +129,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   let longBarTickEvery = 1;
   const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
   researchExperiments?.prepareRecovery();
+  try {
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
@@ -504,6 +505,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     readPaperPerformanceEvidence,
     evaluatePaperGovernanceFeedback,
   });
+  } catch (error) {
+    // Preparation begins before lease acquisition. Any synchronous startup failure must release
+    // the native SQLite change trackers, including an active competing writer or runtime fault.
+    researchExperiments?.finishPreparedRecovery();
+    throw error;
+  }
 }
 
 function main(): void {
