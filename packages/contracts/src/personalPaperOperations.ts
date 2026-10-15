@@ -32,6 +32,7 @@ export interface PersonalPaperDecisionDetail {
 }
 
 export interface PersonalPaperLossLimit {
+  readonly consecutiveLossLimitEnabled?: boolean;
   readonly consecutiveLossCount: number;
   readonly maxConsecutiveLosses: number;
   readonly evaluatedAt: number;
@@ -386,7 +387,7 @@ function isValidTodayRealized(value: unknown): boolean {
 function isValidLossLimit(value: unknown): boolean {
   if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  return isCount(v.consecutiveLossCount) && isCount(v.maxConsecutiveLosses, 1) && isTimeMs(v.evaluatedAt);
+  return (v.consecutiveLossLimitEnabled === undefined || typeof v.consecutiveLossLimitEnabled === "boolean") && isCount(v.consecutiveLossCount) && isCount(v.maxConsecutiveLosses, 1) && isTimeMs(v.evaluatedAt);
 }
 
 function isValidMarketList(value: unknown): boolean {
