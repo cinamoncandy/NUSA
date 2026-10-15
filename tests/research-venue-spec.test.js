@@ -6,6 +6,8 @@ const { UPBIT_KRW_SPOT_SPEC, unknownFieldsBlockingSimulation, tickForPrice } = r
 test("unverified venue facts block quote simulation (fail closed)", () => {
   assert.deepEqual(unknownFieldsBlockingSimulation(UPBIT_KRW_SPOT_SPEC), ["quantityStep", "makerFeeBp", "takerFeeBp"]);
   assert.equal(UPBIT_KRW_SPOT_SPEC.minOrderNotional.value, 5000);
+  assert.equal(UPBIT_KRW_SPOT_SPEC.listedFeeBp.value, 5);
+  assert.equal(UPBIT_KRW_SPOT_SPEC.makerFeeBp.status, "UNKNOWN", "a single listed rate is not a maker/taker split");
 });
 test("a fully verified spec unblocks simulation", () => {
   const v = (value) => ({ status: "VERIFIED", value, sourceUrl: "https://example.test", verifiedAtMs: 1 });

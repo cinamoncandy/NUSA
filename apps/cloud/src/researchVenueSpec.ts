@@ -13,6 +13,8 @@ export interface VenueSpec {
   readonly tickBands: Known<readonly { readonly minPrice: number; readonly tick: number }[]>;
   readonly quantityStep: Known<number>;
   readonly minOrderNotional: Known<number>;
+  /** One listed rate (bp) for the market, as the official docs state it. It does NOT say whether maker and taker differ. */
+  readonly listedFeeBp: Known<number>;
   readonly makerFeeBp: Known<number>;
   readonly takerFeeBp: Known<number>;
   readonly makerRebateBp: Known<number>;
@@ -38,6 +40,9 @@ export const UPBIT_KRW_SPOT_SPEC: VenueSpec = Object.freeze({
   tickBands: Object.freeze({ status: "VERIFIED" as const, value: TICK_BANDS, sourceUrl: TICK_SOURCE, verifiedAtMs: VERIFIED_AT_MS }),
   quantityStep: UNKNOWN,
   minOrderNotional: Object.freeze({ status: "VERIFIED" as const, value: 5000, sourceUrl: TICK_SOURCE, verifiedAtMs: VERIFIED_AT_MS }),
+  // docs.upbit.com Strategy Toolkit reference, fee table (Upbit KR): KRW 0.05%, BTC 0.25%, USDT 0.25%. That is the toolkit's built-in
+  // market rule; the support-center fee page returned 403 here and was NOT read. Maker/taker split and rebate are not stated.
+  listedFeeBp: Object.freeze({ status: "VERIFIED" as const, value: 5, sourceUrl: "https://docs.upbit.com/kr/docs/upbit-strategy-toolkit-reference", verifiedAtMs: VERIFIED_AT_MS }),
   makerFeeBp: UNKNOWN,
   takerFeeBp: UNKNOWN,
   makerRebateBp: UNKNOWN,
