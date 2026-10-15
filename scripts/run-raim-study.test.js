@@ -54,12 +54,12 @@ test("too few eligible markets is reported, not guessed; only a final result is 
   const fs = { writeFileSync: (p, c) => writes.push([p, c]), renameSync: () => writes.push(["rename"]) };
   assert.equal(writeResult("/var/lib/nusa/state.sqlite", { status: "WAITING_DATA" }, fs), false);
   assert.equal(writeResult("/var/lib/nusa/state.sqlite", { status: "HOLDOUT_FAIL", eligible: 4 }, fs), true);
-  assert.equal(writes[0][0], `/var/lib/nusa/${RESULT_FILE}.tmp`);
+  assert.equal(writes[0][0], `${require("node:path").join("/var/lib/nusa", RESULT_FILE)}.tmp`);
 });
 
 test("evaluated once: a recorded final result is never overwritten, and a dirty row is DATA_INVALID not a spec block", () => {
   const { recordedResult } = require("./run-raim-study.js");
-  const files = new Map([[`/var/lib/nusa/${RESULT_FILE}`, JSON.stringify({ status: "HOLDOUT_FAIL" })]]);
+  const files = new Map([[require("node:path").join("/var/lib/nusa", RESULT_FILE), JSON.stringify({ status: "HOLDOUT_FAIL" })]]);
   const fs = { readFileSync: (p) => { if (!files.has(p)) throw new Error("ENOENT"); return files.get(p); }, writeFileSync: (p, c) => files.set(p, c), renameSync: () => { throw new Error("must not rename"); } };
   assert.equal(recordedResult("/var/lib/nusa/state.sqlite", fs).status, "HOLDOUT_FAIL");
   assert.equal(writeResult("/var/lib/nusa/state.sqlite", { status: "HOLDOUT_PASS", eligible: 4 }, fs), false);
