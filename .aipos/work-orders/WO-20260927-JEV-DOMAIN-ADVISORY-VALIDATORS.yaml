@@ -1,6 +1,6 @@
 id: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
 title: "Jev domain advisory validator completion"
-status: VERIFYING
+status: READY_FOR_REVIEW
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
@@ -34,7 +34,9 @@ evidence:
   prior_implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
   prior_validation: "Historical17/17 generic registry tests; not current-main acceptance."
   current_main_reconvergence: "Both DOMAIN_ADVISORY_V1 and existing MARKET_MICROSTRUCTURE_V1 coexist. The specialized market contract is unchanged and requires no new classification vocabulary."
-  current_validation: PENDING
+  validation_source_head: d7d17e7da5cb1f9d091b5dbcfb43a759a18337fe
+  current_validation: "36/36 focused PASS; full strict TS emit/root/mobile typecheck; validate:full/index/security/JS lint PASS."
+  validation_receipt: .aipos/evidence/jev-2337-current-main-validation-20261015.json
   independent_review: PENDING_FRESH_NON_AUTHOR_VALIDATOR
   exact_head_ci: PENDING
   audit_release_runtime: PENDING
