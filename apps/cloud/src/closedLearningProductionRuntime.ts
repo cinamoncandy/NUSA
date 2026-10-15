@@ -84,7 +84,7 @@ export interface ClosedLearningProductionComposition {
  * replay-safe cycle ledger, initial PAPER bootstrap, and next-PAPER deployment. No second PAPER
  * writer, Research scoring engine, LIVE route, or production champion mutation is introduced here.
  */
-export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = process.env): ClosedLearningProductionComposition {
+export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = process.env, requestFatalShutdown?: () => void): ClosedLearningProductionComposition {
   const config = readCloudRuntimeConfig(env);
   const closedLearningConfig = readClosedLearningProductionConfig(env, config.cloudStateDbPath);
   const database = new SqliteDatabase(config.cloudStateDbPath);
@@ -472,7 +472,9 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     console.error(`[closed-learning] scheduler failed closed: ${detail}`);
     recordRuntimeFailure(config.cloudStateDbPath, "CLOSED_LEARNING_SCHEDULER", error);
     process.exitCode = 1;
-    void handle.stop();
+    // The daemon owner uses the existing bounded controller; embedded callers own their process.
+    if (requestFatalShutdown != null) requestFatalShutdown();
+    else void handle.stop();
   };
   const scheduleTick = (): void => { void runClosedLearningTick().catch(failClosedScheduler); };
 
@@ -501,15 +503,21 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
 function main(): void {
   const stateDbPath = process.env.NUSA_CLOUD_STATE_DB_PATH;
+  let shutdown!: ReturnType<typeof registerGracefulShutdown>;
+  let schedulerFailed = false;
   let composition: ReturnType<typeof startClosedLearningProductionRuntime>;
   try {
-    composition = startClosedLearningProductionRuntime(process.env);
+    // Scheduler ticks are deferred until after this synchronous registration completes.
+    composition = startClosedLearningProductionRuntime(process.env, () => {
+      schedulerFailed = true;
+      shutdown.trigger("CLOSED_LEARNING_SCHEDULER");
+    });
   } catch (error) {
     // Start-up faults happen before the fatal handlers exist; record them so the loop is visible.
     if (stateDbPath !== undefined) recordRuntimeFailure(stateDbPath, "STARTUP", error);
     throw error;
   }
-  registerGracefulShutdown(composition.handle, process.exit, stateDbPath);
+  shutdown = registerGracefulShutdown(composition.handle, (code) => process.exit(schedulerFailed ? 1 : code), stateDbPath);
 }
 
 if (require.main === module) main();
