@@ -9,7 +9,8 @@ export interface VenueSpec {
   readonly venue: string;
   readonly product: string;
   readonly documentationUrl: string;
-  readonly tickSize: Known<number>;
+  /** Price bands, highest first: the tick for a price p is the first band with p >= minPrice. */
+  readonly tickBands: Known<readonly { readonly minPrice: number; readonly tick: number }[]>;
   readonly quantityStep: Known<number>;
   readonly minOrderNotional: Known<number>;
   readonly makerFeeBp: Known<number>;
@@ -21,14 +22,22 @@ export interface VenueSpec {
 
 const UNKNOWN = Object.freeze({ status: "UNKNOWN" as const });
 
-/** Nothing is VERIFIED yet: every market fact stays UNKNOWN until a dated official source is recorded. */
+const TICK_SOURCE = "https://docs.upbit.com/kr/docs/krw-market-info";
+// Read from the raw page (curl, not a summary) on 2026-10-15; the page says "Updated 5 months ago".
+const VERIFIED_AT_MS = Date.UTC(2026, 9, 15);
+const TICK_BANDS = Object.freeze([
+  [2_000_000, 1000], [1_000_000, 1000], [500_000, 500], [100_000, 100], [50_000, 50], [10_000, 10], [5_000, 5], [1_000, 1], [100, 1],
+  [10, 0.1], [1, 0.01], [0.1, 0.001], [0.01, 0.0001], [0.001, 0.00001], [0.0001, 0.000001], [0.00001, 0.0000001], [0, 0.00000001],
+].map(([minPrice, tick]) => Object.freeze({ minPrice: minPrice!, tick: tick! })));
+
+/** Only facts read from a dated official page are VERIFIED; quantity step and fees are not on it and stay UNKNOWN. */
 export const UPBIT_KRW_SPOT_SPEC: VenueSpec = Object.freeze({
   venue: "UPBIT",
   product: "KRW_SPOT",
   documentationUrl: "https://docs.upbit.com",
-  tickSize: UNKNOWN,
+  tickBands: Object.freeze({ status: "VERIFIED" as const, value: TICK_BANDS, sourceUrl: TICK_SOURCE, verifiedAtMs: VERIFIED_AT_MS }),
   quantityStep: UNKNOWN,
-  minOrderNotional: UNKNOWN,
+  minOrderNotional: Object.freeze({ status: "VERIFIED" as const, value: 5000, sourceUrl: TICK_SOURCE, verifiedAtMs: VERIFIED_AT_MS }),
   makerFeeBp: UNKNOWN,
   takerFeeBp: UNKNOWN,
   makerRebateBp: UNKNOWN,
@@ -36,9 +45,15 @@ export const UPBIT_KRW_SPOT_SPEC: VenueSpec = Object.freeze({
   sequenceAndGapRules: UNKNOWN,
 });
 
-const REQUIRED_FOR_QUOTING = ["tickSize", "quantityStep", "minOrderNotional", "makerFeeBp", "takerFeeBp"] as const;
+const REQUIRED_FOR_QUOTING = ["tickBands", "quantityStep", "minOrderNotional", "makerFeeBp", "takerFeeBp"] as const;
 
 /** Fail-closed gate: returns the UNKNOWN fields that block quote simulation (empty list = simulation may proceed). */
 export function unknownFieldsBlockingSimulation(spec: VenueSpec): readonly string[] {
   return REQUIRED_FOR_QUOTING.filter((key) => spec[key].status !== "VERIFIED");
+}
+
+/** Tick for a price from the VERIFIED bands; undefined (never a guess) when the bands are not verified or the price is invalid. */
+export function tickForPrice(spec: VenueSpec, price: number): number | undefined {
+  if (spec.tickBands.status !== "VERIFIED" || !Number.isFinite(price) || price <= 0) return undefined;
+  return spec.tickBands.value.find((band) => price >= band.minPrice)?.tick;
 }

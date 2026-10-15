@@ -16,7 +16,7 @@ prohibited:
   - authority_escalation
   - invented_fees_tick_sizes_or_profitability
 remaining_transitions:
-  - verify_upbit_krw_spec_from_dated_official_source
+  - verify_upbit_krw_spec_from_dated_official_source (PARTIAL 2026-10-15: tick bands and 5,000 KRW minimum VERIFIED from https://docs.upbit.com/kr/docs/krw-market-info raw page; quantity step, maker/taker fee, rebate, cancel limits, sequence rules still UNKNOWN - the developer docs do not state fees)
   - data_integrity_and_lookahead_check_for_fill_inputs (DONE for existing rows, WO data-integrity probe)
   - conservative_fill_queue_cancel_simulator
   - baseline_vs_candidate_same_input_comparison
