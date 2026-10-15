@@ -3,7 +3,8 @@
 Base:10c153464b40326a061e548cf44abfb479d07fc0.
 Branch:fix/paper-startup-evidence-invalidation-20261015.
 Work order:WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION.
-Frozen validated implementation:ead0a8fe9da3a81d7c3c3b3877e1ba9e8d3f389a.
+Frozen validated implementation:ead0a8fe9da3a81d7c3c3b3877e1ba9e8d3f389a;
+CI-exposed daemon-test repair:2e9aa095aa057c3c6e3a5e544af999dc29293072.
 Later commits change evidence metadata only. Resolve the current Draft PR by this
 branch and bind CI/review to its exact published head, not only this source head.
 MergedPR2732 is not reopened; this fixes its reproduced invalidation residual.
@@ -38,7 +39,10 @@ failure.
 
 ## Completed local gates
 
-Current source head passes19/19 startup regressions, full strict TypeScript emit,
+CI run38815103630 exposed one indentation-coupled static daemon test after the
+startup try boundary nested the unchanged compiled handler. The regex now accepts
+the handler's actual whitespace depth; combined daemon/startup regressions pass
+23/23. Current source head also passes19/19 startup regressions, full strict TypeScript emit,
 root/mobile typecheck, validate:full, JS lint and security gate on Node24.21 /
 TypeScript5.9.3. Security reports zero secrets and zero unmitigated high/critical
 advisories. The local changed-test fast hook SKIPs by existing non-primary-CI

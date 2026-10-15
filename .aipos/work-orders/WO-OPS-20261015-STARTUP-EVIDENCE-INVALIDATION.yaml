@@ -22,9 +22,9 @@ acceptance:
   - "Build/typecheck/full validators and focused recovery tests pass; independent fresh review and exact-head CI precede canonical Audit/Release."
   - "Actual rollout/readiness and runtime learning/replay evidence remain separate acceptance gates."
 validation:
-  source_head: ead0a8fe9da3a81d7c3c3b3877e1ba9e8d3f389a
+  source_head: 2e9aa095aa057c3c6e3a5e544af999dc29293072
   baseline: "Existing9 tests PASS; augmented baseline12/14 exposed missing actual recovery coverage and schema invalidation. Final-variant external-commit regression also failed before repair."
-  focused: PASS_STARTUP_19_OF_19
+  focused: PASS_STARTUP_19_OF_19_AND_COMBINED_DAEMON_23_OF_23
   full_typescript_emit: PASS_NODE24_21_TYPESCRIPT5_9_3
   root_and_mobile_typecheck: PASS
   repository_validation: PASS_VALIDATE_FULL
@@ -33,7 +33,7 @@ validation:
   security: PASS_ZERO_SECRETS_ZERO_UNMITIGATED_HIGH_CRITICAL
   receipt: .aipos/evidence/runtime-startup-race-repair-validation-20261016.json
   independent_review: PENDING_REVALIDATION_AFTER_SOURCE_HEAD_CHANGE
-  exact_head_ci: PENDING
+  exact_head_ci: PENDING_AFTER_RUN_38815103630_EXPOSED_AND_LOCAL_REPAIR_FIXED_INDENTATION_COUPLED_DAEMON_TEST
   audit_release_runtime: PENDING
 limitations: "Actual host initiating blocking call remains unproven; external commits still conservatively force full validation; no claim all startup delays, qualified cycle replay or investment improvement are solved."
 safety:
