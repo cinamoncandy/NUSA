@@ -4,15 +4,17 @@ status: IN_PROGRESS
 authority_impact: none
 priority: P0
 risk: LOW
-base_commit: 72f9c9e0f50c7820b82e7819171e7bbc2c519aa7
-branch: codex/diagnose-health-freshness-20261015
+base_commit: d05cda6f0d3e259e4bc3b5b8f9f3b092d5322462
+branch: codex/diagnose-health-context-20261015
 parent_issue: 2589
 objective: "Restore truthful diagnosis while investigating actual PAPER health connection refusal."
 evidence:
+  platform_followup: "PR2717 merged d05cda6f, but actual dispatch HTTP422 rejected runner.temp in job-level env. Resolve RUNNER_TEMP in both Bash steps instead; preserve run/attempt basename and stale-data clearing. Six tests, validate:full, security, workflow validators and lint:scripts PASS(24 existing warnings); fresh review pending."
+  actual_recovery: "Oracle38659917246 PASS/DEPLOYED72f9c9e0. Public health00:39:41.575Z and00:40:16.066Z2026-10-15 source matches, HEALTHY,lastErrornull,ticks3->4. Initiating outage cause unknown."
   incident_run: 38659737372
   finding: "Local curl exited7/http000 on 2026-10-15T00:23:44Z, yet old fixed /tmp response exposed observedAt2026-10-14T23:36:06.834Z. Active systemd does not prove HTTP liveness."
   recovery_run: 38659917246
-  recovery_scope: "Canonical exact-main PAPER Release72f9c9e0 with backup/preflight/rollback. Dispatched, not yet claimed deployed or recovered."
+  recovery_scope: "Canonical exact-main PAPER Release38659917246 PASS/DEPLOYED72f9c9e0 with backup/preflight/readiness and fresh public health confirmed; see actual_recovery."
 scope:
   - "Existing read-only host diagnosis only; run+attempt scoped runner.temp file, truncate before fetch and on curl/HTTP failure, explicit unavailable annotation."
   - "Actual Bash regression with old file and failed/partial fetch."
@@ -27,7 +29,7 @@ verification_commands:
   - node scripts/validate-workflow-action-inputs.js
   - node scripts/validate-workflow-authority-map.js
 validation: "6 focused Bash/workflow tests, validate:full, security:gate and workflow pin/input/authority validators PASS; lint:scripts PASS with24 existing warnings."
-review: "Fresh non-author Hypatia: no P0/P1/P2 findings; independently tested success/HTTP22/partial28 paths. Full verdict INSUFFICIENT_EVIDENCE because reviewer could not independently query GitHub. Keep draft; not Audit/Release approval."
+review: "Fresh Hypatia review of platform-context correction PASS_WITH_NOTES: no P0/P1; P2 contradictory historical recovery status corrected. Six tests and success/HTTP22/partial28 probes plus workflow validators independently PASS. This is not Audit/Release approval."
 safety:
   mode: PAPER_ONLY
   liveAuthority: NONE

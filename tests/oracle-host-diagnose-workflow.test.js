@@ -36,7 +36,10 @@ test("failed health fetch discards stale and partial output before annotations",
   const { spawnSync } = require("node:child_process");
   const os = require("node:os");
   const path = require("node:path");
-  assert.match(text, /HEALTH_PROBE_PATH: \$\{\{ runner\.temp \}\}\/nusa-health-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}\.json/);
+  assert.match(text, /HEALTH_PROBE_BASENAME: nusa-health-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}\.json/);
+  const jobEnv = text.split('    env:\n')[1].split('    steps:')[0];
+  assert.doesNotMatch(jobEnv, /\$\{\{\s*runner\./, "runner context is unavailable in job-level env on GitHub");
+  assert.equal((text.match(/HEALTH_PROBE_PATH="\$RUNNER_TEMP\/\$HEALTH_PROBE_BASENAME"/g) || []).length, 2, "both steps resolve runner temp at execution time");
   const script = text.split('      - name: Runtime liveness (local /health only)')[1]
     .split('      - name: Publish the same read-only findings')[0].split('        run: |\n')[1]
     .split('\n').map((line) => line.startsWith('          ') ? line.slice(10) : line).join('\n');
@@ -46,7 +49,7 @@ test("failed health fetch discards stale and partial output before annotations",
     for (const partial of [false, true]) {
       fs.writeFileSync(filename, '{"observedAt":"STALE"}');
       const result = spawnSync("bash", ["-c", `ss() { :; }; curl() { ${partial ? 'printf PARTIAL > "$HEALTH_PROBE_PATH";' : ''} return 7; };\n${script}`], {
-        encoding: "utf8", timeout: 10000, env: { ...process.env, HEALTH_PROBE_PATH: filename.replace(/\\/g, "/") },
+        encoding: "utf8", timeout: 10000, env: { ...process.env, RUNNER_TEMP: directory.replace(/\\/g, "/"), HEALTH_PROBE_BASENAME: "probe.json" },
       });
       assert.ifError(result.error);
       assert.equal(result.status, 0, result.stderr);

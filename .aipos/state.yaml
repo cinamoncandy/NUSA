@@ -2826,9 +2826,9 @@ current_ledger_rounding_tolerance:
 current_diagnose_health_freshness_20261015:
   work_order: WO-OPS-20261015-DIAGNOSE-HEALTH-FRESHNESS
   status: IN_PROGRESS
-  branch: codex/diagnose-health-freshness-20261015
-  finding: "Diagnostic38659737372 local curl7/http000 reused an old fixed response file. Six tests/full validation/security/workflow validators PASS. Non-author review no code findings but remote identity INSUFFICIENT_EVIDENCE; keep draft."
-  recovery: "Canonical PAPER Release38659917246 dispatched for exactmain72f9c9e0; outcome pending."
+  branch: codex/diagnose-health-context-20261015
+  finding: "Stale-response fix2717 merged but actual dispatch422 rejected jobenv runner.temp. New minimal step-level RUNNER_TEMP correction passes6tests/full validation/security/workflow validators/lint; fresh review pending."
+  recovery: "Canonical PAPER Release38659917246 PASS/DEPLOYED72f9c9e0, two fresh HEALTHY public probes,ticks3->4. Diagnostic2717 merged but actual dispatch HTTP422; follow-up resolves RUNNER_TEMP only inside steps."
   next: "Gates, fresh review, canonical integration; actual host recovery verification."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
