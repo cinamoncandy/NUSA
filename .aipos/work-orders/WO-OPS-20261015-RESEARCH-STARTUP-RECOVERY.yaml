@@ -30,4 +30,7 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
 evidence: "Actual compiled controlled-clock startup probes reproduce lease loss above30000ms; host initiating cause remains unproven. Research full recover also mutates RUNNING sessions, so moving all recover before lease is rejected."
-next: "Implement scoped evidence preparation with regression and independent review; do not claim deployed startup recovery or actual learning completion."
+validation: "Frozen code9027cbf0c58e085b882503988d668eeb83903087:35 focused tests and full pnpm test1231 isolated files PASS. Build/typecheck/validate:full/security/lint PASS24 existing warnings. Earlier full suite interrupted after review P1, not counted."
+independent_review: "Fresh Hubble exact9027cbf0 PASS0/0/0 after fixing same-connection cache invalidation; independently9 regressions PASS. Not Audit/Release approval."
+limitations: "total_changes conservatively invalidates on legitimate account/lease/session writes too. Revalidation can still consume lease time. No complete startup-stall solution, initiating-host-cause proof or deployment claim."
+next: "Draft PR/exact-head CI then canonical Audit/Release; governed rollout and actual readiness remain required."

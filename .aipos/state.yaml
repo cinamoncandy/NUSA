@@ -3098,6 +3098,14 @@ current_research_longer_timeframes_proposal:
   owner_approval: "2026-10-06 in chat ('제안서 써줘'); implementation not approved"
   finding: "All tested families lose on 1-minute bars after costs; proposes a walk-forward Research comparison over 15/60/240-minute bars"
 
+current_research_startup_recovery_20261015:
+  work_order: WO-OPS-20261015-RESEARCH-STARTUP-RECOVERY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/paper-startup-research-recovery-20261015
+  evidence: "Frozen implementation9027cbf0:35 focused tests and1231 isolated files PASS; build/typecheck/validate:full/security/lint PASS(24 existing warnings). Review P1 same-connection stale READY reproduced and corrected with total_changes plus data_version; fresh committed-head review PASS0/0/0. Interrupted earlier suite not counted."
+  next: "Complete frozen full suite and fresh review before draft PR. No TTL/reset/ownership weakening; actual deployment and host initiating cause remain unverified."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_strategy_catalog_20261013:
   work_order: WO-RESEARCH-20261013-STRATEGY-CATALOG
   status: COMPLETED_NO_SURVIVOR
