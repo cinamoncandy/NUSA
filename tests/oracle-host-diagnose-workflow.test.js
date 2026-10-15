@@ -75,3 +75,9 @@ test("the diagnosis does not walk the release directory, so it cannot load the h
   assert.doesNotMatch(commands, /du\b[^\n]*\/opt\/nusa\/releases/, "no size walk of the 11 GB release directory");
   assert.match(commands, /ls -1 \/opt\/nusa\/releases[^\n]*wc -l/, "the release directories are only counted");
 });
+
+test("the disk-consumer listing is time-boxed, lowest I/O priority and bounded", () => {
+  assert.match(text, /ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 \/var \/opt \/home 2>\/dev\/null \| sort -rh \| head -15/);
+  assert.match(text, /journalctl --disk-usage/);
+  assert.doesNotMatch(text, /du [^\n]*\/opt\/nusa\/releases/, "no size walk of the release directory (11 GB, over a minute of I/O)");
+});

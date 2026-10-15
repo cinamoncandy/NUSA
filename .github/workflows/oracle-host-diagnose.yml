@@ -37,6 +37,11 @@ jobs:
           ls -la /var/lib/nusa 2>&1 | head -40
           # No size walk of /opt/nusa/releases: du over its 11 GB took over a minute of disk I/O on the 1-vCPU host this job shares with the runtime.
           echo "== state sizes"; du -sh /var/lib/nusa /var/backups/nusa 2>&1 | head -10
+          # Where the rest of the 90%-full root disk goes: read-only, lowest I/O priority, hard 40 s limit, unreadable directories skipped.
+          echo "== disk consumers (top directories under /var /opt /home, swap, journal)"
+          journalctl --disk-usage 2>&1
+          ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 /var /opt /home 2>/dev/null | sort -rh | head -15
+          swapon --show 2>&1 | head -5
           echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
       - name: Service state and redacted recent errors
