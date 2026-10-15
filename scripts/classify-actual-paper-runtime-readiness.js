@@ -32,10 +32,10 @@ function snapshotFillCount(snapshot) {
 }
 
 function snapshotAccountChanged(snapshot) {
-  const positionQuantity = Number(snapshot?.position?.quantity || 0);
-  return Number(snapshot?.realizedPnl || 0) !== 0
-    || Number(snapshot?.unrealizedPnl || 0) !== 0
-    || (Number.isFinite(positionQuantity) && positionQuantity !== 0);
+  const finiteNonzero = (value) => typeof value === "number" && Number.isFinite(value) && value !== 0;
+  return finiteNonzero(snapshot?.realizedPnl)
+    || finiteNonzero(snapshot?.unrealizedPnl)
+    || finiteNonzero(snapshot?.position?.quantity);
 }
 
 function classify(evidence) {

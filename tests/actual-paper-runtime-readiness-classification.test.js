@@ -35,6 +35,28 @@ test("zero-quantity position is not an account change", () => {
   assert.equal(result.result, "INCOMPLETE");
 });
 
+test("malformed financial values cannot fabricate account-change evidence", () => {
+  for (const value of ["garbage", "1", "Infinity", true, {}, [], [1], NaN, Infinity, -Infinity, null, undefined]) {
+    for (const field of ["realizedPnl", "unrealizedPnl", "quantity"]) {
+      const snapshot = { realizedPnl: 0, unrealizedPnl: 0, position: { quantity: 0 } };
+      if (field === "quantity") snapshot.position.quantity = value;
+      else snapshot[field] = value;
+      const result = classify({ ...base, execution: { order_count: 1, fill_count: 1 }, first_runtime: snapshot });
+      assert.equal(result.production_readiness.account_or_pnl_change_observed, false, `${field}: ${String(value)}`);
+      assert.equal(result.production_readiness.completion_claim_allowed, false);
+      assert.equal(result.result, "INCOMPLETE");
+    }
+  }
+});
+
+test("finite nonzero PnL and positive quantity retain account-change evidence", () => {
+  for (const snapshot of [{ realizedPnl: -1 }, { unrealizedPnl: 0.25 }, { position: { quantity: 0.01 } }]) {
+    const result = classify({ ...base, execution: { order_count: 1, fill_count: 1 }, first_runtime: snapshot });
+    assert.equal(result.result, "PASS");
+    assert.equal(result.production_readiness.account_or_pnl_change_observed, true);
+  }
+});
+
 test("autonomous fill plus account change can be classified complete while LIVE remains zero", () => {
   const result = classify({
     ...base,

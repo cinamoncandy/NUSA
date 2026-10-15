@@ -1,6 +1,6 @@
 id: WO-OPS-20261015-PAPER-READINESS-FINITE
 title: Reject malformed financial numbers as PAPER readiness evidence
-status: IN_PROGRESS
+status: VERIFYING
 priority: P1
 risk: MEDIUM
 authority_impact: none
@@ -14,7 +14,7 @@ scope:
   - No order, Risk, threshold, runtime, scheduler, credential or authority changes.
 acceptance:
   - Malformed/non-finite/coerced account values cannot supply account-change proof.
-  - Finite positive/negative nonzero PnL and finite positive quantity retain existing proof behavior.
+  - Finite nonzero numeric PnL and quantity retain existing proof behavior; no quantity-domain policy change.
   - Missing/zero account values remain incomplete; exact-head certifier remains unchanged.
 verification_commands:
   - node --test tests/actual-paper-runtime-readiness-classification.test.js tests/exact-head-paper-readiness-certification.test.js
@@ -28,4 +28,6 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: "Red regression, minimal fix, local gates, fresh independent review, then draft PR/exact-head CI. No self approval or merge."
+validation: "Red reproduced realizedPnl:garbage true!=false; after fix13 focused tests PASS. Build/typecheck/validate:full/security:gate/aipos:index PASS; lint PASS24 existing warnings. Full isolated suite not run locally; canonical CI pending."
+independent_review: "Fresh Newton no concrete P0/P1/P2; independently13 tests PASS and numeric producer compatibility confirmed. Two-file diff SHA256 d908d5474fa21d6c21a532e7919c119b15d15f55be29670f1fe25240e44369fc. Local content review only, not Audit/Release."
+next: "Draft PR then fresh committed-head review confirmation and exact-head CI/Audit/Release. No self approval or merge; full learning remains UNVERIFIED."
