@@ -1,0 +1,31 @@
+id: WO-OPS-20261015-PAPER-READINESS-FINITE
+title: Reject malformed financial numbers as PAPER readiness evidence
+status: IN_PROGRESS
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: c306aed0da8e357e16962336af4f28aa57412e8c
+branch: codex/paper-readiness-finite-evidence-20261015
+objective: "Require finite numeric PnL/quantity before recognizing account change in the existing readiness classifier."
+evidence:
+  reproduced: "snapshotAccountChanged({realizedPnl:'garbage'}) and object/boolean/Infinity inputs return true via Number coercion and NaN!==0. Not the cause of current deployed zero-cycle state."
+scope:
+  - Existing classify-actual-paper-runtime-readiness.js and focused negative regressions only.
+  - No order, Risk, threshold, runtime, scheduler, credential or authority changes.
+acceptance:
+  - Malformed/non-finite/coerced account values cannot supply account-change proof.
+  - Finite positive/negative nonzero PnL and finite positive quantity retain existing proof behavior.
+  - Missing/zero account values remain incomplete; exact-head certifier remains unchanged.
+verification_commands:
+  - node --test tests/actual-paper-runtime-readiness-classification.test.js tests/exact-head-paper-readiness-certification.test.js
+  - pnpm run validate:full
+  - pnpm run typecheck
+  - pnpm run lint
+  - pnpm run build
+  - pnpm run security:gate
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Red regression, minimal fix, local gates, fresh independent review, then draft PR/exact-head CI. No self approval or merge."
