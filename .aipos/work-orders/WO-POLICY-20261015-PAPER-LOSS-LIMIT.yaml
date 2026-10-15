@@ -30,7 +30,8 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-validation: "Initial build sandbox EPERM corrected; stale-dist results discarded.60 Risk/lifecycle/health/mobile tests PASS, verifier parity PASS. Review found fingerprint boolean rejection/stale policy assertion; corrected. Negative fingerprint test then exposed numeric0 accepted as flag; strict boolean branch fixed, source pin rebound to actual blobb b11085e9cef34130d9a4976cafcd69cbc1d775b (without separator). Final requalification/frozen full-suite pending."
+validation: "Initial sandbox EPERM corrected, stale-dist not counted.60 focused tests/verifier parity PASS. Review2 P1 corrected; numeric0 negative case fixed strictly. Source blobbb11085e9cef34130d9a4976cafcd69cbc1d775b exact pin and registry linked to actual9be781fe source. Initial mixed-source fullsuite failed stale module registry; final frozen pnpm test PASS1230 isolated files. Build/typecheck/validate:full/security/index PASS;lint PASS24 existing warnings."
+independent_review: "Fresh Hubble review PASS no remaining P0/P1/P2 at9db66cdb; independently13 identity/requalification/registry tests PASS. No substantive module qualification promoted. Not Audit/Release approval."
 compatibility: "Optional boolean missing means enforced; malformed values fail closed. Cloud default false is explicit owner policy. Numeric reference3 retained for compatibility but enforcementfalse projected. Immutable past fills/losses/evidence unchanged; policy fingerprint changes intentionally."
 rollback: "Restore Cloud enforcementtrue via reviewed policy rollback; never erase counters or rewrite old evidence. No old evidence promoted to new policy proof."
-next: "Complete local requalification/full suite and fresh review, then draft PR/exact-head gates. Oracle38688550321 failed/rolled back; current runtime remains89a9ceca. No deployed policy change yet."
+next: "Draft PR/exact-head CI and canonical Audit/Release. Previous Oracle38688550321 failed startup/readiness and rolled back; runtime89a9ceca recovered. Investigate writer-lease startup before another rollout; operational loss-policy change NOT applied."
