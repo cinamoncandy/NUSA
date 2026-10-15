@@ -22,6 +22,8 @@ jobs:
     name: Read-only PAPER host diagnosis
     runs-on: [self-hosted, Linux, nusa-paper-host]
     timeout-minutes: 5
+    env:
+      HEALTH_PROBE_PATH: ${{ runner.temp }}/nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
       - name: Disk, memory and state files
         shell: bash
@@ -75,8 +77,13 @@ jobs:
           set +e
           echo "== listening sockets (local, no process names)"; ss -ltn 2>&1 | head -15
           echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 9000 characters)"
-          curl -sS -m 6 -o /tmp/nusa-health-probe.txt -w "http=%{http_code} connect=%{time_connect}s total=%{time_total}s size=%{size_download}B\n" http://127.0.0.1:41731/health 2>&1
-          head -c 9000 /tmp/nusa-health-probe.txt 2>/dev/null; echo
+          : > "$HEALTH_PROBE_PATH"
+          if curl -fsS -m 6 -o "$HEALTH_PROBE_PATH" -w "http=%{http_code} connect=%{time_connect}s total=%{time_total}s size=%{size_download}B\n" http://127.0.0.1:41731/health 2>&1; then
+            head -c 9000 "$HEALTH_PROBE_PATH"; echo
+          else
+            : > "$HEALTH_PROBE_PATH"
+            echo "HEALTH_PROBE_UNAVAILABLE"
+          fi
       - name: Publish the same read-only findings as job annotations
         # The job log is only downloadable from GitHub's blob storage; annotations are readable through the REST API, so a
         # session without blob access (and the owner on a phone) can read the outcome. Same redaction, bounded size.
@@ -89,7 +96,11 @@ jobs:
           summary="$({
             echo "previous=$(basename "$(< /opt/nusa/.previous-release)" 2>&1)"; free -m 2>&1 | head -2; df -h / 2>&1 | tail -1
             for unit in nusa nusa-autopilot; do systemctl show "$unit" -p ActiveState,SubState,NRestarts,ActiveEnterTimestamp 2>&1 | tr '\n' ' '; echo; done
-            echo "health_probe=$(head -c 200 /tmp/nusa-health-probe.txt 2>&1 | tr '\n' ' ')"
+            if [ -s "$HEALTH_PROBE_PATH" ]; then
+              echo "health_probe=$(head -c 200 "$HEALTH_PROBE_PATH" | tr '\n' ' ')"
+            else
+              echo "health_probe=HEALTH_PROBE_UNAVAILABLE"
+            fi
           } | redact)"
           # A release directory name is a public commit SHA, not a secret: print it unredacted.
           summary="${summary}"$'\n'"current_release=$(basename "$(readlink -f /opt/nusa/current)")"$'\n'"$(ls -1t /opt/nusa/releases 2>&1 | head -5 | sed 's/^/release_dir=/')"
