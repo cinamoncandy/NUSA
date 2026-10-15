@@ -3254,6 +3254,17 @@ current_research_failure_reasons:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
   finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
+
+current_strategy_validation_20261016:
+  work_order: WO-RESEARCH-20261016-A-GRADE-VALIDATION
+  status: FIRST_GATE_COMPLETENESS_LOCAL_VALIDATED
+  branch: codex/strategy-validation-precommit-20261016
+  first_broken_transition: independent_required_research_reports_to_complete_gate_set
+  evidence: "Code6f6a6c6d;3 red regressions reproduced then18 focused tests and1231 isolated files PASS. Build/typecheck/validate:full/security/lint PASS24 existing warnings. Fresh committed-head pre-Audit review PASS_WITH_NOTES0/0/0; not whole A-grade approval."
+  a_grade_acceptance: UNVERIFIED
+  next: "Finish exact-head gate repair; extend existing Research Factory policy/precommit/receipt identity next, no new engine or fabricated statistical/PAPER evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ui_app_icon_flow:
   work_order: WO-UI-20261007-APP-ICON-FLOW
   status: READY_FOR_REVIEW
