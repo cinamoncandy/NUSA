@@ -23,6 +23,7 @@ import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitTrade, type UpbitWebSocketOptions } from "./upbitWebSocket";
 import type { MarketMicrostructureRecorder } from "./marketMicrostructureRecorder";
 import type { ResearchOrderBookCollector } from "./researchOrderBookCollector";
+import type { ResearchFuturesCollector } from "./researchFuturesCollector";
 import { readDataIntegrityResult } from "./dataIntegrityResult";
 import { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
@@ -187,7 +188,9 @@ export function startCloudRuntime(
   /** Research-only recorder of the public order book and trades this runtime already receives (see marketMicrostructureRecorder.ts). */
   microstructureRecorder?: MarketMicrostructureRecorder,
   /** Research-only all-KRW order-book collector (see researchOrderBookCollector.ts). */
-  orderBookCollector?: ResearchOrderBookCollector
+  orderBookCollector?: ResearchOrderBookCollector,
+  /** Research-only public Binance futures collector (see researchFuturesCollector.ts). */
+  futuresCollector?: ResearchFuturesCollector
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -595,6 +598,7 @@ export function startCloudRuntime(
   const microstructureFlushTimer = microstructureRecorder == null ? undefined : setInterval(() => microstructureRecorder.flush(), 5_000);
   microstructureFlushTimer?.unref?.();
   orderBookCollector?.start();
+  futuresCollector?.start();
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
   // Display only: how long this process was blocked. A stall over the 30 s PAPER writer lease explains a lost lease.
   const stallMonitor = createEventLoopStallMonitor();
@@ -614,6 +618,7 @@ export function startCloudRuntime(
   const microstructureLiveness = () => { try { return microstructureRecorder == null ? {} : { microstructureRecorder: microstructureRecorder.status() }; } catch { return {}; } };
   // Daily stored-data integrity probe result written by the host Research service (display only; read each /health).
   const dataIntegrityLiveness = () => { try { const value = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readDataIntegrityResult(config.cloudStateDbPath); return value == null ? {} : { dataIntegrity: value }; } catch { return {}; } };
+  const futuresCollectorLiveness = () => { try { return futuresCollector == null ? {} : { futuresCollector: futuresCollector.status() }; } catch { return {}; } };
   const orderBookCollectorLiveness = () => { try { return orderBookCollector == null ? {} : { orderBookCollector: orderBookCollector.status() }; } catch { return {}; } };
   const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
   const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
@@ -703,6 +708,7 @@ export function startCloudRuntime(
       ...researchExperimentLiveness(),
       ...microstructureLiveness(),
       ...orderBookCollectorLiveness(),
+      ...futuresCollectorLiveness(),
       ...dataIntegrityLiveness(),
       ...paperLedgerLiveness(),
       ...researchIntervalLiveness(),
@@ -751,7 +757,7 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForMixedBinding(periodId),
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 

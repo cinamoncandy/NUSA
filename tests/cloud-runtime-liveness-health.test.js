@@ -589,3 +589,13 @@ test("/health publishes the stored-data integrity result as a status plus non-ne
     assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, undefined);
   }, 42353);
 });
+
+test("/health publishes the public futures collector counters as non-negative integers only", async () => {
+  const good = { rounds: 3, marksStored: 6, fundingStored: 4, klinesStored: 4, failures: 1, rejected: 0, lastRoundAt: 1_791_900_000_000 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, futuresCollector: { ...good, note: "x" } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.futuresCollector, good);
+  }, 42390);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, futuresCollector: { ...good, rounds: -1 } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.futuresCollector, undefined);
+  }, 42391);
+});

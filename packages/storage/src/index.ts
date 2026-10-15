@@ -42,6 +42,7 @@ export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, P
 export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
 export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
 export { SqliteResearchCandleStore, ResearchCandleStoreError } from "./researchCandleStore";
+export { SqliteFuturesPublicStore, type FuturesMarkRow, type FuturesFundingRow, type FuturesKlineRow } from "./futuresPublicStore";
 export { SqliteMarketMicrostructureStore, MarketMicrostructureStoreError, type StoredOrderBookSample, type StoredTradeTick } from "./marketMicrostructureStore";
 export { SqliteResearchHoldoutLedger, ResearchHoldoutLedgerError } from "./researchHoldoutLedger";
 export type { HoldoutKey } from "./researchHoldoutLedger";
@@ -567,5 +568,33 @@ CREATE TABLE IF NOT EXISTS research_trade_ticks_v2 (
   volume REAL NOT NULL CHECK (volume > 0),
   side TEXT NOT NULL CHECK (side IN ('ASK', 'BID')),
   PRIMARY KEY (market, traded_at_ms, price, volume, side)
+);
+` }, { id: "030_research_futures_public", sql: `
+CREATE TABLE IF NOT EXISTS research_futures_marks (
+  symbol TEXT NOT NULL,
+  captured_at_ms INTEGER NOT NULL CHECK (captured_at_ms > 0),
+  mark_price REAL NOT NULL CHECK (mark_price > 0),
+  index_price REAL NOT NULL CHECK (index_price > 0),
+  last_funding_rate REAL NOT NULL,
+  next_funding_time_ms INTEGER NOT NULL CHECK (next_funding_time_ms > 0),
+  PRIMARY KEY (symbol, captured_at_ms)
+);
+CREATE TABLE IF NOT EXISTS research_futures_funding (
+  symbol TEXT NOT NULL,
+  funding_time_ms INTEGER NOT NULL CHECK (funding_time_ms > 0),
+  funding_rate REAL NOT NULL,
+  PRIMARY KEY (symbol, funding_time_ms)
+);
+CREATE TABLE IF NOT EXISTS research_futures_klines (
+  symbol TEXT NOT NULL,
+  interval TEXT NOT NULL,
+  open_time_ms INTEGER NOT NULL CHECK (open_time_ms > 0),
+  close_time_ms INTEGER NOT NULL CHECK (close_time_ms > open_time_ms),
+  open REAL NOT NULL CHECK (open > 0),
+  high REAL NOT NULL CHECK (high > 0),
+  low REAL NOT NULL CHECK (low > 0),
+  close REAL NOT NULL CHECK (close > 0),
+  volume REAL NOT NULL CHECK (volume >= 0),
+  PRIMARY KEY (symbol, interval, open_time_ms)
 );
 ` }];
