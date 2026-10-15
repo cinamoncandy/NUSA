@@ -52,9 +52,20 @@ export const UPBIT_KRW_SPOT_SPEC: VenueSpec = Object.freeze({
 
 const REQUIRED_FOR_QUOTING = ["tickBands", "quantityStep", "minOrderNotional", "makerFeeBp", "takerFeeBp"] as const;
 
+/**
+ * Explicit, recorded assumptions that may stand in for an UNKNOWN field. They are NOT facts: any result produced under them must
+ * carry them and must not be called independent evidence.
+ * - SINGLE_LISTED_FEE: the one listed rate (listedFeeBp) is used for maker AND taker (the docs do not split them).
+ * - QUANTITY_STEP_IGNORED: sizes are continuous; no step rounding.
+ */
+export type SimulationAssumption = "SINGLE_LISTED_FEE" | "QUANTITY_STEP_IGNORED";
+
 /** Fail-closed gate: returns the UNKNOWN fields that block quote simulation (empty list = simulation may proceed). */
-export function unknownFieldsBlockingSimulation(spec: VenueSpec): readonly string[] {
-  return REQUIRED_FOR_QUOTING.filter((key) => spec[key].status !== "VERIFIED");
+export function unknownFieldsBlockingSimulation(spec: VenueSpec, assumptions: readonly SimulationAssumption[] = []): readonly string[] {
+  const covered = new Set<string>();
+  if (assumptions.includes("SINGLE_LISTED_FEE") && spec.listedFeeBp.status === "VERIFIED") { covered.add("makerFeeBp"); covered.add("takerFeeBp"); }
+  if (assumptions.includes("QUANTITY_STEP_IGNORED")) covered.add("quantityStep");
+  return REQUIRED_FOR_QUOTING.filter((key) => spec[key].status !== "VERIFIED" && !covered.has(key));
 }
 
 /** Tick for a price from the VERIFIED bands; undefined (never a guess) when the bands are not verified or the price is invalid. */
