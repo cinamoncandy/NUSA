@@ -1,0 +1,33 @@
+id: WO-OPS-20261015-RESEARCH-STARTUP-RECOVERY
+title: Move repeated Research evidence validation outside PAPER writer startup window
+status: IN_PROGRESS
+branch: codex/paper-startup-research-recovery-20261015
+base_commit: 7721f159e50f1d93c48678795af4f309f7c13e4f
+priority: P1
+risk: HIGH
+authority_impact: none
+parent: WO-POLICY-20261015-PAPER-LOSS-LIMIT
+scope:
+  - Prepare existing read-only Research evidence validation before writer acquisition.
+  - Keep session pause/halt recovery after successful exclusive writer acquisition.
+  - Bound prepared evidence to synchronous startup and invalidate on external database changes.
+  - Preserve lease duration, ownership checks, reconciliation, Risk and all authority gates.
+acceptance:
+  - Delayed read-only preparation does not consume the writer lease lifetime.
+  - Competing owner refusal causes no session mutation or experiment startup.
+  - Failed preparation remains fail-closed and is not converted into READY.
+  - End startup preparation before recurring operation; subsequent recovery revalidates.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+evidence: "Actual compiled controlled-clock startup probes reproduce lease loss above30000ms; host initiating cause remains unproven. Research full recover also mutates RUNNING sessions, so moving all recover before lease is rejected."
+next: "Implement scoped evidence preparation with regression and independent review; do not claim deployed startup recovery or actual learning completion."
