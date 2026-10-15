@@ -52,6 +52,41 @@ test("HTTP failures are counted, never thrown; the kill switch disables it", asy
   await c.collectOnce();
   assert.ok(c.status().failures > 0); assert.equal(c.status().marksStored, 0);
   db.close();
-  assert.equal(researchFuturesCollectorEnabled({ NUSA_RESEARCH_FUTURES_COLLECTOR: "DISABLED" }), false);
+  for (const off of ["DISABLED", "disabled", " 0 ", "off", "false"]) assert.equal(researchFuturesCollectorEnabled({ NUSA_RESEARCH_FUTURES_COLLECTOR: off }), false, off);
   assert.equal(researchFuturesCollectorEnabled({}), true);
+});
+
+test("a fully blocked slow round is retried next minute, not in an hour; then the hour marker advances", async () => {
+  const db = new SqliteDatabase(":memory:");
+  let blocked = true;
+  const good = fetchStub();
+  const fetchImpl = async (url) => (blocked && !String(url).includes("premiumIndex") ? { ok: false, status: 451, json: async () => ({}) } : good(url));
+  let now = NOW;
+  const c = new ResearchFuturesCollector(new SqliteFuturesPublicStore(db), { fetchImpl, now: () => now });
+  await c.collectOnce();
+  assert.equal(c.status().fundingStored, 0);
+  blocked = false; now += 60_000;
+  await c.collectOnce();
+  assert.equal(c.status().fundingStored, 2, "retried one minute later");
+  const stored = c.status().fundingStored;
+  now += 60_000;
+  await c.collectOnce();
+  assert.equal(c.status().fundingStored, stored, "not repeated within the hour");
+  db.close();
+});
+
+test("invalid rows and old marks: store rejects them, prune deletes by age, overlap is guarded", async () => {
+  const db = new SqliteDatabase(":memory:");
+  const store = new SqliteFuturesPublicStore(db);
+  const bad = { symbol: "BTCUSDT", capturedAtMs: NOW, markPrice: Number.NaN, indexPrice: 1, lastFundingRate: -0.1, nextFundingTimeMs: NOW };
+  assert.deepEqual(store.appendMarks([bad, { ...bad, markPrice: 1, symbol: "btc" }]), { stored: 0, rejected: 2 });
+  assert.equal(store.appendMarks([{ ...bad, markPrice: 1 }]).stored, 1, "a negative funding rate is valid");
+  assert.equal(store.pruneMarksBefore(NOW + 1), 1);
+  let release; let calls = 0;
+  const slow = new ResearchFuturesCollector(store, { fetchImpl: async (u) => { calls += 1; if (calls === 1) await new Promise((r) => { release = r; }); return fetchStub()(u); }, now: () => NOW });
+  const first = slow.collectOnce(); await slow.collectOnce();
+  assert.equal(calls, 1, "a second round does not overlap the first");
+  release(); await first;
+  assert.ok(calls > 1, "the first round completed");
+  db.close();
 });

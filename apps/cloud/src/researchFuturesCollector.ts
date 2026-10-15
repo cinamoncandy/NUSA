@@ -32,7 +32,8 @@ export const FUTURES_SYMBOLS: readonly string[] = Object.freeze(["BTCUSDT", "ETH
 const BASE = "https://fapi.binance.com";
 
 export function researchFuturesCollectorEnabled(env: NodeJS.ProcessEnv): boolean {
-  return env.NUSA_RESEARCH_FUTURES_COLLECTOR !== "DISABLED";
+  // Fail-safe: any common "off" spelling disables it (the reviewer found that "disabled" or "0" silently kept it running).
+  return !["DISABLED", "0", "FALSE", "OFF", "NO"].includes(String(env.NUSA_RESEARCH_FUTURES_COLLECTOR ?? "").trim().toUpperCase());
 }
 
 const num = (v: unknown): number => (typeof v === "string" || typeof v === "number") && String(v).trim() !== "" ? Number(v) : Number.NaN;
@@ -70,7 +71,9 @@ export class ResearchFuturesCollector {
     this.marksStored += result.stored; this.rejected += result.rejected;
   }
 
-  private async collectSlow(roundNow: number): Promise<void> {
+  /** Returns true when at least one fetch succeeded, so a fully blocked round (451/5xx) is retried next minute instead of in an hour. */
+  private async collectSlow(roundNow: number): Promise<boolean> {
+    let ok = false;
     for (const symbol of FUTURES_SYMBOLS) {
       try {
         const f = await this.getJson(`/fapi/v1/fundingRate?symbol=${symbol}&limit=100`);
@@ -81,6 +84,7 @@ export class ResearchFuturesCollector {
           funding.push({ symbol, fundingTimeMs: Number(r.fundingTime), fundingRate: num(r.fundingRate) });
         }
         const fr = this.sink.appendFunding(funding);
+        ok = true;
         this.fundingStored += fr.stored; this.rejected += fr.rejected;
       } catch { this.failures += 1; }
       try {
@@ -94,9 +98,11 @@ export class ResearchFuturesCollector {
           klines.push({ symbol, interval: "4h", openTimeMs: Number(r[0]), closeTimeMs: Number(r[6]), open: num(r[1]), high: num(r[2]), low: num(r[3]), close: num(r[4]), volume: num(r[5]) });
         }
         const kr = this.sink.appendKlines(klines);
+        ok = true;
         this.klinesStored += kr.stored; this.rejected += kr.rejected;
       } catch { this.failures += 1; }
     }
+    return ok;
   }
 
   /** One collection round; never throws. Counters are exposed through status(). */
@@ -106,10 +112,9 @@ export class ResearchFuturesCollector {
     try {
       const roundNow = this.now;
       await this.collectMarks(roundNow);
-      if (roundNow - this.lastSlowAt >= FUTURES_SLOW_EVERY_MS) { this.lastSlowAt = roundNow; await this.collectSlow(roundNow); }
+      if (roundNow - this.lastSlowAt >= FUTURES_SLOW_EVERY_MS && await this.collectSlow(roundNow)) this.lastSlowAt = roundNow;
       if (roundNow - this.lastPruneAt >= FUTURES_SLOW_EVERY_MS) {
-        this.lastPruneAt = roundNow;
-        try { this.sink.pruneMarksBefore(roundNow - FUTURES_MARK_RETENTION_MS); } catch { this.failures += 1; }
+        try { this.sink.pruneMarksBefore(roundNow - FUTURES_MARK_RETENTION_MS); this.lastPruneAt = roundNow; } catch { this.failures += 1; }
       }
       this.rounds += 1;
       this.lastRoundAt = this.now;
