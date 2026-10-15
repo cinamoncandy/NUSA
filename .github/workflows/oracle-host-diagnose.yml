@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       health_only:
-        description: "true = skip the disk, state-directory and disk-consumer steps; read only /health and the annotations (for trend readings with no diagnostic I/O in between)"
+        description: "true = skip the disk, state-directory and disk-consumer steps; read only /health and the annotations (for trend readings with minimal diagnostic I/O in between; the annotation step still runs journalctl and df)"
         required: false
         default: false
         type: boolean
@@ -32,7 +32,7 @@ jobs:
       HEALTH_PROBE_BASENAME: nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
       - name: Disk, memory and state files
-        if: ${{ !inputs.health_only }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
         shell: bash
         run: |
           set +e
@@ -47,7 +47,7 @@ jobs:
           echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
       - name: Service state and redacted recent errors
-        if: ${{ !inputs.health_only }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
         shell: bash
         run: |
           set +e
@@ -136,15 +136,22 @@ jobs:
           emit "diag-autopilot-log" "$autopilot"
       # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
       - name: Disk consumers (read-only, after the health probe)
-        if: ${{ !inputs.health_only }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
         shell: bash
         run: |
           set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
           # Where the rest of the 90%-full root disk goes: read-only, lowest I/O priority, hard 40 s limit, unreadable directories skipped.
-          echo "== disk consumers (top directories under /var /opt /home, swap, journal)"
-          journalctl --disk-usage 2>&1
-          # --exclude=releases: du walks everything below a directory to total it, so without it /opt would still walk the ~11 GB release tree.
-          # Totals under /opt therefore exclude releases; unreadable directories (e.g. /var/lib/nusa) are skipped and understate their parents.
-          ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 --exclude=releases /var /opt /home 2>/dev/null | sort -rh | head -15
-          echo "du_exit=${PIPESTATUS[0]} (124 = timed out so the listing is partial; 127 = ionice/nice missing)"
-          swapon --show 2>&1 | head -5
+          # The result is also published as an annotation (the job log itself is not readable through the REST API).
+          out="$({
+            echo "== disk consumers (top directories under /var /opt /home, swap, journal)"
+            journalctl --disk-usage 2>&1
+            # --exclude=releases: du walks everything below a directory to total it, so without it /opt would still walk the ~11 GB release tree.
+            # Totals under /opt therefore exclude releases; unreadable directories (e.g. /var/lib/nusa) are skipped and understate their parents.
+            ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 --exclude=releases /var /opt /home 2>/dev/null | sort -rh | head -15
+            echo "du_exit=${PIPESTATUS[0]} (124 = timed out so the listing is partial; 127 = ionice/nice missing)"
+            swapon --show 2>&1 | head -5
+          } 2>&1 | redact)"
+          printf '%s\n' "$out"
+          emit "diag-disk-consumers" "$out"

@@ -97,9 +97,15 @@ test("health_only skips the heavy steps and keeps the health probe and the annot
   const steps = text.split(/^      - name: /m).slice(1);
   const byName = (n) => steps.find((s) => s.startsWith(n));
   for (const heavy of ["Disk, memory and state files", "Service state and redacted recent errors", "Disk consumers (read-only, after the health probe)"]) {
-    assert.match(byName(heavy), /\n        if: \$\{\{ !inputs\.health_only \}\}\n/, heavy);
+    assert.match(byName(heavy), /\n        if: \$\{\{ inputs\.health_only != true && inputs\.health_only != 'true' \}\}\n/, heavy);
   }
   for (const light of ["Runtime liveness (local /health only)", "Publish the same read-only findings as job annotations"]) {
     assert.doesNotMatch(byName(light), /health_only/, light);
   }
+});
+
+test("the disk-consumer result is published as an annotation, because the job log is not readable through the REST API", () => {
+  const last = text.split("      - name: Disk consumers (read-only, after the health probe)")[1];
+  assert.match(last, /emit "diag-disk-consumers" "\$out"/);
+  assert.match(last, /\| redact\)"/, "redacted like the other annotations");
 });
