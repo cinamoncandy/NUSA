@@ -3,7 +3,7 @@
 Base:10c153464b40326a061e548cf44abfb479d07fc0.
 Branch:fix/paper-startup-evidence-invalidation-20261015.
 Work order:WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION.
-Frozen validated implementation:4373a9473eabbcc58683ce95ac3630199058db90.
+Frozen validated implementation:ead0a8fe9da3a81d7c3c3b3877e1ba9e8d3f389a.
 Later commits change evidence metadata only. Resolve the current Draft PR by this
 branch and bind CI/review to its exact published head, not only this source head.
 MergedPR2732 is not reopened; this fixes its reproduced invalidation residual.
@@ -38,7 +38,7 @@ failure.
 
 ## Completed local gates
 
-Current source head passes18/18 startup regressions, full strict TypeScript emit,
+Current source head passes19/19 startup regressions, full strict TypeScript emit,
 root/mobile typecheck, validate:full, JS lint and security gate on Node24.21 /
 TypeScript5.9.3. Security reports zero secrets and zero unmitigated high/critical
 advisories. The local changed-test fast hook SKIPs by existing non-primary-CI

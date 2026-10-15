@@ -22,9 +22,9 @@ acceptance:
   - "Build/typecheck/full validators and focused recovery tests pass; independent fresh review and exact-head CI precede canonical Audit/Release."
   - "Actual rollout/readiness and runtime learning/replay evidence remain separate acceptance gates."
 validation:
-  source_head: 4373a9473eabbcc58683ce95ac3630199058db90
+  source_head: ead0a8fe9da3a81d7c3c3b3877e1ba9e8d3f389a
   baseline: "Existing9 tests PASS; augmented baseline12/14 exposed missing actual recovery coverage and schema invalidation. Final-variant external-commit regression also failed before repair."
-  focused: PASS_STARTUP_18_OF_18
+  focused: PASS_STARTUP_19_OF_19
   full_typescript_emit: PASS_NODE24_21_TYPESCRIPT5_9_3
   root_and_mobile_typecheck: PASS
   repository_validation: PASS_VALIDATE_FULL
