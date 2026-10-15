@@ -51,3 +51,26 @@ earlier full compiler was already running; latest committed-source full gates
 must execute before publication. Actual rollback continuity comparison now also
 records06:08 vs11:41 process restart with identical114-fill ledger, open period
 and realized outcome, observations518->684. This is not cycle replay acceptance.
+
+## Final frozen-source validation
+
+Sourceb11828bfe22f487b63cda5c61b944b41dff9271c:170/170 focused PASS, including
+17 startup regressions. Full strict TS emit and root/mobile typecheck PASS in the
+10GB isolated environment, Node24.19/TS5.9.3, using unchanged configuration.
+Verified1988 source/type hashes and exact canonical programme file sets:
+root1615/mobile739. A real dependency config was copied unchanged as well.
+Receipt: .aipos/evidence/runtime-startup-validation-20261015.json.
+Full repository validators/index/JS lint/security PASS on the original checkout;
+zero secrets and zero unmitigated high/critical advisories. TypeScript is outside
+the repository ESLint config; it is covered by the full strict compiler.
+
+The prior640MB compiler actually OOMed (not PASS); broad parallel tests were
+cancelled (not PASS). Security initially could not discover shared symlinked
+package metadata. A real private frozen install fixed the environment; no scanner
+or allowlist was weakened. The local changed-test fast hook explicitly SKIPs
+outside primary PR CI;170 explicit tests supplied local runtime coverage.
+
+Only evidence metadata follows this frozen code. Draft review/CI and canonical
+Audit/Release remain required; do not use local validation as acceptance. Keep
+VERIFIED=false and investment improvementUNPROVEN. Existing closed PRs1854,2321,
+2333 were freshly confirmed CLOSED/unmerged and were not revived or pushed.

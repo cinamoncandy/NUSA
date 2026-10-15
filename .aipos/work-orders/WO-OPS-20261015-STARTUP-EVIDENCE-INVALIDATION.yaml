@@ -1,6 +1,6 @@
 id: WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION
 title: Preserve prepared Research evidence across unrelated PAPER startup writes
-status: VERIFYING
+status: READY_FOR_REVIEW
 owner: nusa-runtime-sre
 branch: fix/paper-startup-evidence-invalidation-20261015
 base_commit: 10c153464b40326a061e548cf44abfb479d07fc0
@@ -21,11 +21,23 @@ acceptance:
   - "Build/typecheck/full validators and focused recovery tests pass; independent fresh review and exact-head CI precede canonical Audit/Release."
   - "Actual rollout/readiness and runtime learning/replay evidence remain separate acceptance gates."
 validation:
-  baseline: "Existing9 tests PASS on exact-main compiled release; augmented regression12/14 PASS with two reproduced failures."
-  focused: "Patched changed-source transpile17/17 PASS; full build/typecheck pending."
+  source_head: b11828bfe22f487b63cda5c61b944b41dff9271c
+  baseline: "Existing9 tests PASS; augmented baseline12/14 exposed missing actual recovery coverage and schema invalidation. Final-variant external-commit regression also failed before repair."
+  focused: PASS_170_OF_170_INCLUDING_STARTUP_17_OF_17
+  full_typescript_emit: PASS_ISOLATED_NODE24_TYPESCRIPT5_9_3
+  root_and_mobile_typecheck: PASS_EXACT_PROGRAM_INPUTS_1615_AND_739
+  repository_validation: PASS_VALIDATE_FULL
+  work_order_index: PASS
+  javascript_lint: PASS
+  security: PASS_ZERO_SECRETS_ZERO_UNMITIGATED_HIGH_CRITICAL
+  receipt: .aipos/evidence/runtime-startup-validation-20261015.json
+  independent_review: PENDING_FRESH_NON_AUTHOR_VALIDATOR
+  exact_head_ci: PENDING
+  audit_release_runtime: PENDING
+limitations: "Actual host initiating blocking call remains unproven; external commits still conservatively force full validation; no claim all startup delays, qualified cycle replay or investment improvement are solved."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: "Complete full local gates and fresh non-author review; no direct merge or speculative deployment."
+next: "Draft exact-head CI and separate fresh VALIDATOR review; keep Draft until review. Then canonical Audit/Release and actual exact-main runtime acceptance. No direct merge."

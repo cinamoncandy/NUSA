@@ -3134,12 +3134,14 @@ current_runtime_startup_evidence_invalidation_20261015:
   work_order: WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION
   branch: fix/paper-startup-evidence-invalidation-20261015
   base_sha: 10c153464b40326a061e548cf44abfb479d07fc0
-  status: ROOT_CAUSE_REPRODUCED_LOCAL_REPAIR_VALIDATING
-  first_broken_transition: exact-main activation -> readiness with valid canonical PAPER writer
+  status: LOCAL_VALIDATED_DRAFT_REVIEW_AND_CI_PENDING
+  validation_source_head: b11828bfe22f487b63cda5c61b944b41dff9271c
+  validation: "170/170 focused; full TS emit/root/mobile typecheck; validate:full/index/JS lint/security PASS. Exact programme inputs verified; no runtime acceptance claimed."
+  first_broken_transition: locally validated startup repair -> fresh non-author review and exact-head CI
   finding: "Prepared Research evidence was invalidated by unrelated startup writes, re-entering expensive validation under the lease. Precise host initiating call remains unproven."
   runtime: "Read-only38729127377 at11:41:55Z: runtime89a9ceca HTTP200, periods15/cycles0/failures0/holdoutPasses0; main10c15346 rollout38700547000 failed and rolled back."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "Full local gates, fresh independent review, exact-head CI and canonical Audit/Release; no synthetic completion or Risk relaxation."
+  next: "Draft review/CI, then canonical Audit/Release and exact-main rollout. Learning still requires a genuinely qualified challenger; no threshold relaxation."
 
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
