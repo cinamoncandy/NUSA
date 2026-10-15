@@ -23,7 +23,7 @@ jobs:
     runs-on: [self-hosted, Linux, nusa-paper-host]
     timeout-minutes: 5
     env:
-      HEALTH_PROBE_PATH: ${{ runner.temp }}/nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
+      HEALTH_PROBE_BASENAME: nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
       - name: Disk, memory and state files
         shell: bash
@@ -75,6 +75,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          HEALTH_PROBE_PATH="$RUNNER_TEMP/$HEALTH_PROBE_BASENAME"
           echo "== listening sockets (local, no process names)"; ss -ltn 2>&1 | head -15
           echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 9000 characters)"
           : > "$HEALTH_PROBE_PATH"
@@ -90,6 +91,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          HEALTH_PROBE_PATH="$RUNNER_TEMP/$HEALTH_PROBE_BASENAME"
           redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
           # Everything stays in shell variables: this step writes no file and makes no request of its own (the earlier step
           # already probed /health once; its bounded response file is reused here).
