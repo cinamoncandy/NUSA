@@ -309,3 +309,40 @@ test("fresh validation retries a final-variant external commit instead of return
     assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
   } finally { composition.stop(); other.close(); db.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("persistently unstable fresh evidence exhausts exactly three attempts and fails closed", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-startup-persistent-race-"));
+  const db = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const other = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const createSession = db.connection.createSession;
+  const recover = ResearchRecoveryCoordinator.prototype.recover;
+  let validations = 0;
+  let closedEvidenceTrackers = 0;
+  let armed = false;
+  t.mock.method(db.connection, "createSession", function (options) {
+    const session = createSession.call(this, options);
+    return {
+      changeset() { return session.changeset(); },
+      close() { closedEvidenceTrackers++; session.close(); },
+    };
+  });
+  t.mock.method(ResearchRecoveryCoordinator.prototype, "recover", function () {
+    validations++;
+    const result = recover.call(this);
+    if (armed) other.connection.exec(`CREATE TABLE synthetic_unstable_${validations} (id INTEGER PRIMARY KEY)`);
+    return result;
+  });
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    assert.equal(validations, 1);
+    other.connection.exec("CREATE TABLE synthetic_invalidate_cache (id INTEGER PRIMARY KEY)");
+    armed = true;
+    const result = composition.orchestrator.recover();
+    assert.equal(result.status, "FAIL_CLOSED");
+    assert.deepEqual(result.reasons, ["RECOVERY_EVIDENCE_UNSTABLE"]);
+    assert.equal(validations, 4, "one preparation plus exactly three rejected fresh validations");
+    assert.equal(closedEvidenceTrackers, 20, "cached five plus every tracker from three rejected attempts closes");
+    assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+  } finally { composition.stop(); other.close(); db.close(); rmSync(directory, { recursive: true, force: true }); }
+});
