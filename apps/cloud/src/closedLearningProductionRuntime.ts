@@ -6,6 +6,8 @@ import { readOrderBookStudyResult } from "./researchStudyResult";
 import { MarketMicrostructureRecorder, microstructureRecorderEnabled } from "./marketMicrostructureRecorder";
 import { SqliteMarketMicrostructureStore } from "../../../packages/storage/src/marketMicrostructureStore";
 import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled } from "./researchOrderBookCollector";
+import { ResearchFuturesCollector, researchFuturesCollectorEnabled } from "./researchFuturesCollector";
+import { SqliteFuturesPublicStore } from "../../../packages/storage/src/futuresPublicStore";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { replayPaperPeriodRule } from "./paperPeriodRuleReplay";
 import { composeResearchExperiments } from "./researchExperimentComposition";
@@ -16,7 +18,7 @@ import { buildCanonicalPaperCandidatePerformance, PAPER_COVERED_DAY_SCORING_VERS
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
-import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
+import { ClosedLearningLoopStatusTracker, tickErrorClass } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
@@ -141,6 +143,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const orderBookCollector = researchOrderBookCollectorEnabled(env)
     ? new ResearchOrderBookCollector(new SqliteMarketMicrostructureStore(database), { skipMarkets: () => microstructureRecorder?.recordedMarkets() ?? new Set<string>() })
     : undefined;
+  // Research-only public Binance futures data (BTCUSDT, ETHUSDT); never an order path.
+  const futuresCollector = researchFuturesCollectorEnabled(env) ? new ResearchFuturesCollector(new SqliteFuturesPublicStore(database)) : undefined;
   const loopStatus = new ClosedLearningLoopStatusTracker(closedLearningConfig.evaluationPeriodMs);
   // The last BLOCKED/ERROR reason survives a restart (display only; a reason seen by this process always wins).
   loopStatus.seedLastBlocked(readClosedLearningBlocked(config.cloudStateDbPath));
@@ -171,6 +175,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     () => researchExperiments?.experimentTicksByInterval() ?? null,
     microstructureRecorder,
     orderBookCollector,
+    futuresCollector,
   );
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
@@ -433,7 +438,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       refreshDurableCycles();
       try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
       try { loopStatus.observeRuleReplay(latestBaselineRuleReplay(periods.listRealizedPeriods())); } catch { loopStatus.observeRuleReplay(undefined); }
-    })().catch((error: unknown) => { loopStatus.observeError(Date.now()); persistLastBlocked(); throw error; });
+    })().catch((error: unknown) => { loopStatus.observeError(Date.now(), tickErrorClass(error)); persistLastBlocked(); throw error; });
     closedLearningTick = task;
     task.then(
       () => { if (closedLearningTick === task) closedLearningTick = undefined; },

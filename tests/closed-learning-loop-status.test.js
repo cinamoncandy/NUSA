@@ -42,11 +42,11 @@ test("the production composition feeds every loop tick into the status and hands
   const src = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
   assert.match(src, /loopStatus\.observeBootstrap\(bootstrap\)/);
   assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\)/);
-  assert.match(src, /loopStatus\.observeError\(Date\.now\(\)\); persistLastBlocked\(\); throw error;/, "an error tick persists its reason before the scheduler fails closed");
+  assert.match(src, /loopStatus\.observeError\(Date\.now\(\), tickErrorClass\(error\)\); persistLastBlocked\(\); throw error;/, "an error tick persists its reason before the scheduler fails closed");
   assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\);\r?\n\s*persistLastBlocked\(\);/, "a blocked tick persists its reason");
   assert.match(src, /loopStatus\.seedLastBlocked\(readClosedLearningBlocked\(config\.cloudStateDbPath\)\)/, "the persisted reason seeds the status after a restart");
   assert.match(src, /loopStatus\.observePeriods\(periods\.listOpenPeriods\(\)\[0\], periods\.listRealizedPeriods\(\)\)/, "every tick reads the canonical period identities");
-  assert.match(src, /\(\) => loopStatus\.snapshot\(\),\r?\n\s*\(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*microstructureRecorder,\r?\n\s*orderBookCollector,\r?\n\s*\);/);
+  assert.match(src, /\(\) => loopStatus\.snapshot\(\),\r?\n\s*\(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*microstructureRecorder,\r?\n\s*orderBookCollector,\r?\n\s*futuresCollector,\r?\n\s*\);/);
 });
 
 test("evidence correlates the open period, the latest realized period and the latest Research cycle", () => {
@@ -356,4 +356,37 @@ test("shadow totals appear in the evidence as integers, are withdrawn when malfo
   assert.match(src, /baselineShadow\?\.observe\(market, bars\)/, "the shadow reads the same completed minute bars the strategy reads");
   assert.match(src, /loopStatus\.observeShadow\(baselineShadow\.summary\(\)\)/);
   assert.match(src, /writeBaselineShadowRecord\(config\.cloudStateDbPath, persistable\)\) baselineShadow\.markUnpersisted\(\)/, "a failed write is retried on a later tick");
+});
+
+test("a failed tick publishes only a bounded error class, never the message", () => {
+  const { ClosedLearningLoopStatusTracker, tickErrorClass } = require("../dist/apps/cloud/src/closedLearningLoopStatus.js");
+  assert.equal(tickErrorClass(Object.assign(new Error("secret path /var/lib/x"), { code: "ERR_SQLITE_ERROR" })), "ERR_SQLITE_ERROR");
+  assert.equal(tickErrorClass(new TypeError("boom")), "TYPEERROR");
+  assert.equal(tickErrorClass("not an error"), "UNKNOWN_ERROR");
+  const t = new ClosedLearningLoopStatusTracker(3_600_000);
+  t.observeError(5, tickErrorClass(new RangeError("x")));
+  const snap = t.snapshot();
+  assert.equal(snap.lastBlockedReason, "TICK_ERROR");
+  assert.equal(snap.lastErrorClass, "RANGEERROR");
+  assert.ok(!JSON.stringify(snap).includes("secret"));
+  t.observeError(6);
+  assert.equal(t.snapshot().lastErrorClass, undefined, "an unclassified error clears the previous class");
+});
+
+test("tickErrorClass never throws, accepts only conventional codes, and a later non-error block clears the class", () => {
+  const { ClosedLearningLoopStatusTracker, tickErrorClass } = require("../dist/apps/cloud/src/closedLearningLoopStatus.js");
+  const hostile = new Error("x"); Object.defineProperty(hostile, "code", { get() { throw new Error("boom"); } });
+  assert.equal(tickErrorClass(hostile), "UNKNOWN_ERROR");
+  const hostileName = new Error("x"); Object.defineProperty(hostileName, "name", { get() { throw 1; } });
+  assert.equal(tickErrorClass(hostileName), "UNKNOWN_ERROR");
+  for (const bad of [null, undefined, Symbol("s"), { code: "TOKEN_abc" }, 42, "ERR_X"]) assert.equal(tickErrorClass(bad), "UNKNOWN_ERROR");
+  assert.equal(tickErrorClass(Object.assign(new Error("m"), { code: "TOKEN_SECRET123" })), "ERROR", "an unconventional code is ignored; the name is used");
+  assert.equal(tickErrorClass(Object.assign(new Error("m"), { code: "ENOSPC" })), "ENOSPC");
+  assert.equal(tickErrorClass(Object.assign(new Error("m"), { code: 28 })), "ERROR");
+  const t = new ClosedLearningLoopStatusTracker(3_600_000);
+  t.observeError(1, tickErrorClass(Object.assign(new Error("m"), { code: "ENOSPC" })));
+  assert.equal(t.snapshot().lastErrorClass, "ENOSPC");
+  t.observeRollover({ status: "BLOCKED", reason: "REASON_X" }, 2);
+  assert.equal(t.snapshot().lastBlockedReason, "REASON_X");
+  assert.equal(t.snapshot().lastErrorClass, undefined, "the class is not paired with a different block reason");
 });
