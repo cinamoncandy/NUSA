@@ -1,0 +1,29 @@
+id: WO-ISSUE-2589-TICK-ERROR-CLASS
+title: "Make a failed closed-learning tick root-causable: publish a bounded error class"
+status: IN_PROGRESS
+priority: P0
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2589
+parent_issue: 1605
+base_branch: main
+authority_impact: none
+objective: "Production TICK_ERROR left only a generic reason (host diagnosis 38662550145: lastBlockedReason=TICK_ERROR at 00:36:16Z, cause unknown, journal unreadable by the diagnostic runner). Publish a fixed-code class of the thrown error so the next occurrence can be root-caused without exposing messages, paths or data."
+first_broken_transition: "closed-learning tick throws -> cause is discarded (only 'TICK_ERROR' is kept)"
+scope:
+  - tickErrorClass(error): error.code or error.name as an upper-case fixed code, else UNKNOWN_ERROR
+  - runtime health closedLearningLoop.lastErrorClass (this process only; not persisted; cleared by a later non-error block; never throws; only ERR_*/errno-style codes or the error name)
+prohibited:
+  - exception_message_stack_path_or_data_in_health
+  - threshold_risk_or_authority_change
+acceptance:
+  - message text never appears in the snapshot; an unclassified later error clears the class
+  - existing TICK_ERROR persistence and receipts unchanged
+validation:
+  local: "build; closed-learning-loop-status, governance-wiring, progress-truth, cloud-runtime-liveness-health tests pass (63). preflight NOT RUN (Node 22 sandbox)."
+remaining: "CI, non-author review, Audit/Release, deploy; a runtime TICK_ERROR must still occur to read the class. #1605/#2589 stay open, VERIFIED=false."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
