@@ -128,12 +128,15 @@ if (require.main === module) {
     const path = String(process.env.NUSA_CLOUD_STATE_DB_PATH || "");
     if (!path.startsWith("/")) throw new Error("state path");
     const existing = recordedResult(path);
-    if (existing !== undefined) { console.log("RAIM_STUDY", JSON.stringify({ ...existing, recorded: true })); return; }
-    const db = new DatabaseSync(path, { readOnly: true });
-    try {
-      const result = runStudy({ db });
-      console.log("RAIM_STUDY", JSON.stringify(result));
-      writeResult(path, result);
-    } finally { db.close(); }
+    if (existing !== undefined) {
+      console.log("RAIM_STUDY", JSON.stringify({ ...existing, recorded: true }));
+    } else {
+      const db = new DatabaseSync(path, { readOnly: true });
+      try {
+        const result = runStudy({ db });
+        console.log("RAIM_STUDY", JSON.stringify(result));
+        writeResult(path, result);
+      } finally { db.close(); }
+    }
   } catch { console.error("RAIM_STUDY_FAILED_CLOSED"); process.exitCode = 1; }
 }
