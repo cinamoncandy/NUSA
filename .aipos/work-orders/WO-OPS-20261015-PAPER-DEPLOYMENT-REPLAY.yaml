@@ -1,0 +1,28 @@
+id: WO-OPS-20261015-PAPER-DEPLOYMENT-REPLAY
+title: Resume exact PAPER deployment without reopening its period
+status: IN_PROGRESS
+priority: P1
+risk: HIGH
+authority_impact: recovery-only-no-authority-expansion
+base_commit: aa7496402351cd9a74ecbf294baa0a6ab66104a0
+branch: codex/paper-deployment-exact-replay-20261015
+objective: "Recover the exact existing authorized binding/period after deployment succeeds but coordinator receipt append fails."
+scope: "Existing deployment adapter only; current Governance, lineage, binding and period evidence must match. No second scheduler/ledger or permission grant."
+acceptance:
+  - Exact same account boundary, artifact, period and active binding replay returns identical receipt without mutation or observation reset.
+  - Missing/different binding, lineage, period, market or evidence remains fail-closed.
+  - Current Governance approval is checked even for replay.
+  - Different account boundary is not silently accepted.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - node --test dist/apps/cloud/src/paperChallengerDeploymentRuntime.test.js dist/apps/cloud/src/closedLearningInitialPaperBootstrap.test.js
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Reproduce exact replay with stateful period port; minimal fix; full local gates and fresh non-author review before draft PR. Not actual production cycle evidence."
