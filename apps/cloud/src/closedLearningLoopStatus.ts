@@ -245,7 +245,7 @@ export class ClosedLearningLoopStatusTracker {
     const cycleStatus = code(result.cycle?.status);
     const cycleOutcome = code(result.cycle?.record?.decision?.outcome);
     if (cycleOutcome !== undefined) this.processCycleOutcome = cycleOutcome;
-    if (result.status === "BLOCKED") this.lastBlocked = { reason: code(result.reason) ?? "BLOCKED_WITHOUT_CODE", at: now };
+    if (result.status === "BLOCKED") { this.lastBlocked = { reason: code(result.reason) ?? "BLOCKED_WITHOUT_CODE", at: now }; this.lastErrorClass = undefined; }
     const deployed = evaluated && (result.cycle?.status === "EXECUTED" || result.cycle?.status === "RESUMED") && result.cycle.record.paperDeployment != null;
     const reason = code(result.reason);
     this.status = Object.freeze({
@@ -281,6 +281,7 @@ export class ClosedLearningLoopStatusTracker {
   public seedLastBlocked(record: { readonly reason: string; readonly at: number } | undefined): void {
     if (record == null || this.lastBlocked !== undefined || !CODE.test(record.reason) || !Number.isSafeInteger(record.at) || record.at < 0) return;
     this.lastBlocked = { reason: record.reason, at: record.at };
+    this.lastErrorClass = undefined;
     this.publish();
   }
 
@@ -303,9 +304,17 @@ export class ClosedLearningLoopStatusTracker {
   }
 }
 
-/** Bounded, message-free class of a thrown value: a code property or the error name as an upper-case fixed code, else UNKNOWN_ERROR. */
+/**
+ * Bounded, message-free class of a thrown value. It can never throw (a hostile getter or Proxy yields UNKNOWN_ERROR) and a custom
+ * `code` is accepted only in the ERR_/E<UPPER> convention of Node and errno codes, so an arbitrary string is never published.
+ */
 export function tickErrorClass(error: unknown): string {
-  const raw = error instanceof Error ? ((error as { code?: unknown }).code ?? error.name) : undefined;
-  const code = typeof raw === "string" ? raw.replace(/[^A-Za-z0-9]+/g, "_").toUpperCase().slice(0, 64) : "";
-  return CODE.test(code) ? code : "UNKNOWN_ERROR";
+  try {
+    if (!(error instanceof Error)) return "UNKNOWN_ERROR";
+    const rawCode = (error as { code?: unknown }).code;
+    const code = typeof rawCode === "string" ? rawCode.replace(/[^A-Za-z0-9]+/g, "_").toUpperCase().slice(0, 64) : "";
+    if (/^(ERR_[A-Z0-9_]{1,56}|E[A-Z0-9]{2,20})$/.test(code)) return code;
+    const name = typeof error.name === "string" ? error.name.replace(/[^A-Za-z0-9]+/g, "_").toUpperCase().slice(0, 64) : "";
+    return CODE.test(name) ? name : "UNKNOWN_ERROR";
+  } catch { return "UNKNOWN_ERROR"; }
 }
