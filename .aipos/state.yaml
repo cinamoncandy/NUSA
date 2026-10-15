@@ -85,6 +85,15 @@ current_research_baseline_recovery_20261012:
   validation: "Frozen codeb6aa4a17:49 focused tests and1193 isolated files PASS; build/typecheck/validate:full/security/lint PASS,15 existing warnings. AIPOS-only validation checkpoint; exact-head CI/Audit/Release/runtime pending."
   next: "Restore strict canonical baseline recognition and preflight before binding mutations; no fabricated historical Research lineage."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_fatal_shutdown_20261015:
+  work_order: WO-OPS-20261015-LEARNING-FATAL-SHUTDOWN
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/learning-fatal-shutdown-20261015
+  evidence: "Red daemon fatal cases timed out with residual handle; corrected wiring15 tests/build/typecheck/fullvalidators/security/lint PASS(24 existing warnings), full1225 isolated files PASS. Fresh review PASS and2 overlap probes. Not deployment or historic root-cause proof."
+  next: "Full gates/suite, fresh independent review, canonical CI/Audit/Release then approved PAPER deployment; not proof of historic outage root cause."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_hourly_recovery_20261012:
   work_order: WO-LEARNING-20261012-HOURLY-RECOVERY
   status: DEPLOYED_WAITING_REAL_LEARNING_EVIDENCE
