@@ -84,7 +84,7 @@ When root disk pressure is high, use the privileged helper rather than ad-hoc wi
 sudo /opt/nusa/bin/nusa-release-step prune
 ```
 
-The prune operation validates every direct child of `/opt/nusa/releases` as a real 40-hex release directory before deleting anything. It always preserves the active release, the rollback release recorded in `.previous-release`, and the four newest additional releases. It never touches `/var/lib/nusa` or `/var/backups/nusa`.
+The prune operation validates every direct child of `/opt/nusa/releases` as a real 40-hex release directory before deleting anything. It always preserves the active release, the rollback release recorded in `.previous-release`, and the two newest additional releases (RELEASE_RETENTION=2; it was 4 until 2026-10-15, when the root disk reached 91% with seven releases of about 1.6 GB each). It never touches `/var/lib/nusa` or `/var/backups/nusa`.
 
 ## Preflight validation
 

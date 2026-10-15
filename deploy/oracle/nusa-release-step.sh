@@ -25,7 +25,7 @@ readonly SERVICE_USER=nusa
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
 readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
-readonly RELEASE_RETENTION=4
+readonly RELEASE_RETENTION=2
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
 
