@@ -8,7 +8,13 @@ name: Oracle Host Diagnose
 # output. PAPER only, LIVE NONE.
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      health_only:
+        description: "true = skip the disk, state-directory and disk-consumer steps; read only /health and the annotations (for trend readings with no diagnostic I/O in between)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -26,6 +32,7 @@ jobs:
       HEALTH_PROBE_BASENAME: nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
       - name: Disk, memory and state files
+        if: ${{ !inputs.health_only }}
         shell: bash
         run: |
           set +e
@@ -40,6 +47,7 @@ jobs:
           echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
       - name: Service state and redacted recent errors
+        if: ${{ !inputs.health_only }}
         shell: bash
         run: |
           set +e
@@ -128,6 +136,7 @@ jobs:
           emit "diag-autopilot-log" "$autopilot"
       # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
       - name: Disk consumers (read-only, after the health probe)
+        if: ${{ !inputs.health_only }}
         shell: bash
         run: |
           set +e

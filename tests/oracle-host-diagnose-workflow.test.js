@@ -5,7 +5,8 @@ const fs = require("node:fs");
 const text = fs.readFileSync(".github/workflows/oracle-host-diagnose.yml", "utf8").replace(/\r\n/g, "\n");
 
 test("the host diagnosis is dispatch-only, read-only and secret-free", () => {
-  assert.match(text, /^on:\n  workflow_dispatch: \{\}\n/m);
+  assert.match(text, /^on:\n  workflow_dispatch:\n    inputs:\n      health_only:\n/m);
+  assert.match(text, /type: boolean/);
   assert.doesNotMatch(text, /pull_request|push:|schedule:|workflow_run|repository_dispatch/);
   assert.match(text, /^permissions:\n  contents: read\n/m);
   assert.doesNotMatch(text, /: write/);
@@ -90,4 +91,15 @@ test("the disk-consumer walk runs after the health probe and the annotations, so
   assert.ok(names.indexOf("Runtime liveness (local /health only)") < names.length - 1);
   const first = text.split("      - name: Service state and redacted recent errors")[0];
   assert.doesNotMatch(first, /\bdu -xh\b/, "no long du in the first step");
+});
+
+test("health_only skips the heavy steps and keeps the health probe and the annotations", () => {
+  const steps = text.split(/^      - name: /m).slice(1);
+  const byName = (n) => steps.find((s) => s.startsWith(n));
+  for (const heavy of ["Disk, memory and state files", "Service state and redacted recent errors", "Disk consumers (read-only, after the health probe)"]) {
+    assert.match(byName(heavy), /\n        if: \$\{\{ !inputs\.health_only \}\}\n/, heavy);
+  }
+  for (const light of ["Runtime liveness (local /health only)", "Publish the same read-only findings as job annotations"]) {
+    assert.doesNotMatch(byName(light), /health_only/, light);
+  }
 });
