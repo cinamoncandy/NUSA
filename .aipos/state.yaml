@@ -492,6 +492,16 @@ current_runtime_restart_forensics:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-read-health-lastError
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_paper_readiness_finite_20261015:
+  work_order: WO-OPS-20261015-PAPER-READINESS-FINITE
+  status: VERIFYING
+  branch: codex/paper-readiness-finite-evidence-20261015
+  evidence: "Malformed PnL red reproduced;13 focused tests/build/typecheck/validate:full/security/index PASS; lint PASS24 existing warnings. Fresh non-author review no concrete findings, independently13 tests PASS. Remote gates pending."
+  impact: "Prevent false account-change readiness proof, not trading or profit-performance change."
+  next: "Complete local validation and fresh pre-Audit review before draft PR; exact-head CI/Audit/Release required."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_paper_restart_loop_stale_snapshot:
   work_order: WO-OPS-20260929-PAPER-RESTART-LOOP-STALE-SNAPSHOT
   status: READY_FOR_REVIEW
