@@ -1,0 +1,37 @@
+id: WO-RESEARCH-20261016-A-GRADE-VALIDATION
+title: Canonical A-grade anti-overfit validation convergence
+status: IN_PROGRESS
+priority: P0
+risk: HIGH
+authority_impact: none
+branch: codex/strategy-validation-precommit-20261016
+base_commit: d01bfa0740b0b0039f7b732d0f9ecc95b64946ee
+canonical_issue: 1094
+owner_request: "2026-10-16 A-GRADE STRATEGY VALIDATION / ANTI-OVERFIT directive; reuse existing Research/Governance components."
+first_broken_transition: independent_required_research_reports_to_complete_gate_set
+observed_gap: "allResearchGatesPassed accepts four PASS reports of one type, although releaseEvidenceAuthority and operatorEvidenceBundle consume it as complete validation. This is not an observed production promotion."
+active_slice:
+  - Require complete unique existing gate types and independent nonempty run identities.
+  - Reject contradictory PASS with reasons, malformed report provenance and duplicate evidence.
+  - Keep legacy validation distinct from A-grade robustness; no new engine or authority.
+remaining_phases:
+  - Bind existing Research Factory policy/precommit and candidate/dataset/source identities into canonical validation evidence.
+  - Extend existing PIT/lookahead, walk-forward/OOS and reproducibility paths, not duplicate evaluators.
+  - Reuse existing parameter robustness, PBO/CSCV and DSR; audit trial denominator provenance.
+  - Extend seeded robustness, canonical regime/cost stress and recursive indicator evidence.
+  - Bind actual backtest/PAPER divergence and Governance feedback with NOT_YET_OBSERVABLE where applicable.
+  - Independent Audit/Release and actual runtime/PAPER evidence for final acceptance.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance_status: UNVERIFIED
+next: "Reproduce duplicate-gate false completeness, minimally repair existing aggregator and negative tests, then exact-head review/CI. Do not declare A_GRADE_VALIDATION_CHAIN verified."
