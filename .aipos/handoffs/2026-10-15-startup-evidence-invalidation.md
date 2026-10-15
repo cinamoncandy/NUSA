@@ -1,76 +1,71 @@
-# Startup evidence invalidation / real learning boundary
+# Startup evidence invalidation / actual learning boundary
 
-Base10c153464b40326a061e548cf44abfb479d07fc0; branch
-fix/paper-startup-evidence-invalidation-20261015;
-WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION. Existing mergedPR2732 is not
-reopened. This is its reproduced remaining cache-invalidation defect.
+Base:10c153464b40326a061e548cf44abfb479d07fc0.
+Branch:fix/paper-startup-evidence-invalidation-20261015.
+Work order:WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION.
+Frozen validated implementation:b11828bfe22f487b63cda5c61b944b41dff9271c.
+Later commits change evidence metadata only. Resolve the current Draft PR by this
+branch and bind CI/review to its exact published head, not only this source head.
+MergedPR2732 is not reopened; this fixes its reproduced invalidation residual.
 
-Fresh canonical read-only diagnosis38729127377 at11:41:55.347Z proves current
-HTTP200/HEALTHY runtime89a9ceca, not currentmain. Oracle38700547000 failed
-readiness300 attempts, observed PAPER_WRITER_LEASE_LOST, rolled back with actual
-readiness PASS to89a9ceca. No repeated deployment or forced restart performed.
-No claim that the initiating host blocking call is known.
+## Verified defect and repair
 
-Compiled exact-main baseline9 startup tests PASS. Their production-boundary
-stub stopped before real first-orchestrator recover. Including that recovery
-exposes global total_changes invalidation by legitimate writer/account/session
-writes. A separate controlled-clock test proves30,001ms under-lease revalidation
-loses the lease. This is isolated synthetic latency, not fabricated production
-failure or an Autopilot canary. Added baseline14 regressions passed12, failed2;
-changed-source repair17/17 PASS including five-table corruption, nullable-key
-bypass, schema/external changes, ordinary recovery and competing writer refusal.
-Full build/typecheck/validators/security are running, not claimed PASS.
+The exact-main compiled baseline9 startup tests passed, but the production stub
+stopped before actual first-orchestrator recovery. Extending that boundary proved
+that normal writer/account/session writes invalidate global total_changes and
+re-enter evidence validation under the renewable lease. Isolated controlled-clock
+30,001ms revalidation reproduced lease loss. This is synthetic latency in a test,
+not a production fault injection, qualifying Autopilot canary or attribution of
+the historical host blocking call.
 
-Repair uses ephemeral SQLite change sessions over the existing recovery read set,
-plus data_version/schema_version. No new canonical store or migration. NULL TEXT
-primary keys need explicit checks because SQLite changesets omit those rows.
-Trackers close at startup completion/stop; ordinary recovery still revalidates.
-No lease TTL, heartbeat, takeover, Risk, qualification, cost or authority change.
-External commits still invalidate conservatively; this does NOT prove all startup
-stalls fixed or eliminate a single expensive validation or unrelated work delay.
+The repair reuses ResearchRecoveryCoordinator and ephemeral SQLite sessions over
+its five existing evidence tables, with external data_version/schema_version
+checks. NULL TEXT primary keys need explicit guards because changesets omit them.
+External commits during final-variant tracker inspection were also reproduced;
+post-inspection version checks reject stale READY. Trackers close after startup
+or stop; ordinary recovery still revalidates. No new durable model, ledger,
+scheduler, dependency, lease TTL, renewal/takeover rule, Risk, cost, qualification
+or authority change. External commits still conservatively revalidate; a single
+expensive validation or unrelated startup delay can still consume lease time.
 
-Runtime learning evidence: realizedPeriods15, baselineObservations15, meta-learning
-consumed15, cycles0/failures0/holdoutPasses0, RESEARCH_NOT_DEPLOYABLE. Partial baseline
-feedback is not a qualified challenger loop or proven investment improvement.
-Full current bounded evidence and logical-state mapping are in
-.aipos/evidence/runtime-learning-boundary-20261015.json. No historical failure
-cause, candidate lineage, fill, cycle or performance is invented.
+## Completed local gates
 
-Next: finish full local gates; publish a draft only after PASS; separate fresh
-non-author VALIDATOR review, exact-head CI, canonical Audit/Release and actual
-rollout/runtime proof remain required. Codex review recently hit owner usage
-limits; automatic Codex workflows are disabled by repository operating policy.
-Do not self-approve or turn transpilation into full typecheck evidence.
+170/170 focused tests PASS, including17 startup regressions. Full strict TS emit,
+root and mobile typecheck PASS in the10GB isolated environment using unchanged
+configuration, Node24.19/TS5.9.3. Verified1988 source/type hashes and exact canonical
+programme input sets:root1615/mobile739. A real dependency configuration was
+copied unchanged. Full repository validators, work-order index, changed JS lint
+and security PASS; zero secrets and zero unmitigated high/critical advisories.
+TypeScript is outside repository ESLint matching and is covered by the strict
+compiler. Local changed-test fast hook SKIPs by existing non-primary-CI policy;
+explicit170 tests supplied coverage. Receipt:
+.aipos/evidence/runtime-startup-validation-20261015.json.
+
+Prior attempts are not success evidence: the640MB compiler OOMed; the parallel
+suite was cancelled with128 passes/4 cancellations; initial shared-symlink
+layout made license metadata unavailable. A real frozen private install repaired
+the environment without scanner/allowlist exceptions. Initial14 regressions
+passed12/failed2; the final-variant race also failed before repair. Final gate
+results above supersede pending local checkpoints without erasing those failures.
+
+## Actual runtime evidence and remaining work
+
+Read-only diagnosis38729127377 at11:41:55.347Z proves HTTP200/HEALTHY runtime
+89a9ceca, not currentmain. Oracle38700547000 failed300 readiness attempts with
+PAPER_WRITER_LEASE_LOST and rolled back with actual readiness PASS. The precise
+host initiating blocking call remains unproven; no blind redeploy was attempted.
+Actual06:08 vs11:41 restart comparison preserves the114-fill ledger fingerprint,
+open period and realized outcome; observations518->684. This is not cycle replay.
+
+RealizedPeriods15, baselineObservations15/meta-learning consumed15,
+cycles0/failures0/holdoutPasses0, bootstrapRESEARCH_NOT_DEPLOYABLE. Partial baseline
+feedback is not a qualified challenger loop or investment improvement. Evidence:
+.aipos/evidence/runtime-learning-boundary-20261015.json and
+.aipos/evidence/runtime-learning-rollback-continuity-20261015.json.
+
+Next: Draft exact-head CI and separate fresh non-author VALIDATOR review under
+AGENTS.md/GRILL_ME_PROTOCOL; only then Ready/canonical Audit/Release and actual
+exact-main rollout/restart/replay acceptance. No self-approval or direct merge.
+Closed/unmergedPRs1854,2321,2333 were freshly checked and not revived or pushed.
 PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false /
-aiAuthority=ZERO_AUTHORITY. VERIFIED=false. PERFORMANCE_IMPROVEMENT=UNPROVEN.
-
-Additional bounded concurrency regression: external corruption during the final
-variant tracker inspection made the first repair return READY. Baseline test
-failed; post-inspection data/schema version recheck now makes all17 PASS. The
-earlier full compiler was already running; latest committed-source full gates
-must execute before publication. Actual rollback continuity comparison now also
-records06:08 vs11:41 process restart with identical114-fill ledger, open period
-and realized outcome, observations518->684. This is not cycle replay acceptance.
-
-## Final frozen-source validation
-
-Sourceb11828bfe22f487b63cda5c61b944b41dff9271c:170/170 focused PASS, including
-17 startup regressions. Full strict TS emit and root/mobile typecheck PASS in the
-10GB isolated environment, Node24.19/TS5.9.3, using unchanged configuration.
-Verified1988 source/type hashes and exact canonical programme file sets:
-root1615/mobile739. A real dependency config was copied unchanged as well.
-Receipt: .aipos/evidence/runtime-startup-validation-20261015.json.
-Full repository validators/index/JS lint/security PASS on the original checkout;
-zero secrets and zero unmitigated high/critical advisories. TypeScript is outside
-the repository ESLint config; it is covered by the full strict compiler.
-
-The prior640MB compiler actually OOMed (not PASS); broad parallel tests were
-cancelled (not PASS). Security initially could not discover shared symlinked
-package metadata. A real private frozen install fixed the environment; no scanner
-or allowlist was weakened. The local changed-test fast hook explicitly SKIPs
-outside primary PR CI;170 explicit tests supplied local runtime coverage.
-
-Only evidence metadata follows this frozen code. Draft review/CI and canonical
-Audit/Release remain required; do not use local validation as acceptance. Keep
-VERIFIED=false and investment improvementUNPROVEN. Existing closed PRs1854,2321,
-2333 were freshly confirmed CLOSED/unmerged and were not revived or pushed.
+aiAuthority=ZERO_AUTHORITY. VERIFIED=false; PERFORMANCE_IMPROVEMENT=UNPROVEN.
