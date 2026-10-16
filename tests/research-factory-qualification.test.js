@@ -1,7 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createHash } = require("node:crypto");
-const { qualifyResearchFactoryRun } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
+const { qualifyResearchFactoryRun, RESEARCH_FACTORY_QUALIFICATION_POLICY } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
+const { appendResearchQualificationToLearningLedger } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
 
 function canonicalize(value) {
   if (value === null || typeof value !== "object") return value;
@@ -11,6 +12,55 @@ function canonicalize(value) {
 function canonicalHash(value) {
   return createHash("sha256").update(JSON.stringify(canonicalize(value)), "utf8").digest("hex");
 }
+
+test("qualification identity binds frozen policy, verified run and complete result", () => {
+  const input = run();
+  const result = qualifyResearchFactoryRun(input);
+  const { validationIdentity, ...payload } = result;
+  assert.ok(validationIdentity, "canonical qualification must carry its validation identity");
+  assert.equal(validationIdentity.schemaVersion, 1);
+  assert.equal(validationIdentity.policyId, "research-factory-qualification-v1");
+  assert.match(validationIdentity.policySha256, /^[a-f0-9]{64}$/);
+  assert.equal(validationIdentity.policySha256, canonicalHash(RESEARCH_FACTORY_QUALIFICATION_POLICY));
+  assert.equal(RESEARCH_FACTORY_QUALIFICATION_POLICY.maximumPbo, 0.5);
+  assert.equal(RESEARCH_FACTORY_QUALIFICATION_POLICY.costReturnDegradationRatio, 0.5);
+  assert.equal(RESEARCH_FACTORY_QUALIFICATION_POLICY.costDrawdownExpansionRatio, 0.5);
+  assert.equal(RESEARCH_FACTORY_QUALIFICATION_POLICY.costMinimumClosedTrades, 2);
+  assert.equal(validationIdentity.runFingerprintSha256, input.provenance.runFingerprintSha256);
+  assert.equal(validationIdentity.resultSha256, canonicalHash({
+    policyId: validationIdentity.policyId,
+    policySha256: validationIdentity.policySha256,
+    runFingerprintSha256: validationIdentity.runFingerprintSha256,
+    result: payload,
+  }));
+  assert.deepEqual(qualifyResearchFactoryRun(input), result);
+  assert.ok(Object.isFrozen(validationIdentity));
+  assert.ok(Object.isFrozen(RESEARCH_FACTORY_QUALIFICATION_POLICY));
+  assert.ok(Object.isFrozen(RESEARCH_FACTORY_QUALIFICATION_POLICY.requiredCostScenarios));
+  const changed = run();
+  changed.evidenceReport[0].summary = "another sealed run";
+  sealRunFixture(changed);
+  const changedResult = qualifyResearchFactoryRun(changed);
+  assert.deepEqual(changedResult.candidates, result.candidates);
+  assert.notEqual(changedResult.validationIdentity.resultSha256, validationIdentity.resultSha256);
+});
+
+test("learning ledger rejects replaced qualification identity and presentation", () => {
+  const input = run();
+  const result = qualifyResearchFactoryRun(input);
+  const tampered = [
+    { ...result, validationIdentity: { ...result.validationIdentity, policySha256: "0".repeat(64) } },
+    { ...result, validationIdentity: { ...result.validationIdentity, runFingerprintSha256: "0".repeat(64) } },
+    { ...result, validationIdentity: { ...result.validationIdentity, resultSha256: "0".repeat(64) } },
+    { ...result, validationIdentity: undefined },
+    { ...result, candidates: result.candidates.map((candidate) => ({ ...candidate, summary: "substituted" })) },
+  ];
+  for (const supplied of tampered) {
+    assert.throws(() => appendResearchQualificationToLearningLedger([], input, supplied),
+      (error) => error.code === "QUALIFICATION_RUN_MISMATCH");
+  }
+  assert.equal(appendResearchQualificationToLearningLedger([], input, result).length, result.candidates.length);
+});
 function sealRunFixture(value) {
   const { runFingerprintSha256: _prior, ...provenance } = value.provenance;
   value.provenance.runFingerprintSha256 = canonicalHash({

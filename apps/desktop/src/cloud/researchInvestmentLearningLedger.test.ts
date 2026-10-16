@@ -42,6 +42,13 @@ function run(): ResearchRunLeagueResult {
 function qualification(): ResearchFactoryQualificationResult {
   return {
     schemaVersion: 1,
+    validationIdentity: {
+      schemaVersion: 1,
+      policyId: "research-factory-qualification-v1",
+      policySha256: H64,
+      runFingerprintSha256: fingerprint,
+      resultSha256: H64,
+    },
     candidates: [
       { candidateId: "candidate-a", outcome: "REJECTED", reasons: ["REGIME_FRAGILE_EDGE"], summary: "rejected" },
       { candidateId: "candidate-b", outcome: "INSUFFICIENT", reasons: ["TRIAL_LEDGER_EVIDENCE_MISSING"], summary: "insufficient" },
