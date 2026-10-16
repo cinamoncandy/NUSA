@@ -35,8 +35,9 @@ validation:
   runtime_regression: 34/34 PASS; trading/accounting/working-order restart/daemon failure
   full_gates: PASS strict build, root/mobile typecheck, validate:full, lint (0 errors; 24 existing warnings),
     security (0 secrets; 0 unmitigated high/critical)
-  review_ci_audit_release_runtime: PENDING exact-head CI and separate fresh non-author review; no Ready/Audit/Release
-    bypass
+  review_ci_audit_release_runtime: CI38924202514 PASS on reviewed head ba61f9f85bc62e556cb62c9e110c7b6fb2058b26;
+    fresh non-author review P0=0 P1=0 P2=1 because receipts still named the pre-rebase head/run. This metadata-only
+    repair requires new exact-head CI and fresh non-author P2 clearance; no Ready/Audit/Release bypass
   source_qualification: CI38847714635 exposed stale blob pin; reproduced two failures locally, exact-source
     guards 6/6 PASS after binding 0f5de0d7 to source749ecbe5 without promotion
 safety:
@@ -44,6 +45,6 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: Update the existing PR with the latest-main rebase -> fresh exact-head CI -> separate fresh non-author
-  review -> deterministic Audit -> governed Release -> exact-main deployment -> natural causal evidence;
-  runtime root cause remains unproven
+next: Run fresh exact-head CI on this metadata-only receipt repair -> obtain separate fresh non-author P2 clearance
+  -> deterministic Audit -> governed Release -> exact-main deployment -> natural causal evidence; runtime root
+  cause remains unproven
