@@ -186,6 +186,24 @@ function hashCanonical(value: unknown): string {
   return createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
 }
 
+/** Existing schema1 fingerprint material, shared by its producer and admission boundary. */
+export function canonicalResearchRunFingerprint(input: Readonly<{
+  provenance: Omit<ResearchRunProvenance, "runFingerprintSha256"> & { readonly runFingerprintSha256?: string };
+  standing: LeagueStanding;
+  evidenceReport: readonly LeagueCandidateEvidenceReport[];
+  allocation?: LeagueCapitalAllocationAdvisory;
+  allocationUnavailableReason?: string;
+}>): string {
+  const { runFingerprintSha256: _existing, ...provenance } = input.provenance;
+  return hashCanonical({
+    provenance,
+    standing: input.standing,
+    evidenceReport: input.evidenceReport,
+    allocation: input.allocation ?? null,
+    allocationUnavailableReason: input.allocationUnavailableReason ?? null,
+  });
+}
+
 /**
  * Joins real research-run experiments to the existing League ranking and allocation advisory.
  * Research-advisory authority only: produces no order, broker call, capital amount, or LIVE
@@ -668,12 +686,12 @@ export function buildResearchRunLeague(
     evidenceIdentity,
     ...(searchOverfittingIdentity == null ? {} : { searchOverfittingIdentity }),
   };
-  const runFingerprintSha256 = hashCanonical({
+  const runFingerprintSha256 = canonicalResearchRunFingerprint({
     provenance: provenancePayload,
     standing,
     evidenceReport,
-    allocation: allocation ?? null,
-    allocationUnavailableReason: allocationUnavailableReason ?? null,
+    ...(allocation == null ? {} : { allocation }),
+    ...(allocationUnavailableReason == null ? {} : { allocationUnavailableReason }),
   });
   const provenance = freeze({ ...provenancePayload, runFingerprintSha256 });
 
