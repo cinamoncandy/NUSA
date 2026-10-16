@@ -19,3 +19,5 @@ Review especially:
 - No new source binding/Research qualification or LIVE authority.
 
 Author managed full strict TS/root/mobile programs PASS; focused and repository gate receipts recorded separately. Request a separate fresh non-author review of FINAL commit and base; author results are not independent PASS. Keep Draft until then. Subsequent deterministic Audit/Release bot only.
+
+CI repair:0880eb97 CI38875954837 failed on exact-source pin and ticker-only #755 fixture; actual logs and local reproductions preserved. EXECUTION sourceCommit now points to implementation0880eb97/blob e0f73d356659e5f7d2be17c729cf7795c64a3be1. Criterion statuses/10X-S TARGET_ONLY remain unchanged. #755 now drives existing snapshot/reconciler/quote callbacks before ticker; original FILL/LEARNING/restart-dedupe checks retained. Fresh repaired-head CI required.

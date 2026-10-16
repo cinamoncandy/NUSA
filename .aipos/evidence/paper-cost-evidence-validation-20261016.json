@@ -31,7 +31,19 @@
     "actualPeriodCloseAfterFix": "UNVERIFIED",
     "lintWarnings": 24,
     "fullSuite": "PENDING_CANONICAL_CI",
-    "gateCommandCorrection": "Initial wrong provenance script path MODULE_NOT_FOUND; corrected to existing validate-aipos-work-order-provenance.js; no product/test relaxation"
+    "gateCommandCorrection": "Initial wrong provenance script path MODULE_NOT_FOUND; corrected to existing validate-aipos-work-order-provenance.js; no product/test relaxation",
+    "failedExactHeadCI": {
+      "run": 38875954837,
+      "head": "0880eb977b34a01d865609120f5cde12ec726c1e",
+      "failures": [
+        "EXECUTION exact-source pin stale after implementation change",
+        "runtime755 ticker-only fixture had no canonical quote"
+      ],
+      "localReproduction": "BOTH_REPRODUCED",
+      "repair": "Rebind source provenance; supply real composition-root snapshot/orderbook fixture inputs; preserve criterion states and FILL/restart assertions"
+    },
+    "additionalRepairTests": "PASS_SOURCE_MANIFEST_MODULE10XS_REQUALIFICATION_RUNTIME755_661",
+    "repairRepositoryGates": "PASS_VALIDATE_FULL_TARGETED_LINT_DIFF"
   },
   "historicalDisposition": "PROPOSED_NOT_IMPLEMENTED; immutable historical evidence remains incomplete",
   "verified": false

@@ -2306,7 +2306,7 @@ current_mobile_fast_startup:
 
 current_paper_cost_evidence_20261016:
   work_order: WO-OPS-20261016-PAPER-COST-EVIDENCE
-  status: LOCALLY_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: LOCAL_REWORK_VALIDATED_PENDING_REPAIRED_HEAD_CI
   branch: codex/paper-cost-evidence-20261016
   issue: 2589
   authority_impact: paper_evidence_admission

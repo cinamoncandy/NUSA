@@ -41,12 +41,12 @@ acceptance:
   - historical_incomplete_fill_remains_immutable_and_ineligible
   - historical_disposition_requires_durable_restart_safe_contract_before_activation
 validation:
-  focused: PASS_68_TESTS
+  focused: PASS_68_INITIAL_PLUS_SOURCE_MANIFEST_MODULE_AND_RUNTIME_REPAIR_TESTS
   build: PASS_FULL_STRICT_PROGRAM_1424_SOURCE_FILES_BOUND
   typecheck: PASS_ROOT_AND_MOBILE
   architecture: PASS_VALIDATE_FULL
   security: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL
-  exact_head_ci: PENDING
+  exact_head_ci: FIRST_HEAD_FAILED_SOURCE_PIN_AND_QUOTE_FIXTURE_REPAIRED_LOCALLY
   independent_review: PENDING
   audit: PENDING
   release: PENDING
