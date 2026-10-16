@@ -47,8 +47,8 @@
     "partialFeedback": "20 baseline periods consumed by metaLearning; not a qualified closed-learning cycle",
     "performanceImprovement": "UNPROVEN"
   },
-  "independentReview": "PENDING separate fresh non-author session; author cannot approve",
-  "exactHeadCI": "PENDING",
+  "independentReview": "P0=0 P1=0 P2=1 on ba61f9f85bc62e556cb62c9e110c7b6fb2058b26; receipt https://github.com/cinamoncandy/NUSA/pull/2739#issuecomment-6219576287; P2 is stale head/CI metadata only and requires fresh non-author clearance",
+  "exactHeadCI": "PASS run 38924202514 on reviewed pre-metadata head ba61f9f85bc62e556cb62c9e110c7b6fb2058b26; this receipt-only successor requires fresh exact-head CI",
   "audit": "PENDING",
   "release": "PENDING",
   "safety": {
@@ -96,7 +96,22 @@
     "lint": "PASS, 0 errors and 24 existing warnings",
     "securityGate": "PASS, 0 secrets and 0 unmitigated high/critical advisories",
     "aiposProvenance": "PASS",
-    "exactHeadCi": "PENDING",
-    "independentReview": "PENDING"
-  }
+    "exactHeadCi": "PASS run 38924202514 on ba61f9f85bc62e556cb62c9e110c7b6fb2058b26; metadata successor pending",
+    "independentReview": "P0=0 P1=0 P2=1 stale receipt metadata; code/safety scope PASS; fresh review required after repair"
+  },
+  "reviewHistory": [
+    {
+      "reviewedHead": "ba61f9f85bc62e556cb62c9e110c7b6fb2058b26",
+      "baseSha": "67630b806996a0774fa41d772e61de6192493a84",
+      "ciRun": 38924202514,
+      "findings": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 1
+      },
+      "p2": "PR body and committed receipts referenced pre-rebase head/CI or PENDING",
+      "receipt": "https://github.com/cinamoncandy/NUSA/pull/2739#issuecomment-6219576287",
+      "disposition": "METADATA_REPAIR_PENDING_FRESH_EXACT_HEAD_CI_AND_NONAUTHOR_CLEARANCE"
+    }
+  ]
 }
