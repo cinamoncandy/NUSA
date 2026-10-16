@@ -112,7 +112,7 @@ test("bad checksums, noncanonical bounds, unknown codes, source SHA and extra se
     { ...input, reason: { ...input.reason, boundaryAt: 100 } },
     { ...input, reason: { ...input.reason, sourceRuntimeSha: "candidate-code-is-not-runtime" } },
     { ...input, reason: { ...input.reason, code: "FAILED_STRATEGY" } },
-    { ...input, reason: { ...input.reason, apiKey: "must-not-persist" } },
+    { ...input, reason: { ...input.reason, apiKey: true } },
   ];
   for (const value of invalid) {
     assert.throws(() => store.markPendingIneligible(value as typeof input));

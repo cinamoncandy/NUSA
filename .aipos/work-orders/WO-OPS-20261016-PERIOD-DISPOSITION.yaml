@@ -51,7 +51,7 @@ validation:
   validate_full: PASS
   lint: PASS_24_EXISTING_WARNINGS
   security_gate: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL
-  exact_head_ci: PENDING
+  exact_head_ci: FIRST_HEAD_FAILED_FIXTURE_CREDENTIAL_PATTERN_REPRODUCED_AND_REPAIRED_LOCALLY
   independent_review: PENDING
   audit: PENDING
   release: PENDING

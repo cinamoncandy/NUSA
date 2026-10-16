@@ -9,11 +9,22 @@
   "security": "PASS_ZERO_UNMITIGATED_HIGH_CRITICAL",
   "sourceHashes": {
     "packages/storage/src/persistedPaperPeriodStore.ts": "5d3f25befa1699efaf424811e7d4d9103c5c57b88ad9d9021aabd160571265be",
-    "packages/storage/src/persistedPaperPendingDisposition.test.ts": "43074f7481cb46ae30a6b07a994bcea3cc9f7623edb2c63e5c8e7b3757c4c730"
+    "packages/storage/src/persistedPaperPendingDisposition.test.ts": "ce2baeae89458146b27eaf1c202c423a98a15fbcac171e96cb57b556043ac35d"
   },
   "review": "PENDING_NONAUTHOR",
   "audit": "PENDING",
   "release": "PENDING",
   "runtimeDisposition": "UNVERIFIED",
-  "VERIFIED": false
+  "VERIFIED": false,
+  "initialCI": {
+    "run": 38882456035,
+    "head": "c580638731c106a3a88b5704fd52f96692d1a860",
+    "failure": "validation/security: CREDENTIAL_ASSIGNMENT on a negative-test literal",
+    "classification": "TEST_FIXTURE_CREDENTIAL_PATTERN",
+    "localReproduction": "existing scanner reported exactly1 finding at new test line115; after boolean fixture exactly0",
+    "repair": "forbidden-field boolean fixture preserves negative assertion; no scanner rule/allowlist change",
+    "focusedRetest": "PASS_92",
+    "preflightLesson": "Stage all intended new files before running the tracked-file security scan."
+  },
+  "repairedHeadCI": "PENDING"
 }
