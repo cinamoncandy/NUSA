@@ -35,7 +35,7 @@ export const MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1: Readonly<Record<Modul
   DECISION: "904b3e78562ca3f2350133942d2743ac49babd51",
   RISK: "bb11085e9cef34130d9a4976cafcd69cbc1d775b",
   PORTFOLIO: "8da5e80589e03004c3d4147528b97da5c473c40a",
-  EXECUTION: "e0f73d356659e5f7d2be17c729cf7795c64a3be1",
+  EXECUTION: "ad2c58a998be4ed63839e1e77f5fadea54779564",
   PAPER_ADAPTER: "33ebd499ca396a73b8fcbcab896b7df7a6008984",
   REVIEW: "714b2f35f7c4a9e4b65ac63c360d487160dcbadb",
   MEMORY: "70bf43e419fb36b453f634505cd09bb0ca50343c"
@@ -80,7 +80,7 @@ export const MODULE_QUALIFICATION_RECORDS_V1: Readonly<Record<ModuleStage, Modul
     return [stage, Object.freeze({
       schemaVersion: 1 as const,
       stage,
-      sourceCommitSha: stage === "EXECUTION" ? "0880eb977b34a01d865609120f5cde12ec726c1e" : stage === "MARKET_DATA" ? "7c5f75763e9bc3a673647dfa892a3a60d32967a9" : stage === "PAPER_ADAPTER" ? "4ef7ac29ad622d939f29e3fb12b2caa9e6fec016" : stage === "RISK" ? "9be781fe1df0acd96abca8c815dc0019091d2247" : MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
+      sourceCommitSha: stage === "EXECUTION" ? "f4f84389dfa3ea4b7b8870e702a373b51985280b" : stage === "MARKET_DATA" ? "7c5f75763e9bc3a673647dfa892a3a60d32967a9" : stage === "PAPER_ADAPTER" ? "4ef7ac29ad622d939f29e3fb12b2caa9e6fec016" : stage === "RISK" ? "9be781fe1df0acd96abca8c815dc0019091d2247" : MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
       sourceBlobSha,
       sourceRef: MODULE_RUNTIME_BINDING_BY_STAGE_10XS[stage].canonicalEntrypoint,
       verificationAuthority: "INDEPENDENT_EVIDENCE_REQUIRED" as const,

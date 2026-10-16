@@ -41,14 +41,14 @@ acceptance:
   - historical_incomplete_fill_remains_immutable_and_ineligible
   - historical_disposition_requires_durable_restart_safe_contract_before_activation
 validation:
-  focused: PASS_68_INITIAL_PLUS_SOURCE_MANIFEST_MODULE_AND_RUNTIME_REPAIR_TESTS
+  focused: PASS_38_REVIEW_REPAIR_REGRESSION_TESTS_PLUS_PRIOR_68_INITIAL_CASES
   build: PASS_FULL_STRICT_PROGRAM_1424_SOURCE_FILES_BOUND
   typecheck: PASS_ROOT_AND_MOBILE
   architecture: PASS_VALIDATE_FULL
   security: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL
   exact_head_ci: "Historical receipts: 85ad783fafe8dfb1214cef4c3b0bc537bfaed147 / 38877067204 PASS; 08673732458a6ba1652292d7766b6bace79cf31b / 38908235645 PASS. Verify whichever PR head is current directly from GitHub Actions at review time; this static work order does not predict or duplicate a commit's CI result."
-  independent_review: PENDING
+  independent_review: "Fresh validator on head 89a55a1 found P0=0/P1=1/P2=0: supplied depth was not validated before persistent Risk evaluation. Repair now validates present depth before Risk on new and continuation paths; local regression/typecheck/repository/security gates pass. New exact-head CI and fresh review are pending; do not treat this as PASS."
   audit: PENDING
   release: PENDING
   runtime_acceptance: UNVERIFIED
-next: "Fresh non-author review; reviewer verifies current PR head and exact-head CI dynamically from GitHub Actions. Then canonical Audit/Release. Do not execute proposed historical retirement."
+next: "Commit and push the minimal repair to the existing #2741 branch, then verify fresh exact-head CI and request a separate fresh validator review of that head. Ready/Audit/Release remain prohibited until fresh P0/P1=0 review evidence exists. Do not execute proposed historical retirement."
