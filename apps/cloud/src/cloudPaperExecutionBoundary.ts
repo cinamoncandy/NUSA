@@ -9,7 +9,7 @@ import {
 import type { CloudPaperRiskGate, CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { buildPaperExecutionIntent, UPBIT_KRW_MINIMUM_ORDER_KRW, paperExecutionIntentCommandId, validatePaperExecutionIntent } from "./paperExecutionIntent";
-import { PaperRuntimeExecutionCostEvidenceError, validatePaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
+import { PaperRuntimeExecutionCostEvidenceError, validatePaperObservedExecutionDepth, validatePaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { automaticPaperConfidenceAllowsAction } from "./automaticPaperExecutionPolicy";
 
 export interface CloudPaperExecutionBoundaryOptions {
@@ -318,6 +318,9 @@ export class CloudPaperExecutionBoundary {
     if (tick.observedQuote == null) return this.blocked("INVALID_ORDERBOOK_QUOTE");
     try {
       validatePaperObservedExecutionQuote(tick.observedQuote, tick.market, tick.now);
+      if (tick.observedQuote.depth != null || tick.observedQuote.depthFingerprintSha256 != null) {
+        validatePaperObservedExecutionDepth(tick.observedQuote, tick.market, tick.now);
+      }
       return null;
     } catch (error) {
       return this.blocked(error instanceof PaperRuntimeExecutionCostEvidenceError ? error.code : "INVALID_ORDERBOOK_QUOTE");

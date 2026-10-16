@@ -453,6 +453,59 @@ test("missing quote blocks automatic fill before risk admission and survives rep
   assert.equal(evaluations(), 0);
 });
 
+test("tampered depth is rejected before risk admission and the same intent can retry with valid depth", () => {
+  const { loop, boundary, evaluations } = build("ALLOW");
+  const validQuote = buildPaperObservedExecutionQuote({
+    market: "KRW-BTC", observedAt: 1_900, totalAskSize: 1, totalBidSize: 1,
+    units: [{ askPrice: 50_000_000, bidPrice: 49_999_999, askSize: 1, bidSize: 1 }]
+  });
+  const tamperedQuote = Object.freeze({
+    ...validQuote,
+    depth: Object.freeze([Object.freeze({ ...validQuote.depth[0], askPrice: 50_000_001 })])
+  });
+  const before = structuredClone(loop.snapshot());
+
+  const rejected = boundary.processTick({ ...tick, observedQuote: tamperedQuote });
+  assert.equal(rejected.status, "BLOCKED");
+  assert.equal(rejected.reason, "ORDERBOOK_DEPTH_FINGERPRINT_MISMATCH");
+  assert.equal(evaluations(), 0);
+  assert.deepEqual(loop.snapshot(), before);
+
+  const retried = boundary.processTick({ ...tick, observedQuote: validQuote });
+  assert.equal(retried.status, "FILLED");
+  assert.equal(evaluations(), 1);
+  assert.equal(retried.fills.length, 1);
+});
+
+test("tampered continuation depth is rejected before risk admission and can be retried", () => {
+  const { loop, boundary, evaluations } = build("ALLOW", { maxFillRatio: 0.5 });
+  const first = boundary.processTick(tick);
+  assert.equal(first.status, "WAIT");
+  assert.equal(first.state.workingOrders?.length, 1);
+
+  const validQuote = buildPaperObservedExecutionQuote({
+    market: "KRW-BTC", observedAt: 2_050, totalAskSize: 1, totalBidSize: 1,
+    units: [{ askPrice: 50_000_000, bidPrice: 49_999_999, askSize: 1, bidSize: 1 }]
+  });
+  const tamperedQuote = Object.freeze({
+    ...validQuote,
+    depth: Object.freeze([Object.freeze({ ...validQuote.depth[0], askPrice: 50_000_001 })])
+  });
+  const continuation = { ...tick, now: 2_100, observedAt: 2_050, decisions: [] };
+  const before = structuredClone(loop.snapshot());
+
+  const rejected = boundary.processTick({ ...continuation, observedQuote: tamperedQuote });
+  assert.equal(rejected.status, "BLOCKED");
+  assert.equal(rejected.reason, "ORDERBOOK_DEPTH_FINGERPRINT_MISMATCH");
+  assert.equal(evaluations(), 1);
+  assert.deepEqual(loop.snapshot(), before);
+
+  const retried = boundary.processTick({ ...continuation, observedQuote: validQuote });
+  assert.equal(retried.status, "FILLED");
+  assert.equal(evaluations(), 2);
+  assert.equal(retried.state.workingOrders?.length ?? 0, 0);
+});
+
 for (const [name, invalidQuote, now = tick.now] of [
   ["stale", observedQuote, 8_000],
   ["future", buildPaperObservedExecutionQuote({ market: "KRW-BTC", observedAt: 3_000, totalAskSize: 1, totalBidSize: 1, units: [{ askPrice: 50_000_000, bidPrice: 49_999_999, askSize: 1, bidSize: 1 }] })],
