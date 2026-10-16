@@ -25,3 +25,6 @@ This increment adds a storage contract only. No production caller invokes markPe
 7. Old deployment rollback after schema activation requires explicit fail-closed compatibility handling; no deletion or downgrade of terminal history.
 
 Current historical fill/ledger, 21 realized periods, capital, qualification criteria, Risk and writer lease semantics remain unchanged. Actual learning progression and restart/replay acceptance remain UNVERIFIED.
+
+## Latest exact-main evidence
+Protected main and deployed runtime matched 67630b806996a0774fa41d772e61de6192493a84. After controlled restart/replay, authenticated readiness returned HTTP 200 with all four checks true; the durable ledger contains 170 fills with 170 unique identities, including 169 cost-attributed fills and one immutable INCOMPLETE-cost fill. The latest fill has OBSERVED attribution. The runtime retained 21 realized periods and one pending period; learning cycles remain zero with `INCOMPLETE_EXECUTION_COST_EVIDENCE`. Account positions are zero quantity and there are no working orders. The disposition API has not been activated, so the historical fill/period was not changed.

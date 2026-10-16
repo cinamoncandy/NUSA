@@ -514,11 +514,13 @@ current_runtime_restart_forensics:
 current_paper_period_disposition_20261016:
   work_order: WO-OPS-20261016-PERIOD-DISPOSITION
   branch: codex/paper-period-disposition-20261016
-  status: LOCALLY_VALIDATED_PENDING_EXACT_HEAD_CI_AND_FRESH_REVIEW
+  base_sha: 67630b806996a0774fa41d772e61de6192493a84
+  status: REBASED_PENDING_FOCUSED_VALIDATION_CI_AND_FRESH_REVIEW
   authority: PAPER_ONLY
   scope: "Existing pending-store immutable INELIGIBLE contract only; runtime activation remains gated."
-  validation: "92 focused tests; strict TypeScript build/root/mobile, validate:full, lint and security PASS. No production caller or runtime disposition claimed."
-  next: "Fresh non-author contract review and canonical CI/Audit/Release. Production integration still requires #2741 runtime acceptance and accepted contract."
+  runtime_evidence: "main 67630b80 health/readiness PASS after restart/replay; 170 fills/170 unique ids, 169 attributed and 1 INCOMPLETE cost fill; 21 realized periods; learning cycles 0."
+  validation: "Rebased focused 124/124, strict build, root/mobile typecheck, validate:full, lint (24 existing warnings), security and AIPOS provenance PASS; exact-head CI and fresh non-author review pending. No production caller or runtime disposition claimed."
+  next: "Fresh exact-head CI and non-author contract review, then canonical Audit/Release. Runtime integration remains separately gated."
 
 current_paper_readiness_finite_20261015:
   work_order: WO-OPS-20261015-PAPER-READINESS-FINITE

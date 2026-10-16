@@ -6,7 +6,7 @@ repository: cinamoncandy/NUSA
 issue: 2589
 related_issues: [1605]
 base_branch: main
-base_commit: 310d34d7d785cf89d0503f2619954218c94f6b67
+base_commit: 67630b806996a0774fa41d772e61de6192493a84
 implementation_branch: codex/paper-period-disposition-20261016
 authority_impact: paper_persistence_contract
 objective: "Add an atomic, replay-safe INELIGIBLE pending-period storage contract without fabricating realized performance or activating runtime retirement."
@@ -46,13 +46,15 @@ validation:
     - pnpm run lint
     - pnpm run security:gate
   focused: PASS_92_STORAGE_PRODUCER_READER_ROLLOVER_TESTS
+  latest_main_rebase_focused: PASS_124_STORAGE_PRODUCER_READER_ROLLOVER_TESTS
   strict_build: PASS_MANAGED_FULL_TYPESCRIPT_PROGRAM
   root_and_mobile_typecheck: PASS
   validate_full: PASS
   lint: PASS_24_EXISTING_WARNINGS
   security_gate: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL
-  exact_head_ci: FIRST_HEAD_FAILED_FIXTURE_CREDENTIAL_PATTERN_REPRODUCED_AND_REPAIRED_LOCALLY
+  exact_head_ci: PENDING_REBASED_HEAD
+  latest_main_runtime: "67630b806996a0774fa41d772e61de6192493a84 health/readiness PASS after restart/replay; 170/170 unique fills; 169 attributed and 1 immutable INCOMPLETE cost fill; 21 realized periods, 0 learning cycles. No database mutation."
   independent_review: PENDING
   audit: PENDING
   release: PENDING
-next: "Implement and validate the storage contract; submit for fresh non-author contract review before wiring runtime disposition."
+next: "Complete latest-main focused validation and exact-head CI, then fresh non-author contract review/Audit/Release before a separately scoped producer/reader/scheduler activation."
