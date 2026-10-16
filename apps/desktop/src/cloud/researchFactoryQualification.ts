@@ -99,6 +99,21 @@ function validateRunProvenance(run: ResearchRunLeagueResult): void {
   ) {
     throw new Error("research run provenance is missing or malformed");
   }
+  if (provenance.boundExecution != null) {
+    const bound = provenance.boundExecution;
+    if (bound.evaluationId.trim() === ""
+      || !/^[0-9a-f]{64}$/i.test(bound.precommitFingerprint)
+      || !bound.executionId.trim()
+      || !Number.isInteger(bound.executionSequence) || bound.executionSequence < 1
+      || !/^[0-9a-f]{64}$/i.test(bound.actualInputFingerprint)
+      || !/^[0-9a-f]{64}$/i.test(bound.outputFingerprint)
+      || bound.sourceCommitSha.toLowerCase() !== provenance.sourceCommitSha.toLowerCase()
+      || bound.datasetId !== provenance.dataset.datasetId
+      || bound.datasetContentSha256.toLowerCase() !== provenance.dataset.contentSha256.toLowerCase()
+      || !bound.validationPolicy.trim()) {
+      throw new Error("research run bound execution provenance is malformed or mismatched");
+    }
+  }
   if (run.robustnessEvidence != null && !/^[0-9a-f]{64}$/i.test(provenance.evidenceIdentity.robustnessSha256 ?? "")) {
     throw new Error("research run robustness identity is missing or malformed");
   }

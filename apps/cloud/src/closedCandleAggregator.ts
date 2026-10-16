@@ -23,6 +23,10 @@ export const DEFAULT_MAX_INTERNAL_GAP_MS = 30_000;
 export interface CandleObservation {
   readonly observedAt: number;
   readonly price: number;
+  /** Upstream source identity; optional keeps the pure aggregator compatible with existing callers. */
+  readonly source?: string;
+  readonly sourceFingerprint?: string;
+  readonly evidenceFingerprintSha256?: string;
 }
 
 export interface AggregatedCandles {
@@ -32,6 +36,9 @@ export interface AggregatedCandles {
   readonly incompleteBuckets: number;
   readonly rejectedObservations: number;
   readonly checksumSha256: string;
+  readonly source?: string;
+  readonly sourceFingerprint?: string;
+  readonly evidenceFingerprintSha256?: string;
 }
 
 export function candleChecksum(candles: readonly BacktestCandle[]): string {
@@ -90,5 +97,9 @@ export function aggregateClosedCandles(input: {
     return Object.freeze({ timestamp: start + intervalMs, open: b.open, high: b.high, low: b.low, close: b.close, volume: 0 });
   });
   const missingBuckets = starts.length < 2 ? 0 : (starts[starts.length - 1] - starts[0]) / intervalMs + 1 - starts.length;
-  return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles) });
+  const sources = new Set(input.observations.map((observation) => observation.source).filter((value): value is string => value != null));
+  const sourceFingerprints = new Set(input.observations.map((observation) => observation.sourceFingerprint).filter((value): value is string => value != null));
+  const evidenceFingerprints = new Set(input.observations.map((observation) => observation.evidenceFingerprintSha256).filter((value): value is string => value != null));
+  if (sources.size > 1 || sourceFingerprints.size > 1 || evidenceFingerprints.size > 1) throw new Error("mixed observation provenance is not supported");
+  return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles), ...(sources.size === 1 ? { source: [...sources][0] } : {}), ...(sourceFingerprints.size === 1 ? { sourceFingerprint: [...sourceFingerprints][0] } : {}), ...(evidenceFingerprints.size === 1 ? { evidenceFingerprintSha256: [...evidenceFingerprints][0] } : {}) });
 }

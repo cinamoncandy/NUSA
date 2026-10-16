@@ -88,6 +88,7 @@ import {
   type NusaEngineeringOperatingSnapshot,
   type NusaEngineeringOperatingSource,
 } from "./engineeringOperatingReadModel";
+import { composeResearchExperiments } from "./researchExperimentComposition";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -116,7 +117,7 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
-function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
+function createSnapshotRepository(pathname: string): SqliteCloudDashboardSnapshotRepository {
   if (pathname !== ":memory:") {
     const absolute = path.resolve(pathname);
     const sourceTree = path.resolve(process.cwd()) + path.sep;
@@ -778,5 +779,5 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
 
   return controller;
 }
-function main(): void { const config = readCloudRuntimeConfig(process.env); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath), undefined, undefined, undefined, undefined, undefined, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
+function main(): void { const config = readCloudRuntimeConfig(process.env); const snapshot = createSnapshotRepository(config.cloudStateDbPath); const research = composeResearchExperiments({ env: process.env, database: snapshot.database() }); research?.start(); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, snapshot, undefined, undefined, undefined, undefined, research?.orchestrator, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
 if (require.main === module) main();

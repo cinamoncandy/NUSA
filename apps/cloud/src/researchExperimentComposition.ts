@@ -1,4 +1,4 @@
-import { SqliteCandidatePromotionRepository, SqliteResearchCandleStore, SqliteResearchEvaluationLedger, SqliteResearchHoldoutLedger, SqliteResearchMemoryRepository, SqliteResearchSessionRepository, SqlitePaperMarketObservationRepository, type SqliteDatabase } from "../../../packages/storage/src/index";
+import { SqliteCandidatePromotionRepository, SqliteResearchCandleStore, SqliteResearchDatasetManifestStore, SqliteResearchEvaluationLedger, SqliteResearchHoldoutLedger, SqliteResearchMemoryRepository, SqliteResearchSessionRepository, SqlitePaperMarketObservationRepository, SqliteResearchPrecommitRepository, type SqliteDatabase } from "../../../packages/storage/src/index";
 import { BacktestResearchEvaluator, buildDonchianResearchStrategy, buildRsiResearchStrategy, buildSmaResearchStrategy } from "./backtestResearchEvaluator";
 import { ResearchAutomationRuntime } from "./researchAutomationRuntime";
 import { ResearchExperimentOrchestrator, type ResearchVariant, type TickReport } from "./researchExperimentOrchestrator";
@@ -7,6 +7,7 @@ import { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
 import { collectClosedCandles } from "./researchCandleCollector";
 import { backfillMarket, createUpbitMinuteCandleFetcher, fillRecentGaps, type BackfillResult, type GapFillResult } from "./researchCandleBackfill";
 import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
+import { materializeResearchDatasetManifest } from "./researchDatasetManifestMaterializer";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 
 /**
@@ -90,6 +91,7 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
 }
 
 export interface ResearchExperimentComposition {
+  readonly datasetManifests: SqliteResearchDatasetManifestStore;
   /** Synchronous startup only: validate evidence without changing Research session state. */
   readonly prepareRecovery: () => void;
   readonly finishPreparedRecovery: () => void;
@@ -125,9 +127,11 @@ export function composeResearchExperiments(input: {
   const db = input.database;
 
   const store = new SqliteResearchCandleStore(db);
+  const datasetManifests = new SqliteResearchDatasetManifestStore(db);
   const holdout = new SqliteResearchHoldoutLedger(db);
   const observations = new SqlitePaperMarketObservationRepository(db);
   const ledger = new SqliteResearchEvaluationLedger(db);
+  const precommits = new SqliteResearchPrecommitRepository(db);
   const candidates = new SqliteCandidatePromotionRepository(db);
   const memory = new SqliteResearchMemoryRepository(db);
   const sessions = new SqliteResearchSessionRepository(db);
@@ -210,7 +214,7 @@ export function composeResearchExperiments(input: {
       strategy, candles: bars, intervalMs, backtest: RESEARCH_BACKTEST_COST,
     });
     const variantFor = (variantId: string, challenger: ReturnType<typeof proxy>, config: unknown, experimentFamilyPrefix?: string): ResearchVariant => {
-      const coordinator = new ResearchRuntimeCoordinator({ champion: evaluatorFor(champion, "PAPER_ONLY"), challenger: evaluatorFor(challenger, "ZERO_AUTHORITY"), ledger });
+      const coordinator = new ResearchRuntimeCoordinator({ champion: evaluatorFor(champion, "PAPER_ONLY"), challenger: evaluatorFor(challenger, "ZERO_AUTHORITY"), ledger, precommitStore: precommits });
       const runtime = new ResearchAutomationRuntime({
         coordinator, sessions, memory, registerCandidate: (identity) => { log(`[research-experiments] candidate gate eligible (not registered, governed promotion paths unchanged): ${identity.strategyId}@${identity.strategyVersion}`); return Object.freeze({ identity, lifecycle: "RESEARCHING" as const }); }, listCandidates: () => candidates.listCandidates(),
         recovery: startupRecovery, now, maxEvidenceAgeMs: 14 * DAY_MS,
@@ -235,7 +239,7 @@ export function composeResearchExperiments(input: {
     });
     const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants, ...donchianVariants];
     const orchestrator = new ResearchExperimentOrchestrator({
-      variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant,
+      variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant, precommitStore: precommits,
       // Closed 1m candles are collected once per tick by the 1m-equivalent first orchestrator only.
       collect: (nowMs) => { if (minutes === settings.intervalsMinutes[0]) collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store }); },
       candles: bars, holdout, now, sourceCommitSha: settings.sourceCommitSha,
@@ -243,6 +247,8 @@ export function composeResearchExperiments(input: {
       evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
       featurePipeline: { version: "closed-candle-agg-v1", config: { intervalMs, maxInternalGapMs: 30_000, volume: 0 } },
       experimentFamilyPrefix: `sma-research${tag}`,
+      datasetManifest: { read: (datasetId: string) => datasetManifests.read(datasetId) },
+      datasetIdForMarket: (targetMarket: string) => `upbit-1m-closed:${targetMarket}:${intervalMs}`,
       failureEvidence: () => ledger.list().filter((record) => record.provenance?.windowRole === "VALIDATION" && record.provenance.interval === `${minutes}m`),
     });
     return { orchestrator, variantCount: variants.length };
@@ -267,6 +273,16 @@ export function composeResearchExperiments(input: {
         if (stopped) break;
         const result = await backfillMarket({ market, targetSpanMs, nowMs: now(), store, fetchPage, sleep });
         results.push(result);
+        if (result.status === "COMPLETE") {
+          const firstClose = store.earliestCloseTime(market, M);
+          const lastClose = store.latestCloseTime(market, M);
+          if (firstClose != null && lastClose != null) {
+            try {
+              materializeResearchDatasetManifest({ store: datasetManifests, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString() });
+              log(`[research-manifest] ${market} materialized dataset manifest`);
+            } catch (error) { log(`[research-manifest] ${market} blocked: ${error instanceof Error ? error.message : "unknown"}`); }
+          }
+        }
         log(`[research-backfill] ${market} ${result.status} recorded=${result.recorded} rejected=${result.rejected} pages=${result.pages}${result.errorCode === undefined ? "" : ` error=${result.errorCode}`}`);
       }
     } catch (error) {
@@ -289,6 +305,16 @@ export function composeResearchExperiments(input: {
         if (stopped) break;
         const result = await fillRecentGaps({ market, windowMs: targetSpanMs, nowMs: now(), store, fetchPage, sleep });
         results.push(result);
+        if (result.status === "NO_GAPS" || result.status === "FILLED") {
+          const firstClose = store.earliestCloseTime(market, M);
+          const lastClose = store.latestCloseTime(market, M);
+          if (firstClose != null && lastClose != null) {
+            try {
+              materializeResearchDatasetManifest({ store: datasetManifests, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString() });
+              log(`[research-manifest] ${market} materialized dataset manifest after gap fill`);
+            } catch (error) { log(`[research-manifest] ${market} blocked after gap fill: ${error instanceof Error ? error.message : "unknown"}`); }
+          }
+        }
         log(`[research-gap-fill] ${market} ${result.status} missing=${result.missing} recorded=${result.recorded} rejected=${result.rejected} pages=${result.pages}${result.errorCode === undefined ? "" : ` error=${result.errorCode}`}`);
       }
     } catch (error) {
@@ -336,6 +362,7 @@ export function composeResearchExperiments(input: {
     return first!;
   };
   return Object.freeze({
+    datasetManifests,
     prepareRecovery,
     finishPreparedRecovery: () => { preparationActive = false; clearPreparedRecovery(); },
     orchestrator,

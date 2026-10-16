@@ -4,6 +4,8 @@ import type { ResearchCandleSource } from "./backtestResearchEvaluator";
 import { buildResearchProvenance, canonicalSha256, hashResearchInputCore, ResearchProvenanceError } from "./researchProvenanceBuilder";
 import { buildWalkForwardWindows, type WalkForwardWindowConfig } from "./researchWalkForwardWindows";
 import type { HoldoutKey } from "../../../packages/storage/src/researchHoldoutLedger";
+import { createResearchPrecommit, type ResearchPrecommit } from "../../../packages/contracts/src/researchPrecommit";
+import { calculateResearchCandleSha256, calculateResearchDatasetId } from "../../../packages/contracts/src/researchDatasetSemantics";
 
 /**
  * Runs one experiment for one challenger variant: VALIDATION window first; the HOLDOUT window is evaluated only when
@@ -17,6 +19,8 @@ export interface ExperimentRunnerPorts {
   readonly candles: ResearchCandleSource;
   readonly holdout: { claim(key: HoldoutKey, evaluationId: string, usedAtMs: number): "CLAIMED" | "ALREADY_USED"; overlapsUsedHoldout(hash: string, market: string, intervalMs: number, startMs: number, endMs: number): boolean };
   readonly now: () => number;
+  readonly precommitStore?: { create(precommit: ResearchPrecommit): ResearchPrecommit };
+  readonly datasetManifest?: { read(datasetId: string): { readonly datasetId: string; readonly source: string; readonly market: string; readonly interval: string; readonly candleCount: number; readonly startOpenTime: number; readonly endCloseTime: number; readonly contentSha256: string } };
 }
 
 export interface ExperimentSpec {
@@ -36,6 +40,9 @@ export interface ExperimentSpec {
   readonly hypothesisLineage: string;
   readonly split: { readonly identity: string };
   readonly walkForwardConfig: unknown;
+  readonly candidateCohort?: readonly Readonly<{ readonly id: string; readonly strategyId: string; readonly strategyVersion: string; readonly parameters: Readonly<Record<string, unknown>> }>[];
+  readonly searchUniverse?: Readonly<Record<string, unknown>>;
+  readonly datasetId?: string;
 }
 
 export type ExperimentOutcome =
@@ -49,6 +56,21 @@ export function runResearchExperiment(ports: ExperimentRunnerPorts, spec: Experi
   try {
     const now = ports.now();
     const intervalMs = spec.intervalMs;
+    if (ports.datasetManifest != null) {
+      if (!spec.datasetId) return skip("DATASET_MANIFEST_ID_MISSING");
+      let manifest: ReturnType<NonNullable<ExperimentRunnerPorts["datasetManifest"]>["read"]>;
+      try { manifest = ports.datasetManifest.read(spec.datasetId); } catch (error) {
+        const code = typeof (error as { code?: unknown })?.code === "string" ? String((error as { code: string }).code) : "READ_FAILED";
+        return skip(`DATASET_MANIFEST_${code}`);
+      }
+      if (manifest.datasetId !== spec.datasetId || manifest.market !== spec.market || manifest.interval !== `${intervalMs / 60_000}m`) return skip("DATASET_MANIFEST_BINDING_MISMATCH");
+      if (spec.endCloseMs < manifest.startOpenTime || spec.endCloseMs > manifest.endCloseTime) return skip("DATASET_MANIFEST_RANGE_MISMATCH");
+      const persisted = ports.candles.read(spec.market, intervalMs, manifest.startOpenTime + intervalMs, manifest.endCloseTime);
+      if (persisted.length !== manifest.candleCount || persisted.some((candle) => candle.volume == null)) return skip("DATASET_MANIFEST_VOLUME_MISSING");
+      const canonical = persisted.map((candle) => ({ market: spec.market, interval: manifest.interval as "1m" | "3m" | "5m" | "10m" | "15m" | "30m" | "60m" | "240m" | "1d", openTime: candle.closeTimeMs - intervalMs, closeTime: candle.closeTimeMs, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume! }));
+      const contentSha256 = calculateResearchCandleSha256(canonical);
+      if (contentSha256 !== manifest.contentSha256 || calculateResearchDatasetId(manifest.source, canonical, contentSha256) !== manifest.datasetId) return skip("DATASET_MANIFEST_CONTENT_MISMATCH");
+    }
     const total = spec.windows.trainMs + spec.windows.validationMs + spec.windows.holdoutMs;
     const rows = ports.candles.read(spec.market, intervalMs, spec.endCloseMs - total + intervalMs, spec.endCloseMs);
     const built = buildWalkForwardWindows({ candles: rows.map((r) => ({ timestamp: r.closeTimeMs, open: r.open, high: r.high, low: r.low, close: r.close, volume: 0 })), endCloseMs: spec.endCloseMs, config: spec.windows });
@@ -86,6 +108,23 @@ export function runResearchExperiment(ports: ExperimentRunnerPorts, spec: Experi
         startingCash: 1,
         startingPositionQuantity: 0,
       } as unknown as ResearchInputSnapshot;
+      const precommit = ports.precommitStore == null ? undefined : createResearchPrecommit({
+        schemaVersion: 1,
+        experimentIdentity: evaluationId,
+        candidateIdentity: `${spec.challenger.strategy.strategyId}@${spec.challenger.strategy.version}`,
+        strategyIdentity: `${spec.challenger.strategy.strategyId}@${spec.challenger.strategy.version}`,
+        datasetBinding: { market: spec.market, intervalMs, startCloseMs: firstClose, endCloseMs: lastClose, contentSha256: canonicalSha256(points) },
+        sourceSha: spec.sourceCommitSha,
+        parameterPlan: spec.challenger.config as Readonly<Record<string, unknown>>,
+        ...(spec.candidateCohort == null ? {} : { candidateCohort: spec.candidateCohort }),
+        ...(spec.searchUniverse == null ? {} : { searchUniverse: spec.searchUniverse }),
+        costPlan: { fillModel: spec.models.fill, feeModel: spec.models.fee, slippageModel: spec.models.slippage },
+        regimePlan: { status: "NOT_APPLICABLE" },
+        evaluationPlan: { role, splitIdentity: spec.split.identity, walkForwardConfig: spec.walkForwardConfig },
+        validationPolicyIdentity: spec.split.identity,
+        createdAt: new Date(now).toISOString(),
+      });
+      const durablePrecommit = precommit == null ? undefined : ports.precommitStore!.create(precommit);
       const provenance = buildResearchProvenance({
         role,
         researchRunId: spec.sessionId,
@@ -108,7 +147,7 @@ export function runResearchExperiment(ports: ExperimentRunnerPorts, spec: Experi
         finalHoldoutUntouched: true,
         canonicalInputHash: hashResearchInputCore(core),
       });
-      return ports.runExperiment({ ...core, provenance } as ResearchInputSnapshot);
+      return ports.runExperiment({ ...core, ...(durablePrecommit == null ? {} : { precommitFingerprint: durablePrecommit.fingerprint }), provenance } as ResearchInputSnapshot);
     };
 
     const validation = run("VALIDATION");
