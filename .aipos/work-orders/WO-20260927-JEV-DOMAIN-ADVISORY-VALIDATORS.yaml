@@ -1,49 +1,59 @@
 id: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
-title: "Jev domain advisory validator completion"
+title: Jev domain advisory validator completion
 status: READY_FOR_REVIEW
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
 parent_pr: 2329
 base_branch: main
-base_commit: 10c153464b40326a061e548cf44abfb479d07fc0
-prior_head: c2bb97df9a40f52b463010b83674225acf0182b3
+base_commit: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
+prior_head: df6b08d85953f5e2df06fbc9416aa996b873bf55
 implementation_branch: feat/2326-jev-domain-advisory-validators
 authority_impact: none
-objective: "Complete the registered NUSA-wide Jev SHADOW task contract by replacing UNAVAILABLE placeholder validators with one bounded DOMAIN_ADVISORY_V1 schema and task-specific classification vocabularies."
+objective: Complete the registered NUSA-wide Jev SHADOW task contract by replacing UNAVAILABLE placeholder validators
+  with one bounded DOMAIN_ADVISORY_V1 schema and task-specific classification vocabularies.
 scope:
   include:
-    - "18 previously registered-but-unusable task types across Core/Evolve, Development, Integrity, Market Data, AXIOM, Family, Governance, Risk, PAPER Execution/Ledger, Performance, Observability, Runtime, Security, Release/Audit, Integration, UI/Mobile."
-    - "Task-specific fixed classification vocabularies."
-    - "Strict decision shape: classification, severity 1..5, requiredModel, reasonCode, confidence."
-    - "Envelope consistency between decision and observation metadata."
+  - 18 previously registered-but-unusable task types across Core/Evolve, Development, Integrity, Market Data, AXIOM,
+    Family, Governance, Risk, PAPER Execution/Ledger, Performance, Observability, Runtime, Security, Release/Audit,
+    Integration, UI/Mobile.
+  - Task-specific fixed classification vocabularies.
+  - 'Strict decision shape: classification, severity 1..5, requiredModel, reasonCode, confidence.'
+  - Envelope consistency between decision and observation metadata.
   exclude:
-    - "Runtime wiring into each domain owner."
-    - "Provider transport changes."
-    - "Promotion beyond SHADOW or usableForRouting=true."
-    - "Canonical truth, risk, Ledger, execution, Audit, Release, merge, secret, or LIVE authority."
+  - Runtime wiring into each domain owner.
+  - Provider transport changes.
+  - Promotion beyond SHADOW or usableForRouting=true.
+  - Canonical truth, risk, Ledger, execution, Audit, Release, merge, secret, or LIVE authority.
 acceptance:
-  - "Every registered task type has a deterministic validator."
-  - "Every advisory task can emit a SHADOW observation with usableForRouting=false."
-  - "Unknown classifications, arbitrary fields, invalid severity, model/reason/confidence mismatch fail closed."
-  - "Task classification vocabulary is immutable repository policy, not model-provided free text."
-  - "Existing workflow/research-specific validators remain unchanged."
-  - "Keep main MARKET_MICROSTRUCTURE_V1 policy, validator and vocabulary unchanged; no generic microstructure labels are invented."
-  - "All protected-action prohibitions and ZERO_AUTHORITY invariants remain mechanical."
+- Every registered task type has a deterministic validator.
+- Every advisory task can emit a SHADOW observation with usableForRouting=false.
+- Unknown classifications, arbitrary fields, invalid severity, model/reason/confidence mismatch fail closed.
+- Task classification vocabulary is immutable repository policy, not model-provided free text.
+- Existing workflow/research-specific validators remain unchanged.
+- Keep main MARKET_MICROSTRUCTURE_V1 policy, validator and vocabulary unchanged; no generic microstructure labels
+  are invented.
+- All protected-action prohibitions and ZERO_AUTHORITY invariants remain mechanical.
 evidence:
   prior_implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
-  prior_validation: "Historical17/17 generic registry tests; not current-main acceptance."
-  current_main_reconvergence: "Both DOMAIN_ADVISORY_V1 and existing MARKET_MICROSTRUCTURE_V1 coexist. The specialized market contract is unchanged and requires no new classification vocabulary."
+  prior_validation: Historical17/17 generic registry tests; not current-main acceptance.
+  current_main_reconvergence: Both DOMAIN_ADVISORY_V1 and existing MARKET_MICROSTRUCTURE_V1 coexist. The specialized
+    market contract is unchanged and requires no new classification vocabulary.
   validation_source_head: d7d17e7da5cb1f9d091b5dbcfb43a759a18337fe
-  current_validation: "36/36 focused PASS; full strict TS emit/root/mobile typecheck; validate:full/index/security/JS lint PASS."
-  validation_receipt: .aipos/evidence/jev-2337-current-main-validation-20261015.json
+  current_validation: 2026-10-16 c26 reconvergence:36/36 focused PASS; strict build/root/mobile typecheck PASS;
+    validate:full/lint/security PASS;0 secrets or unmitigated high/critical
+  validation_receipt: .aipos/evidence/jev-2337-current-main-validation-20261016.json
   independent_review: PENDING_FRESH_NON_AUTHOR_VALIDATOR
   exact_head_ci: PENDING
   audit_release_runtime: PENDING
+  prior_exact_head_ci: 38745643392 SUCCESS on df6b08d8; historical10c base, not current-main acceptance
+  stale_parent_blocker_cleanup: 'Fresh GitHub #2329 merged04a17e14 on2026-09-27; ancestry to c26 proven. Old quota
+    hold retained only as history.'
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Validate reconvergence locally, refresh existing PR2337 as Draft, obtain fresh review/exact-head CI, then canonical Audit/Release and actual SHADOW runtime evidence. Never promote routing or authority."
+next_permitted_action: Validate reconvergence locally, refresh existing PR2337 as Draft, obtain fresh review/exact-head
+  CI, then canonical Audit/Release and actual SHADOW runtime evidence. Never promote routing or authority.

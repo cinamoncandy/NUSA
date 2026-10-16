@@ -18,6 +18,15 @@ current_strategy_parameter_boundary_20261013:
   validation: "47 focused and1202 isolated test files PASS;build,typecheck,validate:full,lint PASS. Canonical admission only; baseline pin/version unchanged."
   next: "Fail closed on unsupported strategy fields; no masked-candidate promotion or risk relaxation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_research_run_fingerprint_20261016:
+  work_order: WO-RESEARCH-20261016-RUN-FINGERPRINT
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/research-run-fingerprint-20261016
+  validation: "Implementation6959b529:48 focused tests and1231 isolated files PASS; build/typecheck/validate:full/security/lint PASS24 existing warnings. Fresh exact-implementation non-author review0P0/0P1/0P2."
+  next: "Finish suite then exact-head CI/Audit/Release; schema1 consistency only, not whole A-grade approval."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_runtime_proof_20261013:
   work_order: WO-RESEARCH-20261013-RUNTIME-PROOF
   status: LOCAL_VALIDATED_PENDING_CI
@@ -666,10 +675,12 @@ current_jev_shadow_runtime_config:
 current_jev_domain_advisory_validators_20261015:
   work_order: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
   canonical_pr: 2337
-  source_main_sha: 10c153464b40326a061e548cf44abfb479d07fc0
-  prior_head: c2bb97df9a40f52b463010b83674225acf0182b3
+  source_main_sha: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
+  prior_head: df6b08d85953f5e2df06fbc9416aa996b873bf55
   status: LOCAL_VALIDATED_DRAFT_REVIEW_AND_CI_PENDING
   validation_source_head: d7d17e7da5cb1f9d091b5dbcfb43a759a18337fe
+  current_main_revalidation_date: 2026-10-16
+  validation_receipt: .aipos/evidence/jev-2337-current-main-validation-20261016.json
   validation: "36/36 focused plus full TS emit/typecheck/validate:full/index/security/JS lint PASS; no runtime acceptance."
   first_broken_transition: locally validated existing WIP -> fresh exact-head CI and independent review
   resolution: "Retain main specialized MARKET_MICROSTRUCTURE_V1 policy/validator unchanged; add only the existing DOMAIN_ADVISORY_V1 residual. No new market label semantics or duplicate validator."
@@ -678,17 +689,29 @@ current_jev_domain_advisory_validators_20261015:
 
 current_jev_domain_observation_contract:
   work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
-  status: BLOCKED
+  status: MERGED_CANONICAL_INCORPORATED
   branch: feat/2326-jev-domain-observation-registry
-  base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
-  implementation_head: ca56eb2a21ae93c84031ed210a62805508d8908a
   scope: canonical-jev-domain-observation-envelope-and-task-type-registry
   rollout_ceiling: SHADOW
-  implementation_status: READY_FOR_REVIEW
+  implementation_status: MERGED
   review_threads: RESOLVED
-  validation: "Implementation head ca56eb2a exact-head CI 36287313910 PASS including validation, all coverage shards, aggregate coverage, and test; local focused TypeScript compile, runtime trust-boundary assertions, AIPOS YAML, and git diff checks PASS. Full repository tsc on the 1 GB nusa-vcn verifier was resource-limited and boundedly stopped, not diagnostically failed. This metadata-only reconciliation requires one final fresh exact-head CI."
-  blocker: "Independent Audit provider is in WORKERS_AI_DAILY_QUOTA_EXHAUSTED HARD_STOP; persisted nextRetryAt is 2026-09-28T00:00:00Z (2026-09-28 09:00 KST). Do not repeatedly poll or dispatch Audit before this boundary."
-  remaining: fresh-exact-head-CI_then_independent-Audit_after-nextRetryAt_then_Release_then_merge
+  remaining: 'No parent implementation work; existing #2337 residual and dependent #2339 remain separate
+    and unaccepted'
+  canonical_pr: 2329
+  merged_commit: 04a17e14130139168ad515417641f52c440cbab6
+  merged_at: '2026-09-27T12:55:39Z'
+  fresh_verified_main: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
+  historical_blocker: Independent Audit provider is in WORKERS_AI_DAILY_QUOTA_EXHAUSTED HARD_STOP; persisted
+    nextRetryAt is 2026-09-28T00:00:00Z (2026-09-28 09:00 KST). Do not repeatedly poll or dispatch Audit
+    before this boundary.
+  historical_implementation_head: ca56eb2a21ae93c84031ed210a62805508d8908a
+  implementation_head: 739223b38f1569f69449949ec266cf5d68ce2780
+  historical_validation: Implementation head ca56eb2a exact-head CI 36287313910 PASS including validation,
+    all coverage shards, aggregate coverage, and test; local focused TypeScript compile, runtime trust-boundary
+    assertions, AIPOS YAML, and git diff checks PASS. Full repository tsc on the 1 GB nusa-vcn verifier
+    was resource-limited and boundedly stopped, not diagnostically failed. This metadata-only reconciliation
+    requires one final fresh exact-head CI.
+  historical_base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
 current_provider_backpressure:
   work_order: WO-20260927-PROVIDER-BACKPRESSURE
   status: IN_PROGRESS
@@ -2807,6 +2830,15 @@ current_ui_startup_timing:
   branch: claude/startup-timing
   authority_impact: none
   deploy: not_deployed_new_app_build_required
+
+current_research_qualification_identity_20261016:
+  work_order: WO-RESEARCH-20261016-QUALIFICATION-IDENTITY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/research-qualification-identity-20261016
+  validation: "Implementation72bffc02:2 RED regressions,59 focused tests/1231 isolated files/build/typecheck/validate:full/security/lint PASS24 existing warnings. Restricted-network security failure retained; same gate with network access PASS. Fresh committed-head non-author review0P0/0P1/0P2."
+  next: "Finish gates/review then exact-head CI/Audit/Release. Receipt is consistency only, not precommit/authentication or A-grade approval."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_refresh_memory:
   work_order: WO-PAPER-20261005-RESEARCH-REFRESH-MEMORY
   status: READY_FOR_REVIEW
@@ -3144,6 +3176,19 @@ current_ops_clear_recovered_market_reject:
   finding: "/health stayed DEGRADED from one stale tick while the feed was fresh; the rejection diagnostic now clears when the same market recovers"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 
+current_runtime_startup_evidence_invalidation_20261015:
+  work_order: WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION
+  branch: fix/paper-startup-evidence-invalidation-20261015
+  base_sha: 10c153464b40326a061e548cf44abfb479d07fc0
+  status: LOCAL_VALIDATED_DRAFT_REVIEW_AND_CI_PENDING
+  validation_source_head: b11828bfe22f487b63cda5c61b944b41dff9271c
+  validation: "170/170 focused; full TS emit/root/mobile typecheck; validate:full/index/JS lint/security PASS. Exact programme inputs verified; no runtime acceptance claimed."
+  first_broken_transition: locally validated startup repair -> fresh non-author review and exact-head CI
+  finding: "Prepared Research evidence was invalidated by unrelated startup writes, re-entering expensive validation under the lease. Precise host initiating call remains unproven."
+  runtime: "Read-only38729127377 at11:41:55Z: runtime89a9ceca HTTP200, periods15/cycles0/failures0/holdoutPasses0; main10c15346 rollout38700547000 failed and rolled back."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: "Draft review/CI, then canonical Audit/Release and exact-main rollout. Learning still requires a genuinely qualified challenger; no threshold relaxation."
+
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
   status: LOCAL_VALIDATED_PENDING_CI
@@ -3255,6 +3300,17 @@ current_research_failure_reasons:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
   finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
+
+current_strategy_validation_20261016:
+  work_order: WO-RESEARCH-20261016-A-GRADE-VALIDATION
+  status: FIRST_GATE_COMPLETENESS_LOCAL_VALIDATED
+  branch: codex/strategy-validation-precommit-20261016
+  first_broken_transition: independent_required_research_reports_to_complete_gate_set
+  evidence: "Code6f6a6c6d;3 red regressions reproduced then18 focused tests and1231 isolated files PASS. Build/typecheck/validate:full/security/lint PASS24 existing warnings. Fresh committed-head pre-Audit review PASS_WITH_NOTES0/0/0; not whole A-grade approval."
+  a_grade_acceptance: UNVERIFIED
+  next: "Finish exact-head gate repair; extend existing Research Factory policy/precommit/receipt identity next, no new engine or fabricated statistical/PAPER evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ui_app_icon_flow:
   work_order: WO-UI-20261007-APP-ICON-FLOW
   status: READY_FOR_REVIEW

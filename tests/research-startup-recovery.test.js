@@ -133,6 +133,15 @@ test("start disposes prepared evidence before recurring recovery", (t) => {
 for (const competingOwner of [false, true]) {
   test(`production validates before acquiring writer lease, without starting runtime (competing=${competingOwner})`, (t) => {
     const db = new storage.SqliteDatabase(":memory:");
+    const createSession = db.connection.createSession;
+    let closedEvidenceTrackers = 0;
+    t.mock.method(db.connection, "createSession", function (options) {
+      const session = createSession.call(this, options);
+      return {
+        changeset() { return session.changeset(); },
+        close() { closedEvidenceTrackers++; session.close(); },
+      };
+    });
     const accountId = paperAccountIdForCapital(10000000);
     let now = 1000000;
     t.mock.method(Date, "now", () => now);
@@ -158,7 +167,9 @@ for (const competingOwner of [false, true]) {
     t.mock.method(runtime, "startCloudRuntime", (...args) => {
       repository = args[5];
       repository.verifyWriterLease();
-      assert.equal(validations, 1);
+      assert.equal(args[9].recover().status, "READY");
+      repository.verifyWriterLease();
+      assert.equal(validations, 1, "legitimate writer/session writes must not replay evidence validation under the lease");
       throw boundary; // No listener, timers, market connection, or autonomous execution.
     });
     try {
@@ -172,6 +183,166 @@ for (const competingOwner of [false, true]) {
         assert.equal(validations, 1);
         repository.verifyWriterLease();
       }
+      assert.equal(closedEvidenceTrackers, 5, "every prepared evidence tracker closes when startup aborts");
     } finally { repository?.close(); owner?.close(); db.close(); }
   });
 }
+
+for (const table of ["research_evaluation_ledger", "research_promotion_audit", "research_promotion_commands", "research_candidates"]) {
+  test(`same-connection corruption of ${table} invalidates prepared evidence`, () => {
+    const db = new storage.SqliteDatabase(":memory:");
+    const composition = composeResearchExperiments({ env, database: db });
+    try {
+      composition.prepareRecovery();
+      if (table === "research_evaluation_ledger") db.connection.exec("INSERT INTO research_evaluation_ledger VALUES (1, 'synthetic', 'bad', '{', 'bad')");
+      else if (table === "research_promotion_audit") db.connection.exec("INSERT INTO research_promotion_audit VALUES (1, 'synthetic', 'bad', '{', 'bad')");
+      else if (table === "research_candidates") db.connection.exec("INSERT INTO research_candidates VALUES ('synthetic', '{', 'DRAFT', 1, 'bad')");
+      else db.connection.exec("INSERT INTO research_promotion_commands VALUES ('synthetic', 'bad', '{', 1)");
+      assert.equal(composition.orchestrator.recover().status, "FAIL_CLOSED");
+      assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+    } finally { composition.stop(); db.close(); }
+  });
+}
+
+for (const table of ["research_candidates", "research_promotion_commands"]) {
+test(`NULL primary key in ${table} cannot evade SQLite change tracking`, () => {
+  const db = new storage.SqliteDatabase(":memory:");
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    if (table === "research_candidates") db.connection.exec("INSERT INTO research_candidates VALUES (NULL, '{', 'DRAFT', 1, 'bad')");
+    else db.connection.exec("INSERT INTO research_promotion_commands VALUES (NULL, 'bad', '{', 1)");
+    assert.equal(composition.orchestrator.recover().status, "FAIL_CLOSED");
+    assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+  } finally { composition.stop(); db.close(); }
+});
+
+}
+
+test("schema changes force fresh evidence validation", (t) => {
+  const db = new storage.SqliteDatabase(":memory:");
+  const original = ResearchRecoveryCoordinator.prototype.recover;
+  let calls = 0;
+  t.mock.method(ResearchRecoveryCoordinator.prototype, "recover", function () { calls++; return original.call(this); });
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    db.connection.exec("CREATE TABLE synthetic_unrelated_schema (id INTEGER PRIMARY KEY)");
+    assert.equal(composition.orchestrator.recover().status, "READY");
+    assert.equal(calls, 2);
+  } finally { composition.stop(); db.close(); }
+});
+
+
+test("external evidence commit during tracker inspection cannot reuse READY", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-startup-inspection-race-"));
+  const db = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const other = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const original = db.connection.createSession;
+  let armed = false;
+  let remainingVariants = 10; // The configured first-interval grid has ten variants.
+  t.mock.method(db.connection, "createSession", function (options) {
+    const session = original.call(this, options);
+    return {
+      changeset() {
+        if (armed && options.table === "research_evaluation_ledger" && --remainingVariants === 0) { armed = false; other.connection.exec("INSERT INTO research_champion_pointer VALUES (1, 'synthetic-missing', 1)"); }
+        return session.changeset();
+      },
+      close() { session.close(); },
+    };
+  });
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    armed = true;
+    const result = composition.orchestrator.recover();
+    assert.equal(armed, false, "external mutation must occur during the final variant inspection");
+    assert.equal(result.status, "FAIL_CLOSED");
+    assert.ok(result.reasons.includes("CHAMPION_POINTER_LIFECYCLE_MISMATCH"));
+    assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+  } finally { composition.stop(); other.close(); db.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("fresh validation retries a final-variant external commit instead of returning stale READY", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-startup-fresh-validation-race-"));
+  const db = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const other = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const createSession = db.connection.createSession;
+  const recover = ResearchRecoveryCoordinator.prototype.recover;
+  let armedInspection = false;
+  let armedFreshValidation = false;
+  let remainingVariants = 10;
+  let validations = 0;
+  t.mock.method(ResearchRecoveryCoordinator.prototype, "recover", function () {
+    validations++;
+    const result = recover.call(this);
+    if (armedFreshValidation) {
+      armedFreshValidation = false;
+      other.connection.exec("INSERT INTO research_champion_pointer VALUES (1, 'synthetic-missing', 1)");
+    }
+    return result;
+  });
+  t.mock.method(db.connection, "createSession", function (options) {
+    const session = createSession.call(this, options);
+    return {
+      changeset() {
+        if (armedInspection && options.table === "research_evaluation_ledger" && --remainingVariants === 0) {
+          armedInspection = false;
+          other.connection.exec("CREATE TABLE synthetic_final_variant_change (id INTEGER PRIMARY KEY)");
+          armedFreshValidation = true;
+        }
+        return session.changeset();
+      },
+      close() { session.close(); },
+    };
+  });
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    armedInspection = true;
+    const result = composition.orchestrator.recover();
+    assert.equal(armedInspection, false, "external mutation must invalidate the final cached variant");
+    assert.equal(armedFreshValidation, false, "second mutation must land after fresh recovery reads");
+    assert.equal(result.status, "FAIL_CLOSED");
+    assert.ok(result.reasons.includes("CHAMPION_POINTER_LIFECYCLE_MISMATCH"));
+    assert.equal(validations, 3, "unstable READY is discarded and the changed evidence is re-read");
+    assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+  } finally { composition.stop(); other.close(); db.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("persistently unstable fresh evidence exhausts exactly three attempts and fails closed", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-startup-persistent-race-"));
+  const db = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const other = new storage.SqliteDatabase(join(directory, "state.sqlite"));
+  const createSession = db.connection.createSession;
+  const recover = ResearchRecoveryCoordinator.prototype.recover;
+  let validations = 0;
+  let closedEvidenceTrackers = 0;
+  let armed = false;
+  t.mock.method(db.connection, "createSession", function (options) {
+    const session = createSession.call(this, options);
+    return {
+      changeset() { return session.changeset(); },
+      close() { closedEvidenceTrackers++; session.close(); },
+    };
+  });
+  t.mock.method(ResearchRecoveryCoordinator.prototype, "recover", function () {
+    validations++;
+    const result = recover.call(this);
+    if (armed) other.connection.exec(`CREATE TABLE synthetic_unstable_${validations} (id INTEGER PRIMARY KEY)`);
+    return result;
+  });
+  const composition = composeResearchExperiments({ env, database: db });
+  try {
+    composition.prepareRecovery();
+    assert.equal(validations, 1);
+    other.connection.exec("CREATE TABLE synthetic_invalidate_cache (id INTEGER PRIMARY KEY)");
+    armed = true;
+    const result = composition.orchestrator.recover();
+    assert.equal(result.status, "FAIL_CLOSED");
+    assert.deepEqual(result.reasons, ["RECOVERY_EVIDENCE_UNSTABLE"]);
+    assert.equal(validations, 4, "one preparation plus exactly three rejected fresh validations");
+    assert.equal(closedEvidenceTrackers, 20, "cached five plus every tracker from three rejected attempts closes");
+    assert.equal(composition.orchestrator.tick().status, "RECOVERY_NOT_READY");
+  } finally { composition.stop(); other.close(); db.close(); rmSync(directory, { recursive: true, force: true }); }
+});

@@ -2,7 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildResearchRunLeague, ResearchRunLeagueBridgeError } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
+const { createHash } = require("node:crypto");
+const { buildResearchRunLeague, canonicalResearchRunFingerprint, ResearchRunLeagueBridgeError } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
 
 // Mirrors the shape scripts/research-real-market-run.js actually produces via
 // runWalkForwardExperiment, so these adversarial cases run through the real
@@ -151,6 +152,21 @@ function regimeEvaluation(datasetId, overrides = {}) {
 }
 
 const entryOf = (result, id) => result.standing.entries.find((entry) => entry.id === id);
+
+test("shared fingerprint preserves the original schema1 material and does not mutate producer evidence", () => {
+  const value = buildResearchRunLeague([candidate("identity-a", "family-a"), candidate("identity-b", "family-b")], { generatedAt: "2026-08-26T06:00:00.000Z" });
+  const before = JSON.stringify(value);
+  const { runFingerprintSha256, ...provenance } = value.provenance;
+  const ordered = (input) => Array.isArray(input) ? input.map(ordered)
+    : input !== null && typeof input === "object" ? Object.fromEntries(Object.keys(input).sort().map((key) => [key, ordered(input[key])])) : input;
+  const originalMaterial = { provenance, standing: value.standing, evidenceReport: value.evidenceReport, allocation: value.allocation ?? null, allocationUnavailableReason: value.allocationUnavailableReason ?? null };
+  const expected = createHash("sha256").update(JSON.stringify(ordered(originalMaterial)), "utf8").digest("hex");
+  assert.equal(runFingerprintSha256, expected);
+  assert.equal(canonicalResearchRunFingerprint(value), expected);
+  const reordered = Object.fromEntries(Object.entries(value).reverse());
+  assert.equal(canonicalResearchRunFingerprint(reordered), expected);
+  assert.equal(JSON.stringify(value), before);
+});
 
 test("rejects candidate experiment identity mismatches before ranking aggregate evidence", () => {
   const mismatched = candidate("bridge-id", "family-a");

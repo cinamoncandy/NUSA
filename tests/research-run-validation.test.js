@@ -114,3 +114,25 @@ test("all research gates require four independent persisted reports", () => {
   ]), true);
   assert.equal(allResearchGatesPassed([{ ...common, runId: "wf", runType: "WALK_FORWARD" }]), false);
 });
+
+test("four duplicates cannot replace missing required research gates", () => {
+  const common = { status: "PASS", reasons: [], checkedAt: now, resultChecksum: "a".repeat(64) };
+  for (const runType of ["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]) {
+    assert.equal(allResearchGatesPassed(Array.from({ length: 4 }, (_, index) => ({ ...common, runType, runId: `duplicate-${index}` }))), false);
+  }
+});
+
+test("complete gate names do not excuse replayed identity or contradictory provenance", () => {
+  const reports = ["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"].map((runType, index) => ({
+    runType, runId: `run-${index}`, status: "PASS", reasons: [], checkedAt: now, resultChecksum: "a".repeat(64)
+  }));
+  assert.equal(allResearchGatesPassed(reports), true);
+  for (const replacement of [
+    { runId: "run-1" }, { runId: " run-1 " }, { runId: " " },
+    { reasons: ["LEAKAGE_DETECTED"] }, { reasons: undefined },
+    { checkedAt: "invalid" }, { resultChecksum: "invalid" }, { status: "UNKNOWN" }
+  ]) {
+    assert.equal(allResearchGatesPassed([{ ...reports[0], ...replacement }, ...reports.slice(1)]), false, JSON.stringify(replacement));
+  }
+  assert.equal(allResearchGatesPassed([null, ...reports.slice(1)]), false);
+});
