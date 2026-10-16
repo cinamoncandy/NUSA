@@ -1,0 +1,21 @@
+# PAPER cost evidence — fresh validator handoff
+Scope: canonical strategy quote admission only; no historical repair or period retirement is activated.
+Base: 310d34d7d785cf89d0503f2619954218c94f6b67.
+Branch: codex/paper-cost-evidence-20261016.
+
+Reproduction: prior canonical boundary accepts a fully bound, risk-ALLOW strategy tick with no observed quote and creates a FILLED result whose cost evidence is explicitly INCOMPLETE. Real read-only canonical reconciliation reproduces the same stable rejection on the existing open period. Raw fill/account/price information remains outside the public repository.
+
+Fix: reuse validatePaperObservedExecutionQuote before canonical risk evaluation for new strategy intent and working continuation. Missing quote returns existing INVALID_ORDERBOOK_QUOTE; existing depth-wait/replay and risk-reducing cancellation retain their behavior. No simulator, Risk policy, thresholds, TTL, account, manual command or lineage history edits.
+
+Review especially:
+- Every automatic production path uses this boundary; no alternate mutation fallback.
+- Fresh quote validation precedes risk idempotency claim and order/fill persistence.
+- Working-order continuation without quote/depth produces no new fills and preserves state.
+- Invalid/future/stale/wrong-market/tampered receipt cannot execute.
+- Positive tests use canonical quote receipts and retain existing financial/sizing assertions.
+- Incomplete historical fill stays immutable and blocks performance admission.
+- Proposed disposition is NOT IMPLEMENTED and cannot authorize row deletion, synthetic cost or fake completion.
+- Rollover failure disposition needs an independently accepted durable/checkpoint contract; existing retirePending deletion is insufficient.
+- No new source binding/Research qualification or LIVE authority.
+
+Author managed full strict TS/root/mobile programs PASS; focused and repository gate receipts recorded separately. Request a separate fresh non-author review of FINAL commit and base; author results are not independent PASS. Keep Draft until then. Subsequent deterministic Audit/Release bot only.

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "baseSha": "310d34d7d785cf89d0503f2619954218c94f6b67",
+  "issue": 2589,
+  "rootCause": "Canonical automatic execution admitted an absent observed quote into the simulator incomplete-cost fallback.",
+  "firstMissingEvidence": "ORDERBOOK_QUOTE_AT_FILL_CONSTRUCTION",
+  "historicalTrigger": "UNKNOWN_NO_ORIGINAL_QUOTE_RECEIPT",
+  "historicalFillMutation": false,
+  "liveAuthority": "NONE",
+  "productionMutationAllowed": false,
+  "aiAuthority": "ZERO_AUTHORITY",
+  "paperOnly": true,
+  "reproduction": {
+    "before": "MISSING_QUOTE_REGRESSION_RED: expected BLOCKED, actual FILLED",
+    "runtime": "READ_ONLY_DEPLOYED_RECONCILIATION_REPRODUCES_INCOMPLETE_EXECUTION_COST_EVIDENCE"
+  },
+  "validation": {
+    "focusedTests": 68,
+    "focused": "PASS",
+    "fullStrictTypeScript": "PASS",
+    "rootTypecheck": "PASS",
+    "mobileTypecheck": "PASS",
+    "sourceBindingFiles": 1424,
+    "sourceBindingMismatches": 0,
+    "repositoryGates": "PASS_VALIDATE_FULL_LINT_SECURITY_INDEX",
+    "exactHeadCI": "PENDING",
+    "independentReview": "PENDING",
+    "audit": "PENDING",
+    "release": "PENDING",
+    "actualNewFillAfterFix": "UNVERIFIED",
+    "actualPeriodCloseAfterFix": "UNVERIFIED",
+    "lintWarnings": 24,
+    "fullSuite": "PENDING_CANONICAL_CI",
+    "gateCommandCorrection": "Initial wrong provenance script path MODULE_NOT_FOUND; corrected to existing validate-aipos-work-order-provenance.js; no product/test relaxation"
+  },
+  "historicalDisposition": "PROPOSED_NOT_IMPLEMENTED; immutable historical evidence remains incomplete",
+  "verified": false
+}

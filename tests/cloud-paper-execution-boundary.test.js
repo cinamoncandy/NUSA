@@ -52,7 +52,17 @@ const decision = Object.freeze({
   })
 });
 
+// Summary-only canonical quote preserves fill-ratio fixtures; depth tests supply full depth.
+const { depth: _depth, depthFingerprintSha256: _depthHash, ...observedQuote } = buildPaperObservedExecutionQuote({
+  market: "KRW-BTC", observedAt: 1_500, totalAskSize: 1, totalBidSize: 1,
+  units: [{ askPrice: 50_000_000, bidPrice: 49_999_999, askSize: 1, bidSize: 1 }]
+});
+const continuationQuote = buildPaperObservedExecutionQuote({
+  market: "KRW-BTC", observedAt: 2_050, totalAskSize: 1, totalBidSize: 1,
+  units: [{ askPrice: 50_000_000, bidPrice: 49_999_999, askSize: 1, bidSize: 1 }]
+});
 const tick = Object.freeze({
+  observedQuote: Object.freeze(observedQuote),
   now: 2_000,
   market: "KRW-BTC",
   price: 50_000_000,
@@ -187,7 +197,7 @@ test("canonical strategy order automatically partial-fills and completes on the 
 
   const second = boundary.processTick(Object.freeze({
     ...tick,
-    now: 2_100,
+    now: 2_100, observedQuote: continuationQuote,
     observedAt: 2_050,
     decisions: Object.freeze([])
   }));
@@ -210,7 +220,7 @@ test("a superseded binding's open strategy order is cancelled, never continued, 
   const replacementBinding = Object.freeze({ ...candidateBinding, bindingFingerprintSha256: "f".repeat(64) });
   const second = boundary.processTick(Object.freeze({
     ...tick,
-    now: 2_100,
+    now: 2_100, observedQuote: continuationQuote,
     observedAt: 2_050,
     decisions: Object.freeze([Object.freeze({ ...decision, decidedAt: 2_000, paperCandidateBinding: replacementBinding })])
   }));
@@ -223,7 +233,7 @@ test("a fill of a continued working order keeps the binding that created the ord
   const first = boundary.processTick(tick);
   const originalBinding = first.fills[0].candidateProvenance.binding.bindingFingerprintSha256;
   // No current decision for the market (no replacement information): the order continues, as before.
-  const second = boundary.processTick(Object.freeze({ ...tick, now: 2_100, observedAt: 2_050, decisions: Object.freeze([]) }));
+  const second = boundary.processTick(Object.freeze({ ...tick, now: 2_100, observedQuote: continuationQuote, observedAt: 2_050, decisions: Object.freeze([]) }));
   assert.equal(second.status, "FILLED");
   assert.equal(second.fills[0].candidateProvenance.binding.bindingFingerprintSha256, originalBinding, "attribution follows the order's creating binding");
   assert.equal(second.fills[0].executionIntent.candidateBindingFingerprintSha256, originalBinding);
@@ -232,7 +242,7 @@ test("a fill of a continued working order keeps the binding that created the ord
 test("the same binding's open strategy order still continues", () => {
   const { loop, boundary } = build("ALLOW", { maxFillRatio: 0.5 });
   boundary.processTick(tick);
-  const second = boundary.processTick(Object.freeze({ ...tick, now: 2_100, observedAt: 2_050 }));
+  const second = boundary.processTick(Object.freeze({ ...tick, now: 2_100, observedQuote: continuationQuote, observedAt: 2_050 }));
   assert.equal(second.status, "FILLED");
   assert.equal(loop.snapshot().fills.length, 2);
 });
@@ -306,7 +316,7 @@ test("canonical strategy order carries orderbook-liquidity remainder across tick
   });
   const second = restoredBoundary.processTick(Object.freeze({
     ...tick,
-    now: 2_100,
+    now: 2_100, observedQuote: continuationQuote,
     observedAt: 2_050,
     decisions: Object.freeze([]),
     observedQuote: deeper
@@ -337,7 +347,7 @@ test("strategy latency is restart-safe and continuation is risk checked again", 
     riskGate: { evaluate() { restoredEvaluations += 1; return Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }); } },
     readP0State: () => ({ openP0: false })
   });
-  const second = restoredBoundary.processTick(Object.freeze({ ...tick, now: 2_100, observedAt: 2_050, decisions: Object.freeze([]) }));
+  const second = restoredBoundary.processTick(Object.freeze({ ...tick, now: 2_100, observedQuote: continuationQuote, observedAt: 2_050, decisions: Object.freeze([]) }));
   assert.equal(second.status, "FILLED");
   assert.equal(second.orders[0].quantity, 0.02);
   assert.equal(restoredLoop.snapshot().workingOrders?.length ?? 0, 0);
@@ -427,4 +437,65 @@ test("a manual KRW BUY below the exchange minimum is rejected before any order, 
   assert.deepEqual(loop.snapshot(), before);
   const ok = boundary.submitManualOrder("owner", command("BUY", 0.0002, "manual-at-min-00001"), context);
   assert.notEqual(ok.reason, "PAPER_ORDER_BELOW_EXCHANGE_MINIMUM");
+});
+
+// Production recurrence: absence of a quote must not enter the incomplete-cost simulator fallback.
+test("missing quote blocks automatic fill before risk admission and survives replay", () => {
+  const { loop, boundary, evaluations } = build("ALLOW");
+  const before = structuredClone(loop.snapshot());
+  const input = { ...tick, observedQuote: undefined };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const result = boundary.processTick(input);
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.reason, "INVALID_ORDERBOOK_QUOTE");
+    assert.deepEqual(loop.snapshot(), before);
+  }
+  assert.equal(evaluations(), 0);
+});
+
+for (const [name, invalidQuote, now = tick.now] of [
+  ["stale", observedQuote, 8_000],
+  ["future", buildPaperObservedExecutionQuote({ market: "KRW-BTC", observedAt: 3_000, totalAskSize: 1, totalBidSize: 1, units: [{ askPrice: 50_000_000, bidPrice: 49_999_999, askSize: 1, bidSize: 1 }] })],
+  ["wrong market", { ...observedQuote, market: "KRW-ETH" }],
+  ["wrong identity", { ...observedQuote, evidenceId: "different" }],
+  ["tampered receipt", { ...observedQuote, receipt: { ...observedQuote.receipt, bestAskPrice: 50_000_001 } }],
+  ["missing bid", { ...observedQuote, bidPrice: undefined }],
+  ["missing ask", { ...observedQuote, askPrice: undefined }],
+]) {
+  test(`${name} quote cannot admit automatic execution or claim risk idempotency`, () => {
+    const { loop, boundary, evaluations } = build("ALLOW");
+    const before = structuredClone(loop.snapshot());
+    const result = boundary.processTick({ ...tick, now, observedQuote: invalidQuote });
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(evaluations(), 0);
+    assert.deepEqual(loop.snapshot(), before);
+  });
+}
+
+test("restored working order cannot fill without a quote, then completes with immutable observed costs", () => {
+  const original = build("ALLOW", { maxFillRatio: 0.5 });
+  const first = original.boundary.processTick(tick);
+  assert.equal(first.fills.length, 1);
+  assert.ok(first.fills[0].executionCostAttribution);
+  assert.equal(first.fills[0].runtimeExecutionCostEvidence, undefined);
+  const restored = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, maxFillRatio: 0.5, restoredState: structuredClone(original.loop.snapshot()), readP0State: () => ({ openP0: false }) });
+  let riskCalls = 0;
+  const boundary = new CloudPaperExecutionBoundary({ loop: restored, riskGate: { evaluate() { riskCalls += 1; return { status: "ALLOW", reasonCodes: [] }; } }, readP0State: () => ({ openP0: false }) });
+  const before = structuredClone(restored.snapshot());
+  const continuation = { ...tick, now: 2_100, observedQuote: continuationQuote, observedAt: 2_050, decisions: [] };
+  for (let replay = 0; replay < 2; replay += 1) {
+    const blocked = boundary.processTick({ ...continuation, observedQuote: undefined });
+    assert.equal(blocked.status, "WAIT");
+    assert.equal(blocked.reason, "PAPER_STRATEGY_WORKING_WAITING_FOR_DEPTH");
+    assert.deepEqual(restored.snapshot(), before);
+    assert.equal(riskCalls, 0);
+  }
+  const done = boundary.processTick(continuation);
+  assert.equal(done.status, "FILLED");
+  assert.equal(done.fills.length, 1);
+  assert.ok(done.fills[0].executionCostAttribution);
+  assert.equal(done.fills[0].runtimeExecutionCostEvidence, undefined);
+  const recovered = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, restoredState: structuredClone(restored.snapshot()), readP0State: () => ({ openP0: false }) });
+  assert.deepEqual(recovered.snapshot().fills, restored.snapshot().fills);
+  assert.equal(new Set(recovered.snapshot().fills.map((f) => f.id)).size, 2);
 });

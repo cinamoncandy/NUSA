@@ -13,6 +13,7 @@ const { SqliteCloudPaperAccountRepository, PaperTradingExecutionLoop } = require
 const { CloudPaperCanonicalRiskGateway } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
 
+const { buildPaperObservedExecutionQuote } = require("../dist/apps/cloud/src/paperRuntimeExecutionCostEvidence.js");
 const principal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
 
 function bindPaperDecision(decision) {
@@ -95,6 +96,11 @@ function createHarness() {
   };
 
   const tick = (dashboard, price, overrides = {}) => Object.freeze({
+    observedQuote: (() => {
+      const sell = dashboard.decisions.some((d) => d.symbol === "KRW-BTC" && d.action === "SELL");
+      const { depth: _depth, depthFingerprintSha256: _hash, ...quote } = buildPaperObservedExecutionQuote({ market: "KRW-BTC", observedAt: now, totalAskSize: 100, totalBidSize: 100, units: [{ askPrice: sell ? price + 1 : price, bidPrice: sell ? price : price - 1, askSize: 100, bidSize: 100 }] });
+      return quote;
+    })(),
     now,
     market: "KRW-BTC",
     price,
@@ -228,6 +234,11 @@ test("production PAPER path executes BUY then SELL through challenger-bound deci
       assert.equal(fills[0].quantity, order.quantity);
       assert.equal(fills[0].price, order.price);
       assert.equal(fills[0].fee, order.fee);
+      assert.ok(fills[0].orderBookQuoteReceipt);
+      assert.equal(fills[0].executionCostAttribution.evidenceKind, "OBSERVED");
+      assert.ok(Number.isFinite(fills[0].executionCostAttribution.spreadAmount));
+      assert.ok(Number.isFinite(fills[0].executionCostAttribution.slippageAmount));
+      assert.equal(fills[0].runtimeExecutionCostEvidence, undefined);
     }
 
     const apiDashboard = buildMobileDashboardResponse(harness.loop.applyToDashboard(sellDashboard, harness.now()));

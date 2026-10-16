@@ -1,0 +1,54 @@
+id: WO-OPS-20261016-PAPER-COST-EVIDENCE
+title: "Prevent automatic PAPER fills without canonical observed cost evidence"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 2589
+related_issues: [1605, 889]
+base_branch: main
+base_commit: 310d34d7d785cf89d0503f2619954218c94f6b67
+implementation_branch: codex/paper-cost-evidence-20261016
+authority_impact: paper_evidence_admission
+objective: "Reject absent or invalid canonical execution quotes before strategy Risk admission; preserve incomplete historical fill truth and design durable non-performance disposition."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the canonical Cloud PAPER boundary and quote validator. No simulator, ledger, Research engine or authority replacement. Historical disposition is proposed only, not activated."
+  references:
+    - apps/cloud/src/cloudPaperExecutionBoundary.ts
+    - apps/cloud/src/paperRuntimeExecutionCostEvidence.ts
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+    - packages/storage/src/persistedPaperPeriodStore.ts
+scope:
+  - reject_missing_or_invalid_automatic_execution_quote_before_risk_identity_claim
+  - preserve_risk_veto_and_working_order_replay_semantics
+  - preserve_all_historical_fill_and_period_evidence
+  - propose_durable_ineligible_period_disposition_without_fabricated_performance
+prohibited:
+  - synthetic_historical_cost_or_quote
+  - direct_runtime_database_mutation
+  - live_execution_or_authority_expansion
+  - risk_capital_or_qualification_relaxation
+  - self_approval_or_direct_merge
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - missing_quote_creates_no_automatic_fill_or_risk_idempotency_claim
+  - malformed_stale_future_wrong_market_or_tampered_quote_fails_closed
+  - valid_observed_quote_retains_complete_cost_identity_across_recovery
+  - historical_incomplete_fill_remains_immutable_and_ineligible
+  - historical_disposition_requires_durable_restart_safe_contract_before_activation
+validation:
+  focused: PASS_68_TESTS
+  build: PASS_FULL_STRICT_PROGRAM_1424_SOURCE_FILES_BOUND
+  typecheck: PASS_ROOT_AND_MOBILE
+  architecture: PASS_VALIDATE_FULL
+  security: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL
+  exact_head_ci: PENDING
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+  runtime_acceptance: UNVERIFIED
+next: "Complete local gates, open one Draft PR, fresh non-author review then canonical Audit/Release. Do not execute proposed historical retirement."

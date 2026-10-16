@@ -2303,6 +2303,17 @@ current_mobile_fast_startup:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_paper_cost_evidence_20261016:
+  work_order: WO-OPS-20261016-PAPER-COST-EVIDENCE
+  status: LOCALLY_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/paper-cost-evidence-20261016
+  issue: 2589
+  authority_impact: paper_evidence_admission
+  evidence: "Actual read-only canonical reconciliation rejects one incomplete-cost fill; missing quote regression RED (FILLED), then focused guard/quote/replay cases PASS. Historical disposition PROPOSED only."
+  next: "Finish gates and fresh non-author review; no historical mutation or claimed closed learning completion."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_paper_daily_loss_streak:
   work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
   status: READY_FOR_REVIEW
