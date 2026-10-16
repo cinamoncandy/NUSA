@@ -1,0 +1,46 @@
+id: WO-OPS-20261016-PAPER-WRITER-CAUSE
+title: Preserve the first PAPER writer lease failure cause without changing authority
+status: READY
+owner: nusa-runtime-sre
+branch: codex/paper-writer-lease-cause-20261016
+base_commit: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
+issues:
+- 2589
+- 1605
+- 1816
+authority_impact: bounded-first-cause-observability-only; lease and fail-closed rules
+  unchanged
+owner_authorization: '2026-10-16 NUSA MASTER EXECUTION ORDER: actual server recovery,
+  root-cause diagnosis and durable failure evidence'
+finding: Actual exact-main Oracle38844361890 passed readiness, then scheduler shutdowns
+  at03:24:31/03:27:29/03:28:40UTC exposed PAPER_WRITER_LEASE_LOST. heartbeatLease
+  discards its first exception and later assertions replace it with the generic code.
+  Precise initiating cause remains unproven; a later natural process renewed its lease
+  while ticks4->6.
+scope:
+- Reuse SqliteCloudPaperAccountRepository and runtime-last-failure.json; preserve
+  a bounded allowlisted first cause.
+- Distinguish expired/missing/changed lease and bounded SQLite failure classes on
+  rejection only.
+- Preserve original outer error codes, sticky fail-closed behavior, SQL predicates,
+  TTL, heartbeat, takeover policy, capital and Risk.
+- No new observer, scheduler, ledger, authority, production fault injection, or retroactive
+  failure reason.
+acceptance:
+- Focused real-SQLite heartbeat/expiry/ownership/privacy tests reproduce diagnostic
+  loss before repair and pass after.
+- Full strict build/typecheck, validate:full, lint/security and exact-head CI PASS.
+- Fresh non-author review, deterministic Audit and governed Release precede deploy.
+- Natural runtime diagnosis/recovery evidence remains required; diagnostics are not
+  root-cause or full learning acceptance.
+validation:
+  focused: PENDING
+  full_gates: PENDING
+  review_ci_audit_release_runtime: PENDING
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: Reproduce first-cause loss in isolated SQLite, minimally repair, validate locally;
+  Draft only after gates.
