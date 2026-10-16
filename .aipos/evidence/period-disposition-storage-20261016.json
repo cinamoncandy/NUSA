@@ -1,0 +1,19 @@
+{
+  "scope": "STORAGE_CONTRACT_ONLY_NOT_RUNTIME_ACTIVATED",
+  "base": "310d34d7d785cf89d0503f2619954218c94f6b67",
+  "focusedTests": 92,
+  "strictBuild": "PASS",
+  "rootMobileTypecheck": "PASS",
+  "validateFull": "PASS",
+  "lint": "PASS_24_EXISTING_WARNINGS",
+  "security": "PASS_ZERO_UNMITIGATED_HIGH_CRITICAL",
+  "sourceHashes": {
+    "packages/storage/src/persistedPaperPeriodStore.ts": "5d3f25befa1699efaf424811e7d4d9103c5c57b88ad9d9021aabd160571265be",
+    "packages/storage/src/persistedPaperPendingDisposition.test.ts": "43074f7481cb46ae30a6b07a994bcea3cc9f7623edb2c63e5c8e7b3757c4c730"
+  },
+  "review": "PENDING_NONAUTHOR",
+  "audit": "PENDING",
+  "release": "PENDING",
+  "runtimeDisposition": "UNVERIFIED",
+  "VERIFIED": false
+}

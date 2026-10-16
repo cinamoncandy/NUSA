@@ -1,6 +1,6 @@
 id: WO-OPS-20261016-PERIOD-DISPOSITION
 title: "Preserve immutable incomplete period disposition in the canonical pending store"
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 2589
@@ -45,7 +45,13 @@ validation:
     - pnpm run validate:full
     - pnpm run lint
     - pnpm run security:gate
-  focused: PENDING
+  focused: PASS_92_STORAGE_PRODUCER_READER_ROLLOVER_TESTS
+  strict_build: PASS_MANAGED_FULL_TYPESCRIPT_PROGRAM
+  root_and_mobile_typecheck: PASS
+  validate_full: PASS
+  lint: PASS_24_EXISTING_WARNINGS
+  security_gate: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL
+  exact_head_ci: PENDING
   independent_review: PENDING
   audit: PENDING
   release: PENDING
