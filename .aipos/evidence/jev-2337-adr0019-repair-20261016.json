@@ -25,5 +25,14 @@
     "productionMutationAllowed": false,
     "aiAuthority": "ZERO_AUTHORITY"
   },
-  "VERIFIED": false
+  "VERIFIED": false,
+  "ciHistory": [
+    {
+      "head": "7436d68eafe276461a8ca670a61135c3ae3b7f50",
+      "run": 38851401923,
+      "failedJob": "coverage-core-1",
+      "failure": "NON_CANONICAL_STATUS:WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS.yaml:REWORK",
+      "localReproduction": "FAIL before; canonical IN_PROGRESS replaces WO status, review finding remains explicit separately"
+    }
+  ]
 }

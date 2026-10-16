@@ -1,6 +1,6 @@
 id: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
 title: Jev domain advisory validator completion
-status: REWORK
+status: IN_PROGRESS
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
@@ -44,6 +44,8 @@ evidence:
   prior_exact_head_ci: 38745643392 SUCCESS on df6b08d8; historical10c base, not current-main acceptance
   stale_parent_blocker_cleanup: 'Fresh GitHub #2329 merged04a17e14 on2026-09-27; ancestry to c26 proven. Old quota
     hold retained only as history.'
+  index_validation: CI38851401923 rejected non-canonical WO status REWORK; reproduced locally, corrected to canonical
+    IN_PROGRESS without changing validator
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -56,3 +58,4 @@ deferred_objective: Complete the registered NUSA-wide Jev SHADOW task contract b
   validators with one bounded DOMAIN_ADVISORY_V1 schema and task-specific classification vocabularies.
 remaining_domain_contracts: 18 tasks require separately accepted domain-owner contracts/work orders; not completed
   or silently superseded
+review_state: REWORK_FINDINGS_REPAIRED_PENDING_FRESH_NONAUTHOR_REVIEW
