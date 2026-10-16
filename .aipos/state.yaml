@@ -3192,6 +3192,17 @@ current_runtime_startup_evidence_invalidation_20261015:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   next: "Draft review/CI, then canonical Audit/Release and exact-main rollout. Learning still requires a genuinely qualified challenger; no threshold relaxation."
 
+current_runtime_writer_cause_20261016:
+  work_order: WO-OPS-20261016-PAPER-WRITER-CAUSE
+  branch: codex/paper-writer-lease-cause-20261016
+  base_sha: 67630b806996a0774fa41d772e61de6192493a84
+  status: EXACT_HEAD_CI_PASS_NONAUTHOR_REVIEW_P2_METADATA_REPAIR
+  first_broken_transition: exact-main restart/replay -> stable PAPER listener and writer-lease recovery
+  scope: 'Diagnostic precondition only; initiating runtime lease failure cause remains
+    unproven. Existing #2733 is merged and is not revived.'
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: Refresh exact-head receipts -> fresh exact-head CI -> fresh non-author P2 clearance -> deterministic Audit/Release -> exact-main runtime diagnosis.
+
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
   status: LOCAL_VALIDATED_PENDING_CI

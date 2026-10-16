@@ -1,0 +1,50 @@
+id: WO-OPS-20261016-PAPER-WRITER-CAUSE
+title: Preserve the first PAPER writer lease failure cause without changing authority
+status: IN_PROGRESS
+owner: nusa-runtime-sre
+branch: codex/paper-writer-lease-cause-20261016
+base_commit: 67630b806996a0774fa41d772e61de6192493a84
+issues:
+- 2589
+- 1605
+- 1816
+authority_impact: bounded-first-cause-observability-only; lease and fail-closed rules unchanged
+owner_authorization: '2026-10-16 NUSA MASTER EXECUTION ORDER: actual server recovery, root-cause diagnosis
+  and durable failure evidence'
+finding: Exact-main restart/replay on 67630b806996a0774fa41d772e61de6192493a84 repeatedly reached listener startup,
+  then closed-learning failed with PAPER_WRITER_LEASE_LOST and restarted. Durable runtime-last-failure.json still
+  contains only the generic code; the lease table was empty on inspection. The initiating cause remains unproven.
+scope:
+- Reuse SqliteCloudPaperAccountRepository and runtime-last-failure.json; preserve a bounded allowlisted
+  first cause.
+- Distinguish expired/missing/changed lease and bounded SQLite failure classes on rejection only.
+- Preserve original outer error codes, sticky fail-closed behavior, SQL predicates, TTL, heartbeat, takeover
+  policy, capital and Risk.
+- No new observer, scheduler, ledger, authority, production fault injection, or retroactive failure reason.
+- Rebind existing PAPER_ADAPTER provenance to validated implementation blob; preserve TARGET_ONLY and
+  all independent criteria UNVERIFIED.
+acceptance:
+- Focused real-SQLite heartbeat/expiry/ownership/privacy tests reproduce diagnostic loss before repair
+  and pass after.
+- Full strict build/typecheck, validate:full, lint/security and exact-head CI PASS.
+- Fresh non-author review, deterministic Audit and governed Release precede deploy.
+- Natural runtime diagnosis/recovery evidence remains required; diagnostics are not root-cause or full
+  learning acceptance.
+validation:
+  focused: 28/28 PASS; actual SQLite lock, expiry/ownership/clock, privacy, ledger/replay and recovery
+  runtime_regression: 34/34 PASS; trading/accounting/working-order restart/daemon failure
+  full_gates: PASS strict build, root/mobile typecheck, validate:full, lint (0 errors; 24 existing warnings),
+    security (0 secrets; 0 unmitigated high/critical)
+  review_ci_audit_release_runtime: CI38924202514 PASS on reviewed head ba61f9f85bc62e556cb62c9e110c7b6fb2058b26;
+    fresh non-author review P0=0 P1=0 P2=1 because receipts still named the pre-rebase head/run. This metadata-only
+    repair requires new exact-head CI and fresh non-author P2 clearance; no Ready/Audit/Release bypass
+  source_qualification: CI38847714635 exposed stale blob pin; reproduced two failures locally, exact-source
+    guards 6/6 PASS after binding 0f5de0d7 to source749ecbe5 without promotion
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: Run fresh exact-head CI on this metadata-only receipt repair -> obtain separate fresh non-author P2 clearance
+  -> deterministic Audit -> governed Release -> exact-main deployment -> natural causal evidence; runtime root
+  cause remains unproven
