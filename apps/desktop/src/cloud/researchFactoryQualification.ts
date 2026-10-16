@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { LeagueCandidateOutcome, LeagueRankedEntry } from "./nusaLeague";
-import type { ResearchRunLeagueResult } from "./researchRunLeagueBridge";
+import { canonicalResearchRunFingerprint, type ResearchRunLeagueResult } from "./researchRunLeagueBridge";
 import type { CurrentResearchDatasetIdentity } from "./researchIntegrity";
 
 export type ResearchFactoryOutcome = "REJECTED" | "INSUFFICIENT" | "QUALIFIED_FOR_LEAGUE";
@@ -475,6 +475,10 @@ export function qualifyResearchFactoryRun(
   const reports = new Map(run.evidenceReport.map((report) => [report.candidateId, report] as const));
   if (reports.size !== run.standing.entries.length || reports.size !== run.evidenceReport.length) {
     throw new Error("research evidence report coverage mismatch");
+  }
+
+  if (canonicalResearchRunFingerprint(run) !== run.provenance.runFingerprintSha256.toLowerCase()) {
+    throw new Error("research run fingerprint mismatch");
   }
 
   const candidates = run.standing.entries.map((entry) => {
