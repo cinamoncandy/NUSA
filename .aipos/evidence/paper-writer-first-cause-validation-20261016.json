@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "workOrder": "WO-OPS-20261016-PAPER-WRITER-CAUSE",
+  "baseSha": "c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f",
+  "scope": "First-cause preservation only; initiating runtime lease failure not yet proven or repaired",
+  "reproduction": {
+    "code": "canonical c26 emitted production code in isolated worktree",
+    "result": "FAIL_EXPECTED",
+    "evidence": "new heartbeat regression observes missing causeCode, including real SQLite writer-lock failure; no production fault injection"
+  },
+  "validation": {
+    "focused": {
+      "passed": 28,
+      "failed": 0,
+      "command": "node --test dist/apps/cloud/src/runtimeFailureRecord.test.js tests/paper-writer-first-cause.test.js tests/paper-writer-lease-recovery.test.js tests/paper-runtime-supervisor-lease-recovery.test.js tests/cloud-paper-fill-ledger.test.js tests/cloud-paper-idempotency-retention.test.js"
+    },
+    "strictBuild": "PASS managed Node24.19 TypeScript5.9.3",
+    "rootTypecheck": "PASS managed Node24.19 TypeScript5.9.3",
+    "mobileTypecheck": "PASS managed Node24.19 TypeScript5.9.3",
+    "sourceIdentity": "1424 tracked TS/TSX/config hashes compared; all 1422 applicable files match; only two root tests outside tsconfig include differ",
+    "validateFull": "PASS",
+    "lint": "PASS: 0 errors, 24 existing warnings",
+    "security": "PASS: zero secrets and zero unmitigated high/critical advisories",
+    "runtimeRegression": {
+      "passed": 34,
+      "failed": 0,
+      "command": "node --test tests/cloud-paper-trading-execution-loop.test.js tests/cloud-paper-accounting-ledger.test.js tests/cloud-paper-orderbook-working-restart.test.js tests/closed-learning-daemon-fatal-exit.test.js"
+    }
+  },
+  "runtime": {
+    "oracleRun": 38844361890,
+    "deployedSha": "c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f",
+    "readiness": "PASS but followed by multiple real lease losses; not sustained runtime acceptance",
+    "latestNaturalProcessStartedAt": 1792121513370,
+    "latestObservedHeartbeatAt": 1792122523543,
+    "localHealth": 200,
+    "publicHealth": 200,
+    "fills": 130,
+    "realizedPeriods": 20,
+    "durableLearningCycles": 0,
+    "holdoutPasses": 0,
+    "partialFeedback": "20 baseline periods consumed by metaLearning; not a qualified closed-learning cycle",
+    "performanceImprovement": "UNPROVEN"
+  },
+  "independentReview": "PENDING separate fresh non-author session; author cannot approve",
+  "exactHeadCI": "PENDING",
+  "audit": "PENDING",
+  "release": "PENDING",
+  "safety": {
+    "paperOnly": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "leasePredicatesAndTimingUnchanged": true,
+    "noRiskQualificationOrCapitalChange": true
+  },
+  "VERIFIED": false,
+  "AUTOPILOT_VERIFIED_COMPLETION_LOOP": false
+}

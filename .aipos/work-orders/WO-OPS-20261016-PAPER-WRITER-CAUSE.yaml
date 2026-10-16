@@ -1,6 +1,6 @@
 id: WO-OPS-20261016-PAPER-WRITER-CAUSE
 title: Preserve the first PAPER writer lease failure cause without changing authority
-status: READY
+status: IN_PROGRESS
 owner: nusa-runtime-sre
 branch: codex/paper-writer-lease-cause-20261016
 base_commit: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
@@ -8,39 +8,39 @@ issues:
 - 2589
 - 1605
 - 1816
-authority_impact: bounded-first-cause-observability-only; lease and fail-closed rules
-  unchanged
-owner_authorization: '2026-10-16 NUSA MASTER EXECUTION ORDER: actual server recovery,
-  root-cause diagnosis and durable failure evidence'
-finding: Actual exact-main Oracle38844361890 passed readiness, then scheduler shutdowns
-  at03:24:31/03:27:29/03:28:40UTC exposed PAPER_WRITER_LEASE_LOST. heartbeatLease
-  discards its first exception and later assertions replace it with the generic code.
-  Precise initiating cause remains unproven; a later natural process renewed its lease
-  while ticks4->6.
+authority_impact: bounded-first-cause-observability-only; lease and fail-closed rules unchanged
+owner_authorization: '2026-10-16 NUSA MASTER EXECUTION ORDER: actual server recovery, root-cause diagnosis
+  and durable failure evidence'
+finding: Actual exact-main Oracle38844361890 passed readiness, then scheduler shutdowns at03:24:31/03:27:29/03:28:40UTC
+  exposed PAPER_WRITER_LEASE_LOST. heartbeatLease discards its first exception and later assertions replace
+  it with the generic code. Precise initiating cause remains unproven; a later natural process renewed
+  its lease while ticks4->6.
 scope:
-- Reuse SqliteCloudPaperAccountRepository and runtime-last-failure.json; preserve
-  a bounded allowlisted first cause.
-- Distinguish expired/missing/changed lease and bounded SQLite failure classes on
-  rejection only.
-- Preserve original outer error codes, sticky fail-closed behavior, SQL predicates,
-  TTL, heartbeat, takeover policy, capital and Risk.
-- No new observer, scheduler, ledger, authority, production fault injection, or retroactive
-  failure reason.
+- Reuse SqliteCloudPaperAccountRepository and runtime-last-failure.json; preserve a bounded allowlisted
+  first cause.
+- Distinguish expired/missing/changed lease and bounded SQLite failure classes on rejection only.
+- Preserve original outer error codes, sticky fail-closed behavior, SQL predicates, TTL, heartbeat, takeover
+  policy, capital and Risk.
+- No new observer, scheduler, ledger, authority, production fault injection, or retroactive failure reason.
 acceptance:
-- Focused real-SQLite heartbeat/expiry/ownership/privacy tests reproduce diagnostic
-  loss before repair and pass after.
+- Focused real-SQLite heartbeat/expiry/ownership/privacy tests reproduce diagnostic loss before repair
+  and pass after.
 - Full strict build/typecheck, validate:full, lint/security and exact-head CI PASS.
 - Fresh non-author review, deterministic Audit and governed Release precede deploy.
-- Natural runtime diagnosis/recovery evidence remains required; diagnostics are not
-  root-cause or full learning acceptance.
+- Natural runtime diagnosis/recovery evidence remains required; diagnostics are not root-cause or full
+  learning acceptance.
 validation:
-  focused: PENDING
-  full_gates: PENDING
-  review_ci_audit_release_runtime: PENDING
+  focused: 28/28 PASS; actual SQLite lock, expiry/ownership/clock, privacy, ledger/replay and recovery
+  runtime_regression: 34/34 PASS; trading/accounting/working-order restart/daemon failure
+  full_gates: PASS strict build, root/mobile typecheck, validate:full, lint (0 errors; 24 existing warnings),
+    security (0 secrets; 0 unmitigated high/critical)
+  review_ci_audit_release_runtime: PENDING exact-head CI and separate fresh non-author review; no Ready/Audit/Release
+    bypass
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: Reproduce first-cause loss in isolated SQLite, minimally repair, validate locally;
-  Draft only after gates.
+next: Draft PR on this validated head -> exact-head CI -> separate fresh non-author review -> deterministic
+  Audit -> governed Release -> exact-main deployment -> natural causal evidence; runtime root cause remains
+  unproven

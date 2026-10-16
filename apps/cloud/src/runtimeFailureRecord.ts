@@ -32,12 +32,30 @@ export function runtimeFailureCode(reason: unknown): string {
   return `MESSAGE_${createHash("sha256").update(message).digest("hex").slice(0, 12).toUpperCase()}`;
 }
 
+/** Only bounded internal causes are persisted; SQL messages, owners and paths are excluded. */
+export function runtimeFailureCauseCode(reason: unknown): string | undefined {
+  const seen = new Set<unknown>();
+  let current: unknown = reason;
+  let result: string | undefined;
+  for (let depth = 0; depth < 4 && current instanceof Error && !seen.has(current); depth += 1) {
+    seen.add(current);
+    if (/^PAPER_WRITER_(?:CLOCK_INVALID|CLOCK_REGRESSION|CLOCK_ANOMALY|LEASE_EXPIRED|LEASE_OWNER_MISMATCH|LEASE_ROW_MISSING|LEASE_RENEWAL_REJECTED)$/.test(current.message)) result = current.message;
+    const errcode = (current as Error & { errcode?: unknown }).errcode;
+    if (typeof errcode === "number" && Number.isSafeInteger(errcode) && errcode >= 0) {
+      const sqliteCodes: Readonly<Record<number, string>> = { 5: "SQLITE_BUSY", 6: "SQLITE_LOCKED", 8: "SQLITE_READONLY", 10: "SQLITE_IOERR", 13: "SQLITE_FULL" };
+      result = sqliteCodes[errcode & 255] ?? result;
+    }
+    current = current.cause;
+  }
+  return result;
+}
+
 export function recordRuntimeFailure(cloudStateDbPath: string, kind: RuntimeFailureKind, reason: unknown, now: number = Date.now()): void {
   const file = runtimeFailureRecordPath(cloudStateDbPath);
   if (file == null) return;
   try {
     const temporary = `${file}.tmp`;
-    writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, kind, code: runtimeFailureCode(reason), at: now }), { mode: 0o600 });
+    writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, kind, code: runtimeFailureCode(reason), at: now, causeCode: runtimeFailureCauseCode(reason) }), { mode: 0o600 });
     renameSync(temporary, file);
   } catch { /* forensics must never mask the original fault */ }
 }

@@ -3185,14 +3185,13 @@ current_runtime_writer_cause_20261016:
   work_order: WO-OPS-20261016-PAPER-WRITER-CAUSE
   branch: codex/paper-writer-lease-cause-20261016
   base_sha: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
-  status: DISCOVERED_DIAGNOSTIC_LOSS_REPRODUCTION_PENDING
+  status: LOCALLY_VALIDATED_PENDING_EXACT_HEAD_CI_AND_NONAUTHOR_REVIEW
   first_broken_transition: first heartbeat/renewal failure -> durable deterministic
     cause classification
   scope: 'Diagnostic precondition only; initiating runtime lease failure cause remains
     unproven. Existing #2733 is merged and is not revived.'
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: Reproduce first-cause loss in isolated SQLite, minimally repair, validate
-    locally; Draft only after gates.
+  next: Draft PR -> exact-head CI -> fresh non-author review -> Audit/Release -> exact-main runtime diagnosis.
 
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
