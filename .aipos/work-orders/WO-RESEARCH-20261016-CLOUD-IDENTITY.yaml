@@ -31,4 +31,8 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: "RED codec regression, shared existing contract, full validation and fresh independent review before PR/CI/Audit/Release."
+implementation_commit: be4495772f78dcb60834371a7951646d826e8e0d
+validation: "2 RED codec regressions;53 focused tests and1232 isolated files PASS; build/typecheck/validate:full/security/lint PASS24 existing warnings."
+independent_review: "Fresh non-author Curie PASS_WITH_NOTES atbe4495772f78dcb60834371a7951646d826e8e0d;0P0/0P1/1P2,53 independent tests plus13 rejection probes PASS;9 implementation/test blobs match committed head. Not Audit/Release."
+known_p2: "Shared binder requires an unbound payload. Passing a pre-bound payload produces an unverifiable receipt and fails closed; actual producer and fixture callers use unbound payloads. No production correctness blocker; preserve explicit limitation."
+next: "Final metadata-head review then draft PR/exact-head CI/Audit/Release."
