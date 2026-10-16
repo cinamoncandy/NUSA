@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "canonicalPR": 2337,
+  "baseMain": "c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f",
+  "priorHead": "6e31d9e9ac78995ddb8bf7dad0bf60fff437e350",
+  "reviewFinding": 6198128771,
+  "reviewClassification": "Independent pre-Audit FAIL P1 architecture/P2 coverage; not cleared by base-only reconvergence",
+  "reproduction": "New ADR-0019 guard fails on prior emitted generic registry (DOMAIN_ADVISORY_V1 != UNAVAILABLE)",
+  "repair": "Withdraw unaccepted generic production path; current Jev source exactly equals protected main;18 tasks non-emitting,3 existing specialized contracts retained",
+  "focusedTests": {
+    "passed": 36,
+    "failed": 0
+  },
+  "buildRootMobileTypecheck": "PASS managed Node24.19 TS5.9.3",
+  "validateFull": "PASS",
+  "lint": "PASS zero errors;24 existing warnings",
+  "security": "PASS zero secrets,zero unmitigated high/critical",
+  "exactHeadCI": "PENDING_NEW_HEAD",
+  "freshIndependentReview": "PENDING",
+  "remainingFeatureWork": "18 separately accepted domain-owner contracts and deterministic validators; not complete",
+  "safety": {
+    "shadow": true,
+    "usableForRouting": false,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "VERIFIED": false
+}

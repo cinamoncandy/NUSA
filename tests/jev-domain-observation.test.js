@@ -159,77 +159,15 @@ test("research attention observation reuses its existing validator", () => {
   assert.equal(observation.usableForRouting, false);
 });
 
-test("all registered advisory task types have bounded validators and emit SHADOW observations", () => {
-  const cases = [
-    ["DUPLICATE_TASK_CLASSIFICATION", "DUPLICATE"],
-    ["STALE_WIP_CLASSIFICATION", "STALE"],
-    ["TEST_SCOPE_RECOMMENDATION", "FOCUSED"],
-    ["DATA_INTEGRITY_ANOMALY_CLASSIFICATION", "ANOMALY"],
-    ["MARKET_DATA_INCIDENT_CLASSIFICATION", "GAP"],
-    ["HYPOTHESIS_DUPLICATE_CLASSIFICATION", "RELATED"],
-    ["STRATEGY_FAMILY_MATCH_CLASSIFICATION", "MATCH"],
-    ["GOVERNANCE_EVIDENCE_READINESS_CLASSIFICATION", "READY"],
-    ["RISK_EVENT_CLASSIFICATION", "STRESS"],
-    ["PAPER_EXECUTION_INCIDENT_CLASSIFICATION", "RECOVERY_REQUIRED"],
-    ["LEDGER_RECONCILIATION_INCIDENT_CLASSIFICATION", "MISMATCH"],
-    ["PERFORMANCE_EVIDENCE_READINESS_CLASSIFICATION", "STALLED"],
-    ["OBSERVABILITY_INCIDENT_CLASSIFICATION", "DEGRADED"],
-    ["RUNTIME_RECOVERY_ELIGIBILITY", "ELIGIBLE"],
-    ["SECURITY_EVENT_CLASSIFICATION", "ANOMALY"],
-    ["RELEASE_AUDIT_BLOCKER_CLASSIFICATION", "PROVIDER"],
-    ["INTEGRATION_MISMATCH_CLASSIFICATION", "SCHEMA"],
-    ["UI_REGRESSION_CLASSIFICATION", "VISUAL"],
-  ];
-  for (const [taskType, classification] of cases) {
-    const policy = getJevTaskTypePolicy(taskType);
-    assert.equal(policy.decisionSchema, "DOMAIN_ADVISORY_V1");
-    assert.ok(policy.classificationValues.includes(classification));
-    const observation = createJevDomainObservation(advisoryInput(taskType, classification));
-    assert.equal(observation.taskType, taskType);
-    assert.equal(observation.rolloutStage, "SHADOW");
-    assert.equal(observation.usableForRouting, false);
-    assert.equal(observation.decision.classification, classification);
-    assert.equal(observation.requiredModel, "LUNA");
-    assert.equal(observation.aiAuthority, "ZERO_AUTHORITY");
+test("ADR-0019 keeps all 18 domains without accepted owner contracts non-emitting", () => {
+  const unavailable = JEV_TASK_TYPE_POLICIES.filter(p => !["WORKFLOW_FAILURE_CLASSIFICATION", "RESEARCH_INTELLIGENCE_ATTENTION_SHADOW", "MARKET_MICROSTRUCTURE_ADVISORY_SHADOW"].includes(p.taskType));
+  assert.equal(unavailable.length, 18);
+  for (const policy of unavailable) {
+    assert.equal(policy.decisionSchema, "UNAVAILABLE", policy.taskType);
+    for (const overrides of [{}, { reasonCode: "DIFFERENT" }, { confidence: 0.4 }, { requiredModel: "SOL" }]) {
+      assert.throws(() => createJevDomainObservation(advisoryInput(policy.taskType, "UNKNOWN", overrides)), /JEV_TASK_DECISION_VALIDATOR_UNAVAILABLE/, policy.taskType);
+    }
   }
-});
-
-test("domain advisory validators reject classification drift, extra fields and envelope mismatch", () => {
-  assert.throws(
-    () => createJevDomainObservation(advisoryInput("RISK_EVENT_CLASSIFICATION", "NOT_REAL")),
-    /JEV_DOMAIN_ADVISORY_CLASSIFICATION_INVALID/,
-  );
-  assert.throws(
-    () => createJevDomainObservation(advisoryInput("RISK_EVENT_CLASSIFICATION", "STRESS", {
-      decision: {
-        classification: "STRESS",
-        severity: 2,
-        requiredModel: "LUNA",
-        reasonCode: "SHADOW_CLASSIFIED",
-        confidence: 0.82,
-        arbitrary: true,
-      },
-    })),
-    /JEV_DOMAIN_ADVISORY_DECISION_INVALID/,
-  );
-  assert.throws(
-    () => createJevDomainObservation(advisoryInput("RISK_EVENT_CLASSIFICATION", "STRESS", {
-      requiredModel: "SOL",
-    })),
-    /JEV_DECISION_ENVELOPE_MISMATCH/,
-  );
-  assert.throws(
-    () => createJevDomainObservation(advisoryInput("RISK_EVENT_CLASSIFICATION", "STRESS", {
-      decision: {
-        classification: "STRESS",
-        severity: 0,
-        requiredModel: "LUNA",
-        reasonCode: "SHADOW_CLASSIFIED",
-        confidence: 0.82,
-      },
-    })),
-    /JEV_DOMAIN_ADVISORY_SEVERITY_INVALID/,
-  );
 });
 
 test("task-specific validators reject semantically invalid decisions", () => {
@@ -276,6 +214,11 @@ test("envelope metadata cannot contradict validated decision confidence/model/re
     () => createJevDomainObservation(researchInput({ reasonCode: "DIFFERENT" })),
     /JEV_DECISION_ENVELOPE_MISMATCH/,
   );
+});
+
+test("accepted research contract rejects confidence and reason mismatch", () => {
+  assert.throws(() => createJevDomainObservation(researchInput({ confidence: 0.4 })), /JEV_DECISION_ENVELOPE_MISMATCH/);
+  assert.throws(() => createJevDomainObservation(researchInput({ reasonCode: "DIFFERENT" })), /JEV_DECISION_ENVELOPE_MISMATCH/);
 });
 
 test("registry blocks invalid or uncalibrated rollout stages", () => {
