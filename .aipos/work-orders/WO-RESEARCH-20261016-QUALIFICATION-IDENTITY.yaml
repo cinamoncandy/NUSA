@@ -1,0 +1,32 @@
+id: WO-RESEARCH-20261016-QUALIFICATION-IDENTITY
+title: Bind canonical qualification results to run and frozen policy identity
+status: IN_PROGRESS
+priority: P0
+risk: HIGH
+authority_impact: none
+parent: WO-RESEARCH-20261016-A-GRADE-VALIDATION
+branch: codex/research-qualification-identity-20261016
+base_commit: 4b482759224e3605e4993f9a8f2a53e43d2dc1bd
+scope:
+  - Extend existing qualification output with versioned integrity identity.
+  - Keep all existing numeric gates and outcomes unchanged.
+  - Verify complete supplied qualification against canonical recomputation at learning-ledger boundary.
+  - No new evaluator, persistent store, authority or historical evidence rewrite.
+acceptance:
+  - Deterministic receipt binds verified run, frozen policy descriptor and actual complete result.
+  - Replaced policy/run/result identity is rejected before ledger append.
+  - Legacy archive readability does not become trusted new qualification; schema1 fields retained.
+  - Receipt is not authentication, durable precommit chronology or A-grade ROBUST approval.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Negative receipt/ledger tests first; canonical producer and consumer only, then full validation/fresh review/CI/Audit/Release."
