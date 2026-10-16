@@ -2306,12 +2306,12 @@ current_mobile_fast_startup:
 
 current_paper_cost_evidence_20261016:
   work_order: WO-OPS-20261016-PAPER-COST-EVIDENCE
-  status: PRIOR_IMPLEMENTATION_HEAD_CI_PASS_PENDING_AIPOS_SYNC_HEAD_CI_AND_FRESH_NON_AUTHOR_REVIEW
+  status: VERIFYING
   branch: codex/paper-cost-evidence-20261016
   issue: 2589
   authority_impact: paper_evidence_admission
   evidence: "Actual read-only canonical reconciliation rejects one incomplete-cost fill; missing quote regression RED (FILLED), then focused guard/quote/replay cases PASS. Historical disposition PROPOSED only."
-  next: "Implementation head 85ad783fafe8dfb1214cef4c3b0bc537bfaed147 CI run 38877067204 passed; AIPOS synchronization creates a new head requiring fresh exact-head CI, then fresh non-author review. No historical mutation or claimed closed learning completion."
+  next: "AIPOS records completed CI receipts as immutable history; the reviewer verifies the current PR head and its CI dynamically in GitHub. Fresh non-author review remains pending. No historical mutation or claimed closed learning completion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_paper_daily_loss_streak:

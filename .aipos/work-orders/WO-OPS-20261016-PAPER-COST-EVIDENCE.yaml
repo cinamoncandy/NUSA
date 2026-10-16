@@ -46,9 +46,9 @@ validation:
   typecheck: PASS_ROOT_AND_MOBILE
   architecture: PASS_VALIDATE_FULL
   security: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL
-  exact_head_ci: PASS_HEAD_85ad783fafe8dfb1214cef4c3b0bc537bfaed147_RUN_38877067204_NEW_AIPOS_SYNC_HEAD_PENDING
+  exact_head_ci: "Historical receipts: 85ad783fafe8dfb1214cef4c3b0bc537bfaed147 / 38877067204 PASS; 08673732458a6ba1652292d7766b6bace79cf31b / 38908235645 PASS. Verify whichever PR head is current directly from GitHub Actions at review time; this static work order does not predict or duplicate a commit's CI result."
   independent_review: PENDING
   audit: PENDING
   release: PENDING
   runtime_acceptance: UNVERIFIED
-next: "Fresh exact-head CI is required for the AIPOS synchronization commit, followed by fresh non-author review and canonical Audit/Release. Do not execute proposed historical retirement."
+next: "Fresh non-author review; reviewer verifies current PR head and exact-head CI dynamically from GitHub Actions. Then canonical Audit/Release. Do not execute proposed historical retirement."

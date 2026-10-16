@@ -26,7 +26,14 @@
     "exactHeadCI": "PASS",
     "exactHeadCISha": "85ad783fafe8dfb1214cef4c3b0bc537bfaed147",
     "exactHeadCIRun": 38877067204,
-    "postAiposSyncExactHeadCI": "PENDING_NEW_HEAD",
+    "historicalExactHeadCIReceipts": [
+      {
+        "head": "08673732458a6ba1652292d7766b6bace79cf31b",
+        "run": 38908235645,
+        "conclusion": "SUCCESS"
+      }
+    ],
+    "currentPRHeadCI": "DYNAMIC_GITHUB_ACTIONS_LOOKUP_AT_REVIEW_TIME",
     "independentReview": "PENDING",
     "audit": "PENDING",
     "release": "PENDING",
