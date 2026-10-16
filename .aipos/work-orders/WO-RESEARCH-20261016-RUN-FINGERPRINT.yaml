@@ -30,4 +30,11 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: "Reproduce stale-digest qualification, share existing canonical producer hashing, verify consumer, then full tests/fresh independent review/exact-head CI."
+implementation_commit: 6959b529f67270462d239de793c2fd42007e0885
+validation: "RED substituted digest accepted before repair. After repair48 focused tests and1231 isolated test files PASS; build/typecheck/validate:full/security/lint PASS,24 existing warnings."
+independent_review: "Fresh non-author Confucius PASS_WITH_NOTES at implementation6959b529f67270462d239de793c2fd42007e0885;0P0/0P1/0P2,44 independently transpiled tests PASS and all four committed blobs reconfirmed. Not Audit/Release."
+limitations:
+  - Existing schema1 material unchanged; not all referenced payloads are directly covered.
+  - Matching digest is consistency, not authentication or durable precommit chronology.
+  - Whole A-grade acceptance and actual learning loop remain UNVERIFIED.
+next: "Reconfirm final metadata-only head then draft PR/exact-head CI and canonical Audit/Release."
