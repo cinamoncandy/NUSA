@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const { createHash } = require("node:crypto");
 const { qualifyResearchFactoryRun, RESEARCH_FACTORY_QUALIFICATION_POLICY } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
 const { appendResearchQualificationToLearningLedger } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
+const { ClosedLearningResearchWorkerClient } = require("../dist/apps/cloud/src/closedLearningResearchWorkerClient.js");
+const path = require("node:path");
 
 function canonicalize(value) {
   if (value === null || typeof value !== "object") return value;
@@ -70,6 +72,24 @@ function sealRunFixture(value) {
   });
   return value;
 }
+
+test("actual canonical qualification identity survives the Cloud process response contract", () => {
+  const input = run();
+  const qualification = qualifyResearchFactoryRun(input);
+  const original = "e".repeat(64);
+  const worker = new ClosedLearningResearchWorkerClient({
+    snapshotPath: path.resolve("/tmp/canonical-qualification-snapshot.json"),
+    process: () => ({ status: 0, stderr: "", stdout: JSON.stringify({
+      schemaVersion: 1, operation: "REPLAY_PAPER_EVIDENCE",
+      originalRunFingerprintSha256: original,
+      replayRunFingerprintSha256: input.provenance.runFingerprintSha256,
+      qualification,
+      deployment: { schemaVersion: 1, status: "NOT_DEPLOYABLE", reasons: ["NO_ALLOCATION"], authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" },
+      liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY",
+    }) }),
+  });
+  assert.deepEqual(worker.replayInitialResearch(original).qualification, qualification);
+});
 function parameterReferences() {
   return [{
     source: "PRODUCTION_DEFAULT",
