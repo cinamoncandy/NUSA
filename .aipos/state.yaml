@@ -511,6 +511,14 @@ current_runtime_restart_forensics:
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-read-health-lastError
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_paper_period_disposition_20261016:
+  work_order: WO-OPS-20261016-PERIOD-DISPOSITION
+  branch: codex/paper-period-disposition-20261016
+  status: CLAIMED
+  authority: PAPER_ONLY
+  scope: "Existing pending-store immutable INELIGIBLE contract only; runtime activation remains gated."
+  next: "Implement atomic receipt/successor and restart/replay tests; preserve #2741 validated head."
+
 current_paper_readiness_finite_20261015:
   work_order: WO-OPS-20261015-PAPER-READINESS-FINITE
   status: VERIFYING

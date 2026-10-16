@@ -1,0 +1,52 @@
+id: WO-OPS-20261016-PERIOD-DISPOSITION
+title: "Preserve immutable incomplete period disposition in the canonical pending store"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 2589
+related_issues: [1605]
+base_branch: main
+base_commit: 310d34d7d785cf89d0503f2619954218c94f6b67
+implementation_branch: codex/paper-period-disposition-20261016
+authority_impact: paper_persistence_contract
+objective: "Add an atomic, replay-safe INELIGIBLE pending-period storage contract without fabricating realized performance or activating runtime retirement."
+owner_authorization: "2026-10-16 integrated master sections 8-10: reuse canonical disposition or add the minimum contract if absent."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing pending-period repository using a versioned immutable terminal envelope; no new ledger, scheduler, engine or table. Original payload and checksum survive. Producer/scheduler activation requires accepted contract and #2741 runtime acceptance."
+  references:
+    - packages/storage/src/persistedPaperPeriodStore.ts
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+scope:
+  - existing_pending_store_terminal_envelope_and_atomic_successor_contract
+  - preserve_original_payload_checksum_and_bounded_failure_identity
+  - restart_replay_CAS_corruption_and_rollback_tests
+prohibited:
+  - runtime_retirement_activation_in_this_increment
+  - direct_runtime_database_mutation
+  - historical_fill_cost_or_lineage_rewrite
+  - fabricated_performance_or_qualification
+  - live_authority_or_self_approval
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - terminal_history_is_immutable_and_excluded_from_realized_performance
+  - disposition_and_successor_commit_atomically_or_neither_does
+  - restart_and_replay_preserve_exact_receipt_without_duplicates
+  - stale_conflicting_or_malformed_evidence_fails_closed
+  - old_schema_recovery_rejects_terminal_envelope
+validation:
+  commands:
+    - pnpm run build
+    - pnpm run typecheck
+    - pnpm run validate:full
+    - pnpm run lint
+    - pnpm run security:gate
+  focused: PENDING
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+next: "Implement and validate the storage contract; submit for fresh non-author contract review before wiring runtime disposition."
