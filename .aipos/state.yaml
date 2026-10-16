@@ -3185,7 +3185,7 @@ current_runtime_writer_cause_20261016:
   work_order: WO-OPS-20261016-PAPER-WRITER-CAUSE
   branch: codex/paper-writer-lease-cause-20261016
   base_sha: 67630b806996a0774fa41d772e61de6192493a84
-  status: REBASED_LOCALLY_VALIDATED_PENDING_PUSH_CI_AND_NONAUTHOR_REVIEW
+  status: REBASED_VALIDATED_PENDING_EXACT_HEAD_CI_AND_NONAUTHOR_REVIEW
   first_broken_transition: exact-main restart/replay -> stable PAPER listener and writer-lease recovery
   scope: 'Diagnostic precondition only; initiating runtime lease failure cause remains
     unproven. Existing #2733 is merged and is not revived.'
