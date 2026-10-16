@@ -1,0 +1,33 @@
+id: WO-RESEARCH-20261016-RUN-FINGERPRINT
+title: Verify existing Research run fingerprint at qualification boundary
+status: IN_PROGRESS
+priority: P0
+risk: HIGH
+authority_impact: none
+parent: WO-RESEARCH-20261016-A-GRADE-VALIDATION
+branch: codex/research-run-fingerprint-20261016
+base_commit: 9a2c235d9576689eb4c374988e57f9cc8afd5558
+first_broken_transition: run_provenance_fingerprint_to_qualification_integrity
+scope:
+  - Reuse exactly the existing schema1 producer fingerprint material and canonical hash.
+  - Reject stale or substituted fingerprints before returning qualification.
+  - Preserve existing negative-gate coverage with properly sealed synthetic fixtures.
+  - No algorithm, threshold, authority, historic evidence rewrite or parallel receipt engine.
+acceptance:
+  - Producer output fingerprint remains byte-compatible.
+  - Changed bound candidate/dataset/source/standing/report material is rejected without a matching digest.
+  - Reordered keys remain deterministic; no mutation of supplied run.
+  - A matching digest is integrity evidence, not authentication or A-grade approval.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Reproduce stale-digest qualification, share existing canonical producer hashing, verify consumer, then full tests/fresh independent review/exact-head CI."
