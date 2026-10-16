@@ -52,16 +52,13 @@ function bindQualificationToRun(
   qualification: ResearchFactoryQualificationResult,
   qualify: ResearchQualificationFn,
 ): void {
-  const project = (result: ResearchFactoryQualificationResult) => canonicalJson([...result.candidates]
-    .map((candidate) => ({ candidateId: candidate.candidateId, outcome: candidate.outcome, reasons: [...candidate.reasons] }))
-    .sort((left, right) => left.candidateId.localeCompare(right.candidateId)));
   let recomputed: ResearchFactoryQualificationResult;
   try {
     recomputed = qualify(run);
   } catch {
     throw new ResearchInvestmentLearningLedgerError("QUALIFICATION_RECOMPUTE_FAILED", "investment learning could not recompute qualification for this run");
   }
-  if (project(recomputed) !== project(qualification)) {
+  if (canonicalJson(recomputed) !== canonicalJson(qualification)) {
     throw new ResearchInvestmentLearningLedgerError("QUALIFICATION_RUN_MISMATCH", "investment learning qualification does not belong to the supplied run");
   }
 }

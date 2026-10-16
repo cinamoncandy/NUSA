@@ -14,6 +14,13 @@ export interface ResearchFactoryCandidateQualification {
 
 export interface ResearchFactoryQualificationResult {
   readonly schemaVersion: 1;
+  readonly validationIdentity: Readonly<{
+    readonly schemaVersion: 1;
+    readonly policyId: "research-factory-qualification-v1";
+    readonly policySha256: string;
+    readonly runFingerprintSha256: string;
+    readonly resultSha256: string;
+  }>;
   readonly candidates: readonly ResearchFactoryCandidateQualification[];
   readonly coverage: Readonly<{
     readonly candidateCount: number;
@@ -51,6 +58,20 @@ const FROZEN_COST_RETURN_DEGRADATION_RATIO = 0.5;
 const FROZEN_COST_DRAWDOWN_EXPANSION_RATIO = 0.5;
 const FROZEN_COST_MINIMUM_CLOSED_TRADES = 2;
 const FROZEN_MAXIMUM_PBO = 0.5;
+
+/** Describes the existing finalizer only, not upstream League policy or A-grade approval. */
+export const RESEARCH_FACTORY_QUALIFICATION_POLICY = Object.freeze({
+  schemaVersion: 1,
+  id: "research-factory-qualification-v1" as const,
+  ruleVersion: 1,
+  maximumPbo: FROZEN_MAXIMUM_PBO,
+  costReturnDegradationRatio: FROZEN_COST_RETURN_DEGRADATION_RATIO,
+  costDrawdownExpansionRatio: FROZEN_COST_DRAWDOWN_EXPANSION_RATIO,
+  costMinimumClosedTrades: FROZEN_COST_MINIMUM_CLOSED_TRADES,
+  requiredCostScenarios: REQUIRED_COST_SCENARIOS,
+  requiredReportEvidence: REQUIRED_REPORT_EVIDENCE,
+  rejectionReasons: Object.freeze([...REJECTION_REASONS].sort()),
+});
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 function canonicalize(value: unknown): unknown {
@@ -488,8 +509,8 @@ export function qualifyResearchFactoryRun(
     return classify(entry, report.missingEvidence, run);
   });
 
-  return freeze({
-    schemaVersion: 1,
+  const result = freeze({
+    schemaVersion: 1 as const,
     candidates: freeze(candidates),
     coverage: freeze({
       candidateCount: candidates.length,
@@ -497,8 +518,21 @@ export function qualifyResearchFactoryRun(
       insufficientCount: candidates.filter((candidate) => candidate.outcome === "INSUFFICIENT").length,
       rejectedCount: candidates.filter((candidate) => candidate.outcome === "REJECTED").length,
     }),
-    liveAuthority: "NONE",
-    productionMutationAllowed: false,
-    aiAuthority: "ZERO_AUTHORITY",
+    liveAuthority: "NONE" as const,
+    productionMutationAllowed: false as const,
+    aiAuthority: "ZERO_AUTHORITY" as const,
+  });
+  const identity = {
+    policyId: RESEARCH_FACTORY_QUALIFICATION_POLICY.id,
+    policySha256: canonicalHash(RESEARCH_FACTORY_QUALIFICATION_POLICY),
+    runFingerprintSha256: run.provenance.runFingerprintSha256.toLowerCase(),
+  };
+  return freeze({
+    ...result,
+    validationIdentity: freeze({
+      schemaVersion: 1 as const,
+      ...identity,
+      resultSha256: canonicalHash({ ...identity, result }),
+    }),
   });
 }
