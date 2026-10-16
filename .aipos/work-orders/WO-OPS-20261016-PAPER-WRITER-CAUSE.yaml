@@ -22,6 +22,8 @@ scope:
 - Preserve original outer error codes, sticky fail-closed behavior, SQL predicates, TTL, heartbeat, takeover
   policy, capital and Risk.
 - No new observer, scheduler, ledger, authority, production fault injection, or retroactive failure reason.
+- Rebind existing PAPER_ADAPTER provenance to validated implementation blob; preserve TARGET_ONLY and
+  all independent criteria UNVERIFIED.
 acceptance:
 - Focused real-SQLite heartbeat/expiry/ownership/privacy tests reproduce diagnostic loss before repair
   and pass after.
@@ -36,6 +38,8 @@ validation:
     security (0 secrets; 0 unmitigated high/critical)
   review_ci_audit_release_runtime: PENDING exact-head CI and separate fresh non-author review; no Ready/Audit/Release
     bypass
+  source_qualification: CI38847714635 exposed stale blob pin; reproduced two failures locally, exact-source
+    guards 6/6 PASS after binding 0f5de0d7 to source749ecbe5 without promotion
 safety:
   paper_only: true
   liveAuthority: NONE
