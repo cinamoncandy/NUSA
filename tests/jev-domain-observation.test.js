@@ -54,6 +54,24 @@ function researchInput(overrides = {}) {
   };
 }
 
+function advisoryInput(taskType, classification, overrides = {}) {
+  return {
+    ...workflowInput(),
+    taskType,
+    decision: {
+      classification,
+      severity: 2,
+      requiredModel: "LUNA",
+      reasonCode: "SHADOW_CLASSIFIED",
+      confidence: 0.82,
+    },
+    requiredModel: "LUNA",
+    reasonCode: "SHADOW_CLASSIFIED",
+    confidence: 0.82,
+    ...overrides,
+  };
+}
+
 test("registry is unique, complete across all NUSA rollout domains, and shadow-only", () => {
   assert.doesNotThrow(() => assertJevTaskTypeRegistry());
   const taskTypes = JEV_TASK_TYPE_POLICIES.map((entry) => entry.taskType);
@@ -141,15 +159,15 @@ test("research attention observation reuses its existing validator", () => {
   assert.equal(observation.usableForRouting, false);
 });
 
-test("planned task types cannot emit observations before a decision validator exists", () => {
-  assert.equal(getJevTaskTypePolicy("RISK_EVENT_CLASSIFICATION").decisionSchema, "UNAVAILABLE");
-  assert.throws(
-    () =>
-      createJevDomainObservation(
-        workflowInput({ taskType: "RISK_EVENT_CLASSIFICATION" }),
-      ),
-    /JEV_TASK_DECISION_VALIDATOR_UNAVAILABLE/,
-  );
+test("ADR-0019 keeps all 18 domains without accepted owner contracts non-emitting", () => {
+  const unavailable = JEV_TASK_TYPE_POLICIES.filter(p => !["WORKFLOW_FAILURE_CLASSIFICATION", "RESEARCH_INTELLIGENCE_ATTENTION_SHADOW", "MARKET_MICROSTRUCTURE_ADVISORY_SHADOW"].includes(p.taskType));
+  assert.equal(unavailable.length, 18);
+  for (const policy of unavailable) {
+    assert.equal(policy.decisionSchema, "UNAVAILABLE", policy.taskType);
+    for (const overrides of [{}, { reasonCode: "DIFFERENT" }, { confidence: 0.4 }, { requiredModel: "SOL" }]) {
+      assert.throws(() => createJevDomainObservation(advisoryInput(policy.taskType, "UNKNOWN", overrides)), /JEV_TASK_DECISION_VALIDATOR_UNAVAILABLE/, policy.taskType);
+    }
+  }
 });
 
 test("task-specific validators reject semantically invalid decisions", () => {
@@ -196,6 +214,11 @@ test("envelope metadata cannot contradict validated decision confidence/model/re
     () => createJevDomainObservation(researchInput({ reasonCode: "DIFFERENT" })),
     /JEV_DECISION_ENVELOPE_MISMATCH/,
   );
+});
+
+test("accepted research contract rejects confidence and reason mismatch", () => {
+  assert.throws(() => createJevDomainObservation(researchInput({ confidence: 0.4 })), /JEV_DECISION_ENVELOPE_MISMATCH/);
+  assert.throws(() => createJevDomainObservation(researchInput({ reasonCode: "DIFFERENT" })), /JEV_DECISION_ENVELOPE_MISMATCH/);
 });
 
 test("registry blocks invalid or uncalibrated rollout stages", () => {
