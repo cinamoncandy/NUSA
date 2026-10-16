@@ -9,6 +9,7 @@ import {
 import type { CloudPaperRiskGate, CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { buildPaperExecutionIntent, UPBIT_KRW_MINIMUM_ORDER_KRW, paperExecutionIntentCommandId, validatePaperExecutionIntent } from "./paperExecutionIntent";
+import { PaperRuntimeExecutionCostEvidenceError, validatePaperObservedExecutionDepth, validatePaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { automaticPaperConfidenceAllowsAction } from "./automaticPaperExecutionPolicy";
 
 export interface CloudPaperExecutionBoundaryOptions {
@@ -176,6 +177,8 @@ export class CloudPaperExecutionBoundary {
           return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_WORKING_WAITING_FOR_NEW_DEPTH", orders: Object.freeze([]), fills: Object.freeze([]), state: stateBeforeDecision });
         }
       }
+      const quoteFailure = this.executionQuoteFailure(tick);
+      if (quoteFailure != null) return quoteFailure;
       const continuationCommandId = `${working.idempotencyKey}:continue:${working.lifecycle.transitionSequence + 1}`;
       const risk = this.options.riskGate.evaluate({
         path: "STRATEGY",
@@ -276,6 +279,8 @@ export class CloudPaperExecutionBoundary {
       }
     }
 
+    const quoteFailure = this.executionQuoteFailure(tick);
+    if (quoteFailure != null) return quoteFailure;
     const commandId = paperExecutionIntentCommandId(executionIntent);
     const risk = this.options.riskGate.evaluate({
       path: "STRATEGY",
@@ -306,6 +311,20 @@ export class CloudPaperExecutionBoundary {
       executionIntent,
     }));
     return this.withRisk(execution, risk);
+  }
+
+  /** Never admit a production strategy fill into the simulator's incomplete-cost fallback. */
+  private executionQuoteFailure(tick: PaperExecutionTick): PaperExecutionResult | null {
+    if (tick.observedQuote == null) return this.blocked("INVALID_ORDERBOOK_QUOTE");
+    try {
+      validatePaperObservedExecutionQuote(tick.observedQuote, tick.market, tick.now);
+      if (tick.observedQuote.depth != null || tick.observedQuote.depthFingerprintSha256 != null) {
+        validatePaperObservedExecutionDepth(tick.observedQuote, tick.market, tick.now);
+      }
+      return null;
+    } catch (error) {
+      return this.blocked(error instanceof PaperRuntimeExecutionCostEvidenceError ? error.code : "INVALID_ORDERBOOK_QUOTE");
+    }
   }
 
   private readOpenP0(): boolean | null {

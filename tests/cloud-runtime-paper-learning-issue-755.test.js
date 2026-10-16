@@ -90,11 +90,32 @@ function testEnv(token, port, dbPath, overrides = {}) {
 
 function capturingFactory() {
   let onTicker;
-  const factory = (_markets, tickerCallback) => {
+  let onConnection;
+  let onOrderBook;
+  const factory = (_markets, tickerCallback, connectionCallback, orderBookCallback) => {
     onTicker = tickerCallback;
+    onConnection = connectionCallback;
+    onOrderBook = orderBookCallback;
     return { subscribe() {}, start() {}, stop() {} };
   };
-  return { factory, fire: (ticker) => onTicker(ticker) };
+  return { factory, fire: async (ticker) => {
+    // Exercise the real snapshot/reconciler/quote path; never let a ticker-only fixture
+    // manufacture an incomplete-cost fill. This public REST response is isolated test input.
+    const originalFetch = global.fetch;
+    global.fetch = async (url, options) => {
+      if (String(url).startsWith("https://api.upbit.com/v1/orderbook?")) {
+        return new Response(JSON.stringify([{ market: ticker.code, timestamp: Date.now() }]), { status: 200 });
+      }
+      return originalFetch(url, options);
+    };
+    try {
+      onConnection("CONNECTED");
+      await new Promise((resolve) => setImmediate(resolve));
+      onOrderBook({ type: "orderbook", code: ticker.code, timestamp: Date.now(), total_ask_size: 100, total_bid_size: 100,
+        orderbook_units: [{ ask_price: ticker.trade_price, bid_price: ticker.trade_price - 1, ask_size: 100, bid_size: 100 }] });
+      onTicker(ticker);
+    } finally { global.fetch = originalFetch; }
+  } };
 }
 
 // Same +3% single-observation recipe already proven in tests/cloud-paper-production-e2e.test.js
@@ -135,7 +156,7 @@ test("#755: a deterministic PAPER cycle exposes MARKET_DATA -> DECISION -> ... -
   try {
     const capture = capturingFactory();
     handle = startCloudRuntime(testEnv(token, port, filename), undefined, candidateBoundDashboardHydrator(), capture.factory);
-    capture.fire(buyTicker());
+    await capture.fire(buyTicker());
 
     const first = await loadOperations(port, token);
     assert.equal(first.liveAuthority, "NONE");
@@ -187,7 +208,7 @@ test("#661: a rejected PAPER trade exposes its real gate rejection reason throug
   try {
     const capture = capturingFactory();
     handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "0" }), undefined, candidateBoundDashboardHydrator(), capture.factory);
-    capture.fire(buyTicker());
+    await capture.fire(buyTicker());
 
     const snapshot = await loadOperations(port, token);
     assert.equal(snapshot.liveAuthority, "NONE");
