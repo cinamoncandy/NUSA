@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "workOrder": "WO-OPS-20261016-PAPER-WRITER-CAUSE",
-  "baseSha": "c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f",
+  "baseSha": "67630b806996a0774fa41d772e61de6192493a84",
   "scope": "First-cause preservation only; initiating runtime lease failure not yet proven or repaired",
   "reproduction": {
     "code": "canonical c26 emitted production code in isolated worktree",
@@ -70,11 +70,33 @@
     }
   ],
   "qualificationBindingRepair": {
-    "sourceCommit": "749ecbe56b4cced78d598411f5123673242e924b",
+    "sourceCommit": "b9cb7bde15bfa581159f263220a1d113b250dadc",
     "sourceBlob": "0f5de0d7d3a7322005a3d6e2c193573cf2f050d3",
     "reproduction": "module10XS + PAPER_ADAPTER requalification: 2 failures before rebinding; 6/6 PASS after",
     "behavioralEvidence": "62 focused/runtime regressions PASS on exact implementation",
     "qualification": "TARGET_ONLY; CANONICAL_ENTRYPOINT and all independent criteria remain UNVERIFIED; no acceptance promoted",
     "scope": "Existing source-provenance binding only, not relaxation of qualification baseline or thresholds"
+  },
+  "latestMainRestartReplay": {
+    "sourceSha": "67630b806996a0774fa41d772e61de6192493a84",
+    "result": "TRANSIENT_LEASE_FAILURE_THEN_RECOVERED_WITHOUT_DATABASE_MUTATION",
+    "readiness": "HTTP 200; database, migrations, dashboardPersistence and runtimeRecovery all true",
+    "runtime": "health HTTP 200; 170 fills and 170 unique fill ids; last fill timestamp unchanged; open positions 0",
+    "closedLearning": "21 realized PAPER periods; 0 evaluated/recorded cycles; blocked by INCOMPLETE_EXECUTION_COST_EVIDENCE",
+    "failureRecord": "generic PAPER_WRITER_LEASE_LOST; no causeCode on deployed source",
+    "leaseRowsAtStableInspection": 1,
+    "cause": "UNPROVEN; no lease reset, takeover, or database mutation performed"
+  },
+  "rebaseValidation": {
+    "baseSha": "67630b806996a0774fa41d772e61de6192493a84",
+    "focusedTests": "29/29 PASS after clean rebase and source-provenance conflict resolution",
+    "build": "PASS",
+    "typecheck": "PASS root and mobile",
+    "validateFull": "PASS",
+    "lint": "PASS, 0 errors and 24 existing warnings",
+    "securityGate": "PASS, 0 secrets and 0 unmitigated high/critical advisories",
+    "aiposProvenance": "PASS",
+    "exactHeadCi": "PENDING",
+    "independentReview": "PENDING"
   }
 }

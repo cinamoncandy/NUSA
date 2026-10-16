@@ -1,6 +1,6 @@
 # Fresh non-author review handoff
 
-Work order: WO-OPS-20261016-PAPER-WRITER-CAUSE. Branch: codex/paper-writer-lease-cause-20261016. Base: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f.
+Work order: WO-OPS-20261016-PAPER-WRITER-CAUSE. Branch: codex/paper-writer-lease-cause-20261016. Base: 67630b806996a0774fa41d772e61de6192493a84.
 
 The author repaired first-cause loss in the existing PAPER writer heartbeat and existing runtime-last-failure.json. This does not establish the initiating cause of the actual deployed lease losses. The original outer error, sticky lease loss, SQL ownership/expiry predicate, heartbeat, TTL and takeover policy must remain unchanged. No authority is granted by this handoff.
 
@@ -12,4 +12,4 @@ Historical baseline code reproduces missing causes; isolated test DB mutation is
 
 After fresh review and exact-head CI, use the existing deterministic Audit and Release bot. Never self-approve/merge. Deploy only the governed exact main through oracle-paper-release.yml; preserve historical failures and wait for natural causal evidence. No synthetic production failure, forced takeover, TTL relaxation, balance reset, or qualification threshold change.
 
-CI38847714635 exposed the stale PAPER_ADAPTER source fingerprint. The local6-test registry/requalification family reproduced two failures before repair and passes after binding the validated implementation blob0f5de0d7/source749ecbe5. Module qualification remains TARGET_ONLY, isLevel10Qualified=false and every independent criterion UNVERIFIED. Review the provenance rebind too; this is no qualification promotion. Full validate:full and provenance were rerun successfully after the rebind.
+The latest-main rebase preserves EXECUTION provenance while rebinding PAPER_ADAPTER to blob0f5de0d7. Focused rebase validation passes 29/29, including the exact-source guard. This rebase still requires fresh exact-head CI and independent review. Module qualification remains TARGET_ONLY, isLevel10Qualified=false and every independent criterion UNVERIFIED. Review the provenance rebind too; this is no qualification promotion.

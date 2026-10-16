@@ -3,7 +3,7 @@ title: Preserve the first PAPER writer lease failure cause without changing auth
 status: IN_PROGRESS
 owner: nusa-runtime-sre
 branch: codex/paper-writer-lease-cause-20261016
-base_commit: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
+base_commit: 67630b806996a0774fa41d772e61de6192493a84
 issues:
 - 2589
 - 1605
@@ -11,10 +11,9 @@ issues:
 authority_impact: bounded-first-cause-observability-only; lease and fail-closed rules unchanged
 owner_authorization: '2026-10-16 NUSA MASTER EXECUTION ORDER: actual server recovery, root-cause diagnosis
   and durable failure evidence'
-finding: Actual exact-main Oracle38844361890 passed readiness, then scheduler shutdowns at03:24:31/03:27:29/03:28:40UTC
-  exposed PAPER_WRITER_LEASE_LOST. heartbeatLease discards its first exception and later assertions replace
-  it with the generic code. Precise initiating cause remains unproven; a later natural process renewed
-  its lease while ticks4->6.
+finding: Exact-main restart/replay on 67630b806996a0774fa41d772e61de6192493a84 repeatedly reached listener startup,
+  then closed-learning failed with PAPER_WRITER_LEASE_LOST and restarted. Durable runtime-last-failure.json still
+  contains only the generic code; the lease table was empty on inspection. The initiating cause remains unproven.
 scope:
 - Reuse SqliteCloudPaperAccountRepository and runtime-last-failure.json; preserve a bounded allowlisted
   first cause.
@@ -45,6 +44,6 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: Draft PR on this validated head -> exact-head CI -> separate fresh non-author review -> deterministic
-  Audit -> governed Release -> exact-main deployment -> natural causal evidence; runtime root cause remains
-  unproven
+next: Update the existing PR with the latest-main rebase -> fresh exact-head CI -> separate fresh non-author
+  review -> deterministic Audit -> governed Release -> exact-main deployment -> natural causal evidence;
+  runtime root cause remains unproven

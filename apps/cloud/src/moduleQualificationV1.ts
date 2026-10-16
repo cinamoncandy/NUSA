@@ -80,7 +80,7 @@ export const MODULE_QUALIFICATION_RECORDS_V1: Readonly<Record<ModuleStage, Modul
     return [stage, Object.freeze({
       schemaVersion: 1 as const,
       stage,
-      sourceCommitSha: stage === "EXECUTION" ? "f4f84389dfa3ea4b7b8870e702a373b51985280b" : stage === "MARKET_DATA" ? "7c5f75763e9bc3a673647dfa892a3a60d32967a9" : stage === "PAPER_ADAPTER" ? "749ecbe56b4cced78d598411f5123673242e924b" : stage === "RISK" ? "9be781fe1df0acd96abca8c815dc0019091d2247" : MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
+      sourceCommitSha: stage === "EXECUTION" ? "f4f84389dfa3ea4b7b8870e702a373b51985280b" : stage === "MARKET_DATA" ? "7c5f75763e9bc3a673647dfa892a3a60d32967a9" : stage === "PAPER_ADAPTER" ? "b9cb7bde15bfa581159f263220a1d113b250dadc" : stage === "RISK" ? "9be781fe1df0acd96abca8c815dc0019091d2247" : MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
       sourceBlobSha,
       sourceRef: MODULE_RUNTIME_BINDING_BY_STAGE_10XS[stage].canonicalEntrypoint,
       verificationAuthority: "INDEPENDENT_EVIDENCE_REQUIRED" as const,

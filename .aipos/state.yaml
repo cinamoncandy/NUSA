@@ -3184,14 +3184,13 @@ current_runtime_startup_evidence_invalidation_20261015:
 current_runtime_writer_cause_20261016:
   work_order: WO-OPS-20261016-PAPER-WRITER-CAUSE
   branch: codex/paper-writer-lease-cause-20261016
-  base_sha: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
-  status: LOCALLY_VALIDATED_PENDING_EXACT_HEAD_CI_AND_NONAUTHOR_REVIEW
-  first_broken_transition: first heartbeat/renewal failure -> durable deterministic
-    cause classification
+  base_sha: 67630b806996a0774fa41d772e61de6192493a84
+  status: REBASED_LOCALLY_VALIDATED_PENDING_PUSH_CI_AND_NONAUTHOR_REVIEW
+  first_broken_transition: exact-main restart/replay -> stable PAPER listener and writer-lease recovery
   scope: 'Diagnostic precondition only; initiating runtime lease failure cause remains
     unproven. Existing #2733 is merged and is not revived.'
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: Draft PR -> exact-head CI -> fresh non-author review -> Audit/Release -> exact-main runtime diagnosis.
+  next: Update canonical PR -> fresh exact-head CI -> fresh non-author review -> Audit/Release -> exact-main runtime diagnosis.
 
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
