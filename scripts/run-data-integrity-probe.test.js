@@ -59,6 +59,32 @@ test("gaps warn; future, misaligned, inconsistent and crossed rows fail", () => 
   }
 });
 
+test("live future checks refresh their wall clock during a slow probe", () => {
+  const d = db();
+  // These rows are ahead of the probe start, but behind the time at which the later table checks
+  // execute. A live recorder could have inserted them while an earlier large-table scan ran.
+  d.prepare("INSERT INTO research_orderbook_samples VALUES ('KRW-LIVE', ?, 10, 11, 1, 1, 1, 1)").run(NOW + 10_000);
+  d.prepare("INSERT INTO research_trade_ticks_v2 VALUES ('KRW-LIVE', ?, 100, 1, 'BID')").run(NOW + 10_000);
+  const r = probe({ db: d, now: NOW, currentNow: () => NOW + 20_000 });
+  assert.equal(r.orderBookFuture, 0);
+  assert.equal(r.tradeFuture, 0);
+});
+
+test("the refreshed live clock still rejects genuinely future rows", () => {
+  const d = db();
+  d.prepare("INSERT INTO research_orderbook_samples VALUES ('KRW-FUTURE', ?, 10, 11, 1, 1, 1, 1)").run(NOW + 30_000);
+  d.prepare("INSERT INTO research_trade_ticks_v2 VALUES ('KRW-FUTURE', ?, 100, 1, 'ASK')").run(NOW + 30_000);
+  const r = probe({ db: d, now: NOW, currentNow: () => NOW + 20_000 });
+  assert.equal(r.status, "FAIL");
+  assert.equal(r.orderBookFuture, 1);
+  assert.equal(r.tradeFuture, 1);
+});
+
+test("an invalid refreshed wall clock fails closed", () => {
+  const d = db();
+  assert.throws(() => probe({ db: d, now: NOW, currentNow: () => Number.NaN }), /clock is invalid/);
+});
+
 test("the result is written atomically beside the state database for /health", () => {
   const fs = require("node:fs"); const os = require("node:os"); const path = require("node:path");
   const { writeResult, RESULT_FILE } = require("./run-data-integrity-probe.js");
