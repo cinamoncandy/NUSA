@@ -7,9 +7,32 @@ import type {
   ClosedLearningResearchDecision,
 } from "./closedLearningLoopCoordinator";
 import { createHash } from "node:crypto";
+import type { RealizedPeriodRetentionGuard } from "../../../packages/storage/src/persistedPaperPeriodStore";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
+
+const PAPER_PERIOD_REFERENCE = "paper-period:";
+
+/**
+ * The reference-aware retention guard (v2 Impact Analysis M1 / A7), derived from the evolution
+ * ledger. Every surviving record that cites `paper-period:<recordId>` pins that realized PAPER
+ * period against retention, because lineage replay resolves evidence by that exact reference and a
+ * pruned period would leave the record resolvable with its basis gone.
+ *
+ * Resolved at each retention rather than cached, so a record appended after the last prune is still
+ * honoured. The ledger is append-only, so the referenced set only ever grows.
+ */
+export function evolutionLedgerRetentionGuard(ledger: EvolutionLedgerPort): RealizedPeriodRetentionGuard {
+  return Object.freeze({
+    referencedRecordIds: (): ReadonlySet<string> => new Set(
+      ledger.list().flatMap((record) => record.evidenceReferences)
+        .filter((reference) => reference.startsWith(PAPER_PERIOD_REFERENCE))
+        .map((reference) => reference.slice(PAPER_PERIOD_REFERENCE.length))
+        .filter((recordId) => recordId.length > 0),
+    ),
+  });
+}
 
 const CYCLE = /^closed-learning:[a-f0-9]{64}$/;
 const HASH = /^[a-f0-9]{64}$/;
