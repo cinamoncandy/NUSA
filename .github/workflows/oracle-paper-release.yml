@@ -93,7 +93,9 @@ jobs:
     # Only the privileged release steps run on the dedicated host. Build and dependency
     # installation stay on GitHub-hosted hardware, away from the 1 GB PAPER runtime host.
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    timeout-minutes: 30
+    # Activation itself owns a bounded 3-minute stability soak. Keep the whole host job bounded
+    # while leaving enough room for backup/staging on the small Oracle PAPER host.
+    timeout-minutes: 40
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       NUSA_DEPLOY_ROOT: /opt/nusa
@@ -115,9 +117,8 @@ jobs:
           echo "fresh=true" >> "$GITHUB_OUTPUT"
 
       - name: Free disk by pruning superseded releases (bounded)
-        # The helper keeps the active release, the rollback release and the newest few, validates every
-        # candidate before deleting, and never touches state or backups. Without this, old releases pile
-        # up until the host fills and the backup step fails before any release change (runs 88 and 89).
+        # The helper preserves the active release and the recorded rollback release, validates every
+        # candidate before deleting any additional superseded release, and never touches state or backups.
         run: sudo "$STEP" prune
 
       - name: Download built release
@@ -139,6 +140,15 @@ jobs:
           test -f "$RELEASE_TREE/scripts/oracle-validate.js"
           echo "RELEASE_TREE=$RELEASE_TREE" >> "$GITHUB_ENV"
 
+      - name: Require reviewed host release helper exact match
+        if: steps.source_fresh.outputs.fresh == 'true'
+        run: |
+          set -euo pipefail
+          cmp --silent "$STEP" "$RELEASE_TREE/deploy/oracle/nusa-release-step.sh" || {
+            echo "::error::Host release helper differs from exact reviewed source. Install the reviewed root-owned helper before releasing."
+            exit 1
+          }
+
       - name: Back up persistent state before touching the release
         if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" backup
@@ -150,6 +160,18 @@ jobs:
       - name: Preflight host and security contract
         if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" preflight "$SOURCE_SHA"
+
+      - name: Recheck exact protected main immediately before activation
+        if: steps.source_fresh.outputs.fresh == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [ "$MAIN_SHA" = "$SOURCE_SHA" ] || {
+            echo "::error::Refusing stale activation: requested $SOURCE_SHA, protected main moved to $MAIN_SHA during host preparation"
+            exit 1
+          }
 
       - name: Atomically activate exact release and prove both runtimes
         if: steps.source_fresh.outputs.fresh == 'true'
