@@ -1,0 +1,69 @@
+id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
+title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
+status: VERIFYING
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: ee7033740dbf8bc0fb95454413d28de6ee771c2f
+branch: fix/validator-evidence-gate-2760
+issue: 2760
+authority_impact: release_governance_fail_closed
+owner_authorization: "2026-10-17 owner invoked complete execution for the NUSA learning loop; #2744 then merged while the required fresh non-author review was absent, making this the first governance repair before any further learning completion claim."
+objective: "Make exact-head fresh non-author VALIDATOR acceptance a deterministic prerequisite for the existing independent Audit and Release path, so Draft-to-Ready alone can never issue nusa/release-authorized or merge a code/workflow PR."
+incident:
+  pr: 2744
+  reviewed_head: 41eba6fc0ae80fab307abf2fea16c2ae1f865555
+  merged_main: 8eff53fc362b588817d885eff1598d172848790e
+  timeline: "PR had zero fresh reviews, was moved Ready at 2026-10-17T06:22:56Z, deterministic Audit was dispatched at 06:23:05Z, nusa/release-authorized succeeded at 06:23:30Z, and release-authority bot merged at 06:24:22Z."
+first_broken_transition: "exact-head CI PASS -> fresh non-author VALIDATOR acceptance -> independent Audit -> deterministic Audit/Release"
+root_cause:
+  - "Fresh-session /grill-me review was a procedural Draft rule, not machine-enforced evidence."
+  - "apps/autopilot/src/githubExecutor.ts routed AUDIT_REQUEST directly to nusa_autopilot_audit / autopilot-deterministic-audit-release.yml, bypassing the existing Autopilot Execution Consumer independent-Audit lane entirely."
+  - "deterministic Audit/Release accepted Ready + exact-head CI/evidence without an exact-head fresh VALIDATOR receipt."
+canonical_fix:
+  - "Route every AUDIT_REQUEST through the one existing nusa_autopilot_execution consumer; the deterministic Release successor is dispatched only by that consumer after fresh VALIDATOR and independent Audit succeed."
+  - "Reuse the existing stateless Workers AI Audit runner endpoint and read-only GitHub App token for a separate VALIDATOR_REQUEST following docs/GRILL_ME_PROTOCOL.md."
+  - "Bind P0/P1/P2 semantics: P0/P1 are BLOCKER; P2 is NOTE; only P0=0 and P1=0 with safety PASS permits transition to independent Audit."
+  - "Emit trusted-validator-evidence.json from the canonical default-branch workflow, bound to exact PR/head/base/CI plus workflow run/attempt."
+  - "Deterministic Audit and Release independently fetch and validate that immutable artifact before Audit PASS, before nusa/release-authorized, and immediately before protected merge."
+  - "PR comments remain observability only and cannot satisfy the gate."
+scope:
+  include:
+    - apps/autopilot/src/auditRunner.ts
+    - apps/autopilot/src/worker.ts
+    - apps/autopilot/src/githubExecutor.ts
+    - apps/autopilot/src/githubExecutor.test.ts
+    - apps/autopilot/src/validatorRunner.test.ts
+    - .github/workflows/autopilot-execution-consumer.yml
+    - .github/workflows/autopilot-deterministic-audit-release.yml
+    - scripts/validate-fresh-validator-evidence.js
+    - tests/autopilot-fresh-validator-gate.test.js
+    - tests/fresh-validator-evidence.test.js
+    - tests/autopilot-independent-audit-contract.test.js
+  exclude:
+    - "Any second Audit/Release engine, queue, scheduler, merge authority, or GitHub approval mechanism."
+    - "Any change to Risk, trading, PAPER evidence, Research thresholds, broker capability, or LIVE authority."
+    - "Rewriting or reverting #2744 history merely to hide the incident."
+acceptance:
+  - "RED regression proves current main lets AUDIT_REQUEST bypass the execution consumer and lacks exact-head validator artifact enforcement."
+  - "All AUDIT_REQUEST ingress reaches the existing execution consumer before deterministic Audit/Release."
+  - "Fresh stateless VALIDATOR uses exact immutable base..head diff and exact canonical CI evidence, with P0/P1 blockers fail-closed."
+  - "Trusted validator artifact is bound to repository, PR, head, base, CI run, consumer run and run attempt; missing/stale/forged identity fails closed."
+  - "Deterministic Audit re-reads the artifact before DETERMINISTIC_AUDIT_PASS; Release re-reads it before authorization and before merge."
+  - "Exact-head CI plus required companion workflows pass on final PR head."
+  - "A separate fresh non-author review of this bootstrap control-plane change reports P0=0/P1=0 before Ready."
+  - "Independent Audit, nusa/release-authorized and protected merge remain the only merge authority path."
+validation:
+  red: "tests/autopilot-fresh-validator-gate.test.js reproduced 0/3 pass on protected-main behavior before implementation."
+  static_contracts: "37/37 focused workflow/control-plane/evidence tests PASS after routing and artifact enforcement; workflow authority map, action pin/input, and AIPOS YAML validators PASS."
+  build_typecheck: PENDING
+  exact_head_ci: PENDING
+  fresh_non_author_review: PENDING
+  audit_release: PENDING
+safety:
+  paper_only_context: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next: "Finish canonical build/typecheck/full validators, commit and push one Draft PR that closes #2760, require fresh exact-head CI, then hand the exact head to a separate fresh non-author VALIDATOR. Do not self-review or mark Ready from this implementation session."
