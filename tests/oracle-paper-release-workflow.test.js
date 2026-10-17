@@ -54,6 +54,15 @@ test("the small PAPER host receives a sealed build instead of installing or buil
   assert.doesNotMatch(release, /pnpm install|pnpm run build/);
 });
 
+test("the host privileged helper must exactly match the reviewed release helper before backup", () => {
+  const release = workflow.slice(workflow.indexOf("  release:"));
+  const helperGate = release.indexOf("Require reviewed host release helper exact match");
+  const backup = release.indexOf("Back up persistent state before touching the release");
+  assert.ok(helperGate > 0 && helperGate < backup, "helper drift must fail before any backup or release mutation");
+  assert.match(release, /cmp --silent "\$STEP" "\$RELEASE_TREE\/deploy\/oracle\/nusa-release-step\.sh"/);
+  assert.match(release, /Host release helper differs from exact reviewed source/);
+});
+
 test("the privileged backup uses the configured runtime state database", () => {
   const backupStart = wrapper.indexOf("  backup)");
   const backupEnd = wrapper.indexOf("\n\n  preflight)", backupStart);
