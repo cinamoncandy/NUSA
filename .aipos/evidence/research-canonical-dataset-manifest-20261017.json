@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-17T03:11:17.000Z",
+  "workOrder": "WO-RESEARCH-20261017-CANONICAL-DATASET-MANIFEST",
+  "scope": "canonical dataset manifest binding for cloud research experiments plus the aggregated longer-bar candle source that makes the canonical guard satisfiable",
+  "pullRequest": 2743,
+  "branch": "codex/research-precommit-main",
+  "base": {
+    "protectedMainSha256": "a4661cc20c47dd3968c3a3575369262c657e3bc1",
+    "mergedIntoHead": true,
+    "mergeCommitHead": "a625a551e07a0369540a94e3507563ea97ada7a7",
+    "branchPointBeforeMerge": "67630b806996a0774fa41d772e61de6192493a84",
+    "postBranchPointMainCommits": [
+      "a4661cc2 Merge pull request #2742 from cinamoncandy/codex/paper-period-disposition-20261016",
+      "7020f5cb docs(paper): refresh disposition evidence on current main",
+      "11f12d54 test(storage): keep forbidden-field fixture free of credential patterns",
+      "9169dbde fix(storage): preserve ineligible PAPER periods with atomic successor evidence",
+      "69285bca chore(aipos): claim immutable PAPER period disposition contract"
+    ],
+    "overlapWithPullRequest2743Files": 0
+  },
+  "rootCause": {
+    "symptom": "longer bar (60m, 240m) research experiments returned SKIPPED with reason SKIPPED_DATASET_MANIFEST_VOLUME_MISSING and statusProjection().experimentCount stayed 0 while the 1m orchestrator completed 10 experiments",
+    "location": "apps/cloud/src/researchExperimentRunner.ts canonical-dataset guard reads persisted candles through the AggregatedResearchCandleSource port",
+    "cause": "AggregatedResearchCandleSource.flush() built longer bars with no volume field at all, so candle.volume == null was always true for aggregated bars; for 1m the ratio === 1 path short-circuits to the raw store, which does carry volume, which is why only longer bars skipped",
+    "whyItSurfacedNow": "the in-flight manifest binding makes ports.datasetManifest non-null, which is the precondition for the guard to run at all"
+  },
+  "fix": {
+    "file": "apps/cloud/src/researchCandleAggregation.ts",
+    "statement": "aggregated longer-bar candles now carry real summed traded volume when every 1m constituent has one, and omit the field entirely (fail closed) when any constituent lacks it, so a volume-less dataset can never be verified as canonical",
+    "guardUnchanged": true,
+    "fabrication": false,
+    "gateRelaxation": false,
+    "noTestRelaxation": true
+  },
+  "focusedTests": {
+    "target": "tests/research-experiment-composition.test.js",
+    "before": "FAIL assert.ok(hourly != null && hourly.experimentCount >= 1) at line 88; 60m experimentTicks counts {SKIPPED: 10, SKIPPED_DATASET_MANIFEST_VOLUME_MISSING: 10}",
+    "after": "PASS 13 of 13 tests",
+    "fixtureNote": "the test now materializes the 60m dataset manifest so the canonical binding is exercised end to end; the guard itself was not modified"
+  },
+  "isolatedFocusedSuite": {
+    "files": 127,
+    "passed": 126,
+    "failed": 1,
+    "coverage": [
+      "research",
+      "closed candle",
+      "dataset manifest",
+      "candle store",
+      "closed learning",
+      "period",
+      "producer",
+      "pending period reader",
+      "rollover scheduler",
+      "loop status",
+      "recovery",
+      "replay",
+      "restart",
+      "ledger",
+      "disposition"
+    ],
+    "singleFailure": {
+      "file": "tests/release-api-read-recovery.test.js",
+      "error": "AssertionError ifError got unwanted exception: spawnSync bash ENOENT",
+      "classification": "ENVIRONMENTAL",
+      "reason": "bash is not present on this local Windows host; the test spawns bash",
+      "unrelatedToThisChange": true,
+      "ciRunsOn": "ubuntu-latest where bash exists"
+    }
+  },
+  "strictBuild": { "command": "tsc -p tsconfig.json", "result": "PASS", "exitCode": 0 },
+  "rootAndMobileTypecheck": { "command": "pnpm run typecheck", "result": "PASS", "exitCode": 0 },
+  "validateFull": { "command": "pnpm run validate:full", "result": "PASS", "exitCode": 0, "failures": [] },
+  "aiposGates": {
+    "aipos_yaml": { "result": "PASS", "exitCode": 0 },
+    "aipos_provenance": { "result": "PASS", "exitCode": 0 },
+    "aipos_index": { "result": "PASS", "exitCode": 0 }
+  },
+  "securityGate": { "command": "pnpm run security:gate", "result": "PASS", "exitCode": 0, "unmitigated": [], "secrets": 0 },
+  "lint": { "command": "pnpm run lint", "result": "PASS", "exitCode": 0, "errors": 0, "existingWarnings": 24, "mobileLint": "PASS 204 files" },
+  "gitDiffCheck": { "result": "CLEAN", "exitCode": 0 },
+  "sourceHashes": {
+    "apps/cloud/src/closedCandleAggregator.ts": "3be93f62cb70161b7f504efadc86432a04069fd9580186306ad9d5f8649906fb",
+    "apps/cloud/src/researchCandleAggregation.ts": "8daa1c2797030123f0210f46a92c9f318f0650020a79c686eff08b0abfbc303d",
+    "apps/cloud/src/researchExperimentComposition.ts": "ce249a478ba804b3a2c930671e246ed88c4167d16bdc8391d1a5e93ee8f5f373",
+    "packages/storage/src/researchCandleStore.ts": "fecafb766628d83e8029452eb60afb3af06dcc90cefe24f427c4aa7781013187",
+    "packages/storage/src/researchDatasetManifest.ts": "73b5bfb27abfcccb14a6b69cded753bc8a00b9cf64807fa1c5c63620d8dcdb00",
+    "tests/research-experiment-composition.test.js": "1e218f8f26b3c8b30d5c210d3b141826728d9452621b91387df7b2cc4b695906"
+  },
+  "provenanceChangeNote": {
+    "file": "apps/cloud/src/closedCandleAggregator.ts",
+    "change": "the mixed observation provenance guard now rejects mixed source and sourceFingerprint (fail closed) while no longer requiring all observations to share one evidenceFingerprintSha256",
+    "rationale": "a canonical dataset materialized from several evidence receipts legitimately carries per-observation evidence fingerprints; requiring a single value made multi-receipt materialization impossible while the data source identity guard stayed strict",
+    "baseline": "current protected main carries no mixed-provenance guard in this function at all, so the resulting state on this branch is stricter than main, not weaker",
+    "reviewWarranted": true
+  },
+  "review": { "status": "PENDING", "authoritative": false },
+  "audit": { "status": "PENDING" },
+  "release": { "status": "PENDING" },
+  "exactHeadCi": { "status": "PENDING", "note": "recorded as pending on purpose; verified on GitHub against the pushed head, never pre-claimed here" },
+  "latestMainRuntime": { "status": "PENDING" },
+  "VERIFIED": false,
+  "PERFORMANCE_IMPROVEMENT": "UNPROVEN",
+  "AUTOPILOT_VERIFIED_COMPLETION_LOOP": false,
+  "safety": "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
+}

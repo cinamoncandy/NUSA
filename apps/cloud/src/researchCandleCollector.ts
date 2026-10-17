@@ -20,6 +20,7 @@ export interface ObservationReader {
 export interface CandleSink {
   latestCloseTime(market: string, intervalMs: number): number | undefined;
   append(market: string, intervalMs: number, candles: readonly StoredResearchCandle[]): number;
+  appendWithMaterial?: (market: string, intervalMs: number, candles: readonly StoredResearchCandle[], material: { readonly source: string; readonly sourceFingerprint?: string; readonly evidenceFingerprintSha256?: string; readonly missingBuckets: number; readonly incompleteBuckets: number; readonly rejectedObservations: number }) => number;
 }
 
 export interface MarketCollectionResult {
@@ -58,7 +59,9 @@ export function collectClosedCandles(input: {
       const fresh = aggregated.candles
         .filter((candle) => latest == null || candle.timestamp > latest)
         .map((candle): StoredResearchCandle => ({ closeTimeMs: candle.timestamp, open: candle.open, high: candle.high, low: candle.low, close: candle.close }));
-      const recorded = fresh.length === 0 ? 0 : input.sink.append(market, intervalMs, fresh);
+      const recorded = fresh.length === 0 ? 0 : input.sink.appendWithMaterial == null
+        ? input.sink.append(market, intervalMs, fresh)
+        : input.sink.appendWithMaterial(market, intervalMs, fresh, { source: aggregated.source ?? "", ...(aggregated.sourceFingerprint == null ? {} : { sourceFingerprint: aggregated.sourceFingerprint }), ...(aggregated.evidenceFingerprintSha256 == null ? {} : { evidenceFingerprintSha256: aggregated.evidenceFingerprintSha256 }), missingBuckets: aggregated.missingBuckets, incompleteBuckets: aggregated.incompleteBuckets, rejectedObservations: aggregated.rejectedObservations });
       return Object.freeze({ market, status: "COLLECTED", recorded, incompleteBuckets: aggregated.incompleteBuckets, missingBuckets: aggregated.missingBuckets, rejectedObservations: aggregated.rejectedObservations });
     } catch (error) {
       const code = typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "COLLECTION_FAILED";

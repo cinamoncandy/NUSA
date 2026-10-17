@@ -46,11 +46,14 @@ export function parseUpbitMinuteCandles(raw: unknown, market: string): ParsedCan
     const high = o.high_price;
     const low = o.low_price;
     const close = o.trade_price;
+    const volume = o.candle_acc_trade_volume;
+    const hasVolume = volume !== undefined && volume !== null;
     if (o.market !== market || !Number.isSafeInteger(startMs) || startMs <= 0 || startMs % MINUTE_MS !== 0
       || !positive(open) || !positive(high) || !positive(low) || !positive(close)
+      || (hasVolume && (typeof volume !== "number" || !Number.isFinite(volume) || volume < 0))
       || high < Math.max(open, close, low) || low > Math.min(open, close, high)) { rejected += 1; continue; }
     oldest = oldest === undefined ? startMs : Math.min(oldest, startMs);
-    candles.push(Object.freeze({ closeTimeMs: startMs + MINUTE_MS, open, high, low, close }));
+    candles.push(Object.freeze({ closeTimeMs: startMs + MINUTE_MS, open, high, low, close, ...(hasVolume ? { volume } : {}) }));
   }
   candles.sort((a, b) => a.closeTimeMs - b.closeTimeMs);
   return Object.freeze({ candles: Object.freeze(candles), rejected, oldestStartMs: oldest });
