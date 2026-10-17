@@ -1,0 +1,60 @@
+id: WO-OPS-20261016-PERIOD-DISPOSITION
+title: "Preserve immutable incomplete period disposition in the canonical pending store"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 2589
+related_issues: [1605]
+base_branch: main
+base_commit: 67630b806996a0774fa41d772e61de6192493a84
+implementation_branch: codex/paper-period-disposition-20261016
+authority_impact: paper_persistence_contract
+objective: "Add an atomic, replay-safe INELIGIBLE pending-period storage contract without fabricating realized performance or activating runtime retirement."
+owner_authorization: "2026-10-16 integrated master sections 8-10: reuse canonical disposition or add the minimum contract if absent."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing pending-period repository using a versioned immutable terminal envelope; no new ledger, scheduler, engine or table. Original payload and checksum survive. Producer/scheduler activation requires accepted contract and #2741 runtime acceptance."
+  references:
+    - packages/storage/src/persistedPaperPeriodStore.ts
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+scope:
+  - existing_pending_store_terminal_envelope_and_atomic_successor_contract
+  - preserve_original_payload_checksum_and_bounded_failure_identity
+  - restart_replay_CAS_corruption_and_rollback_tests
+prohibited:
+  - runtime_retirement_activation_in_this_increment
+  - direct_runtime_database_mutation
+  - historical_fill_cost_or_lineage_rewrite
+  - fabricated_performance_or_qualification
+  - live_authority_or_self_approval
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - terminal_history_is_immutable_and_excluded_from_realized_performance
+  - disposition_and_successor_commit_atomically_or_neither_does
+  - restart_and_replay_preserve_exact_receipt_without_duplicates
+  - stale_conflicting_or_malformed_evidence_fails_closed
+  - old_schema_recovery_rejects_terminal_envelope
+validation:
+  commands:
+    - pnpm run build
+    - pnpm run typecheck
+    - pnpm run validate:full
+    - pnpm run lint
+    - pnpm run security:gate
+  focused: PASS_92_STORAGE_PRODUCER_READER_ROLLOVER_TESTS
+  latest_main_rebase_focused: PASS_124_STORAGE_PRODUCER_READER_ROLLOVER_TESTS
+  strict_build: PASS_MANAGED_FULL_TYPESCRIPT_PROGRAM
+  root_and_mobile_typecheck: PASS
+  validate_full: PASS
+  lint: PASS_24_EXISTING_WARNINGS
+  security_gate: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL
+  exact_head_ci: PENDING_REBASED_HEAD
+  latest_main_runtime: "67630b806996a0774fa41d772e61de6192493a84 health/readiness PASS after restart/replay; 170/170 unique fills; 169 attributed and 1 immutable INCOMPLETE cost fill; 21 realized periods, 0 learning cycles. No database mutation."
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+next: "Complete latest-main focused validation and exact-head CI, then fresh non-author contract review/Audit/Release before a separately scoped producer/reader/scheduler activation."
