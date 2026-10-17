@@ -82,8 +82,23 @@ describe("10X-S canonical registry", () => {
         assert.equal(definition.criteria.CANONICAL_ENTRYPOINT, true);
       }
       for (const criterion of LEVEL_10_CRITERIA.filter((item) => item !== "CANONICAL_ENTRYPOINT")) {
-        assert.equal(definition.criteria[criterion], false, `${definition.stage}:${criterion}`);
-        assert.deepEqual(definition.criterionEvidence[criterion], [], `${definition.stage}:${criterion}`);
+        const qualificationCriterion = qualification.criteria[criterion];
+        const verified = qualificationCriterion.status === "VERIFIED";
+        assert.equal(
+          definition.criteria[criterion],
+          verified,
+          `${definition.stage}:${criterion} must reflect qualification status`
+        );
+        assert.deepEqual(
+          definition.criterionEvidence[criterion],
+          qualificationCriterion.evidenceRefs,
+          `${definition.stage}:${criterion} evidence must come from the qualification record`
+        );
+        if (verified) {
+          assert.equal(qualificationCriterion.evidenceRefs.length > 0, true, `${definition.stage}:${criterion}`);
+        } else {
+          assert.deepEqual(qualificationCriterion.evidenceRefs, [], `${definition.stage}:${criterion}`);
+        }
       }
       for (const ref of definition.tenXSEvidenceRefs) assert.equal(existsSync(resolve(process.cwd(), ref)), true, ref);
     }
