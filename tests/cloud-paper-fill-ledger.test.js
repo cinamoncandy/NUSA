@@ -93,13 +93,19 @@ test("restart with an existing canonical fill ledger does not rescan all account
 
     const reopenedDb = new SqliteDatabase(f.databasePath);
     let nowCalls = 0;
-    const now = () => nowCalls++ === 0 ? 1_000 : 121_001;
+    let constructorPhase = true;
+    const now = () => {
+      nowCalls += 1;
+      if (constructorPhase) return nowCalls === 1 ? 1_000 : 121_001;
+      return 1_001;
+    };
     const reopenedRepository = new SqliteCloudPaperAccountRepository(reopenedDb, {
       ownerId: "restart-writer",
       now,
       leaseDurationMs: 30_000,
       heartbeatIntervalMs: 10_000,
     });
+    constructorPhase = false;
     try {
       assert.equal(nowCalls, 1);
       assert.equal(reopenedRepository.loadFills().length, 1);

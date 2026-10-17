@@ -357,7 +357,13 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     const ledgerCount = Number((this.db.connection.prepare(
       "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
     ).get(this.accountId) as Record<string, number | bigint>).count);
-    if (ledgerCount !== 0) return;
+    if (ledgerCount !== 0) {
+      // Preserve constructor-time fail-closed integrity checks without replaying the
+      // full account-history projection. This validates sequence, identity and checksum
+      // for canonical fill truth while keeping startup work bounded to the fill ledger.
+      this.readFillLedgerRows();
+      return;
+    }
 
     const sourceState = JSON.parse(String(row.state_json)) as PaperAccountState;
     const sourceChecksum = String(row.checksum);
@@ -579,7 +585,13 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     const ledgerCount = Number((this.db.connection.prepare(
       "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
     ).get(this.accountId) as Record<string, number | bigint>).count);
-    if (ledgerCount !== 0) return;
+    if (ledgerCount !== 0) {
+      // Preserve constructor-time fail-closed integrity checks without replaying the
+      // full account-history projection. This validates sequence, identity and checksum
+      // for canonical fill truth while keeping startup work bounded to the fill ledger.
+      this.readFillLedgerRows();
+      return;
+    }
     const states = this.loadHistory();
     const fillsById = new Map<string, PaperFillRecord>();
     for (const state of states) {
