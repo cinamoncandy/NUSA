@@ -2,6 +2,7 @@ import { buildMobileDashboardResponse } from "./mobileDashboardApi";
 import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloudRuntimeConfig";
+import { evolutionLedgerRetentionGuard } from "./closedLearningEvolutionLedgerRepository";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
@@ -300,6 +301,8 @@ export function startCloudRuntime(
       // Thirty nominal hourly days need 720 records; the independent covered-day gate is unchanged.
       // Keep the same bounded budget after cadence changes instead of shrinking hourly history to 100.
       maximumPeriods: 1_000,
+      // Retention may never delete a realized period a surviving ledger record cites (v2 M1/A7).
+      retentionGuard: evolutionLedgerRetentionGuard(new SqliteEvolutionLearningLedger(durableRepository.database())),
       onLifecycleEvent: (event) => paperLearningRecorder.record({
         cycleId: `paper-period:${event.periodId}`,
         stage: event.type,

@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { SqliteDatabase } from "./index";
-import { SqlitePersistedPaperPeriodStore, type PersistedPaperPendingPeriod, type PaperPendingIneligibilityReason } from "./persistedPaperPeriodStore";
+import { SqlitePersistedPaperPeriodStore, type PersistedPaperPendingPeriod, type PaperPendingIneligibilityReason, type RealizedPeriodRetentionGuard } from "./persistedPaperPeriodStore";
+
+// Retention is reference-aware by signature (v2 M1/A7); this fixture cites no periods.
+const retentionGuard: RealizedPeriodRetentionGuard = { referencedRecordIds: () => new Set<string>() };
 
 // Isolated contract fixtures, never runtime/canary evidence.
 const hash = (s: string): string => createHash("sha256").update(s).digest("hex");
@@ -37,7 +40,7 @@ test("ineligible receipt preserves exact original bytes and cannot enter realize
   assert.deepEqual(store.listPending(), [input.successor]);
   assert.deepEqual(store.list(), []);
   assert.equal(JSON.parse(String(raw(db).payload_json)).schemaVersion, 2); // Old producer validatePlan(schemaVersion=1) rejects rollback.
-  store.prune(1);
+  store.prune(1, retentionGuard);
   assert.deepEqual(store.listPendingDispositions(), [receipt]);
 }));
 
