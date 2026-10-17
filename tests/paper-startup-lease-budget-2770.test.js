@@ -86,13 +86,10 @@ function gatewayFor(database) {
 
 // ---- startup ordering ------------------------------------------------------------------------
 
-test("AI durability initialization completes before the PAPER writer lease is acquired", () => {
-  const durability = runtimeSource.indexOf("createCloudAiRuntime(env)");
-  const lease = runtimeSource.indexOf("new SqliteCloudPaperAccountRepository(");
-  assert.ok(durability > 0, "the AI durability phase must exist in the composition root");
-  assert.ok(lease > durability, "durability must finish before the lease, or it can outlast the lease TTL and starve the heartbeat");
-});
-
+// Cloud AI durability before the lease is asserted by tests/paper-writer-lease-liveness.test.js
+// (merged #2779), which also pins the runtime composition argument. What that test does not cover
+// is the third link in the same chain: the closed-learning scheduler must not start ticking until
+// the runtime it schedules against is up behind the lease.
 test("the listener and the scheduler both start only after the writer lease is held", () => {
   const lease = runtimeSource.indexOf("new SqliteCloudPaperAccountRepository(");
   const listener = runtimeSource.indexOf("startCloudRuntime(");
