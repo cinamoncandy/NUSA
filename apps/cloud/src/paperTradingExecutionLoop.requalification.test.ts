@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const EXPECTED_PAPER_ADAPTER_BLOB = "94a0a76e2c3142c1c4828d831dbb47050b8c7285";
+const EXPECTED_PAPER_ADAPTER_BLOB = "9866bead84fec09546f7431eacd6763d7713cb9a";
 
 function gitBlobSha(content: string): string {
   // Git stores this repository's TypeScript sources with LF. Windows checkout may materialize
