@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { canonicalResearchJson } from "../../../../packages/contracts/src/researchRuntime";
+import { canonicalResearchJson, type ResearchComparisonEvidence, type ResearchExecutionLifecycle } from "../../../../packages/contracts/src/researchRuntime";
 import { createResearchBenchmarkScorecard, type ResearchBenchmarkPolicy, type ResearchBenchmarkSlice } from "./researchBenchmarkScorecard";
 import type { ResearchExperimentResult } from "./researchDataset";
 import type { PboCscvEvidence } from "./researchSearchAdjustedEvidence";
@@ -153,6 +153,19 @@ export interface ResearchRunProvenance {
     readonly regimeSha256: string;
     readonly oosObservationSha256: string;
   }>;
+  /** Durable execution binding, derived from the canonical evidence and lifecycle ledger. */
+  readonly boundExecution?: Readonly<{
+    readonly evaluationId: string;
+    readonly precommitFingerprint: string;
+    readonly executionId: string;
+    readonly executionSequence: number;
+    readonly actualInputFingerprint: string;
+    readonly outputFingerprint: string;
+    readonly sourceCommitSha: string;
+    readonly datasetId: string;
+    readonly datasetContentSha256: string;
+    readonly validationPolicy: string;
+  }>;
   readonly searchOverfittingIdentity?: Readonly<{
     readonly evidenceSha256: string;
     readonly probabilityBacktestOverfitting: number;
@@ -184,6 +197,38 @@ const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function hashCanonical(value: unknown): string {
   return createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
+}
+
+/** Derives the League execution binding from durable records; caller-supplied assertions are not accepted. */
+export function deriveBoundResearchExecution(
+  evidence: ResearchComparisonEvidence,
+  lifecycle: readonly ResearchExecutionLifecycle[],
+): ResearchRunProvenance["boundExecution"] {
+  const start = lifecycle.find((record) => record.stage === "EXECUTION_START");
+  const output = lifecycle.find((record) => record.stage === "EXECUTION_OUTPUT");
+  const provenance = evidence.provenance;
+  if (start == null || output == null || provenance == null
+    || start.executionId !== output.executionId
+    || start.precommitFingerprint !== output.precommitFingerprint
+    || start.inputFingerprint !== output.inputFingerprint
+    || output.sequence <= start.sequence
+    || evidence.precommitFingerprint !== start.precommitFingerprint
+    || evidence.executionInputFingerprint !== start.inputFingerprint
+    || output.payloadFingerprint !== hashCanonical(evidence)) {
+    throw new ResearchRunLeagueBridgeError("BOUND_EXECUTION_MISMATCH", "durable execution lifecycle does not bind the supplied evidence");
+  }
+  return freeze({
+    evaluationId: evidence.evaluationId,
+    precommitFingerprint: start.precommitFingerprint.toLowerCase(),
+    executionId: start.executionId,
+    executionSequence: output.sequence,
+    actualInputFingerprint: start.inputFingerprint.toLowerCase(),
+    outputFingerprint: output.payloadFingerprint.toLowerCase(),
+    sourceCommitSha: provenance.sourceCommitSha.toLowerCase(),
+    datasetId: provenance.datasetId,
+    datasetContentSha256: provenance.datasetContentSha256.toLowerCase(),
+    validationPolicy: provenance.splitIdentity,
+  });
 }
 
 /** Existing schema1 fingerprint material, shared by its producer and admission boundary. */
@@ -222,6 +267,8 @@ export function buildResearchRunLeague(
     readonly robustnessEvidence?: ResearchRunRobustnessEvidence;
     /** Explicit, read-only hypothesis provenance for this research run. */
     readonly hypothesis?: ResearchHypothesis;
+    /** Optional binding derived by deriveBoundResearchExecution from durable records. */
+    readonly boundExecution?: ResearchRunProvenance["boundExecution"];
   } = {},
 ): ResearchRunLeagueResult {
   if (candidates.length === 0) {
@@ -684,6 +731,7 @@ export function buildResearchRunLeague(
     candidateBindings,
     benchmarkIdentity,
     evidenceIdentity,
+    ...(options.boundExecution == null ? {} : { boundExecution: options.boundExecution }),
     ...(searchOverfittingIdentity == null ? {} : { searchOverfittingIdentity }),
   };
   const runFingerprintSha256 = canonicalResearchRunFingerprint({

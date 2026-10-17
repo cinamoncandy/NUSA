@@ -29,6 +29,8 @@ export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
 export { SqliteRiskSafetyPersistence } from "./risk-safety";
 export { SqliteResearchEvaluationLedger } from "./researchEvaluationLedger";
 export type { ResearchEvaluationDatabase } from "./researchEvaluationLedger";
+export { SqliteResearchPrecommitRepository } from "./researchPrecommit";
+export type { ResearchPrecommitDatabase } from "./researchPrecommit";
 export { SqliteResearchHypothesisLifecycleRepository } from "./researchHypothesisLifecycle";
 export type { ResearchHypothesisLifecycleDatabase } from "./researchHypothesisLifecycle";
 export { SqliteCandidatePromotionRepository } from "./candidatePromotionRepository";
@@ -42,6 +44,7 @@ export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, P
 export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
 export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
 export { SqliteResearchCandleStore, ResearchCandleStoreError } from "./researchCandleStore";
+export { SqliteResearchDatasetManifestStore, ResearchDatasetManifestStoreError } from "./researchDatasetManifest";
 export { SqliteFuturesPublicStore, type FuturesMarkRow, type FuturesFundingRow, type FuturesKlineRow } from "./futuresPublicStore";
 export { SqliteMarketMicrostructureStore, MarketMicrostructureStoreError, type StoredOrderBookSample, type StoredTradeTick } from "./marketMicrostructureStore";
 export { SqliteResearchHoldoutLedger, ResearchHoldoutLedgerError } from "./researchHoldoutLedger";
@@ -524,6 +527,7 @@ CREATE TABLE IF NOT EXISTS research_closed_candles (
   high REAL NOT NULL CHECK (high > 0),
   low REAL NOT NULL CHECK (low > 0),
   close REAL NOT NULL CHECK (close > 0),
+  volume REAL CHECK (volume IS NULL OR volume >= 0),
   checksum TEXT NOT NULL,
   PRIMARY KEY (market, interval_ms, close_time_ms)
 );

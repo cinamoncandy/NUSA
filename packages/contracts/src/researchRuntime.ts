@@ -26,6 +26,7 @@ export interface ResearchInputSnapshot {
   readonly marketData: readonly ResearchMarketPoint[];
   readonly startingCash: number;
   readonly startingPositionQuantity: number;
+  readonly precommitFingerprint?: string;
   readonly provenance?: import("./researchHardening").ResearchProvenance;
   readonly costEvidence?: ResearchCostEvidence;
 }
@@ -67,14 +68,27 @@ export interface ResearchComparisonEvidence {
   readonly reason: string;
   readonly productionMutationAllowed: false;
   readonly promotionAllowed: false;
+  readonly precommitFingerprint?: string;
+  readonly executionInputFingerprint?: string;
   readonly provenance?: import("./researchHardening").ResearchProvenance;
   readonly costEvidence?: ResearchCostEvidence;
+}
+
+export interface ResearchExecutionLifecycle {
+  readonly stage: "EXECUTION_START" | "EXECUTION_OUTPUT";
+  readonly executionId: string;
+  readonly precommitFingerprint: string;
+  readonly inputFingerprint: string;
+  readonly sequence: number;
+  readonly payloadFingerprint: string;
 }
 
 export interface ResearchEvaluationLedger {
   append(record: ResearchComparisonEvidence): void;
   list(): readonly ResearchComparisonEvidence[];
   readonly headHash?: () => string;
+  readonly appendLifecycle?: (record: ResearchExecutionLifecycle) => void;
+  readonly lifecycle?: (executionId: string) => readonly ResearchExecutionLifecycle[];
 }
 
 export function canonicalResearchJson(value: unknown): string {
