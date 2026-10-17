@@ -527,7 +527,6 @@ CREATE TABLE IF NOT EXISTS research_closed_candles (
   high REAL NOT NULL CHECK (high > 0),
   low REAL NOT NULL CHECK (low > 0),
   close REAL NOT NULL CHECK (close > 0),
-  volume REAL CHECK (volume IS NULL OR volume >= 0),
   checksum TEXT NOT NULL,
   PRIMARY KEY (market, interval_ms, close_time_ms)
 );
@@ -601,4 +600,6 @@ CREATE TABLE IF NOT EXISTS research_futures_klines (
   volume REAL NOT NULL CHECK (volume >= 0),
   PRIMARY KEY (symbol, interval, open_time_ms)
 );
+` }, { id: "031_research_closed_candles_volume", sql: `
+ALTER TABLE research_closed_candles ADD COLUMN volume REAL CHECK (volume IS NULL OR volume >= 0);
 ` }];

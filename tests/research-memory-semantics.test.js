@@ -255,7 +255,7 @@ test("SQLite owner preserves 021/022 semantic rows through later migrations and 
   const file = path.join(dir, "memory.sqlite");
   try {
     let db = new SqliteDatabase(file);
-    assert.equal(db.migrationResult.currentVersion, "030_research_futures_public");
+    assert.equal(db.migrationResult.currentVersion, "031_research_closed_candles_volume");
     const migrations = db.connection.prepare(
       "SELECT id FROM schema_migrations WHERE id IN (?, ?) ORDER BY id ASC"
     ).all("021_research_factory_decision_history", "022_research_memory_semantic_overlay");
