@@ -111,6 +111,7 @@ test("writer lease recovery is diagnosis-scoped, fail-closed, and bounded to one
 
 test("activation owns a bounded post-readiness stability soak and disk guard", () => {
   assert.match(wrapper, /readonly ROOT_DISK_GUARD_PERCENT=92/);
+  assert.match(wrapper, /readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912/);
   assert.match(wrapper, /readonly POST_ACTIVATION_SOAK_SECONDS=180/);
   assert.match(wrapper, /readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10/);
 
@@ -118,6 +119,17 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   const diskEnd = wrapper.indexOf("\n}\n", diskStart) + 2;
   const disk = wrapper.slice(diskStart, diskEnd);
   assert.match(disk, /df -P \/|ROOT_DISK_GUARD_PERCENT/);
+
+  const stageGateStart = wrapper.indexOf("assert_stage_disk_headroom()");
+  const stageGateEnd = wrapper.indexOf("\n}\n", stageGateStart) + 2;
+  const stageGate = wrapper.slice(stageGateStart, stageGateEnd);
+  assert.match(stageGate, /du -sb/);
+  assert.match(stageGate, /ROOT_DISK_STAGE_MARGIN_BYTES/);
+  assert.match(stageGate, /ROOT_DISK_GUARD_PERCENT/);
+
+  const stageCaseStart = wrapper.indexOf("  stage)");
+  const stageCaseEnd = wrapper.indexOf("\n\n  switch)", stageCaseStart);
+  assert.match(wrapper.slice(stageCaseStart, stageCaseEnd), /assert_stage_disk_headroom "\$source_tree"/);
 
   const preflightStart = wrapper.indexOf("  preflight)");
   const preflightEnd = wrapper.indexOf("\n\n  install-units)", preflightStart);
@@ -140,11 +152,7 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(activate, /stability_ready=false/);
   assert.match(activate, /rollback_and_restore/, "failed soak must stay inside the activation rollback boundary");
 
-  const stageStart = workflow.indexOf("Stage the immutable release directory");
-  const cleanupStart = workflow.indexOf("Remove runner-owned release scratch before preflight");
-  const preflightWorkflowStart = workflow.indexOf("Preflight host and security contract");
-  assert.ok(stageStart < cleanupStart && cleanupStart < preflightWorkflowStart, "runner scratch must be freed before disk-gated preflight");
-  assert.match(workflow, /Refusing unexpected release scratch path/);
+  assert.doesNotMatch(workflow.slice(workflow.indexOf("  release:")), /rm -rf|find .* -delete/, "workflow deletion remains forbidden; disk admission belongs to the bounded helper");
 });
 
 test("every privileged action goes through the one wrapper command", () => {
