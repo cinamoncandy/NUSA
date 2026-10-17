@@ -27,6 +27,7 @@ readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
 readonly RELEASE_RETENTION=2
 readonly ROOT_DISK_GUARD_PERCENT=92
+readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912
 readonly POST_ACTIVATION_SOAK_SECONDS=180
 readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10
 
@@ -198,6 +199,20 @@ previous_release() {
   readlink -f "$path" 2>/dev/null || true
 }
 
+assert_stage_disk_headroom() {
+  local source_tree="$1"
+  local total_bytes available_bytes source_bytes guard_free_bytes required_bytes
+  total_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $2 }')"
+  available_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $4 }')"
+  source_bytes="$(du -sb -- "$source_tree" | awk '{ print $1 }')"
+  [[ "$total_bytes" =~ ^[0-9]+$ && "$available_bytes" =~ ^[0-9]+$ && "$source_bytes" =~ ^[0-9]+$ ]] \
+    || die "could not determine stage disk headroom"
+  guard_free_bytes=$(( (total_bytes * (100 - ROOT_DISK_GUARD_PERCENT) + 99) / 100 ))
+  required_bytes=$(( source_bytes + guard_free_bytes + ROOT_DISK_STAGE_MARGIN_BYTES ))
+  [ "$available_bytes" -ge "$required_bytes" ] \
+    || die "insufficient root disk headroom for stage: available=$available_bytes required=$required_bytes source=$source_bytes"
+}
+
 assert_root_disk_headroom() {
   local used_percent
   used_percent="$(df -P / | awk 'NR == 2 { gsub(/%/, "", $5); print $5 }')"
@@ -316,6 +331,7 @@ case "$verb" in
     validate_sha "${1:-}"
     source_tree="${2:-}"
     [ -d "$source_tree" ] || die "source tree is not a directory"
+    assert_stage_disk_headroom "$source_tree"
     dir="$(release_dir "$1")"
     # A staged release is immutable once `current` points at it. Replacing the active release
     # would mutate what the running service is executing.
