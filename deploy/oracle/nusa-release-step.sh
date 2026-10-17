@@ -30,6 +30,9 @@ readonly ROOT_DISK_GUARD_PERCENT=92
 readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912
 readonly POST_ACTIVATION_SOAK_SECONDS=180
 readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10
+readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=15000
+readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000
+readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
 
@@ -279,9 +282,14 @@ prove_post_activation_stability() {
     systemctl is-active --quiet "$SERVICE" || return 1
     systemctl is-active --quiet "$AUTOPILOT_SERVICE" || return 1
 
-    # The initial activation readiness owns the long cold-start budget.  Soak checks are deliberately
-    # short: once accepted as ready, any later loss of the listener/lease must fail closed quickly.
-    NUSA_READY_STARTUP_WAIT_MS=5000 NUSA_READY_TIMEOUT_MS=2000 \
+    # The initial activation readiness owns the long cold-start budget.  Soak /ready checks stay
+    # deliberately short so a real listener/lease loss fails closed quickly.  The two non-mutating
+    # mobile-owner route probes get a separate bounded proof window so one transient event-loop stall
+    # cannot consume the entire /ready budget and trigger a false rollback after readiness passed.
+    NUSA_READY_STARTUP_WAIT_MS=5000 \
+      NUSA_READY_ROUTE_PROOF_WAIT_MS="$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS" \
+      NUSA_READY_TIMEOUT_MS="$POST_ACTIVATION_READY_TIMEOUT_MS" \
+      NUSA_READY_RETRY_DELAY_MS="$POST_ACTIVATION_READY_RETRY_DELAY_MS" \
       node "$(script_in "$dir" oracle-readiness-check.js)" || return 1
     NUSA_AUTOPILOT_READY_TIMEOUT_MS=5000 \
       node "$(script_in "$dir" autopilot-readiness.js)" || return 1

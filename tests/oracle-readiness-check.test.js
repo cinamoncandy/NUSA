@@ -195,11 +195,14 @@ test("Oracle readiness rejects a stale release that serves health but omits a mo
 });
 
 
-test("Oracle readiness uses one absolute startup deadline across readiness and owner-route probes", () => {
+test("Oracle readiness separates the long startup deadline from a bounded owner-route proof deadline", () => {
   const source = fs.readFileSync(script, "utf8");
   assert.equal(source.split("Date.now() + startupWaitMs").length - 1, 1);
+  assert.equal(source.split("Date.now() + routeProofWaitMs").length - 1, 1);
   assert.ok(source.includes("awaitReadiness(deadline)"));
-  assert.ok(source.includes("awaitExpectedStatus(path, 405, deadline)"));
+  assert.ok(source.includes("awaitExpectedStatus(path, 405, routeDeadline)"));
+  assert.match(source, /NUSA_READY_ROUTE_PROOF_WAIT_MS \|\| 15_000/);
+  assert.match(source, /routeProofWaitMs > 30_000/);
   assert.ok(source.includes('requestStatus("/ready"'));
 });
 
@@ -233,6 +236,7 @@ test("Oracle readiness retries a transiently blocked mobile owner route within t
     const result = await runReadiness(envFile, {
       NUSA_READY_TIMEOUT_MS: "30",
       NUSA_READY_STARTUP_WAIT_MS: "300",
+      NUSA_READY_ROUTE_PROOF_WAIT_MS: "300",
       NUSA_READY_RETRY_DELAY_MS: "20",
     });
     assert.equal(result.status, 0, result.stderr);
@@ -241,6 +245,49 @@ test("Oracle readiness retries a transiently blocked mobile owner route within t
       { path: "/v1/mobile/session/password", status: 405 },
       { path: "/v1/mobile/session/password/change", status: 405 },
     ]);
+  } finally {
+    await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("owner-route proof survives one timeout even when /ready consumed almost all startup budget", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-separate-route-budget-"));
+  let passwordCalls = 0;
+  const server = http.createServer((request, response) => {
+    if (request.url === "/ready") {
+      setTimeout(() => {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true, checks: { database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true } }));
+      }, 180);
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password") {
+      passwordCalls += 1;
+      if (passwordCalls === 1) return;
+      response.writeHead(405);
+      response.end();
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password/change") {
+      response.writeHead(405);
+      response.end();
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+  const port = await listen(server);
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, {
+      NUSA_READY_TIMEOUT_MS: "220",
+      NUSA_READY_STARTUP_WAIT_MS: "250",
+      NUSA_READY_ROUTE_PROOF_WAIT_MS: "500",
+      NUSA_READY_RETRY_DELAY_MS: "20",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(passwordCalls >= 2);
   } finally {
     await close(server);
     fs.rmSync(root, { recursive: true, force: true });
@@ -265,6 +312,7 @@ test("Oracle readiness still rejects a mobile owner route that never reaches 405
     const result = await runReadiness(envFile, {
       NUSA_READY_TIMEOUT_MS: "25",
       NUSA_READY_STARTUP_WAIT_MS: "100",
+      NUSA_READY_ROUTE_PROOF_WAIT_MS: "120",
       NUSA_READY_RETRY_DELAY_MS: "10",
     });
     assert.notEqual(result.status, 0);
