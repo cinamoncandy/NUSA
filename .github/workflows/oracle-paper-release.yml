@@ -149,15 +149,6 @@ jobs:
         if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" stage "$SOURCE_SHA" "$RELEASE_TREE"
 
-      - name: Remove runner-owned release scratch before preflight
-        if: steps.source_fresh.outputs.fresh == 'true'
-        run: |
-          set -euo pipefail
-          EXPECTED_TREE="$RUNNER_TEMP/nusa-release-tree-$GITHUB_RUN_ID"
-          [ "$RELEASE_TREE" = "$EXPECTED_TREE" ] || { echo "::error::Refusing unexpected release scratch path: $RELEASE_TREE"; exit 1; }
-          rm -rf -- "$EXPECTED_TREE"
-          rm -f -- "$RUNNER_TEMP/nusa-release.tar.gz"
-
       - name: Preflight host and security contract
         if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" preflight "$SOURCE_SHA"
