@@ -32,8 +32,10 @@ if (process.env.NUSA_DRY_RUN === "1") {
 
 const timeoutMs = Number(process.env.NUSA_READY_TIMEOUT_MS || 5000);
 const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 300_000);
+const routeProofWaitMs = Number(process.env.NUSA_READY_ROUTE_PROOF_WAIT_MS || 15_000);
 const retryDelayMs = Number(process.env.NUSA_READY_RETRY_DELAY_MS || 1_000);
 if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 300_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 300000]");
+if (!Number.isSafeInteger(routeProofWaitMs) || routeProofWaitMs < 1 || routeProofWaitMs > 30_000) throw new Error("NUSA_READY_ROUTE_PROOF_WAIT_MS must be an integer in [1, 30000]");
 if (!Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1 || retryDelayMs > 5_000) throw new Error("NUSA_READY_RETRY_DELAY_MS must be an integer in [1, 5000]");
 const requestStatus = (path, headers = {}, deadline = Number.POSITIVE_INFINITY) => new Promise((resolve, reject) => {
   const configuredTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000;
@@ -105,7 +107,9 @@ const awaitExpectedStatus = async (path, expectedStatus, deadline) => {
     try {
       const response = await requestStatus(path, {}, deadline);
       if (response.statusCode === expectedStatus) return { ok: true, statusCode: response.statusCode, attempts };
-      last = { kind: "response", actualStatus: response.statusCode };
+      // A concrete HTTP response proves the listener handled this route. A wrong status is a real
+      // contract failure (404 previously shipped to mobile), not a transport stall, so fail fast.
+      return { ok: false, attempts, last: { kind: "response", actualStatus: response.statusCode } };
     } catch (error) {
       last = { kind: "transport", message: error instanceof Error ? error.message : "route probe failed" };
     }
@@ -180,8 +184,10 @@ function classifyStartupPhase(supervisor, listening) {
 }
 
 const run = async () => {
-  // One absolute startup deadline covers /ready and every required owner-route probe.
-  // Later probes consume only the remaining budget; they never reset the clock.
+  // The long startup deadline is exclusively for authenticated /ready.  Once /ready is healthy,
+  // route existence is a separate, bounded non-mutating proof.  Sharing one deadline caused a
+  // real post-activation false rollback when /ready consumed most of a short soak budget and the
+  // first owner-route probe hit one transient transport timeout.
   const deadline = Date.now() + startupWaitMs;
   const readiness = await awaitReadiness(deadline);
   if (!readiness.healthy) {
@@ -194,13 +200,13 @@ const run = async () => {
   }
 
   const routeChecks = [];
+  const routeDeadline = Date.now() + routeProofWaitMs;
   for (const path of REQUIRED_MOBILE_OWNER_AUTH_ROUTES) {
     // GET is intentionally used as a non-mutating route-presence probe. The canonical handlers
     // reject it with 405; 404 means this release is stale and cannot serve the mobile client.
-    // A freshly started 1 GB host can transiently stop servicing the event loop while bounded
-    // PAPER/Research startup work begins, so retry the exact route within the same bounded
-    // startup contract instead of treating one 5-second transport timeout as proof of absence.
-    const probe = await awaitExpectedStatus(path, 405, deadline);
+    // Both routes share one short route-proof deadline, independent of the startup deadline, so
+    // transient event-loop stalls can retry without extending the proof indefinitely.
+    const probe = await awaitExpectedStatus(path, 405, routeDeadline);
     if (!probe.ok) {
       console.error(JSON.stringify({ status: "FAIL", stage: "mobile_owner_route", route: path, expectedStatus: 405, attempts: probe.attempts, last: probe.last }));
       process.exitCode = 1;

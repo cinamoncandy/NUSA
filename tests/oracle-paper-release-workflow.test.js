@@ -123,6 +123,18 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(wrapper, /readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912/);
   assert.match(wrapper, /readonly POST_ACTIVATION_SOAK_SECONDS=180/);
   assert.match(wrapper, /readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=15000/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500/);
+
+  const routeProofWindow = Number(wrapper.match(/readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=(\d+)/)?.[1]);
+  const requestTimeout = Number(wrapper.match(/readonly POST_ACTIVATION_READY_TIMEOUT_MS=(\d+)/)?.[1]);
+  const retryDelay = Number(wrapper.match(/readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=(\d+)/)?.[1]);
+  const twoAttemptsAcrossBothOwnerRoutes = 2 * ((2 * requestTimeout) + retryDelay);
+  assert.ok(
+    routeProofWindow >= twoAttemptsAcrossBothOwnerRoutes,
+    "route proof must let both owner routes each survive one transient timeout without weakening /ready failure speed",
+  );
 
   const diskStart = wrapper.indexOf("assert_root_disk_headroom()");
   const diskEnd = wrapper.indexOf("\n}\n", diskStart) + 2;
@@ -153,6 +165,9 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(soak, /autopilot-readiness\.js/);
   assert.match(soak, /sleep "\$POST_ACTIVATION_CHECK_INTERVAL_SECONDS"/);
   assert.match(soak, /NUSA_READY_STARTUP_WAIT_MS=5000/);
+  assert.match(soak, /NUSA_READY_ROUTE_PROOF_WAIT_MS="\$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS"/);
+  assert.match(soak, /NUSA_READY_TIMEOUT_MS="\$POST_ACTIVATION_READY_TIMEOUT_MS"/);
+  assert.match(soak, /NUSA_READY_RETRY_DELAY_MS="\$POST_ACTIVATION_READY_RETRY_DELAY_MS"/);
 
   const activateStart = wrapper.indexOf("  activate)");
   const activateEnd = wrapper.indexOf("\n  readiness)", activateStart);
