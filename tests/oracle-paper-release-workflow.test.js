@@ -109,6 +109,44 @@ test("writer lease recovery is diagnosis-scoped, fail-closed, and bounded to one
   assert.doesNotMatch(recover, /DELETE|DROP|UPDATE|INSERT|\/var\/lib\/nusa/, "the privileged wrapper must delegate persistent-state safety to the canonical reset script");
 });
 
+test("activation owns a bounded post-readiness stability soak and disk guard", () => {
+  assert.match(wrapper, /readonly ROOT_DISK_GUARD_PERCENT=92/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_SOAK_SECONDS=180/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10/);
+
+  const diskStart = wrapper.indexOf("assert_root_disk_headroom()");
+  const diskEnd = wrapper.indexOf("\n}\n", diskStart) + 2;
+  const disk = wrapper.slice(diskStart, diskEnd);
+  assert.match(disk, /df -P \/|ROOT_DISK_GUARD_PERCENT/);
+
+  const preflightStart = wrapper.indexOf("  preflight)");
+  const preflightEnd = wrapper.indexOf("\n\n  install-units)", preflightStart);
+  assert.match(wrapper.slice(preflightStart, preflightEnd), /assert_root_disk_headroom/);
+
+  const soakStart = wrapper.indexOf("prove_post_activation_stability()");
+  const soakEnd = wrapper.indexOf("\n}\n", soakStart) + 2;
+  const soak = wrapper.slice(soakStart, soakEnd);
+  assert.ok(soak.length > 0);
+  assert.match(soak, /active_release_sha/);
+  assert.match(soak, /oracle-readiness-check\.js/);
+  assert.match(soak, /autopilot-readiness\.js/);
+  assert.match(soak, /sleep "\$POST_ACTIVATION_CHECK_INTERVAL_SECONDS"/);
+  assert.match(soak, /NUSA_READY_STARTUP_WAIT_MS=5000/);
+
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  readiness)", activateStart);
+  const activate = wrapper.slice(activateStart, activateEnd);
+  orderIn(activate, ["oracle-readiness-check.js", "autopilot-readiness.js", "prove_post_activation_stability", "activation accepted"]);
+  assert.match(activate, /stability_ready=false/);
+  assert.match(activate, /rollback_and_restore/, "failed soak must stay inside the activation rollback boundary");
+
+  const stageStart = workflow.indexOf("Stage the immutable release directory");
+  const cleanupStart = workflow.indexOf("Remove runner-owned release scratch before preflight");
+  const preflightWorkflowStart = workflow.indexOf("Preflight host and security contract");
+  assert.ok(stageStart < cleanupStart && cleanupStart < preflightWorkflowStart, "runner scratch must be freed before disk-gated preflight");
+  assert.match(workflow, /Refusing unexpected release scratch path/);
+});
+
 test("every privileged action goes through the one wrapper command", () => {
   const sudoCalls = workflow.match(/sudo\s+\S+/g) ?? [];
   assert.ok(sudoCalls.length > 0);
