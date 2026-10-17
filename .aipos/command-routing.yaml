@@ -107,6 +107,9 @@ command_contract:
     - P0
     - P1
     - P2
+  command_sources:
+    - .aipos/commands/2026-10-17-core-directives.yaml
+    - .aipos/commands/2026-10-17-global-futures-readiness.yaml
 
 execution_protocol:
   - recover_aipos
