@@ -119,7 +119,7 @@ sudo /opt/nusa/bin/nusa-release-step activate <full-40-char-sha>
 The switch records the prior release path and reports `readinessRequired=true`. It does not restart services itself and does not touch persistent data.
 The helper executes the staged `scripts/atomic-deploy.js`, `scripts/oracle-readiness-check.js`, and `scripts/autopilot-readiness.js`; no host-side copy of those scripts is used. After initial readiness, the same root-owned `activate` helper retains ownership for a 180-second stability soak. It repeatedly proves PAPER readiness, Autopilot readiness, systemd liveness, and exact release identity. Any failure stays inside the existing activation rollback boundary; a one-shot listener that later loses its PAPER writer lease is never accepted as `DEPLOYED`.
 
-Before privileged preflight, the workflow deletes only its own downloaded bundle and extracted runner scratch tree after the immutable release has been staged. The helper then refuses preflight when root usage is at or above the existing 92% disk-guard threshold. Persistent state, backups, and Evidence are never part of this cleanup.
+Before copying an immutable release into `/opt/nusa/releases`, the root-owned helper computes the extracted source size and requires enough free root space to complete the copy while still preserving the existing 92% disk-guard boundary plus a 512 MiB safety margin. Preflight then checks the actual post-stage root usage and refuses activation at or above 92%. The workflow never deletes host data; persistent state, backups, and Evidence are untouched.
 
 ## Acceptance check
 
