@@ -117,9 +117,8 @@ jobs:
           echo "fresh=true" >> "$GITHUB_OUTPUT"
 
       - name: Free disk by pruning superseded releases (bounded)
-        # The helper keeps the active release, the rollback release and the newest few, validates every
-        # candidate before deleting, and never touches state or backups. Without this, old releases pile
-        # up until the host fills and the backup step fails before any release change (runs 88 and 89).
+        # The helper preserves the active release and the recorded rollback release, validates every
+        # candidate before deleting any additional superseded release, and never touches state or backups.
         run: sudo "$STEP" prune
 
       - name: Download built release
