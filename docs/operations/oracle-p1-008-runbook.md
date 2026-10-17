@@ -35,8 +35,11 @@ with the `nusa-paper-host` label on this host. Run it as an unprivileged account
 `/opt/nusa/bin/nusa-release-step`, outside the release tree, and grant that runner account
 passwordless sudo for that exact helper only. A missing runner leaves dispatches queued without
 deploying anything. The workflow builds on GitHub-hosted Linux and verifies the built archive's
-SHA-256 before the host backs up, stages, switches, restarts, and checks readiness. Never build
-the repository on the 1 GB PAPER host as part of a release.
+SHA-256. Before backup or other release mutation, it also requires the installed `/opt/nusa/bin/nusa-release-step`
+to be byte-for-byte identical to `deploy/oracle/nusa-release-step.sh` from the exact reviewed bundle. If that helper
+source changed, install the reviewed root-owned helper first; never let the release tree replace its own privileged
+helper. Only then may the host back up, stage, switch, restart, and check readiness. Never build the repository on
+the 1 GB PAPER host as part of a release.
 
 Create the service user and persistent directories with the least privileges required by your host policy. The helper installs all four units from the exact staged release; do not copy units from a dirty checkout.
 
