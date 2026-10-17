@@ -570,6 +570,16 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       "SELECT 1 FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'"
     ).get(this.accountId);
     if (account == null) return;
+    // A non-empty canonical fill ledger can only be created atomically by the existing
+    // writer transactions. Re-reading every historical account snapshot here is therefore
+    // unnecessary once canonical fill truth exists, and on a large PAPER database that
+    // synchronous scan can outlive the writer lease before the event-loop heartbeat starts.
+    // loadLatest()/save() still reconcile the canonical ledger against account state and fail
+    // closed on any identity/accounting conflict.
+    const ledgerCount = Number((this.db.connection.prepare(
+      "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
+    ).get(this.accountId) as Record<string, number | bigint>).count);
+    if (ledgerCount !== 0) return;
     const states = this.loadHistory();
     const fillsById = new Map<string, PaperFillRecord>();
     for (const state of states) {
