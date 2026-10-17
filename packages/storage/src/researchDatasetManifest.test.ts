@@ -107,6 +107,13 @@ describe("research dataset manifest transitive provenance", () => {
     expectCode(() => store.persistVerified({ ...manifest, provenance: changed }, candles), "MANIFEST_CONTENT_MISMATCH");
   }));
 
+  it("fails closed when latest encounters checksum-corrupt persisted evidence", () => withStore((store, db) => {
+    const manifest = v2Manifest();
+    store.persistVerified(manifest, candles);
+    db.connection.prepare("UPDATE research_dataset_manifests SET manifest_sha256 = ? WHERE dataset_id = ?").run(sha("a"), manifest.datasetId);
+    expectCode(() => store.latest("KRW-BTC", "1m"), "MANIFEST_CHECKSUM_MISMATCH");
+  }));
+
   it("keeps legacy v1 identity and verified persistence unchanged without rewriting historical evidence", () => withStore((store) => {
     const contentSha256 = calculateResearchCandleSha256(candles);
     const manifest: HistoricalDatasetManifest = {
