@@ -295,3 +295,138 @@ test("a failed startup carries the redacted service journal tail as release evid
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+// ---- #2770 item 5: name the broken transition, not just the transport error -------------------
+
+// The script is normally spawned; load it once as a module to unit-test the classifier. Its env
+// file guard runs at load time, so point it at a throwaway file and restore the caller's value.
+const moduleRoot = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-module-"));
+const moduleEnvFile = path.join(moduleRoot, "cloud-runtime.env");
+fs.writeFileSync(moduleEnvFile, `NUSA_CLOUD_DASHBOARD_PORT=41799\nNUSA_CLOUD_DASHBOARD_HOST=127.0.0.1\nNUSA_CLOUD_DASHBOARD_TOKEN=${"z".repeat(32)}\n`);
+const inheritedEnvFile = process.env.NUSA_ENV_FILE;
+process.env.NUSA_ENV_FILE = moduleEnvFile;
+const { classifyStartupPhase, probeListener, supervisorUnitState } = require(script);
+if (inheritedEnvFile === undefined) delete process.env.NUSA_ENV_FILE; else process.env.NUSA_ENV_FILE = inheritedEnvFile;
+fs.rmSync(moduleRoot, { recursive: true, force: true });
+
+function systemctlStub(directory, state) {
+  const stub = path.join(directory, `systemctl-${state}.js`);
+  fs.writeFileSync(stub, `process.stdout.write(${JSON.stringify(`${state}\n`)});\nprocess.exitCode = ${state === "active" ? 0 : 3};\n`);
+  return stub;
+}
+
+test("startup phase separates a running supervisor from a bound PAPER listener", () => {
+  assert.equal(classifyStartupPhase("active", false), "SUPERVISOR_ACTIVE_LISTENER_ABSENT");
+  assert.equal(classifyStartupPhase("active", true), "SUPERVISOR_ACTIVE_LISTENER_BOUND");
+  assert.equal(classifyStartupPhase("activating", false), "SUPERVISOR_ACTIVE_LISTENER_ABSENT");
+  assert.equal(classifyStartupPhase("inactive", false), "SUPERVISOR_INACTIVE_LISTENER_ABSENT");
+  assert.equal(classifyStartupPhase("failed", true), "SUPERVISOR_INACTIVE_LISTENER_BOUND");
+  assert.equal(classifyStartupPhase("unknown", false), "SUPERVISOR_STATE_UNKNOWN_LISTENER_ABSENT");
+  // The lease-blocked startup that opened #2770 must be nameable as exactly one code.
+  assert.equal(classifyStartupPhase(supervisorUnitState("nusa", () => ({ status: 0, stdout: "active\n" })), false), "SUPERVISOR_ACTIVE_LISTENER_ABSENT");
+});
+
+test("supervisor state is read from the unit, never inferred from a failed probe", () => {
+  assert.equal(supervisorUnitState("nusa", () => ({ status: 0, stdout: "active\n" })), "active");
+  assert.equal(supervisorUnitState("nusa", () => ({ status: 3, stdout: "inactive\n" })), "inactive");
+  assert.equal(supervisorUnitState("nusa", () => ({ status: null, stdout: "", error: new Error("spawn systemctl ENOENT") })), "unknown");
+  assert.equal(supervisorUnitState("nusa", () => { throw new Error("no systemd"); }), "unknown");
+  assert.equal(supervisorUnitState("nusa", () => ({ status: 0, stdout: "   \n" })), "unknown");
+});
+
+test("the listener probe reports a bound port and an absent one without guessing", async () => {
+  const server = http.createServer((_request, response) => response.end("{}"));
+  const port = await listen(server);
+  try {
+    assert.equal(await probeListener("127.0.0.1", port), true);
+    await close(server);
+    assert.equal(await probeListener("127.0.0.1", port), false);
+    assert.equal(await probeListener("127.0.0.1", port, () => { throw new Error("no socket"); }), false);
+  } finally {
+    await close(server).catch(() => {});
+  }
+});
+
+test("a startup timeout whose unit is active but whose listener never bound is named precisely", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-phase-"));
+  const stub = systemctlStub(root, "active");
+  const port = await reservePort();
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, {
+      NUSA_READY_STARTUP_WAIT_MS: "80",
+      NUSA_READY_RETRY_DELAY_MS: "20",
+      NUSA_READINESS_SYSTEMD_STUB: stub,
+    });
+    assert.notEqual(result.status, 0);
+    // The first stderr line stays the machine-readable verdict the release step parses.
+    const failure = JSON.parse(result.stderr.split("\n")[0]);
+    assert.equal(failure.stage, "startup_readiness");
+    assert.equal(failure.phase, "SUPERVISOR_ACTIVE_LISTENER_ABSENT");
+    assert.equal(failure.supervisor, "active");
+    assert.equal(failure.listening, false);
+    assert.ok(failure.attempts > 1);
+    assert.match(result.stderr, /ECONNREFUSED/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a bound port that never becomes ready is reported as BOUND rather than as a missing listener", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-bound-"));
+  const stub = systemctlStub(root, "active");
+  const server = http.createServer((_request, response) => {
+    response.writeHead(503, { "content-type": "application/json" });
+    response.end(JSON.stringify({ ok: false, checks: { database: false } }));
+  });
+  const port = await listen(server);
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, {
+      NUSA_READY_STARTUP_WAIT_MS: "80",
+      NUSA_READY_RETRY_DELAY_MS: "20",
+      NUSA_READINESS_SYSTEMD_STUB: stub,
+    });
+    assert.notEqual(result.status, 0);
+    const failure = JSON.parse(result.stderr.split("\n")[0]);
+    assert.equal(failure.stage, "startup_readiness");
+    assert.equal(failure.phase, "SUPERVISOR_ACTIVE_LISTENER_BOUND");
+    assert.equal(failure.supervisor, "active");
+    assert.equal(failure.listening, true);
+    // The phase must be decided by the unit state and the listener probe, not by how the last HTTP
+    // attempt failed. A bound server can still surface a transport error on a loaded runner, and
+    // that must not change the classification; the transport evidence is still reported.
+    assert.ok(failure.last, "the last transport evidence must still be reported");
+  } finally {
+    await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an inactive unit distinguishes a stopped runtime from one that is still coming up", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-inactive-"));
+  const stub = systemctlStub(root, "inactive");
+  const port = await reservePort();
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, {
+      NUSA_READY_STARTUP_WAIT_MS: "80",
+      NUSA_READY_RETRY_DELAY_MS: "20",
+      NUSA_READINESS_SYSTEMD_STUB: stub,
+    });
+    assert.notEqual(result.status, 0);
+    const failure = JSON.parse(result.stderr.split("\n")[0]);
+    assert.equal(failure.phase, "SUPERVISOR_INACTIVE_LISTENER_ABSENT");
+    assert.equal(failure.supervisor, "inactive");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the startup phase never becomes the reason for a failure", () => {
+  // Probes are evidence only: a missing systemctl or a probe error must not change the verdict.
+  const source = fs.readFileSync(script, "utf8");
+  assert.match(source, /phase: classifyStartupPhase\(supervisor, listening\)/);
+  assert.equal(source.split("Date.now() + startupWaitMs").length - 1, 1);
+  assert.ok(!/throw new Error\(.+listener/i.test(source));
+});
