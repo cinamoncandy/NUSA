@@ -131,6 +131,19 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   researchExperiments?.prepareRecovery();
   try {
 
+  // Startup lease budget (#2770): the full-file Cloud AI durability integrity work (the calibration
+  // store and outcome-attribution memory open over the whole file) must complete BEFORE the
+  // renewable PAPER writer lease is acquired. Held after acquisition a durability open can outlast
+  // the lease TTL and starve the writer heartbeat, which surfaced on host as PAPER_WRITER_LEASE_LOST
+  // / CLOCK_ANOMALY inside the bounded readiness window. Canonical DB verification (SqliteDatabase
+  // open) and Research recovery above already precede the lease; this only moves the AI durability
+  // phase earlier. AI durability fail-closed semantics, stored data, features, and authority are
+  // unchanged — the same open, the same quick_check, the same recovery.
+  // The runtime/listener (startCloudRuntime) and the closed-learning scheduler start after the lease.
+  // Startup phase durations are still unmeasured (#2770 item 1); do not quote timings here until a
+  // copy/read-only-safe reproduction of production state size has produced them.
+  const aiRuntime = createCloudAiRuntime(env);
+
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
   const paperRepository = config.paperInitialCapitalKrw === undefined
@@ -171,7 +184,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     undefined,
     undefined,
     researchExperiments?.orchestrator,
-    createCloudAiRuntime(env),
+    aiRuntime,
     undefined,
     undefined,
     undefined,

@@ -94,10 +94,19 @@ function validateLimits(limits: IndependentRiskLimits): void {
   if (limits.maxSessionDrawdownRatio > 1 || limits.maxPriceDeviationRatio > 1) throw new Error("cloud PAPER ratio limit is invalid");
 }
 
+/**
+ * Risk hot-path liveness probe (#2770). A full `PRAGMA quick_check` re-reads every page of a
+ * production-size database on *every* PAPER risk evaluation; on host state that ran longer than
+ * the writer lease TTL and starved the heartbeat. The full integrity scan is not weakened or
+ * removed: it still runs exactly once at canonical DB open (packages/storage SqliteDatabase).
+ * Here the hot path only proves the connection is usable and the required Risk tables exist.
+ * An actual persistence operation that throws stays fail-closed (the catch below and the
+ * PERSISTENCE_UNHEALTHY halt at every save/revoke call site are unchanged).
+ */
 function databaseHealthy(database: SqliteDatabase): boolean {
   try {
-    const quick = database.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-    if (quick == null || !Object.values(quick).includes("ok")) return false;
+    const ready = database.connection.prepare("SELECT 1 AS ready").get() as Record<string, unknown> | undefined;
+    if (ready == null || Number(ready.ready) !== 1) return false;
     const required = ["risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state"];
     for (const table of required) {
       const row = database.connection.prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=?").get(table) as Record<string, unknown> | undefined;

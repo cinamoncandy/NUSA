@@ -233,6 +233,43 @@ function launcherExitCode(code, signal, stderrTail) {
   return code ?? 0;
 }
 
+/**
+ * Automatic, guarded abandoned-lease recovery (#2770).
+ *
+ * `scripts/reset-paper-writer-lease.js` is deliberately explicit rather than automatic, which is
+ * right for a human operator but left the supervised production path with no way forward: the
+ * runtime exits PAPER_WRITER_CLOCK_ANOMALY, the supervisor restarts it, and every attempt meets
+ * the same stale row until the restart budget is spent and PAPER stays down (Oracle host,
+ * 2026-10-17: 295 readiness attempts, all ECONNREFUSED on 41731, then FAILED).
+ *
+ * This runs the *same* canonical recovery, lazily required to keep the existing module cycle
+ * (reset-paper-writer-lease -> start-cloud-runtime) one-directional, with every guard intact:
+ *   - refuses while any runtime answers /health on the dashboard endpoint,
+ *   - refuses a lease that has not expired yet,
+ *   - deletes only the lease row, never account state,
+ *   - and only on an exit that already failed with CLOCK_ANOMALY (ALREADY_ACTIVE is skipped, so a
+ *     genuinely live writer is never disturbed).
+ * acquireLease keeps every predicate it had: it still throws for anything this declines to clear.
+ */
+async function recoverAbandonedWriterLease(stderrTail, options = {}) {
+  if (!/PAPER_WRITER_CLOCK_ANOMALY/.test(stderrTail)) return { status: "SKIPPED" };
+  try {
+    const { resetPaperWriterLease } = require("./reset-paper-writer-lease.js");
+    const write = options.recoveryWrite ?? ((text) => process.stderr.write(`${text}\n`));
+    // Resolve the state DB, endpoint, and account through the same env the child was spawned
+    // with, so the row we clear is the row the child could not take over.
+    const { env, leaseRecovery } = options;
+    return await resetPaperWriterLease({
+      write,
+      ...(env == null ? {} : { env }),
+      ...(leaseRecovery ?? {}),
+    });
+  } catch (error) {
+    process.stderr.write(`writer lease recovery skipped: ${error instanceof Error ? error.message : "unknown error"}\n`);
+    return { status: "ERROR" };
+  }
+}
+
 function start(options = {}) {
   const baseEnv = options.env ?? process.env;
   // A deployment may provide the owner-managed token through its protected environment
@@ -257,9 +294,16 @@ function start(options = {}) {
     process.stderr.write(chunk);
     stderrTail = `${stderrTail}${chunk}`.slice(-4000);
   });
-  child.on("exit", (code, signal) => {
+  child.on("exit", async (code, signal) => {
     if (code !== 0 && /PAPER_WRITER_CLOCK_ANOMALY|PAPER_WRITER_ALREADY_ACTIVE/.test(stderrTail)) {
       write(leaseRecoveryGuidance(stderrTail));
+      // #2770: name the recovery *and* run it here. The supervisor restarts this launcher on a
+      // bounded backoff, so clearing the row once after the failed attempt lets the next start
+      // reacquire instead of spending the whole restart budget on the identical stale row.
+      const recovered = await recoverAbandonedWriterLease(stderrTail, { ...options, env });
+      if (recovered?.status === "CLEARED") {
+        write("  Recovered automatically: the abandoned lease row is cleared; the next start reacquires it.\n");
+      }
     }
     process.exitCode = launcherExitCode(code, signal, stderrTail);
   });
@@ -313,6 +357,7 @@ module.exports = {
   readOwnerResearch,
   launcherExitCode,
   PRODUCTION_RUNTIME_ENTRYPOINT,
+  recoverAbandonedWriterLease,
   resolveDashboardToken,
   runManaged,
   start,

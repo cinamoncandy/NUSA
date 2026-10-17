@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("node:fs");
 const http = require("node:http");
+const net = require("node:net");
 const { spawnSync } = require("node:child_process");
 
 const envPath = process.env.NUSA_ENV_FILE || "/etc/nusa/cloud-runtime.env";
@@ -135,13 +136,58 @@ function journalTail(unit = process.env.NUSA_READINESS_JOURNAL_UNIT || "nusa", l
   }
 }
 
+// systemd returning from a restart only proves the launcher was spawned. A release whose writer
+// lease blocks startup keeps the unit "active" while port 41731 stays unbound, and that looks
+// identical -- as a bare ECONNREFUSED -- to a runtime that is merely still booting. Classify both
+// states on every startup timeout so the release run names the actual broken transition instead of
+// a transport error. Both probes are bounded and read-only; neither can change the verdict.
+const ACTIVE_UNIT_STATES = Object.freeze(new Set(["active", "activating", "reloading"]));
+function supervisorUnitState(unit = process.env.NUSA_READINESS_SYSTEMD_UNIT || "nusa", run = spawnSync) {
+  try {
+    const args = ["is-active", unit];
+    // Test seam only: a Node script standing in for systemctl, mirroring NUSA_READINESS_JOURNAL_STUB.
+    const stub = process.env.NUSA_READINESS_SYSTEMD_STUB;
+    const result = stub
+      ? run(process.execPath, [stub, ...args], { encoding: "utf8", timeout: 5_000 })
+      : run("systemctl", args, { encoding: "utf8", timeout: 5_000 });
+    if (result.status === null || typeof result.stdout !== "string") return "unknown";
+    const state = result.stdout.trim().split(/\s+/)[0];
+    return state && /^[a-z-]+$/.test(state) ? state : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+/** True only when something accepts a TCP connection on the dashboard port. Bounded to 2 s. */
+function probeListener(targetHost, targetPort, connect = (options, onConnect) => net.connect(options, onConnect)) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (listening) => { if (!settled) { settled = true; resolve(listening); } };
+    try {
+      const socket = connect({ host: targetHost, port: targetPort }, () => { socket.destroy(); finish(true); });
+      socket.setTimeout(2_000, () => { socket.destroy(); finish(false); });
+      socket.on("error", () => { socket.destroy(); finish(false); });
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+function classifyStartupPhase(supervisor, listening) {
+  const unitState = ACTIVE_UNIT_STATES.has(supervisor) ? "SUPERVISOR_ACTIVE"
+    : supervisor === "unknown" ? "SUPERVISOR_STATE_UNKNOWN" : "SUPERVISOR_INACTIVE";
+  return `${unitState}_${listening ? "LISTENER_BOUND" : "LISTENER_ABSENT"}`;
+}
+
 const run = async () => {
   // One absolute startup deadline covers /ready and every required owner-route probe.
   // Later probes consume only the remaining budget; they never reset the clock.
   const deadline = Date.now() + startupWaitMs;
   const readiness = await awaitReadiness(deadline);
   if (!readiness.healthy) {
-    console.error(JSON.stringify({ status: "FAIL", stage: "startup_readiness", attempts: readiness.attempts, last: readiness.last ?? { httpStatus: readiness.httpStatus, ready: readiness.ready, checks: readiness.checks } }));
+    const supervisor = supervisorUnitState();
+    const listening = await probeListener(host, port);
+    console.error(JSON.stringify({ status: "FAIL", stage: "startup_readiness", phase: classifyStartupPhase(supervisor, listening), supervisor, listening, attempts: readiness.attempts, last: readiness.last ?? { httpStatus: readiness.httpStatus, ready: readiness.ready, checks: readiness.checks } }));
     for (const line of journalTail()) console.error(`[journal] ${line}`);
     process.exitCode = 1;
     return;
@@ -165,9 +211,18 @@ const run = async () => {
   console.log(JSON.stringify({ status: "PASS", httpStatus: readiness.httpStatus, ready: true, checks: readiness.checks, startupAttempts: readiness.attempts, mobileOwnerAuthRoutes: routeChecks }));
 };
 
-run().catch((error) => {
-  console.error(JSON.stringify({ status: "FAIL", error: error instanceof Error ? error.message : "readiness request failed" }));
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  run().catch((error) => {
+    console.error(JSON.stringify({ status: "FAIL", error: error instanceof Error ? error.message : "readiness request failed" }));
+    process.exitCode = 1;
+  });
+}
 
-module.exports = { REQUIRED_MOBILE_OWNER_AUTH_ROUTES, journalTail, redactJournalLine };
+module.exports = {
+  REQUIRED_MOBILE_OWNER_AUTH_ROUTES,
+  classifyStartupPhase,
+  journalTail,
+  probeListener,
+  redactJournalLine,
+  supervisorUnitState,
+};
