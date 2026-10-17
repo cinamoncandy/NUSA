@@ -93,8 +93,8 @@ jobs:
     # Only the privileged release steps run on the dedicated host. Build and dependency
     # installation stay on GitHub-hosted hardware, away from the 1 GB PAPER runtime host.
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    # Activation is followed by a bounded 3-minute stability soak. Keep the whole host job
-    # bounded while leaving enough room for backup/staging on the small Oracle PAPER host.
+    # Activation itself owns a bounded 3-minute stability soak. Keep the whole host job bounded
+    # while leaving enough room for backup/staging on the small Oracle PAPER host.
     timeout-minutes: 40
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
@@ -149,6 +149,15 @@ jobs:
         if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" stage "$SOURCE_SHA" "$RELEASE_TREE"
 
+      - name: Remove runner-owned release scratch before preflight
+        if: steps.source_fresh.outputs.fresh == 'true'
+        run: |
+          set -euo pipefail
+          EXPECTED_TREE="$RUNNER_TEMP/nusa-release-tree-$GITHUB_RUN_ID"
+          [ "$RELEASE_TREE" = "$EXPECTED_TREE" ] || { echo "::error::Refusing unexpected release scratch path: $RELEASE_TREE"; exit 1; }
+          rm -rf -- "$EXPECTED_TREE"
+          rm -f -- "$RUNNER_TEMP/nusa-release.tar.gz"
+
       - name: Preflight host and security contract
         if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" preflight "$SOURCE_SHA"
@@ -168,39 +177,6 @@ jobs:
       - name: Atomically activate exact release and prove both runtimes
         if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" activate "$SOURCE_SHA"
-
-      - name: Soak exact-main PAPER runtime through writer-lease and scheduler window
-        if: steps.source_fresh.outputs.fresh == 'true'
-        timeout-minutes: 6
-        run: |
-          set -euo pipefail
-          # A one-shot readiness pass is insufficient: #2770 reproduced a runtime that listened
-          # successfully and then lost its 30-second PAPER writer lease when the scheduler began.
-          # Reuse the canonical readiness owner for a bounded 180-second soak instead of adding a
-          # second watchdog/control plane. Any failure keeps this release FAILED, never DEPLOYED.
-          SOAK_SECONDS=180
-          CHECK_INTERVAL_SECONDS=10
-          deadline=$((SECONDS + SOAK_SECONDS))
-          attempt=0
-
-          while :; do
-            attempt=$((attempt + 1))
-            CURRENT_RELEASE="$(readlink -f "$NUSA_DEPLOY_ROOT/current" || true)"
-            [ "$(basename "$CURRENT_RELEASE")" = "$SOURCE_SHA" ] || {
-              echo "::error::Oracle release identity drifted during stability soak: current=$CURRENT_RELEASE expected=$SOURCE_SHA"
-              exit 1
-            }
-
-            sudo "$STEP" readiness
-            echo "::notice::Oracle PAPER stability check $attempt passed for $SOURCE_SHA"
-
-            if (( SECONDS >= deadline )); then
-              break
-            fi
-            sleep "$CHECK_INTERVAL_SECONDS"
-          done
-
-          echo "::notice::Oracle PAPER 180-second post-activation stability soak passed for $SOURCE_SHA"
 
       - name: Record deployed identity and fail-closed authority
         if: always()
