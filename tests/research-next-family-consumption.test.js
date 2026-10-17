@@ -44,6 +44,6 @@ test("a missing, corrupt or unsupported learning file is ignored, never trusted"
 });
 
 test("only precommitted families can ever be selected", () => {
-  assert.deepEqual([...run.SUPPORTED_RESEARCH_FAMILIES], ["sma-crossover", "rsi-mean-reversion", "donchian-breakout"]);
+  assert.deepEqual([...run.SUPPORTED_RESEARCH_FAMILIES], ["sma-crossover", "rsi-mean-reversion", "donchian-breakout", "bollinger-breakout"]);
   assert.throws(() => run.researchStrategyFamily("invented-family", null), /unsupported/);
 });
