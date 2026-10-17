@@ -6,7 +6,9 @@ import {
   SqlitePersistedPaperPeriodStore,
   type PersistedPaperCandidateProvenance,
   type PersistedPaperPeriodEnvelope,
+  type PersistedPaperPeriodRetentionResult,
   type PersistedPaperPendingPeriod,
+  type RealizedPeriodRetentionGuard,
 } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
 import { PaperCanonicalOutcomeReconciliationError, reconcileCanonicalPaperOutcomeWindow } from "./paperCanonicalOutcomeReconciliation";
@@ -100,6 +102,12 @@ export interface PaperRealizedPeriodProducerOptions {
   readonly readCanonicalPaperFills?: () => readonly PaperFillRecord[];
   /** Read-only benchmark source; absent means canonical period admission remains fail-closed. */
   readonly readCanonicalBenchmarkEvidence?: (periodStartAt: number, periodEndAt: number, market?: string) => PaperCanonicalBenchmarkEvidence | undefined;
+  /**
+   * Required. Retention is the one place realized PAPER evidence is physically deleted, so it may
+   * never run without a reference-aware guard (v2 Impact Analysis M1 / A7). Production supplies the
+   * guard derived from the evolution ledger, whose surviving records cite `paper-period:<recordId>`.
+   */
+  readonly retentionGuard: RealizedPeriodRetentionGuard;
 }
 
 export class PaperRealizedPeriodProducerError extends Error {
@@ -288,14 +296,22 @@ function decodePlan(pending: PersistedPaperPendingPeriod): PersistedPaperRealize
 
 export class PaperRealizedPeriodProducer {
   private readonly openPeriods = new Map<string, PersistedPaperRealizedPeriodPlan>();
+  private lastRetention: PersistedPaperPeriodRetentionResult | undefined;
 
-  public constructor(private readonly repository: SqlitePersistedPaperPeriodStore, private readonly options: PaperRealizedPeriodProducerOptions = {}) {
+  public constructor(private readonly repository: SqlitePersistedPaperPeriodStore, private readonly options: PaperRealizedPeriodProducerOptions) {
+    if (options.retentionGuard == null || typeof options.retentionGuard.referencedRecordIds !== "function") throw new PaperRealizedPeriodProducerError("MISSING_RETENTION_GUARD", "PAPER realized-period retention requires a reference-aware guard");
     if (options.maximumPeriods !== undefined && (!Number.isSafeInteger(options.maximumPeriods) || options.maximumPeriods < 1 || options.maximumPeriods > 1_000)) throw new PaperRealizedPeriodProducerError("INVALID_RETENTION", "PAPER period retention must be between 1 and 1000");
     const pending = repository.listPending().map(decodePlan);
     if (pending.length > 1) throw new PaperRealizedPeriodProducerError("MULTIPLE_OPEN_PERIODS", "multiple open PAPER realized periods are unsafe");
     for (const plan of pending) this.openPeriods.set(plan.periodId, plan);
-    repository.prune(options.maximumPeriods ?? 100);
+    this.lastRetention = repository.prune(options.maximumPeriods ?? 100, options.retentionGuard);
   }
+
+  /**
+   * The most recent retention report. A period kept past the bound because a surviving record cites
+   * it is visible here rather than hidden, and the bound is never relaxed to clear it.
+   */
+  public retention(): PersistedPaperPeriodRetentionResult | undefined { return this.lastRetention; }
 
   public openPeriod(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan {
     try { return this.openPeriodInternal(input); } catch (error) { throw this.reject(error, input.periodId); }
@@ -457,7 +473,7 @@ export class PaperRealizedPeriodProducer {
     const pending = this.repository.getPending(periodId);
     if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
     const stored = this.repository.finalizePending(periodId, pending.checksum, validated);
-    this.repository.prune(this.options.maximumPeriods ?? 100);
+    this.lastRetention = this.repository.prune(this.options.maximumPeriods ?? 100, this.options.retentionGuard);
     this.openPeriods.delete(periodId);
     this.emit({ type: "PERIOD_REALIZED_PERSISTED", periodId, occurredAt: validated.record.periodEndAt });
     return stored;
