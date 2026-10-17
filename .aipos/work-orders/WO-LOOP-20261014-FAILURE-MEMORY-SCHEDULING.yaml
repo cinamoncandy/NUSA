@@ -1,0 +1,18 @@
+id: WO-LOOP-20261014-FAILURE-MEMORY-SCHEDULING
+title: "Failure memory -> Research N+1: defer challengers with a 5x same-reason failure streak to every 4th tick"
+status: DRAFT_FOR_RESEARCH_OWNER
+priority: P2
+authority_impact: none
+domain: "Research (Research/Governance owner). Written by the data-domain session before the ownership split; handed off, not owned."
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/failure-memory-defers-research
+reason: "Master instruction 8C: Research N+1 must consume the failure memory. Today REPEAT_<reason> counts are display only and change no schedule."
+change: "researchExperimentOrchestrator: a challenger whose last 5 evaluations failed for the same bounded reason is evaluated only every 4th tick (outcome DEFERRED_REPEAT_FAILURE). Nothing stops; no threshold, budget, qualification or Risk change; a failure-memory read error defers nothing."
+decision_needed: "Earlier owner decision kept failure memory record-only; the owner later approved meta-learning steering. The Research owner or the owner decides whether this second steering signal is wanted."
+validation: "tsc; research-experiment-orchestrator 12 (adds the deferral test), research-experiment-composition 13, cloud-runtime-liveness-health 34 pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
