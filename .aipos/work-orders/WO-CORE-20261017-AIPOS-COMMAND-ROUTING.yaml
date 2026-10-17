@@ -1,0 +1,34 @@
+id: WO-CORE-20261017-AIPOS-COMMAND-ROUTING
+title: AIPOS Provider-Agnostic Command Routing
+status: IN_PROGRESS
+owner: CORE
+implementation_branch: chore/aipos-command-routing-20261017
+base_branch: main
+objective: >-
+  Establish a durable role-based command-routing contract in AIPOS so execution can move among
+  Codex, Claude Code, MiMo, or another available model without losing canonical state or requiring
+  prior chat memory.
+
+non_goals:
+  - "Do not create a second scheduler, queue service, or runtime control plane."
+  - "Do not grant any LIVE, real-money, release, governance, or risk authority."
+  - "Do not replace existing ready-work-order semantics."
+
+acceptance_criteria:
+  - "AIPOS registers the command-routing contract and commands path."
+  - "Fixed role ownership is distinct from interchangeable model/provider assignment."
+  - "Author/non-author validation separation is explicit."
+  - "Current-mission serialization remains authoritative and unchanged."
+  - "Duplicate existing AIPOS queue/control-plane functionality is rejected during review."
+  - "A fresh agent can recover role, priority, acceptance criteria, evidence requirements, and handoff target without prior chat state."
+  - "Exact-head AIPOS validation and required CI pass before merge."
+
+safety:
+  PAPER_ONLY: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+
+handoff:
+  next: VALIDATION_RELEASE_RUNTIME
+  evidence: .aipos/handoffs/2026-10-17-core-command-routing.md

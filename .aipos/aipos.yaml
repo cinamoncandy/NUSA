@@ -18,6 +18,8 @@ paths:
   reference_intelligence_principle: docs/NUSA_REFERENCE_INTELLIGENCE_PRINCIPLE.md
   governing_charter: docs/NUSA_GOVERNING_CHARTER.md
   handoff_contract: .aipos/AI_HANDOFF_CONTRACT.md
+  command_routing: .aipos/command-routing.yaml
+  commands: .aipos/commands
   state: .aipos/state.yaml
   work_orders: .aipos/work-orders
   decisions: .aipos/decisions
@@ -26,11 +28,14 @@ recovery:
   protocol:
     - recover
     - validate_architecture_sync
+    - read_command_routing
+    - select_role_command
     - analyze
     - select_work_order
     - implement
     - verify
     - update_state
+    - update_command_status
     - write_handoff
     - stop
 handoff:
@@ -51,10 +56,14 @@ architecture_sync:
     - decisions
     - acceptance_criteria
     - architecture_references
+    - command_routing
+    - commands
 rules:
   - "Read .aipos before changing implementation."
   - "Treat repository state as authoritative over conversation history."
   - "Read and obey the AIPOS AI Handoff Contract before taking over active work."
+  - "Read .aipos/command-routing.yaml and select the highest-priority READY command for the active role before starting new work."
+  - "Model/provider assignment is fungible; role ownership and non-author validation separation are not."
   - "Validate architecture-to-AIPOS synchronization before selecting implementation work."
   - "Read the investment knowledge principle before modifying investment intelligence, research, portfolio, risk-model, or trading-decision capabilities."
   - "Read the user experience principle before modifying user-facing desktop, mobile, cloud, conversational, approval, trading, risk, or safety surfaces."
@@ -64,4 +73,4 @@ rules:
   - "Preserve NUSA safety boundaries and fail closed."
   - "Do not mark work complete without durable verification evidence."
   - "Do not require vendor-private memory, hidden chain-of-thought, or prior chat history for project continuity."
-  - "Update .aipos/state.yaml, the active work order, and handoff-relevant evidence before stopping."
+  - "Update .aipos/state.yaml, the active work order, command status, and handoff-relevant evidence before stopping."

@@ -1,0 +1,71 @@
+version: 1
+kind: AIPOS_SCOUT_HARVEST
+issuedAt: "2026-10-17"
+issuedBy: CORE
+status: CANDIDATE_ONLY
+selectionBar: "CATEGORY_CHANGING_ONLY"
+
+candidate:
+  id: SCOUT-ONLINE-FDR-ALPHA-INVESTING
+  name: "Sequential false-discovery control for continuous strategy research"
+  priority: HIGH_AFTER_P0
+  disposition: "CORE_SHORTLISTED"
+  whyItIsExceptional: >-
+    NUSA is intended to research and improve continuously. Static multiple-testing defenses such as
+    DSR/PBO protect batches of trials, but a continuously running research system also needs to control
+    false discoveries across time. Online FDR / alpha-investing / e-value style procedures provide a
+    principled way to spend a finite statistical evidence budget as new hypotheses arrive, reducing the
+    chance that endless experimentation eventually manufactures a false winner.
+  nusaValue:
+    - "Makes continuous self-improvement statistically accountable instead of merely replayable"
+    - "Creates an explicit evidence-wealth budget for successive hypotheses"
+    - "Can combine with Trial Registry / validationExposure / failed-trial preservation"
+    - "Can force ABSTAIN/REJECT when research evidence budget is exhausted"
+    - "Supports fail-closed promotion under repeated sequential experimentation"
+  proposedIntegration:
+    canonicalOwner: DATA_EVIDENCE
+    secondaryOwners:
+      - LEARNING
+      - VALIDATION_RELEASE_RUNTIME
+    newEngineAllowed: false
+    integrateIntoExisting:
+      - trial_registry
+      - experiment_evaluator
+      - qualification_gate
+      - evidence_budget
+    proposedFields:
+      - hypothesisSequenceIndex
+      - alphaWealthBefore
+      - alphaSpent
+      - eValueOrSequentialEvidence
+      - onlineFdrStateFingerprint
+      - alphaWealthAfter
+    proposedDecisionContract:
+      outputs:
+        - CONTINUE_EVALUATION
+        - REJECT
+        - ABSTAIN_EVIDENCE_BUDGET_EXHAUSTED
+      authority: "EVALUATION_ONLY"
+  falsification:
+    rejectIf:
+      - "Adds complexity without materially reducing false promotions in simulated repeated-research campaigns"
+      - "Cannot be made deterministic/replayable from durable trial history"
+      - "Duplicates an already-canonical NUSA multiple-testing/evidence-budget mechanism"
+      - "Requires weakening PIT/OOS/qualification thresholds"
+  validationPlan:
+    - "Replay historical/synthetic null-heavy trial streams and measure false-promotion rate"
+    - "Compare baseline vs DSR/PBO-only vs DSR/PBO + online FDR"
+    - "Verify exact deterministic state reconstruction after restart"
+    - "Verify rejected/failed trials remain in denominator and evidence wealth cannot be reset by restart"
+    - "Require no degradation of existing safety thresholds"
+  safetyInvariants:
+    - PAPER_ONLY
+    - liveAuthority=NONE
+    - productionMutationAllowed=false
+    - aiAuthority=ZERO_AUTHORITY
+    - no_threshold_relaxation
+    - no_trial_history_reset
+    - no_failed_trial_deletion
+    - no_duplicate_evaluator
+  sourceNotes:
+    - "Online FDR / alpha-investing / e-value literature; candidate requires primary-source review before adoption"
