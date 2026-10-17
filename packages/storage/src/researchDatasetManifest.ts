@@ -20,6 +20,14 @@ function validateManifestSchema(manifest: HistoricalDatasetManifest): void {
   }
 }
 
+function parseVerifiedManifest(datasetId: string, manifestJson: string, manifestSha256: string): HistoricalDatasetManifest {
+  let manifest: HistoricalDatasetManifest;
+  try { manifest = JSON.parse(manifestJson) as HistoricalDatasetManifest; } catch { throw new ResearchDatasetManifestStoreError("MANIFEST_CORRUPT", "dataset manifest JSON is invalid"); }
+  if (manifest.datasetId !== datasetId || fingerprint(manifest) !== manifestSha256) throw new ResearchDatasetManifestStoreError("MANIFEST_CHECKSUM_MISMATCH", "dataset manifest fingerprint does not match persisted content");
+  validateManifestSchema(manifest);
+  return Object.freeze(manifest);
+}
+
 export class ResearchDatasetManifestStoreError extends Error {
   public constructor(readonly code: string, message: string) { super(message); this.name = "ResearchDatasetManifestStoreError"; }
 }
@@ -52,20 +60,14 @@ export class SqliteResearchDatasetManifestStore {
   public read(datasetId: string): HistoricalDatasetManifest {
     const row = this.db.connection.prepare(`SELECT manifest_json AS manifestJson, manifest_sha256 AS manifestSha256 FROM ${TABLE} WHERE dataset_id = ?`).get(datasetId) as { manifestJson: string; manifestSha256: string } | undefined;
     if (row == null) throw new ResearchDatasetManifestStoreError("MANIFEST_NOT_FOUND", "dataset manifest is missing");
-    let manifest: HistoricalDatasetManifest;
-    try { manifest = JSON.parse(row.manifestJson) as HistoricalDatasetManifest; } catch { throw new ResearchDatasetManifestStoreError("MANIFEST_CORRUPT", "dataset manifest JSON is invalid"); }
-    if (manifest.datasetId !== datasetId || fingerprint(manifest) !== row.manifestSha256) throw new ResearchDatasetManifestStoreError("MANIFEST_CHECKSUM_MISMATCH", "dataset manifest fingerprint does not match persisted content");
-    validateManifestSchema(manifest);
-    return Object.freeze(manifest);
+    return parseVerifiedManifest(datasetId, row.manifestJson, row.manifestSha256);
   }
 
   public latest(market: string, interval: string): HistoricalDatasetManifest | undefined {
-    const rows = this.db.connection.prepare(`SELECT manifest_json AS manifestJson FROM ${TABLE} ORDER BY rowid DESC`).all() as Array<{ manifestJson: string }>;
+    const rows = this.db.connection.prepare(`SELECT dataset_id AS datasetId, manifest_json AS manifestJson, manifest_sha256 AS manifestSha256 FROM ${TABLE} ORDER BY rowid DESC`).all() as Array<{ datasetId: string; manifestJson: string; manifestSha256: string }>;
     for (const row of rows) {
-      let manifest: HistoricalDatasetManifest;
-      try { manifest = JSON.parse(row.manifestJson) as HistoricalDatasetManifest; } catch { throw new ResearchDatasetManifestStoreError("MANIFEST_CORRUPT", "dataset manifest JSON is invalid"); }
-      validateManifestSchema(manifest);
-      if (manifest.market === market && manifest.interval === interval) return Object.freeze(manifest);
+      const manifest = parseVerifiedManifest(row.datasetId, row.manifestJson, row.manifestSha256);
+      if (manifest.market === market && manifest.interval === interval) return manifest;
     }
     return undefined;
   }
