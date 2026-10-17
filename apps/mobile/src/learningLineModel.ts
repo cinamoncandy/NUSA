@@ -56,6 +56,24 @@ export function buildLearningLine(research: LearningLineInput | null): LearningL
   });
 }
 
+/**
+ * Short owner-facing variant for the "지금" tab: plain words only (no champion/challenger or promotion jargon), and
+ * nothing at all when research is not reported, so the main screen carries no permanent "not received" noise.
+ */
+export function buildNowLearningLine(research: LearningLineInput | null): LearningLine | null {
+  if (research == null) return null;
+  const healthy = research.health === "HEALTHY";
+  const experiments = count(research.experimentCount);
+  const candidates = count(research.candidateCount);
+  if (experiments == null || candidates == null) return Object.freeze({ value: "배우고 있나 · 상태를 확인할 수 없어요", tone: "warn" as const });
+  if (!healthy) {
+    const why = research.health === "STALE" ? `검증이 오래됐어요 (${age(research.evidenceAgeMs)})` : "연구가 잠시 멈췄어요";
+    return Object.freeze({ value: `배우고 있나 · ${why}`, tone: "warn" as const });
+  }
+  if (experiments === 0) return Object.freeze({ value: "배우고 있나 · 아직 실험 전이에요", tone: "muted" as const });
+  return Object.freeze({ value: `배우고 있나 · 실험 ${experiments}개 · 후보 ${candidates}개 · ${age(research.evidenceAgeMs)}`, tone: "muted" as const });
+}
+
 export interface AiTrustInput {
   readonly status: "AVAILABLE" | "UNAVAILABLE" | "INCOMPLETE";
   readonly calibrationStatus: "UNKNOWN" | "UNVERIFIED" | "INSUFFICIENT_DATA" | "CALIBRATED" | "DEGRADED";
