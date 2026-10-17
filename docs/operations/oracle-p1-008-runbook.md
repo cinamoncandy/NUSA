@@ -98,12 +98,10 @@ sudo node scripts/oracle-validate.js
 `oracle-validate` fails closed if the environment file, backup directory, service unit, localhost binding, token strength, persistent database location, or current symlink contract is invalid.
 
 ## When to dispatch the release workflow
-The workflow verifies that the requested source is the current protected main at two points only: when the build job
-starts, and once more at the start of the host job, before the download. Nothing re-checks main after that, so a merge
-that lands after the host job's recheck is not detected and the already-built source is still activated. A merge that
-lands earlier is caught: the build job or the host recheck stops with "Protected main moved after build" and the host is
-unchanged (seen in run 87). Do not rely on the gate to cover the rest of the roughly 5-minute run. To avoid wasted or
-stale releases:
+The workflow verifies that the requested source is the current protected main three times: when the build job
+starts, at the start of the host job before download, and immediately before activation after backup/staging/preflight.
+A merge that lands before the final check therefore fails closed instead of activating a stale release. To avoid wasted
+releases:
 1. Dispatch only when no merge is queued or in flight, and take `source_sha` from the current main tip.
 2. Wait for the post-merge `CI` push run on that exact SHA to be green; the workflow requires it and fails otherwise.
 3. If main moved before the host recheck, nothing was changed on the host; repeat steps 1-2 with the new tip. If main may
@@ -119,7 +117,9 @@ sudo /opt/nusa/bin/nusa-release-step activate <full-40-char-sha>
 ```
 
 The switch records the prior release path and reports `readinessRequired=true`. It does not restart services itself and does not touch persistent data.
-The helper executes the staged `scripts/atomic-deploy.js`, `scripts/oracle-readiness-check.js`, and `scripts/autopilot-readiness.js`; no host-side copy of those scripts is used.
+The helper executes the staged `scripts/atomic-deploy.js`, `scripts/oracle-readiness-check.js`, and `scripts/autopilot-readiness.js`; no host-side copy of those scripts is used. After initial readiness, the same root-owned `activate` helper retains ownership for a 180-second stability soak. It repeatedly proves PAPER readiness, Autopilot readiness, systemd liveness, and exact release identity. Any failure stays inside the existing activation rollback boundary; a one-shot listener that later loses its PAPER writer lease is never accepted as `DEPLOYED`.
+
+Before privileged preflight, the workflow deletes only its own downloaded bundle and extracted runner scratch tree after the immutable release has been staged. The helper then refuses preflight when root usage is at or above the existing 92% disk-guard threshold. Persistent state, backups, and Evidence are never part of this cleanup.
 
 ## Acceptance check
 
