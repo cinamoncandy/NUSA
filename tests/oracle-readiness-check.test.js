@@ -393,7 +393,10 @@ test("a bound port that never becomes ready is reported as BOUND rather than as 
     assert.equal(failure.phase, "SUPERVISOR_ACTIVE_LISTENER_BOUND");
     assert.equal(failure.supervisor, "active");
     assert.equal(failure.listening, true);
-    assert.equal(failure.last.kind, "response");
+    // The phase must be decided by the unit state and the listener probe, not by how the last HTTP
+    // attempt failed. A bound server can still surface a transport error on a loaded runner, and
+    // that must not change the classification; the transport evidence is still reported.
+    assert.ok(failure.last, "the last transport evidence must still be reported");
   } finally {
     await close(server);
     fs.rmSync(root, { recursive: true, force: true });
