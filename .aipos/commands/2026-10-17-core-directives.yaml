@@ -1,0 +1,159 @@
+version: 1
+kind: AIPOS_CORE_DIRECTIVES
+issuedAt: "2026-10-17"
+issuedBy: CORE
+baseProtectedMain: "58a8e4fbb32fcc8dee018bd6563982e4e3ba0a8c"
+policy:
+  preserveCurrentMissionSerialization: true
+  liveActivationAuthorized: false
+  realMoneyMutationAuthorized: false
+  providerAssignment: "dynamic_by_availability"
+
+commands:
+  - commandId: CORE-P0-LEARNING-CLOSED-LOOP
+    owner: LEARNING
+    priority: P0
+    status: READY
+    objective: >-
+      Close the actual PAPER learning continuity from valid realized period through Performance
+      Evidence, Durable Feedback, Learning Cycle N, Research N+1, Candidate N+1, and revalidation,
+      using real evidence rather than counters or synthetic success.
+    firstBrokenTransition: "fresh-check-required-before-execution"
+    canonicalOwner: LEARNING
+    safetyInvariants:
+      - PAPER_ONLY
+      - liveAuthority=NONE
+      - productionMutationAllowed=false
+      - aiAuthority=ZERO_AUTHORITY
+      - no_threshold_relaxation
+      - no_synthetic_profit_evidence
+      - no_historical_rewrite
+      - no_direct_db_edit
+    acceptanceCriteria:
+      - "Valid realized PAPER period with COMPLETE cost evidence"
+      - "Performance Evidence excludes INELIGIBLE observations from denominator/results"
+      - "Durable Feedback is restart-safe, replay-safe, idempotent, and identity-bound"
+      - "Learning Cycle consumes Feedback exactly once"
+      - "Feedback N -> Learning Cycle N -> Research N+1 identity continuity is proven"
+      - "Candidate N+1 provenance is complete; zero qualification is acceptable"
+      - "Restart/replay produces no duplicate canonical side effects"
+    evidenceRequired:
+      - exact_head_ci
+      - fresh_non_author_validation
+      - audit_and_release_if_code_changes
+      - exact_main_runtime_sha_if_merged
+      - actual_paper_runtime_evidence
+      - restart_replay_receipts
+    handoffTo:
+      - DATA_EVIDENCE
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-DATA-EVIDENCE-CONTINUITY
+    owner: DATA_EVIDENCE
+    priority: P1
+    status: READY
+    objective: >-
+      Independently verify provenance, PIT/leakage safety, cost/fill/performance evidence completeness,
+      and fingerprint/identity continuity for the learning-loop evidence chain.
+    firstBrokenTransition: "follow-the-learning-command-evidence-chain"
+    canonicalOwner: DATA_EVIDENCE
+    safetyInvariants:
+      - UNKNOWN_remains_UNKNOWN
+      - no_cherry_picking
+      - no_failed_trial_deletion
+      - no_synthetic_missing_evidence
+      - no_historical_rewrite
+    acceptanceCriteria:
+      - "Dataset provenance is reconstructable"
+      - "PIT/leakage checks pass or fail closed"
+      - "Cost/fill/performance evidence is complete and identity-bound"
+      - "Fingerprint chain has no unexplained discontinuity"
+    evidenceRequired:
+      - provenance_receipts
+      - fingerprint_chain
+      - pit_leakage_results
+      - cost_fill_performance_receipts
+    handoffTo:
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-VALIDATE-RELEASE-RUNTIME
+    owner: VALIDATION_RELEASE_RUNTIME
+    priority: P1
+    status: READY
+    objective: >-
+      Independently validate implementation and evidence, enforce non-author review/Audit/Release gates,
+      verify exact-main deployment/runtime SHA, and prove restart/replay/canary behavior when applicable.
+    firstBrokenTransition: "consume-current-pr-and-runtime-state-fresh"
+    canonicalOwner: VALIDATION_RELEASE_RUNTIME
+    safetyInvariants:
+      - no_self_approval
+      - no_fake_non_author_review
+      - no_test_relaxation
+      - no_safety_guard_weakening
+      - no_blind_restart
+    acceptanceCriteria:
+      - "Exact-head CI belongs to the reviewed head"
+      - "Fresh non-author review is genuine"
+      - "Audit and release authorization are observed, not inferred"
+      - "Runtime SHA equals expected protected-main SHA after deploy"
+      - "Restart/replay does not duplicate side effects"
+    evidenceRequired:
+      - review_record
+      - audit_record
+      - release_record
+      - runtime_sha_receipt
+      - canary_and_restart_replay_receipts
+    handoffTo:
+      - CORE
+
+  - commandId: CORE-P2-DEV-NEXT-CANONICAL
+    owner: DEV
+    priority: P2
+    status: READY
+    objective: >-
+      After P0 learning and its required validation/data evidence are converged, implement the next
+      CORE-approved canonical feature or Scout-derived capability without creating duplicate owners.
+    firstBrokenTransition: "blocked-by-higher-priority-learning-convergence"
+    canonicalOwner: DEV
+    safetyInvariants:
+      - reuse_existing_pr_branch_owner
+      - minimal_patch
+      - fail_closed
+      - no_duplicate_engine_store_scheduler
+    acceptanceCriteria:
+      - "CORE approval exists for the selected task"
+      - "Existing canonical owner/branch/PR is reused when present"
+      - "Focused regression and exact-head CI pass"
+    evidenceRequired:
+      - implementation_diff
+      - focused_tests
+      - exact_head_ci
+    handoffTo:
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P2-SCOUT-CAPABILITY-INTAKE
+    owner: SCOUT
+    priority: P2
+    status: READY
+    objective: >-
+      Continue external capability discovery and extraction, but do not directly promote or implement;
+      submit evidence-backed candidates to CORE for adopt/reject/duplicate classification.
+    firstBrokenTransition: "continuous-discovery"
+    canonicalOwner: SCOUT
+    safetyInvariants:
+      - advisory_only
+      - no_direct_strategy_promotion
+      - respect_licenses_and_access_controls
+      - no_credential_or_private_code_extraction
+    acceptanceCriteria:
+      - "Each candidate has source, value hypothesis, falsification condition, and existing-NUSA overlap analysis"
+      - "CORE disposition is required before DEV implementation"
+    evidenceRequired:
+      - source_references
+      - capability_comparison
+      - adoption_recommendation
+    handoffTo:
+      - CORE
