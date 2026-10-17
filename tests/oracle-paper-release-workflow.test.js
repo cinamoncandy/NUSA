@@ -54,6 +54,15 @@ test("the small PAPER host receives a sealed build instead of installing or buil
   assert.doesNotMatch(release, /pnpm install|pnpm run build/);
 });
 
+test("the host privileged helper must exactly match the reviewed release helper before backup", () => {
+  const release = workflow.slice(workflow.indexOf("  release:"));
+  const helperGate = release.indexOf("Require reviewed host release helper exact match");
+  const backup = release.indexOf("Back up persistent state before touching the release");
+  assert.ok(helperGate > 0 && helperGate < backup, "helper drift must fail before any backup or release mutation");
+  assert.match(release, /cmp --silent "\$STEP" "\$RELEASE_TREE\/deploy\/oracle\/nusa-release-step\.sh"/);
+  assert.match(release, /Host release helper differs from exact reviewed source/);
+});
+
 test("the privileged backup uses the configured runtime state database", () => {
   const backupStart = wrapper.indexOf("  backup)");
   const backupEnd = wrapper.indexOf("\n\n  preflight)", backupStart);
@@ -107,6 +116,52 @@ test("writer lease recovery is diagnosis-scoped, fail-closed, and bounded to one
   assert.match(activate, /paper_ready=false/);
   assert.match(activate, /rollback_and_restore/, "failed recovery must retain the existing rollback boundary");
   assert.doesNotMatch(recover, /DELETE|DROP|UPDATE|INSERT|\/var\/lib\/nusa/, "the privileged wrapper must delegate persistent-state safety to the canonical reset script");
+});
+
+test("activation owns a bounded post-readiness stability soak and disk guard", () => {
+  assert.match(wrapper, /readonly ROOT_DISK_GUARD_PERCENT=92/);
+  assert.match(wrapper, /readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_SOAK_SECONDS=180/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10/);
+
+  const diskStart = wrapper.indexOf("assert_root_disk_headroom()");
+  const diskEnd = wrapper.indexOf("\n}\n", diskStart) + 2;
+  const disk = wrapper.slice(diskStart, diskEnd);
+  assert.match(disk, /df -P \/|ROOT_DISK_GUARD_PERCENT/);
+
+  const stageGateStart = wrapper.indexOf("assert_stage_disk_headroom()");
+  const stageGateEnd = wrapper.indexOf("\n}\n", stageGateStart) + 2;
+  const stageGate = wrapper.slice(stageGateStart, stageGateEnd);
+  assert.match(stageGate, /du -sb/);
+  assert.match(stageGate, /ROOT_DISK_STAGE_MARGIN_BYTES/);
+  assert.match(stageGate, /ROOT_DISK_GUARD_PERCENT/);
+
+  const stageCaseStart = wrapper.indexOf("  stage)");
+  const stageCaseEnd = wrapper.indexOf("\n\n  switch)", stageCaseStart);
+  assert.match(wrapper.slice(stageCaseStart, stageCaseEnd), /assert_stage_disk_headroom "\$source_tree"/);
+
+  const preflightStart = wrapper.indexOf("  preflight)");
+  const preflightEnd = wrapper.indexOf("\n\n  install-units)", preflightStart);
+  assert.match(wrapper.slice(preflightStart, preflightEnd), /assert_root_disk_headroom/);
+
+  const soakStart = wrapper.indexOf("prove_post_activation_stability()");
+  const soakEnd = wrapper.indexOf("\n}\n", soakStart) + 2;
+  const soak = wrapper.slice(soakStart, soakEnd);
+  assert.ok(soak.length > 0);
+  assert.match(soak, /active_release_sha/);
+  assert.match(soak, /oracle-readiness-check\.js/);
+  assert.match(soak, /autopilot-readiness\.js/);
+  assert.match(soak, /sleep "\$POST_ACTIVATION_CHECK_INTERVAL_SECONDS"/);
+  assert.match(soak, /NUSA_READY_STARTUP_WAIT_MS=5000/);
+
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  readiness)", activateStart);
+  const activate = wrapper.slice(activateStart, activateEnd);
+  orderIn(activate, ["oracle-readiness-check.js", "autopilot-readiness.js", "prove_post_activation_stability", "activation accepted"]);
+  assert.match(activate, /stability_ready=false/);
+  assert.match(activate, /rollback_and_restore/, "failed soak must stay inside the activation rollback boundary");
+
+  assert.doesNotMatch(workflow.slice(workflow.indexOf("  release:")), /rm -rf|find .* -delete/, "workflow deletion remains forbidden; disk admission belongs to the bounded helper");
 });
 
 test("every privileged action goes through the one wrapper command", () => {
@@ -170,7 +225,7 @@ test("bounded release pruning preserves rollback safety and validates before del
   const prune = wrapper.slice(pruneStart, pruneEnd);
   assert.match(prune, /active_release/);
   assert.match(prune, /previous_release/);
-  assert.match(wrapper, /readonly RELEASE_RETENTION=2/);
+  assert.match(wrapper, /readonly RELEASE_RETENTION=0/);
   assert.match(prune, /Validate the entire candidate set before deleting anything/);
   assert.ok(prune.indexOf("unexpected release directory name") < prune.indexOf("rm -rf --"), "validation must dominate deletion");
   assert.match(prune, /\[ "\$dir" = "\$active" \] && continue/);
