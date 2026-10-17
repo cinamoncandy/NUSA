@@ -6,6 +6,7 @@ const { tmpdir } = require("node:os");
 
 const { SqliteDatabase, SqliteResearchCandleStore } = require("../dist/packages/storage/src/index.js");
 const { composeResearchExperiments, readResearchExperimentSettings, RESEARCH_FLAG, RESEARCH_BACKTEST_COST } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+const { materializeResearchDatasetManifest } = require("../dist/apps/cloud/src/researchDatasetManifestMaterializer.js");
 
 const M = 60_000;
 const SHA = "b".repeat(40);
@@ -66,12 +67,16 @@ test("longer bars run the same grid on 1m candles aggregated into complete bars,
   const db = open();
   const store = new SqliteResearchCandleStore(db, 200_000);
   const days = 11; const count = days * 1440;
-  const rows = Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 600) + (i % 11) * 0.2).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close }; });
+  const rows = Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 600) + (i % 11) * 0.2).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close, volume: 1 }; });
   store.append("KRW-BTC", M, rows);
   const lines = [];
   const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_DAILY_BUDGET: "10", NUSA_RESEARCH_INTERVAL_MINUTES: "1,60" }), database: db, now: () => T_END, log: (l) => lines.push(l) });
   try {
     assert.ok(composition);
+    materializeResearchDatasetManifest({ store: composition.datasetManifests, market: "KRW-BTC", intervalMs: M, candles: store.read("KRW-BTC", M, 0, T_END), source: "upbit-1m-closed:KRW-BTC:60000", createdAt: new Date(T_END).toISOString() });
+    const base = store.read("KRW-BTC", M, 0, T_END);
+    const hourlyCandles = Array.from({ length: Math.floor(base.length / 60) }, (_, i) => { const group = base.slice(i * 60, (i + 1) * 60); return { closeTimeMs: group.at(-1).closeTimeMs, open: group[0].open, high: Math.max(...group.map((c) => c.high)), low: Math.min(...group.map((c) => c.low)), close: group.at(-1).close, volume: 60 }; });
+    materializeResearchDatasetManifest({ store: composition.datasetManifests, market: "KRW-BTC", intervalMs: 60 * M, candles: hourlyCandles, source: "upbit-1m-closed:KRW-BTC:3600000", createdAt: new Date(T_END).toISOString() });
     assert.equal(composition.orchestrators.length, 2);
     assert.equal(composition.orchestrator, composition.orchestrators[0]);
     for (const o of composition.orchestrators) assert.equal(o.recover().status, "READY");
@@ -94,12 +99,13 @@ test("enabled composition recovers, runs a real tick on stored candles and expos
   const db = open();
   const store = new SqliteResearchCandleStore(db, 200_000);
   const days = 11; const count = days * 1440;
-  const rows = Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 90) + (i % 11) * 0.2).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close }; });
+  const rows = Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 90) + (i % 11) * 0.2).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close, volume: 1 }; });
   store.append("KRW-BTC", M, rows);
   const lines = [];
   const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_DAILY_BUDGET: "10" }), database: db, now: () => T_END, log: (l) => lines.push(l) });
   try {
     assert.ok(composition);
+    materializeResearchDatasetManifest({ store: composition.datasetManifests, market: "KRW-BTC", intervalMs: M, candles: store.read("KRW-BTC", M, 0, T_END), source: "upbit-1m-closed:KRW-BTC:60000", createdAt: new Date(T_END).toISOString() });
     assert.equal(composition.orchestrator.recover().status, "READY");
     const report = composition.tickOnce();
     assert.equal(report.status, "OK");

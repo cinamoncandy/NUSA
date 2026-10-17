@@ -72,6 +72,7 @@ function validate(market: string, intervalMs: number, candle: StoredResearchCand
 export class SqliteResearchCandleStore {
   public constructor(private readonly db: SqliteDatabase, private readonly maximumRowsPerMarket = 100_000) {
     if (!Number.isSafeInteger(maximumRowsPerMarket) || maximumRowsPerMarket < 2 || maximumRowsPerMarket > 5_000_000) throw new ResearchCandleStoreError("INVALID_RETENTION", "research candle retention is invalid");
+    this.db.connection.exec(`CREATE TABLE IF NOT EXISTS ${TABLE} (market TEXT NOT NULL, interval_ms INTEGER NOT NULL, close_time_ms INTEGER NOT NULL, open REAL NOT NULL, high REAL NOT NULL, low REAL NOT NULL, close REAL NOT NULL, checksum TEXT NOT NULL, PRIMARY KEY (market, interval_ms, close_time_ms))`);
     this.db.connection.exec(`CREATE TABLE IF NOT EXISTS ${MATERIAL_TABLE} (market TEXT NOT NULL, interval_ms INTEGER NOT NULL, first_close_time_ms INTEGER NOT NULL, last_close_time_ms INTEGER NOT NULL, candle_count INTEGER NOT NULL, store_content_sha256 TEXT NOT NULL, source TEXT NOT NULL, source_fingerprint TEXT, evidence_fingerprint_sha256 TEXT, missing_buckets INTEGER NOT NULL, incomplete_buckets INTEGER NOT NULL, rejected_observations INTEGER NOT NULL, material_sha256 TEXT NOT NULL, PRIMARY KEY (market, interval_ms, first_close_time_ms, last_close_time_ms, store_content_sha256))`);
     try { this.db.connection.exec(`ALTER TABLE ${TABLE} ADD COLUMN volume REAL`); } catch { /* existing schema already migrated */ }
   }

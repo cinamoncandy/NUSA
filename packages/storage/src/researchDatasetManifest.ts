@@ -40,4 +40,9 @@ export class SqliteResearchDatasetManifestStore {
     if (manifest.datasetId !== datasetId || fingerprint(manifest) !== row.manifestSha256) throw new ResearchDatasetManifestStoreError("MANIFEST_CHECKSUM_MISMATCH", "dataset manifest fingerprint does not match persisted content");
     return Object.freeze(manifest);
   }
+
+  public latest(market: string, interval: string): HistoricalDatasetManifest | undefined {
+    const rows = this.db.connection.prepare(`SELECT manifest_json AS manifestJson FROM ${TABLE} ORDER BY rowid DESC`).all() as Array<{ manifestJson: string }>;
+    return rows.map((row) => JSON.parse(row.manifestJson) as HistoricalDatasetManifest).find((manifest) => manifest.market === market && manifest.interval === interval);
+  }
 }

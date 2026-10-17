@@ -99,7 +99,6 @@ export function aggregateClosedCandles(input: {
   const missingBuckets = starts.length < 2 ? 0 : (starts[starts.length - 1] - starts[0]) / intervalMs + 1 - starts.length;
   const sources = new Set(input.observations.map((observation) => observation.source).filter((value): value is string => value != null));
   const sourceFingerprints = new Set(input.observations.map((observation) => observation.sourceFingerprint).filter((value): value is string => value != null));
-  const evidenceFingerprints = new Set(input.observations.map((observation) => observation.evidenceFingerprintSha256).filter((value): value is string => value != null));
-  if (sources.size > 1 || sourceFingerprints.size > 1 || evidenceFingerprints.size > 1) throw new Error("mixed observation provenance is not supported");
-  return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles), ...(sources.size === 1 ? { source: [...sources][0] } : {}), ...(sourceFingerprints.size === 1 ? { sourceFingerprint: [...sourceFingerprints][0] } : {}), ...(evidenceFingerprints.size === 1 ? { evidenceFingerprintSha256: [...evidenceFingerprints][0] } : {}) });
+  if (sources.size > 1 || sourceFingerprints.size > 1) throw new Error("mixed observation provenance is not supported");
+  return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles), ...(sources.size === 1 ? { source: [...sources][0] } : {}), ...(sourceFingerprints.size === 1 ? { sourceFingerprint: [...sourceFingerprints][0] } : {}) });
 }

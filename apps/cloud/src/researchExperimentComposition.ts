@@ -248,7 +248,7 @@ export function composeResearchExperiments(input: {
       featurePipeline: { version: "closed-candle-agg-v1", config: { intervalMs, maxInternalGapMs: 30_000, volume: 0 } },
       experimentFamilyPrefix: `sma-research${tag}`,
       datasetManifest: { read: (datasetId: string) => datasetManifests.read(datasetId) },
-      datasetIdForMarket: (targetMarket: string) => `upbit-1m-closed:${targetMarket}:${intervalMs}`,
+      datasetIdForMarket: (targetMarket: string) => datasetManifests.latest(targetMarket, `${intervalMs / 60_000}m`)?.datasetId ?? "missing-dataset-manifest",
       failureEvidence: () => ledger.list().filter((record) => record.provenance?.windowRole === "VALIDATION" && record.provenance.interval === `${minutes}m`),
     });
     return { orchestrator, variantCount: variants.length };
