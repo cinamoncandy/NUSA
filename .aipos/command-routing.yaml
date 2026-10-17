@@ -1,0 +1,136 @@
+version: 1
+kind: AIPOS_COMMAND_ROUTING
+status: PROPOSED
+purpose: >-
+  Allow CORE to issue durable, provider-agnostic directives through AIPOS so Codex,
+  Claude Code, MiMo, or another available execution model can take over a role without
+  relying on prior chat memory.
+
+ultimate_user_objective:
+  statement: "Help the OWNER pursue economic freedom through evidence-based, risk-controlled, continuously improving NUSA capabilities."
+  constraints:
+    - "No claim of guaranteed profit or economic freedom."
+    - "Safety, evidence integrity, and OWNER authority are never weakened to chase returns."
+
+source_of_truth:
+  repository: true
+  aipos_execution_state: true
+  conversation: false
+
+roles:
+  CORE:
+    responsibility:
+      - overall_direction
+      - priority
+      - canonical_owner_assignment
+      - first_broken_transition
+      - integration
+      - completion_verdict
+    implementation_authority: false
+  SCOUT:
+    responsibility:
+      - external_system_analysis
+      - feature_extraction
+      - research_opportunity_discovery
+    direct_promotion_authority: false
+  DEV:
+    responsibility:
+      - core_implementation
+      - approved_scout_feature_implementation
+      - focused_tests
+      - exact_head_ci_convergence
+  LEARNING:
+    responsibility:
+      - performance_to_feedback
+      - durable_learning_cycle
+      - research_n_plus_1_continuity
+      - candidate_n_plus_1_learning_continuity
+  SERVER_AUTOMATION:
+    responsibility:
+      - infrastructure
+      - runtime_automation
+      - service_lifecycle
+      - maintenance_automation
+  VALIDATION_RELEASE_RUNTIME:
+    responsibility:
+      - fresh_non_author_review
+      - regression_and_safety_validation
+      - independent_audit
+      - release_gate
+      - exact_main_deploy_verification
+      - runtime_sha
+      - canary
+      - restart_replay
+      - actual_paper_evidence
+  DATA_EVIDENCE:
+    responsibility:
+      - dataset_provenance
+      - pit_and_leakage
+      - cost_fill_performance_evidence
+      - fingerprint_identity_continuity
+      - evidence_integrity
+
+model_assignment:
+  policy: ROLE_FIRST_PROVIDER_FUNGIBLE
+  allowed_examples:
+    - Codex
+    - Claude_Code
+    - MiMo
+  rules:
+    - "Do not bind a canonical role permanently to one model vendor."
+    - "Use whichever capable model is available at execution time."
+    - "Author and fresh non-author validator must remain role-separated for the same change."
+    - "A provider switch must not require hidden model state or prior chat history."
+
+command_contract:
+  required_fields:
+    - commandId
+    - issuedBy
+    - owner
+    - priority
+    - objective
+    - firstBrokenTransition
+    - canonicalOwner
+    - safetyInvariants
+    - acceptanceCriteria
+    - evidenceRequired
+    - handoffTo
+    - status
+  statuses:
+    - READY
+    - IN_PROGRESS
+    - BLOCKED
+    - VALIDATION_REQUIRED
+    - COMPLETED
+    - SUPERSEDED
+  priority_order:
+    - P0
+    - P1
+    - P2
+
+execution_protocol:
+  - recover_aipos
+  - fresh_check_protected_main_and_runtime
+  - select_highest_priority_ready_command_for_role
+  - verify_canonical_owner_and_existing_pr_branch
+  - execute_minimal_non_duplicate_work
+  - verify
+  - write_durable_evidence
+  - update_command_status
+  - handoff
+
+safety_invariants:
+  PAPER_ONLY: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  historicalRewrite: prohibited
+  directDatabaseEdit: prohibited
+  duplicateControlPlane: prohibited
+  thresholdRelaxationForPass: prohibited
+  syntheticProfitEvidence: prohibited
+
+completion_rule: >-
+  A role may report implementation progress, but CORE retains the cross-role completion verdict.
+  Code, CI, merge, deploy, or counters alone are not sufficient when runtime or continuity evidence
+  is part of the acceptance criteria.
