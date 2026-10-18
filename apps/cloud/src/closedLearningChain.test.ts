@@ -234,6 +234,44 @@ describe("Integrated chain - fail closed, then open only at the floor", () => {
   });
 });
 
+describe("Integrated chain - section 8, the application is restorable as a causal parent", () => {
+  it("reports no learning parent while nothing has taken effect", () => {
+    const { evolution, holdouts, now, close } = fixture();
+    try {
+      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      assert.equal(chain.latestAppliedLearning(), undefined, "nothing has been applied, so no research request may be credited with a parent");
+
+      const refused = chain.run(cycle("a"), ports({ value: 1 }));
+      assert.equal(refused.applicationReceipt.receipt.applicationOutcome, "REJECTED");
+      assert.equal(chain.latestAppliedLearning(), undefined, "and a refused application is not a parent either");
+    } finally {
+      close();
+    }
+  });
+
+  it("names the application, its decision, and the previous spec once one has taken effect", () => {
+    const { evolution, holdouts, now, close } = fixture();
+    try {
+      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const last = runFullPass(chain, { value: 1 }, META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "s").at(-1) as LearningChainResult;
+      assert.equal(last.applicationReceipt.receipt.applicationOutcome, "APPLIED");
+
+      const parent = chain.latestAppliedLearning();
+      assert.ok(parent, "an applied change is now the causal parent of the research that follows");
+      assert.equal(parent.applicationFingerprint, last.applicationReceipt.fingerprint, "the exact application the research request will name");
+      assert.equal(parent.learningDecisionFingerprint, last.decisionReceipt.fingerprint);
+      assert.equal(parent.type, "learning-application");
+      assert.equal(parent.learningCycleId, last.cycleId, "the exact learning cycle that produced the application");
+
+      // A whole new chain object over the same store: this is what a process restart looks like.
+      const restarted = new ClosedLearningChain(evolution, holdouts, now);
+      assert.deepEqual(restarted.latestAppliedLearning(), parent, "a restart rehydrates the same causal parent from durable history");
+    } finally {
+      close();
+    }
+  });
+});
+
 describe("Integrated chain - restart safety", () => {
   it("rehydrates from durable history and replays without appending anything", () => {
     const { evolution, holdouts, now, close } = fixture();

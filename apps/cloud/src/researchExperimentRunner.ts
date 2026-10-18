@@ -43,6 +43,15 @@ export interface ExperimentSpec {
   readonly candidateCohort?: readonly Readonly<{ readonly id: string; readonly strategyId: string; readonly strategyVersion: string; readonly parameters: Readonly<Record<string, unknown>> }>[];
   readonly searchUniverse?: Readonly<Record<string, unknown>>;
   readonly datasetId?: string;
+  /**
+   * The bounded learning application that caused this experiment, when there was one.
+   *
+   * Optional because most research is not learning-caused. When present it is carried into the
+   * precommit, which is what makes v2 section 8 restorable: from this experiment's spec a reader can
+   * reach back to the application, its decision, and the previous spec, rather than inferring a link
+   * from the fact that a parameter changed shortly before the run started.
+   */
+  readonly causedByLearning?: { readonly type: "learning-application"; readonly learningCycleId: string; readonly learningDecisionFingerprint: string; readonly applicationFingerprint: string };
 }
 
 export type ExperimentOutcome =
@@ -126,6 +135,7 @@ export function runResearchExperiment(ports: ExperimentRunnerPorts, spec: Experi
         evaluationPlan: { role, splitIdentity: spec.split.identity, walkForwardConfig: spec.walkForwardConfig },
         validationPolicyIdentity: spec.split.identity,
         createdAt: new Date(now).toISOString(),
+        ...(spec.causedByLearning == null ? {} : { causedByLearning: spec.causedByLearning }),
       });
       const durablePrecommit = precommit == null ? undefined : ports.precommitStore!.create(precommit);
       const provenance = buildResearchProvenance({

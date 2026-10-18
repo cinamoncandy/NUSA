@@ -120,6 +120,14 @@ export function composeResearchExperiments(input: {
   /** Meta-learning steering: the longer bar lengths tick every N-th scheduled tick (1 = every tick). Read on every tick. */
   readonly longBarTickEvery?: () => number;
   readonly paperEvidenceReader?: () => readonly { readonly recordId: string; readonly recordedAt: number }[];
+  /**
+   * The bounded learning application currently in force, read on every experiment.
+   *
+   * The v2 section 8 link. A research request that a learning application caused names that
+   * application, its decision, and the previous spec, so the causal parent is restorable from
+   * provenance instead of inferred from the fact that a parameter changed shortly before a run.
+   */
+  readonly causedByLearning?: () => { readonly type: "learning-application"; readonly learningCycleId: string; readonly learningDecisionFingerprint: string; readonly applicationFingerprint: string } | undefined;
 }): ResearchExperimentComposition | undefined {
   const log = input.log ?? (() => undefined);
   const parsed = readResearchExperimentSettings(input.env);
@@ -254,6 +262,7 @@ export function composeResearchExperiments(input: {
       // Closed 1m candles are collected once per tick by the 1m-equivalent first orchestrator only.
       collect: (nowMs) => { if (minutes === settings.intervalsMinutes[0]) collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store }); },
       candles: bars, holdout, now, sourceCommitSha: settings.sourceCommitSha,
+      ...(input.causedByLearning == null ? {} : { causedByLearning: input.causedByLearning }),
       models: { fill: "fill-close-v1", fee: `fee-${RESEARCH_BACKTEST_COST.feeRate}-v1`, slippage: `slip-${RESEARCH_BACKTEST_COST.slippageBps}bps-v1` },
       evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
       featurePipeline: { version: "closed-candle-agg-v1", config: { intervalMs, maxInternalGapMs: 30_000, volume: 0 } },

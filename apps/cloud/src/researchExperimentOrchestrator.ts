@@ -59,6 +59,14 @@ export interface OrchestratorOptions {
   readonly precommitStore?: { create(precommit: ResearchPrecommit): ResearchPrecommit };
   readonly datasetManifest?: ExperimentRunnerPorts["datasetManifest"];
   readonly datasetIdForMarket?: (market: string) => string;
+  /**
+   * The bounded learning application currently in force, read on every experiment.
+   *
+   * Read rather than held so a request is always attributed to the application that was actually in
+   * force when it ran, and absent whenever no application has ever taken effect - a research request
+   * must never be credited with a learning parent it did not have.
+   */
+  readonly causedByLearning?: () => ExperimentSpec["causedByLearning"];
 }
 
 export interface ResearchExperimentTickSummary {
@@ -251,10 +259,12 @@ export class ResearchExperimentOrchestrator {
           const validationEnd = endCloseMs - this.options.windows.holdoutMs;
           const last = session.lastEvidenceAt;
           if (last != null && validationEnd < last + this.options.windows.validationMs) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); continue; }
+          const learningParent = this.options.causedByLearning?.();
           const outcome = runResearchExperiment(this.portsFor(variant), {
             sessionId, market, intervalMs: this.options.intervalMs, endCloseMs, windows: this.options.windows,
             datasetId: this.options.datasetIdForMarket?.(market),
             champion: variant.champion, challenger: variant.challenger,
+            ...(learningParent == null ? {} : { causedByLearning: learningParent }),
             featurePipeline: this.options.featurePipeline, evaluator: this.options.evaluator, models: this.options.models,
             sourceCommitSha: this.options.sourceCommitSha,
             experimentFamilyId: `${variant.experimentFamilyPrefix ?? this.options.experimentFamilyPrefix}:${market}`,

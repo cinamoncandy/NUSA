@@ -235,6 +235,30 @@ export class ClosedLearningChain {
   }
 
   /**
+   * The learning application currently in force, for v2 section 8.
+   *
+   * Derived entirely from durable history, so a restarted process attributes new research to the
+   * application that is genuinely in force rather than to whatever the previous process held in
+   * memory. All three identities travel together, because a partially specified parent would read as
+   * a link while leaving one end unverifiable.
+   *
+   * Returns nothing when no application has ever taken effect. A research request must never be
+   * credited with a learning parent it did not have.
+   */
+  public latestAppliedLearning(): Readonly<{ type: "learning-application"; learningCycleId: string; applicationFingerprint: string; learningDecisionFingerprint: string }> | undefined {
+    const applied = this.applications.latestApplied();
+    if (applied == null) return undefined;
+    const decision = this.decisions.byFingerprint(applied.receipt.learningDecisionFingerprint);
+    if (decision == null) return undefined;
+    return Object.freeze({
+      type: "learning-application" as const,
+      learningCycleId: applied.receipt.learningCycleId,
+      applicationFingerprint: applied.fingerprint,
+      learningDecisionFingerprint: decision.fingerprint,
+    });
+  }
+
+  /**
    * The current projection, derived from durable records only.
    *
    * It reports; it does not compute a decision or an application, and nothing it returns is fed back
