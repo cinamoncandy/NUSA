@@ -5,7 +5,7 @@ import { bindPaperCandidateForExecution } from "../../../packages/contracts/src/
 import { isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
-import type { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
+import type { PaperChallengerBindingLedger, PaperChallengerGovernanceAuthorization } from "./paperChallengerBindingLedger";
 import { samePaperResearchLineage, validatePaperResearchLineage, type PaperResearchLineage } from "./paperResearchLineage";
 import type {
   ClosedLearningPaperDeploymentReceipt,
@@ -17,20 +17,7 @@ import type {
  * The exact, current, immutable Strategy Governance authorization for one candidate to execute as a
  * PAPER challenger. Returned by the canonical Governance service; this runtime never derives it.
  */
-export interface StrategyGovernanceChallengerAuthorization {
-  readonly strategyId: string;
-  readonly candidateId: string;
-  readonly candidateVersion: string;
-  readonly familyId: string;
-  readonly evidenceFingerprintSha256: string;
-  readonly lifecycle: string;
-  readonly approval: Readonly<{
-    readonly actorType: string;
-    readonly approvalReference: string;
-    readonly approvedAt: number;
-    readonly decisionFingerprint: string;
-  }>;
-}
+export type StrategyGovernanceChallengerAuthorization = PaperChallengerGovernanceAuthorization;
 
 /**
  * Fail-closed port onto canonical Strategy Governance. It must throw — never return a partial or
@@ -144,6 +131,14 @@ function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): numb
   return maximum + 1;
 }
 
+function sameGovernanceAuthorization(left: PaperChallengerGovernanceAuthorization | undefined, right: PaperChallengerGovernanceAuthorization): boolean {
+  return left != null && left.strategyId === right.strategyId && left.candidateId === right.candidateId
+    && left.candidateVersion === right.candidateVersion && left.familyId === right.familyId
+    && left.evidenceFingerprintSha256 === right.evidenceFingerprintSha256 && left.lifecycle === right.lifecycle
+    && left.approval.actorType === right.approval.actorType && left.approval.approvalReference === right.approval.approvalReference
+    && left.approval.approvedAt === right.approval.approvedAt && left.approval.decisionFingerprint === right.approval.decisionFingerprint;
+}
+
 /**
  * Thin production adapter from an already-qualified immutable Research/League artifact into the
  * existing canonical PAPER binding and realized-period machinery. It owns no League score,
@@ -206,6 +201,7 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
       const existingBinding = bindPaperCandidateForExecution(baseline.advisory, baseline.candidateProvenance, candidateId, baseline.periodStartAt, artifact.candidateStrategy);
       if (baseline.market !== market || baseline.periodStartAt !== periodStartAt
         || existingBinding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256
+        || !sameGovernanceAuthorization(active?.governanceAuthorization, authorization)
         || active?.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256
         || active.researchLineage == null || !samePaperResearchLineage(active.researchLineage, researchLineage)) {
         throw new Error("existing PAPER deployment replay state conflict");
@@ -235,10 +231,11 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
 
     const active = this.options.bindings.current(market, periodStartAt);
     if (active != null) {
+      if (!sameGovernanceAuthorization(active.governanceAuthorization, authorization)) throw new Error("existing PAPER challenger Governance authorization conflicts with the current decision");
       if (active.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256 || active.binding.candidateId !== candidateId) throw new Error("another PAPER challenger is already active for this market");
       if (active.researchLineage == null || !samePaperResearchLineage(active.researchLineage, researchLineage)) throw new Error("existing PAPER challenger Research lineage conflict");
     } else {
-      this.options.bindings.activate(market, binding, researchLineage);
+      this.options.bindings.activate(market, binding, researchLineage, authorization);
     }
 
     if (baseline != null) {

@@ -103,9 +103,14 @@ describe("PaperChallengerDeploymentRuntime qualified handoff", () => {
           active = undefined;
           return {} as never;
         },
-        activate: (market: string, binding: PaperChallengerActivationReceipt["binding"], researchLineage: NonNullable<PaperChallengerActivationReceipt["researchLineage"]>) => {
+        activate: (
+          market: string,
+          binding: PaperChallengerActivationReceipt["binding"],
+          researchLineage: NonNullable<PaperChallengerActivationReceipt["researchLineage"]>,
+          governanceAuthorization: NonNullable<PaperChallengerActivationReceipt["governanceAuthorization"]>,
+        ) => {
           events.push("activate");
-          active = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market, binding, activatedAt: binding.periodStartAt, researchLineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+          active = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market, binding, activatedAt: binding.periodStartAt, researchLineage, governanceAuthorization, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
           return active;
         },
       },
@@ -134,6 +139,7 @@ describe("PaperChallengerDeploymentRuntime qualified handoff", () => {
     assert.equal(receipt.candidateId, CANDIDATE);
     assert.equal(active?.binding.candidateId, CANDIDATE);
     assert.equal(active?.researchLineage?.candidateVersion, VERSION);
+    assert.equal(active?.governanceAuthorization?.candidateId, CANDIDATE);
   });
 
   it("replays the same replacement without revoking or reactivating the already-matching binding", () => {
@@ -145,9 +151,14 @@ describe("PaperChallengerDeploymentRuntime qualified handoff", () => {
       bindings: {
         current: () => active,
         revoke: () => { events.push("revoke"); active = undefined; return {} as never; },
-        activate: (market: string, binding: PaperChallengerActivationReceipt["binding"], researchLineage: NonNullable<PaperChallengerActivationReceipt["researchLineage"]>) => {
+        activate: (
+          market: string,
+          binding: PaperChallengerActivationReceipt["binding"],
+          researchLineage: NonNullable<PaperChallengerActivationReceipt["researchLineage"]>,
+          governanceAuthorization: NonNullable<PaperChallengerActivationReceipt["governanceAuthorization"]>,
+        ) => {
           events.push("activate");
-          active = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market, binding, activatedAt: binding.periodStartAt, researchLineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+          active = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market, binding, activatedAt: binding.periodStartAt, researchLineage, governanceAuthorization, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
           return active;
         },
       },
