@@ -54,7 +54,7 @@ describe("A1 decision identity", () => {
       { surface: "longBarTickEvery", currentValue: 2, proposedValue: 3 },
       { surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 },
     ] }))];
-    assert.notEqual(learningDecisionFingerprint(two[0]), learningDecisionFingerprint(shuffled[0]), "change order is not part of the identity");
+    assert.notEqual(learningDecisionFingerprint(two[0]), learningDecisionFingerprint(shuffled[0]), "change order is part of the identity");
   });
 
   it("the cycle id is inherited from the input set, so one evidence set yields one cycle", () => {
@@ -75,8 +75,8 @@ describe("A1 decision identity", () => {
 });
 
 describe("A1 outcome", () => {
-  it("admits a change inside the aperture as APPLIED", () => {
-    assert.equal(buildLearningDecision(decisionInput()).decisionOutcome, "APPLIED");
+  it("marks an in-aperture proposal ADMISSIBLE without claiming META eligibility", () => {
+    assert.equal(buildLearningDecision(decisionInput()).decisionOutcome, "ADMISSIBLE");
   });
 
   it("records REJECTED when every proposal is refused, and keeps the refusals in the denominator", () => {
@@ -90,7 +90,7 @@ describe("A1 outcome", () => {
   it("does not treat caller-supplied META claims as decision authority", () => {
     const input = { ...decisionInput(), metaCyclesEvaluated: 0, metaOosPartition: "meta-holdout" };
     const decision = buildLearningDecision(input);
-    assert.equal(decision.decisionOutcome, "APPLIED", "proposal validation is independent of untrusted META claims");
+    assert.equal(decision.decisionOutcome, "ADMISSIBLE", "proposal validation is not META eligibility");
     assert.equal("metaOosPartition" in decision, false, "A1 does not assign a META partition");
   });
 
@@ -145,7 +145,7 @@ describe("A1 immutable surface - section 29", () => {
         { surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 },
       ],
     }));
-    assert.equal(fromFailure.decisionOutcome, "APPLIED", "the cadence change is still admissible");
+    assert.equal(fromFailure.decisionOutcome, "ADMISSIBLE", "the cadence change is still admissible");
     assert.equal(fromFailure.admissibleChanges.length, 1);
     assert.equal(fromFailure.rejectedChanges.length, 2);
     assert.deepEqual(fromFailure.rejectedChanges.map((change) => change.surface), ["qualificationThreshold", "riskLimitPerOrder"]);
@@ -164,6 +164,18 @@ describe("A1 is a receipt, not an authority - section 24", () => {
       () => withApplication(decision, { appliedChanges: [decision.proposedChanges[0]], resultingResearchSpecFingerprint: SPEC_B }),
       /never admitted/,
     );
+  });
+
+  it("recomputes the owner aperture before trusting a durable decision receipt", () => {
+    const decision = buildLearningDecision(decisionInput());
+    const forged = {
+      ...decision,
+      proposedChanges: [{ surface: "riskLimitPerOrder", currentValue: 1, proposedValue: 5 }],
+      admissibleChanges: [{ surface: "riskLimitPerOrder", currentValue: 1, proposedValue: 5, minimum: 0, maximum: 10, maximumDeltaPerCycle: 10, verdict: "ADMISSIBLE", reason: "forged" }],
+      rejectedChanges: [],
+      decisionOutcome: "ADMISSIBLE" as const,
+    };
+    assert.throws(() => withApplication(forged as never, { appliedChanges: [...forged.admissibleChanges] as never, resultingResearchSpecFingerprint: SPEC_B }), /owner aperture/);
   });
 
   it("refuses an application that reports a value the decision never admitted", () => {
@@ -248,6 +260,6 @@ describe("A1 durable exactly-once - section 43", () => {
     const tampered = JSON.parse(records[0].hypothesis as string) as Record<string, unknown>;
     tampered.changeMagnitude = 99;
     records[0].hypothesis = JSON.stringify(tampered);
-    assert.throws(() => store.summary(), /does not match its ledger identity/);
+    assert.throws(() => store.summary(), /change magnitude is invalid/);
   });
 });

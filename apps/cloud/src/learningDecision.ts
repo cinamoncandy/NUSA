@@ -123,7 +123,7 @@ export interface LearningChangeRequest {
   readonly proposedValue: number;
 }
 
-export type LearningDecisionOutcome = "APPLIED" | "REJECTED" | "INSUFFICIENT";
+export type LearningDecisionOutcome = "ADMISSIBLE" | "APPLIED" | "REJECTED" | "INSUFFICIENT";
 
 export interface LearningDecision {
   readonly schemaVersion: typeof LEARNING_DECISION_SCHEMA_VERSION;
@@ -262,9 +262,10 @@ export function assessChange(request: LearningChangeRequest): LearningChangeAsse
  * The outcome is a statement about validation, not about performance and not about what was done:
  * - `INSUFFICIENT` - there is no proposal to assess.
  * - `REJECTED`     - at least one proposal was made and every one of them was refused.
- * - `APPLIED`      - at least one change is admissible, so the decision admits a bounded application.
+ * - `ADMISSIBLE`   - at least one change passes the local aperture; META eligibility is separate.
+ * - `APPLIED`      - a bounded application receipt reports at least one applied change.
  *
- * `APPLIED` therefore means "admitted to bounded application", never "already in effect". The applied
+ * `ADMISSIBLE` therefore means "may be considered by the bounded application gate", never "already in effect". The applied
  * values arrive separately from A4, and an execution failure is recorded in A4's own receipt rather
  * than rewriting this decision (v2 section 23).
  */
@@ -286,7 +287,7 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
   const changeMagnitude = admissibleChanges.reduce((largest, change) => Math.max(largest, Math.abs(change.proposedValue - change.currentValue)), 0);
 
   const decisionOutcome: LearningDecisionOutcome =
-    admissibleChanges.length > 0 ? "APPLIED" : proposedChanges.length > 0 ? "REJECTED" : "INSUFFICIENT";
+    admissibleChanges.length > 0 ? "ADMISSIBLE" : proposedChanges.length > 0 ? "REJECTED" : "INSUFFICIENT";
 
   return Object.freeze({
     schemaVersion: LEARNING_DECISION_SCHEMA_VERSION,
@@ -335,7 +336,7 @@ export function withApplication(
   for (const applied of application.appliedChanges) {
     const admission = admitted.get(applied.surface);
     if (admission == null) throw new LearningDecisionError("UNADMITTED_APPLICATION", "application reported a surface the decision never admitted");
-    if (applied.proposedValue !== admission.proposedValue) throw new LearningDecisionError("UNADMITTED_APPLICATION", "application reported a value the decision never admitted for " + applied.surface);
+    if (canonical(applied) !== canonical(admission)) throw new LearningDecisionError("UNADMITTED_APPLICATION", "application reported an assessment the decision never admitted for " + applied.surface);
   }
 
   return Object.freeze({
@@ -358,13 +359,45 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   if (value == null || typeof value !== "object") throw new LearningDecisionError("MALFORMED_DECISION", "learning decision is required");
   const candidate = value as Partial<LearningDecision>;
   if (candidate.schemaVersion !== LEARNING_DECISION_SCHEMA_VERSION) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision schema version is unsupported");
+  const fields = ["schemaVersion", "learningCycleId", "learningInputSetFingerprint", "previousResearchSpecFingerprint", "learningPolicyVersion", "objectiveVersion", "proposedChanges", "admissibleChanges", "rejectedChanges", "appliedChanges", "reasonEvidence", "changeMagnitude", "allowedSurfaceVersion", "immutableSurfaceVersion", "decisionOutcome", "createdAt", "sourceCommit", "runtimeIdentity", ...(candidate.resultingResearchSpecFingerprint === undefined ? [] : ["resultingResearchSpecFingerprint"])];
+  if (Object.keys(candidate).sort().join("\n") !== fields.sort().join("\n")) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision contains missing or unsupported fields");
   if (!SHA64.test(candidate.learningInputSetFingerprint ?? "")) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision input fingerprint is invalid");
+  if (candidate.learningCycleId !== "learning-cycle:" + candidate.learningInputSetFingerprint) throw new LearningDecisionError("MALFORMED_DECISION", "learning cycle identity does not match its input set");
   if (!SHA64.test(candidate.previousResearchSpecFingerprint ?? "")) throw new LearningDecisionError("MALFORMED_DECISION", "previous research spec fingerprint is invalid");
   if (candidate.allowedSurfaceVersion !== ALLOWED_SURFACE_VERSION) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision allowed-surface version is unsupported");
   if (candidate.immutableSurfaceVersion !== IMMUTABLE_SURFACE_VERSION) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision immutable-surface version is unsupported");
+  if (!["ADMISSIBLE", "APPLIED", "REJECTED", "INSUFFICIENT"].includes(candidate.decisionOutcome ?? "")) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision outcome is outside the closed set");
   for (const field of ["proposedChanges", "admissibleChanges", "rejectedChanges", "appliedChanges", "reasonEvidence"] as const) {
     if (!Array.isArray(candidate[field])) throw new LearningDecisionError("MALFORMED_DECISION", field + " must be a list");
   }
-  if (!["APPLIED", "REJECTED", "INSUFFICIENT"].includes(candidate.decisionOutcome ?? "")) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision outcome is outside the closed set");
-  if (!Number.isFinite(candidate.changeMagnitude) || (candidate.changeMagnitude as number) < 0) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision change magnitude is invalid");
+  for (const [field, item] of [["learningPolicyVersion", candidate.learningPolicyVersion], ["objectiveVersion", candidate.objectiveVersion], ["createdAt", candidate.createdAt], ["sourceCommit", candidate.sourceCommit], ["runtimeIdentity", candidate.runtimeIdentity]] as const) assertBoundedString(item, field);
+  for (const reference of candidate.reasonEvidence!) assertBoundedString(reference, "reason evidence reference");
+
+  const proposed = candidate.proposedChanges as readonly LearningChangeRequest[];
+  const assessments = proposed.map(assessChange);
+  const admissible = assessments.filter((change) => change.verdict === "ADMISSIBLE");
+  const rejected = assessments.filter((change) => change.verdict === "REJECTED");
+  if (canonical(assessments) !== canonical(candidate.proposedChanges)
+    || canonical(admissible) !== canonical(candidate.admissibleChanges)
+    || canonical(rejected) !== canonical(candidate.rejectedChanges)) {
+    throw new LearningDecisionError("MALFORMED_DECISION", "decision assessments do not match the owner aperture");
+  }
+
+  const remaining = [...admissible];
+  for (const applied of candidate.appliedChanges as readonly LearningChangeAssessment[]) {
+    const index = remaining.findIndex((change) => canonical(change) === canonical(applied));
+    if (index < 0) throw new LearningDecisionError("MALFORMED_DECISION", "applied change is not an admissible decision assessment");
+    remaining.splice(index, 1);
+  }
+
+  const expectedMagnitude = admissible.reduce((largest, change) => Math.max(largest, Math.abs(change.proposedValue - change.currentValue)), 0);
+  if (candidate.changeMagnitude !== expectedMagnitude) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision change magnitude is invalid");
+  if (candidate.resultingResearchSpecFingerprint !== undefined && !SHA64.test(candidate.resultingResearchSpecFingerprint)) throw new LearningDecisionError("MALFORMED_DECISION", "resulting research spec fingerprint is invalid");
+  const appliedChanges = candidate.appliedChanges as readonly LearningChangeAssessment[];
+  const expectedOutcome = appliedChanges.length > 0
+    ? "APPLIED"
+    : candidate.resultingResearchSpecFingerprint !== undefined
+      ? "REJECTED"
+      : admissible.length > 0 ? "ADMISSIBLE" : proposed.length > 0 ? "REJECTED" : "INSUFFICIENT";
+  if (candidate.decisionOutcome !== expectedOutcome) throw new LearningDecisionError("MALFORMED_DECISION", "decision outcome does not match its assessments and application receipt");
 }
