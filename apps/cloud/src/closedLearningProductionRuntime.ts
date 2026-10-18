@@ -51,10 +51,12 @@ import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT } from "./cloudPaperRiskPolicyIdent
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import { ClosedLearningInitialPaperBootstrap, type ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 import { buildPaperPerformanceFromLedger, type PaperPerformanceFromLedgerResult } from "./paperPerformanceFromLedger";
+import type { LearningEvidenceAuthority } from "./learningEvidenceAuthority";
 
 export const CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS = 30_000;
 
 export interface ClosedLearningProductionComposition {
+  readonly learningEvidenceAuthority: LearningEvidenceAuthority;
   readonly handle: CloudRuntimeHandle;
   readonly challengerBindings: PaperChallengerBindingLedger;
   /**
@@ -127,7 +129,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // Evidence validation is read-only and can be expensive. Do it before owning the renewable
   // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
   let longBarTickEvery = 1;
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
+  let readPaperEvidence: () => readonly { readonly recordId: string; readonly recordedAt: number }[] = () => [];
+  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery, paperEvidenceReader: () => readPaperEvidence() });
   researchExperiments?.prepareRecovery();
   try {
   // Cloud AI durability opens the same canonical SQLite file and performs its own full-file
@@ -210,6 +213,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     retireOpenPeriodForMixedBinding: (periodId: string) => baseHandle.retirePaperRealizedPeriodForMixedBinding(periodId),
     inspectOpenPeriodForMixedBinding: (periodId: string) => baseHandle.inspectPaperRealizedPeriodForMixedBinding(periodId),
   });
+  readPaperEvidence = () => periods.listRealizedPeriods().map((period) => ({ recordId: period.record.recordId, recordedAt: period.record.periodEndAt }));
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
   const replayInput = new ClosedLearningLineageReplayInputSource({
@@ -499,6 +503,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   finally { researchExperiments?.finishPreparedRecovery(); }
 
   return Object.freeze({
+    learningEvidenceAuthority: researchExperiments?.learningEvidenceAuthority ?? (() => { throw new Error("research evidence authority is unavailable while research experiments are disabled"); }) as never,
     handle,
     challengerBindings,
     readCanonicalPaperAccount,
