@@ -394,6 +394,7 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   if (candidate.changeMagnitude !== expectedMagnitude) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision change magnitude is invalid");
   if (candidate.resultingResearchSpecFingerprint !== undefined && !SHA64.test(candidate.resultingResearchSpecFingerprint)) throw new LearningDecisionError("MALFORMED_DECISION", "resulting research spec fingerprint is invalid");
   const appliedChanges = candidate.appliedChanges as readonly LearningChangeAssessment[];
+  if (appliedChanges.length > 0 && candidate.resultingResearchSpecFingerprint === undefined) throw new LearningDecisionError("MALFORMED_DECISION", "applied changes require a resulting research spec fingerprint");
   const expectedOutcome = appliedChanges.length > 0
     ? "APPLIED"
     : candidate.resultingResearchSpecFingerprint !== undefined

@@ -178,6 +178,16 @@ describe("A1 is a receipt, not an authority - section 24", () => {
     assert.throws(() => withApplication(forged as never, { appliedChanges: [...forged.admissibleChanges] as never, resultingResearchSpecFingerprint: SPEC_B }), /owner aperture/);
   });
 
+  it("rejects an applied receipt without the resulting spec identity", () => {
+    const decision = buildLearningDecision(decisionInput());
+    const forged = {
+      ...decision,
+      appliedChanges: [...decision.admissibleChanges],
+      decisionOutcome: "APPLIED" as const,
+    };
+    assert.throws(() => assertLearningDecision(forged), /require a resulting research spec fingerprint/);
+  });
+
   it("refuses an application that reports a value the decision never admitted", () => {
     const decision = buildLearningDecision(decisionInput());
     const overreach = { ...decision.admissibleChanges[0], proposedValue: 4 };
