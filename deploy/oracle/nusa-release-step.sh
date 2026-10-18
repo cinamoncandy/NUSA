@@ -17,6 +17,7 @@ set -euo pipefail
 
 readonly DEPLOY_ROOT=/opt/nusa
 readonly RELEASES="${DEPLOY_ROOT}/releases"
+readonly RUNNER_TEMP_ROOT=/opt/actions-runner-nusa-paper/_work/_temp
 readonly SERVICE=nusa.service
 readonly RESEARCH_SERVICE=nusa-research.service
 readonly RESEARCH_TIMER=nusa-research.timer
@@ -204,16 +205,36 @@ previous_release() {
 
 assert_stage_disk_headroom() {
   local source_tree="$1"
-  local total_bytes available_bytes source_bytes guard_free_bytes required_bytes
+  local force_copy="${2:-false}"
+  local total_bytes available_bytes source_bytes guard_free_bytes required_bytes source_device release_device
   total_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $2 }')"
   available_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $4 }')"
   source_bytes="$(du -sb -- "$source_tree" | awk '{ print $1 }')"
+  source_device="$(stat -c '%d' -- "$source_tree")"
+  release_device="$(stat -c '%d' -- "$RELEASES")"
   [[ "$total_bytes" =~ ^[0-9]+$ && "$available_bytes" =~ ^[0-9]+$ && "$source_bytes" =~ ^[0-9]+$ ]] \
     || die "could not determine stage disk headroom"
   guard_free_bytes=$(( (total_bytes * (100 - ROOT_DISK_GUARD_PERCENT) + 99) / 100 ))
-  required_bytes=$(( source_bytes + guard_free_bytes + ROOT_DISK_STAGE_MARGIN_BYTES ))
+  required_bytes=$(( guard_free_bytes + ROOT_DISK_STAGE_MARGIN_BYTES ))
+  if [ "$force_copy" = "true" ] || [ "$source_device" != "$release_device" ]; then
+    required_bytes=$((required_bytes + source_bytes))
+  fi
   [ "$available_bytes" -ge "$required_bytes" ] \
     || die "insufficient root disk headroom for stage: available=$available_bytes required=$required_bytes source=$source_bytes"
+}
+
+validate_stage_source_tree() {
+  local source_tree="$1" source_parent source_name runner_temp
+  runner_temp="$(realpath -e -- "$RUNNER_TEMP_ROOT")" || die "trusted runner temp directory is unavailable"
+  [ "$runner_temp" = "$RUNNER_TEMP_ROOT" ] || die "trusted runner temp directory resolved unexpectedly"
+  [ ! -L "$source_tree" ] || die "release source tree must not be a symlink"
+  source_tree="$(realpath -e -- "$source_tree")" || die "release source tree is unavailable"
+  [ -d "$source_tree" ] || die "release source tree is not a directory"
+  source_parent="${source_tree%/*}"
+  source_name="${source_tree##*/}"
+  [ "$source_parent" = "$runner_temp" ] && [[ "$source_name" =~ ^nusa-release-tree-[0-9]+$ ]] \
+    || die "release source tree must be a direct runner-temp extraction"
+  printf '%s\n' "$source_tree"
 }
 
 assert_root_disk_headroom() {
@@ -337,8 +358,7 @@ case "$verb" in
 
   stage)
     validate_sha "${1:-}"
-    source_tree="${2:-}"
-    [ -d "$source_tree" ] || die "source tree is not a directory"
+    source_tree="$(validate_stage_source_tree "${2:-}")"
     assert_stage_disk_headroom "$source_tree"
     dir="$(release_dir "$1")"
     # A staged release is immutable once `current` points at it. Replacing the active release
@@ -347,9 +367,21 @@ case "$verb" in
       [ "$(readlink -f "$dir")" = "$(active_release)" ] && die "refusing to restage the active release"
       rm -rf -- "$dir"
     fi
-    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
-    tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+    if [ "$(stat -c '%d' -- "$source_tree")" = "$(stat -c '%d' -- "$RELEASES")" ]; then
+      chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$source_tree"
+      if ! mv --no-copy -T -- "$source_tree" "$dir"; then
+        # Same st_dev can still cross a bind-mount boundary. Never let mv silently copy after
+        # the reduced rename-only headroom gate; re-check full-copy headroom before copying.
+        assert_stage_disk_headroom "$source_tree" true
+        install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
+        tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
+        chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+      fi
+    else
+      install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
+      tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
+      chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+    fi
     ;;
 
   switch)
