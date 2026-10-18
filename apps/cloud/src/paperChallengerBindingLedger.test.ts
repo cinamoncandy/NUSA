@@ -37,20 +37,33 @@ const lineage: PaperResearchLineage = Object.freeze({
 });
 
 function binding(overrides: Partial<PaperCandidateExecutionBinding> = {}): PaperCandidateExecutionBinding {
+  const candidateId = overrides.candidateId ?? "challenger-a-v9";
   return {
     schemaVersion: 1,
     status: "BOUND_UNVERIFIED",
     authority: "PAPER_RESEARCH_ONLY",
     liveAuthority: "NONE",
     productionMutationAllowed: false,
-    candidateId: "challenger-a-v9",
+    candidateId,
     datasetId: "dataset-a",
     datasetContentSha256: HASH_A,
     advisoryGeneratedAt: 1_000,
     periodStartAt: 2_000,
     advisoryFingerprintSha256: HASH_A,
     bindingFingerprintSha256: HASH_B,
+    candidateStrategy: {
+      candidateId, familyId: "sma-crossover", lineageId: "lineage-a", specificationHash: "e".repeat(64),
+      codeSha: "f".repeat(40), costModelVersion: "cost-v1", parameters: { shortPeriod: 2, longPeriod: 5 },
+    },
     ...overrides,
+  };
+}
+
+function governance(value: PaperCandidateExecutionBinding = binding()) {
+  return {
+    strategyId: "strategy-a", candidateId: value.candidateId, candidateVersion: value.candidateStrategy!.specificationHash,
+    familyId: value.candidateStrategy!.familyId, evidenceFingerprintSha256: value.bindingFingerprintSha256, lifecycle: "CHALLENGER" as const,
+    approval: { actorType: "HUMAN" as const, approvalReference: "owner:paper-challenger", approvedAt: 1, decisionFingerprint: "d".repeat(64) },
   };
 }
 
@@ -58,7 +71,7 @@ describe("PaperChallengerBindingLedger", () => {
   it("recovers one active immutable binding and exact Research lineage after restart", () => {
     const persistence = new MemoryLedger();
     const first = new PaperChallengerBindingLedger(persistence);
-    first.activate("krw-btc", binding(), lineage);
+    first.activate("krw-btc", binding(), lineage, governance());
     assert.equal(first.read("KRW-BTC", 3_000)?.candidateId, "challenger-a-v9");
 
     const restarted = new PaperChallengerBindingLedger(persistence);
@@ -67,27 +80,29 @@ describe("PaperChallengerBindingLedger", () => {
     assert.equal(recovered?.binding.liveAuthority, "NONE");
     assert.equal(recovered?.binding.productionMutationAllowed, false);
     assert.deepEqual(recovered?.researchLineage, lineage);
+    assert.deepEqual(recovered?.governanceAuthorization, governance());
     assert.deepEqual(restarted.lineage("KRW-BTC", 3_000), lineage);
   });
 
   it("keeps legacy lineage-free activation history readable", () => {
     const persistence = new MemoryLedger();
-    const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding());
+    const legacyBinding = binding();
+    persistence.append({ opportunityId: "paper-challenger:KRW-BTC:legacy:active", problem: "NUSA PAPER challenger binding lifecycle", evidenceReferences: [], hypothesis: JSON.stringify({ schemaVersion: 1, status: "ACTIVE", market: "KRW-BTC", binding: legacyBinding, activatedAt: legacyBinding.periodStartAt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), changeReference: `candidate:${legacyBinding.candidateId}`, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(legacyBinding.periodStartAt).toISOString() });
     const restarted = new PaperChallengerBindingLedger(persistence);
     assert.equal(restarted.read("KRW-BTC", 3_000)?.candidateId, "challenger-a-v9");
     assert.equal(restarted.lineage("KRW-BTC", 3_000), undefined);
+    assert.equal(restarted.current("KRW-BTC", 3_000)?.governanceAuthorization, undefined);
   });
 
   it("rejects lineage for a different candidate", () => {
     const runtime = new PaperChallengerBindingLedger(new MemoryLedger());
-    assert.throws(() => runtime.activate("KRW-BTC", binding(), Object.freeze({ ...lineage, candidateId: "different" })), /lineage candidate conflict/);
+    assert.throws(() => runtime.activate("KRW-BTC", binding(), Object.freeze({ ...lineage, candidateId: "different" }), governance()), /lineage candidate conflict/);
   });
 
   it("revokes a failed challenger without deleting immutable activation history", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding(), lineage);
+    runtime.activate("KRW-BTC", binding(), lineage, governance());
     const revoked = runtime.revoke("KRW-BTC", HASH_B, "challenger-a-v9", 4_000, "RISK_BREACH");
     assert.equal(revoked.status, "REVOKED");
     assert.equal(revoked.aiAuthority, "ZERO_AUTHORITY");
@@ -98,24 +113,40 @@ describe("PaperChallengerBindingLedger", () => {
   it("keeps the activation unavailable before its canonical period start", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding(), lineage);
+    runtime.activate("KRW-BTC", binding(), lineage, governance());
     assert.equal(runtime.read("KRW-BTC", 1_999), undefined);
   });
 
   it("rejects revocation that does not match the active candidate identity", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding(), lineage);
+    runtime.activate("KRW-BTC", binding(), lineage, governance());
     assert.throws(() => runtime.revoke("KRW-BTC", HASH_B, "different-candidate", 3_000, "FAILED"), /does not match/);
   });
 
   it("fails closed when a second challenger is activated before the first is revoked", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding(), lineage);
+    runtime.activate("KRW-BTC", binding(), lineage, governance());
+    const second = binding({ candidateId: "challenger-b-v1", bindingFingerprintSha256: HASH_A, periodStartAt: 2_500 });
     assert.throws(
-      () => runtime.activate("KRW-BTC", binding({ candidateId: "challenger-b-v1", bindingFingerprintSha256: HASH_A, periodStartAt: 2_500 })),
+      () => runtime.activate("KRW-BTC", second, undefined, governance(second)),
       /multiple PAPER challengers/,
     );
+  });
+
+  it("rejects new activations whose Governance evidence does not bind the exact PAPER candidate", () => {
+    const runtime = new PaperChallengerBindingLedger(new MemoryLedger());
+    assert.throws(() => runtime.activate("KRW-BTC", binding(), lineage, { ...governance(), evidenceFingerprintSha256: HASH_A }), /Governance authorization does not bind/);
+    assert.throws(() => runtime.activate("KRW-BTC", binding(), lineage, { ...governance(), approval: { ...governance().approval, approvedAt: 2_001 } }), /Governance authorization does not bind/);
+  });
+
+  it("detects persisted Governance authorization tampering on restart", () => {
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, governance());
+    const stored = persistence.records[0]!;
+    const receipt = JSON.parse(stored.hypothesis) as Record<string, unknown>;
+    persistence.records[0] = Object.freeze({ ...stored, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...governance(), candidateId: "forged" } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
   });
 });

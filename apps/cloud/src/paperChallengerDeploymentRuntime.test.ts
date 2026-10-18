@@ -112,7 +112,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     let open: PersistedPaperRealizedPeriodPlan | undefined;
     let opens = 0;
     let authorized = true;
-    const create = () => new PaperChallengerDeploymentRuntime({
+    const create = (decisionFingerprint = governanceApproval.approval.decisionFingerprint) => new PaperChallengerDeploymentRuntime({
       artifacts: { read: () => artifact }, bindings,
       periods: {
         listRealizedPeriods: () => [], listOpenPeriods: () => open == null ? [] : [open],
@@ -125,7 +125,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
       readCanonicalPaperAccount: () => account(),
       governance: { requireExecutableChallenger: (request) => {
         if (!authorized) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE");
-        return governanceFor().requireExecutableChallenger(request);
+        return governanceFor({ approval: { ...governanceApproval.approval, decisionFingerprint } }).requireExecutableChallenger(request);
       } },
     });
     const input = { cycleId: "interrupted-cycle", decision, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const };
@@ -139,6 +139,8 @@ describe("PaperChallengerDeploymentRuntime", () => {
     authorized = false;
     assert.throws(() => create().deploy(input), /GOVERNANCE_APPROVAL_UNAVAILABLE/);
     authorized = true;
+    assert.throws(() => create("e".repeat(64)).deploy(input), /conflict/);
+    assert.equal(ledger.records.length, records, "a changed Governance decision must not append another activation");
     open = { ...open!, market: "KRW-XRP" };
     assert.throws(() => create().deploy(input), /conflict|already open/);
     open = { ...original!, periodStartAt: original!.periodStartAt + 1 };
@@ -218,6 +220,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     assert.equal(active?.binding.datasetContentSha256, HASH);
     assert.deepEqual(active?.binding.candidateStrategy?.parameters, { shortPeriod: 2, longPeriod: 3 });
     assert.deepEqual(active?.researchLineage, researchLineage);
+    assert.deepEqual(active?.governanceAuthorization, { ...governanceApproval, evidenceFingerprintSha256: active!.binding.bindingFingerprintSha256 });
     assert.deepEqual(new PaperChallengerBindingLedger(ledger).lineage("KRW-BTC", 2_000), researchLineage);
   });
 
