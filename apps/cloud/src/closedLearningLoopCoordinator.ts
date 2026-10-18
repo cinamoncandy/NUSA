@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { LearningEvidenceAuthority } from "./learningEvidenceAuthority";
 
 export type ClosedLearningOutcome = "REJECTED" | "INSUFFICIENT" | "QUALIFIED_FOR_LEAGUE";
 
@@ -167,7 +168,17 @@ export class ClosedLearningLoopCoordinator {
     private readonly researchFactory: ExistingResearchFactoryAdapter,
     private readonly paperDeployment: PaperChallengerDeploymentAdapter,
     private readonly now: () => number = Date.now,
+    private readonly evidenceAuthority?: LearningEvidenceAuthority,
   ) {}
+
+  private assertDurableEvidence(identity: ClosedLearningEvidenceIdentity): void {
+    if (this.evidenceAuthority == null) return;
+    for (const recordId of identity.evidenceReferences) {
+      const research = this.evidenceAuthority.readResearch(recordId);
+      const paper = this.evidenceAuthority.readPaper(recordId);
+      if ((research == null) === (paper == null)) throw new Error("closed learning evidence is not uniquely backed by the canonical durable authority");
+    }
+  }
 
   private deployQualified(record: ClosedLearningCycleRecord): ClosedLearningCycleRecord {
     const decision = record.decision;
@@ -222,6 +233,7 @@ export class ClosedLearningLoopCoordinator {
 
   public run(input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult {
     const identity = normalizeIdentity(input);
+    this.assertDurableEvidence(identity);
     const cycleId = closedLearningCycleId(identity);
     const replay = this.existing(identity, cycleId);
     if (replay != null) return replay;
@@ -231,6 +243,7 @@ export class ClosedLearningLoopCoordinator {
   /** Async production path prevents Research/League process execution from starving the HTTP loop. */
   public async runAsync(input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> {
     const identity = normalizeIdentity(input);
+    this.assertDurableEvidence(identity);
     const cycleId = closedLearningCycleId(identity);
     const replay = this.existing(identity, cycleId);
     if (replay != null) return replay;
