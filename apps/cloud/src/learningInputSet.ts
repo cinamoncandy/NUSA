@@ -54,7 +54,9 @@ export interface LearningInputSet {
   readonly schemaVersion: typeof LEARNING_INPUT_SET_SCHEMA_VERSION;
   readonly cutoffTimestamp: number;
   readonly researchEvidenceRecordIds: readonly string[];
+  readonly researchEvidenceObservedAt: readonly number[];
   readonly paperEvidenceRecordIds: readonly string[];
+  readonly paperEvidenceObservedAt: readonly number[];
   readonly researchLaneDigest: string;
   readonly performanceLaneDigest: string;
   readonly learningPolicyVersion: string;
@@ -170,7 +172,9 @@ export function buildLearningInputSet(input: LearningInputSetInput): LearningInp
     schemaVersion: LEARNING_INPUT_SET_SCHEMA_VERSION,
     cutoffTimestamp: input.cutoffTimestamp,
     researchEvidenceRecordIds: research.recordIds,
+    researchEvidenceObservedAt: Object.freeze([...input.researchEvidence].sort((left, right) => left.recordId.localeCompare(right.recordId)).map((reference) => reference.recordedAt)),
     paperEvidenceRecordIds: performance.recordIds,
+    paperEvidenceObservedAt: Object.freeze([...input.paperEvidence].sort((left, right) => left.recordId.localeCompare(right.recordId)).map((reference) => reference.recordedAt)),
     researchLaneDigest: research.digest,
     performanceLaneDigest: performance.digest,
     learningPolicyVersion: input.policies.learningPolicyVersion,
@@ -210,6 +214,26 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
   if (!Number.isSafeInteger(candidate.cutoffTimestamp) || (candidate.cutoffTimestamp as number) < 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set cutoff is invalid");
   for (const lane of ["researchEvidenceRecordIds", "paperEvidenceRecordIds"] as const) {
     if (!Array.isArray(candidate[lane])) throw new LearningInputSetError("MALFORMED_INPUT_SET", lane + " must be a list");
+  }
+  const laneMeta = [
+    ["researchEvidenceRecordIds", "researchEvidenceObservedAt", "researchLaneDigest"],
+    ["paperEvidenceRecordIds", "paperEvidenceObservedAt", "performanceLaneDigest"],
+  ] as const;
+  const allIds = new Set<string>();
+  for (const [idsKey, timesKey, digestKey] of laneMeta) {
+    const ids = candidate[idsKey] as readonly unknown[];
+    const times = candidate[timesKey] as readonly unknown[] | undefined;
+    if (!Array.isArray(times) || times.length !== ids.length || (ids.length === 0 && times.length !== 0)) throw new LearningInputSetError("MALFORMED_INPUT_SET", timesKey + " must align with its record ids");
+    if (ids.length === 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", "a learning input set must cite at least one evidence record");
+    let previous = "";
+    ids.forEach((id, index) => {
+      validateRecordId(id as string, idsKey);
+      if (index > 0 && (id as string).localeCompare(previous) <= 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", idsKey + " must be unique and canonically ordered");
+      if (allIds.has(id as string)) throw new LearningInputSetError("MALFORMED_INPUT_SET", "evidence record id appears in both lanes");
+      allIds.add(id as string); previous = id as string;
+      if (!Number.isSafeInteger(times[index]) || (times[index] as number) < 0 || (times[index] as number) >= (candidate.cutoffTimestamp as number)) throw new LearningInputSetError("MALFORMED_INPUT_SET", timesKey + " contains an invalid point-in-time value");
+    });
+    if (digest({ lane: idsKey.startsWith("research") ? "research" : "performance", recordIds: ids, observedAt: times }) !== candidate[digestKey]) throw new LearningInputSetError("MALFORMED_INPUT_SET", digestKey + " does not match the canonical lane evidence");
   }
   if (!SHA64.test(candidate.researchLaneDigest ?? "") || !SHA64.test(candidate.performanceLaneDigest ?? "")) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set lane digests are invalid");
   // Validate the four policy fields by name. Enumerating the whole object would also test

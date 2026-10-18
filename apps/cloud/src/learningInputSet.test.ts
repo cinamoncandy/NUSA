@@ -44,6 +44,7 @@ describe("A2 learning input set canonicalization", () => {
       ],
     }));
     assert.deepEqual([...forward.researchEvidenceRecordIds], ["trial-a", "trial-b"], "record ids are canonically sorted, not supply ordered");
+  assert.deepEqual([...forward.researchEvidenceObservedAt], [100, 200]);
     assert.equal(learningInputSetFingerprint(forward), learningInputSetFingerprint(shuffled));
     assert.equal(learningCycleId(forward), learningCycleId(shuffled));
   });
