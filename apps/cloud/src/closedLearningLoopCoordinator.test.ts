@@ -57,6 +57,18 @@ function decision(outcome: ClosedLearningResearchDecision["outcome"]): ClosedLea
 }
 
 describe("ClosedLearningLoopCoordinator", () => {
+  it("rejects corrupt authority records before sync or async downstream effects", async () => {
+    for (const record of [{ recordId: "ghost", recordedAt: 1 }, { recordId: "42", recordedAt: -1 }, { recordId: "42", recordedAt: NaN }, { recordId: "42", recordedAt: Number.MAX_SAFE_INTEGER + 1 }]) {
+      const repository = new MemoryRepository();
+      let evaluations = 0;
+      const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => { evaluations += 1; return decision("REJECTED"); } }, { deploy: () => { throw new Error("must not deploy"); } }, createLearningEvidenceAuthorityFromReaders({ readResearch: () => undefined, readPaper: () => record }));
+      const request = evidence({ evidenceReferences: ["paper-period:42"] });
+      assert.throws(() => coordinator.run(request), /malformed evidence/);
+      await assert.rejects(coordinator.runAsync(request), /malformed evidence/);
+      assert.equal(evaluations, 0);
+      assert.equal(repository.history.length, 0);
+    }
+  });
   it("persists REJECTED and INSUFFICIENT decisions without PAPER deployment", () => {
     for (const outcome of ["REJECTED", "INSUFFICIENT"] as const) {
       const repository = new MemoryRepository();

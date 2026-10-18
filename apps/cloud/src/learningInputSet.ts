@@ -111,6 +111,10 @@ function validateRecordId(recordId: string, lane: string): void {
 }
 
 function validatePolicyVersions(policies: LearningPolicyIdentity): void {
+  if (policies == null || typeof policies !== "object") throw new LearningInputSetError("INVALID_POLICY_VERSION", "policy identities are required");
+  for (const name of ["learningPolicyVersion", "researchPolicyVersion", "riskPolicyVersion", "governancePolicyVersion"] as const) {
+    if (typeof policies[name] !== "string" || !POLICY_VERSION.test(policies[name])) throw new LearningInputSetError("INVALID_POLICY_VERSION", name + " is required");
+  }
   for (const [name, version] of Object.entries(policies)) {
     if (typeof version !== "string" || !POLICY_VERSION.test(version)) throw new LearningInputSetError("INVALID_POLICY_VERSION", name + " must be a bounded policy version string");
   }
