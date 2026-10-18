@@ -143,6 +143,26 @@ export class LearningApplicationLedger {
     return restored;
   }
 
+  /**
+   * The most recent application that actually took effect.
+   *
+   * v2 section 8's learning side: this is the application a later research request names as its
+   * causal parent, so a restarted process rehydrates it from durable history rather than from
+   * whatever the previous process happened to hold in memory.
+   */
+  public latestApplied(): LearningApplicationDurableReceipt | undefined {
+    let latest: LearningApplicationDurableReceipt | undefined;
+    for (const record of this.ledger.list()) {
+      if (!APPLICATION_RECORD.test(record.opportunityId)) continue;
+      const receipt = parseReceipt(record);
+      if (record.opportunityId !== `learning-application:${receipt.applicationFingerprint}`) throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "recorded application does not match its ledger identity");
+      if (receipt.applicationOutcome !== "APPLIED") continue;
+      const durable = Object.freeze({ receipt, fingerprint: receipt.applicationFingerprint, recordedAt: record.recordedAt, replayed: false });
+      if (latest == null || durable.recordedAt >= latest.recordedAt) latest = durable;
+    }
+    return latest;
+  }
+
   /** Receipts already durable for a given decision, used to prove a replay adds nothing. */
   public forDecision(decisionFingerprint: string): readonly LearningApplicationDurableReceipt[] {
     const receipts: LearningApplicationDurableReceipt[] = [];
