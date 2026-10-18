@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
+import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { SqliteResearchHoldoutLedger, type HoldoutKey } from "../../../packages/storage/src/researchHoldoutLedger";
 import {
   META_MINIMUM_CYCLES_FOR_ELIGIBILITY,
@@ -41,6 +45,30 @@ function assignment(overrides: Partial<MetaOosAssignmentInput> = {}): MetaOosAss
     ...overrides,
   };
 }
+
+it("restores the same A3 assignment after a file-backed ledger restart and does not append a replay", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-meta-oos-restart-")), "learning.db");
+  let db = new SqliteDatabase(filename);
+  try {
+    const firstLedger = new MetaOosLedger(new SqliteEvolutionLearningLedger(db), () => Date.parse("2026-10-18T00:00:00.000Z"));
+    const first = firstLedger.assign(assignment(), { claim: () => "CLAIMED", isUsed: () => false });
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    const restartedLedger = new MetaOosLedger(new SqliteEvolutionLearningLedger(db), () => Date.parse("2026-10-18T00:00:00.000Z"));
+    assert.deepEqual(restartedLedger.assignments(), [first.assignment]);
+    assert.equal(restartedLedger.partitionOf(assignment().learningCycleId), "meta-train");
+
+    const replay = restartedLedger.assign(assignment(), { claim: () => "CLAIMED", isUsed: () => false });
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.fingerprint, first.fingerprint);
+    assert.equal(restartedLedger.summary().assignmentsRecorded, 1);
+    assert.throws(() => restartedLedger.assign(assignment({ partition: "meta-validation" }), { claim: () => "CLAIMED", isUsed: () => false }), /already assigned to meta-train/);
+  } finally {
+    db.close();
+    rmSync(dirname(filename), { recursive: true, force: true });
+  }
+});
 
 function fixture() {
   const db = new SqliteDatabase(":memory:");
