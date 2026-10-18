@@ -3062,8 +3062,8 @@ current_evidence_verifier_20261018:
   first_broken_transition: "Governance authorization → durable PAPER activation identity"
   finding: "PAPER deployment checked current Governance authorization but discarded its decision identity; append-only activation and closed-learning replay could not independently prove which authorization bound the PAPER candidate."
   implementation: "Persist the exact Governance authorization snapshot in the existing hash-chained PAPER binding ledger; reject malformed/mismatched snapshot on read/restart and fail closed when closed-learning evidence tries to consume a legacy activation without it."
-  validation: "typecheck PASS; build PASS; focused four-file suite 40/40 PASS, including mismatched approval, future approval, persisted tamper, restart replay drift, legacy activation fail-closed."
-  remaining: "This closes one edge only; the full independent sealed verifier and dataset/precommit/experiment/candidate/governance/PAPER graph falsification remain open."
+  validation: "typecheck PASS; build PASS; focused six-file suite 48/48 PASS; validate:full PASS; security:gate PASS; lint PASS with 26 pre-existing warnings and zero errors. PR head 33d87057 had exact CI PASS; this extension requires fresh exact-head CI."
+  remaining: "This closes Governance-to-PAPER identity and deterministic POLICY approval tamper detection only; the full independent sealed verifier and dataset/precommit/experiment/candidate/governance/PAPER graph falsification remain open."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_decision_funnel:
