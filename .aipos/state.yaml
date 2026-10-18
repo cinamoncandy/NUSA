@@ -3060,11 +3060,12 @@ current_evidence_verifier_20261018:
   branch: codex/paper-policy-fingerprint-verify
   base_sha: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
   pr: 2804
-  first_broken_transition: "verified local POLICY identity implementation → fresh exact-head CI"
+  first_broken_transition: "locally validated Research-lineage candidate-version binding fix → fresh exact-head CI"
   finding: "PR #2802 merged the Governance snapshot edge, but persisted POLICY approval identity was only syntax-checked. Its decision fingerprint can now be independently recomputed from the exact candidate, binding, and Research lineage."
   implementation: "Reuse one pure policy-identity calculation for approval production and ledger replay; fail closed if the persisted decision fingerprint or policy reference differs."
-  validation: "typecheck/build PASS; focused six-file suite 48/48 PASS; validate:full/security:gate/lint PASS on latest-main base. PR #2804 exact-head CI pending. Fresh non-author validation required before Audit."
-  remaining: "This closes Governance-to-PAPER identity and deterministic POLICY approval tamper detection only; the full independent sealed verifier and dataset/precommit/experiment/candidate/governance/PAPER graph falsification remain open."
+  validation: "latest pre-fix exact-head CI PASS (head 02e22589b104e26cdb102ec1a81e2f3feadaa7a2); local fix rejects a mismatched Research lineage candidateVersion on activation and replay; build, focused six-file suite 49/49, validate:full, security:gate, lint, and preflight PASS. New exact-head CI pending."
+  review_feedback: "The P1 candidateVersion finding on head 02e22589b104e26cdb102ec1a81e2f3feadaa7a2 was posted as a COMMENT by the PR owner; it is not independent acceptance. Fixed locally; fresh non-author validation remains required before Audit."
+  remaining: "This slice covers Governance-to-PAPER identity and Research-lineage candidate-version binding only; the full independent sealed verifier and dataset/precommit/experiment/candidate/governance/PAPER graph falsification remain open."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_decision_funnel:

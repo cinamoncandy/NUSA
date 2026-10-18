@@ -27,7 +27,7 @@ const HASH_B = "b".repeat(64);
 const lineage: PaperResearchLineage = Object.freeze({
   schemaVersion: 1,
   candidateId: "challenger-a-v9",
-  candidateVersion: "specification-v9",
+  candidateVersion: "e".repeat(64),
   originalRunFingerprintSha256: "c".repeat(64),
   replayRunFingerprintSha256: "d".repeat(64),
   researchDecisionReference: "research-decision:1",
@@ -98,6 +98,21 @@ describe("PaperChallengerBindingLedger", () => {
   it("rejects lineage for a different candidate", () => {
     const runtime = new PaperChallengerBindingLedger(new MemoryLedger());
     assert.throws(() => runtime.activate("KRW-BTC", binding(), Object.freeze({ ...lineage, candidateId: "different" }), governance()), /lineage candidate conflict/);
+  });
+
+  it("rejects Research lineage candidate-version mismatch both before persistence and on replay", () => {
+    const mismatchedLineage = Object.freeze({ ...lineage, candidateVersion: "f".repeat(64) });
+    const policy = paperChallengerPolicyIdentity({ candidateId: binding().candidateId, candidateVersion: binding().candidateStrategy!.specificationHash, familyId: binding().candidateStrategy!.familyId, evidenceFingerprintSha256: binding().bindingFingerprintSha256, replayRunFingerprintSha256: lineage.replayRunFingerprintSha256, researchDecisionReference: lineage.researchDecisionReference });
+    const authorization = { ...governance(), approval: { actorType: "POLICY" as const, approvalReference: policy.approvalReference, approvedAt: 1, decisionFingerprint: policy.decisionFingerprint } };
+    const persistence = new MemoryLedger();
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), mismatchedLineage, authorization), /lineage candidate conflict/);
+    assert.equal(persistence.records.length, 0);
+
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const stored = persistence.records[0]!;
+    const receipt = JSON.parse(stored.hypothesis) as Record<string, any>;
+    persistence.records[0] = Object.freeze({ ...stored, hypothesis: JSON.stringify({ ...receipt, researchLineage: mismatchedLineage }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /lineage candidate conflict/);
   });
 
   it("revokes a failed challenger without deleting immutable activation history", () => {

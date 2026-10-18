@@ -89,7 +89,7 @@ function parseActivation(record: EvolutionRecord): PaperChallengerActivationRece
   const binding = validatePaperCandidateExecutionBinding(item.binding, Math.max(activatedAt, item.binding.periodStartAt));
   if (binding.periodStartAt !== activatedAt) throw new Error("PAPER challenger activation must match the canonical period start");
   const researchLineage = item.researchLineage == null ? undefined : validatePaperResearchLineage(item.researchLineage);
-  if (researchLineage != null && researchLineage.candidateId !== binding.candidateId) throw new Error("PAPER challenger Research lineage candidate conflict");
+  if (researchLineage != null && (researchLineage.candidateId !== binding.candidateId || researchLineage.candidateVersion !== binding.candidateStrategy?.specificationHash)) throw new Error("PAPER challenger Research lineage candidate conflict");
   const governanceAuthorization = item.governanceAuthorization == null ? undefined : validateGovernanceAuthorization(item.governanceAuthorization, binding, researchLineage);
   return Object.freeze({
     schemaVersion: 1,
@@ -151,7 +151,7 @@ export class PaperChallengerBindingLedger implements PaperCandidateBindingProvid
     const normalizedMarket = market(marketValue);
     const binding = validatePaperCandidateExecutionBinding(bindingValue, bindingValue.periodStartAt);
     const researchLineage = researchLineageValue == null ? undefined : validatePaperResearchLineage(researchLineageValue);
-    if (researchLineage != null && researchLineage.candidateId !== binding.candidateId) throw new Error("PAPER challenger Research lineage candidate conflict");
+    if (researchLineage != null && (researchLineage.candidateId !== binding.candidateId || researchLineage.candidateVersion !== binding.candidateStrategy?.specificationHash)) throw new Error("PAPER challenger Research lineage candidate conflict");
     const governanceAuthorization = validateGovernanceAuthorization(governanceAuthorizationValue, binding, researchLineage);
     const event: PaperChallengerActivationReceipt = Object.freeze({
       schemaVersion: 1,

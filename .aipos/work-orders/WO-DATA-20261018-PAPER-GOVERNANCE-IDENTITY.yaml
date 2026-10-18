@@ -15,6 +15,7 @@ architecture_impact:
 scope:
   - persist_exact_governance_authorization_snapshot_in_paper_activation
   - verify_candidate_version_family_and_binding_fingerprint_cross_links
+  - verify_research_lineage_candidate_version_matches_binding_on_activation_and_replay
   - recompute_deterministic_policy_approval_fingerprint_from_research_lineage
   - reject_governance_identity_drift_on_restart_replay
   - fail_closed_for_legacy_activation_missing_governance_identity_in_learning
@@ -27,6 +28,7 @@ prohibited:
 acceptance:
   - new_activation_persists_exact_governance_decision_identity
   - wrong_candidate_version_family_or_binding_fingerprint_is_rejected
+  - mismatched_research_lineage_candidate_version_is_rejected_before_persist_and_on_replay
   - tampered_deterministic_policy_approval_fingerprint_is_rejected
   - changed_or_tampered_persisted_authorization_fails_closed
   - restart_replay_requires_same_governance_identity
@@ -46,13 +48,15 @@ validation:
   validate_full: PASS
   security_gate: PASS
   lint: "PASS with 26 pre-existing warnings; zero errors"
-  focused_tests: "PASS 48/48"
+  focused_tests: "PASS 49/49"
+  local_adversarial_followup: "PASS: a validly shaped but mismatched Research lineage candidateVersion is rejected on activation before persistence and when tampered in persisted replay state; POLICY authorization exercised."
+  review_feedback: "A GitHub COMMENT on head 02e22589b104e26cdb102ec1a81e2f3feadaa7a2 was authored by the PR owner, so it is not independent acceptance. Its P1 lineage candidateVersion finding was reproduced and fixed locally."
   exact_head_ci: PENDING
   fresh_non_author_validation: PENDING
   independent_audit: PENDING
   release: PENDING
-first_broken_transition: "verified local POLICY identity implementation → fresh exact-head CI"
-next: "Run fresh exact-head CI; obtain exact-head fresh non-author validator acceptance before any Audit request; then continue the full P0-5 artifact graph verifier."
+first_broken_transition: "locally validated Research-lineage candidate-version binding fix → fresh exact-head CI"
+next: "Run fresh exact-head CI; obtain fresh exact-head non-author validator acceptance (do not count the owner-authored COMMENT) before any Audit request; then continue the full P0-5 artifact graph verifier."
 safety:
   paper_only: true
   liveAuthority: NONE
