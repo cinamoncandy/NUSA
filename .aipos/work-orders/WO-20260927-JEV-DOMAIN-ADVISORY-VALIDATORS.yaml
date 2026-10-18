@@ -31,8 +31,9 @@ acceptance:
 evidence:
   prior_implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
   prior_validation: Historical17/17 generic registry tests; not current-main acceptance.
-  current_main_reconvergence: Both DOMAIN_ADVISORY_V1 and existing MARKET_MICROSTRUCTURE_V1 coexist. The specialized
-    market contract is unchanged and requires no new classification vocabulary.
+  current_main_reconvergence: 'Historical pre-repair evidence only: generic DOMAIN_ADVISORY_V1 coexisted with
+    MARKET_MICROSTRUCTURE_V1. At the current repaired head, the generic production path is absent, all 18 deferred
+    tasks remain UNAVAILABLE and non-emitting, and only separately accepted specialized validators remain.'
   validation_source_head: d7d17e7da5cb1f9d091b5dbcfb43a759a18337fe
   current_validation: 36/36 PASS; strict build/root/mobile typecheck/validate:full/lint/security PASS after ADR
     repair
