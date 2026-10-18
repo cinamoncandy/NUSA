@@ -148,7 +148,7 @@ test("canonical index allocation reserves active and immutable terminal history"
   store.markPendingIneligible(input);
   assert.equal(store.nextPeriodIndex(), 23, "terminal original plus active successor reserve both indexes");
   store.retirePending(input.successor.periodId, input.successor.checksum);
-  assert.equal(store.nextPeriodIndex(), 22, "retiring the successor never makes terminal index 21 reusable");
+  assert.equal(store.nextPeriodIndex(), 23, "retiring the successor preserves both terminal indexes");
 }));
 
 test("unknown pending schema fails closed during canonical index allocation", () => memory((db, store) => {
