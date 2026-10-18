@@ -68,7 +68,8 @@ therefore refuse to delete a referenced record.
 ## 3. Point-in-time cutoff
 
 `cutoffAt` is the canonical boundary time of the closed window. A record is admissible to the input
-set **only if it existed at or before `cutoffAt`**.
+set **only if its durable observation time is strictly before `cutoffAt`**. A record observed exactly
+at the boundary is excluded, as is any later record.
 
 v2 adopts the cutoff guards that already exist and are enforced, rather than writing new ones:
 
