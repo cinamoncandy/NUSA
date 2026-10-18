@@ -763,7 +763,6 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     retirePaperRealizedPeriodForUnstreamedMarket: (periodId, streamedMarkets) => requirePaperRealizedPeriodProducer().retireOpenPeriodForUnstreamedMarket(periodId, streamedMarkets),
     disposeIncompletePaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().disposeIncompletePeriodFromCanonicalAccount(input),
-    nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),
     retirePaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForMixedBinding(periodId),
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
     nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),
