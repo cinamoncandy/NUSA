@@ -273,6 +273,26 @@ describe("Integrated chain - section 8, the application is restorable as a causa
 });
 
 describe("Integrated chain - restart safety", () => {
+  it("rolls an applied runtime change back when its durable receipt cannot be appended", () => {
+    const { evolution, holdouts, now, close } = fixture();
+    try {
+      const failingEvolution = {
+        list: () => evolution.list(),
+        append: (record: Parameters<typeof evolution.append>[0]) => {
+          if (record.validationStatus === "LEARNING_APPLICATION") throw new Error("durable store unavailable");
+          return evolution.append(record);
+        },
+      };
+      const chain = new ClosedLearningChain(failingEvolution, holdouts, now);
+      const state = { value: 1 };
+      assert.throws(() => chain.run(cycle("durability-failure"), ports(state)), (error: unknown) => error instanceof Error && "code" in error && error.code === "APPLICATION_DURABILITY_FAILED");
+      assert.equal(state.value, 1, "the fail-safe value is restored before the failure escapes");
+      assert.equal(chain.summary().applications, 0, "no applied receipt is reported without durable evidence");
+    } finally {
+      close();
+    }
+  });
+
   it("rehydrates from durable history and replays without appending anything", () => {
     const { evolution, holdouts, now, close } = fixture();
     try {

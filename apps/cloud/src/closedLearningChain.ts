@@ -199,7 +199,28 @@ export class ClosedLearningChain {
       sourceCommit: cycle.sourceCommit,
     };
     const application = applyBoundedChange(decision, eligibility, applicationPorts, context, this.registry);
-    const applicationReceipt = this.applications.append(application);
+    let applicationReceipt: LearningApplicationDurableReceipt;
+    try {
+      applicationReceipt = this.applications.append(application);
+    } catch (error) {
+      // Never leave a live change without its durable receipt. Roll back an admitted change to the
+      // existing fail-safe surface before surfacing the durability failure for retry/recovery.
+      if (application.applicationOutcome === "APPLIED") {
+        const change = decision.admissibleChanges[0];
+        try {
+          applicationPorts.commit(change.surface, applicationPorts.failSafeValue(change.surface));
+        } catch (rollbackError) {
+          throw new LearningChainError(
+            "APPLICATION_DURABILITY_ROLLBACK_FAILED",
+            `application receipt durability failed and fail-safe rollback failed: ${rollbackError instanceof Error ? rollbackError.message : "unknown rollback failure"}`,
+          );
+        }
+      }
+      throw new LearningChainError(
+        "APPLICATION_DURABILITY_FAILED",
+        `application receipt durability failed after runtime application: ${error instanceof Error ? error.message : "unknown durability failure"}`,
+      );
+    }
 
     const status = buildLearningLoopStatus({
       inputSet: { fingerprint: inputSetReceipt.fingerprint, learningCycleId: inputSetReceipt.learningCycleId },
