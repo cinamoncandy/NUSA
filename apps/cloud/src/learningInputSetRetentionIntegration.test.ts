@@ -52,7 +52,6 @@ const inputSetCiting = (...paperRecordIds: string[]) => buildLearningInputSet({
   researchEvidence: [{ recordId: "trial-a", recordedAt: 100 }],
   paperEvidence: paperRecordIds.map((recordId, index) => ({ recordId, recordedAt: 200 + index })),
   policies: POLICIES,
-  metaPartitionIdentity: "meta-train",
 });
 
 describe("A2 -> A7 integration over the production retention path", () => {

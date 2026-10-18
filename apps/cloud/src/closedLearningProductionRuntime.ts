@@ -58,6 +58,8 @@ export const CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS = 30_000;
 
 export interface ClosedLearningProductionComposition {
   readonly learningEvidenceAuthority: LearningEvidenceAuthority;
+  /** A2 read-back through the canonical Research decision and realized PAPER ledgers. */
+  readonly learningInputSetEvidenceAuthority: LearningEvidenceAuthority;
   readonly handle: CloudRuntimeHandle;
   readonly challengerBindings: PaperChallengerBindingLedger;
   /**
@@ -242,6 +244,13 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const learningEvidenceAuthority = researchExperiments?.learningEvidenceAuthority ?? createLearningEvidenceAuthorityFromReaders({
     readResearch: () => { throw new Error("closed learning durable evidence authority is unavailable"); },
     readPaper: () => { throw new Error("closed learning durable evidence authority is unavailable"); },
+  });
+  const learningInputSetEvidenceAuthority = createLearningEvidenceAuthorityFromReaders({
+    readResearch: (recordId) => history.readEvidence(recordId),
+    readPaper: (recordId) => {
+      const period = periods.listRealizedPeriods().find((item) => item.record.recordId === recordId);
+      return period == null ? undefined : Object.freeze({ recordId, recordedAt: period.record.periodEndAt });
+    },
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, learningEvidenceAuthority, Date.now);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
@@ -511,6 +520,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   return Object.freeze({
     learningEvidenceAuthority,
+    learningInputSetEvidenceAuthority,
     handle,
     challengerBindings,
     readCanonicalPaperAccount,

@@ -42,7 +42,7 @@ by produced evidence, never by an assertion in prose.
 | --- | --- | --- |
 | Exactly-once cycle | Re-submitting identical evidence yields `REPLAYED` and writes nothing new | cycle result = `REPLAYED` |
 | Identity conflict detection | Same cycle id, different content → throws | thrown identity conflict |
-| PIT cutoff | A record observed after `cutoffAt` is not admissible | rejected admissibility count |
+| PIT cutoff | A record observed at or after `cutoffAt` is not admissible | rejected admissibility count |
 | Provenance survives retention | A decision whose reference was pruned is reported unverifiable, never re-derived | unverifiable-decision count = 0 |
 | Silent gap detection | A closed window with no decision and no `INSUFFICIENT` record is detectable from durable data alone after restart | gap count = 0 |
 

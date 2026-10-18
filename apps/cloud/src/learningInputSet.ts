@@ -46,8 +46,6 @@ export interface LearningInputSetInput {
   readonly researchEvidence: readonly LearningEvidenceReference[];
   readonly paperEvidence: readonly LearningEvidenceReference[];
   readonly policies: LearningPolicyIdentity;
-  /** Identity of the meta-OOS partition these cycles fall into. */
-  readonly metaPartitionIdentity: string;
 }
 
 export interface LearningInputSet {
@@ -63,7 +61,6 @@ export interface LearningInputSet {
   readonly researchPolicyVersion: string;
   readonly riskPolicyVersion: string;
   readonly governancePolicyVersion: string;
-  readonly metaPartitionIdentity: string;
   readonly canonicalOrderingVersion: typeof LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION;
 }
 
@@ -158,10 +155,10 @@ function laneOf(references: readonly LearningEvidenceReference[], lane: string, 
  */
 export function buildLearningInputSet(input: LearningInputSetInput): LearningInputSet {
   if (input == null || typeof input !== "object") throw new LearningInputSetError("MALFORMED_INPUT", "learning input set input is required");
+  if (Object.hasOwn(input, "metaPartitionIdentity")) throw new LearningInputSetError("META_PARTITION_NOT_PART_OF_INPUT_SET", "META assignment follows the A1 decision and is not part of A2 identity");
   if (!Array.isArray(input.researchEvidence) || !Array.isArray(input.paperEvidence)) throw new LearningInputSetError("MALFORMED_INPUT", "learning evidence lanes must be lists");
   if (!Number.isSafeInteger(input.cutoffTimestamp) || input.cutoffTimestamp < 0) throw new LearningInputSetError("INVALID_CUTOFF", "point-in-time cutoff must be a non-negative integer timestamp");
   if (input.researchEvidence.length === 0 && input.paperEvidence.length === 0) throw new LearningInputSetError("EMPTY_INPUT_SET", "a learning input set must cite at least one evidence record");
-  if (input.metaPartitionIdentity == null || typeof input.metaPartitionIdentity !== "string" || !POLICY_VERSION.test(input.metaPartitionIdentity)) throw new LearningInputSetError("INVALID_META_PARTITION", "meta-OOS partition identity is invalid");
   validatePolicyVersions(input.policies);
 
   const research = laneOf(input.researchEvidence, "research", input.cutoffTimestamp);
@@ -186,7 +183,6 @@ export function buildLearningInputSet(input: LearningInputSetInput): LearningInp
     researchPolicyVersion: input.policies.researchPolicyVersion,
     riskPolicyVersion: input.policies.riskPolicyVersion,
     governancePolicyVersion: input.policies.governancePolicyVersion,
-    metaPartitionIdentity: input.metaPartitionIdentity,
     canonicalOrderingVersion: LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION,
   });
 }
@@ -215,6 +211,7 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
   if (value == null || typeof value !== "object") throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set is required");
   const candidate = value as Partial<LearningInputSet>;
   if (candidate.schemaVersion !== LEARNING_INPUT_SET_SCHEMA_VERSION) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set schema version is unsupported");
+  if (Object.hasOwn(candidate, "metaPartitionIdentity")) throw new LearningInputSetError("MALFORMED_INPUT_SET", "META assignment is not part of A2 identity");
   if (candidate.canonicalOrderingVersion !== LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set canonical ordering version is unsupported");
   if (!Number.isSafeInteger(candidate.cutoffTimestamp) || (candidate.cutoffTimestamp as number) < 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set cutoff is invalid");
   for (const lane of ["researchEvidenceRecordIds", "paperEvidenceRecordIds"] as const) {
