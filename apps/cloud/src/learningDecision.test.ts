@@ -9,6 +9,7 @@ import {
 } from "./learningDecision";
 import { buildLearningInputSet } from "./learningInputSet";
 import { LearningDecisionLedger } from "./learningDecisionLedger";
+import { LearningInputSetLedger } from "./learningInputSetLedger";
 
 const POLICIES = {
   learningPolicyVersion: "learn-v1",
@@ -199,6 +200,7 @@ describe("A1 durable exactly-once - section 43", () => {
     const { ledger } = fakeLedger();
     const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
     const decision = buildLearningDecision(decisionInput());
+    new LearningInputSetLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
 
     const first = store.append(decision);
     assert.equal(first.replayed, false);
@@ -211,6 +213,7 @@ describe("A1 durable exactly-once - section 43", () => {
   it("keeps a rejected decision rather than dropping it from the denominator", () => {
     const { ledger } = fakeLedger();
     const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
+    new LearningInputSetLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
     store.append(buildLearningDecision(decisionInput()));
     store.append(buildLearningDecision(decisionInput({ proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 9 }] })));
 
@@ -222,12 +225,20 @@ describe("A1 durable exactly-once - section 43", () => {
     const { records, ledger } = fakeLedger();
     const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
     const decision = buildLearningDecision(decisionInput());
+    new LearningInputSetLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
     store.append(decision);
     assert.equal(store.summary().decisionsRecorded, 1);
 
-    const tampered = JSON.parse(records[0].hypothesis as string) as Record<string, unknown>;
+    const decisionRecord = records.find((record) => String(record.opportunityId).startsWith("learning-decision:"))!;
+    const tampered = JSON.parse(decisionRecord.hypothesis as string) as Record<string, unknown>;
     tampered.changeMagnitude = 99;
-    records[0].hypothesis = JSON.stringify(tampered);
+    decisionRecord.hypothesis = JSON.stringify(tampered);
     assert.throws(() => store.summary(), /change magnitude is invalid/);
+  });
+
+  it("refuses a well-formed decision unless its canonical A2 receipt is already durable", () => {
+    const { ledger } = fakeLedger();
+    const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
+    assert.throws(() => store.append(buildLearningDecision(decisionInput())), /A2 input set to be durable first/);
   });
 });

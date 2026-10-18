@@ -5,6 +5,7 @@ import {
   learningDecisionFingerprint,
   type LearningDecision,
 } from "./learningDecision";
+import { assertLearningInputSet, learningInputSetFingerprint } from "./learningInputSet";
 
 /**
  * Durable adapter for A1 over the existing append-only, hash-chained Evolution Learning ledger.
@@ -61,6 +62,22 @@ function parseReceipt(record: { readonly hypothesis: string; readonly recordedAt
 export class LearningDecisionLedger {
   public constructor(private readonly ledger: EvolutionLedgerPort, private readonly now: () => number = Date.now) {}
 
+  private assertDurableInputSet(fingerprint: string): void {
+    const identity = `learning-input-set:${fingerprint}`;
+    const record = this.ledger.list().find((candidate) => candidate.opportunityId === identity);
+    if (record == null || record.validationStatus !== "LEARNING_INPUT_SET" || !record.evidenceReferences.includes(identity)) {
+      throw new LearningDecisionLedgerError("MISSING_INPUT_SET", "decision requires its canonical A2 input set to be durable first");
+    }
+    let inputSet: unknown;
+    try {
+      inputSet = JSON.parse(record.hypothesis);
+      assertLearningInputSet(inputSet);
+    } catch {
+      throw new LearningDecisionLedgerError("MALFORMED_INPUT_SET", "canonical A2 input set receipt is invalid");
+    }
+    if (learningInputSetFingerprint(inputSet) !== fingerprint) throw new LearningDecisionLedgerError("INPUT_SET_IDENTITY_CONFLICT", "canonical A2 input set does not match the decision identity");
+  }
+
   /**
    * Records a decision idempotently. Replaying the same decision produces the same fingerprint, the
    * same ledger identity, and therefore no second record and no second downstream mutation
@@ -70,6 +87,7 @@ export class LearningDecisionLedger {
     assertLearningDecision(decision);
     const fingerprint = learningDecisionFingerprint(decision);
     if (!HASH.test(fingerprint)) throw new LearningDecisionLedgerError("IDENTITY_DERIVATION_FAILED", "learning decision fingerprint is not a SHA-256 digest");
+    this.assertDurableInputSet(decision.learningInputSetFingerprint);
     const opportunityId = `learning-decision:${fingerprint}`;
 
     const existing = this.ledger.list().find((record) => record.opportunityId === opportunityId);
@@ -112,6 +130,7 @@ export class LearningDecisionLedger {
     let latest: LearningDecisionReceipt | undefined;
     for (const record of records) {
       const decision = parseReceipt(record);
+      this.assertDurableInputSet(decision.learningInputSetFingerprint);
       const fingerprint = learningDecisionFingerprint(decision);
       if (record.opportunityId !== `learning-decision:${fingerprint}`) throw new LearningDecisionLedgerError("IDENTITY_CONFLICT", "recorded learning decision does not match its ledger identity");
       const receipt = Object.freeze({ decision, fingerprint, learningCycleId: decision.learningCycleId, recordedAt: record.recordedAt, replayed: false });
@@ -126,6 +145,7 @@ export class LearningDecisionLedger {
     for (const record of this.ledger.list()) {
       if (!DECISION_RECORD.test(record.opportunityId)) continue;
       const decision = parseReceipt(record);
+      this.assertDurableInputSet(decision.learningInputSetFingerprint);
       if (decision.decisionOutcome !== "REJECTED") continue;
       receipts.push(Object.freeze({ decision, fingerprint: learningDecisionFingerprint(decision), learningCycleId: decision.learningCycleId, recordedAt: record.recordedAt, replayed: false }));
     }
