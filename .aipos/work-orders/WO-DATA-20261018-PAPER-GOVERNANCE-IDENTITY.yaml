@@ -48,15 +48,18 @@ validation:
   validate_full: PASS
   security_gate: PASS
   lint: "PASS with 26 pre-existing warnings; zero errors"
-  focused_tests: "prior exact-head PASS 49/49; downgrade regression added locally, fresh exact-head suite pending"
+  focused_tests: "49 prior identity regressions PASS plus POLICY/HUMAN downgrade regression on the implemented 5d21020 head; state-only follow-up does not change the code-under-test"
   local_adversarial_followup: "PASS: a validly shaped but mismatched Research lineage candidateVersion is rejected on activation before persistence and when tampered in persisted replay state; POLICY authorization exercised."
-  review_feedback: "Exact head 5d21020 repaired the Codex POLICY→HUMAN downgrade and its exact-head CI/runtime companions passed. Follow-up producer/replay inspection found deterministic POLICY strategyId drift remained possible; repair now requires strategyId == familyId:candidateId for POLICY receipts and rejects persisted strategyId tampering."
-  exact_head_ci: PENDING_AFTER_STRATEGY_ID_REPAIR
-  fresh_non_author_validation: STALE_AFTER_STRATEGY_ID_REPAIR
+  review_feedback: "Exact head 5d21020 repaired the POLICY→HUMAN downgrade. Follow-up review 5561755266 found stale AIPOS evidence. Head 4c84e64 then fixed POLICY strategyId replay drift and added persisted tamper coverage; its exact-head checks are in progress."
+  exact_head_ci: PENDING_ON_4c84e64_AND_INVALIDATED_BY_AIPOS_SYNC_COMMIT
+  exact_head_ci_run: 39104654874
+  exact_head_paper_runtime_run: 39104654870
+  exact_head_companion_runs: "event bridge 39104653585 PASS; readiness 39104654883 IN_PROGRESS; rehearsal 39104654889 IN_PROGRESS; capability guard 39104654864 IN_PROGRESS; read-only credential integration 39104654900 IN_PROGRESS"
+  fresh_non_author_validation: PENDING_FOR_POST_SYNC_HEAD
   independent_audit: PENDING
   release: PENDING
-first_broken_transition: "POLICY producer/replay strategyId drift → exact derivation repair → fresh exact-head CI"
-next: "Commit the POLICY strategyId derivation repair, run fresh exact-head CI, then require a fresh non-author review of that exact head before any Audit request; then continue the full P0-5 artifact graph verifier."
+first_broken_transition: "PR #2804 4c84e64 strategyId repair → exact-head checks → AIPOS evidence sync"
+next: "Finish 4c84e64 exact-head checks, sync AIPOS to the verified head on this branch, then require new exact-head CI and a fresh separate non-author Validator review before Audit; continue the full P0-5 artifact graph verifier only after those gates."
 safety:
   paper_only: true
   liveAuthority: NONE
