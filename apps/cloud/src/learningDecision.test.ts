@@ -6,7 +6,6 @@ import {
   withApplication,
   learningDecisionFingerprint,
   assertLearningDecision,
-  META_MINIMUM_DECISION_CYCLES,
   type LearningDecisionInput,
 } from "./learningDecision";
 import { buildLearningInputSet } from "./learningInputSet";
@@ -38,8 +37,6 @@ function decisionInput(overrides: Partial<LearningDecisionInput> = {}): Learning
     objectiveVersion: "objective-v1",
     proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }],
     reasonEvidence: ["trial-a"],
-    metaOosPartition: "meta-train",
-    metaCyclesEvaluated: 3,
     createdAt: "2026-10-18T00:00:00.000Z",
     sourceCommit: "3d07d31463ec3ff95132b7cde235937682cc994a",
     runtimeIdentity: "runtime-test",
@@ -90,10 +87,11 @@ describe("A1 outcome", () => {
     assert.equal(decision.changeMagnitude, 0);
   });
 
-  it("is INSUFFICIENT with no completed meta cycle, and cannot be forced to APPLIED", () => {
-    const decision = buildLearningDecision(decisionInput({ metaCyclesEvaluated: META_MINIMUM_DECISION_CYCLES - 1 }));
-    assert.equal(decision.decisionOutcome, "INSUFFICIENT");
-    assert.equal(decision.admissibleChanges.length, 1, "the change is still assessed, it just carries no authority");
+  it("does not treat caller-supplied META claims as decision authority", () => {
+    const input = { ...decisionInput(), metaCyclesEvaluated: 0, metaOosPartition: "meta-holdout" };
+    const decision = buildLearningDecision(input);
+    assert.equal(decision.decisionOutcome, "APPLIED", "proposal validation is independent of untrusted META claims");
+    assert.equal("metaOosPartition" in decision, false, "A1 does not assign a META partition");
   });
 
   it("is INSUFFICIENT when nothing was proposed at all", () => {

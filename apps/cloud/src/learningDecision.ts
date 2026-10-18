@@ -33,9 +33,6 @@ import { assertLearningInputSet, learningCycleId, learningInputSetFingerprint, t
 export const LEARNING_DECISION_SCHEMA_VERSION = 1;
 export const ALLOWED_SURFACE_VERSION = "learning-allowed-surface-v1";
 export const IMMUTABLE_SURFACE_VERSION = "learning-immutable-surface-v1";
-/** A decision with no completed meta cycle has no basis at all. Learning may not lower this floor. */
-export const META_MINIMUM_DECISION_CYCLES = 1;
-
 export class LearningDecisionError extends Error {
   public constructor(readonly code: string, message: string) {
     super(message);
@@ -127,7 +124,6 @@ export interface LearningChangeRequest {
 }
 
 export type LearningDecisionOutcome = "APPLIED" | "REJECTED" | "INSUFFICIENT";
-export type MetaOosPartition = "meta-train" | "meta-validation" | "meta-holdout";
 
 export interface LearningDecision {
   readonly schemaVersion: typeof LEARNING_DECISION_SCHEMA_VERSION;
@@ -146,7 +142,6 @@ export interface LearningDecision {
   readonly changeMagnitude: number;
   readonly allowedSurfaceVersion: string;
   readonly immutableSurfaceVersion: string;
-  readonly metaOosPartition: MetaOosPartition;
   readonly decisionOutcome: LearningDecisionOutcome;
   readonly resultingResearchSpecFingerprint?: string;
   readonly createdAt: string;
@@ -160,9 +155,6 @@ export interface LearningDecisionInput {
   readonly objectiveVersion: string;
   readonly proposedChanges: readonly LearningChangeRequest[];
   readonly reasonEvidence: readonly string[];
-  readonly metaOosPartition: MetaOosPartition;
-  /** Completed meta cycles backing this partition. Below the floor the decision is INSUFFICIENT. */
-  readonly metaCyclesEvaluated: number;
   readonly createdAt: string;
   readonly sourceCommit: string;
   readonly runtimeIdentity: string;
@@ -268,7 +260,7 @@ export function assessChange(request: LearningChangeRequest): LearningChangeAsse
  * Builds a Learning Decision by pure derivation.
  *
  * The outcome is a statement about validation, not about performance and not about what was done:
- * - `INSUFFICIENT` - the meta partition has no completed cycle, so there is nothing to decide from.
+ * - `INSUFFICIENT` - there is no proposal to assess.
  * - `REJECTED`     - at least one proposal was made and every one of them was refused.
  * - `APPLIED`      - at least one change is admissible, so the decision admits a bounded application.
  *
@@ -281,11 +273,9 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
   assertLearningInputSet(input.inputSet);
   if (!SHA64.test(input.previousResearchSpecFingerprint ?? "")) throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "previous research spec fingerprint must be a SHA-256 digest");
   assertBoundedString(input.objectiveVersion, "objective version");
-  assertBoundedString(input.metaOosPartition, "meta-OOS partition");
   assertBoundedString(input.createdAt, "created at");
   assertBoundedString(input.sourceCommit, "source commit");
   assertBoundedString(input.runtimeIdentity, "runtime identity");
-  if (!Number.isSafeInteger(input.metaCyclesEvaluated) || input.metaCyclesEvaluated < 0) throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "meta cycle count must be a non-negative integer");
   if (!Array.isArray(input.proposedChanges)) throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "proposed changes must be a list");
   if (!Array.isArray(input.reasonEvidence)) throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "reason evidence must be a list");
   for (const reference of input.reasonEvidence) assertBoundedString(reference, "reason evidence reference");
@@ -295,10 +285,8 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
   const rejectedChanges = Object.freeze(proposedChanges.filter((change) => change.verdict === "REJECTED"));
   const changeMagnitude = admissibleChanges.reduce((largest, change) => Math.max(largest, Math.abs(change.proposedValue - change.currentValue)), 0);
 
-  // Insufficient meta evidence outranks every other conclusion. A decision that cannot cite a single
-  // completed meta cycle is never allowed to read as APPLIED, and the bar is not lowered to make it.
   const decisionOutcome: LearningDecisionOutcome =
-    input.metaCyclesEvaluated < META_MINIMUM_DECISION_CYCLES ? "INSUFFICIENT" : admissibleChanges.length > 0 ? "APPLIED" : proposedChanges.length > 0 ? "REJECTED" : "INSUFFICIENT";
+    admissibleChanges.length > 0 ? "APPLIED" : proposedChanges.length > 0 ? "REJECTED" : "INSUFFICIENT";
 
   return Object.freeze({
     schemaVersion: LEARNING_DECISION_SCHEMA_VERSION,
@@ -315,7 +303,6 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
     changeMagnitude,
     allowedSurfaceVersion: ALLOWED_SURFACE_VERSION,
     immutableSurfaceVersion: IMMUTABLE_SURFACE_VERSION,
-    metaOosPartition: input.metaOosPartition,
     decisionOutcome,
     createdAt: input.createdAt,
     sourceCommit: input.sourceCommit,
