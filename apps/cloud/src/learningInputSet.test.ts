@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   LearningInputSetError,
+  assertLearningInputSet,
   buildLearningInputSet,
   learningCycleId,
   learningInputSetFingerprint,
@@ -70,6 +71,11 @@ describe("A2 learning input set canonicalization", () => {
     assert.deepEqual([...set.paperEvidenceRecordIds], ["period-1"]);
     assert.notEqual(set.researchLaneDigest, set.performanceLaneDigest);
     assert.match(set.researchLaneDigest, /^[a-f0-9]{64}$/);
+  });
+
+  it("accepts a single populated lane while rejecting an entirely empty set", () => {
+    assertLearningInputSet(buildLearningInputSet(input({ paperEvidence: [] })));
+    assertLearningInputSet(buildLearningInputSet(input({ researchEvidence: [] })));
   });
 
   it("emits the exact paper-period references the retention guard needs", () => {

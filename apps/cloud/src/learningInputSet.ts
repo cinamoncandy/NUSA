@@ -224,7 +224,6 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
     const ids = candidate[idsKey] as readonly unknown[];
     const times = candidate[timesKey] as readonly unknown[] | undefined;
     if (!Array.isArray(times) || times.length !== ids.length || (ids.length === 0 && times.length !== 0)) throw new LearningInputSetError("MALFORMED_INPUT_SET", timesKey + " must align with its record ids");
-    if (ids.length === 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", "a learning input set must cite at least one evidence record");
     let previous = "";
     ids.forEach((id, index) => {
       validateRecordId(id as string, idsKey);
@@ -235,6 +234,7 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
     });
     if (digest({ lane: idsKey.startsWith("research") ? "research" : "performance", recordIds: ids, observedAt: times }) !== candidate[digestKey]) throw new LearningInputSetError("MALFORMED_INPUT_SET", digestKey + " does not match the canonical lane evidence");
   }
+  if (allIds.size === 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", "a learning input set must cite at least one evidence record");
   if (!SHA64.test(candidate.researchLaneDigest ?? "") || !SHA64.test(candidate.performanceLaneDigest ?? "")) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set lane digests are invalid");
   // Validate the four policy fields by name. Enumerating the whole object would also test
   // `schemaVersion`, `cutoffTimestamp` and the digests against the policy-version shape, which they
