@@ -3443,10 +3443,10 @@ current_learning_meta_holdout_replay_20261018:
   status: VERIFYING
   branch: feat/meta-oos-a3
   pull_request: 2795
-  base_main: 3659e45e011032b71e37896eed7c3aef2580c153
-  head: a322adab2cb262997cbdc3b084ca7e3200836d75
-  ci_run: 39125139243
-  validation: "17 focused A3 tests and 1248 isolated test files PASS; build/typecheck/validate:full/security/AIPOS provenance PASS; lint PASS with 26 existing warnings. Exact-tree CI run 39125139243 PASS on head a322adab2cb262997cbdc3b084ca7e3200836d75. Initial bash ENOENT fixed by adding installed Git Bash to PATH; no assertions weakened."
+  base: 3828be38d57c83f8ed96641cedeef9d56434b84e
+  head: b36beb95610fee07d22b9137f86e703b7ecfd52d
+  ci_run: 39130068088
+  validation: "17 focused A3 tests and 1248 isolated test files PASS; build/typecheck/validate:full/security/AIPOS provenance PASS; lint PASS with 26 existing warnings. Exact-head CI run 39130068088 PASS on head b36beb95610fee07d22b9137f86e703b7ecfd52d, including validation, test, all five coverage shards, and aggregate coverage. Initial bash ENOENT fixed by adding installed Git Bash to PATH; no assertions weakened."
   finding: "Fixed durable META holdout replay idempotence on PR #2795. Remaining blockers: cutoff/META policies have no verified canonical owners, and read-only caller search found no production A3-to-A4 eligibility application path; A4 still accepts caller-provided eligibility."
   next: "Obtain canonical versioned cutoff and META policy owner specifications; then wire production A2/A1/A3/A4 and reconverge the stack. Fresh independent review remains required. Keep Draft; no Audit/Release until blockers are resolved."
   blockers:
