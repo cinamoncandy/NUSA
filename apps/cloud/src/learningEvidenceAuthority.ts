@@ -11,12 +11,3 @@ export function createLearningEvidenceAuthorityFromReaders(input: {
   if (input == null || typeof input.readResearch !== "function" || typeof input.readPaper !== "function") throw new Error("durable learning evidence readers are required");
   return Object.freeze({ readResearch: input.readResearch, readPaper: input.readPaper });
 }
-
-export function createLearningEvidenceAuthority(input: {
-  readonly research: readonly { readonly recordId: string; readonly recordedAt: number }[];
-  readonly paper: readonly { readonly recordId: string; readonly recordedAt: number }[];
-}): LearningEvidenceAuthority {
-  const research = new Map(input.research.map((item) => [item.recordId, item]));
-  const paper = new Map(input.paper.map((item) => [item.recordId, item]));
-  return createLearningEvidenceAuthorityFromReaders({ readResearch: (recordId) => research.get(recordId), readPaper: (recordId) => paper.get(recordId) });
-}
