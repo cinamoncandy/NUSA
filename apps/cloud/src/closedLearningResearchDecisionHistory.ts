@@ -106,4 +106,10 @@ export class ClosedLearningResearchDecisionHistory {
   public state(): ResearchFactoryDecisionHistoryState {
     return this.repository.state();
   }
+
+  /** Read-back for A2 from the canonical, integrity-checked Research decision denominator. */
+  public readEvidence(evaluationId: string): { readonly recordId: string; readonly recordedAt: number } | undefined {
+    const record = this.repository.list().find((item) => item.evaluationId === evaluationId);
+    return record == null ? undefined : Object.freeze({ recordId: record.evaluationId, recordedAt: record.observedAt });
+  }
 }
