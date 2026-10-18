@@ -1,13 +1,28 @@
 # Learning input owner recovery
 
-Canonical PR: #2792; inspected remote head c9b6256a196e2b8e296101d3c1dcf37826db7d70; base 5b347b4b73b88f720c1452270e6ad6bfd61eca3a. PR remains OPEN/Draft.
+Canonical PR: #2792 (`feat/learning-input-set-a2`), base `3659e45e011032b71e37896eed7c3aef2580c153`. The latest parent head is `139b4319ba7b7600df6eae84f9b65a0ff43a3d43`; exact-head CI run `39128055923` passed. Independent Audit/Release have not run; keep #2792 Draft. The separate `repair-2792-reconverge` worktree remains untouched.
 
-The downstream LearningChainCycle interface is a caller-supplied contract, not proof of canonical policy or temporal ownership. Do not promote its test fixtures into production authority.
+## Production source findings
 
-Current local change rejects missing mandatory policy identities and adds sync/async adversarial authority tests. Typecheck, build and 22 focused tests passed. These uncommitted changes have no CI/Audit approval.
+- Lane A Research decisions are durably recorded in `research_factory_decision_history`; `SqliteResearchFactoryDecisionHistoryRepository.list()` verifies the full hash chain and metadata before returning records.
+- Lane B realized PAPER periods are read through the canonical production period reader; the evidence timestamp is the persisted `periodEndAt`.
+- The existing `learningEvidenceAuthority` on the closed-learning coordinator reads a different Research evaluation ledger and is not the A2 canonical Research decision source.
+- The production composition now exposes a separate `learningInputSetEvidenceAuthority` backed by the durable Research decision history and realized-period ledger. A2 construction/append is not yet wired.
 
-FIRST_BROKEN_TRANSITION: canonical owner values and evidence -> production LearningInputSet -> existing LearningInputSetLedger -> decision identity.
+## Verification on the local PR-head worktree
 
-Next: trace policy publication, PAPER close boundary and meta-OOS assignment producers; record field/source/version/restart semantics before production wiring. Missing owners remain BLOCKED_CANONICAL_OWNER_UNRESOLVED. Do not use Date.now or maximum evidence time as invented cutoff. Preserve strict recordedAt < cutoff.
+- New canonical Research evidence read-back test covers exact timestamp, ghost ID, and corrupted-chain fail-closed behavior: 4/4 history tests PASS.
+- Typecheck, build, `validate:full`, safety invariants, and `git diff --check` PASS.
+- Implementation commit `5d780808f2f8d948299064abe0b1460a72c88a50`; exact-head CI run `39119847026` PASS.
+- Current A2 contract correction removes META partition membership from the input-set fingerprint and rejects stale callers that still supply it; A2/retention focused tests 19/19 PASS, typecheck/build PASS, full isolated suite 1,245/1,245 PASS, `validate:full`, `security:gate`, AIPOS provenance, and preflight PASS. Lint PASS with 26 existing warnings.
+- Independent Audit, Release, merge, and runtime acceptance have not run; PR remains Draft.
 
-PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY. LEARNING_LOOP_VERIFIED=false; PERFORMANCE_IMPROVEMENT=UNPROVEN. No Audit, release, merge or runtime acceptance claimed.
+## FIRST_BROKEN_TRANSITION
+
+`canonical LearningInputSet owner inputs (cutoff + policy identities) → A2 durable receipt → A1 Decision → A3 durable META assignment → A4 eligibility`
+
+The confirmed A2 contract contains evidence, cutoff and policy identities; it does not contain A3 partition membership. Binding META membership into A2 would create a cycle because A3 assignment also requires the A1 Decision fingerprint derived from A2. A2 now rejects that field, preserving the acyclic order above. The canonical closed-window boundary exists as durable PAPER `periodEndAt`, but it is not yet wired into A2. No canonical owner for all four policy identities or caller-independent META cycle-order allocator is production-wired. Do not invent values, use `Date.now`/maximum evidence time, or promote test fixtures to production authority. Preserve strict `recordedAt < cutoff`.
+
+Next: bind the durable closed-window boundary and exact policy identities into A2, append/read back the receipt, bind A1 to that receipt, then assign A3 from canonical cycle order. Keep PR Draft; no Audit, Release, merge, or runtime acceptance until its gates pass.
+
+`PAPER_ONLY`; `liveAuthority=NONE`; `productionMutationAllowed=false`; `aiAuthority=ZERO_AUTHORITY`. `LEARNING_LOOP_VERIFIED=false`; `PERFORMANCE_IMPROVEMENT=UNPROVEN`.

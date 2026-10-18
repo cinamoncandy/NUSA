@@ -28,7 +28,7 @@ const CONTEXT: ApplicationContext = {
   sourceCommit: "273d785df7b14c3a8e541ae45ea71fe3aacb49b4",
 };
 
-/** A3 does not exist yet, so this is the only eligibility a caller can honestly produce. */
+/** The production A3 owner is not wired, so the tests exercise an explicit fail-closed seam. */
 const NOT_YET_ELIGIBLE: MetaOosEligibility = Object.freeze({ eligible: false, partition: "meta-holdout", cyclesEvaluated: 0, reason: "meta-OOS partition has no completed cycle" });
 const ELIGIBLE: MetaOosEligibility = Object.freeze({ eligible: true, partition: "meta-holdout", cyclesEvaluated: 4, reason: "meta-holdout partition has completed cycles" });
 
@@ -39,7 +39,6 @@ function decisionWith(proposed: readonly LearningChangeRequest[], _currentValue:
       researchEvidence: [{ recordId: "trial-a", recordedAt: 100 }],
       paperEvidence: [{ recordId: "p1", recordedAt: 200 }],
       policies: POLICIES,
-      metaPartitionIdentity: "meta-train",
     }),
     previousResearchSpecFingerprint: SPEC_A,
     objectiveVersion: "objective-v1",

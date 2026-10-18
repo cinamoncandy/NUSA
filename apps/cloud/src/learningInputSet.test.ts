@@ -31,7 +31,6 @@ const input = (overrides: Partial<LearningInputSetInput> = {}): LearningInputSet
   ],
   paperEvidence: [{ recordId: "period-1", recordedAt: 300 }],
   policies: POLICIES,
-  metaPartitionIdentity: "meta-train",
   ...overrides,
 });
 
@@ -45,7 +44,7 @@ describe("A2 learning input set canonicalization", () => {
       ],
     }));
     assert.deepEqual([...forward.researchEvidenceRecordIds], ["trial-a", "trial-b"], "record ids are canonically sorted, not supply ordered");
-  assert.deepEqual([...forward.researchEvidenceObservedAt], [100, 200]);
+    assert.deepEqual([...forward.researchEvidenceObservedAt], [100, 200]);
     assert.equal(learningInputSetFingerprint(forward), learningInputSetFingerprint(shuffled));
     assert.equal(learningCycleId(forward), learningCycleId(shuffled));
   });
@@ -54,7 +53,6 @@ describe("A2 learning input set canonicalization", () => {
     const baseline = learningInputSetFingerprint(buildLearningInputSet(input()));
     const variants = [
       buildLearningInputSet(input({ cutoffTimestamp: 999 })),
-      buildLearningInputSet(input({ metaPartitionIdentity: "meta-validation" })),
       buildLearningInputSet(input({ policies: { ...POLICIES, learningPolicyVersion: "learn-v2" } })),
       buildLearningInputSet(input({ policies: { ...POLICIES, researchPolicyVersion: "research-v2" } })),
       buildLearningInputSet(input({ policies: { ...POLICIES, riskPolicyVersion: "risk-v2" } })),
@@ -76,6 +74,16 @@ describe("A2 learning input set canonicalization", () => {
   it("accepts a single populated lane while rejecting an entirely empty set", () => {
     assertLearningInputSet(buildLearningInputSet(input({ paperEvidence: [] })));
     assertLearningInputSet(buildLearningInputSet(input({ researchEvidence: [] })));
+  });
+
+  it("does not allow the post-decision META partition to enter A2 identity", () => {
+    assert.throws(
+      () => buildLearningInputSet({ ...input(), metaPartitionIdentity: "meta-train" } as never),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "META_PARTITION_NOT_PART_OF_INPUT_SET",
+    );
+    const valid = buildLearningInputSet(input());
+    assert.equal(Object.hasOwn(valid, "metaPartitionIdentity"), false);
+    assert.throws(() => assertLearningInputSet({ ...valid, metaPartitionIdentity: "meta-train" } as never), /META assignment is not part of A2 identity/);
   });
 
   it("emits the exact paper-period references the retention guard needs", () => {
@@ -123,14 +131,13 @@ describe("A2 falsification - evidence that must be refused", () => {
     refuses(() => buildLearningInputSet(input({ researchEvidence: [], paperEvidence: [] })), "EMPTY_INPUT_SET");
   });
 
-  it("rejects invalid policy versions, meta partition, and cutoff", () => {
+  it("rejects invalid policy versions and cutoffs", () => {
     refuses(() => buildLearningInputSet(input({ policies: { learningPolicyVersion: "learn-v1" } as never })), "INVALID_POLICY_VERSION");
     refuses(() => buildLearningInputSet(input({ policies: null as never })), "INVALID_POLICY_VERSION");
     refuses(() => buildLearningInputSet(input({ researchEvidence: undefined as never })), "MALFORMED_INPUT");
     refuses(() => buildLearningInputSet(input({ paperEvidence: null as never })), "MALFORMED_INPUT");
     refuses(() => buildLearningInputSet(input({ policies: { ...POLICIES, learningPolicyVersion: "" } })), "INVALID_POLICY_VERSION");
     refuses(() => buildLearningInputSet(input({ policies: { ...POLICIES, riskPolicyVersion: "risk version with spaces" } })), "INVALID_POLICY_VERSION");
-    refuses(() => buildLearningInputSet(input({ metaPartitionIdentity: "not valid!" })), "INVALID_META_PARTITION");
     refuses(() => buildLearningInputSet(input({ cutoffTimestamp: -1 })), "INVALID_CUTOFF");
     refuses(() => buildLearningInputSet(input({ cutoffTimestamp: 1.5 })), "INVALID_CUTOFF");
   });
