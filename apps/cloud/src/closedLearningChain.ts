@@ -7,18 +7,16 @@ import { LearningDecisionLedger, type LearningDecisionReceipt } from "./learning
 import { applyBoundedChange, ApplicationRegistry, type ApplicationPorts, type ApplicationContext, type MetaOosEligibility } from "./learningApplication";
 import { LearningApplicationLedger, type LearningApplicationDurableReceipt } from "./learningApplicationLedger";
 import { MetaOosLedger, type MetaOosDurableReceipt } from "./metaOosLedger";
-import type { HoldoutClaimPort, MetaOosCompletionEvidence, MetaPartition } from "./metaOos";
+import type { HoldoutClaimPort, MetaPartition } from "./metaOos";
 import { buildLearningLoopStatus, type LearningLoopStatus } from "./learningLoopStatus";
 
 /**
  * Step 12 - the integrated learning chain.
  *
- * Everything from A2 through M2 has so far existed as a correct piece on its own, which is not the
- * same as being connected. This is the single orchestration that makes the two evidence lanes
- * actually meet: research evidence and PAPER evidence are carried separately everywhere else, and
- * joined here, once, inside the learning input set. Everything downstream - the decision, the
- * meta-out-of-sample partition, the bounded application - is derived from that joined set and nothing
- * else.
+ * This composition joins the research and PAPER evidence lanes in A2 and derives A1 from that input.
+ * A3 still lacks a canonical durable partition-policy owner, so its supplied partition is
+ * non-authoritative and A4 is deliberately kept fail-closed even when recorded counts reach the floor.
+ * This class is not production runtime wiring.
  *
  * The construction enforces reuse rather than merely documenting it. One `EvolutionLedgerPort` is
  * passed in and every ledger is built from it, so there is no second scheduler, evidence store, or
@@ -42,7 +40,6 @@ type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list"
 type LearningPolicyIdentity = LearningInputSetInput["policies"];
 type LearningEvidenceReference = LearningInputSetInput["researchEvidence"][number];
 type LearningChangeRequest = LearningDecisionInput["proposedChanges"][number];
-type DecisionMetaPartition = LearningDecisionInput["metaOosPartition"];
 
 export class LearningChainError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -57,7 +54,6 @@ export interface LearningChainCycle {
   readonly researchEvidence: readonly LearningEvidenceReference[];
   readonly paperEvidence: readonly LearningEvidenceReference[];
   readonly policies: LearningPolicyIdentity;
-  readonly metaPartitionIdentity: string;
   readonly previousResearchSpecFingerprint: string;
   readonly objectiveVersion: string;
   readonly proposedChanges: readonly LearningChangeRequest[];
@@ -113,18 +109,17 @@ export class ClosedLearningChain {
       researchEvidence: cycle.researchEvidence,
       paperEvidence: cycle.paperEvidence,
       policies: cycle.policies,
-      metaPartitionIdentity: cycle.metaPartitionIdentity,
     });
   }
 
   /**
-   * Runs the full chain for one cycle and returns every receipt it produced.
+   * Runs the currently verifiable chain for one cycle and returns every receipt it produced.
    *
    * Order is fixed and load-bearing: the input set joins the lanes, the decision is derived from that
    * joined set, the partition is assigned and claimed, the decision is made durable so the cycle
    * counts as completed, eligibility is read back from those completed cycles only, and only then may
    * a bounded change be attempted. A failure at any step leaves the earlier receipts durable and the
-   * later steps unattempted.
+   * later steps unattempted. Until the canonical A3 policy owner is connected, A4 always refuses.
    */
   public run(cycle: LearningChainCycle, applicationPorts: ApplicationPorts): LearningChainResult {
     if (cycle == null || typeof cycle !== "object") throw new LearningChainError("MALFORMED_CYCLE", "a learning cycle is required");
@@ -133,27 +128,13 @@ export class ClosedLearningChain {
     const inputSet = this.buildInputSet(cycle);
     const inputSetReceipt = this.inputSets.append(inputSet);
 
-    // Completion evidence for the decision's own backing count, answered from the decision ledger
-    // rather than from assignments. This cycle is excluded by identity, so neither its own
-    // assignment nor its own decision can ever back itself - which is also what keeps replay stable,
-    // because re-running it appends nothing new to what it may cite.
-    const backingCycles: MetaOosCompletionEvidence = {
-      isCycleCompleted: (learningCycleId: string) => learningCycleId !== inputSetReceipt.learningCycleId && this.decisions.hasDecisionFor(learningCycleId),
-    };
-
-    // A1: the decision is derived from the joined set. Its meta-cycle count is taken from *other,
-    // completed* cycles in this partition, and it is taken here - before this cycle's assignment or
-    // decision exist - so a decision can never cite itself, nor a cycle that never resolved, as the
-    // evidence backing it.
-    const priorCycles = this.metaOos.assignments().filter((assignment) => assignment.partition === cycle.metaPartition && backingCycles.isCycleCompleted(assignment.learningCycleId)).length;
+    // A1 is derived only from A2 and its own decision inputs. META assignment is a later A3 step.
     const decision = buildLearningDecision({
       inputSet,
       previousResearchSpecFingerprint: cycle.previousResearchSpecFingerprint,
       objectiveVersion: cycle.objectiveVersion,
       proposedChanges: cycle.proposedChanges,
       reasonEvidence: cycle.reasonEvidence,
-      metaOosPartition: cycle.metaPartition as DecisionMetaPartition,
-      metaCyclesEvaluated: priorCycles,
       createdAt: cycle.createdAt,
       sourceCommit: cycle.sourceCommit,
       runtimeIdentity: cycle.runtimeIdentity,
@@ -185,11 +166,14 @@ export class ClosedLearningChain {
     // taken above: a contaminated holdout still leaves the input set and no decision behind.
     const decisionReceipt = this.decisions.append(decision);
 
-    // Eligibility is read back from recorded assignments whose cycles actually resolved, the current
-    // one included, because an accumulating evidence base always admits the sample that completes it.
-    // What no cycle may do is back its own decision, and that is already guaranteed: `priorCycles`
-    // was taken before this cycle had an assignment or a decision to count.
-    const eligibility = this.metaOos.eligibility({ isCycleCompleted: (learningCycleId: string) => this.decisions.hasDecisionFor(learningCycleId) });
+    // Durable counts are observable, but caller-selected partitions are not an authorization source.
+    // Keep A4 closed until the canonical assignment-policy owner is connected.
+    const recordedEligibility = this.metaOos.eligibility({ isCycleCompleted: (learningCycleId: string) => this.decisions.hasDecisionFor(learningCycleId) });
+    const eligibility: MetaOosEligibility = Object.freeze({
+      ...recordedEligibility,
+      eligible: false,
+      reason: "canonical META assignment policy owner is not connected; caller-supplied partitions cannot authorize application",
+    });
 
     // A4: application only, and only against eligibility derived from recorded assignments whose
     // cycles actually resolved.

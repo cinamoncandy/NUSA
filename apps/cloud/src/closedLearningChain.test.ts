@@ -51,7 +51,6 @@ function cycle(seed: string, overrides: Partial<LearningChainCycle> = {}): Learn
     researchEvidence: [{ recordId: "trial-" + seed, recordedAt: 100 }],
     paperEvidence: [{ recordId: "paper-" + seed, recordedAt: 200 }],
     policies: POLICIES,
-    metaPartitionIdentity: "meta-train",
     previousResearchSpecFingerprint: "a".repeat(64),
     objectiveVersion: "objective-v1",
     proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }],
@@ -91,7 +90,7 @@ function runFullPass(chain: ClosedLearningChain, state: { value: number }, perPa
     for (let index = 0; index < perPartition; index += 1) {
       const seed = tag + lane + index.toString(16);
       const holdout = partition === "meta-holdout" ? { holdoutKey: nextHoldoutKey(), holdoutEvaluationId: "eval-" + seed } : {};
-      results.push(chain.run(cycle(seed, { metaPartition: partition, metaPartitionIdentity: partition, ...holdout }), ports(state)));
+      results.push(chain.run(cycle(seed, { metaPartition: partition, ...holdout }), ports(state)));
     }
   }
   return results;
@@ -140,7 +139,7 @@ describe("Integrated chain - the two lanes join only here", () => {
   });
 });
 
-describe("Integrated chain - fail closed, then open only at the floor", () => {
+describe("Integrated chain - caller partition assignments remain non-authoritative", () => {
   it("refuses the change while the partition has no completed cycles, and keeps the state untouched", () => {
     const { evolution, holdouts, now, close } = fixture();
     try {
@@ -161,7 +160,7 @@ describe("Integrated chain - fail closed, then open only at the floor", () => {
     }
   });
 
-  it("applies the bounded change only once every partition reaches the floor, exactly once", () => {
+  it("does not authorize application from caller-supplied partitions, even when their recorded counts reach the floor", () => {
     const { evolution, holdouts, now, close } = fixture();
     try {
       const chain = new ClosedLearningChain(evolution, holdouts, now);
@@ -171,19 +170,20 @@ describe("Integrated chain - fail closed, then open only at the floor", () => {
       runFullPass(chain, state, META_MINIMUM_CYCLES_FOR_ELIGIBILITY - 1, "p");
       assert.equal(state.value, 1, "still below the floor, so nothing was written to the runtime");
 
-      // The pass that completes train, validation, and holdout at the floor together.
+      // Caller-selected lanes can create records, but cannot substitute for the canonical owner.
       const results = runFullPass(chain, state, 1, "q");
       const last = results.at(-1) as LearningChainResult;
-      assert.equal(last.eligibility.eligible, true, "the floor is now met across all three partitions");
+      assert.equal(last.eligibility.eligible, false, "no canonical owner authorized the caller's partition assignments");
       assert.equal(last.eligibility.cyclesEvaluated, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
-      assert.equal(last.applicationReceipt.receipt.applicationOutcome, "APPLIED");
-      assert.equal(state.value, 2, "the bounded change took effect once");
+      assert.match(last.eligibility.reason, /canonical META assignment policy owner is not connected/);
+      assert.ok(results.every((result) => result.applicationReceipt.receipt.applicationOutcome === "REJECTED"));
+      assert.equal(state.value, 1, "recorded caller partitions never mutate runtime state");
 
       const summary = chain.summary();
       assert.equal(summary.decisions, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "one decision per completed cycle");
       assert.equal(summary.applications, summary.decisions, "one application record per decision, none duplicated");
       assert.equal(summary.assignments, summary.decisions);
-      assert.match(last.status.metaEligibility ?? "", /^ELIGIBLE/, "the report and the behaviour agree");
+      assert.match(last.status.metaEligibility ?? "", /^INELIGIBLE/, "the report and the fail-closed behaviour agree");
 
       // The projected status is derivable from durable history alone, after the fact.
       assert.equal(chain.status().latestLearningCycleId, last.cycleId);
@@ -198,10 +198,10 @@ describe("Integrated chain - fail closed, then open only at the floor", () => {
     try {
       const chain = new ClosedLearningChain(evolution, holdouts, now);
       const result = chain.run(cycle("a"), ports({ value: 1 }));
-      // The chain derives the backing count from *other* completed cycles in this partition; the
-      // decision only states which partition it belongs to, and may never count itself.
-      assert.equal(result.decisionReceipt.decision.metaOosPartition, "meta-train");
-      assert.equal(result.decisionReceipt.decision.decisionOutcome, "INSUFFICIENT", "a first cycle has no prior completed cycle to cite, and may not cite the one it is producing");
+      // A1 contains no META assignment; A3 binds its later record to this exact decision.
+      assert.equal(Object.hasOwn(result.decisionReceipt.decision, "metaOosPartition"), false);
+      assert.equal(result.metaOosReceipt.assignment.learningDecisionFingerprint, result.decisionReceipt.fingerprint);
+      assert.equal(result.decisionReceipt.decision.decisionOutcome, "ADMISSIBLE");
       assert.equal(chain.metaPartitionCount("meta-train"), 1);
       assert.equal(result.eligibility.cyclesEvaluated, 1, "eligibility counts the completed cycle that now exists");
       assert.equal(result.eligibility.eligible, false, "one is not three, in any partition");
@@ -225,7 +225,7 @@ describe("Integrated chain - fail closed, then open only at the floor", () => {
       const last = results.at(-1) as LearningChainResult;
       assert.equal(last.eligibility.cyclesEvaluated, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "train alone is deep, and deep is not covered");
       assert.equal(last.eligibility.eligible, false, "train alone may never open the door");
-      assert.match(last.eligibility.reason, /all three partitions are required/);
+      assert.match(last.eligibility.reason, /canonical META assignment policy owner is not connected/);
       assert.equal(last.applicationReceipt.receipt.applicationOutcome, "REJECTED");
       assert.equal(state.value, 1, "and nothing was written to the runtime");
     } finally {
@@ -249,23 +249,18 @@ describe("Integrated chain - section 8, the application is restorable as a causa
     }
   });
 
-  it("names the application, its decision, and the previous spec once one has taken effect", () => {
+  it("does not report a causal parent after caller-supplied partitions reach the recorded floor", () => {
     const { evolution, holdouts, now, close } = fixture();
     try {
       const chain = new ClosedLearningChain(evolution, holdouts, now);
-      const last = runFullPass(chain, { value: 1 }, META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "s").at(-1) as LearningChainResult;
-      assert.equal(last.applicationReceipt.receipt.applicationOutcome, "APPLIED");
-
-      const parent = chain.latestAppliedLearning();
-      assert.ok(parent, "an applied change is now the causal parent of the research that follows");
-      assert.equal(parent.applicationFingerprint, last.applicationReceipt.fingerprint, "the exact application the research request will name");
-      assert.equal(parent.learningDecisionFingerprint, last.decisionReceipt.fingerprint);
-      assert.equal(parent.type, "learning-application");
-      assert.equal(parent.learningCycleId, last.cycleId, "the exact learning cycle that produced the application");
+      const results = runFullPass(chain, { value: 1 }, META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "s");
+      const last = results.at(-1) as LearningChainResult;
+      assert.equal(last.applicationReceipt.receipt.applicationOutcome, "REJECTED");
+      assert.equal(chain.latestAppliedLearning(), undefined, "non-authoritative partition inputs never become research parents");
 
       // A whole new chain object over the same store: this is what a process restart looks like.
       const restarted = new ClosedLearningChain(evolution, holdouts, now);
-      assert.deepEqual(restarted.latestAppliedLearning(), parent, "a restart rehydrates the same causal parent from durable history");
+      assert.equal(restarted.latestAppliedLearning(), undefined, "restart does not manufacture a causal parent from rejected applications");
     } finally {
       close();
     }
@@ -280,15 +275,15 @@ describe("Integrated chain - restart safety", () => {
       const failingEvolution = {
         list: () => evolution.list(),
         append: (record: Parameters<typeof evolution.append>[0]) => {
-          if (failApplicationAppend && record.validationStatus === "LEARNING_APPLICATION" && JSON.parse(record.hypothesis).applicationOutcome === "APPLIED") throw new Error("durable store unavailable");
+          if (failApplicationAppend && record.validationStatus === "LEARNING_APPLICATION") throw new Error("durable store unavailable");
           return evolution.append(record);
         },
       };
       const chain = new ClosedLearningChain(failingEvolution, holdouts, now);
       const state = { value: 1 };
-      assert.throws(() => runFullPass(chain, state, META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "durability-failure"), (error: unknown) => error instanceof Error && "code" in error && error.code === "APPLICATION_DURABILITY_FAILED");
-      assert.equal(state.value, 1, "the fail-safe value is restored before the failure escapes");
-      assert.equal(chain.latestAppliedLearning(), undefined, "no applied parent is reported without durable evidence");
+      assert.throws(() => chain.run(cycle("durability-failure"), ports(state)), (error: unknown) => error instanceof Error && "code" in error && error.code === "APPLICATION_DURABILITY_FAILED");
+      assert.equal(state.value, 1, "a rejected application never mutated runtime state");
+      assert.equal(chain.latestAppliedLearning(), undefined, "no parent is reported without an applied, durable receipt");
     } finally {
       close();
     }
@@ -341,14 +336,14 @@ describe("Integrated chain - holdout claims go through the shared ledger", () =>
     const { evolution, holdouts, now, close } = fixture();
     try {
       const chain = new ClosedLearningChain(evolution, holdouts, now);
-      const first = chain.run(cycle("h1", { metaPartition: "meta-holdout", metaPartitionIdentity: "meta-holdout", holdoutKey: HOLDOUT, holdoutEvaluationId: "eval-1" }), ports({ value: 1 }));
+      const first = chain.run(cycle("h1", { metaPartition: "meta-holdout", holdoutKey: HOLDOUT, holdoutEvaluationId: "eval-1" }), ports({ value: 1 }));
       assert.equal(first.metaOosReceipt.assignment.partition, "meta-holdout");
       assert.ok(first.metaOosReceipt.assignment.holdoutClaimIdentity, "the claim the cycle consumed is recorded");
       assert.ok(holdouts.isUsed(HOLDOUT), "the shared holdout truth source now knows it was observed");
 
       const before = evolution.list().length;
       assert.throws(
-        () => chain.run(cycle("h2", { metaPartition: "meta-holdout", metaPartitionIdentity: "meta-holdout", holdoutKey: HOLDOUT, holdoutEvaluationId: "eval-2" }), ports({ value: 1 })),
+        () => chain.run(cycle("h2", { metaPartition: "meta-holdout", holdoutKey: HOLDOUT, holdoutEvaluationId: "eval-2" }), ports({ value: 1 })),
         /already been observed|already used/,
         "reusing it is contamination and fails closed",
       );
@@ -367,7 +362,7 @@ describe("Integrated chain - holdout claims go through the shared ledger", () =>
     const { evolution, holdouts, now, close } = fixture();
     try {
       const chain = new ClosedLearningChain(evolution, holdouts, now);
-      assert.throws(() => chain.run(cycle("h3", { metaPartition: "meta-holdout", metaPartitionIdentity: "meta-holdout" }), ports({ value: 1 })), /requires a holdout key/);
+      assert.throws(() => chain.run(cycle("h3", { metaPartition: "meta-holdout" }), ports({ value: 1 })), /requires a holdout key/);
       assert.equal(chain.summary().decisions, 0, "no decision without a claimed partition");
       assert.equal(chain.summary().applications, 0, "no application without a decision");
     } finally {
