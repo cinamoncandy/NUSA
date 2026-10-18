@@ -15,7 +15,7 @@ const HASH_B = "b".repeat(64);
 const SOURCE_SHA = "1".repeat(40);
 const AUTHORITY = createLearningEvidenceAuthorityFromReaders({
   readResearch: (recordId) => recordId.startsWith("league-run:") ? { recordId, recordedAt: 1 } : undefined,
-  readPaper: (recordId) => recordId.startsWith("paper-period:") ? { recordId, recordedAt: 1 } : undefined,
+  readPaper: (recordId) => /^\d+$/.test(recordId) ? { recordId, recordedAt: 1 } : undefined,
 });
 
 function evidence(overrides: Partial<ClosedLearningEvidenceIdentity> = {}): ClosedLearningEvidenceIdentity {

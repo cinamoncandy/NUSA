@@ -175,8 +175,15 @@ export class ClosedLearningLoopCoordinator {
 
   private assertDurableEvidence(identity: ClosedLearningEvidenceIdentity): void {
     for (const recordId of identity.evidenceReferences) {
-      const research = this.evidenceAuthority.readResearch(recordId);
-      const paper = this.evidenceAuthority.readPaper(recordId);
+      const isPaper = recordId.startsWith("paper-period:");
+      const authorityRecordId = isPaper ? recordId.slice("paper-period:".length) : recordId;
+      if (!authorityRecordId) throw new Error("closed learning evidence reference is malformed");
+      const research = isPaper ? undefined : this.evidenceAuthority.readResearch(authorityRecordId);
+      const paper = isPaper ? this.evidenceAuthority.readPaper(authorityRecordId) : undefined;
+      const resolved = research ?? paper;
+      if (resolved != null && (resolved.recordId !== authorityRecordId || !Number.isSafeInteger(resolved.recordedAt) || resolved.recordedAt < 0)) {
+        throw new Error("closed learning evidence authority returned malformed evidence");
+      }
       if ((research == null) === (paper == null)) throw new Error("closed learning evidence is not uniquely backed by the canonical durable authority");
     }
   }
