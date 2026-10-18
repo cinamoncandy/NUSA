@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import type { PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
-import { paperChallengerPolicyIdentity } from "./paperChallengerPolicyIdentity";
+import { legacyPaperChallengerPolicyIdentity, paperChallengerPolicyIdentity } from "./paperChallengerPolicyIdentity";
 import type { PaperResearchLineage } from "./paperResearchLineage";
 
 type RecordValue = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
@@ -73,6 +73,16 @@ function policyGovernance(value: PaperCandidateExecutionBinding = binding()) {
   return { ...governance(value), strategyId: `${value.candidateStrategy!.familyId}:${value.candidateId}`, approval: { actorType: "POLICY" as const, approvalReference: policy.approvalReference, approvedAt: 1, decisionFingerprint: policy.decisionFingerprint } };
 }
 
+function legacyPolicyGovernance(value: PaperCandidateExecutionBinding = binding()) {
+  const policy = legacyPaperChallengerPolicyIdentity({ candidateId: value.candidateId, candidateVersion: value.candidateStrategy!.specificationHash, familyId: value.candidateStrategy!.familyId, evidenceFingerprintSha256: value.bindingFingerprintSha256, replayRunFingerprintSha256: lineage.replayRunFingerprintSha256, researchDecisionReference: lineage.researchDecisionReference });
+  return { ...governance(value), strategyId: `${value.candidateStrategy!.familyId}:${value.candidateId}`, approval: { actorType: "POLICY" as const, approvalReference: policy.approvalReference, approvedAt: 1, decisionFingerprint: policy.decisionFingerprint } };
+}
+
+function appendActivation(persistence: MemoryLedger, authorization: ReturnType<typeof policyGovernance> | ReturnType<typeof legacyPolicyGovernance>): void {
+  const value = binding();
+  persistence.append({ opportunityId: `paper-challenger:KRW-BTC:${value.bindingFingerprintSha256}:active`, problem: "NUSA PAPER challenger binding lifecycle", evidenceReferences: [], hypothesis: JSON.stringify({ schemaVersion: 1, status: "ACTIVE", market: "KRW-BTC", binding: value, activatedAt: value.periodStartAt, researchLineage: lineage, governanceAuthorization: authorization, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), changeReference: `candidate:${value.candidateId}`, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(value.periodStartAt).toISOString() });
+}
+
 describe("PaperChallengerBindingLedger", () => {
   it("recovers one active immutable binding and exact Research lineage after restart", () => {
     const persistence = new MemoryLedger();
@@ -109,6 +119,32 @@ describe("PaperChallengerBindingLedger", () => {
     assert.equal(restarted.read("KRW-BTC", 3_000)?.candidateId, "challenger-a-v9");
     assert.deepEqual(restarted.lineage("KRW-BTC", 3_000), lineage);
     assert.equal(restarted.current("KRW-BTC", 3_000)?.governanceAuthorization, undefined);
+  });
+
+  it("keeps exact historical v1 POLICY activation readable but removes Governance eligibility", () => {
+    const persistence = new MemoryLedger();
+    appendActivation(persistence, legacyPolicyGovernance());
+    const restarted = new PaperChallengerBindingLedger(persistence);
+    const recovered = restarted.current("KRW-BTC", 3_000);
+    assert.equal(recovered?.binding.candidateId, "challenger-a-v9");
+    assert.deepEqual(recovered?.researchLineage, lineage);
+    assert.equal(recovered?.governanceAuthorization, undefined, "v1 POLICY history is readable evidence only and cannot seed governed closed learning");
+  });
+
+  it("fails closed on tampered historical v1 POLICY identity", () => {
+    const persistence = new MemoryLedger();
+    appendActivation(persistence, legacyPolicyGovernance());
+    const record = persistence.records[0]!;
+    const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
+    const authorization = receipt.governanceAuthorization as ReturnType<typeof legacyPolicyGovernance>;
+    persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...authorization, approval: { ...authorization.approval, decisionFingerprint: "a".repeat(64) } } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+  });
+
+  it("never accepts historical v1 POLICY identity for a new activation", () => {
+    const persistence = new MemoryLedger();
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, legacyPolicyGovernance()), /Governance authorization does not bind|legacy Governance authorization/);
+    assert.equal(persistence.records.length, 0);
   });
 
   it("rejects lineage for a different candidate", () => {
