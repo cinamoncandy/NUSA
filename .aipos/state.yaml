@@ -3060,11 +3060,11 @@ current_evidence_verifier_20261018:
   branch: codex/paper-policy-fingerprint-verify
   base_sha: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
   pr: 2804
-  first_broken_transition: "Codex P1 legacy lineage replay compatibility → corrected replay discriminator → fresh exact-head CI"
+  first_broken_transition: "Codex P1 POLICY receipt actor-type downgrade → namespace discriminator repair → fresh exact-head CI"
   finding: "PR #2802 merged the Governance snapshot edge, but persisted POLICY approval identity was only syntax-checked. Its decision fingerprint can now be independently recomputed from the exact candidate, binding, and Research lineage."
   implementation: "Reuse one pure policy-identity calculation for approval production and ledger replay; fail closed if the persisted decision fingerprint or policy reference differs; on replay compare lineage candidateVersion only when candidateStrategy was historically persisted so pre-Governance lineage records remain readable but ungoverned."
-  validation: "head 0f3b18c1462fb2d8528c8096d39434abb04d723e exact-head CI 39101650144 and Actual PAPER runtime 39101650148 PASS; fresh Codex review found P1: historical lineage-bearing activations without candidateStrategy became unreadable. Repair preserves that legacy read path while retaining strict version binding whenever candidateStrategy exists. New exact-head CI required after repair commit."
-  review_feedback: "Fresh chatgpt-codex-connector review of exact head 0f3b18c found P1 legacy-read regression: pre-Governance activation may carry researchLineage while omitting candidateStrategy. Repair makes replay version comparison conditional on persisted candidateStrategy; new activations stay strict. Fresh review of the repair head remains required before Audit."
+  validation: "head 84150bf90089b31292998f4639c9e4d71511242a exact-head CI 39103295767 and Actual PAPER runtime 39103295736 PASS; fresh Codex review found P1 POLICY→HUMAN actor-type downgrade. Local namespace repair and regression transpile/AIPOS/diff checks PASS; new exact-head CI required after commit."
+  review_feedback: "Fresh Codex review of 84150bf found P1: a persisted deterministic POLICY approval could be relabeled HUMAN while retaining its policy: reference, bypassing POLICY recomputation. Repair rejects HUMAN approvals in the policy: namespace while retaining genuine owner/HUMAN references. Fresh exact-head CI and Validator are required."
   remaining: "This slice covers Governance-to-PAPER identity and Research-lineage candidate-version binding only; the full independent sealed verifier and dataset/precommit/experiment/candidate/governance/PAPER graph falsification remain open."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
