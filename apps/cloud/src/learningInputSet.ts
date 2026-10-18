@@ -154,6 +154,7 @@ function laneOf(references: readonly LearningEvidenceReference[], lane: string, 
  */
 export function buildLearningInputSet(input: LearningInputSetInput): LearningInputSet {
   if (input == null || typeof input !== "object") throw new LearningInputSetError("MALFORMED_INPUT", "learning input set input is required");
+  if (!Array.isArray(input.researchEvidence) || !Array.isArray(input.paperEvidence)) throw new LearningInputSetError("MALFORMED_INPUT", "learning evidence lanes must be lists");
   if (!Number.isSafeInteger(input.cutoffTimestamp) || input.cutoffTimestamp < 0) throw new LearningInputSetError("INVALID_CUTOFF", "point-in-time cutoff must be a non-negative integer timestamp");
   if (input.researchEvidence.length === 0 && input.paperEvidence.length === 0) throw new LearningInputSetError("EMPTY_INPUT_SET", "a learning input set must cite at least one evidence record");
   if (input.metaPartitionIdentity == null || typeof input.metaPartitionIdentity !== "string" || !POLICY_VERSION.test(input.metaPartitionIdentity)) throw new LearningInputSetError("INVALID_META_PARTITION", "meta-OOS partition identity is invalid");

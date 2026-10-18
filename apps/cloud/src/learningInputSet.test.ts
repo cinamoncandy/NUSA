@@ -124,6 +124,8 @@ describe("A2 falsification - evidence that must be refused", () => {
   });
 
   it("rejects invalid policy versions, meta partition, and cutoff", () => {
+    refuses(() => buildLearningInputSet(input({ researchEvidence: undefined as never })), "MALFORMED_INPUT");
+    refuses(() => buildLearningInputSet(input({ paperEvidence: null as never })), "MALFORMED_INPUT");
     refuses(() => buildLearningInputSet(input({ policies: { ...POLICIES, learningPolicyVersion: "" } })), "INVALID_POLICY_VERSION");
     refuses(() => buildLearningInputSet(input({ policies: { ...POLICIES, riskPolicyVersion: "risk version with spaces" } })), "INVALID_POLICY_VERSION");
     refuses(() => buildLearningInputSet(input({ metaPartitionIdentity: "not valid!" })), "INVALID_META_PARTITION");

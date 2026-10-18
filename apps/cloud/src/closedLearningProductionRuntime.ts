@@ -11,6 +11,7 @@ import { SqliteFuturesPublicStore } from "../../../packages/storage/src/futuresP
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { replayPaperPeriodRule } from "./paperPeriodRuleReplay";
 import { composeResearchExperiments } from "./researchExperimentComposition";
+import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
 import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
 import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
@@ -237,8 +238,11 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // default on the PAPER host; NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED makes candidates wait.
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
-  if (researchExperiments?.learningEvidenceAuthority == null) throw new Error("closed learning durable evidence authority is unavailable");
-  const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, researchExperiments.learningEvidenceAuthority, Date.now);
+  const learningEvidenceAuthority = researchExperiments?.learningEvidenceAuthority ?? createLearningEvidenceAuthorityFromReaders({
+    readResearch: () => { throw new Error("closed learning durable evidence authority is unavailable"); },
+    readPaper: () => { throw new Error("closed learning durable evidence authority is unavailable"); },
+  });
+  const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, learningEvidenceAuthority, Date.now);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
   const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => coordinator.runAsync(input);
 
@@ -504,7 +508,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   finally { researchExperiments?.finishPreparedRecovery(); }
 
   return Object.freeze({
-    learningEvidenceAuthority: researchExperiments?.learningEvidenceAuthority ?? (() => { throw new Error("research evidence authority is unavailable while research experiments are disabled"); }) as never,
+    learningEvidenceAuthority,
     handle,
     challengerBindings,
     readCanonicalPaperAccount,
