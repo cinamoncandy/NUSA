@@ -2,6 +2,7 @@ import { canonicalResearchJson } from "../../../packages/contracts/src/researchR
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import {
   assertMetaOosAssignment,
+  assertMetaOosAssignmentReplay,
   assignMetaPartition,
   metaOosEligibility,
   type HoldoutClaimPort,
@@ -89,10 +90,7 @@ export class MetaOosLedger {
         // Two successors from the same predecessor: a fork, not a tie to break by timestamp.
         throw new MetaOosLedgerError("PARTITION_FORK", "cycle " + input.learningCycleId + " is already assigned to " + existing.partition + " and may not be re-assigned to " + input.partition);
       }
-      const replayed = assignMetaPartition(input, holdouts);
-      if (replayed.assignmentFingerprint !== existing.assignmentFingerprint) {
-        throw new MetaOosLedgerError("IDENTITY_CONFLICT", "same cycle and partition were re-supplied with different content");
-      }
+      assertMetaOosAssignmentReplay(input, existing, holdouts);
       const record = this.ledger.list().find((candidate) => candidate.opportunityId === `meta-oos:${existing.assignmentFingerprint}`);
       return Object.freeze({ assignment: existing, fingerprint: existing.assignmentFingerprint, recordedAt: record?.recordedAt ?? new Date(this.now()).toISOString(), replayed: true });
     }

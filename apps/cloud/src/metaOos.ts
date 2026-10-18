@@ -155,6 +155,29 @@ function buildAssignment(input: MetaOosAssignmentInput, claimIdentity?: string):
   return Object.freeze({ ...base, assignmentFingerprint: digest(base) });
 }
 
+function assertAssignmentInput(input: MetaOosAssignmentInput): void {
+  if (input == null || typeof input !== "object") throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta-OOS assignment input is required");
+  if (typeof input.learningCycleId !== "string" || !CYCLE.test(input.learningCycleId)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "learning cycle id is invalid");
+  if (typeof input.learningDecisionFingerprint !== "string" || !SHA64.test(input.learningDecisionFingerprint)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "learning decision fingerprint must be a SHA-256 digest");
+  if (!META_PARTITIONS.includes(input.partition)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta partition is outside the closed set");
+  assertBounded(input.policyVersion, "policy version");
+  assertBounded(input.assignedAt, "assigned at");
+  if (!Number.isSafeInteger(input.cutoff) || input.cutoff < 0) throw new MetaOosError("MALFORMED_ASSIGNMENT", "cutoff must be a non-negative integer");
+}
+
+/** Verifies a replay against the durable assignment without trying to consume its holdout twice. */
+export function assertMetaOosAssignmentReplay(input: MetaOosAssignmentInput, existing: MetaOosAssignment, holdouts: HoldoutClaimPort): void {
+  assertAssignmentInput(input);
+  let claimIdentity: string | undefined;
+  if (input.partition === "meta-holdout") {
+    if (input.holdoutKey == null || input.holdoutEvaluationId == null) throw new MetaOosError("HOLDOUT_REQUIRED", "a meta-holdout partition requires a holdout key and an evaluation id");
+    if (!holdouts.isUsed(input.holdoutKey)) throw new MetaOosError("HOLDOUT_CLAIM_MISSING", "durable meta-holdout assignment has no matching single-use holdout claim");
+    claimIdentity = holdoutClaimIdentity(input.holdoutKey);
+  }
+  const replayed = buildAssignment(input, claimIdentity);
+  if (replayed.assignmentFingerprint !== existing.assignmentFingerprint) throw new MetaOosError("IDENTITY_CONFLICT", "same cycle and partition were re-supplied with different content");
+}
+
 /**
  * Assigns a cycle to exactly one meta partition, claiming the holdout when the partition requires it.
  *
@@ -163,13 +186,7 @@ function buildAssignment(input: MetaOosAssignmentInput, claimIdentity?: string):
  * used, this fails closed rather than proceeding on the grounds that everything else looked fine.
  */
 export function assignMetaPartition(input: MetaOosAssignmentInput, holdouts: HoldoutClaimPort): MetaOosAssignment {
-  if (input == null || typeof input !== "object") throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta-OOS assignment input is required");
-  if (typeof input.learningCycleId !== "string" || !CYCLE.test(input.learningCycleId)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "learning cycle id is invalid");
-  if (typeof input.learningDecisionFingerprint !== "string" || !SHA64.test(input.learningDecisionFingerprint)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "learning decision fingerprint must be a SHA-256 digest");
-  if (!META_PARTITIONS.includes(input.partition)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta partition is outside the closed set");
-  assertBounded(input.policyVersion, "policy version");
-  assertBounded(input.assignedAt, "assigned at");
-  if (!Number.isSafeInteger(input.cutoff) || input.cutoff < 0) throw new MetaOosError("MALFORMED_ASSIGNMENT", "cutoff must be a non-negative integer");
+  assertAssignmentInput(input);
 
   if (input.partition === "meta-holdout") {
     if (input.holdoutKey == null || input.holdoutEvaluationId == null) {

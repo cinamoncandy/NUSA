@@ -1,13 +1,40 @@
-# Learning input owner recovery
+# Learning Loop recovery and convergence state
 
-Canonical PR: #2792; inspected remote head c9b6256a196e2b8e296101d3c1dcf37826db7d70; base 5b347b4b73b88f720c1452270e6ad6bfd61eca3a. PR remains OPEN/Draft.
+Fresh GitHub snapshot, 2026-10-18: protected `main` is `3659e45e011032b71e37896eed7c3aef2580c153`.
 
-The downstream LearningChainCycle interface is a caller-supplied contract, not proof of canonical policy or temporal ownership. Do not promote its test fixtures into production authority.
+## Canonical A2
 
-Current local change rejects missing mandatory policy identities and adds sync/async adversarial authority tests. Typecheck, build and 22 focused tests passed. These uncommitted changes have no CI/Audit approval.
+PR #2792 is OPEN/Draft, base `main` at the SHA above, head `65a4db2620a799f696c52449c3c2cf451647d98f`. Exact-head CI and companion PAPER/readiness/restricted-surface checks PASS (CI run `39122108680`; companion runs `39122108628`, `39122108609`, `39122108667`, `39122108595`, `39122108679`). Audit fallback was SKIPPED; this is not Audit or Release evidence.
 
-FIRST_BROKEN_TRANSITION: canonical owner values and evidence -> production LearningInputSet -> existing LearningInputSetLedger -> decision identity.
+The production composition exposes `learningInputSetEvidenceAuthority` readers for durable Research history and realized PAPER periods. It does not construct or append A2 input sets in the production caller graph. A2 accepts caller-supplied cutoff and META identity; no canonical cutoff owner or partition assignment owner was found. Preserve strict `recordedAt < cutoff`. Do not derive policy from `Date.now`, maximum evidence timestamp, or caller input.
 
-Next: trace policy publication, PAPER close boundary and meta-OOS assignment producers; record field/source/version/restart semantics before production wiring. Missing owners remain BLOCKED_CANONICAL_OWNER_UNRESOLVED. Do not use Date.now or maximum evidence time as invented cutoff. Preserve strict recordedAt < cutoff.
+## Stack snapshot and stale evidence
 
-PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY. LEARNING_LOOP_VERIFIED=false; PERFORMANCE_IMPROVEMENT=UNPROVEN. No Audit, release, merge or runtime acceptance claimed.
+All listed PRs are OPEN/Draft. Exact-head CI evidence does not override stale base identity or conflicts.
+
+| PR | Base SHA | Head SHA | Current finding |
+|---|---|---|---|
+| #2793 | `c7bcdd21` | `388e4b36` | Base is older than #2792 head `65a4db26`; its CI is not evidence for current stacked identity. |
+| #2794 | `388e4b36` | `1036b53b` | Parent identity matches #2793 head; prior CI only. |
+| #2795 | `1036b53b` | `6eaca9d7` before this repair | Parent identity matches #2794 head; prior CI only. |
+| #2796 | `ba0ac079` | `5e336429` | Base stale versus #2795 head; GitHub reports CONFLICTING. |
+| #2797 | `5e336429` | `5d2b3be6` | Stacked on #2796; exact-head full CI not established in current snapshot. |
+| #2798 | `5d2b3be6` | `8f07be1e` | Stacked; exact-head full CI not established in current snapshot. |
+| #2799 | `8f07be1e` | `548a92ff` | Prior exact-head CI PASS; base must be re-evaluated after predecessor convergence. |
+| #2800 | `b2b8a172` | `c61861e0` | Base stale versus #2799 head; GitHub reports CONFLICTING. |
+
+## A3 replay repair in progress
+
+The #2795 source called the single-use holdout claim path again when the same assignment already existed. A restarted replay therefore rejected its own prior holdout claim. A local fix now validates the deterministic assignment fingerprint against the durable receipt and requires the corresponding holdout key still be durably used, without issuing a second claim. A file-backed SQLite regression covers restart, exact replay, no duplicate assignment, and changed-key rejection.
+
+Focused A3 tests: 17/17 PASS. Full `pnpm test` with Git Bash on PATH: 1,248 isolated test files PASS after an initial environment-only `spawnSync bash ENOENT`; no test assertions were relaxed. Build, typecheck, `validate:full`, security gate, AIPOS YAML/provenance, and lint completed PASS (lint retains 26 existing warnings). Exact-head CI and independent review remain pending for the changed head.
+
+This change does not establish policy authority or wire A2→A1→A3→A4 into production. Do not mark the Learning Loop verified. Keep PR Draft; do not Audit/Release/merge while cutoff/META owners are unresolved or downstream stack identities are stale.
+
+## Current blockers and safety
+
+- `BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED`
+- `BLOCKED_META_PARTITION_POLICY_UNDEFINED`
+- Next canonical transition: establish canonical, versioned, replay-stable cutoff and META assignment authorities, then wire production A2→A1→A3→A4 and revalidate the stacked PRs bottom-up.
+- Preserve `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, and `aiAuthority=ZERO_AUTHORITY`.
+- `LEARNING_LOOP_VERIFIED=false`; `PERFORMANCE_IMPROVEMENT=UNPROVEN`; `AUTOPILOT_VERIFIED_COMPLETION_LOOP=false`.

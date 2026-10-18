@@ -1,0 +1,40 @@
+id: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
+title: "Make durable META holdout assignment replay idempotent"
+status: VERIFYING
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: feat/meta-oos-a3
+pull_request: 2795
+authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
+objective: "Allow an already durable A3 meta-holdout assignment to be read/replayed after restart without attempting a second single-use holdout claim, while rejecting changed input or a missing durable claim."
+first_broken_transition: "durable META holdout claim and assignment -> process restart -> exact assignment replay"
+scope:
+  include:
+    - "Reuse the existing append-only Evolution Learning ledger and Research Holdout ledger."
+    - "Verify replayed assignment content against the durable fingerprint and require the holdout key to remain durably claimed."
+    - "Add a file-backed SQLite restart regression covering same-input replay, no duplicate assignment, and substitution rejection."
+  exclude:
+    - "Defining or changing canonical cutoff policy, META partition allocation policy, partition ratios, cadence, or owner."
+    - "Wiring A2/A1/A3/A4 into production, changing qualification, or advancing learning performance claims."
+    - "Audit, Release, merge, or deployment while the canonical cutoff/META policy owners remain unresolved."
+acceptance:
+  - "Same holdout assignment replays after a new database-backed ledger instance with identical receipt fingerprint and exactly one assignment."
+  - "Changed assignment content or a missing holdout claim fails closed."
+  - "Focused tests, all isolated tests, build, typecheck, preflight, validate:full, security, AIPOS provenance, and lint pass; lint has no errors."
+  - "Exact-head CI and fresh independent review pass before any readiness transition."
+  - "Draft remains until the separate canonical cutoff and META policy blockers, full chain validation, and Audit/Release gates are resolved."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+blockers:
+  - "BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED"
+  - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
+validation:
+  focused: "metaOos: 17/17 PASS; file-backed restart verifies replay, no duplicate durable assignment, and changed holdout rejection."
+  full_suite: "pnpm test with installed Git Bash directories prepended to PATH: 1248 isolated test files PASS. Initial environment-only bash ENOENT was reproduced and corrected without changing test assertions."
+  gates: "build PASS; typecheck PASS; validate:full PASS; security:gate PASS; aipos:yaml/provenance PASS; lint PASS with 26 existing warnings."
+  pending: "Commit/push to existing PR #2795, exact-head CI, and independent review. Audit/Release intentionally blocked by unresolved policy owners."

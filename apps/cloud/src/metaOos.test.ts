@@ -70,6 +70,36 @@ it("restores the same A3 assignment after a file-backed ledger restart and does 
   }
 });
 
+it("replays an already-claimed meta-holdout assignment after restart without claiming it again", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-meta-holdout-restart-")), "learning.db");
+  let db = new SqliteDatabase(filename);
+  const input = assignment({ partition: "meta-holdout", holdoutKey: HOLDOUT, holdoutEvaluationId: "eval-1" });
+  try {
+    const firstHoldouts = new SqliteResearchHoldoutLedger(db);
+    const firstLedger = new MetaOosLedger(new SqliteEvolutionLearningLedger(db), () => Date.parse("2026-10-18T00:00:00.000Z"));
+    const first = firstLedger.assign(input, firstHoldouts);
+    assert.equal(first.replayed, false);
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    const restartedHoldouts = new SqliteResearchHoldoutLedger(db);
+    const restartedLedger = new MetaOosLedger(new SqliteEvolutionLearningLedger(db), () => Date.parse("2026-10-18T00:00:00.000Z"));
+    assert.equal(restartedHoldouts.isUsed(HOLDOUT), true);
+    const replay = restartedLedger.assign(input, restartedHoldouts);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.fingerprint, first.fingerprint);
+    assert.equal(restartedLedger.summary().assignmentsRecorded, 1);
+    assert.throws(
+      () => restartedLedger.assign({ ...input, holdoutKey: { ...HOLDOUT, strategyConfigHash: "b".repeat(64) } }, restartedHoldouts),
+      /different content|matching single-use holdout claim/,
+      "a replay cannot substitute a different already-used holdout",
+    );
+  } finally {
+    db.close();
+    rmSync(dirname(filename), { recursive: true, force: true });
+  }
+});
+
 function fixture() {
   const db = new SqliteDatabase(":memory:");
   // The real holdout truth source, not a stand-in: single-use must be proven against it.

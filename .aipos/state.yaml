@@ -3438,6 +3438,20 @@ current_autopilot_runner_readiness:
   authority_impact: none
   finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
 
+current_learning_meta_holdout_replay_20261018:
+  work_order: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
+  status: VERIFYING
+  branch: feat/meta-oos-a3
+  pull_request: 2795
+  base_main: 3659e45e011032b71e37896eed7c3aef2580c153
+  validation: "17 focused A3 tests and 1248 isolated test files PASS; build/typecheck/validate:full/security/AIPOS provenance PASS; lint PASS with 26 existing warnings. Initial bash ENOENT fixed by adding installed Git Bash to PATH; no assertions weakened."
+  finding: "A3 retries the single-use holdout claim on an already durable replay, so the exact same meta-holdout assignment is rejected after restart."
+  next: "Push only to existing PR #2795 after local validation; verify exact-head CI and fresh independent review. Keep Draft; no Audit/Release until cutoff and META owners are resolved."
+  blockers:
+    - BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED
+    - BLOCKED_META_PARTITION_POLICY_UNDEFINED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_methods_20261013:
   work_order: WO-RESEARCH-20261013-LEARNING-METHODS
   status: COMPLETED_ANALYSIS
