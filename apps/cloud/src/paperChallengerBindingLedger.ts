@@ -117,6 +117,7 @@ function validateGovernanceAuthorization(value: PaperChallengerGovernanceAuthori
     || value.familyId !== binding.candidateStrategy?.familyId || value.evidenceFingerprintSha256 !== binding.bindingFingerprintSha256 || value.lifecycle !== "CHALLENGER"
     || (approval?.actorType !== "HUMAN" && !(approval?.actorType === "POLICY" && approval.approvalReference?.startsWith("policy:") === true))
     || (approval?.actorType === "HUMAN" && approval.approvalReference?.startsWith("policy:") === true)
+    || (approval?.actorType === "POLICY" && value.strategyId !== `${binding.candidateStrategy?.familyId}:${binding.candidateId}`)
     || !APPROVAL_REFERENCE.test(approval.approvalReference ?? "") || !HASH.test(approval.decisionFingerprint) || !Number.isSafeInteger(approval.approvedAt) || approval.approvedAt < 0 || approval.approvedAt > binding.periodStartAt
     || (approval.actorType === "POLICY" && (policyIdentity == null || approval.decisionFingerprint !== policyIdentity.decisionFingerprint || approval.approvalReference !== policyIdentity.approvalReference))) {
     throw new Error("PAPER challenger Governance authorization does not bind the active candidate");

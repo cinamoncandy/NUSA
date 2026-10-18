@@ -50,13 +50,13 @@ validation:
   lint: "PASS with 26 pre-existing warnings; zero errors"
   focused_tests: "prior exact-head PASS 49/49; downgrade regression added locally, fresh exact-head suite pending"
   local_adversarial_followup: "PASS: a validly shaped but mismatched Research lineage candidateVersion is rejected on activation before persistence and when tampered in persisted replay state; POLICY authorization exercised."
-  review_feedback: "Fresh Codex review of exact head 84150bf found P1 POLICY→HUMAN downgrade: actorType-only tampering preserved policy: reference/fingerprint but skipped deterministic POLICY recomputation. Repair rejects HUMAN approvals using the policy: namespace and preserves genuine owner/HUMAN approvals."
-  exact_head_ci: PENDING_AFTER_DOWNGRADE_REPAIR
-  fresh_non_author_validation: CHANGES_REQUESTED_ON_84150bf
+  review_feedback: "Exact head 5d21020 repaired the Codex POLICY→HUMAN downgrade and its exact-head CI/runtime companions passed. Follow-up producer/replay inspection found deterministic POLICY strategyId drift remained possible; repair now requires strategyId == familyId:candidateId for POLICY receipts and rejects persisted strategyId tampering."
+  exact_head_ci: PENDING_AFTER_STRATEGY_ID_REPAIR
+  fresh_non_author_validation: STALE_AFTER_STRATEGY_ID_REPAIR
   independent_audit: PENDING
   release: PENDING
-first_broken_transition: "Codex P1 POLICY receipt actor-type downgrade → namespace discriminator repair → fresh exact-head CI"
-next: "Commit the POLICY/HUMAN namespace repair, run fresh exact-head CI, then require a fresh chatgpt-codex-connector review of that exact head before any Audit request; then continue the full P0-5 artifact graph verifier."
+first_broken_transition: "POLICY producer/replay strategyId drift → exact derivation repair → fresh exact-head CI"
+next: "Commit the POLICY strategyId derivation repair, run fresh exact-head CI, then require a fresh non-author review of that exact head before any Audit request; then continue the full P0-5 artifact graph verifier."
 safety:
   paper_only: true
   liveAuthority: NONE
