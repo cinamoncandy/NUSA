@@ -3,6 +3,7 @@ import test from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import type { ClosedLearningResearchReplayResult } from "./closedLearningResearchWorkerClient";
 import { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
+import { bindResearchQualificationIdentity } from "../../../packages/contracts/src/researchQualificationIdentity";
 
 const ORIGINAL = "a".repeat(64);
 const REPLAY = "b".repeat(64);
@@ -13,7 +14,7 @@ function replayResult(): ClosedLearningResearchReplayResult {
     operation: "REPLAY_PAPER_EVIDENCE",
     originalRunFingerprintSha256: ORIGINAL,
     replayRunFingerprintSha256: REPLAY,
-    qualification: Object.freeze({
+    qualification: bindResearchQualificationIdentity(REPLAY, Object.freeze({
       schemaVersion: 1,
       candidates: Object.freeze([
         Object.freeze({ candidateId: "rejected", outcome: "REJECTED" as const, reasons: Object.freeze(["FAIL"]), summary: "rejected" }),
@@ -24,7 +25,7 @@ function replayResult(): ClosedLearningResearchReplayResult {
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
-    }),
+    })),
     deployment: Object.freeze({
       schemaVersion: 1,
       status: "NOT_DEPLOYABLE",

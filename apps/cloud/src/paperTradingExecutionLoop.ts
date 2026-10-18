@@ -208,6 +208,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   private readonly heartbeat?: ReturnType<typeof setInterval>;
   private closed = false;
   private leaseLost = false;
+  private leaseFailure: unknown;
   private lastObservedNowMs = 0;
   private readonly accountId: string;
   public constructor(private readonly db: SqliteDatabase, options: PaperWriterLeaseOptions = {}) {
@@ -357,7 +358,13 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     const ledgerCount = Number((this.db.connection.prepare(
       "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
     ).get(this.accountId) as Record<string, number | bigint>).count);
-    if (ledgerCount !== 0) return;
+    if (ledgerCount !== 0) {
+      // Preserve constructor-time fail-closed integrity checks without replaying the
+      // full account-history projection. This validates sequence, identity and checksum
+      // for canonical fill truth while keeping startup work bounded to the fill ledger.
+      this.readFillLedgerRows();
+      return;
+    }
 
     const sourceState = JSON.parse(String(row.state_json)) as PaperAccountState;
     const sourceChecksum = String(row.checksum);
@@ -567,9 +574,33 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
 
   private backfillFillLedgerFromHistory(): void {
     const account = this.db.connection.prepare(
-      "SELECT 1 FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'"
-    ).get(this.accountId);
+      "SELECT schema_version, updated_at, state_json, checksum FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'"
+    ).get(this.accountId) as Record<string, string | number | null> | undefined;
     if (account == null) return;
+    // A non-empty canonical fill ledger can only be created atomically by the existing
+    // writer transactions. Re-reading every historical account snapshot here is therefore
+    // unnecessary once canonical fill truth exists, and on a large PAPER database that
+    // synchronous scan can outlive the writer lease before the event-loop heartbeat starts.
+    // loadLatest()/save() still reconcile the canonical ledger against account state and fail
+    // closed on any identity/accounting conflict.
+    const ledgerCount = Number((this.db.connection.prepare(
+      "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
+    ).get(this.accountId) as Record<string, number | bigint>).count);
+    if (ledgerCount !== 0) {
+      // Keep restart work bounded without weakening constructor-time integrity. The current
+      // account snapshot is the projection the runtime will resume from, so validate its
+      // embedded quote/depth/cost receipts and reconcile it against canonical fill truth.
+      // This avoids replaying every historical snapshot while still failing closed if an
+      // attacker recomputes the outer account checksum after tampering with receipt bytes.
+      if (Number(account.schema_version) !== SCHEMA_VERSION) throw new Error("unsupported paper account schema");
+      const state = JSON.parse(String(account.state_json)) as PaperAccountState;
+      validateState(state);
+      if (Number(account.updated_at) !== state.updatedAt || String(account.checksum) !== accountChecksum(state)) {
+        throw new Error("paper account checksum mismatch");
+      }
+      this.assertFillLedgerReconcilesState(state);
+      return;
+    }
     const states = this.loadHistory();
     const fillsById = new Map<string, PaperFillRecord>();
     for (const state of states) {
@@ -612,16 +643,30 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   }
   private heartbeatLease(): void {
     if (this.closed || this.leaseLost) return;
-    try { this.db.transaction(() => this.assertLeaseHeld()); } catch { this.leaseLost = true; }
+    try { this.db.transaction(() => this.assertLeaseHeld()); } catch (error) {
+      this.leaseFailure ??= error;
+      this.leaseLost = true;
+    }
   }
   private assertLeaseHeld(): void {
-    if (this.closed || this.leaseLost) throw new Error("PAPER_WRITER_LEASE_LOST");
+    if (this.closed || this.leaseLost) throw new Error("PAPER_WRITER_LEASE_LOST", { cause: this.leaseFailure });
     const now = this.now();
-    if (!Number.isSafeInteger(now) || now < 0) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_INVALID"); }
-    if (now < this.lastObservedNowMs) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_REGRESSION"); }
-    if (now - this.lastObservedNowMs > this.maxClockAdvanceMs) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_ANOMALY"); }
+    if (!Number.isSafeInteger(now) || now < 0) { this.leaseLost = true; const error = new Error("PAPER_WRITER_CLOCK_INVALID"); this.leaseFailure ??= error; throw error; }
+    if (now < this.lastObservedNowMs) { this.leaseLost = true; const error = new Error("PAPER_WRITER_CLOCK_REGRESSION"); this.leaseFailure ??= error; throw error; }
+    if (now - this.lastObservedNowMs > this.maxClockAdvanceMs) { this.leaseLost = true; const error = new Error("PAPER_WRITER_CLOCK_ANOMALY"); this.leaseFailure ??= error; throw error; }
     const result = this.db.connection.prepare(`UPDATE cloud_paper_writer_leases SET lease_until_ms = ?, heartbeat_at_ms = ? WHERE account_id = ? AND owner_id = ? AND lease_until_ms > ?`).run(now + this.leaseDurationMs, now, this.accountId, this.ownerId, now);
-    if (Number(result.changes) !== 1) { this.leaseLost = true; throw new Error("PAPER_WRITER_LEASE_LOST"); }
+    if (Number(result.changes) !== 1) {
+      this.leaseLost = true;
+      let code = "PAPER_WRITER_LEASE_RENEWAL_REJECTED";
+      try {
+        const row = this.db.connection.prepare("SELECT owner_id, lease_until_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(this.accountId) as { owner_id: string; lease_until_ms: number } | undefined;
+        if (row == null) code = "PAPER_WRITER_LEASE_ROW_MISSING";
+        else if (row.owner_id !== this.ownerId) code = "PAPER_WRITER_LEASE_OWNER_MISMATCH";
+        else if (Number.isSafeInteger(row.lease_until_ms) && row.lease_until_ms <= now) code = "PAPER_WRITER_LEASE_EXPIRED";
+      } catch { /* Diagnosis must not mask the rejected renewal or recover authority. */ }
+      this.leaseFailure ??= new Error(code);
+      throw new Error("PAPER_WRITER_LEASE_LOST", { cause: this.leaseFailure });
+    }
     this.lastObservedNowMs = now;
   }
 }

@@ -15,9 +15,26 @@ export interface PaperChallengerActivationReceipt {
   readonly activatedAt: number;
   /** Legacy activations may not have lineage. New closed-learning deployments require it. */
   readonly researchLineage?: PaperResearchLineage;
+  /** Legacy activations may omit the exact Strategy Governance authorization snapshot. */
+  readonly governanceAuthorization?: PaperChallengerGovernanceAuthorization;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
+}
+
+export interface PaperChallengerGovernanceAuthorization {
+  readonly strategyId: string;
+  readonly candidateId: string;
+  readonly candidateVersion: string;
+  readonly familyId: string;
+  readonly evidenceFingerprintSha256: string;
+  readonly lifecycle: string;
+  readonly approval: Readonly<{
+    readonly actorType: string;
+    readonly approvalReference: string;
+    readonly approvedAt: number;
+    readonly decisionFingerprint: string;
+  }>;
 }
 
 export interface PaperChallengerRevocationReceipt {
@@ -35,6 +52,7 @@ export interface PaperChallengerRevocationReceipt {
 
 const MARKET = /^KRW-[A-Z0-9-]+$/;
 const HASH = /^[a-f0-9]{64}$/;
+const APPROVAL_REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
 const PREFIX = "NUSA PAPER challenger binding lifecycle";
 
 function market(value: string): string {
@@ -71,6 +89,7 @@ function parseActivation(record: EvolutionRecord): PaperChallengerActivationRece
   if (binding.periodStartAt !== activatedAt) throw new Error("PAPER challenger activation must match the canonical period start");
   const researchLineage = item.researchLineage == null ? undefined : validatePaperResearchLineage(item.researchLineage);
   if (researchLineage != null && researchLineage.candidateId !== binding.candidateId) throw new Error("PAPER challenger Research lineage candidate conflict");
+  const governanceAuthorization = item.governanceAuthorization == null ? undefined : validateGovernanceAuthorization(item.governanceAuthorization, binding);
   return Object.freeze({
     schemaVersion: 1,
     status: "ACTIVE",
@@ -78,10 +97,22 @@ function parseActivation(record: EvolutionRecord): PaperChallengerActivationRece
     binding,
     activatedAt,
     ...(researchLineage == null ? {} : { researchLineage }),
+    ...(governanceAuthorization == null ? {} : { governanceAuthorization }),
     liveAuthority: "NONE",
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
   });
+}
+
+function validateGovernanceAuthorization(value: PaperChallengerGovernanceAuthorization, binding: PaperCandidateExecutionBinding): PaperChallengerGovernanceAuthorization {
+  const approval = value?.approval;
+  if (!value?.strategyId?.trim() || value.strategyId.length > 240 || value.candidateId !== binding.candidateId || value.candidateVersion !== binding.candidateStrategy?.specificationHash
+    || value.familyId !== binding.candidateStrategy?.familyId || value.evidenceFingerprintSha256 !== binding.bindingFingerprintSha256 || value.lifecycle !== "CHALLENGER"
+    || (approval?.actorType !== "HUMAN" && !(approval?.actorType === "POLICY" && approval.approvalReference?.startsWith("policy:") === true))
+    || !APPROVAL_REFERENCE.test(approval.approvalReference ?? "") || !HASH.test(approval.decisionFingerprint) || !Number.isSafeInteger(approval.approvedAt) || approval.approvedAt < 0 || approval.approvedAt > binding.periodStartAt) {
+    throw new Error("PAPER challenger Governance authorization does not bind the active candidate");
+  }
+  return Object.freeze({ ...value, approval: Object.freeze({ ...approval }) });
 }
 
 function parseRevocation(record: EvolutionRecord): PaperChallengerRevocationReceipt {
@@ -111,11 +142,12 @@ function lifecycle(ledger: EvolutionLedgerPort): readonly (PaperChallengerActiva
 export class PaperChallengerBindingLedger implements PaperCandidateBindingProvider {
   public constructor(private readonly ledger: EvolutionLedgerPort) {}
 
-  public activate(marketValue: string, bindingValue: PaperCandidateExecutionBinding, researchLineageValue?: PaperResearchLineage): PaperChallengerActivationReceipt {
+  public activate(marketValue: string, bindingValue: PaperCandidateExecutionBinding, researchLineageValue: PaperResearchLineage | undefined, governanceAuthorizationValue: PaperChallengerGovernanceAuthorization): PaperChallengerActivationReceipt {
     const normalizedMarket = market(marketValue);
     const binding = validatePaperCandidateExecutionBinding(bindingValue, bindingValue.periodStartAt);
     const researchLineage = researchLineageValue == null ? undefined : validatePaperResearchLineage(researchLineageValue);
     if (researchLineage != null && researchLineage.candidateId !== binding.candidateId) throw new Error("PAPER challenger Research lineage candidate conflict");
+    const governanceAuthorization = validateGovernanceAuthorization(governanceAuthorizationValue, binding);
     const event: PaperChallengerActivationReceipt = Object.freeze({
       schemaVersion: 1,
       status: "ACTIVE",
@@ -123,6 +155,7 @@ export class PaperChallengerBindingLedger implements PaperCandidateBindingProvid
       binding,
       activatedAt: binding.periodStartAt,
       ...(researchLineage == null ? {} : { researchLineage }),
+      governanceAuthorization,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
@@ -130,9 +163,11 @@ export class PaperChallengerBindingLedger implements PaperCandidateBindingProvid
     const opportunityId = `paper-challenger:${normalizedMarket}:${binding.bindingFingerprintSha256}:active`;
     const evidenceReferences = [`binding:${binding.bindingFingerprintSha256}`, `dataset:${binding.datasetContentSha256}`];
     if (researchLineage != null) evidenceReferences.push(`research-run:${researchLineage.originalRunFingerprintSha256}`, `research-replay:${researchLineage.replayRunFingerprintSha256}`);
+    evidenceReferences.push(`governance:${governanceAuthorization.approval.decisionFingerprint}`);
     this.ledger.append({ opportunityId, problem: PREFIX, evidenceReferences, hypothesis: canonicalResearchJson(event), changeReference: `candidate:${binding.candidateId}`, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(binding.periodStartAt).toISOString() });
     const recovered = this.current(normalizedMarket, binding.periodStartAt) ?? (() => { throw new Error("PAPER challenger activation was not recoverable"); })();
     if (researchLineage != null && (recovered.researchLineage == null || !samePaperResearchLineage(recovered.researchLineage, researchLineage))) throw new Error("PAPER challenger Research lineage was not recoverable");
+    if (recovered.governanceAuthorization?.approval.decisionFingerprint !== governanceAuthorization.approval.decisionFingerprint) throw new Error("PAPER challenger Governance authorization was not recoverable");
     return recovered;
   }
 

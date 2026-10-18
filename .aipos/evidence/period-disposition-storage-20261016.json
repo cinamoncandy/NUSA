@@ -1,0 +1,51 @@
+{
+  "scope": "STORAGE_CONTRACT_ONLY_NOT_RUNTIME_ACTIVATED",
+  "base": "67630b806996a0774fa41d772e61de6192493a84",
+  "focusedTests": 92,
+  "strictBuild": "PASS",
+  "rootMobileTypecheck": "PASS",
+  "validateFull": "PASS",
+  "lint": "PASS_24_EXISTING_WARNINGS",
+  "security": "PASS_ZERO_UNMITIGATED_HIGH_CRITICAL",
+  "sourceHashes": {
+    "packages/storage/src/persistedPaperPeriodStore.ts": "5d3f25befa1699efaf424811e7d4d9103c5c57b88ad9d9021aabd160571265be",
+    "packages/storage/src/persistedPaperPendingDisposition.test.ts": "ce2baeae89458146b27eaf1c202c423a98a15fbcac171e96cb57b556043ac35d"
+  },
+  "review": "PENDING_NONAUTHOR",
+  "audit": "PENDING",
+  "release": "PENDING",
+  "runtimeDisposition": "UNVERIFIED",
+  "VERIFIED": false,
+  "initialCI": {
+    "run": 38882456035,
+    "head": "c580638731c106a3a88b5704fd52f96692d1a860",
+    "failure": "validation/security: CREDENTIAL_ASSIGNMENT on a negative-test literal",
+    "classification": "TEST_FIXTURE_CREDENTIAL_PATTERN",
+    "localReproduction": "existing scanner reported exactly1 finding at new test line115; after boolean fixture exactly0",
+    "repair": "forbidden-field boolean fixture preserves negative assertion; no scanner rule/allowlist change",
+    "focusedRetest": "PASS_92",
+    "preflightLesson": "Stage all intended new files before running the tracked-file security scan."
+  },
+  "repairedHeadCI": "Historical previous head passed; latest-main rebase exact-head CI pending",
+  "latestMainRebaseValidation": {
+    "base": "67630b806996a0774fa41d772e61de6192493a84",
+    "focusedTests": "PASS_124",
+    "strictBuild": "PASS",
+    "rootMobileTypecheck": "PASS",
+    "validateFull": "PASS",
+    "lint": "PASS_24_EXISTING_WARNINGS",
+    "security": "PASS_ZERO_UNMITIGATED_HIGH_CRITICAL_ZERO_SECRETS",
+    "aiposProvenance": "PASS",
+    "exactHeadCi": "PENDING",
+    "independentReview": "PENDING"
+  },
+  "latestMainRestartReplay": {
+    "sourceSha": "67630b806996a0774fa41d772e61de6192493a84",
+    "health": "PASS",
+    "readiness": "PASS database, migrations, dashboardPersistence, runtimeRecovery",
+    "fills": { "count": 170, "uniqueIds": 170, "completeAttributions": 169, "incompleteCostEvidence": 1 },
+    "periods": { "realized": 21, "pending": 1, "learningCycles": 0 },
+    "activeOrders": 0,
+    "runtimeDisposition": "NOT_ACTIVATED; historical cost evidence unchanged"
+  }
+}

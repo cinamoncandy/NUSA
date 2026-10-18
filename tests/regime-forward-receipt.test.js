@@ -2,11 +2,12 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs"), os = require("node:os"), path = require("node:path");
 const { runPersistedForwardStudy, publishReceipt } = require("../scripts/lib/regime-forward-receipt");
+const provenance = require("./helpers/research-dataset-provenance.js");
 const START = Date.parse("2026-10-14T00:00:00Z"), END = Date.parse("2026-12-13T00:00:00Z");
 test("completed receipt replays without refetch and corrupt receipt fails closed", async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-forward-receipt-"));
   const options = { stateDb: path.join(directory, "state.sqlite"), executionSourceSha: "a".repeat(40), now: () => END,
-    fetchCandles: async () => ({ sourceRequests: [], candles: Array.from({ length: 1440 }, (_, i) => ({ market: "KRW-BTC", interval: "60m", openTime: START + i * 3600000, closeTime: START + (i + 1) * 3600000,
+    fetchCandles: async () => ({ sourceRequests: [], rawSourceIdentitySha256s: provenance.rawSourceIdentitySha256s, candles: Array.from({ length: 1440 }, (_, i) => ({ market: "KRW-BTC", interval: "60m", openTime: START + i * 3600000, closeTime: START + (i + 1) * 3600000,
       open: 100, high: 101, low: 99, close: 100, volume: 1 })) }) };
   const result = await runPersistedForwardStudy(options);
   assert.equal(result.status, "INSUFFICIENT_DATA");

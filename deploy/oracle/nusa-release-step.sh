@@ -17,6 +17,7 @@ set -euo pipefail
 
 readonly DEPLOY_ROOT=/opt/nusa
 readonly RELEASES="${DEPLOY_ROOT}/releases"
+readonly RUNNER_TEMP_ROOT=/opt/actions-runner-nusa-paper/_work/_temp
 readonly SERVICE=nusa.service
 readonly RESEARCH_SERVICE=nusa-research.service
 readonly RESEARCH_TIMER=nusa-research.timer
@@ -25,7 +26,14 @@ readonly SERVICE_USER=nusa
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
 readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
-readonly RELEASE_RETENTION=2
+readonly RELEASE_RETENTION=0
+readonly ROOT_DISK_GUARD_PERCENT=92
+readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912
+readonly POST_ACTIVATION_SOAK_SECONDS=180
+readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10
+readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=15000
+readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000
+readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
 
@@ -195,6 +203,48 @@ previous_release() {
   readlink -f "$path" 2>/dev/null || true
 }
 
+assert_stage_disk_headroom() {
+  local source_tree="$1"
+  local force_copy="${2:-false}"
+  local total_bytes available_bytes source_bytes guard_free_bytes required_bytes source_device release_device
+  total_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $2 }')"
+  available_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $4 }')"
+  source_bytes="$(du -sb -- "$source_tree" | awk '{ print $1 }')"
+  source_device="$(stat -c '%d' -- "$source_tree")"
+  release_device="$(stat -c '%d' -- "$RELEASES")"
+  [[ "$total_bytes" =~ ^[0-9]+$ && "$available_bytes" =~ ^[0-9]+$ && "$source_bytes" =~ ^[0-9]+$ ]] \
+    || die "could not determine stage disk headroom"
+  guard_free_bytes=$(( (total_bytes * (100 - ROOT_DISK_GUARD_PERCENT) + 99) / 100 ))
+  required_bytes=$(( guard_free_bytes + ROOT_DISK_STAGE_MARGIN_BYTES ))
+  if [ "$force_copy" = "true" ] || [ "$source_device" != "$release_device" ]; then
+    required_bytes=$((required_bytes + source_bytes))
+  fi
+  [ "$available_bytes" -ge "$required_bytes" ] \
+    || die "insufficient root disk headroom for stage: available=$available_bytes required=$required_bytes source=$source_bytes"
+}
+
+validate_stage_source_tree() {
+  local source_tree="$1" source_parent source_name runner_temp
+  runner_temp="$(realpath -e -- "$RUNNER_TEMP_ROOT")" || die "trusted runner temp directory is unavailable"
+  [ "$runner_temp" = "$RUNNER_TEMP_ROOT" ] || die "trusted runner temp directory resolved unexpectedly"
+  [ ! -L "$source_tree" ] || die "release source tree must not be a symlink"
+  source_tree="$(realpath -e -- "$source_tree")" || die "release source tree is unavailable"
+  [ -d "$source_tree" ] || die "release source tree is not a directory"
+  source_parent="${source_tree%/*}"
+  source_name="${source_tree##*/}"
+  [ "$source_parent" = "$runner_temp" ] && [[ "$source_name" =~ ^nusa-release-tree-[0-9]+$ ]] \
+    || die "release source tree must be a direct runner-temp extraction"
+  printf '%s\n' "$source_tree"
+}
+
+assert_root_disk_headroom() {
+  local used_percent
+  used_percent="$(df -P / | awk 'NR == 2 { gsub(/%/, "", $5); print $5 }')"
+  [[ "$used_percent" =~ ^[0-9]+$ ]] || die "could not determine root disk usage"
+  [ "$used_percent" -lt "$ROOT_DISK_GUARD_PERCENT" ] \
+    || die "root disk usage ${used_percent}% is at/above ${ROOT_DISK_GUARD_PERCENT}% guard threshold"
+}
+
 prune_releases() {
   [ -d "$RELEASES" ] || die "release directory missing: $RELEASES"
   local active previous dir name kept=0 removed=0
@@ -236,6 +286,43 @@ recover_abandoned_writer_lease_once() {
   node "$(script_in "$dir" oracle-readiness-check.js)"
 }
 
+prove_post_activation_stability() {
+  local dir="$1"
+  local expected_sha="$2"
+  local deadline attempt=0 current_sha
+  validate_sha "$expected_sha"
+  deadline=$((SECONDS + POST_ACTIVATION_SOAK_SECONDS))
+
+  while :; do
+    attempt=$((attempt + 1))
+    current_sha="$(active_release_sha)"
+    [ "$current_sha" = "$expected_sha" ] || {
+      printf '%s\n' "nusa-release-step: active release identity drifted during soak: expected=$expected_sha actual=$current_sha" >&2
+      return 1
+    }
+    systemctl is-active --quiet "$SERVICE" || return 1
+    systemctl is-active --quiet "$AUTOPILOT_SERVICE" || return 1
+
+    # The initial activation readiness owns the long cold-start budget.  Soak /ready checks stay
+    # deliberately short so a real listener/lease loss fails closed quickly.  The two non-mutating
+    # mobile-owner route probes get a separate bounded proof window so one transient event-loop stall
+    # cannot consume the entire /ready budget and trigger a false rollback after readiness passed.
+    NUSA_READY_STARTUP_WAIT_MS=5000 \
+      NUSA_READY_ROUTE_PROOF_WAIT_MS="$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS" \
+      NUSA_READY_TIMEOUT_MS="$POST_ACTIVATION_READY_TIMEOUT_MS" \
+      NUSA_READY_RETRY_DELAY_MS="$POST_ACTIVATION_READY_RETRY_DELAY_MS" \
+      node "$(script_in "$dir" oracle-readiness-check.js)" || return 1
+    NUSA_AUTOPILOT_READY_TIMEOUT_MS=5000 \
+      node "$(script_in "$dir" autopilot-readiness.js)" || return 1
+
+    printf '%s\n' "nusa-release-step: post-activation stability check $attempt passed for $expected_sha"
+    (( SECONDS >= deadline )) && break
+    sleep "$POST_ACTIVATION_CHECK_INTERVAL_SECONDS"
+  done
+
+  printf '%s\n' "nusa-release-step: ${POST_ACTIVATION_SOAK_SECONDS}s stability soak passed for $expected_sha"
+}
+
 verb="${1:-}"
 shift || true
 
@@ -251,6 +338,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
+    assert_root_disk_headroom
     node "$(script_in "$dir" host-security-validate.js)"
     NUSA_ORACLE_RELEASE_DIR="$dir" exec node "$(script_in "$dir" oracle-validate.js)"
     ;;
@@ -270,8 +358,8 @@ case "$verb" in
 
   stage)
     validate_sha "${1:-}"
-    source_tree="${2:-}"
-    [ -d "$source_tree" ] || die "source tree is not a directory"
+    source_tree="$(validate_stage_source_tree "${2:-}")"
+    assert_stage_disk_headroom "$source_tree"
     dir="$(release_dir "$1")"
     # A staged release is immutable once `current` points at it. Replacing the active release
     # would mutate what the running service is executing.
@@ -279,9 +367,21 @@ case "$verb" in
       [ "$(readlink -f "$dir")" = "$(active_release)" ] && die "refusing to restage the active release"
       rm -rf -- "$dir"
     fi
-    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
-    tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+    if [ "$(stat -c '%d' -- "$source_tree")" = "$(stat -c '%d' -- "$RELEASES")" ]; then
+      chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$source_tree"
+      if ! mv --no-copy -T -- "$source_tree" "$dir"; then
+        # Same st_dev can still cross a bind-mount boundary. Never let mv silently copy after
+        # the reduced rename-only headroom gate; re-check full-copy headroom before copying.
+        assert_stage_disk_headroom "$source_tree" true
+        install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
+        tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
+        chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+      fi
+    else
+      install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
+      tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
+      chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+    fi
     ;;
 
   switch)
@@ -321,7 +421,15 @@ case "$verb" in
         paper_ready=true
       fi
     fi
-    if [ "$paper_ready" != true ] || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
+    autopilot_ready=false
+    stability_ready=false
+    if [ "$paper_ready" = true ] && node "$(script_in "$dir" autopilot-readiness.js)"; then
+      autopilot_ready=true
+      if prove_post_activation_stability "$dir" "$1"; then
+        stability_ready=true
+      fi
+    fi
+    if [ "$paper_ready" != true ] || [ "$autopilot_ready" != true ] || [ "$stability_ready" != true ]; then
       if ! rollback_schema_compatible "$(previous_release)"; then
         # Rolling back would leave nothing running. Keep the new release and its units active and fail the step loudly.
         printf '%s\n' "nusa-release-step: activation of $1 did not prove readiness, but the previous release cannot open the migrated database; keeping $1 active (no rollback)" >&2

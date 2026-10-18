@@ -113,7 +113,7 @@ function source(overrides: { requireIndependentDays?: boolean; periods?: readonl
     bindings: {
       current: (_market: string, at: number) => {
         const researchLineage = (overrides.lineageAt ?? (() => lineage))(at);
-        return researchLineage == null ? undefined : Object.freeze({ schemaVersion: 1, status: "ACTIVE", market: "KRW-BTC", binding: Object.freeze({ ...binding, periodStartAt: at }), activatedAt: at, researchLineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+        return researchLineage == null ? undefined : Object.freeze({ schemaVersion: 1, status: "ACTIVE", market: "KRW-BTC", binding: Object.freeze({ ...binding, periodStartAt: at }), activatedAt: at, researchLineage, governanceAuthorization: Object.freeze({ strategyId: "strategy-a", candidateId: "candidate-a", candidateVersion: VERSION, familyId: "family-a", evidenceFingerprintSha256: HASH, lifecycle: "CHALLENGER", approval: Object.freeze({ actorType: "HUMAN", approvalReference: "owner:paper-challenger", approvedAt: 1, decisionFingerprint: HASH }) }), liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
       },
     } as never,
     readCanonicalPaperAccount: overrides.readAccount ?? account,

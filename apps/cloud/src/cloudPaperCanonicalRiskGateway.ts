@@ -96,8 +96,14 @@ function validateLimits(limits: IndependentRiskLimits): void {
 
 function databaseHealthy(database: SqliteDatabase): boolean {
   try {
-    const quick = database.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-    if (quick == null || !Object.values(quick).includes("ok")) return false;
+    // SqliteDatabase already performs the fail-closed full-file quick_check once when the
+    // canonical connection is opened. Repeating that O(database-size) scan on every PAPER
+    // risk evaluation can block the Node event loop longer than the renewable writer lease.
+    // Keep the hot-path probe O(1): prove the already-open connection responds, then prove
+    // every canonical Risk table is still addressable. Individual persistence operations
+    // continue to fail closed on any SQLite error.
+    const probe = database.connection.prepare("SELECT 1 AS ready").get() as Record<string, unknown> | undefined;
+    if (Number(probe?.ready ?? 0) !== 1) return false;
     const required = ["risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state"];
     for (const table of required) {
       const row = database.connection.prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=?").get(table) as Record<string, unknown> | undefined;

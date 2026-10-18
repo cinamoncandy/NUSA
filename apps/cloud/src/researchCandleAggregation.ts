@@ -37,12 +37,17 @@ export class AggregatedResearchCandleSource implements ResearchCandleStorePort {
     let bucketClose = Number.NaN;
     const flush = (): void => {
       if (bucket.length !== ratio) return;
+      // Longer bars must carry real traded volume when every 1m constituent has one, because the canonical
+      // dataset guard verifies explicit OHLCV against the dataset manifest. If any constituent lacks volume the
+      // bar omits it entirely (fail-closed) so a volume-less dataset can never be verified as canonical.
+      const volume = bucket.every((row) => row.volume != null) ? bucket.reduce((sum, row) => sum + row.volume!, 0) : undefined;
       bars.push(Object.freeze({
         closeTimeMs: bucketClose,
         open: bucket[0]!.open,
         high: Math.max(...bucket.map((row) => row.high)),
         low: Math.min(...bucket.map((row) => row.low)),
         close: bucket[bucket.length - 1]!.close,
+        ...(volume == null ? {} : { volume }),
       }));
     };
     for (const row of rows) {

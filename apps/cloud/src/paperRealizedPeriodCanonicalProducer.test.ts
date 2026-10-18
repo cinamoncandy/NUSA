@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { PaperAccountPosition, PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
 import type { PaperExecutionCostAttribution } from "./paperCanonicalOutcomeReconciliation";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
+import type { RealizedPeriodRetentionGuard } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import {
   PaperRealizedPeriodProducer,
   PaperRealizedPeriodProducerError,
@@ -107,10 +108,14 @@ function account(updatedAt: number, equity: number, fills: readonly PaperFillRec
   });
 }
 
-function state(options?: PaperRealizedPeriodProducerOptions) {
+// Retention is reference-aware by signature (v2 M1/A7); these fixtures cite no periods, so the
+// correct guard for them protects nothing and the retention bound behaves as it always has.
+const retentionGuard: RealizedPeriodRetentionGuard = { referencedRecordIds: () => new Set<string>() };
+
+function state(options?: Omit<PaperRealizedPeriodProducerOptions, "retentionGuard">) {
   const db = new SqliteDatabase(":memory:");
   const repository = new SqlitePaperRealizedPeriodRepository(db);
-  return { db, repository, producer: new PaperRealizedPeriodProducer(repository, options) };
+  return { db, repository, producer: new PaperRealizedPeriodProducer(repository, { retentionGuard, ...options }) };
 }
 
 function errorCode(action: () => unknown): string {
@@ -127,6 +132,7 @@ describe("canonical PAPER realized-period producer", () => {
   it("derives returns and costs from the canonical account outcome and replays idempotently", () => {
     let current = account(BASE, 1_000);
     const options: PaperRealizedPeriodProducerOptions = {
+      retentionGuard,
       readCanonicalPaperAccount: () => current,
       readCanonicalBenchmarkEvidence: (_start, periodEndAt, market) => ({ evidenceId: "benchmark-canonical", observedAt: periodEndAt, benchmarkReturn: 101 / 100 - 1, market: market ?? "KRW-BTC", source: "UPBIT_PUBLIC_TICKER", startObservedAt: BASE, endObservedAt: periodEndAt, startPrice: 100, endPrice: 101, inputFingerprintSha256: HASH }),
     };
@@ -156,6 +162,7 @@ describe("canonical PAPER realized-period producer", () => {
     let current = account(BASE, 1_000);
     let durableFills: readonly PaperFillRecord[] = [];
     const options: PaperRealizedPeriodProducerOptions = {
+      retentionGuard,
       readCanonicalPaperAccount: () => current,
       readCanonicalPaperFills: () => durableFills,
       readCanonicalBenchmarkEvidence: (_start, periodEndAt, market) => ({ evidenceId: "benchmark-durable", observedAt: periodEndAt, benchmarkReturn: 101 / 100 - 1, market: market ?? "KRW-BTC", source: "UPBIT_PUBLIC_TICKER", startObservedAt: BASE, endObservedAt: periodEndAt, startPrice: 100, endPrice: 101, inputFingerprintSha256: HASH }),

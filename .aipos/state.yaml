@@ -511,6 +511,17 @@ current_runtime_restart_forensics:
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-read-health-lastError
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_paper_period_disposition_20261016:
+  work_order: WO-OPS-20261016-PERIOD-DISPOSITION
+  branch: codex/paper-period-disposition-20261016
+  base_sha: 67630b806996a0774fa41d772e61de6192493a84
+  status: REBASED_PENDING_FOCUSED_VALIDATION_CI_AND_FRESH_REVIEW
+  authority: PAPER_ONLY
+  scope: "Existing pending-store immutable INELIGIBLE contract only; runtime activation remains gated."
+  runtime_evidence: "main 67630b80 health/readiness PASS after restart/replay; 170 fills/170 unique ids, 169 attributed and 1 INCOMPLETE cost fill; 21 realized periods; learning cycles 0."
+  validation: "Rebased focused 124/124, strict build, root/mobile typecheck, validate:full, lint (24 existing warnings), security and AIPOS provenance PASS; exact-head CI and fresh non-author review pending. No production caller or runtime disposition claimed."
+  next: "Fresh exact-head CI and non-author contract review, then canonical Audit/Release. Runtime integration remains separately gated."
+
 current_paper_readiness_finite_20261015:
   work_order: WO-OPS-20261015-PAPER-READINESS-FINITE
   status: VERIFYING
@@ -2335,6 +2346,17 @@ current_mobile_fast_startup:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_paper_cost_evidence_20261016:
+  work_order: WO-OPS-20261016-PAPER-COST-EVIDENCE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_REVIEW
+  branch: codex/paper-cost-evidence-20261016
+  issue: 2589
+  authority_impact: paper_evidence_admission
+  evidence: "Separate fresh validator found P1: malformed supplied depth could reach persistent Risk claim before execution rejected it. Canonical boundary now validates supplied depth before Risk for new and continued automatic PAPER intent. Four related suites: 38 PASS; build, typecheck, validate:full, lint (24 existing warnings), and security:gate PASS. Historical disposition remains PROPOSED only; no new remote CI or review verdict is claimed."
+  next: "Push the repair only to the existing #2741 branch; verify fresh exact-head CI and request a fresh validator review of that resulting head. Do not mark ready or begin Audit until P0/P1 are zero. No historical mutation or claimed closed learning completion."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_paper_daily_loss_streak:
   work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
   status: READY_FOR_REVIEW
@@ -2456,6 +2478,20 @@ current_mobile_home_simplify:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 
+current_ops_oracle_stage_space:
+  work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  status: VALIDATOR_P1_REPAIRED_PENDING_EXACT_HEAD_CI
+  branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  issue: 2791
+  pull_request: 2805
+  base_sha: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
+  evidence: "Oracle release 39100544697 failed guarded staging: available 5280886784, required 5949247701, source 1550406500; artifact 506610705 bytes. Diagnosis 39100280323 showed 7.4G free and two protected releases."
+  previous_pr_head: 0dabdbfb087f83979eac3d72df096f0a01325cbc
+  previous_pr_head_ci: "CI 39103178517 and exact-head companions PASS, but fresh Codex Validator found P1 unsafe mv copy fallback; this head is superseded."
+  validation: "Exact head 0dabdbfb087f83979eac3d72df096f0a01325cbc had full PR CI PASS, but fresh Codex Validator found P1: GNU mv can silently copy after rename failure, bypassing rename-only headroom. Local repair uses mv --no-copy and re-applies full-copy headroom before explicit fallback copy; focused workflow tests 23/23, bash -n, and git diff --check PASS. Fresh exact-head CI required."
+  next: "Commit the P1 rename-only repair, run fresh exact-head CI, then obtain a fresh non-author review of that exact head. After merge, install the reviewed root-owned helper through the canonical host path before exact-main release/runtime verification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_paid_overflow_off_20261014:
   work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
   status: LOCAL_HARDENING_VALIDATED_PENDING_FRESH_CI
@@ -2514,6 +2550,15 @@ current_learning_line:
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-learning-line
   authority_impact: none
+
+current_research_cloud_identity_20261016:
+  work_order: WO-RESEARCH-20261016-CLOUD-IDENTITY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: codex/research-cloud-identity-20261016
+  validation: "Implementationbe449577:2 RED codec tests,53 focused tests/1232 isolated files/build/typecheck/validate:full/security/lint PASS24 existing warnings. Fresh independent committed-head review0P0/0P1/1P2(unbound-input API precondition)."
+  next: "Draft PR/exact-head CI/Audit/Release; consistency only, not authentication/precommit/A-grade approval."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_research_continuous_experiments:
   work_order: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
   status: PLANNED
@@ -3032,6 +3077,41 @@ current_ui_startup_warmup:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
   finding: "Cold start 3.3 s from abroad, sign-in 2.4 s: warm the connection during the saved-session read (a credential-free GET of /health) and show the sign-in split in Settings; the authentication flow itself is untouched"
+
+current_dataset_v2_write_20261018:
+  work_order: WO-DATA-20261018-NEW-DATASET-V2-WRITE
+  status: EXACT_MAIN_VERIFIED
+  branch: main
+  base_sha: 26970651043c0e38e03428b181d5e7f59e4ce57b
+  pr: 2801
+  pr_head_sha: eb1215a1e409c752d8cd7f25bc0190f1b2ba2c8c
+  merge_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  exact_main_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  first_broken_transition: "P0-5 independent sealed evidence verification across dataset → precommit → experiment → candidate → governance → PAPER"
+  scope: "All new dataset-manifest factory/write paths emit v2 only; preserve immutable historical v1 reads. Cloud v2 binds durable raw-page receipts and quality results."
+  finding: "Desktop canonical factory now emits v2 only and requires provenance; research real-run and forward-study producers bind captured Upbit page fingerprints, transform/config/schema/quality/replay fingerprints; SQLite rejects new v1 writes while exact historical v1 reads remain checksum-verified. Cloud materializer emits v2 only from matching durable receipts and verified aggregation."
+  validation: "PR exact-head CI 39097651708 PASS 6/6; fresh non-author validation PASS; independent OIDC Audit PASS; canonical Release run 39098201565 merged; exact-main CI 39098270400 PASS; exact-main public PAPER runtime 39098601136 PASS; Cloudflare runtime proof 39098634858 PASS."
+  exact_head_ci: PASS
+  independent_validation: PASS
+  audit: PASS
+  release: MERGED
+  exact_main_ci: PASS
+  exact_main_paper_runtime: PASS
+  oracle_production_runtime: NOT_CHECKED
+  android_stable_release: PENDING
+
+current_evidence_verifier_20261018:
+  work_order: WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
+  status: IMPLEMENTING
+  branch: codex/independent-evidence-verifier
+  base_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  first_broken_transition: "Governance authorization → durable PAPER activation identity"
+  finding: "PAPER deployment checked current Governance authorization but discarded its decision identity; append-only activation and closed-learning replay could not independently prove which authorization bound the PAPER candidate."
+  implementation: "Persist the exact Governance authorization snapshot in the existing hash-chained PAPER binding ledger; reject malformed/mismatched snapshot on read/restart and fail closed when closed-learning evidence tries to consume a legacy activation without it."
+  validation: "typecheck PASS; build PASS; focused four-file suite 40/40 PASS, including mismatched approval, future approval, persisted tamper, restart replay drift, legacy activation fail-closed."
+  remaining: "This closes one edge only; the full independent sealed verifier and dataset/precommit/experiment/candidate/governance/PAPER graph falsification remain open."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_decision_funnel:
   work_order: WO-PAPER-20261006-DECISION-FUNNEL
   status: READY_FOR_REVIEW
@@ -3192,6 +3272,19 @@ current_runtime_startup_evidence_invalidation_20261015:
   runtime: "Read-only38729127377 at11:41:55Z: runtime89a9ceca HTTP200, periods15/cycles0/failures0/holdoutPasses0; main10c15346 rollout38700547000 failed and rolled back."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   next: "Draft review/CI, then canonical Audit/Release and exact-main rollout. Learning still requires a genuinely qualified challenger; no threshold relaxation."
+
+current_runtime_writer_cause_20261016:
+  work_order: WO-OPS-20261016-PAPER-WRITER-CAUSE
+  branch: codex/paper-writer-lease-cause-20261016
+  original_base_sha: 67630b806996a0774fa41d772e61de6192493a84
+  latest_main_reconvergence_base: 3659e45e011032b71e37896eed7c3aef2580c153
+  implementation_merge_commit: 1ae09a01865f4856ae1e1cdb63e8ccc1bd976824
+  status: LATEST_MAIN_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_REVIEW
+  first_broken_transition: exact-main restart/replay -> stable PAPER listener and writer-lease recovery
+  scope: 'Diagnostic precondition only; initiating runtime lease failure cause remains unproven. Writer first-cause retention is merged with current liveness/startup recovery locally; no authority or recovery policy is widened.'
+  local_validation: '31/31 focused PASS; typecheck/build/preflight/validate:full/security PASS; lint 0 errors and 26 pre-existing warnings; PAPER_ADAPTER blob 1113297fa143b4e26318e3c57152bdf2d620ddb6 exact-source check PASS.'
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: Commit AIPOS sync -> push exact head -> fresh exact-head CI -> fresh non-author Validator -> canonical Audit/Release -> exact-main natural runtime diagnosis.
 
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES

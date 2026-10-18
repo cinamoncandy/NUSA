@@ -1,0 +1,57 @@
+id: WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
+title: "Persist Governance authorization identity through PAPER activation and replay"
+status: IMPLEMENTING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+implementation_branch: codex/independent-evidence-verifier
+authority_impact: research_paper_evidence_binding
+objective: "Close the first missing identity edge found while starting P0-5: persist the exact current Strategy Governance authorization that was checked for a PAPER challenger, preserve it in the existing append-only binding ledger, and require it for restart/replay and closed-learning evidence."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuses PaperChallengerBindingLedger and its existing hash-chained Evolution Learning store. No duplicate verifier/store. Legacy activation records remain readable but cannot seed new closed-learning evidence without Governance identity."
+scope:
+  - persist_exact_governance_authorization_snapshot_in_paper_activation
+  - verify_candidate_version_family_and_binding_fingerprint_cross_links
+  - reject_governance_identity_drift_on_restart_replay
+  - fail_closed_for_legacy_activation_missing_governance_identity_in_learning
+  - add_tamper_and_identity_mismatch_regressions
+prohibited:
+  - rewriting_historical_activation_records
+  - creating_or_qualifying_synthetic_paper_evidence
+  - changing_live_authority_or_production_mutation
+  - claiming_full_p0_5_sealed_verifier_complete
+acceptance:
+  - new_activation_persists_exact_governance_decision_identity
+  - wrong_candidate_version_family_or_binding_fingerprint_is_rejected
+  - changed_or_tampered_persisted_authorization_fails_closed
+  - restart_replay_requires_same_governance_identity
+  - legacy_activation_read_compatibility_is_preserved
+  - legacy_activation_without_governance_identity_cannot_seed_closed_learning
+  - paper_only_live_none_production_mutation_false_ai_zero_authority
+validation:
+  commands:
+    - pnpm run typecheck
+    - pnpm run build
+    - pnpm run validate:full
+    - pnpm run security:gate
+    - pnpm run lint
+    - node --test dist/apps/cloud/src/paperChallengerBindingLedger.test.js dist/apps/cloud/src/paperChallengerDeploymentRuntime.test.js dist/apps/cloud/src/closedLearningEvidenceIdentitySource.test.js dist/apps/cloud/src/closedLearningLineageReplayInputSource.test.js
+  typecheck: PASS
+  build: PASS
+  validate_full: PASS
+  security_gate: PASS
+  lint: "PASS with 26 pre-existing warnings; zero errors"
+  focused_tests: "PASS 40/40"
+  exact_head_ci: PENDING
+  fresh_non_author_validation: PENDING
+  independent_audit: PENDING
+  release: PENDING
+first_broken_transition: "Governance authorization → durable PAPER activation identity"
+next: "Run fresh exact-head checks, independent validation and Audit; then continue P0-5 by reconciling the remaining sealed dataset/precommit/experiment/candidate/governance/PAPER cross-links."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

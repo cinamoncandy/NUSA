@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import type { LeagueCandidateOutcome, LeagueRankedEntry } from "./nusaLeague";
 import { canonicalResearchRunFingerprint, type ResearchRunLeagueResult } from "./researchRunLeagueBridge";
 import type { CurrentResearchDatasetIdentity } from "./researchIntegrity";
+import { bindResearchQualificationIdentity, RESEARCH_FACTORY_QUALIFICATION_POLICY, type ResearchQualificationIdentity } from "../../../../packages/contracts/src/researchQualificationIdentity";
+export { RESEARCH_FACTORY_QUALIFICATION_POLICY } from "../../../../packages/contracts/src/researchQualificationIdentity";
 
 export type ResearchFactoryOutcome = "REJECTED" | "INSUFFICIENT" | "QUALIFIED_FOR_LEAGUE";
 
@@ -14,13 +16,7 @@ export interface ResearchFactoryCandidateQualification {
 
 export interface ResearchFactoryQualificationResult {
   readonly schemaVersion: 1;
-  readonly validationIdentity: Readonly<{
-    readonly schemaVersion: 1;
-    readonly policyId: "research-factory-qualification-v1";
-    readonly policySha256: string;
-    readonly runFingerprintSha256: string;
-    readonly resultSha256: string;
-  }>;
+  readonly validationIdentity: ResearchQualificationIdentity;
   readonly candidates: readonly ResearchFactoryCandidateQualification[];
   readonly coverage: Readonly<{
     readonly candidateCount: number;
@@ -39,39 +35,13 @@ interface GateDecision {
   readonly reasons: readonly string[];
 }
 
-const REQUIRED_REPORT_EVIDENCE = Object.freeze([
-  "DEFLATED_SHARPE_EVIDENCE_MISSING",
-  "COST_SENSITIVITY_EVIDENCE_MISSING",
-  "PBO_EVIDENCE_MISSING",
-  "REGIME_ROBUSTNESS_EVIDENCE_MISSING",
-  "REGIME_ROBUSTNESS_EVIDENCE_INSUFFICIENT",
-  "TRIAL_LEDGER_EVIDENCE_MISSING",
-] as const);
-
-const REJECTION_REASONS = Object.freeze(new Set([
-  "DEFLATED_SHARPE_BELOW_CONFIDENCE_THRESHOLD",
-  "REGIME_FRAGILE_EDGE",
-]));
-
-const REQUIRED_COST_SCENARIOS = Object.freeze(["BASE", "MODERATE", "SEVERE"] as const);
-const FROZEN_COST_RETURN_DEGRADATION_RATIO = 0.5;
-const FROZEN_COST_DRAWDOWN_EXPANSION_RATIO = 0.5;
-const FROZEN_COST_MINIMUM_CLOSED_TRADES = 2;
-const FROZEN_MAXIMUM_PBO = 0.5;
-
-/** Describes the existing finalizer only, not upstream League policy or A-grade approval. */
-export const RESEARCH_FACTORY_QUALIFICATION_POLICY = Object.freeze({
-  schemaVersion: 1,
-  id: "research-factory-qualification-v1" as const,
-  ruleVersion: 1,
-  maximumPbo: FROZEN_MAXIMUM_PBO,
-  costReturnDegradationRatio: FROZEN_COST_RETURN_DEGRADATION_RATIO,
-  costDrawdownExpansionRatio: FROZEN_COST_DRAWDOWN_EXPANSION_RATIO,
-  costMinimumClosedTrades: FROZEN_COST_MINIMUM_CLOSED_TRADES,
-  requiredCostScenarios: REQUIRED_COST_SCENARIOS,
-  requiredReportEvidence: REQUIRED_REPORT_EVIDENCE,
-  rejectionReasons: Object.freeze([...REJECTION_REASONS].sort()),
-});
+const REQUIRED_REPORT_EVIDENCE = RESEARCH_FACTORY_QUALIFICATION_POLICY.requiredReportEvidence;
+const REJECTION_REASONS = Object.freeze(new Set<string>(RESEARCH_FACTORY_QUALIFICATION_POLICY.rejectionReasons));
+const REQUIRED_COST_SCENARIOS = RESEARCH_FACTORY_QUALIFICATION_POLICY.requiredCostScenarios;
+const FROZEN_COST_RETURN_DEGRADATION_RATIO = RESEARCH_FACTORY_QUALIFICATION_POLICY.costReturnDegradationRatio;
+const FROZEN_COST_DRAWDOWN_EXPANSION_RATIO = RESEARCH_FACTORY_QUALIFICATION_POLICY.costDrawdownExpansionRatio;
+const FROZEN_COST_MINIMUM_CLOSED_TRADES = RESEARCH_FACTORY_QUALIFICATION_POLICY.costMinimumClosedTrades;
+const FROZEN_MAXIMUM_PBO = RESEARCH_FACTORY_QUALIFICATION_POLICY.maximumPbo;
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 function canonicalize(value: unknown): unknown {
@@ -128,6 +98,21 @@ function validateRunProvenance(run: ResearchRunLeagueResult): void {
     || !/^[0-9a-f]{64}$/i.test(provenance.evidenceIdentity.oosObservationSha256)
   ) {
     throw new Error("research run provenance is missing or malformed");
+  }
+  if (provenance.boundExecution != null) {
+    const bound = provenance.boundExecution;
+    if (bound.evaluationId.trim() === ""
+      || !/^[0-9a-f]{64}$/i.test(bound.precommitFingerprint)
+      || !bound.executionId.trim()
+      || !Number.isInteger(bound.executionSequence) || bound.executionSequence < 1
+      || !/^[0-9a-f]{64}$/i.test(bound.actualInputFingerprint)
+      || !/^[0-9a-f]{64}$/i.test(bound.outputFingerprint)
+      || bound.sourceCommitSha.toLowerCase() !== provenance.sourceCommitSha.toLowerCase()
+      || bound.datasetId !== provenance.dataset.datasetId
+      || bound.datasetContentSha256.toLowerCase() !== provenance.dataset.contentSha256.toLowerCase()
+      || !bound.validationPolicy.trim()) {
+      throw new Error("research run bound execution provenance is malformed or mismatched");
+    }
   }
   if (run.robustnessEvidence != null && !/^[0-9a-f]{64}$/i.test(provenance.evidenceIdentity.robustnessSha256 ?? "")) {
     throw new Error("research run robustness identity is missing or malformed");
@@ -522,17 +507,5 @@ export function qualifyResearchFactoryRun(
     productionMutationAllowed: false as const,
     aiAuthority: "ZERO_AUTHORITY" as const,
   });
-  const identity = {
-    policyId: RESEARCH_FACTORY_QUALIFICATION_POLICY.id,
-    policySha256: canonicalHash(RESEARCH_FACTORY_QUALIFICATION_POLICY),
-    runFingerprintSha256: run.provenance.runFingerprintSha256.toLowerCase(),
-  };
-  return freeze({
-    ...result,
-    validationIdentity: freeze({
-      schemaVersion: 1 as const,
-      ...identity,
-      resultSha256: canonicalHash({ ...identity, result }),
-    }),
-  });
+  return bindResearchQualificationIdentity(run.provenance.runFingerprintSha256.toLowerCase(), result);
 }

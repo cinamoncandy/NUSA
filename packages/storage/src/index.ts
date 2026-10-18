@@ -29,6 +29,8 @@ export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
 export { SqliteRiskSafetyPersistence } from "./risk-safety";
 export { SqliteResearchEvaluationLedger } from "./researchEvaluationLedger";
 export type { ResearchEvaluationDatabase } from "./researchEvaluationLedger";
+export { SqliteResearchPrecommitRepository } from "./researchPrecommit";
+export type { ResearchPrecommitDatabase } from "./researchPrecommit";
 export { SqliteResearchHypothesisLifecycleRepository } from "./researchHypothesisLifecycle";
 export type { ResearchHypothesisLifecycleDatabase } from "./researchHypothesisLifecycle";
 export { SqliteCandidatePromotionRepository } from "./candidatePromotionRepository";
@@ -42,6 +44,7 @@ export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, P
 export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
 export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
 export { SqliteResearchCandleStore, ResearchCandleStoreError } from "./researchCandleStore";
+export { SqliteResearchDatasetManifestStore, ResearchDatasetManifestStoreError } from "./researchDatasetManifest";
 export { SqliteFuturesPublicStore, type FuturesMarkRow, type FuturesFundingRow, type FuturesKlineRow } from "./futuresPublicStore";
 export { SqliteMarketMicrostructureStore, MarketMicrostructureStoreError, type StoredOrderBookSample, type StoredTradeTick } from "./marketMicrostructureStore";
 export { SqliteResearchHoldoutLedger, ResearchHoldoutLedgerError } from "./researchHoldoutLedger";
@@ -597,4 +600,6 @@ CREATE TABLE IF NOT EXISTS research_futures_klines (
   volume REAL NOT NULL CHECK (volume >= 0),
   PRIMARY KEY (symbol, interval, open_time_ms)
 );
+` }, { id: "031_research_closed_candles_volume", sql: `
+ALTER TABLE research_closed_candles ADD COLUMN volume REAL CHECK (volume IS NULL OR volume >= 0);
 ` }];
