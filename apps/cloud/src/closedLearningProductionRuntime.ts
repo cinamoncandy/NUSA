@@ -20,6 +20,8 @@ import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovern
 import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
 import { ClosedLearningLoopStatusTracker, tickErrorClass } from "./closedLearningLoopStatus";
+import { ClosedLearningChain } from "./closedLearningChain";
+import { SqliteResearchHoldoutLedger } from "../../../packages/storage/src/researchHoldoutLedger";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
@@ -133,7 +135,16 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
   let longBarTickEvery = 1;
   let readPaperEvidence: () => readonly { readonly recordId: string; readonly recordedAt: number }[] = () => [];
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery, paperEvidenceReader: () => readPaperEvidence() });
+  // The canonical learning chain, over the same durable stores the rest of the runtime uses. One
+  // chain, one history: constructing it here rehydrates exactly-once from what is already recorded
+  // rather than assuming the previous process left nothing half-done.
+  const learningChain = new ClosedLearningChain(new SqliteEvolutionLearningLedger(database), new SqliteResearchHoldoutLedger(database));
+  // The learning application currently in force, if one has actually taken effect. Read by the
+  // research request path so v2 section 8 is restorable from provenance: a request this application
+  // caused names it, its decision, and the previous spec. It is rehydrated from durable history, so
+  // a restart attributes new research to the application that is genuinely in force.
+  let appliedLearning = learningChain.latestAppliedLearning();
+  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery, paperEvidenceReader: () => readPaperEvidence(), causedByLearning: () => appliedLearning, resolveLearningParent: () => learningChain.latestAppliedLearning() });
   researchExperiments?.prepareRecovery();
   try {
   // Cloud AI durability opens the same canonical SQLite file and performs its own full-file
@@ -460,7 +471,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         });
         longBarTickEvery = meta.longBarTickEvery;
         loopStatus.observeMetaLearning(meta);
-      } catch { longBarTickEvery = 1; loopStatus.observeMetaLearning(undefined); }
+        // Re-read what is actually in force from durable history rather than from memory, so a
+        // learning cycle that completed earlier becomes the causal parent of the research requests
+        // that follow it, and a restart attributes them to the application genuinely in force.
+        appliedLearning = learningChain.latestAppliedLearning();
+        loopStatus.observeLearning(learningChain.status());
+      } catch { longBarTickEvery = 1; loopStatus.observeMetaLearning(undefined); loopStatus.observeLearning(undefined); }
       if (baselineShadow != null) {
         loopStatus.observeShadow(baselineShadow.summary());
         const persistable = baselineShadow.takePersistable();
