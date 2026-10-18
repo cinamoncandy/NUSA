@@ -38,8 +38,7 @@ export interface ResearchDatasetProvenanceV2 {
   readonly replayRuntimeSha256: string;
 }
 
-export interface HistoricalDatasetManifest {
-  readonly schemaVersion: 1 | 2;
+interface HistoricalDatasetManifestBase {
   readonly datasetId: string;
   readonly source: string;
   readonly market: string;
@@ -55,10 +54,19 @@ export interface HistoricalDatasetManifest {
   readonly contentSha256: string;
   readonly sourceRequest?: string;
   readonly notes?: string;
-  /** Required when schemaVersion === 2; absent for immutable historical v1 manifests. */
-  readonly provenance?: ResearchDatasetProvenanceV2;
 }
-export interface CreateManifestOptions { readonly source: string; readonly allowMissing?: boolean; readonly createdAt?: string; readonly sourceRequest?: string; readonly notes?: string; }
+export type HistoricalDatasetManifest = HistoricalDatasetManifestBase & (
+  | { readonly schemaVersion: 1; readonly provenance?: never }
+  | { readonly schemaVersion: 2; readonly provenance: ResearchDatasetProvenanceV2 }
+);
+export interface CreateManifestOptions {
+  readonly source: string;
+  readonly provenance: ResearchDatasetProvenanceV2;
+  readonly allowMissing?: boolean;
+  readonly createdAt?: string;
+  readonly sourceRequest?: string;
+  readonly notes?: string;
+}
 
 const SHA256 = /^[a-f0-9]{64}$/;
 

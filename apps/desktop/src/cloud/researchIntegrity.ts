@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { calculateResearchDatasetProvenanceSha256 } from "../../../../packages/contracts/src/researchDatasetSemantics";
 import type { HistoricalDatasetManifest } from "./researchDataset";
 import type { UpbitCandleFreshness } from "../exchange/upbitCandleAdapter";
 
@@ -293,11 +294,17 @@ export interface CurrentResearchDatasetIdentity {
 export function requireCurrentResearchDatasetIdentity(input: CurrentResearchDatasetIdentityInput): CurrentResearchDatasetIdentity {
   const manifest = input.manifest;
   const freshness = input.freshness;
-  if (manifest == null || manifest.schemaVersion !== 1) throw new Error("INVALID_CURRENT_DATASET_IDENTITY:manifest");
+  if (manifest == null || (manifest.schemaVersion !== 1 && manifest.schemaVersion !== 2)) throw new Error("INVALID_CURRENT_DATASET_IDENTITY:manifest");
   for (const key of ["datasetId", "source", "market", "interval"] as const) {
     if (typeof manifest[key] !== "string" || !manifest[key].trim()) throw new Error(`INVALID_CURRENT_DATASET_IDENTITY:${key}`);
   }
   if (!/^[0-9a-f]{64}$/.test(manifest.contentSha256)) throw new Error("INVALID_CURRENT_DATASET_IDENTITY:datasetFingerprint");
+  if (manifest.schemaVersion === 2) {
+    try {
+      const provenanceSha256 = calculateResearchDatasetProvenanceSha256(manifest.provenance);
+      if (!manifest.datasetId.endsWith(`_v2_${manifest.contentSha256.slice(0, 12)}_${provenanceSha256.slice(0, 12)}`)) throw new Error();
+    } catch { throw new Error("INVALID_CURRENT_DATASET_IDENTITY:provenance"); }
+  }
   if (freshness == null || freshness.source !== manifest.source || freshness.market !== manifest.market || freshness.interval !== manifest.interval) {
     throw new Error("CURRENT_DATASET_FRESHNESS_BINDING_MISMATCH");
   }

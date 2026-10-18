@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,7 +32,7 @@ const provenance = (): ResearchDatasetProvenanceV2 => ({
   replayRuntimeSha256: sha("9"),
 });
 
-function v2Manifest(p: ResearchDatasetProvenanceV2 = provenance()): HistoricalDatasetManifest {
+function v2Manifest(p: ResearchDatasetProvenanceV2 = provenance()): Extract<HistoricalDatasetManifest, { schemaVersion: 2 }> {
   const contentSha256 = calculateResearchCandleSha256(candles);
   return {
     schemaVersion: 2,
@@ -56,6 +57,12 @@ function withStore(run: (store: SqliteResearchDatasetManifestStore, db: SqliteDa
   const dir = mkdtempSync(join(tmpdir(), "nusa-dataset-manifest-"));
   const db = new SqliteDatabase(join(dir, "state.db"));
   try { run(new SqliteResearchDatasetManifestStore(db), db); } finally { db.close(); rmSync(dir, { recursive: true, force: true }); }
+}
+
+function seedHistoricalV1(db: SqliteDatabase, manifest: HistoricalDatasetManifest): void {
+  const json = JSON.stringify(manifest);
+  const sha256 = createHash("sha256").update(json, "utf8").digest("hex");
+  db.connection.prepare("INSERT INTO research_dataset_manifests (dataset_id, manifest_json, manifest_sha256) VALUES (?, ?, ?)").run(manifest.datasetId, json, sha256);
 }
 
 function expectCode(run: () => unknown, code: string): void {
@@ -114,9 +121,9 @@ describe("research dataset manifest transitive provenance", () => {
     expectCode(() => store.latest("KRW-BTC", "1m"), "MANIFEST_CHECKSUM_MISMATCH");
   }));
 
-  it("keeps legacy v1 identity and verified persistence unchanged without rewriting historical evidence", () => withStore((store) => {
+  it("rejects new v1 writes while preserving checksum-verified historical v1 reads", () => withStore((store, db) => {
     const contentSha256 = calculateResearchCandleSha256(candles);
-    const manifest: HistoricalDatasetManifest = {
+    const manifest: Extract<HistoricalDatasetManifest, { schemaVersion: 1 }> = {
       schemaVersion: 1,
       datasetId: calculateResearchDatasetId("UPBIT", candles, contentSha256),
       source: "UPBIT",
@@ -132,8 +139,11 @@ describe("research dataset manifest transitive provenance", () => {
       createdAt: "2026-10-17T00:00:00.000Z",
       contentSha256,
     };
-    store.persistVerified(manifest, candles);
+    expectCode(() => store.persist(manifest), "MANIFEST_LEGACY_WRITE_DISABLED");
+    expectCode(() => store.persistVerified(manifest, candles), "MANIFEST_LEGACY_WRITE_DISABLED");
+    seedHistoricalV1(db, manifest);
     assert.deepEqual(store.read(manifest.datasetId), manifest);
-    expectCode(() => store.persist({ ...manifest, provenance: provenance() }), "MANIFEST_SCHEMA_MISMATCH");
+    assert.equal(store.persist(manifest).length, 64, "an exact retry of an existing legacy row is a no-op");
+    expectCode(() => store.persist({ ...manifest, provenance: provenance() } as unknown as HistoricalDatasetManifest), "MANIFEST_SCHEMA_MISMATCH");
   }));
 });

@@ -3,9 +3,17 @@ const assert = require("node:assert/strict");
 const { mkdtempSync, rmSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
+const { createHash } = require("node:crypto");
 const { SqliteDatabase, SqliteResearchCandleStore, SqliteResearchDatasetManifestStore } = require("../dist/packages/storage/src/index.js");
-const { calculateResearchCandleSha256, calculateResearchDatasetId } = require("../dist/packages/contracts/src/index.js");
+const { calculateResearchCandleSha256, calculateResearchDatasetId, calculateResearchDatasetIdV2 } = require("../dist/packages/contracts/src/index.js");
 const { materializeResearchDatasetManifest } = require("../dist/apps/cloud/src/researchDatasetManifestMaterializer.js");
+const TEST_PROVENANCE = { rawSourceIdentitySha256s: ["1".repeat(64)], transformationGraphSha256: "2".repeat(64), transformationConfigSha256: "3".repeat(64), schemaContractSha256: "4".repeat(64), qualitySuiteSha256: "5".repeat(64), qualityResultsSha256: "6".repeat(64), derivedFeatureLineageSha256: "7".repeat(64), replayRuntimeSha256: "8".repeat(64) };
+
+function seedHistoricalV1(db, manifest) {
+  const json = JSON.stringify(manifest);
+  const digest = createHash("sha256").update(json, "utf8").digest("hex");
+  db.connection.prepare("INSERT INTO research_dataset_manifests (dataset_id, manifest_json, manifest_sha256) VALUES (?, ?, ?)").run(manifest.datasetId, json, digest);
+}
 
 function candles() {
   return [
@@ -39,7 +47,9 @@ test("canonical dataset manifest survives SQLite restart and verifies its finger
   try {
     const first = new SqliteDatabase(filename);
     const store = new SqliteResearchDatasetManifestStore(first);
-    const fingerprint = store.persist(manifest);
+    seedHistoricalV1(first, manifest);
+    const fingerprint = store.read(manifest.datasetId) && createHash("sha256").update(JSON.stringify(manifest), "utf8").digest("hex");
+    assert.throws(() => store.persist({ ...manifest, createdAt: "1970-01-01T00:00:01.000Z" }), /different manifest already exists/);
     assert.equal(fingerprint.length, 64);
     first.close();
     const reopened = new SqliteDatabase(filename);
@@ -52,7 +62,7 @@ test("canonical dataset manifest rejects identity substitution", () => {
   const db = new SqliteDatabase(":memory:");
   const store = new SqliteResearchDatasetManifestStore(db);
   const manifest = { schemaVersion: 1, datasetId: "dataset-a", source: "source-a", market: "KRW-BTC", interval: "1m", candleCount: 1, startOpenTime: 0, endCloseTime: 60_000, timezone: "UTC", ordering: "OPEN_TIME_ASC", missingCandlePolicy: "REJECT", missingCandleCount: 0, createdAt: "1970-01-01T00:00:00.000Z", contentSha256: "a".repeat(64) };
-  store.persist(manifest);
+  seedHistoricalV1(db, manifest);
   assert.throws(() => store.persist({ ...manifest, source: "source-b" }), /different manifest already exists/);
   db.close();
 });
@@ -62,18 +72,19 @@ test("verified manifest persistence rejects content substitution", () => {
   const store = new SqliteResearchDatasetManifestStore(db);
   const candles = [{ market: "KRW-BTC", interval: "1m", openTime: 0, closeTime: 60_000, open: 100, high: 101, low: 99, close: 100.5, volume: 0 }];
   const contentSha256 = calculateResearchCandleSha256(candles);
-  const manifest = { schemaVersion: 1, datasetId: calculateResearchDatasetId("source", candles, contentSha256), source: "source", market: "KRW-BTC", interval: "1m", candleCount: 1, startOpenTime: 0, endCloseTime: 60_000, timezone: "UTC", ordering: "OPEN_TIME_ASC", missingCandlePolicy: "REJECT", missingCandleCount: 0, createdAt: "1970-01-01T00:00:00.000Z", contentSha256 };
+  const manifest = { schemaVersion: 2, datasetId: calculateResearchDatasetIdV2("source", candles, contentSha256, TEST_PROVENANCE), source: "source", market: "KRW-BTC", interval: "1m", candleCount: 1, startOpenTime: 0, endCloseTime: 60_000, timezone: "UTC", ordering: "OPEN_TIME_ASC", missingCandlePolicy: "REJECT", missingCandleCount: 0, createdAt: "1970-01-01T00:00:00.000Z", contentSha256, provenance: TEST_PROVENANCE };
   assert.equal(store.persistVerified(manifest, candles).length, 64);
   assert.throws(() => store.persistVerified(manifest, [{ ...candles[0], close: 100.6 }]), /manifest does not match/);
   db.close();
 });
 
-test("manifest materializer rejects missing volume and non-contiguous candles", () => {
+test("manifest materializer requires v2 provenance and rejects missing volume and non-contiguous candles", () => {
   const db = new SqliteDatabase(":memory:");
   const store = new SqliteResearchDatasetManifestStore(db);
-  const base = { store, market: "KRW-BTC", intervalMs: 60_000, source: "upbit", createdAt: "1970-01-01T00:00:00.000Z" };
+  const base = { store, candleStore: new SqliteResearchCandleStore(db), market: "KRW-BTC", intervalMs: 60_000, source: "upbit", createdAt: "1970-01-01T00:00:00.000Z", sourceCommitSha: "a".repeat(40) };
   assert.throws(() => materializeResearchDatasetManifest({ ...base, candles: [{ closeTimeMs: 60_000, open: 1, high: 1, low: 1, close: 1 }] }), /explicit OHLCV/);
   assert.throws(() => materializeResearchDatasetManifest({ ...base, candles: [{ closeTimeMs: 60_000, open: 1, high: 1, low: 1, close: 1, volume: 1 }, { closeTimeMs: 180_000, open: 1, high: 1, low: 1, close: 1, volume: 1 }] }), /missing intervals/);
+  assert.throws(() => materializeResearchDatasetManifest({ ...base, candles: [{ closeTimeMs: 60_000, open: 1, high: 1, low: 1, close: 1, volume: 1 }] }), (error) => error.code === "MANIFEST_PROVENANCE_REQUIRED");
   db.close();
 });
 
