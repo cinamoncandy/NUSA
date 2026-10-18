@@ -6,6 +6,7 @@ import {
   buildResearchRunLeague,
   type ResearchRunCandidate,
   type ResearchRunLeagueResult,
+  type ResearchRunProvenance,
 } from "./researchRunLeagueBridge";
 import type { PboCscvEvidence } from "./researchSearchAdjustedEvidence";
 import type { ResearchBenchmarkPolicy } from "./researchBenchmarkScorecard";
@@ -23,6 +24,12 @@ export interface ResearchRunReplayOptions {
   readonly generatedAt?: string;
   readonly robustnessEvidence?: ResearchRunRobustnessEvidence;
   readonly hypothesis?: ResearchHypothesis;
+  /**
+   * Durable execution identity copied from the canonical original run. Legacy snapshots may omit
+   * it, but callers cannot invent or replace it: createResearchRunReplaySnapshot derives the value
+   * from originalRun.provenance so replay preserves the precommit/execution identity edge.
+   */
+  readonly boundExecution?: ResearchRunProvenance["boundExecution"];
 }
 
 export interface ResearchRunReplaySnapshotPayload {
@@ -67,23 +74,43 @@ function validatePayload(payload: ResearchRunReplaySnapshotPayload): void {
   }
 }
 
+function sameBoundExecution(
+  left: ResearchRunProvenance["boundExecution"],
+  right: ResearchRunProvenance["boundExecution"],
+): boolean {
+  if (left == null || right == null) return left == null && right == null;
+  return canonicalResearchJson(left) === canonicalResearchJson(right);
+}
+
 /**
  * Captures the exact serializable research candidates/options that produced a canonical League
  * run. This is the immutable bridge needed for later PAPER feedback: the later replay uses the
  * original candidate dataset/specification instead of silently pairing PAPER results with a fresh
  * daily dataset that only happens to share a strategy label.
+ *
+ * Durable boundExecution is always copied from originalRun. A caller-supplied value may only be an
+ * exact assertion of that canonical value; it can never create or replace execution provenance.
  */
 export function createResearchRunReplaySnapshot(
   candidates: readonly ResearchRunCandidate[],
   options: ResearchRunReplayOptions,
   originalRun: ResearchRunLeagueResult,
 ): ResearchRunReplaySnapshot {
+  const { boundExecution: assertedBoundExecution, ...unboundOptions } = options;
+  const canonicalBoundExecution = originalRun.provenance.boundExecution;
+  if (assertedBoundExecution != null && !sameBoundExecution(assertedBoundExecution, canonicalBoundExecution)) {
+    throw new Error("research replay snapshot execution binding assertion mismatch");
+  }
+  const replayOptions: ResearchRunReplayOptions = freeze({
+    ...unboundOptions,
+    ...(canonicalBoundExecution == null ? {} : { boundExecution: freeze({ ...canonicalBoundExecution }) }),
+  });
   const payload: ResearchRunReplaySnapshotPayload = freeze({
     schemaVersion: 1,
     sourceCommitSha: originalRun.provenance.sourceCommitSha,
     originalRunFingerprintSha256: originalRun.provenance.runFingerprintSha256,
     candidates: freeze(candidates.map((candidate) => freeze({ ...candidate }))),
-    options: freeze({ ...options }),
+    options: replayOptions,
   });
   validatePayload(payload);
   const reproduced = buildResearchRunLeague(payload.candidates, payload.options);
