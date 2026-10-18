@@ -1,0 +1,31 @@
+schemaVersion: 1
+taskId: WO-DATA-20261018-INDEPENDENT-EVIDENCE-VERIFIER
+title: Independently verify source artifacts behind sealed DATA/EVIDENCE identity chains
+status: IN_PROGRESS
+createdAt: 2026-10-18T05:20:00.000Z
+updatedAt: 2026-10-18T05:20:00.000Z
+owner: Codex
+parentTaskId: null
+parentTaskIds: []
+dependsOn:
+  - WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
+scope:
+  - Recompute dataset/precommit/execution/candidate/governance/PAPER bindings from canonical source artifacts.
+  - Reuse existing immutable stores, deterministic Governance policy, and EvidenceGraph seal; create no parallel evidence store or control plane.
+  - Reject legacy replay snapshots without durable boundExecution and PAPER activations without Governance authorization for new learning/promotion evidence.
+  - Preserve historical readability without rewriting historical evidence.
+acceptanceCriteria:
+  - Source-artifact verification is fail-closed on any dataset, precommit, execution, candidate, Governance, or PAPER identity mismatch.
+  - Missing boundExecution remains readable historically but is INELIGIBLE for independent verification.
+  - Missing Governance authorization remains readable historically but is INELIGIBLE for independent verification.
+  - A verifier evidence node is distinct from the verified source node and links with INDEPENDENTLY_VERIFIES before sealing.
+  - Existing EvidenceGraph hashing/sealing remains the only canonical graph seal implementation.
+requiredEvidence:
+  - Exact-head tests covering a valid chain and tampering of every identity edge.
+  - Exact-head CI PASS.
+  - Fresh non-author independent Audit PASS.
+  - Exact-main CI after merge.
+notes:
+  - PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY.
+  - Qualification identity consistency is not treated as authenticity, chronology, or promotion authority.
+  - UNKNOWN/missing evidence never becomes PASS.
