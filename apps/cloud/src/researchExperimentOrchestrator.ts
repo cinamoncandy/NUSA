@@ -67,6 +67,7 @@ export interface OrchestratorOptions {
    * must never be credited with a learning parent it did not have.
    */
   readonly causedByLearning?: () => ExperimentSpec["causedByLearning"];
+  readonly resolveLearningParent?: ExperimentRunnerPorts["resolveLearningParent"];
 }
 
 export interface ResearchExperimentTickSummary {
@@ -287,6 +288,6 @@ export class ResearchExperimentOrchestrator {
   }
 
   private portsFor(variant: ResearchVariant): ExperimentRunnerPorts {
-    return { runExperiment: (input) => variant.runtime.runExperiment(input), candles: this.options.candles, holdout: this.options.holdout, now: this.options.now, precommitStore: this.options.precommitStore, datasetManifest: this.options.datasetManifest };
+    return { runExperiment: (input) => variant.runtime.runExperiment(input), candles: this.options.candles, holdout: this.options.holdout, now: this.options.now, precommitStore: this.options.precommitStore, datasetManifest: this.options.datasetManifest, resolveLearningParent: this.options.resolveLearningParent };
   }
 }

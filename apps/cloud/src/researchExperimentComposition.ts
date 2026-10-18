@@ -128,6 +128,7 @@ export function composeResearchExperiments(input: {
    * provenance instead of inferred from the fact that a parameter changed shortly before a run.
    */
   readonly causedByLearning?: () => { readonly type: "learning-application"; readonly learningCycleId: string; readonly learningDecisionFingerprint: string; readonly applicationFingerprint: string } | undefined;
+  readonly resolveLearningParent?: () => { readonly type: "learning-application"; readonly learningCycleId: string; readonly learningDecisionFingerprint: string; readonly applicationFingerprint: string } | undefined;
 }): ResearchExperimentComposition | undefined {
   const log = input.log ?? (() => undefined);
   const parsed = readResearchExperimentSettings(input.env);
@@ -270,6 +271,7 @@ export function composeResearchExperiments(input: {
       datasetManifest: { read: (datasetId: string) => datasetManifests.read(datasetId) },
       datasetIdForMarket: (targetMarket: string) => datasetManifests.latest(targetMarket, `${intervalMs / 60_000}m`)?.datasetId ?? "missing-dataset-manifest",
       failureEvidence: () => ledger.list().filter((record) => record.provenance?.windowRole === "VALIDATION" && record.provenance.interval === `${minutes}m`),
+      ...(input.resolveLearningParent == null && input.causedByLearning == null ? {} : { resolveLearningParent: input.resolveLearningParent ?? input.causedByLearning }),
     });
     return { orchestrator, variantCount: variants.length };
   };

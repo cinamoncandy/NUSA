@@ -157,4 +157,11 @@ test("section 8: a research request names the learning application that caused i
     const out = runResearchExperiment({ ...ports(malformed), precommitStore: collector().store }, spec(malformed, { causedByLearning: { type: "learning-application", learningCycleId: "cycle-1", applicationFingerprint: "not-a-digest", learningDecisionFingerprint: "b".repeat(64) } }));
     assert.deepEqual({ ...out }, { status: "ERROR", reason: "INVALID_LEARNING_CAUSATION" }, "a half-specified parent fails closed rather than degrading into no parent");
   } finally { malformed.db.close(); }
+
+  const unbound = setup();
+  try {
+    unbound.automation.startSession(startInput("research-2026-10-02", unbound.champion, unbound.challenger));
+    const out = runResearchExperiment({ ...ports(unbound), precommitStore: collector().store, resolveLearningParent: () => undefined }, spec(unbound, { causedByLearning: PARENT }));
+    assert.deepEqual({ ...out }, { status: "ERROR", reason: "PROVENANCE_LEARNING_PARENT_MISMATCH" }, "causal claims require a durable APPLIED parent");
+  } finally { unbound.db.close(); }
 });
