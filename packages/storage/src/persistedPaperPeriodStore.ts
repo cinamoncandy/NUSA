@@ -331,6 +331,25 @@ export class SqlitePersistedPaperPeriodStore {
     }));
   }
 
+  /**
+   * Allocates from every durable chronology owner: realized periods, active pending plans and
+   * immutable terminal dispositions. A terminal index is history and may never be reused merely
+   * because it is excluded from performance or from the open-plan reader.
+   */
+  public nextPeriodIndex(): number {
+    const pending = this.rawPendingRows();
+    let maximum = -1;
+    for (const row of pending) {
+      if (decodeDisposition(row) == null) validatePendingSnapshot(row);
+      maximum = Math.max(maximum, row.periodIndex);
+    }
+    for (const envelope of this.list()) maximum = Math.max(maximum, envelope.record.periodIndex);
+    if (!Number.isSafeInteger(maximum) || maximum < -1 || maximum >= Number.MAX_SAFE_INTEGER - 1) {
+      throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_UNAVAILABLE", "PAPER period index is unavailable");
+    }
+    return maximum + 1;
+  }
+
   /** No realized envelope is produced. Original history and successor commit in one existing SQLite transaction. */
   public markPendingIneligible(input: {
     readonly original: PersistedPaperPendingPeriod;

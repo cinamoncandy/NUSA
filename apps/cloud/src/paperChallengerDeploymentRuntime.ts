@@ -97,6 +97,8 @@ export interface QualifiedPaperChallengerArtifactReader {
 export interface CanonicalPaperPeriodPort {
   openPeriodFromCanonicalAccount(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan;
   listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[];
+  /** Canonical allocator includes immutable terminal disposition reservations. */
+  nextPeriodIndex(): number;
   listOpenPeriods?: () => readonly PersistedPaperRealizedPeriodPlan[];
   retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
 }
@@ -123,12 +125,6 @@ const safeText = (value: string, field: string): string => {
 
 function qualifiedDecision(value: ClosedLearningResearchDecision): asserts value is ClosedLearningResearchDecision & { readonly candidateId: string; readonly candidateVersion: string } {
   if (value.outcome !== "QUALIFIED_FOR_LEAGUE" || !value.candidateId?.trim() || !value.candidateVersion?.trim()) throw new Error("PAPER challenger deployment requires a qualified immutable candidate");
-}
-
-function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): number {
-  const maximum = periods.reduce((value, item) => Math.max(value, item.record.periodIndex), -1);
-  if (!Number.isSafeInteger(maximum) || maximum < -1 || maximum >= Number.MAX_SAFE_INTEGER - 1) throw new Error("PAPER period index is unavailable");
-  return maximum + 1;
 }
 
 function sameGovernanceAuthorization(left: PaperChallengerGovernanceAuthorization | undefined, right: PaperChallengerGovernanceAuthorization): boolean {
@@ -241,7 +237,7 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     if (baseline != null) {
       this.options.periods.retireOpenPeriodForReplacement!(baseline.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:" + candidateId);
     }
-    const periodIndex = nextPeriodIndex(this.options.periods.listRealizedPeriods());
+    const periodIndex = this.options.periods.nextPeriodIndex();
     this.options.periods.openPeriodFromCanonicalAccount({
       periodId,
       periodIndex,

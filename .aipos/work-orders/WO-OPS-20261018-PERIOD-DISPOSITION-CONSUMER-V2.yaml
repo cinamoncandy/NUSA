@@ -58,15 +58,26 @@ acceptance:
 validation:
   commands:
     - pnpm exec tsc -p tsconfig.json --noEmit
-    - node --import tsx --test apps/cloud/src/closedLearningPendingPeriodReader.test.ts apps/cloud/src/paperRealizedPeriodProducer.test.ts apps/cloud/src/closedLearningRolloverScheduler.test.ts apps/cloud/src/paperChallengerDeploymentRuntime.test.ts packages/storage/src/persistedPaperPendingDisposition.test.ts
+    - pnpm run build
+    - pnpm test
     - pnpm run preflight
     - pnpm run validate:full
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    focused_regression_files: 7
+    focused_regression: PASS
+    preflight: PASS
+    validate_full: PASS
+    isolated_test_files: 1242
+    isolated_test_result: PASS
+    environment_note: Windows full-suite rerun used installed Git Bash on PATH after the first environment-only bash ENOENT
   exact_head_ci: PENDING
   independent_review: PENDING
   audit: PENDING
   release: PENDING
   runtime_activation: PROHIBITED_IN_THIS_INCREMENT
 external_blocker:
-  code: BLOCKED_EXTERNAL_RUNTIME_EVIDENCE
-  detail: "P0 actualNewFillAfterFix=VERIFIED is not yet established on protected exact-main; Oracle exact-main activation is failing on PAPER_WRITER_LEASE_LOST/listener absence with host disk I/O evidence. P1 remains independently executable."
-next: "Implement P1 locally, run focused and repository validation, update AIPOS evidence, then open a Draft PR for fresh non-author review. Do not activate markPendingIneligible in production in this work order."
+  code: RUNTIME_ACTIVATION_OUT_OF_SCOPE
+  detail: "This P1 increment does not assert current protected-main runtime acceptance. Production markPendingIneligible activation remains prohibited until its separate P0 runtime evidence and Release gates are independently verified."
+next: "Push the exact implementation head, require exact-head CI, then hand off to a fresh non-author reviewer and the normal Audit/Release chain. Do not activate markPendingIneligible in production in this work order."

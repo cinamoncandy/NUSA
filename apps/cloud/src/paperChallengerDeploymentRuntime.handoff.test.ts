@@ -116,6 +116,7 @@ describe("PaperChallengerDeploymentRuntime qualified handoff", () => {
       },
       periods: {
         listRealizedPeriods: () => Object.freeze([]),
+        nextPeriodIndex: () => 0,
         openPeriodFromCanonicalAccount: (input: unknown) => { events.push("open"); return input as never; },
       },
       readCanonicalPaperAccount: () => Object.freeze({ version: 1, initialCapital: 1_000_000, cash: 1_000_000, equity: 1_000_000, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: ACCOUNT_AT }),
@@ -164,6 +165,7 @@ describe("PaperChallengerDeploymentRuntime qualified handoff", () => {
       },
       periods: {
         listRealizedPeriods: () => Object.freeze([]),
+        nextPeriodIndex: () => 0,
         openPeriodFromCanonicalAccount: (input: unknown) => { events.push("open"); return input as never; },
       },
       readCanonicalPaperAccount: () => Object.freeze({ version: 1, initialCapital: 1_000_000, cash: 1_000_000, equity: 1_000_000, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: ACCOUNT_AT }),
