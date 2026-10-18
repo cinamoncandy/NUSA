@@ -159,6 +159,13 @@ test("section 8: a research request names the learning application that caused i
     assert.deepEqual({ ...out }, { status: "ERROR", reason: "INVALID_LEARNING_CAUSATION" }, "a half-specified parent fails closed rather than degrading into no parent");
   } finally { malformed.db.close(); }
 
+  const omittedClaim = setup();
+  try {
+    omittedClaim.automation.startSession(startInput("research-2026-10-02", omittedClaim.champion, omittedClaim.challenger));
+    const out = runResearchExperiment({ ...ports(omittedClaim), precommitStore: collector().store, resolveLearningParent: () => PARENT }, spec(omittedClaim));
+    assert.deepEqual({ ...out }, { status: "ERROR", reason: "PROVENANCE_LEARNING_PARENT_MISMATCH" }, "a current durable APPLIED parent cannot be silently omitted from the research spec");
+  } finally { omittedClaim.db.close(); }
+
   const missingResolver = setup();
   try {
     missingResolver.automation.startSession(startInput("research-2026-10-02", missingResolver.champion, missingResolver.challenger));
