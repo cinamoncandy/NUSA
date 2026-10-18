@@ -1,11 +1,12 @@
 id: WO-OPS-20261018-ORACLE-STAGE-SPACE
 title: "Avoid duplicate Oracle release staging bytes without weakening disk guards"
-status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+status: DRAFT_PR_PENDING_VALIDATOR_AND_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2791
 base_branch: main
 implementation_branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
+pull_request: 2805
 authority_impact: release-pipeline-hygiene
 objective: "Allow the exact-main Oracle PAPER release to stage on the constrained host when the verified unpacked source already occupies the target filesystem, while preserving the root free-space guard and the cross-device copy fallback."
 finding: "Exact-main Oracle PAPER Release run 39100544697 reached staging after artifact extraction and state backup, then failed closed with available=5280886784 required=5949247701 source=1550406500. The artifact was 506610705 bytes; current host diagnosis 39100280323 showed 7.4G free, two retained release directories, and no safe release-prune opportunity."
@@ -40,4 +41,6 @@ verification_commands:
   - pnpm run security:gate
   - pnpm exec eslint tests/oracle-paper-release-workflow.test.js
 validation: "23/23 Oracle release workflow tests PASS; bash -n PASS; validate:full PASS (including 496-file AIPOS YAML, architecture/drift, and safety); security:gate PASS; targeted ESLint PASS; git diff --check PASS. Exact-head CI and independent review remain pending."
+previous_pr_head: 4e833be0680c9fd57464bc89e317f59bb9856904
+previous_pr_head_ci: "Checks were in progress on this head when AIPOS handoff was synchronized; those results will not be reused."
 residual: "The exact-main release will continue refusing to run until the reviewed root-owned host helper is installed through its canonical infrastructure path. No Oracle server mutation or runtime proof is claimed."
