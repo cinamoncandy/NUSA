@@ -78,6 +78,7 @@ describe("section 8 - a research request names the learning application that cau
 
   it("fails closed on a parent that is incomplete or not an identity", () => {
     for (const [label, parent] of [
+      ["being null", null],
       ["missing the cycle", { type: "learning-application", applicationFingerprint: APP, learningDecisionFingerprint: DECISION }],
       ["missing the decision", { type: "learning-application", learningCycleId: CYCLE, applicationFingerprint: APP }],
       ["missing the application", { type: "learning-application", learningCycleId: CYCLE, learningDecisionFingerprint: DECISION }],
