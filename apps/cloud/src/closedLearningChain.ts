@@ -255,7 +255,8 @@ export class ClosedLearningChain {
     const applied = this.applications.latestApplied();
     if (applied == null) return undefined;
     const decision = this.decisions.byFingerprint(applied.receipt.learningDecisionFingerprint);
-    if (decision == null) return undefined;
+    if (decision == null) throw new LearningChainError("LEARNING_CAUSAL_PARENT_MISSING_DECISION", "an APPLIED learning application must resolve to its durable decision");
+    if (decision.learningCycleId !== applied.receipt.learningCycleId) throw new LearningChainError("LEARNING_CAUSAL_PARENT_CYCLE_MISMATCH", "an APPLIED learning application and its decision must name the same learning cycle");
     return Object.freeze({
       type: "learning-application" as const,
       learningCycleId: applied.receipt.learningCycleId,
