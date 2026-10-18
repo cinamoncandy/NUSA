@@ -3,6 +3,7 @@ import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/sr
 import { validatePaperCandidateExecutionBinding, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import type { PaperCandidateBindingProvider } from "./cloudRuntimeDashboardHydrator";
 import { samePaperResearchLineage, validatePaperResearchLineage, type PaperResearchLineage } from "./paperResearchLineage";
+import { paperChallengerPolicyIdentity } from "./paperChallengerPolicyIdentity";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
@@ -89,7 +90,7 @@ function parseActivation(record: EvolutionRecord): PaperChallengerActivationRece
   if (binding.periodStartAt !== activatedAt) throw new Error("PAPER challenger activation must match the canonical period start");
   const researchLineage = item.researchLineage == null ? undefined : validatePaperResearchLineage(item.researchLineage);
   if (researchLineage != null && researchLineage.candidateId !== binding.candidateId) throw new Error("PAPER challenger Research lineage candidate conflict");
-  const governanceAuthorization = item.governanceAuthorization == null ? undefined : validateGovernanceAuthorization(item.governanceAuthorization, binding);
+  const governanceAuthorization = item.governanceAuthorization == null ? undefined : validateGovernanceAuthorization(item.governanceAuthorization, binding, researchLineage);
   return Object.freeze({
     schemaVersion: 1,
     status: "ACTIVE",
@@ -104,12 +105,16 @@ function parseActivation(record: EvolutionRecord): PaperChallengerActivationRece
   });
 }
 
-function validateGovernanceAuthorization(value: PaperChallengerGovernanceAuthorization, binding: PaperCandidateExecutionBinding): PaperChallengerGovernanceAuthorization {
+function validateGovernanceAuthorization(value: PaperChallengerGovernanceAuthorization, binding: PaperCandidateExecutionBinding, researchLineage?: PaperResearchLineage): PaperChallengerGovernanceAuthorization {
   const approval = value?.approval;
+  const policyIdentity = approval?.actorType === "POLICY" && researchLineage != null
+    ? paperChallengerPolicyIdentity({ candidateId: binding.candidateId, candidateVersion: binding.candidateStrategy?.specificationHash ?? "", familyId: binding.candidateStrategy?.familyId ?? "", evidenceFingerprintSha256: binding.bindingFingerprintSha256, replayRunFingerprintSha256: researchLineage.replayRunFingerprintSha256, researchDecisionReference: researchLineage.researchDecisionReference })
+    : undefined;
   if (!value?.strategyId?.trim() || value.strategyId.length > 240 || value.candidateId !== binding.candidateId || value.candidateVersion !== binding.candidateStrategy?.specificationHash
     || value.familyId !== binding.candidateStrategy?.familyId || value.evidenceFingerprintSha256 !== binding.bindingFingerprintSha256 || value.lifecycle !== "CHALLENGER"
     || (approval?.actorType !== "HUMAN" && !(approval?.actorType === "POLICY" && approval.approvalReference?.startsWith("policy:") === true))
-    || !APPROVAL_REFERENCE.test(approval.approvalReference ?? "") || !HASH.test(approval.decisionFingerprint) || !Number.isSafeInteger(approval.approvedAt) || approval.approvedAt < 0 || approval.approvedAt > binding.periodStartAt) {
+    || !APPROVAL_REFERENCE.test(approval.approvalReference ?? "") || !HASH.test(approval.decisionFingerprint) || !Number.isSafeInteger(approval.approvedAt) || approval.approvedAt < 0 || approval.approvedAt > binding.periodStartAt
+    || (approval.actorType === "POLICY" && (policyIdentity == null || approval.decisionFingerprint !== policyIdentity.decisionFingerprint || approval.approvalReference !== policyIdentity.approvalReference))) {
     throw new Error("PAPER challenger Governance authorization does not bind the active candidate");
   }
   return Object.freeze({ ...value, approval: Object.freeze({ ...approval }) });
@@ -147,7 +152,7 @@ export class PaperChallengerBindingLedger implements PaperCandidateBindingProvid
     const binding = validatePaperCandidateExecutionBinding(bindingValue, bindingValue.periodStartAt);
     const researchLineage = researchLineageValue == null ? undefined : validatePaperResearchLineage(researchLineageValue);
     if (researchLineage != null && researchLineage.candidateId !== binding.candidateId) throw new Error("PAPER challenger Research lineage candidate conflict");
-    const governanceAuthorization = validateGovernanceAuthorization(governanceAuthorizationValue, binding);
+    const governanceAuthorization = validateGovernanceAuthorization(governanceAuthorizationValue, binding, researchLineage);
     const event: PaperChallengerActivationReceipt = Object.freeze({
       schemaVersion: 1,
       status: "ACTIVE",

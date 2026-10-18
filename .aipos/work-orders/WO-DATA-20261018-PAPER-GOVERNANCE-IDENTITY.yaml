@@ -14,6 +14,7 @@ architecture_impact:
 scope:
   - persist_exact_governance_authorization_snapshot_in_paper_activation
   - verify_candidate_version_family_and_binding_fingerprint_cross_links
+  - recompute_deterministic_policy_approval_fingerprint_from_research_lineage
   - reject_governance_identity_drift_on_restart_replay
   - fail_closed_for_legacy_activation_missing_governance_identity_in_learning
   - add_tamper_and_identity_mismatch_regressions
@@ -25,6 +26,7 @@ prohibited:
 acceptance:
   - new_activation_persists_exact_governance_decision_identity
   - wrong_candidate_version_family_or_binding_fingerprint_is_rejected
+  - tampered_deterministic_policy_approval_fingerprint_is_rejected
   - changed_or_tampered_persisted_authorization_fails_closed
   - restart_replay_requires_same_governance_identity
   - legacy_activation_read_compatibility_is_preserved
@@ -37,13 +39,13 @@ validation:
     - pnpm run validate:full
     - pnpm run security:gate
     - pnpm run lint
-    - node --test dist/apps/cloud/src/paperChallengerBindingLedger.test.js dist/apps/cloud/src/paperChallengerDeploymentRuntime.test.js dist/apps/cloud/src/closedLearningEvidenceIdentitySource.test.js dist/apps/cloud/src/closedLearningLineageReplayInputSource.test.js
+    - node --test dist/apps/cloud/src/paperChallengerBindingLedger.test.js dist/apps/cloud/src/paperChallengerPolicyApproval.test.js dist/apps/cloud/src/paperChallengerDeploymentRuntime.test.js dist/apps/cloud/src/paperChallengerDeploymentRuntime.handoff.test.js dist/apps/cloud/src/closedLearningEvidenceIdentitySource.test.js dist/apps/cloud/src/closedLearningLineageReplayInputSource.test.js
   typecheck: PASS
   build: PASS
   validate_full: PASS
   security_gate: PASS
   lint: "PASS with 26 pre-existing warnings; zero errors"
-  focused_tests: "PASS 40/40"
+  focused_tests: "PASS 48/48"
   exact_head_ci: PENDING
   fresh_non_author_validation: PENDING
   independent_audit: PENDING

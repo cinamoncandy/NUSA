@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import type { PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
+import { paperChallengerPolicyIdentity } from "./paperChallengerPolicyIdentity";
 import type { PaperResearchLineage } from "./paperResearchLineage";
 
 type RecordValue = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
@@ -147,6 +148,17 @@ describe("PaperChallengerBindingLedger", () => {
     const stored = persistence.records[0]!;
     const receipt = JSON.parse(stored.hypothesis) as Record<string, unknown>;
     persistence.records[0] = Object.freeze({ ...stored, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...governance(), candidateId: "forged" } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+  });
+
+  it("recomputes deterministic policy approval identity from immutable Research lineage", () => {
+    const policy = paperChallengerPolicyIdentity({ candidateId: binding().candidateId, candidateVersion: binding().candidateStrategy!.specificationHash, familyId: binding().candidateStrategy!.familyId, evidenceFingerprintSha256: binding().bindingFingerprintSha256, replayRunFingerprintSha256: lineage.replayRunFingerprintSha256, researchDecisionReference: lineage.researchDecisionReference });
+    const authorization = { ...governance(), approval: { actorType: "POLICY" as const, approvalReference: policy.approvalReference, approvedAt: 1, decisionFingerprint: policy.decisionFingerprint } };
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const record = persistence.records[0]!;
+    const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
+    persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...authorization, approval: { ...authorization.approval, decisionFingerprint: "a".repeat(64) } } }) });
     assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
   });
 });

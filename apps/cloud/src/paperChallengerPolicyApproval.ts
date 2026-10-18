@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
 import type { QualifiedPaperChallengerArtifactReader, StrategyGovernanceChallengerApprovalPort, StrategyGovernanceChallengerAuthorization } from "./paperChallengerDeploymentRuntime";
 import { validatePaperResearchLineage } from "./paperResearchLineage";
+import { paperChallengerPolicyIdentity } from "./paperChallengerPolicyIdentity";
 
 /** Versioned identity of the deterministic PAPER challenger approval rule (ADR-0018). */
-export const PAPER_CHALLENGER_POLICY_VERSION = "paper-challenger-policy-v1";
+export { PAPER_CHALLENGER_POLICY_VERSION } from "./paperChallengerPolicyIdentity";
 export const PAPER_CHALLENGER_POLICY_ENV = "NUSA_PAPER_CHALLENGER_POLICY_APPROVAL";
 
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -76,15 +76,14 @@ export class PaperChallengerPolicyApproval implements StrategyGovernanceChalleng
     }
     const approvedAt = this.now();
     if (!Number.isSafeInteger(approvedAt) || approvedAt < 0) throw new Error("PAPER_CHALLENGER_POLICY_CLOCK_INVALID");
-    const decisionFingerprint = createHash("sha256").update(JSON.stringify([
-      PAPER_CHALLENGER_POLICY_VERSION,
+    const policyIdentity = paperChallengerPolicyIdentity({
       candidateId,
       candidateVersion,
       familyId,
-      request.evidenceFingerprintSha256,
-      lineage.replayRunFingerprintSha256,
-      lineage.researchDecisionReference,
-    ])).digest("hex");
+      evidenceFingerprintSha256: request.evidenceFingerprintSha256,
+      replayRunFingerprintSha256: lineage.replayRunFingerprintSha256,
+      researchDecisionReference: lineage.researchDecisionReference,
+    });
     return Object.freeze({
       strategyId: `${familyId}:${candidateId}`,
       candidateId,
@@ -94,9 +93,9 @@ export class PaperChallengerPolicyApproval implements StrategyGovernanceChalleng
       lifecycle: "CHALLENGER",
       approval: Object.freeze({
         actorType: "POLICY",
-        approvalReference: `policy:${PAPER_CHALLENGER_POLICY_VERSION}:${decisionFingerprint.slice(0, 16)}`,
+        approvalReference: policyIdentity.approvalReference,
         approvedAt,
-        decisionFingerprint,
+        decisionFingerprint: policyIdentity.decisionFingerprint,
       }),
     });
   }
