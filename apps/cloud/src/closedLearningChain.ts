@@ -16,7 +16,7 @@ import { buildLearningLoopStatus, type LearningLoopStatus } from "./learningLoop
  * This composition joins the research and PAPER evidence lanes in A2 and derives A1 from that input.
  * A3 still lacks a canonical durable partition-policy owner, so its supplied partition is
  * non-authoritative and A4 is deliberately kept fail-closed even when recorded counts reach the floor.
- * This class is not production runtime wiring.
+ * Production may read its durable status/receipt projections, but does not invoke `run`.
  *
  * The construction enforces reuse rather than merely documenting it. One `EvolutionLedgerPort` is
  * passed in and every ledger is built from it, so there is no second scheduler, evidence store, or
