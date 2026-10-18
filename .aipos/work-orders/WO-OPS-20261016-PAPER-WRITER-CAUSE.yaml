@@ -31,20 +31,24 @@ acceptance:
 - Natural runtime diagnosis/recovery evidence remains required; diagnostics are not root-cause or full
   learning acceptance.
 validation:
-  focused: 28/28 PASS; actual SQLite lock, expiry/ownership/clock, privacy, ledger/replay and recovery
-  runtime_regression: 34/34 PASS; trading/accounting/working-order restart/daemon failure
-  full_gates: PASS strict build, root/mobile typecheck, validate:full, lint (0 errors; 24 existing warnings),
-    security (0 secrets; 0 unmitigated high/critical)
-  review_ci_audit_release_runtime: CI38924202514 PASS on reviewed head ba61f9f85bc62e556cb62c9e110c7b6fb2058b26;
-    fresh non-author review P0=0 P1=0 P2=1 because receipts still named the pre-rebase head/run. This metadata-only
-    repair requires new exact-head CI and fresh non-author P2 clearance; no Ready/Audit/Release bypass
-  source_qualification: CI38847714635 exposed stale blob pin; reproduced two failures locally, exact-source
-    guards 6/6 PASS after binding 0f5de0d7 to source749ecbe5 without promotion
+  latest_main_reconvergence_base: 3659e45e011032b71e37896eed7c3aef2580c153
+  latest_main_merge_commit: 1ae09a01865f4856ae1e1cdb63e8ccc1bd976824
+  focused: 31/31 PASS after latest-main merge; first-cause 7, durable failure receipt 5, exact-source 1,
+    lease liveness 2, auto-recovery 10, startup budget 6
+  full_gates: PASS root typecheck, build, preflight, validate:full, security gate, lint with 0 errors and 26
+    pre-existing warnings, diff check
+  source_qualification: PAPER_ADAPTER exact-source pin rebound to merged implementation blob
+    1113297fa143b4e26318e3c57152bdf2d620ddb6 while preserving diagnostic provenance commit
+    b9cb7bde15bfa581159f263220a1d113b250dadc; TARGET_ONLY and independent criteria remain UNVERIFIED
+  prior_remote_receipts: "Historical exact-head CI/review receipts on ba61f9f/8ef53f are stale after latest-main
+    reconvergence and must not be reused for acceptance."
+  exact_head_ci: PENDING_FOR_POST_MAIN_RECONVERGENCE_HEAD
+  fresh_non_author_validation: PENDING_FOR_POST_MAIN_RECONVERGENCE_HEAD
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: Run fresh exact-head CI on this metadata-only receipt repair -> obtain separate fresh non-author P2 clearance
-  -> deterministic Audit -> governed Release -> exact-main deployment -> natural causal evidence; runtime root
-  cause remains unproven
+next: Commit this latest-main evidence sync, push the resulting exact PR head, require fresh exact-head CI and a
+  separate fresh non-author zero-blocking-finding receipt, then use only the canonical deterministic Audit/Release
+  chain. After governed merge/deploy, collect natural runtime causal evidence; the initiating lease-loss cause remains unproven.
