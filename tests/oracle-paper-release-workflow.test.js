@@ -160,8 +160,11 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   const stageCaseStart = wrapper.indexOf("  stage)");
   const stageCaseEnd = wrapper.indexOf("\n\n  switch)", stageCaseStart);
   assert.match(wrapper.slice(stageCaseStart, stageCaseEnd), /assert_stage_disk_headroom "\$source_tree"/);
-  assert.match(wrapper.slice(stageCaseStart, stageCaseEnd), /mv -T -- "\$source_tree" "\$dir"/);
-  assert.match(wrapper.slice(stageCaseStart, stageCaseEnd), /tar -cf - .*tar -xf -/s);
+  const stageCase = wrapper.slice(stageCaseStart, stageCaseEnd);
+  assert.match(stageCase, /mv --no-copy -T -- "\$source_tree" "\$dir"/);
+  assert.match(stageCase, /assert_stage_disk_headroom "\$source_tree" true/);
+  assert.match(stageCase, /tar -cf - .*tar -xf -/s);
+  orderIn(stageCase, ['mv --no-copy -T -- "$source_tree" "$dir"', 'assert_stage_disk_headroom "$source_tree" true', 'tar -cf - --exclude=.git -C "$source_tree" .']);
 
   const preflightStart = wrapper.indexOf("  preflight)");
   const preflightEnd = wrapper.indexOf("\n\n  install-units)", preflightStart);

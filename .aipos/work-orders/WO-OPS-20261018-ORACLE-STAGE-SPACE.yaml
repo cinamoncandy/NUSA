@@ -1,6 +1,6 @@
 id: WO-OPS-20261018-ORACLE-STAGE-SPACE
 title: "Avoid duplicate Oracle release staging bytes without weakening disk guards"
-status: DRAFT_PR_CI_PASS_PENDING_VALIDATOR_AND_STATE_SYNC_CI
+status: VALIDATOR_P1_REPAIRED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2791
@@ -25,14 +25,14 @@ architecture_impact:
 acceptance:
   - "The release tar is removed only after its digest check and successful extraction."
   - "The privileged helper accepts only a direct, non-symlink run extraction under the configured runner temp root."
-  - "Same-filesystem staging moves the verified tree without creating another full-size copy and leaves the configured disk reserve plus margin intact."
+  - "Same-filesystem staging attempts rename-only (`mv --no-copy`); if rename cannot occur, full-copy headroom is re-checked before any explicit copy fallback."
   - "Cross-filesystem staging retains the existing full-copy headroom requirement and behavior."
   - "Focused tests, shell syntax, AIPOS YAML/drift, and repository preflight pass; deployment remains unclaimed until the host helper is installed through canonical infrastructure review."
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-  fail_closed: "Source must resolve to a direct non-symlink nusa-release-tree-<run id> child of the canonical runner temp. Same-device staging renames the verified extraction; cross-device staging retains the existing guarded copy. Disk reserve and 512 MiB margin remain enforced."
+  fail_closed: "Source must resolve to a direct non-symlink nusa-release-tree-<run id> child of the canonical runner temp. Same-device staging is rename-only first; any rename failure must pass the full-copy headroom gate before explicit copy fallback. Cross-device staging retains the guarded copy. Disk reserve and 512 MiB margin remain enforced."
 rollback: "Revert the workflow/helper change; no host mutation is part of this work order."
 verification_commands:
   - node --test tests/oracle-paper-release-workflow.test.js
@@ -40,7 +40,7 @@ verification_commands:
   - pnpm run validate:full
   - pnpm run security:gate
   - pnpm exec eslint tests/oracle-paper-release-workflow.test.js
-validation: "Local: 23/23 Oracle release workflow tests, bash -n, validate:full, security:gate, targeted ESLint, and git diff --check PASS. Exact PR head 8dc40bde0650cece25b2a7fa52846576da0b9cf3: CI run 39102766731 and actual-paper-runtime/bridge/guard/readiness/rehearsal/verify companions PASS. Independent review absent. This AIPOS sync changes the head, so its new exact-head CI remains required."
-previous_pr_head: 4e833be0680c9fd57464bc89e317f59bb9856904
-previous_pr_head_ci: "Checks were in progress on this head when AIPOS handoff was synchronized; those results will not be reused."
+validation: "Exact head 0dabdbfb087f83979eac3d72df096f0a01325cbc: full CI and companions PASS; fresh Codex Validator found P1 unsafe implicit mv copy fallback. Local repair makes rename `mv --no-copy` and rechecks full-copy headroom before explicit copy fallback; 23/23 focused tests, bash -n, and git diff --check PASS. New exact-head CI and fresh review required."
+previous_pr_head: 0dabdbfb087f83979eac3d72df096f0a01325cbc
+previous_pr_head_ci: "Full CI PASS, but superseded by fresh Validator P1 unsafe mv fallback finding."
 residual: "The exact-main release will continue refusing to run until the reviewed root-owned host helper is installed through its canonical infrastructure path. No Oracle server mutation or runtime proof is claimed."

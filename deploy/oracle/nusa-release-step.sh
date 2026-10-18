@@ -205,6 +205,7 @@ previous_release() {
 
 assert_stage_disk_headroom() {
   local source_tree="$1"
+  local force_copy="${2:-false}"
   local total_bytes available_bytes source_bytes guard_free_bytes required_bytes source_device release_device
   total_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $2 }')"
   available_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $4 }')"
@@ -215,7 +216,9 @@ assert_stage_disk_headroom() {
     || die "could not determine stage disk headroom"
   guard_free_bytes=$(( (total_bytes * (100 - ROOT_DISK_GUARD_PERCENT) + 99) / 100 ))
   required_bytes=$(( guard_free_bytes + ROOT_DISK_STAGE_MARGIN_BYTES ))
-  [ "$source_device" = "$release_device" ] || required_bytes=$((required_bytes + source_bytes))
+  if [ "$force_copy" = "true" ] || [ "$source_device" != "$release_device" ]; then
+    required_bytes=$((required_bytes + source_bytes))
+  fi
   [ "$available_bytes" -ge "$required_bytes" ] \
     || die "insufficient root disk headroom for stage: available=$available_bytes required=$required_bytes source=$source_bytes"
 }
@@ -366,7 +369,14 @@ case "$verb" in
     fi
     if [ "$(stat -c '%d' -- "$source_tree")" = "$(stat -c '%d' -- "$RELEASES")" ]; then
       chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$source_tree"
-      mv -T -- "$source_tree" "$dir"
+      if ! mv --no-copy -T -- "$source_tree" "$dir"; then
+        # Same st_dev can still cross a bind-mount boundary. Never let mv silently copy after
+        # the reduced rename-only headroom gate; re-check full-copy headroom before copying.
+        assert_stage_disk_headroom "$source_tree" true
+        install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
+        tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
+        chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+      fi
     else
       install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
       tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"

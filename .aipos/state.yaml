@@ -2448,16 +2448,16 @@ current_mobile_home_simplify:
 
 current_ops_oracle_stage_space:
   work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
-  status: DRAFT_PR_CI_PASS_PENDING_VALIDATOR_AND_STATE_SYNC_CI
+  status: VALIDATOR_P1_REPAIRED_PENDING_EXACT_HEAD_CI
   branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
   issue: 2791
   pull_request: 2805
   base_sha: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
   evidence: "Oracle release 39100544697 failed guarded staging: available 5280886784, required 5949247701, source 1550406500; artifact 506610705 bytes. Diagnosis 39100280323 showed 7.4G free and two protected releases."
-  previous_pr_head: 4e833be0680c9fd57464bc89e317f59bb9856904
-  previous_pr_head_ci: "Checks started before this AIPOS sync and will not be reused."
-  validation: "Local 23/23 workflow tests, bash -n, validate:full, security:gate, targeted ESLint and diff check PASS. Exact PR head 8dc40bde0650cece25b2a7fa52846576da0b9cf3: CI 39102766731 and actual-paper-runtime, bridge, guard, readiness, rehearsal, verify companions PASS. Independent review absent; this AIPOS sync requires fresh exact-head CI before merge."
-  next: "Verify fresh exact-head CI after this AIPOS sync; keep PR draft until independent review. Then use canonical host-helper install/release path; do not mutate Oracle host or claim deployed runtime."
+  previous_pr_head: 0dabdbfb087f83979eac3d72df096f0a01325cbc
+  previous_pr_head_ci: "CI 39103178517 and exact-head companions PASS, but fresh Codex Validator found P1 unsafe mv copy fallback; this head is superseded."
+  validation: "Exact head 0dabdbfb087f83979eac3d72df096f0a01325cbc had full PR CI PASS, but fresh Codex Validator found P1: GNU mv can silently copy after rename failure, bypassing rename-only headroom. Local repair uses mv --no-copy and re-applies full-copy headroom before explicit fallback copy; focused workflow tests 23/23, bash -n, and git diff --check PASS. Fresh exact-head CI required."
+  next: "Commit the P1 rename-only repair, run fresh exact-head CI, then obtain a fresh non-author review of that exact head. After merge, install the reviewed root-owned helper through the canonical host path before exact-main release/runtime verification."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_paid_overflow_off_20261014:
