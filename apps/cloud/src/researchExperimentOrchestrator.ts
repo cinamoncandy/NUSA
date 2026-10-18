@@ -83,13 +83,22 @@ export interface TickReport {
   readonly started: number;
   readonly resumed: number;
   readonly stopped: number;
-  readonly experiments: readonly { readonly variantId: string; readonly market: string; readonly outcome: ExperimentOutcome | { readonly status: "NOT_DUE" } }[];
+  readonly experiments: readonly { readonly variantId: string; readonly market: string; readonly outcome: ExperimentOutcome | { readonly status: "NOT_DUE" } | { readonly status: "DEFERRED_REPEAT_FAILURE" } }[];
 }
 
 const empty = (status: TickReport["status"]): TickReport => Object.freeze({ status, started: 0, resumed: 0, stopped: 0, experiments: Object.freeze([]) });
 
 /** Upper bound on challenger variants per bar length (SMA 4 + RSI 3 + Donchian 3 today); each runs at most its daily budget of experiments. */
 export const MAX_VARIANTS = 12;
+
+/**
+ * Failure memory -> Research N+1 (master instruction 8C, WO-LOOP-20261014-FAILURE-MEMORY-SCHEDULING): a challenger whose last
+ * REPEAT_DEFER_STREAK evaluations all failed for the same bounded reason is evaluated only on every REPEAT_DEFER_EVERY-th tick.
+ * It orders work only: nothing is stopped or deleted, no threshold, budget cap, qualification or Risk rule changes, and a
+ * failure-memory read error evaluates every variant as before.
+ */
+export const REPEAT_DEFER_STREAK = 5;
+export const REPEAT_DEFER_EVERY = 4;
 
 const isDerivedCountKey = (key: string): boolean => key.startsWith("FAIL_") || key.startsWith("REPEAT_");
 
@@ -218,6 +227,11 @@ export class ResearchExperimentOrchestrator {
       this.options.collect(nowMs);
       let started = 0; let resumed = 0; let stopped = 0;
       const experiments: Array<TickReport["experiments"][number]> = [];
+      const tickIndex = this.tickSummary?.ticks ?? 0;
+      let repeatStreaks = new Map<string, number>();
+      try {
+        repeatStreaks = new Map(summarizeStrategyFailureHistory(this.options.failureEvidence?.() ?? []).map((h) => [`${h.strategyId}@${h.strategyVersion}`, h.lastReason == null ? 0 : h.repeatStreak]));
+      } catch { repeatStreaks = new Map(); }
 
       for (const variant of this.options.variants) {
         const sessionId = researchSessionIdFor(nowMs, variant.variantId);
@@ -244,6 +258,11 @@ export class ResearchExperimentOrchestrator {
         let session = this.options.sessions.load(sessionId);
         if (session?.state === "PAUSED") { session = variant.runtime.resume(sessionId); resumed += 1; }
         if (session == null || session.state !== "RUNNING") continue;
+        const streak = repeatStreaks.get(`${variant.challenger.strategy.strategyId}@${variant.challenger.strategy.version}`) ?? 0;
+        if (streak >= REPEAT_DEFER_STREAK && tickIndex % REPEAT_DEFER_EVERY !== 0) {
+          for (const market of this.options.markets) experiments.push({ variantId: variant.variantId, market, outcome: { status: "DEFERRED_REPEAT_FAILURE" } });
+          continue;
+        }
 
         for (const market of this.options.markets) {
           const endCloseMs = this.options.candles.latestCloseTime(market, this.options.intervalMs);
