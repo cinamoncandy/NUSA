@@ -2446,6 +2446,17 @@ current_mobile_home_simplify:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 
+current_ops_oracle_stage_space:
+  work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  issue: 2791
+  base_sha: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
+  evidence: "Oracle release 39100544697 failed guarded staging: available 5280886784, required 5949247701, source 1550406500; artifact 506610705 bytes. Diagnosis 39100280323 showed 7.4G free and two protected releases."
+  validation: "Oracle release workflow tests 23/23 PASS; bash -n PASS; validate:full PASS (including preflight, AIPOS YAML 496 files, architecture/drift, and safety); security:gate PASS; targeted ESLint PASS; git diff --check PASS. Exact-head CI and independent review not run yet."
+  next: "Push this exact work-order branch and open a draft PR; obtain independent review and exact-head CI, then use the canonical host-helper install/release path. Do not mutate Oracle host or claim deployed runtime."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_paid_overflow_off_20261014:
   work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
   status: LOCAL_HARDENING_VALIDATED_PENDING_FRESH_CI

@@ -1,0 +1,43 @@
+id: WO-OPS-20261018-ORACLE-STAGE-SPACE
+title: "Avoid duplicate Oracle release staging bytes without weakening disk guards"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2791
+base_branch: main
+implementation_branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
+authority_impact: release-pipeline-hygiene
+objective: "Allow the exact-main Oracle PAPER release to stage on the constrained host when the verified unpacked source already occupies the target filesystem, while preserving the root free-space guard and the cross-device copy fallback."
+finding: "Exact-main Oracle PAPER Release run 39100544697 reached staging after artifact extraction and state backup, then failed closed with available=5280886784 required=5949247701 source=1550406500. The artifact was 506610705 bytes; current host diagnosis 39100280323 showed 7.4G free, two retained release directories, and no safe release-prune opportunity."
+scope:
+  - "deploy/oracle/nusa-release-step.sh: restrict stage input to the canonical runner-temp extraction, account for same-device rename vs cross-device copy, and atomically move same-filesystem content after preserving ownership."
+  - ".github/workflows/oracle-paper-release.yml: remove only the checksum-verified temporary archive after successful extraction."
+  - "tests/oracle-paper-release-workflow.test.js: assert archive deletion order, source confinement, same-device move, and cross-device fallback."
+exclusions:
+  - "Do not delete server worktrees, release directories, runtime state, backups, or caches. Do not change disk thresholds, retention, activation, rollback, PAPER/LIVE authority, credentials, or server volume. Do not deploy or install the root-owned host helper from this task."
+architecture_impact:
+  acknowledged: true
+  analysis: "This keeps the existing exact-main Oracle release flow and changes only its bounded stage handoff. It does not alter runtime authority, activation, rollback, or persistent PAPER state."
+  references:
+    - docs/operations/oracle-p1-008-runbook.md
+    - .aipos/architecture.md
+acceptance:
+  - "The release tar is removed only after its digest check and successful extraction."
+  - "The privileged helper accepts only a direct, non-symlink run extraction under the configured runner temp root."
+  - "Same-filesystem staging moves the verified tree without creating another full-size copy and leaves the configured disk reserve plus margin intact."
+  - "Cross-filesystem staging retains the existing full-copy headroom requirement and behavior."
+  - "Focused tests, shell syntax, AIPOS YAML/drift, and repository preflight pass; deployment remains unclaimed until the host helper is installed through canonical infrastructure review."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Source must resolve to a direct non-symlink nusa-release-tree-<run id> child of the canonical runner temp. Same-device staging renames the verified extraction; cross-device staging retains the existing guarded copy. Disk reserve and 512 MiB margin remain enforced."
+rollback: "Revert the workflow/helper change; no host mutation is part of this work order."
+verification_commands:
+  - node --test tests/oracle-paper-release-workflow.test.js
+  - bash -n deploy/oracle/nusa-release-step.sh
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm exec eslint tests/oracle-paper-release-workflow.test.js
+validation: "23/23 Oracle release workflow tests PASS; bash -n PASS; validate:full PASS (including 496-file AIPOS YAML, architecture/drift, and safety); security:gate PASS; targeted ESLint PASS; git diff --check PASS. Exact-head CI and independent review remain pending."
+residual: "The exact-main release will continue refusing to run until the reviewed root-owned host helper is installed through its canonical infrastructure path. No Oracle server mutation or runtime proof is claimed."
