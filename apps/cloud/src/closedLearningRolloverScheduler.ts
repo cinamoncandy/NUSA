@@ -40,6 +40,8 @@ export interface ClosedLearningEvidenceWindow {
 export interface ClosedLearningRolloverPort {
   readonly listOpenPeriods: () => readonly PersistedPaperRealizedPeriodPlan[];
   readonly listRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
+  /** Canonical allocator owned by the persisted PAPER period store; terminal indexes remain reserved. */
+  readonly nextPeriodIndex: () => number;
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   /**
    * Real wall clock used only for KST eligibility and to bound restart recovery to the closed
@@ -72,14 +74,6 @@ export interface ClosedLearningRolloverPort {
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
   readonly recordCycleFailure?: (input: { readonly closedPeriodId: string; readonly identity: ClosedLearningEvidenceIdentity; readonly stage: "CYCLE" | "FINALIZE"; readonly code: string }) => void;
   readonly recordIdentityFailure?: (input: { readonly closedPeriod: PersistedPaperPeriodEnvelope; readonly code: string }) => void;
-}
-
-function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): number {
-  const maximum = periods.reduce((value, item) => Math.max(value, item.record.periodIndex), -1);
-  if (!Number.isSafeInteger(maximum) || maximum < -1 || maximum >= Number.MAX_SAFE_INTEGER - 1) {
-    throw new Error("closed-learning rollover period index is unavailable");
-  }
-  return maximum + 1;
 }
 
 /**
@@ -191,7 +185,7 @@ export class ClosedLearningRolloverScheduler {
     try {
       identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: latest, realizedPeriods: Object.freeze([...realized]) }));
     } catch (error) {
-      const observed = this.observeBaselinePeriod(latest, account, realized, error);
+      const observed = this.observeBaselinePeriod(latest, account, error);
       if (observed != null) return observed;
       this.recordIdentityFailure(latest, error);
       throw error;
@@ -225,7 +219,7 @@ export class ClosedLearningRolloverScheduler {
     if (account.updatedAt < latest.record.periodEndAt || (account.updatedAt === latest.record.periodEndAt && !boundedRecoveryExhausted)) {
       return Object.freeze({ status: "NO_OPEN_PERIOD", reason: "WAITING_FOR_CANONICAL_BOUNDARY" });
     }
-    const periodIndex = nextPeriodIndex(realized);
+    const periodIndex = this.port.nextPeriodIndex();
     if (latest.record.market != null && this.isUnstreamed(latest.record.market)) {
       // The latest candidate was bound to a market this runtime no longer streams, so a continuation there could
       // never be benchmarked. Only the owner baseline may restart on the current market, through its canonical
@@ -253,12 +247,12 @@ export class ClosedLearningRolloverScheduler {
    * baseline continues in a fresh period from the same canonical account boundary, exactly as a non-qualified cycle would. This
    * replaces a BLOCKED retry loop that ended in the same continuation. Any other candidate, or any other error, is unchanged.
    */
-  private observeBaselinePeriod(closed: PersistedPaperPeriodEnvelope, account: PaperAccountState, realizedPeriods: readonly PersistedPaperPeriodEnvelope[], error: unknown): ClosedLearningRolloverResult | undefined {
+  private observeBaselinePeriod(closed: PersistedPaperPeriodEnvelope, account: PaperAccountState, error: unknown): ClosedLearningRolloverResult | undefined {
     if ((error as { readonly code?: unknown } | null)?.code !== "PAPER_RESEARCH_LINEAGE_UNAVAILABLE") return undefined;
     if (!(closed.candidateProvenance.length === 1 && closed.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID)) return undefined;
     if (closed.record.market != null && this.isUnstreamed(closed.record.market)) return undefined;
     this.awaitingCycle.delete(closed.record.recordId);
-    const periodIndex = nextPeriodIndex(realizedPeriods);
+    const periodIndex = this.port.nextPeriodIndex();
     const reopened = this.port.openPeriodFromCanonicalAccount({
       periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
       periodIndex,
@@ -282,7 +276,7 @@ export class ClosedLearningRolloverScheduler {
    */
   private retireMixedAndReplace(plan: PersistedPaperRealizedPeriodPlan, account: PaperAccountState, evidenceFingerprintSha256?: string): ClosedLearningRolloverResult {
     this.port.retireOpenPeriodForMixedBinding!(plan.periodId);
-    const periodIndex = nextPeriodIndex(this.port.listRealizedPeriods());
+    const periodIndex = this.port.nextPeriodIndex();
     const reopened = this.port.openPeriodFromCanonicalAccount({
       periodId: `closed-learning-mixed-binding-replaced:${periodIndex}:${account.updatedAt}`,
       periodIndex,
@@ -326,7 +320,7 @@ export class ClosedLearningRolloverScheduler {
         return Object.freeze({ status: "BLOCKED", periodId: plan.periodId, reason: "PAPER_ACCOUNT_REPLACED_RETIREMENT_UNAVAILABLE" });
       }
       this.port.retireOpenPeriodForAccountChange(plan.periodId);
-      const periodIndex = nextPeriodIndex(this.port.listRealizedPeriods());
+      const periodIndex = this.port.nextPeriodIndex();
       const reopened = this.port.openPeriodFromCanonicalAccount({
         periodId: `closed-learning-account-replaced:${periodIndex}:${account.updatedAt}`,
         periodIndex,
@@ -386,7 +380,7 @@ export class ClosedLearningRolloverScheduler {
     try {
       identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
     } catch (error) {
-      const observed = this.observeBaselinePeriod(closed, account, realizedPeriods, error);
+      const observed = this.observeBaselinePeriod(closed, account, error);
       if (observed != null) return observed;
       this.recordIdentityFailure(closed, error);
       throw error;
@@ -401,7 +395,7 @@ export class ClosedLearningRolloverScheduler {
     // So does a qualified cycle still waiting for Governance approval: without a deployment no
     // replacement period was opened, and PAPER must not stall with no open period.
     if (cycle.record.decision.outcome !== "QUALIFIED_FOR_LEAGUE" || cycle.record.paperDeployment == null) {
-      const periodIndex = nextPeriodIndex(prepared.realizedPeriods);
+      const periodIndex = this.port.nextPeriodIndex();
       this.port.openPeriodFromCanonicalAccount({
         periodId: `closed-learning-rollover:${periodIndex}:${prepared.account.updatedAt}`,
         periodIndex,

@@ -16,6 +16,7 @@ const {
   buildParameterRobustnessRequest
 } = require("../scripts/research-real-market-run.js");
 const { createHistoricalDatasetManifest } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
+const provenance = require("./helpers/research-dataset-provenance.js");
 
 const DAY = 86_400_000;
 const dataAsOf = Date.UTC(2026, 8, 5, 12);
@@ -148,13 +149,16 @@ test("ten pages restore 2000 completed days with stable request provenance and c
   const options = { dataAsOf, fetchPage: pageFor, pause: async (ms) => pauses.push(ms) };
   const first = await fetchResearchCandles(options);
   const second = await fetchResearchCandles({ ...options, fetchPage: (request) => pageFor(request).reverse() });
-  assert.deepEqual(first, second);
+  assert.deepEqual(first.candles, second.candles);
+  assert.deepEqual(first.sourceRequests, second.sourceRequests);
+  assert.notDeepEqual(first.rawSourceIdentitySha256s, second.rawSourceIdentitySha256s, "raw page ordering is part of source identity even when canonical candles match");
   assert.equal(first.candles.length, 2000);
   assert.equal(first.sourceRequests.length, 10);
   assert.equal(first.candles.at(-1).closeTime, Math.floor(dataAsOf / DAY) * DAY);
   assert.ok(pauses.every((ms) => ms >= 100));
   const manifest = (result) => createHistoricalDatasetManifest(result.candles, {
-    source: "upbit-public-api", sourceRequest: result.sourceRequests.join(" | "), createdAt: new Date(dataAsOf).toISOString()
+    source: "upbit-public-api", sourceRequest: result.sourceRequests.join(" | "), createdAt: new Date(dataAsOf).toISOString(),
+    provenance: { ...provenance, rawSourceIdentitySha256s: result.rawSourceIdentitySha256s }
   });
   assert.equal(manifest(first).contentSha256, manifest(second).contentSha256);
 });

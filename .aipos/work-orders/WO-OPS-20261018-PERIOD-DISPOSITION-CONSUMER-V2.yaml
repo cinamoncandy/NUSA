@@ -1,0 +1,83 @@
+id: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
+title: "Make canonical PAPER pending consumers recovery-safe across immutable schemaVersion=2 dispositions"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
+implementation_branch: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
+authority_impact: paper_runtime_recovery
+objective: "Upgrade the existing pending-period consumer/recovery path so schemaVersion=2 terminal dispositions are validated and quarantined, only the canonical schemaVersion=1 successor is consumable, and all period-index allocation reserves terminal history."
+owner_authorization: "2026-10-18 OWNER explicitly ordered the NUSA DEV complete-convergence master execution for P0 future-fill acceptance -> P1 schemaVersion=2 consumer compatibility -> P2 disposition integration, with learning-loop scope excluded."
+depends_on:
+  - WO-OPS-20261016-PERIOD-DISPOSITION
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse SqlitePersistedPaperPeriodStore as the only parser/store truth. No new reader, table, ledger, scheduler, engine, control plane or authority. Runtime disposition activation remains prohibited until P0 actual future-fill evidence and independent review/Audit/Release gates are satisfied."
+  references:
+    - .aipos/decisions/ADR-OPS-20261016-PENDING-DISPOSITION-STORAGE.md
+    - .aipos/decisions/ADR-OPS-20261016-INCOMPLETE-PERIOD-DISPOSITION.md
+    - packages/storage/src/persistedPaperPeriodStore.ts
+    - apps/cloud/src/closedLearningPendingPeriodReader.ts
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+    - apps/cloud/src/closedLearningRolloverScheduler.ts
+    - apps/cloud/src/paperChallengerDeploymentRuntime.ts
+    - apps/cloud/src/closedLearningProductionRuntime.ts
+scope:
+  - canonical_store_validation_of_schema_v1_and_schema_v2_pending_rows
+  - schema_v2_terminal_quarantine_with_schema_v1_successor_consumer_recovery
+  - producer_restart_recovery_after_disposition_without_terminal_reactivation
+  - terminal_and_active_pending_period_index_reservation_for_all_production_allocators
+  - focused_restart_replay_tamper_unknown_schema_and_backward_compatibility_tests
+prohibited:
+  - production_markPendingIneligible_caller_in_this_increment
+  - runtime_disposition_activation_before_P0_future_fill_acceptance
+  - direct_database_edit_or_historical_rewrite
+  - fabricated_fill_cost_pnl_candidate_or_performance_evidence
+  - performance_governance_feedback_or_learning_consumption_of_INELIGIBLE_history
+  - duplicate_reader_store_scheduler_engine_or_truth_source
+  - risk_qualification_cost_or_sample_threshold_relaxation
+  - live_real_money_withdrawal_or_transfer_authority
+  - self_review_self_approval_direct_merge_or_forged_validation
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - valid_schema_v1_pending_rows_remain_backward_compatible
+  - valid_schema_v2_terminal_dispositions_are_checksum_and_semantic_validated_and_never_returned_as_open_plans
+  - successor_schema_v1_plan_is_the_only_open_plan_visible_after_disposition
+  - malformed_unknown_tampered_or_fingerprint_conflicting_v2_fails_closed
+  - missing_or_conflicting_pending_identity_fails_closed
+  - producer_restart_recovers_successor_once_and_never_reactivates_terminal_original
+  - replay_produces_no_duplicate_successor_or_side_effect
+  - period_index_allocation_reserves_realized_active_pending_and_terminal_disposition_indexes
+  - closed_learning_scheduler_and_challenger_deployment_use_the_canonical_reserved_index_allocator
+  - focused_tests_cover_the_owner_mandated_10_P1_cases_and_existing_v1_regressions
+validation:
+  commands:
+    - pnpm exec tsc -p tsconfig.json --noEmit
+    - pnpm run build
+    - pnpm test
+    - pnpm run preflight
+    - pnpm run validate:full
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    focused_regression_files: 7
+    focused_regression: PASS
+    preflight: PASS
+    validate_full: PASS
+    isolated_test_files: 1242
+    isolated_test_result: PASS
+    environment_note: Windows full-suite rerun used installed Git Bash on PATH after the first environment-only bash ENOENT
+  exact_head_ci: PENDING
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED_IN_THIS_INCREMENT
+external_blocker:
+  code: RUNTIME_ACTIVATION_OUT_OF_SCOPE
+  detail: "This P1 increment does not assert current protected-main runtime acceptance. Production markPendingIneligible activation remains prohibited until its separate P0 runtime evidence and Release gates are independently verified."
+next: "Push the exact implementation head, require exact-head CI, then hand off to a fresh non-author reviewer and the normal Audit/Release chain. Do not activate markPendingIneligible in production in this work order."

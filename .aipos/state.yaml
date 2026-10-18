@@ -2446,6 +2446,20 @@ current_mobile_home_simplify:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 
+current_ops_oracle_stage_space:
+  work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  status: VALIDATOR_P1_REPAIRED_PENDING_EXACT_HEAD_CI
+  branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  issue: 2791
+  pull_request: 2805
+  base_sha: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
+  evidence: "Oracle release 39100544697 failed guarded staging: available 5280886784, required 5949247701, source 1550406500; artifact 506610705 bytes. Diagnosis 39100280323 showed 7.4G free and two protected releases."
+  previous_pr_head: 0dabdbfb087f83979eac3d72df096f0a01325cbc
+  previous_pr_head_ci: "CI 39103178517 and exact-head companions PASS, but fresh Codex Validator found P1 unsafe mv copy fallback; this head is superseded."
+  validation: "Exact head 0dabdbfb087f83979eac3d72df096f0a01325cbc had full PR CI PASS, but fresh Codex Validator found P1: GNU mv can silently copy after rename failure, bypassing rename-only headroom. Local repair uses mv --no-copy and re-applies full-copy headroom before explicit fallback copy; focused workflow tests 23/23, bash -n, and git diff --check PASS. Fresh exact-head CI required."
+  next: "Commit the P1 rename-only repair, run fresh exact-head CI, then obtain a fresh non-author review of that exact head. After merge, install the reviewed root-owned helper through the canonical host path before exact-main release/runtime verification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_paid_overflow_off_20261014:
   work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
   status: LOCAL_HARDENING_VALIDATED_PENDING_FRESH_CI
@@ -3031,6 +3045,41 @@ current_ui_startup_warmup:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
   finding: "Cold start 3.3 s from abroad, sign-in 2.4 s: warm the connection during the saved-session read (a credential-free GET of /health) and show the sign-in split in Settings; the authentication flow itself is untouched"
+
+current_dataset_v2_write_20261018:
+  work_order: WO-DATA-20261018-NEW-DATASET-V2-WRITE
+  status: EXACT_MAIN_VERIFIED
+  branch: main
+  base_sha: 26970651043c0e38e03428b181d5e7f59e4ce57b
+  pr: 2801
+  pr_head_sha: eb1215a1e409c752d8cd7f25bc0190f1b2ba2c8c
+  merge_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  exact_main_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  first_broken_transition: "P0-5 independent sealed evidence verification across dataset → precommit → experiment → candidate → governance → PAPER"
+  scope: "All new dataset-manifest factory/write paths emit v2 only; preserve immutable historical v1 reads. Cloud v2 binds durable raw-page receipts and quality results."
+  finding: "Desktop canonical factory now emits v2 only and requires provenance; research real-run and forward-study producers bind captured Upbit page fingerprints, transform/config/schema/quality/replay fingerprints; SQLite rejects new v1 writes while exact historical v1 reads remain checksum-verified. Cloud materializer emits v2 only from matching durable receipts and verified aggregation."
+  validation: "PR exact-head CI 39097651708 PASS 6/6; fresh non-author validation PASS; independent OIDC Audit PASS; canonical Release run 39098201565 merged; exact-main CI 39098270400 PASS; exact-main public PAPER runtime 39098601136 PASS; Cloudflare runtime proof 39098634858 PASS."
+  exact_head_ci: PASS
+  independent_validation: PASS
+  audit: PASS
+  release: MERGED
+  exact_main_ci: PASS
+  exact_main_paper_runtime: PASS
+  oracle_production_runtime: NOT_CHECKED
+  android_stable_release: PENDING
+
+current_evidence_verifier_20261018:
+  work_order: WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
+  status: IMPLEMENTING
+  branch: codex/independent-evidence-verifier
+  base_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  first_broken_transition: "Governance authorization → durable PAPER activation identity"
+  finding: "PAPER deployment checked current Governance authorization but discarded its decision identity; append-only activation and closed-learning replay could not independently prove which authorization bound the PAPER candidate."
+  implementation: "Persist the exact Governance authorization snapshot in the existing hash-chained PAPER binding ledger; reject malformed/mismatched snapshot on read/restart and fail closed when closed-learning evidence tries to consume a legacy activation without it."
+  validation: "typecheck PASS; build PASS; focused four-file suite 40/40 PASS, including mismatched approval, future approval, persisted tamper, restart replay drift, legacy activation fail-closed."
+  remaining: "This closes one edge only; the full independent sealed verifier and dataset/precommit/experiment/candidate/governance/PAPER graph falsification remain open."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_decision_funnel:
   work_order: WO-PAPER-20261006-DECISION-FUNNEL
   status: READY_FOR_REVIEW

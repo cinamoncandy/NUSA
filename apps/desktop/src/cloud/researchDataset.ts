@@ -1,48 +1,10 @@
-import { createHash } from "node:crypto";
+import { calculateResearchDatasetId, calculateResearchDatasetIdV2, canonicalSerializeResearchCandles, calculateResearchCandleSha256 } from "../../../../packages/contracts/src/researchDatasetSemantics";
+import type { CanonicalResearchCandle, CreateManifestOptions, HistoricalDatasetManifest, MissingCandleRange, ResearchDatasetValidation, ResearchInterval } from "../../../../packages/contracts/src/researchDatasetSemantics";
 import type { BacktestConfig, BacktestPoint } from "../strategy/backtestEngine";
 import { runWalkForward, type WalkForwardCandidate, type WalkForwardConfig, type WalkForwardResult } from "../strategy/walkForwardEngine";
 
-export type ResearchInterval = "1m" | "3m" | "5m" | "10m" | "15m" | "30m" | "60m" | "240m" | "1d";
-export type CandleContinuityStatus = "CONTIGUOUS" | "MISSING_INTERVALS" | "IRREGULAR_INTERVAL" | "DUPLICATE" | "OVERLAP";
-export type MissingCandlePolicy = "REJECT" | "ALLOW";
-
-export interface ResearchCandle {
-  readonly market: string;
-  readonly interval: ResearchInterval;
-  readonly openTime: number;
-  readonly closeTime: number;
-  readonly open: number;
-  readonly high: number;
-  readonly low: number;
-  readonly close: number;
-  readonly volume: number;
-  readonly quoteVolume?: number;
-  readonly tradeCount?: number;
-}
-
-export interface MissingCandleRange { readonly afterCloseTime: number; readonly beforeOpenTime: number; readonly missingIntervals: number; }
-export interface ResearchDatasetValidation { readonly candles: readonly ResearchCandle[]; readonly continuityStatus: CandleContinuityStatus; readonly missingCandleCount: number; readonly missingRanges: readonly MissingCandleRange[]; readonly warnings: readonly string[]; }
-
-export interface HistoricalDatasetManifest {
-  readonly schemaVersion: 1;
-  readonly datasetId: string;
-  readonly source: string;
-  readonly market: string;
-  readonly interval: ResearchInterval;
-  readonly candleCount: number;
-  readonly startOpenTime: number;
-  readonly endCloseTime: number;
-  readonly timezone: "UTC";
-  readonly ordering: "OPEN_TIME_ASC";
-  readonly missingCandlePolicy: MissingCandlePolicy;
-  readonly missingCandleCount: number;
-  readonly createdAt: string;
-  readonly contentSha256: string;
-  readonly sourceRequest?: string;
-  readonly notes?: string;
-}
-
-export interface CreateManifestOptions { readonly source: string; readonly allowMissing?: boolean; readonly createdAt?: string; readonly sourceRequest?: string; readonly notes?: string; }
+export type { CandleContinuityStatus, CreateManifestOptions, HistoricalDatasetManifest, MissingCandlePolicy, MissingCandleRange, ResearchDatasetValidation, ResearchInterval } from "../../../../packages/contracts/src/researchDatasetSemantics";
+export interface ResearchCandle extends CanonicalResearchCandle {}
 export interface ResearchDataset { readonly candles: readonly ResearchCandle[]; readonly manifest: HistoricalDatasetManifest; }
 
 export interface ResearchExecutionCostEvidence {
@@ -137,33 +99,21 @@ export function validateResearchCandles(candles: readonly ResearchCandle[], opti
   return freeze({ candles: Object.freeze(candles.map((candle) => freeze({ ...candle }))), continuityStatus: missingCandleCount === 0 ? "CONTIGUOUS" : "MISSING_INTERVALS", missingCandleCount, missingRanges: Object.freeze(missingRanges), warnings: Object.freeze(missingCandleCount ? [`MISSING_CANDLES_ALLOWED:${missingCandleCount}`] : []) });
 }
 
-function canonicalCandle(candle: ResearchCandle): Record<string, string | number> {
-  const output: Record<string, string | number> = { market: candle.market, interval: candle.interval, openTime: candle.openTime, closeTime: candle.closeTime, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume };
-  if (candle.quoteVolume != null) output.quoteVolume = candle.quoteVolume;
-  if (candle.tradeCount != null) output.tradeCount = candle.tradeCount;
-  return output;
-}
+export function canonicalSerializeCandles(candles: readonly ResearchCandle[]): string { return canonicalSerializeResearchCandles(validateResearchCandles(candles, { allowMissing: true }).candles); }
 
-export function canonicalSerializeCandles(candles: readonly ResearchCandle[]): string {
-  const validated = validateResearchCandles(candles, { allowMissing: true });
-  return JSON.stringify(validated.candles.map(canonicalCandle));
-}
-
-export function calculateCandleSha256(candles: readonly ResearchCandle[]): string { return createHash("sha256").update(canonicalSerializeCandles(candles), "utf8").digest("hex"); }
-
-function datePart(timestamp: number): string { return new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ""); }
-function datasetId(source: string, candles: readonly ResearchCandle[], hash: string): string { const first = candles[0]!; const last = candles[candles.length - 1]!; return `${source.replace(/[^a-zA-Z0-9]+/g, "-")}_${first.market.replace(/[^a-zA-Z0-9]+/g, "-")}_${first.interval}_${datePart(first.openTime)}_${datePart(last.closeTime)}_${hash.slice(0, 12)}`; }
+export function calculateCandleSha256(candles: readonly ResearchCandle[]): string { return calculateResearchCandleSha256(validateResearchCandles(candles, { allowMissing: true }).candles); }
 
 export function createHistoricalDatasetManifest(candles: readonly ResearchCandle[], options: CreateManifestOptions): HistoricalDatasetManifest {
   if (!options.source.trim()) throw new ResearchDatasetError("EMPTY_SOURCE", "manifest source is required");
+  if (options.provenance == null) throw new ResearchDatasetError("MANIFEST_PROVENANCE_REQUIRED", "new datasets require schema v2 provenance");
   const validated = validateResearchCandles(candles, { allowMissing: options.allowMissing }); const first = validated.candles[0]!; const last = validated.candles.at(-1)!; const contentSha256 = calculateCandleSha256(validated.candles);
   const createdAt = options.createdAt ?? DEFAULT_MANIFEST_CREATED_AT;
   assertManifestCreatedAt(createdAt, last.closeTime);
-  return freeze({ schemaVersion: 1, datasetId: datasetId(options.source, validated.candles, contentSha256), source: options.source, market: first.market, interval: first.interval, candleCount: validated.candles.length, startOpenTime: first.openTime, endCloseTime: last.closeTime, timezone: "UTC", ordering: "OPEN_TIME_ASC", missingCandlePolicy: options.allowMissing ? "ALLOW" : "REJECT", missingCandleCount: validated.missingCandleCount, createdAt, contentSha256, sourceRequest: options.sourceRequest, notes: options.notes });
+  return freeze({ schemaVersion: 2, datasetId: calculateResearchDatasetIdV2(options.source, validated.candles, contentSha256, options.provenance), source: options.source, market: first.market, interval: first.interval, candleCount: validated.candles.length, startOpenTime: first.openTime, endCloseTime: last.closeTime, timezone: "UTC", ordering: "OPEN_TIME_ASC", missingCandlePolicy: options.allowMissing ? "ALLOW" : "REJECT", missingCandleCount: validated.missingCandleCount, createdAt, contentSha256, provenance: options.provenance, sourceRequest: options.sourceRequest, notes: options.notes });
 }
 
 export function verifyHistoricalDatasetManifest(manifest: HistoricalDatasetManifest, candles: readonly ResearchCandle[]): ResearchDatasetValidation {
-  if (manifest.schemaVersion !== 1) throw new ResearchDatasetError("UNSUPPORTED_SCHEMA_VERSION", "manifest schemaVersion is unsupported");
+  if (manifest.schemaVersion !== 1 && manifest.schemaVersion !== 2) throw new ResearchDatasetError("UNSUPPORTED_SCHEMA_VERSION", "manifest schemaVersion is unsupported");
   if (!manifest.source.trim()) throw new ResearchDatasetError("EMPTY_SOURCE", "manifest source is required");
   if (manifest.ordering !== "OPEN_TIME_ASC" || manifest.timezone !== "UTC") throw new ResearchDatasetError("INVALID_MANIFEST_ORDERING", "manifest ordering or timezone is unsupported");
   const validated = validateResearchCandles(candles, { allowMissing: manifest.missingCandlePolicy === "ALLOW" }); const first = validated.candles[0]!; const last = validated.candles.at(-1)!;
@@ -173,7 +123,10 @@ export function verifyHistoricalDatasetManifest(manifest: HistoricalDatasetManif
   if (manifest.missingCandleCount !== validated.missingCandleCount) throw new ResearchDatasetError("MANIFEST_MISSING_POLICY_MISMATCH", "manifest missing candle count does not match candles");
   const contentSha256 = calculateCandleSha256(validated.candles);
   if (manifest.contentSha256 !== contentSha256) throw new ResearchDatasetError("CHECKSUM_MISMATCH", "manifest checksum does not match candle content");
-  if (manifest.datasetId !== datasetId(manifest.source, validated.candles, contentSha256)) throw new ResearchDatasetError("DATASET_ID_MISMATCH", "manifest datasetId does not match source and candle content");
+  const datasetId = manifest.schemaVersion === 1
+    ? calculateResearchDatasetId(manifest.source, validated.candles, contentSha256)
+    : calculateResearchDatasetIdV2(manifest.source, validated.candles, contentSha256, manifest.provenance);
+  if (manifest.datasetId !== datasetId) throw new ResearchDatasetError("DATASET_ID_MISMATCH", "manifest datasetId does not match source, candle content, and provenance");
   return validated;
 }
 

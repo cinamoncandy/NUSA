@@ -43,6 +43,35 @@ export class PersistedPaperPeriodStoreError extends Error {
   }
 }
 
+/**
+ * Resolves the realized PAPER periods that must survive retention because a surviving record cites
+ * them. Lineage replay selects evidence by exact `paper-period:<recordId>`
+ * (closedLearningLineageReplayInputSource.ts:89-127) and the evidence identity embeds those record
+ * ids, so a period pruned underneath a recorded cycle leaves its receipt resolvable and its basis
+ * gone. Retention is the one place realized Lane B evidence is physically deleted, so the guard is a
+ * required parameter rather than an optional courtesy: `prune()` cannot be called blindly (v2 Impact
+ * Analysis M1 / A7).
+ */
+export type RealizedPeriodRetentionGuard = {
+  /** Record ids that must not be pruned. Evaluated at each retention, never cached across them. */
+  readonly referencedRecordIds: () => ReadonlySet<string>;
+};
+
+export interface PersistedPaperPeriodRetentionResult {
+  /** The owner-set retention bound. Never learned, never adapted, never derived from evidence. */
+  readonly bound: number;
+  readonly deleted: number;
+  /** Periods retained beyond the bound because a surviving record cites them. */
+  readonly protectedRecordIds: readonly string[];
+  /** True only when the bound was reached with nothing protected. */
+  readonly boundReached: boolean;
+  /**
+   * Citations of periods that are already absent. Reported unverifiable and never re-derived: the
+   * receipt survives, its basis does not, and inventing a replacement would rewrite history.
+   */
+  readonly danglingReferences: readonly string[];
+}
+
 const TABLE = "research_paper_forward_periods";
 const PENDING_TABLE = "research_paper_forward_period_pending";
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -245,9 +274,35 @@ export class SqlitePersistedPaperPeriodStore {
     });
   }
 
-  public prune(maximumPeriods: number): void {
+  /**
+   * Applies the owner-set retention bound while refusing to delete evidence a surviving record cites.
+   *
+   * A cited period is protected rather than fatal: dropping it would leave the runtime unable to
+   * start, and an outage is not a safer outcome than a slightly larger ledger. The refusal is never
+   * silent — `protectedRecordIds` is reported so an operator can see that the bound did not hold, and
+   * the bound itself is never relaxed to make the report go away.
+   */
+  public prune(maximumPeriods: number, guard: RealizedPeriodRetentionGuard): PersistedPaperPeriodRetentionResult {
     if (!Number.isSafeInteger(maximumPeriods) || maximumPeriods < 1 || maximumPeriods > 1_000) throw new PersistedPaperPeriodStoreError("INVALID_RETENTION", "PAPER period retention must be between 1 and 1000");
-    this.db.transaction(() => this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE record_id NOT IN (SELECT record_id FROM ${TABLE} ORDER BY period_index DESC, record_id DESC LIMIT ?)`).run(maximumPeriods));
+    if (guard == null || typeof guard.referencedRecordIds !== "function") throw new PersistedPaperPeriodStoreError("MISSING_RETENTION_GUARD", "PAPER period retention requires a reference-aware guard");
+    return this.db.transaction(() => {
+      const retained = new Set((this.db.connection.prepare(`SELECT record_id FROM ${TABLE} ORDER BY period_index DESC, record_id DESC LIMIT ?`).all(maximumPeriods) as Array<Record<string, unknown>>).map((row) => String(row.record_id)));
+      const present = (this.db.connection.prepare(`SELECT record_id FROM ${TABLE}`).all() as Array<Record<string, unknown>>).map((row) => String(row.record_id));
+      const presentSet = new Set(present);
+      const referenced = guard.referencedRecordIds();
+      const victims = present.filter((recordId) => !retained.has(recordId));
+      const protectedRecordIds = victims.filter((recordId) => referenced.has(recordId));
+      const danglingReferences = [...referenced].filter((recordId) => !presentSet.has(recordId)).sort();
+      const deletable = victims.filter((recordId) => !referenced.has(recordId));
+      for (const recordId of deletable) this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE record_id = ?`).run(recordId);
+      return Object.freeze({
+        bound: maximumPeriods,
+        deleted: deletable.length,
+        protectedRecordIds: Object.freeze(protectedRecordIds),
+        boundReached: protectedRecordIds.length === 0 && retained.size === maximumPeriods,
+        danglingReferences: Object.freeze(danglingReferences),
+      });
+    });
   }
 
   private rawPending(periodId: string): PersistedPaperPendingPeriod | undefined {
@@ -274,6 +329,25 @@ export class SqlitePersistedPaperPeriodStore {
       const disposition = decodeDisposition(row);
       return disposition == null ? [] : [disposition];
     }));
+  }
+
+  /**
+   * Allocates from every durable chronology owner: realized periods, active pending plans and
+   * immutable terminal dispositions. A terminal index is history and may never be reused merely
+   * because it is excluded from performance or from the open-plan reader.
+   */
+  public nextPeriodIndex(): number {
+    const pending = this.rawPendingRows();
+    let maximum = -1;
+    for (const row of pending) {
+      if (decodeDisposition(row) == null) validatePendingSnapshot(row);
+      maximum = Math.max(maximum, row.periodIndex);
+    }
+    for (const envelope of this.list()) maximum = Math.max(maximum, envelope.record.periodIndex);
+    if (!Number.isSafeInteger(maximum) || maximum < -1 || maximum >= Number.MAX_SAFE_INTEGER - 1) {
+      throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_UNAVAILABLE", "PAPER period index is unavailable");
+    }
+    return maximum + 1;
   }
 
   /** No realized envelope is produced. Original history and successor commit in one existing SQLite transaction. */

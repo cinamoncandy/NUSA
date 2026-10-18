@@ -2,6 +2,7 @@ import { buildMobileDashboardResponse } from "./mobileDashboardApi";
 import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloudRuntimeConfig";
+import { evolutionLedgerRetentionGuard } from "./closedLearningEvolutionLedgerRepository";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
@@ -88,6 +89,7 @@ import {
   type NusaEngineeringOperatingSnapshot,
   type NusaEngineeringOperatingSource,
 } from "./engineeringOperatingReadModel";
+import { composeResearchExperiments } from "./researchExperimentComposition";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -113,10 +115,12 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly retirePaperRealizedPeriodForUnstreamedMarket: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForMixedBinding: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly inspectPaperRealizedPeriodForMixedBinding: (periodId: string) => { readonly evidenceFingerprintSha256: string } | null;
+  /** Canonical chronology allocator; includes realized, active pending and terminal disposition indexes. */
+  readonly nextPaperRealizedPeriodIndex: () => number;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
-function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
+function createSnapshotRepository(pathname: string): SqliteCloudDashboardSnapshotRepository {
   if (pathname !== ":memory:") {
     const absolute = path.resolve(pathname);
     const sourceTree = path.resolve(process.cwd()) + path.sep;
@@ -299,6 +303,8 @@ export function startCloudRuntime(
       // Thirty nominal hourly days need 720 records; the independent covered-day gate is unchanged.
       // Keep the same bounded budget after cadence changes instead of shrinking hourly history to 100.
       maximumPeriods: 1_000,
+      // Retention may never delete a realized period a surviving ledger record cites (v2 M1/A7).
+      retentionGuard: evolutionLedgerRetentionGuard(new SqliteEvolutionLearningLedger(durableRepository.database())),
       onLifecycleEvent: (event) => paperLearningRecorder.record({
         cycleId: `paper-period:${event.periodId}`,
         stage: event.type,
@@ -756,6 +762,7 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForUnstreamedMarket: (periodId, streamedMarkets) => requirePaperRealizedPeriodProducer().retireOpenPeriodForUnstreamedMarket(periodId, streamedMarkets),
     retirePaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForMixedBinding(periodId),
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
+    nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
     stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
@@ -778,5 +785,5 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
 
   return controller;
 }
-function main(): void { const config = readCloudRuntimeConfig(process.env); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath), undefined, undefined, undefined, undefined, undefined, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
+function main(): void { const config = readCloudRuntimeConfig(process.env); const snapshot = createSnapshotRepository(config.cloudStateDbPath); const research = composeResearchExperiments({ env: process.env, database: snapshot.database() }); research?.start(); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, snapshot, undefined, undefined, undefined, undefined, research?.orchestrator, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
 if (require.main === module) main();
