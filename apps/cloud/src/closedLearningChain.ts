@@ -215,6 +215,7 @@ export class ClosedLearningChain {
             `application receipt durability failed and fail-safe rollback failed: ${rollbackError instanceof Error ? rollbackError.message : "unknown rollback failure"}`,
           );
         }
+        this.registry.forget(application);
       }
       throw new LearningChainError(
         "APPLICATION_DURABILITY_FAILED",

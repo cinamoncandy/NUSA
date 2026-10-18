@@ -194,6 +194,12 @@ export class ApplicationRegistry {
     this.receipts.set(key, receipt);
   }
 
+  /** Removes an in-memory receipt whose side effect was rolled back before durable append. */
+  public forget(receipt: LearningApplicationReceipt): void {
+    const key = receipt.learningDecisionFingerprint + "|" + receipt.surface;
+    if (this.receipts.get(key)?.applicationFingerprint === receipt.applicationFingerprint) this.receipts.delete(key);
+  }
+
   /** Rehydrates from durable history after a restart, so exactly-once survives the process. */
   public rehydrate(receipts: readonly LearningApplicationReceipt[]): void {
     for (const receipt of receipts) this.record(receipt);
