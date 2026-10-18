@@ -49,13 +49,14 @@ validation:
     - node --test tests/research-dataset.test.js
     - node --test tests/research-dataset-manifest-chronology.test.js
     - node --test tests/research-history-pagination.test.js
+    - node --test tests/research-timeframe-selection.test.js
     - pnpm run preflight
     - pnpm run typecheck
     - pnpm run build
     - pnpm run validate:full
     - pnpm run security:gate
   build: PASS
-  focused_tests: "PASS 110/110 plus point-in-time regime evidence 3/3"
+  focused_tests: "PASS 110/110 plus point-in-time regime evidence 3/3 and timeframe provenance regressions 13/13"
   preflight: PASS
   typecheck: PASS
   validate_full: PASS
