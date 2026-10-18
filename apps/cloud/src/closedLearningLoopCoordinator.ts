@@ -167,12 +167,13 @@ export class ClosedLearningLoopCoordinator {
     private readonly repository: ClosedLearningCycleRepository,
     private readonly researchFactory: ExistingResearchFactoryAdapter,
     private readonly paperDeployment: PaperChallengerDeploymentAdapter,
+    private readonly evidenceAuthority: LearningEvidenceAuthority,
     private readonly now: () => number = Date.now,
-    private readonly evidenceAuthority?: LearningEvidenceAuthority,
-  ) {}
+  ) {
+    if (evidenceAuthority == null || typeof evidenceAuthority.readResearch !== "function" || typeof evidenceAuthority.readPaper !== "function") throw new Error("closed learning durable evidence authority is required");
+  }
 
   private assertDurableEvidence(identity: ClosedLearningEvidenceIdentity): void {
-    if (this.evidenceAuthority == null) return;
     for (const recordId of identity.evidenceReferences) {
       const research = this.evidenceAuthority.readResearch(recordId);
       const paper = this.evidenceAuthority.readPaper(recordId);

@@ -8,10 +8,15 @@ import {
   type ClosedLearningEvidenceIdentity,
   type ClosedLearningResearchDecision,
 } from "./closedLearningLoopCoordinator";
+import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
 
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const SOURCE_SHA = "1".repeat(40);
+const AUTHORITY = createLearningEvidenceAuthorityFromReaders({
+  readResearch: (recordId) => recordId.startsWith("league-run:") ? { recordId, recordedAt: 1 } : undefined,
+  readPaper: (recordId) => recordId.startsWith("paper-period:") ? { recordId, recordedAt: 1 } : undefined,
+});
 
 function evidence(overrides: Partial<ClosedLearningEvidenceIdentity> = {}): ClosedLearningEvidenceIdentity {
   return {
@@ -56,7 +61,7 @@ describe("ClosedLearningLoopCoordinator", () => {
     for (const outcome of ["REJECTED", "INSUFFICIENT"] as const) {
       const repository = new MemoryRepository();
       let deployments = 0;
-      const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => decision(outcome) }, { deploy: () => { deployments += 1; throw new Error("must not deploy"); } }, () => 10_000);
+      const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => decision(outcome) }, { deploy: () => { deployments += 1; throw new Error("must not deploy"); } }, AUTHORITY, () => 10_000);
       const result = coordinator.run(evidence({ evidenceId: `evidence-${outcome}` }));
       assert.equal(result.status, "EXECUTED");
       assert.equal(result.record.decision.outcome, outcome);
@@ -84,7 +89,7 @@ describe("ClosedLearningLoopCoordinator", () => {
           aiAuthority: input.aiAuthority,
         };
       },
-    }, () => 10_000);
+    }, AUTHORITY, () => 10_000);
     const waiting = coordinator.run(evidence());
     assert.equal(waiting.status, "WAITING_GOVERNANCE_APPROVAL");
     assert.equal(waiting.record.decision.outcome, "QUALIFIED_FOR_LEAGUE");
@@ -100,7 +105,7 @@ describe("ClosedLearningLoopCoordinator", () => {
   it("still fails closed on any other deployment fault", () => {
     const coordinator = new ClosedLearningLoopCoordinator(new MemoryRepository(), { evaluate: () => decision("QUALIFIED_FOR_LEAGUE") }, {
       deploy: () => { throw new Error("PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH"); },
-    }, () => 10_000);
+    }, AUTHORITY, () => 10_000);
     assert.throws(() => coordinator.run(evidence()), /PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH/);
   });
 
@@ -116,7 +121,7 @@ describe("ClosedLearningLoopCoordinator", () => {
         productionMutationAllowed: input.productionMutationAllowed,
         aiAuthority: input.aiAuthority,
       }),
-    }, () => 20_000);
+    }, AUTHORITY, () => 20_000);
 
     const result = coordinator.run(evidence());
     assert.equal(repository.history.length, 2);
@@ -137,7 +142,7 @@ describe("ClosedLearningLoopCoordinator", () => {
         deployments += 1;
         return { deploymentId: "paper-1", candidateId: input.decision.candidateId, candidateVersion: input.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" };
       },
-    }, () => 30_000);
+    }, AUTHORITY, () => 30_000);
     assert.equal(coordinator.run(evidence()).status, "EXECUTED");
     assert.equal(coordinator.run(evidence()).status, "REPLAYED");
     assert.equal(researchRuns, 1);
@@ -156,7 +161,7 @@ describe("ClosedLearningLoopCoordinator", () => {
         deployments += 1;
         return { deploymentId: "paper-resumed", candidateId: deployment.decision.candidateId, candidateVersion: deployment.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" };
       },
-    });
+    }, AUTHORITY);
     const result = restarted.run(input);
     assert.equal(result.status, "RESUMED");
     assert.equal(result.record.paperDeployment?.deploymentId, "paper-resumed");
@@ -176,7 +181,7 @@ describe("ClosedLearningLoopCoordinator", () => {
         productionMutationAllowed: true as false,
         aiAuthority: "ZERO_AUTHORITY",
       }),
-    });
+    }, AUTHORITY);
     assert.throws(() => coordinator.run(evidence()), /authority escaped its fail-closed boundary/);
   });
 

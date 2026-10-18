@@ -237,7 +237,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // default on the PAPER host; NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED makes candidates wait.
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
-  const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, Date.now, researchExperiments?.learningEvidenceAuthority);
+  if (researchExperiments?.learningEvidenceAuthority == null) throw new Error("closed learning durable evidence authority is unavailable");
+  const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, researchExperiments.learningEvidenceAuthority, Date.now);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
   const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => coordinator.runAsync(input);
 
