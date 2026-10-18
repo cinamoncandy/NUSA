@@ -78,6 +78,16 @@ describe("A2 learning input set canonicalization", () => {
     assertLearningInputSet(buildLearningInputSet(input({ researchEvidence: [] })));
   });
 
+  it("revalidates the meta partition identity at the persisted trust boundary", () => {
+    const valid = buildLearningInputSet(input());
+    for (const metaPartitionIdentity of [undefined, "not valid!"]) {
+      assert.throws(
+        () => assertLearningInputSet({ ...valid, metaPartitionIdentity } as never),
+        (error: unknown) => error instanceof LearningInputSetError && error.code === "MALFORMED_INPUT_SET",
+      );
+    }
+  });
+
   it("emits the exact paper-period references the retention guard needs", () => {
     const set = buildLearningInputSet(input({
       paperEvidence: [

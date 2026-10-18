@@ -217,6 +217,7 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
   if (candidate.schemaVersion !== LEARNING_INPUT_SET_SCHEMA_VERSION) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set schema version is unsupported");
   if (candidate.canonicalOrderingVersion !== LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set canonical ordering version is unsupported");
   if (!Number.isSafeInteger(candidate.cutoffTimestamp) || (candidate.cutoffTimestamp as number) < 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set cutoff is invalid");
+  if (typeof candidate.metaPartitionIdentity !== "string" || !POLICY_VERSION.test(candidate.metaPartitionIdentity)) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set meta partition identity is invalid");
   for (const lane of ["researchEvidenceRecordIds", "paperEvidenceRecordIds"] as const) {
     if (!Array.isArray(candidate[lane])) throw new LearningInputSetError("MALFORMED_INPUT_SET", lane + " must be a list");
   }
