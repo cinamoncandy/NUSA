@@ -4,10 +4,10 @@ status: IMPLEMENTING
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
-implementation_branch: codex/independent-evidence-verifier
+base_commit: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
+implementation_branch: codex/paper-policy-fingerprint-verify
 authority_impact: research_paper_evidence_binding
-objective: "Close the first missing identity edge found while starting P0-5: persist the exact current Strategy Governance authorization that was checked for a PAPER challenger, preserve it in the existing append-only binding ledger, and require it for restart/replay and closed-learning evidence."
+objective: "Persist the exact Strategy Governance authorization on the existing append-only PAPER binding ledger, and independently recompute deterministic POLICY authorization identity from the immutable Research lineage on replay."
 architecture_impact:
   acknowledged: true
   analysis: "Reuses PaperChallengerBindingLedger and its existing hash-chained Evolution Learning store. No duplicate verifier/store. Legacy activation records remain readable but cannot seed new closed-learning evidence without Governance identity."
@@ -50,8 +50,8 @@ validation:
   fresh_non_author_validation: PENDING
   independent_audit: PENDING
   release: PENDING
-first_broken_transition: "Governance authorization → durable PAPER activation identity"
-next: "Run fresh exact-head checks, independent validation and Audit; then continue P0-5 by reconciling the remaining sealed dataset/precommit/experiment/candidate/governance/PAPER cross-links."
+first_broken_transition: "persisted deterministic POLICY approval fingerprint → canonical recomputation from immutable Research lineage"
+next: "Run fresh exact-head CI; obtain exact-head fresh non-author validator acceptance before any Audit request; then continue the full P0-5 artifact graph verifier."
 safety:
   paper_only: true
   liveAuthority: NONE
