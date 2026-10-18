@@ -14,7 +14,7 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const SOURCE_SHA = "1".repeat(40);
 const AUTHORITY = createLearningEvidenceAuthorityFromReaders({
-  readResearch: (recordId) => recordId.startsWith("league-run:") ? { recordId, recordedAt: 1 } : undefined,
+  readResearch: (recordId) => recordId === "17" ? { recordId, recordedAt: 1 } : undefined,
   readPaper: (recordId) => /^\d+$/.test(recordId) ? { recordId, recordedAt: 1 } : undefined,
 });
 
@@ -27,7 +27,7 @@ function evidence(overrides: Partial<ClosedLearningEvidenceIdentity> = {}): Clos
     sourceCommitSha: SOURCE_SHA,
     costModelVersion: "paper-cost-v3",
     riskConfigHash: HASH_B,
-    evidenceReferences: ["paper-period:42", "league-run:17"],
+    evidenceReferences: ["paper-period:42", "research-evaluation:17"],
     ...overrides,
   };
 }
@@ -68,6 +68,36 @@ describe("ClosedLearningLoopCoordinator", () => {
       assert.equal(evaluations, 0);
       assert.equal(repository.history.length, 0);
     }
+  });
+
+  it("rejects unknown evidence namespaces before any durable or research side effect", () => {
+    let evaluations = 0;
+    const repository = new MemoryRepository();
+    const coordinator = new ClosedLearningLoopCoordinator(
+      repository,
+      { evaluate: () => { evaluations += 1; return decision("REJECTED"); } },
+      { deploy: () => { throw new Error("must not deploy"); } },
+      createLearningEvidenceAuthorityFromReaders({ readResearch: () => undefined, readPaper: () => undefined }),
+    );
+
+    assert.throws(() => coordinator.run(evidence({ evidenceReferences: ["league-run:17"] })), /namespace is invalid/);
+    assert.equal(evaluations, 0);
+    assert.equal(repository.history.length, 0);
+  });
+
+  it("rejects duplicate evidence references before any durable or research side effect", () => {
+    let evaluations = 0;
+    const repository = new MemoryRepository();
+    const coordinator = new ClosedLearningLoopCoordinator(
+      repository,
+      { evaluate: () => { evaluations += 1; return decision("REJECTED"); } },
+      { deploy: () => { throw new Error("must not deploy"); } },
+      AUTHORITY,
+    );
+
+    assert.throws(() => coordinator.run(evidence({ evidenceReferences: ["paper-period:42", "paper-period:42"] })), /duplicate/);
+    assert.equal(evaluations, 0);
+    assert.equal(repository.history.length, 0);
   });
   it("persists REJECTED and INSUFFICIENT decisions without PAPER deployment", () => {
     for (const outcome of ["REJECTED", "INSUFFICIENT"] as const) {

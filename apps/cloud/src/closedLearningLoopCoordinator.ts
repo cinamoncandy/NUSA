@@ -78,6 +78,17 @@ export interface ClosedLearningCycleResult {
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const SAFE_REF = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
+const RESEARCH_EVIDENCE_PREFIX = "research-evaluation:";
+const PAPER_EVIDENCE_PREFIX = "paper-period:";
+
+function parseEvidenceReference(reference: string): { readonly lane: "research" | "paper"; readonly recordId: string } {
+  const prefix = reference.startsWith(RESEARCH_EVIDENCE_PREFIX)
+    ? RESEARCH_EVIDENCE_PREFIX
+    : reference.startsWith(PAPER_EVIDENCE_PREFIX) ? PAPER_EVIDENCE_PREFIX : undefined;
+  const recordId = prefix == null ? "" : reference.slice(prefix.length);
+  if (!recordId || !SAFE_REF.test(recordId)) throw new Error("closed learning evidence reference namespace is invalid");
+  return Object.freeze({ lane: prefix === RESEARCH_EVIDENCE_PREFIX ? "research" : "paper", recordId });
+}
 
 function required(value: string, field: string): string {
   const normalized = value.trim();
@@ -115,7 +126,9 @@ function normalizeIdentity(input: ClosedLearningEvidenceIdentity): ClosedLearnin
   const riskConfigHash = required(input.riskConfigHash, "riskConfigHash").toLowerCase();
   if (!SHA256.test(evidenceFingerprintSha256) || !SHA256.test(riskConfigHash)) throw new Error("closed learning evidence hashes are invalid");
   if (!/^[a-f0-9]{40}$/.test(sourceCommitSha)) throw new Error("sourceCommitSha must be a git SHA-1");
-  const evidenceReferences = [...new Set(input.evidenceReferences.map((value) => required(value, "evidenceReference")))].sort();
+  const evidenceReferences = input.evidenceReferences.map((value) => required(value, "evidenceReference"));
+  if (new Set(evidenceReferences).size !== evidenceReferences.length) throw new Error("closed learning evidence references contain a duplicate");
+  evidenceReferences.sort();
   if (evidenceReferences.length === 0 || evidenceReferences.some((value) => !SAFE_REF.test(value))) throw new Error("closed learning evidence references are invalid");
   return Object.freeze({ evidenceId, evidenceFingerprintSha256, championId, championVersion, sourceCommitSha, costModelVersion, riskConfigHash, evidenceReferences: Object.freeze(evidenceReferences) });
 }
@@ -174,17 +187,15 @@ export class ClosedLearningLoopCoordinator {
   }
 
   private assertDurableEvidence(identity: ClosedLearningEvidenceIdentity): void {
-    for (const recordId of identity.evidenceReferences) {
-      const isPaper = recordId.startsWith("paper-period:");
-      const authorityRecordId = isPaper ? recordId.slice("paper-period:".length) : recordId;
-      if (!authorityRecordId) throw new Error("closed learning evidence reference is malformed");
-      const research = isPaper ? undefined : this.evidenceAuthority.readResearch(authorityRecordId);
-      const paper = isPaper ? this.evidenceAuthority.readPaper(authorityRecordId) : undefined;
-      const resolved = research ?? paper;
-      if (resolved != null && (resolved.recordId !== authorityRecordId || !Number.isSafeInteger(resolved.recordedAt) || resolved.recordedAt < 0)) {
+    for (const reference of identity.evidenceReferences) {
+      const parsed = parseEvidenceReference(reference);
+      const resolved = parsed.lane === "research"
+        ? this.evidenceAuthority.readResearch(parsed.recordId)
+        : this.evidenceAuthority.readPaper(parsed.recordId);
+      if (resolved != null && (resolved.recordId !== parsed.recordId || !Number.isSafeInteger(resolved.recordedAt) || resolved.recordedAt < 0)) {
         throw new Error("closed learning evidence authority returned malformed evidence");
       }
-      if ((research == null) === (paper == null)) throw new Error("closed learning evidence is not uniquely backed by the canonical durable authority");
+      if (resolved == null) throw new Error("closed learning evidence is not backed by its canonical durable authority");
     }
   }
 
