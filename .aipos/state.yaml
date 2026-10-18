@@ -2446,6 +2446,20 @@ current_mobile_home_simplify:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 
+current_ops_oracle_stage_space:
+  work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  status: VALIDATOR_P1_REPAIRED_PENDING_EXACT_HEAD_CI
+  branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  issue: 2791
+  pull_request: 2805
+  base_sha: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
+  evidence: "Oracle release 39100544697 failed guarded staging: available 5280886784, required 5949247701, source 1550406500; artifact 506610705 bytes. Diagnosis 39100280323 showed 7.4G free and two protected releases."
+  previous_pr_head: 0dabdbfb087f83979eac3d72df096f0a01325cbc
+  previous_pr_head_ci: "CI 39103178517 and exact-head companions PASS, but fresh Codex Validator found P1 unsafe mv copy fallback; this head is superseded."
+  validation: "Exact head 0dabdbfb087f83979eac3d72df096f0a01325cbc had full PR CI PASS, but fresh Codex Validator found P1: GNU mv can silently copy after rename failure, bypassing rename-only headroom. Local repair uses mv --no-copy and re-applies full-copy headroom before explicit fallback copy; focused workflow tests 23/23, bash -n, and git diff --check PASS. Fresh exact-head CI required."
+  next: "Commit the P1 rename-only repair, run fresh exact-head CI, then obtain a fresh non-author review of that exact head. After merge, install the reviewed root-owned helper through the canonical host path before exact-main release/runtime verification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_paid_overflow_off_20261014:
   work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
   status: LOCAL_HARDENING_VALIDATED_PENDING_FRESH_CI
