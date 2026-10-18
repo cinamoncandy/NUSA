@@ -611,6 +611,8 @@ export class PaperRealizedPeriodProducer {
     } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
   }
 
+  public nextPeriodIndex(): number { return this.repository.nextPeriodIndex(); }
+
   public listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[] {
     try { return this.repository.list(); }
     catch (error) { throw this.reject(error); }

@@ -125,6 +125,25 @@ describe("PaperRealizedPeriodProducer", () => {
     } finally { state.db.close(); }
   });
 
+  it("recovers only the schema-v1 successor after a schema-v2 terminal disposition and keeps replay idempotent", () => {
+    const state = producer();
+    const successorState = producer();
+    try {
+      state.producer.openPeriod(openPeriod(0));
+      successorState.producer.openPeriod(openPeriod(1));
+      const original = state.repository.getPending("period-0")!;
+      const successor = successorState.repository.getPending("period-1")!;
+      const request = { original, successor, reason: { stage: "PERIOD_CLOSE" as const, code: "INCOMPLETE_EXECUTION_COST_EVIDENCE" as const, boundaryAt: successor.periodStartAt, sourceRuntimeSha: null, blockedEvidenceFingerprintSha256: HASH } };
+      const receipt = state.repository.markPendingIneligible(request);
+      const restarted = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(state.db), { retentionGuard });
+      assert.deepEqual(restarted.listOpenPeriods().map((item) => item.periodId), ["period-1"]);
+      assert.equal(restarted.nextPeriodIndex(), 2);
+      assert.deepEqual(state.repository.markPendingIneligible(request), receipt, "replay returns the immutable receipt");
+      assert.equal(state.repository.listPending().length, 1, "replay never duplicates the successor");
+      assert.equal(state.repository.listPendingDispositions().length, 1, "terminal original remains exactly once");
+    } finally { state.db.close(); successorState.db.close(); }
+  });
+
   it("rejects missing cost provenance, candidate/provenance retirement, and chronology overlap", () => {
     const state = producer();
     try {

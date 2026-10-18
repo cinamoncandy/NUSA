@@ -84,6 +84,7 @@ function runtimeWith(governance: ConstructorParameters<typeof PaperChallengerDep
     bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
     periods: {
       listRealizedPeriods: () => Object.freeze([]),
+      nextPeriodIndex: () => 0,
       openPeriodFromCanonicalAccount: (input) => {
         opens.push(input);
         return Object.freeze({ ...input, schemaVersion: 1 as const, observationIds: Object.freeze([]), observations: Object.freeze([]) });

@@ -54,6 +54,13 @@ test("the small PAPER host receives a sealed build instead of installing or buil
   assert.doesNotMatch(release, /pnpm install|pnpm run build/);
 });
 
+test("the host drops only the verified temporary archive after extraction", () => {
+  const unpackStart = workflow.indexOf("Verify and unpack the exact built release");
+  const unpackEnd = workflow.indexOf("Require reviewed host release helper exact match", unpackStart);
+  const unpack = workflow.slice(unpackStart, unpackEnd);
+  orderIn(unpack, ["sha256sum --check --status", 'tar -xzf "$RUNNER_TEMP/nusa-release.tar.gz"', 'rm -- "$RUNNER_TEMP/nusa-release.tar.gz"']);
+});
+
 test("the host privileged helper must exactly match the reviewed release helper before backup", () => {
   const release = workflow.slice(workflow.indexOf("  release:"));
   const helperGate = release.indexOf("Require reviewed host release helper exact match");
@@ -145,12 +152,19 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   const stageGateEnd = wrapper.indexOf("\n}\n", stageGateStart) + 2;
   const stageGate = wrapper.slice(stageGateStart, stageGateEnd);
   assert.match(stageGate, /du -sb/);
+  assert.match(stageGate, /stat -c '%d'/);
+  assert.match(stageGate, /source_device.*release_device/);
   assert.match(stageGate, /ROOT_DISK_STAGE_MARGIN_BYTES/);
   assert.match(stageGate, /ROOT_DISK_GUARD_PERCENT/);
 
   const stageCaseStart = wrapper.indexOf("  stage)");
   const stageCaseEnd = wrapper.indexOf("\n\n  switch)", stageCaseStart);
   assert.match(wrapper.slice(stageCaseStart, stageCaseEnd), /assert_stage_disk_headroom "\$source_tree"/);
+  const stageCase = wrapper.slice(stageCaseStart, stageCaseEnd);
+  assert.match(stageCase, /mv --no-copy -T -- "\$source_tree" "\$dir"/);
+  assert.match(stageCase, /assert_stage_disk_headroom "\$source_tree" true/);
+  assert.match(stageCase, /tar -cf - .*tar -xf -/s);
+  orderIn(stageCase, ['mv --no-copy -T -- "$source_tree" "$dir"', 'assert_stage_disk_headroom "$source_tree" true', 'tar -cf - --exclude=.git -C "$source_tree" .']);
 
   const preflightStart = wrapper.indexOf("  preflight)");
   const preflightEnd = wrapper.indexOf("\n\n  install-units)", preflightStart);
@@ -217,9 +231,12 @@ test("the wrapper lives outside the release tree it installs", () => {
   assert.doesNotMatch(workflow, /STEP: \/opt\/nusa\/(current|releases)/);
 });
 
-test("the wrapper validates the only caller-supplied value that reaches a path", () => {
+test("the wrapper validates the SHA and confines privileged staging to the runner temp", () => {
   assert.match(wrapper, /\^\[0-9a-f\]\{40\}\$/, "the SHA is validated in the wrapper, not trusted from the caller");
   assert.match(wrapper, /release_dir\(\)/, "paths are rebuilt from the validated SHA");
+  assert.match(wrapper, /RUNNER_TEMP_ROOT=\/opt\/actions-runner-nusa-paper\/_work\/_temp/);
+  assert.match(wrapper, /nusa-release-tree-\[0-9\]\+/);
+  assert.match(wrapper, /\[ -d "\$source_tree" \]/);
   assert.match(wrapper, /set -euo pipefail/);
 });
 
