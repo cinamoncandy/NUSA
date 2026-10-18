@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "workOrder": "WO-OPS-20261016-PAPER-WRITER-CAUSE",
+  "baseSha": "67630b806996a0774fa41d772e61de6192493a84",
+  "scope": "First-cause preservation only; initiating runtime lease failure not yet proven or repaired",
+  "reproduction": {
+    "code": "canonical c26 emitted production code in isolated worktree",
+    "result": "FAIL_EXPECTED",
+    "evidence": "new heartbeat regression observes missing causeCode, including real SQLite writer-lock failure; no production fault injection"
+  },
+  "validation": {
+    "focused": {
+      "passed": 28,
+      "failed": 0,
+      "command": "node --test dist/apps/cloud/src/runtimeFailureRecord.test.js tests/paper-writer-first-cause.test.js tests/paper-writer-lease-recovery.test.js tests/paper-runtime-supervisor-lease-recovery.test.js tests/cloud-paper-fill-ledger.test.js tests/cloud-paper-idempotency-retention.test.js"
+    },
+    "strictBuild": "PASS managed Node24.19 TypeScript5.9.3",
+    "rootTypecheck": "PASS managed Node24.19 TypeScript5.9.3",
+    "mobileTypecheck": "PASS managed Node24.19 TypeScript5.9.3",
+    "sourceIdentity": "1424 tracked TS/TSX/config hashes compared; all 1422 applicable files match; only two root tests outside tsconfig include differ",
+    "validateFull": "PASS",
+    "lint": "PASS: 0 errors, 24 existing warnings",
+    "security": "PASS: zero secrets and zero unmitigated high/critical advisories",
+    "runtimeRegression": {
+      "passed": 34,
+      "failed": 0,
+      "command": "node --test tests/cloud-paper-trading-execution-loop.test.js tests/cloud-paper-accounting-ledger.test.js tests/cloud-paper-orderbook-working-restart.test.js tests/closed-learning-daemon-fatal-exit.test.js"
+    },
+    "exactSourceGuards": {
+      "pass": 6,
+      "fail": 0
+    },
+    "validateFullAfterSourceBinding": "PASS"
+  },
+  "runtime": {
+    "oracleRun": 38844361890,
+    "deployedSha": "c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f",
+    "readiness": "PASS but followed by multiple real lease losses; not sustained runtime acceptance",
+    "latestNaturalProcessStartedAt": 1792121513370,
+    "latestObservedHeartbeatAt": 1792122523543,
+    "localHealth": 200,
+    "publicHealth": 200,
+    "fills": 130,
+    "realizedPeriods": 20,
+    "durableLearningCycles": 0,
+    "holdoutPasses": 0,
+    "partialFeedback": "20 baseline periods consumed by metaLearning; not a qualified closed-learning cycle",
+    "performanceImprovement": "UNPROVEN"
+  },
+  "independentReview": "P0=0 P1=0 P2=1 on ba61f9f85bc62e556cb62c9e110c7b6fb2058b26; receipt https://github.com/cinamoncandy/NUSA/pull/2739#issuecomment-6219576287; P2 is stale head/CI metadata only and requires fresh non-author clearance",
+  "exactHeadCI": "PASS run 38924202514 on reviewed pre-metadata head ba61f9f85bc62e556cb62c9e110c7b6fb2058b26; this receipt-only successor requires fresh exact-head CI",
+  "audit": "PENDING",
+  "release": "PENDING",
+  "safety": {
+    "paperOnly": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "leasePredicatesAndTimingUnchanged": true,
+    "noRiskQualificationOrCapitalChange": true
+  },
+  "VERIFIED": false,
+  "AUTOPILOT_VERIFIED_COMPLETION_LOOP": false,
+  "ciHistory": [
+    {
+      "head": "749ecbe56b4cced78d598411f5123673242e924b",
+      "run": 38847714635,
+      "result": "FAILURE",
+      "cause": "PAPER_ADAPTER canonical source blob binding stale after writer diagnostics change; coverage-core-3 module10XS; all other core shards and validation passed"
+    }
+  ],
+  "qualificationBindingRepair": {
+    "sourceCommit": "b9cb7bde15bfa581159f263220a1d113b250dadc",
+    "sourceBlob": "0f5de0d7d3a7322005a3d6e2c193573cf2f050d3",
+    "reproduction": "module10XS + PAPER_ADAPTER requalification: 2 failures before rebinding; 6/6 PASS after",
+    "behavioralEvidence": "62 focused/runtime regressions PASS on exact implementation",
+    "qualification": "TARGET_ONLY; CANONICAL_ENTRYPOINT and all independent criteria remain UNVERIFIED; no acceptance promoted",
+    "scope": "Existing source-provenance binding only, not relaxation of qualification baseline or thresholds"
+  },
+  "latestMainRestartReplay": {
+    "sourceSha": "67630b806996a0774fa41d772e61de6192493a84",
+    "result": "TRANSIENT_LEASE_FAILURE_THEN_RECOVERED_WITHOUT_DATABASE_MUTATION",
+    "readiness": "HTTP 200; database, migrations, dashboardPersistence and runtimeRecovery all true",
+    "runtime": "health HTTP 200; 170 fills and 170 unique fill ids; last fill timestamp unchanged; open positions 0",
+    "closedLearning": "21 realized PAPER periods; 0 evaluated/recorded cycles; blocked by INCOMPLETE_EXECUTION_COST_EVIDENCE",
+    "failureRecord": "generic PAPER_WRITER_LEASE_LOST; no causeCode on deployed source",
+    "leaseRowsAtStableInspection": 1,
+    "cause": "UNPROVEN; no lease reset, takeover, or database mutation performed"
+  },
+  "rebaseValidation": {
+    "baseSha": "67630b806996a0774fa41d772e61de6192493a84",
+    "focusedTests": "29/29 PASS after clean rebase and source-provenance conflict resolution",
+    "build": "PASS",
+    "typecheck": "PASS root and mobile",
+    "validateFull": "PASS",
+    "lint": "PASS, 0 errors and 24 existing warnings",
+    "securityGate": "PASS, 0 secrets and 0 unmitigated high/critical advisories",
+    "aiposProvenance": "PASS",
+    "exactHeadCi": "PASS run 38924202514 on ba61f9f85bc62e556cb62c9e110c7b6fb2058b26; metadata successor pending",
+    "independentReview": "P0=0 P1=0 P2=1 stale receipt metadata; code/safety scope PASS; fresh review required after repair"
+  },
+  "reviewHistory": [
+    {
+      "reviewedHead": "ba61f9f85bc62e556cb62c9e110c7b6fb2058b26",
+      "baseSha": "67630b806996a0774fa41d772e61de6192493a84",
+      "ciRun": 38924202514,
+      "findings": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 1
+      },
+      "p2": "PR body and committed receipts referenced pre-rebase head/CI or PENDING",
+      "receipt": "https://github.com/cinamoncandy/NUSA/pull/2739#issuecomment-6219576287",
+      "disposition": "METADATA_REPAIR_PENDING_FRESH_EXACT_HEAD_CI_AND_NONAUTHOR_CLEARANCE"
+    }
+  ]
+}

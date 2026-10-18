@@ -3241,6 +3241,19 @@ current_runtime_startup_evidence_invalidation_20261015:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   next: "Draft review/CI, then canonical Audit/Release and exact-main rollout. Learning still requires a genuinely qualified challenger; no threshold relaxation."
 
+current_runtime_writer_cause_20261016:
+  work_order: WO-OPS-20261016-PAPER-WRITER-CAUSE
+  branch: codex/paper-writer-lease-cause-20261016
+  original_base_sha: 67630b806996a0774fa41d772e61de6192493a84
+  latest_main_reconvergence_base: 3659e45e011032b71e37896eed7c3aef2580c153
+  implementation_merge_commit: 1ae09a01865f4856ae1e1cdb63e8ccc1bd976824
+  status: LATEST_MAIN_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_REVIEW
+  first_broken_transition: exact-main restart/replay -> stable PAPER listener and writer-lease recovery
+  scope: 'Diagnostic precondition only; initiating runtime lease failure cause remains unproven. Writer first-cause retention is merged with current liveness/startup recovery locally; no authority or recovery policy is widened.'
+  local_validation: '31/31 focused PASS; typecheck/build/preflight/validate:full/security PASS; lint 0 errors and 26 pre-existing warnings; PAPER_ADAPTER blob 1113297fa143b4e26318e3c57152bdf2d620ddb6 exact-source check PASS.'
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: Commit AIPOS sync -> push exact head -> fresh exact-head CI -> fresh non-author Validator -> canonical Audit/Release -> exact-main natural runtime diagnosis.
+
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
   status: LOCAL_VALIDATED_PENDING_CI
