@@ -56,15 +56,16 @@ validation:
   focused_tests: "57/57 focused Governance/PAPER/deployment/closed-learning tests PASS after v1 POLICY replay-read compatibility repair"
   local_adversarial_followup: "PASS: candidateVersion, strategyId, POLICY→HUMAN namespace downgrade, approval fingerprint, original Research snapshot substitution, tampered v1 POLICY identity, and new-v1-activation attempts are rejected; exact historical v1 POLICY receipt remains readable only after Governance eligibility is removed."
   review_feedback: "Latest non-author Codex review on fa65b0a765c477613d7db316125f84f0fb43f507 found P1: the v2 identity bump made exact historical v1 POLICY activations unreadable during lifecycle replay. Repair commit 0efd828ea7d45a2297d68a9e5b16687926ff9ca4 adds replay-only exact v1 identity verification; a verified v1 receipt is returned as legacy ungoverned evidence, while tampered v1 and all new v1 activation attempts fail closed. No historical record is rewritten."
-  local_post_v1_repair: "typecheck PASS; build PASS; preflight PASS; validate:full PASS; security:gate PASS; lint PASS with 26 pre-existing warnings and zero errors; diff check PASS"
+  local_post_v1_repair: "typecheck PASS; build PASS; 57/57 focused tests PASS; preflight PASS; validate:full PASS; security:gate PASS; lint PASS with 26 pre-existing warnings and zero errors after merging protected main 3659e45e011032b71e37896eed7c3aef2580c153; diff check required before push"
   implementation_commit: 0efd828ea7d45a2297d68a9e5b16687926ff9ca4
-  previous_exact_head_ci: PASS_ON_fa65b0a_INVALIDATED_BY_V1_REPLAY_READ_REPAIR
-  exact_head_ci: PENDING_FOR_V1_REPLAY_READ_REPAIR_CANDIDATE
-  fresh_non_author_validation: PENDING_FOR_POST_REPAIR_EXACT_HEAD
+  latest_main_integrated: 3659e45e011032b71e37896eed7c3aef2580c153
+  previous_exact_head_ci: PASS_ON_7e0fd8d5_INVALIDATED_BY_REQUIRED_MAIN_INTEGRATION
+  exact_head_ci: DYNAMIC_GITHUB_LOOKUP_REQUIRED_FOR_CURRENT_PR_HEAD
+  fresh_non_author_validation: DYNAMIC_EXACT_HEAD_REVIEW_REQUIRED
   independent_audit: PENDING
   release: PENDING
 first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
-next: "Commit this AIPOS evidence sync, push the resulting exact PR head, require fresh exact-head CI/runtime, then request a separate fresh non-author Validator on that exact SHA before Audit."
+next: "Push the locally validated integrated candidate, verify GitHub CI/runtime against the resulting exact PR head, then request a separate fresh non-author Validator against that same SHA before Audit. Static AIPOS must not self-claim the final SHA's future CI/review result; verify those receipts dynamically from GitHub."
 safety:
   paper_only: true
   liveAuthority: NONE
