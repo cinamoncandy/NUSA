@@ -1,6 +1,6 @@
 id: WO-OPS-20261018-ORACLE-STAGE-SPACE
 title: "Avoid duplicate Oracle release staging bytes without weakening disk guards"
-status: DRAFT_PR_PENDING_VALIDATOR_AND_EXACT_HEAD_CI
+status: DRAFT_PR_CI_PASS_PENDING_VALIDATOR_AND_STATE_SYNC_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2791
@@ -40,7 +40,7 @@ verification_commands:
   - pnpm run validate:full
   - pnpm run security:gate
   - pnpm exec eslint tests/oracle-paper-release-workflow.test.js
-validation: "23/23 Oracle release workflow tests PASS; bash -n PASS; validate:full PASS (including 496-file AIPOS YAML, architecture/drift, and safety); security:gate PASS; targeted ESLint PASS; git diff --check PASS. Exact-head CI and independent review remain pending."
+validation: "Local: 23/23 Oracle release workflow tests, bash -n, validate:full, security:gate, targeted ESLint, and git diff --check PASS. Exact PR head 8dc40bde0650cece25b2a7fa52846576da0b9cf3: CI run 39102766731 and actual-paper-runtime/bridge/guard/readiness/rehearsal/verify companions PASS. Independent review absent. This AIPOS sync changes the head, so its new exact-head CI remains required."
 previous_pr_head: 4e833be0680c9fd57464bc89e317f59bb9856904
 previous_pr_head_ci: "Checks were in progress on this head when AIPOS handoff was synchronized; those results will not be reused."
 residual: "The exact-main release will continue refusing to run until the reviewed root-owned host helper is installed through its canonical infrastructure path. No Oracle server mutation or runtime proof is claimed."

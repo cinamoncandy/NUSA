@@ -2448,7 +2448,7 @@ current_mobile_home_simplify:
 
 current_ops_oracle_stage_space:
   work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
-  status: DRAFT_PR_PENDING_VALIDATOR_AND_EXACT_HEAD_CI
+  status: DRAFT_PR_CI_PASS_PENDING_VALIDATOR_AND_STATE_SYNC_CI
   branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
   issue: 2791
   pull_request: 2805
@@ -2456,7 +2456,7 @@ current_ops_oracle_stage_space:
   evidence: "Oracle release 39100544697 failed guarded staging: available 5280886784, required 5949247701, source 1550406500; artifact 506610705 bytes. Diagnosis 39100280323 showed 7.4G free and two protected releases."
   previous_pr_head: 4e833be0680c9fd57464bc89e317f59bb9856904
   previous_pr_head_ci: "Checks started before this AIPOS sync and will not be reused."
-  validation: "Oracle release workflow tests 23/23 PASS; bash -n PASS; validate:full PASS (including preflight, AIPOS YAML 496 files, architecture/drift, and safety); security:gate PASS; targeted ESLint PASS; git diff --check PASS. Fresh exact-head CI and independent review pending."
+  validation: "Local 23/23 workflow tests, bash -n, validate:full, security:gate, targeted ESLint and diff check PASS. Exact PR head 8dc40bde0650cece25b2a7fa52846576da0b9cf3: CI 39102766731 and actual-paper-runtime, bridge, guard, readiness, rehearsal, verify companions PASS. Independent review absent; this AIPOS sync requires fresh exact-head CI before merge."
   next: "Verify fresh exact-head CI after this AIPOS sync; keep PR draft until independent review. Then use canonical host-helper install/release path; do not mutate Oracle host or claim deployed runtime."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
