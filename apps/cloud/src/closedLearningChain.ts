@@ -7,7 +7,7 @@ import { LearningDecisionLedger, type LearningDecisionReceipt } from "./learning
 import { applyBoundedChange, ApplicationRegistry, type ApplicationPorts, type ApplicationContext, type MetaOosEligibility } from "./learningApplication";
 import { LearningApplicationLedger, type LearningApplicationDurableReceipt } from "./learningApplicationLedger";
 import { MetaOosLedger, type MetaOosDurableReceipt } from "./metaOosLedger";
-import type { HoldoutClaimPort, MetaPartition } from "./metaOos";
+import type { HoldoutClaimPort, MetaOosCompletionEvidence, MetaPartition } from "./metaOos";
 import { buildLearningLoopStatus, type LearningLoopStatus } from "./learningLoopStatus";
 
 /**
@@ -32,8 +32,9 @@ import { buildLearningLoopStatus, type LearningLoopStatus } from "./learningLoop
  * returns the identical receipt without reaching the setter again.
  *
  * The chain is fail-closed by ordering. Meta-out-of-sample eligibility is derived from *recorded
- * assignments only*, so a cycle with no completed partitions behind it produces a refusal rather than
- * a change, and a refusal is still a durable, reported outcome (v2 sections 12, 50).
+ * assignments whose cycles actually completed*, so a cycle with no resolved history behind it - or
+ * with history in one partition only - produces a refusal rather than a change, and a refusal is
+ * still a durable, reported outcome (v2 sections 12, 50).
  */
 
 type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
@@ -120,9 +121,10 @@ export class ClosedLearningChain {
    * Runs the full chain for one cycle and returns every receipt it produced.
    *
    * Order is fixed and load-bearing: the input set joins the lanes, the decision is derived from that
-   * joined set, the partition is assigned and claimed, eligibility is read back from recorded
-   * assignments only, and only then may a bounded change be attempted. A failure at any step leaves
-   * the earlier receipts durable and the later steps unattempted.
+   * joined set, the partition is assigned and claimed, the decision is made durable so the cycle
+   * counts as completed, eligibility is read back from those completed cycles only, and only then may
+   * a bounded change be attempted. A failure at any step leaves the earlier receipts durable and the
+   * later steps unattempted.
    */
   public run(cycle: LearningChainCycle, applicationPorts: ApplicationPorts): LearningChainResult {
     if (cycle == null || typeof cycle !== "object") throw new LearningChainError("MALFORMED_CYCLE", "a learning cycle is required");
@@ -131,12 +133,19 @@ export class ClosedLearningChain {
     const inputSet = this.buildInputSet(cycle);
     const inputSetReceipt = this.inputSets.append(inputSet);
 
-    // A1: the decision is derived from the joined set. Its meta-cycle count is taken from *other*
-    // cycles in this partition, so a decision can never cite its own partition as the evidence
-    // backing it - that would be the decision vouching for itself. Excluding this cycle by identity
-    // rather than by time is also what makes replay stable: this cycle's own assignment, once
-    // durable, must not change the count the decision was recorded with.
-    const priorCycles = this.metaOos.assignments().filter((assignment) => assignment.partition === cycle.metaPartition && assignment.learningCycleId !== inputSetReceipt.learningCycleId).length;
+    // Completion evidence for the decision's own backing count, answered from the decision ledger
+    // rather than from assignments. This cycle is excluded by identity, so neither its own
+    // assignment nor its own decision can ever back itself - which is also what keeps replay stable,
+    // because re-running it appends nothing new to what it may cite.
+    const backingCycles: MetaOosCompletionEvidence = {
+      isCycleCompleted: (learningCycleId: string) => learningCycleId !== inputSetReceipt.learningCycleId && this.decisions.hasDecisionFor(learningCycleId),
+    };
+
+    // A1: the decision is derived from the joined set. Its meta-cycle count is taken from *other,
+    // completed* cycles in this partition, and it is taken here - before this cycle's assignment or
+    // decision exist - so a decision can never cite itself, nor a cycle that never resolved, as the
+    // evidence backing it.
+    const priorCycles = this.metaOos.assignments().filter((assignment) => assignment.partition === cycle.metaPartition && backingCycles.isCycleCompleted(assignment.learningCycleId)).length;
     const decision = buildLearningDecision({
       inputSet,
       previousResearchSpecFingerprint: cycle.previousResearchSpecFingerprint,
@@ -170,10 +179,20 @@ export class ClosedLearningChain {
       this.holdouts,
     );
 
-    const eligibility = this.metaOos.eligibility(cycle.metaPartition);
+    // The decision becomes durable now, which is what makes this cycle *completed* rather than merely
+    // assigned - the distinction eligibility turns on. It is safe to do before application is
+    // permitted, because the decision records reasoning and the holdout claim has already been
+    // taken above: a contaminated holdout still leaves the input set and no decision behind.
     const decisionReceipt = this.decisions.append(decision);
 
-    // A4: application only, and only against eligibility derived from recorded assignments.
+    // Eligibility is read back from recorded assignments whose cycles actually resolved, the current
+    // one included, because an accumulating evidence base always admits the sample that completes it.
+    // What no cycle may do is back its own decision, and that is already guaranteed: `priorCycles`
+    // was taken before this cycle had an assignment or a decision to count.
+    const eligibility = this.metaOos.eligibility({ isCycleCompleted: (learningCycleId: string) => this.decisions.hasDecisionFor(learningCycleId) });
+
+    // A4: application only, and only against eligibility derived from recorded assignments whose
+    // cycles actually resolved.
     const context: ApplicationContext = {
       applicationTimestamp: cycle.createdAt,
       runtimeIdentity: cycle.runtimeIdentity,
@@ -229,7 +248,7 @@ export class ClosedLearningChain {
     return buildLearningLoopStatus({
       ...(inputSet == null ? {} : { inputSet: { fingerprint: inputSet.fingerprint, learningCycleId: inputSet.learningCycleId } }),
       ...(decision == null ? {} : { decision: { fingerprint: decision.fingerprint } }),
-      ...(partition == null ? {} : { meta: { ...this.metaOos.eligibility(partition), partition } }),
+      ...(partition == null ? {} : { meta: this.metaOos.eligibility({ isCycleCompleted: (learningCycleId) => this.decisions.hasDecisionFor(learningCycleId) }) }),
       ...(application == null ? {} : { application: { fingerprint: application.fingerprint, applicationOutcome: application.receipt.applicationOutcome } }),
     });
   }

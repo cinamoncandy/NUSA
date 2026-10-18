@@ -1,5 +1,4 @@
 import type { ApplicationOutcome } from "./learningApplication";
-import type { MetaPartition } from "./metaOos";
 
 /**
  * M2 - the display-only learning loop status projection.
@@ -32,8 +31,9 @@ export type LearningLoopStatus = Readonly<{
   latestLearningDecisionFingerprint?: string;
   latestApplicationFingerprint?: string;
   applicationOutcome?: ApplicationOutcome;
-  metaPartition?: MetaPartition;
-  /** e.g. `INELIGIBLE - meta-OOS meta-holdout has 0 completed cycle(s) of 3 required`. A report, never an approval. */
+  /** e.g. `train+validation+holdout`. The scope the eligibility covers, never a single lane's vote. */
+  metaScope?: string;
+  /** e.g. `INELIGIBLE - meta-OOS has train 0/3, validation 0/3, holdout 0/3 completed cycle(s)`. A report, never an approval. */
   metaEligibility?: string;
   /** e.g. `links=4;lineage=3;fork=NONE`. */
   supersessionStatus?: string;
@@ -48,7 +48,7 @@ export interface LearningStatusSource {
   readonly application?: Readonly<{ readonly fingerprint: string; readonly applicationOutcome: ApplicationOutcome }>;
   readonly meta?: Readonly<{
     readonly eligible: boolean;
-    readonly partition: MetaPartition;
+    readonly partition: string;
     readonly cyclesEvaluated: number;
     readonly reason: string;
   }>;
@@ -89,7 +89,9 @@ export function buildLearningLoopStatus(source: LearningStatusSource): LearningL
     ...(source.meta == null
       ? {}
       : {
-          metaPartition: source.meta.partition,
+          // Eligibility is global rather than a vote per partition, so what travels here is the
+          // scope it covers. A bare partition would read as though that one lane decided.
+          metaScope: source.meta.partition,
           // The verdict and its reason travel together so a rendered line can never show a bare
           // permission without the condition that produced it.
           metaEligibility: (source.meta.eligible ? "ELIGIBLE" : "INELIGIBLE") + " - " + source.meta.reason,
@@ -130,7 +132,7 @@ export const LEARNING_STATUS_FIELDS: readonly string[] = Object.freeze([
   "latestLearningDecisionFingerprint",
   "latestApplicationFingerprint",
   "applicationOutcome",
-  "metaPartition",
+  "metaScope",
   "metaEligibility",
   "supersessionStatus",
   "explorationStatus",

@@ -139,6 +139,23 @@ export class LearningDecisionLedger {
     return Object.freeze({ decisionsRecorded: records.length, ...(latest == null ? {} : { latest }) });
   }
 
+  /**
+   * Whether a cycle durably reached a decision.
+   *
+   * This is A3's completion evidence. A partition assignment says which partition a cycle belongs
+   * to; it does not say the cycle resolved. Eligibility counts only cycles that also have a
+   * recorded decision, and the check is answered from these records rather than from the
+   * assignment, so an assignment cannot vouch for its own completion.
+   */
+  public hasDecisionFor(learningCycleId: string): boolean {
+    if (typeof learningCycleId !== "string" || learningCycleId.length === 0) return false;
+    for (const record of this.ledger.list()) {
+      if (!DECISION_RECORD.test(record.opportunityId)) continue;
+      if (parseReceipt(record).learningCycleId === learningCycleId) return true;
+    }
+    return false;
+  }
+
   /** Decisions whose outcome was a refusal, kept in the denominator rather than filtered out. */
   public rejections(): readonly LearningDecisionReceipt[] {
     const receipts: LearningDecisionReceipt[] = [];

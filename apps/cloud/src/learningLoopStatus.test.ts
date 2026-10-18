@@ -12,7 +12,7 @@ const FULL: LearningStatusSource = Object.freeze({
   inputSet: Object.freeze({ fingerprint: "a".repeat(64), learningCycleId: "learning-cycle:" + "a".repeat(64) }),
   decision: Object.freeze({ fingerprint: "b".repeat(64) }),
   application: Object.freeze({ fingerprint: "c".repeat(64), applicationOutcome: "REJECTED" as const }),
-  meta: Object.freeze({ eligible: false, partition: "meta-holdout" as const, cyclesEvaluated: 0, reason: "meta-OOS meta-holdout has 0 completed cycle(s) of 3 required" }),
+  meta: Object.freeze({ eligible: false, partition: "train+validation+holdout", cyclesEvaluated: 2, reason: "meta-OOS has train 1/3, validation 1/3, holdout 0/3 completed cycle(s); all three partitions are required at 3 each" }),
   supersession: Object.freeze({ links: 4, lineageLength: 3, forked: false }),
   exploration: Object.freeze({ attempts: 9, allotted: 4, suppressed: 5, exhausted: true, allotmentRemaining: 0 }),
 });
@@ -26,7 +26,7 @@ describe("M2 - display-only status projection (section 28)", () => {
     assert.equal(status.latestLearningDecisionFingerprint, "b".repeat(64));
     assert.equal(status.latestApplicationFingerprint, "c".repeat(64));
     assert.equal(status.applicationOutcome, "REJECTED");
-    assert.equal(status.metaPartition, "meta-holdout");
+    assert.equal(status.metaScope, "train+validation+holdout", "the scope is reported, never a single partition's vote");
     assert.match(status.supersessionStatus ?? "", /links=4/, "supersession count is reported");
     assert.match(status.supersessionStatus ?? "", /lineage=3/);
     assert.match(status.supersessionStatus ?? "", /fork=NONE/);

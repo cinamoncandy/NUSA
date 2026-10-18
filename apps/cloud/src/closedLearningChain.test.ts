@@ -3,9 +3,9 @@ import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { SqliteResearchHoldoutLedger, type HoldoutKey } from "../../../packages/storage/src/researchHoldoutLedger";
-import { ClosedLearningChain, type LearningChainCycle } from "./closedLearningChain";
+import { ClosedLearningChain, type LearningChainCycle, type LearningChainResult } from "./closedLearningChain";
 import type { ApplicationPorts } from "./learningApplication";
-import { META_MINIMUM_CYCLES_FOR_ELIGIBILITY } from "./metaOos";
+import { META_MINIMUM_CYCLES_FOR_ELIGIBILITY, META_PARTITIONS, type MetaPartition } from "./metaOos";
 
 /**
  * The integrated chain, exercised against the real append-only, hash-chained evolution ledger and the
@@ -62,6 +62,39 @@ function cycle(seed: string, overrides: Partial<LearningChainCycle> = {}): Learn
     runtimeIdentity: "runtime-test",
     ...overrides,
   });
+}
+
+let holdoutSerial = 0;
+
+/** A fresh, well-formed key. Single-use is per key, so a genuine holdout pass needs one each. */
+function nextHoldoutKey(): HoldoutKey {
+  holdoutSerial += 1;
+  return Object.freeze({ strategyConfigHash: holdoutSerial.toString(16).padStart(64, "0"), market: "KRW-BTC", intervalMs: 60_000, holdoutStartMs: 1_000, holdoutEndMs: 2_000 });
+}
+
+/**
+ * Runs `perPartition` genuine, independent cycles through each of the three partitions, in the order
+ * a real meta pass takes.
+ *
+ * This is what "a completed meta cycle" has to mean. Filing one assignment per partition is not a
+ * pass: each cycle here produces its own input set, its own decision, and - for holdout - its own
+ * single-use claim, so nothing is reused to make the floor arrive sooner.
+ */
+function runFullPass(chain: ClosedLearningChain, state: { value: number }, perPartition: number, tag: string): LearningChainResult[] {
+  const lanes: ReadonlyArray<readonly [MetaPartition, string]> = [
+    ["meta-train", "a"],
+    ["meta-validation", "b"],
+    ["meta-holdout", "c"],
+  ];
+  const results: LearningChainResult[] = [];
+  for (const [partition, lane] of lanes) {
+    for (let index = 0; index < perPartition; index += 1) {
+      const seed = tag + lane + index.toString(16);
+      const holdout = partition === "meta-holdout" ? { holdoutKey: nextHoldoutKey(), holdoutEvaluationId: "eval-" + seed } : {};
+      results.push(chain.run(cycle(seed, { metaPartition: partition, metaPartitionIdentity: partition, ...holdout }), ports(state)));
+    }
+  }
+  return results;
 }
 
 describe("Integrated chain - the two lanes join only here", () => {
@@ -128,44 +161,73 @@ describe("Integrated chain - fail closed, then open only at the floor", () => {
     }
   });
 
-  it("applies the bounded change on the cycle that reaches the floor, exactly once", () => {
+  it("applies the bounded change only once every partition reaches the floor, exactly once", () => {
     const { evolution, holdouts, now, close } = fixture();
     try {
       const chain = new ClosedLearningChain(evolution, holdouts, now);
       const state = { value: 1 };
 
-      chain.run(cycle("a"), ports(state));
-      chain.run(cycle("b"), ports(state));
-      assert.equal(state.value, 1, "still below the floor");
+      // Two completed cycles in each of the three partitions: a real, if short, meta pass.
+      runFullPass(chain, state, META_MINIMUM_CYCLES_FOR_ELIGIBILITY - 1, "p");
+      assert.equal(state.value, 1, "still below the floor, so nothing was written to the runtime");
 
-      const third = chain.run(cycle("c"), ports(state));
-      assert.equal(third.eligibility.eligible, true, "the floor is now met by recorded assignments");
-      assert.equal(third.eligibility.cyclesEvaluated, META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
-      assert.equal(third.applicationReceipt.receipt.applicationOutcome, "APPLIED");
+      // The pass that completes train, validation, and holdout at the floor together.
+      const results = runFullPass(chain, state, 1, "q");
+      const last = results.at(-1) as LearningChainResult;
+      assert.equal(last.eligibility.eligible, true, "the floor is now met across all three partitions");
+      assert.equal(last.eligibility.cyclesEvaluated, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
+      assert.equal(last.applicationReceipt.receipt.applicationOutcome, "APPLIED");
       assert.equal(state.value, 2, "the bounded change took effect once");
-      assert.equal(chain.summary().applications, 3, "one application record per decision, none duplicated");
-      assert.equal(chain.summary().assignments, META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
-      assert.match(third.status.metaEligibility ?? "", /^ELIGIBLE/, "the report and the behaviour agree");
+
+      const summary = chain.summary();
+      assert.equal(summary.decisions, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "one decision per completed cycle");
+      assert.equal(summary.applications, summary.decisions, "one application record per decision, none duplicated");
+      assert.equal(summary.assignments, summary.decisions);
+      assert.match(last.status.metaEligibility ?? "", /^ELIGIBLE/, "the report and the behaviour agree");
 
       // The projected status is derivable from durable history alone, after the fact.
-      assert.equal(chain.status().latestLearningCycleId, third.cycleId);
-      assert.equal(chain.status().latestApplicationFingerprint, third.applicationReceipt.fingerprint);
+      assert.equal(chain.status().latestLearningCycleId, last.cycleId);
+      assert.equal(chain.status().latestApplicationFingerprint, last.applicationReceipt.fingerprint);
     } finally {
       close();
     }
   });
 
-  it("counts recorded assignments, never what a decision asserts for itself", () => {
+  it("counts recorded completed cycles, never what a decision asserts for itself", () => {
     const { evolution, holdouts, now, close } = fixture();
     try {
       const chain = new ClosedLearningChain(evolution, holdouts, now);
       const result = chain.run(cycle("a"), ports({ value: 1 }));
-      // The chain derives the count from assignments it has actually recorded for this partition;
-      // the decision only states which partition it belongs to.
+      // The chain derives the backing count from *other* completed cycles in this partition; the
+      // decision only states which partition it belongs to, and may never count itself.
       assert.equal(result.decisionReceipt.decision.metaOosPartition, "meta-train");
+      assert.equal(result.decisionReceipt.decision.decisionOutcome, "INSUFFICIENT", "a first cycle has no prior completed cycle to cite, and may not cite the one it is producing");
       assert.equal(chain.metaPartitionCount("meta-train"), 1);
-      assert.equal(result.eligibility.cyclesEvaluated, 1, "eligibility and the recorded count agree");
-      assert.equal(result.eligibility.eligible, false, "one is not three");
+      assert.equal(result.eligibility.cyclesEvaluated, 1, "eligibility counts the completed cycle that now exists");
+      assert.equal(result.eligibility.eligible, false, "one is not three, in any partition");
+    } finally {
+      close();
+    }
+  });
+
+  it("never opens the door from one partition, however many completed cycles it holds", () => {
+    const { evolution, holdouts, now, close } = fixture();
+    try {
+      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const state = { value: 1 };
+      // This is the defect the semantic preflight caught, now pinned at the chain level: three
+      // completed train cycles used to be enough to reach A4's autonomous door with zero validation
+      // and zero holdout behind them.
+      const results: LearningChainResult[] = [];
+      for (let index = 0; index < META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY; index += 1) {
+        results.push(chain.run(cycle("t" + index.toString(16)), ports(state)));
+      }
+      const last = results.at(-1) as LearningChainResult;
+      assert.equal(last.eligibility.cyclesEvaluated, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "train alone is deep, and deep is not covered");
+      assert.equal(last.eligibility.eligible, false, "train alone may never open the door");
+      assert.match(last.eligibility.reason, /all three partitions are required/);
+      assert.equal(last.applicationReceipt.receipt.applicationOutcome, "REJECTED");
+      assert.equal(state.value, 1, "and nothing was written to the runtime");
     } finally {
       close();
     }

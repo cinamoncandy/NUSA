@@ -34,14 +34,6 @@ import type { MetaOosEligibility } from "./learningApplication";
 
 export const META_OOS_SCHEMA_VERSION = 1;
 export const META_OOS_POLICY_VERSION = "meta-oos-v1";
-/**
- * Owner-fixed floor for granting application eligibility.
- *
- * One completed cycle per partition, so train, validation, and holdout each have coverage before a
- * learned change is allowed to touch research policy. Learning cannot lower this, and it is not
- * derived from anything a decision controls.
- */
-export const META_MINIMUM_CYCLES_FOR_ELIGIBILITY = 3;
 
 export class MetaOosError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -206,48 +198,94 @@ export function assignMetaPartition(input: MetaOosAssignmentInput, holdouts: Hol
 }
 
 /**
- * Whether the assigned cycles are numerous enough to judge the learning policy at all.
+ * Owner-fixed floor **per partition** for granting application eligibility.
  *
- * Below the floor the verdict is `INSUFFICIENT`, which is a normal durable answer and never a
- * request to lower the bar. The count comes from recorded assignments, so it cannot be inflated by
- * anything a decision says about itself.
+ * The floor is three, and it applies to `meta-train`, `meta-validation`, and `meta-holdout` *each* -
+ * not three in any one of them. A learning policy cannot be judged out of sample by training
+ * evidence alone, however much of it exists, and neither may a lone validation or a lone holdout
+ * stand in for the other two. All three must be at the floor simultaneously.
+ *
+ * Learning cannot lower this, and it is not derived from anything a decision controls.
  */
-export function metaOosCyclesEligibility(partitionAssignments: readonly MetaOosAssignment[], partition: MetaPartition, cyclesEvaluated: number): MetaOosEligibility {
-  const recorded = partitionAssignments.filter((assignment) => assignment.partition === partition).length;
-  const counted = Math.min(cyclesEvaluated, recorded);
+export const META_MINIMUM_CYCLES_FOR_ELIGIBILITY = 3;
 
-  if (counted < META_MINIMUM_CYCLES_FOR_ELIGIBILITY) {
+/** Every partition must reach the floor. There is no partition whose coverage may be skipped. */
+export const META_PARTITION_FLOOR = META_MINIMUM_CYCLES_FOR_ELIGIBILITY;
+
+/** Reported on the eligibility proof so a reader sees the scope rather than a single lane. */
+export const META_ALL_PARTITIONS_SCOPE = "train+validation+holdout";
+
+/**
+ * Evidence that an assigned cycle actually *completed*, rather than merely being filed.
+ *
+ * Assignment says which partition a cycle belongs to. Completion says the cycle ran to a durable
+ * decision. Those are different facts, and only the second one is evidence about the learning
+ * policy: a partition full of cycles that never resolved proves nothing about whether a proposed
+ * change generalises. The check is supplied from the canonical decision records, never from the
+ * assignment itself, so a partition cannot vouch for its own contents.
+ */
+export interface MetaOosCompletionEvidence {
+  readonly isCycleCompleted: (learningCycleId: string) => boolean;
+}
+
+/** Fails closed: absent, or unusable, completion evidence counts as no completed cycles at all. */
+function isCompleted(completion: MetaOosCompletionEvidence | undefined, learningCycleId: string): boolean {
+  if (completion == null || typeof completion.isCycleCompleted !== "function") return false;
+  try {
+    return completion.isCycleCompleted(learningCycleId) === true;
+  } catch {
+    return false;
+  }
+}
+
+function completedCount(assignments: readonly MetaOosAssignment[], partition: MetaPartition, completion: MetaOosCompletionEvidence | undefined): number {
+  let completed = 0;
+  for (const assignment of assignments) {
+    if (assignment.partition !== partition) continue;
+    if (isCompleted(completion, assignment.learningCycleId)) completed += 1;
+  }
+  return completed;
+}
+
+/**
+ * The single eligibility proof A4 accepts.
+ *
+ * Two independent conditions must hold, and both are derived from records rather than from claims:
+ * every one of the three partitions must hold `META_MINIMUM_CYCLES_FOR_ELIGIBILITY` **completed**
+ * cycles, and a cycle only counts as completed when its decision is durably recorded. Assignments
+ * that never resolved contribute nothing. Because the proof is global rather than per-partition,
+ * which partition a cycle happened to join cannot make the system eligible on its own.
+ *
+ * It is deliberately not constructible from a decision's own claim: a decision reporting a large
+ * `metaCyclesEvaluated` still gets no eligibility unless the assignments *and* their completions
+ * actually exist.
+ */
+export function metaOosEligibility(assignments: readonly MetaOosAssignment[], completion?: MetaOosCompletionEvidence): MetaOosEligibility {
+  const perPartition = META_PARTITIONS.map((partition) => ({ partition, completed: completedCount(assignments, partition, completion) }));
+  const total = perPartition.reduce((sum, entry) => sum + entry.completed, 0);
+  const coverage = perPartition.map((entry) => entry.partition.slice("meta-".length) + " " + String(entry.completed) + "/" + String(META_PARTITION_FLOOR)).join(", ");
+  const behind = perPartition.filter((entry) => entry.completed < META_PARTITION_FLOOR);
+
+  if (behind.length > 0) {
     return Object.freeze({
       eligible: false,
-      partition,
-      cyclesEvaluated: counted,
+      partition: META_ALL_PARTITIONS_SCOPE,
+      cyclesEvaluated: total,
       reason:
-        "meta-OOS " +
-        partition +
-        " has " +
-        String(counted) +
-        " completed cycle(s) of the " +
-        String(META_MINIMUM_CYCLES_FOR_ELIGIBILITY) +
-        " required; the minimum is owner-fixed and is not lowered to admit a sample",
+        "meta-OOS has " +
+        coverage +
+        " completed cycle(s); all three partitions are required at " +
+        String(META_PARTITION_FLOOR) +
+        " each, an assignment is not completion until its decision is durably recorded, and neither the floor nor the coverage is lowered to admit a sample",
     });
   }
 
   return Object.freeze({
     eligible: true,
-    partition,
-    cyclesEvaluated: counted,
-    reason: "meta-OOS " + partition + " has " + String(counted) + " completed cycle(s) meeting the owner-fixed minimum of " + String(META_MINIMUM_CYCLES_FOR_ELIGIBILITY),
+    partition: META_ALL_PARTITIONS_SCOPE,
+    cyclesEvaluated: total,
+    reason: "meta-OOS has " + coverage + " completed cycle(s), covering all three partitions at the owner-fixed floor of " + String(META_PARTITION_FLOOR),
   });
-}
-
-/**
- * The single eligibility proof A4 accepts, derived only from recorded assignments.
- *
- * It is deliberately not constructible from a decision's own claim: a decision that reports a large
- * `metaCyclesEvaluated` still gets no eligibility unless the assignments actually exist.
- */
-export function metaOosEligibility(assignments: readonly MetaOosAssignment[], partition: MetaPartition): MetaOosEligibility {
-  return metaOosCyclesEligibility(assignments, partition, assignments.filter((assignment) => assignment.partition === partition).length);
 }
 
 /** Fails closed on anything that is not exactly a Meta-OOS assignment. */
