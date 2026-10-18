@@ -3034,17 +3034,36 @@ current_ui_startup_warmup:
 
 current_dataset_v2_write_20261018:
   work_order: WO-DATA-20261018-NEW-DATASET-V2-WRITE
-  status: VERIFYING
-  branch: WO-DATA-20261018-NEW-DATASET-V2-WRITE
+  status: EXACT_MAIN_VERIFIED
+  branch: main
   base_sha: 26970651043c0e38e03428b181d5e7f59e4ce57b
-  first_broken_transition: implementation_to_fresh_exact_head_ci
+  pr: 2801
+  pr_head_sha: eb1215a1e409c752d8cd7f25bc0190f1b2ba2c8c
+  merge_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  exact_main_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  first_broken_transition: "P0-5 independent sealed evidence verification across dataset → precommit → experiment → candidate → governance → PAPER"
   scope: "All new dataset-manifest factory/write paths emit v2 only; preserve immutable historical v1 reads. Cloud v2 binds durable raw-page receipts and quality results."
   finding: "Desktop canonical factory now emits v2 only and requires provenance; research real-run and forward-study producers bind captured Upbit page fingerprints, transform/config/schema/quality/replay fingerprints; SQLite rejects new v1 writes while exact historical v1 reads remain checksum-verified. Cloud materializer emits v2 only from matching durable receipts and verified aggregation."
-  validation: "BUILD PASS; focused dataset/storage/backfill/composition/desktop-forward tests 110/110 PASS; point-in-time regime evidence 3/3 PASS; timeframe provenance regressions 13/13 PASS; preflight PASS; typecheck PASS; validate:full PASS after unshallowing isolated clone; security:gate PASS with zero secrets/unmitigated advisories. Initial exact-head CI exposed a test fixture missing explicit raw-source identity and source SHA; fixture repaired, fresh exact-head CI required."
-  next: "Commit the test-fixture correction; refresh protected main and push updated PR head; wait for fresh exact-head CI and request fresh non-author validation plus independent Audit. No merge/release until exact authorization."
-  exact_head_ci: PENDING
-  independent_validation: PENDING
-  audit: PENDING
+  validation: "PR exact-head CI 39097651708 PASS 6/6; fresh non-author validation PASS; independent OIDC Audit PASS; canonical Release run 39098201565 merged; exact-main CI 39098270400 PASS; exact-main public PAPER runtime 39098601136 PASS; Cloudflare runtime proof 39098634858 PASS."
+  exact_head_ci: PASS
+  independent_validation: PASS
+  audit: PASS
+  release: MERGED
+  exact_main_ci: PASS
+  exact_main_paper_runtime: PASS
+  oracle_production_runtime: NOT_CHECKED
+  android_stable_release: PENDING
+
+current_evidence_verifier_20261018:
+  work_order: WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
+  status: IMPLEMENTING
+  branch: codex/independent-evidence-verifier
+  base_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  first_broken_transition: "Governance authorization → durable PAPER activation identity"
+  finding: "PAPER deployment checked current Governance authorization but discarded its decision identity; append-only activation and closed-learning replay could not independently prove which authorization bound the PAPER candidate."
+  implementation: "Persist the exact Governance authorization snapshot in the existing hash-chained PAPER binding ledger; reject malformed/mismatched snapshot on read/restart and fail closed when closed-learning evidence tries to consume a legacy activation without it."
+  validation: "typecheck PASS; build PASS; focused four-file suite 40/40 PASS, including mismatched approval, future approval, persisted tamper, restart replay drift, legacy activation fail-closed."
+  remaining: "This closes one edge only; the full independent sealed verifier and dataset/precommit/experiment/candidate/governance/PAPER graph falsification remain open."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_decision_funnel:

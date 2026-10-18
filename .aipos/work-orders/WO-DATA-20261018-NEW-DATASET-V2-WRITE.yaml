@@ -1,6 +1,6 @@
 id: WO-DATA-20261018-NEW-DATASET-V2-WRITE
 title: "Require provenance v2 for every new research dataset manifest"
-status: VERIFYING
+status: CLOSED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -61,12 +61,17 @@ validation:
   typecheck: PASS
   validate_full: PASS
   security_gate: PASS
-  exact_head_ci: PENDING
-  independent_validation: PENDING
-  audit: PENDING
-  release: PENDING
-first_broken_transition: implementation_to_fresh_exact_head_ci
-next: "Refresh main and open-PR inventory, commit and publish one draft P0-2 PR if no successor exists, wait for fresh exact-head CI, then obtain non-author validation and Audit; do not merge without the canonical release gate."
+  exact_head_ci: "PASS: PR #2801 head eb1215a1e409c752d8cd7f25bc0190f1b2ba2c8c; run 39097651708 (6/6 required workflows)"
+  independent_validation: "PASS: fresh non-author review completed against exact head and base"
+  audit: "PASS: exact-head OIDC Audit run 39098100038; deterministic Release audit run 39098201565"
+  release: "MERGED: PR #2801 via canonical Release; merge SHA 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642"
+  exact_main_ci: "PASS: protected main equals merge SHA; CI run 39098270400"
+  exact_main_paper_runtime: "PASS: run 39098601136 at merge SHA; public-market PAPER E2E only, not Oracle production-state proof"
+  exact_main_runtime_proof: "PASS: Cloudflare runtime proof run 39098634858 at merge SHA"
+  exact_main_windows_release: "PASS: run 39098604697 at merge SHA"
+  evidence_boundary: "Android Stable Release Trigger run 39098603522 remains pending and is outside this dataset acceptance. Oracle production DB/runtime and historical replay were not modified or verified by this work order."
+first_broken_transition: "P0-5 independent sealed evidence verification across dataset → precommit → experiment → candidate → governance → PAPER"
+next: "Inspect and strengthen the existing evidence graph seal and canonical identity readers; no duplicate evidence store or verifier."
 safety:
   paper_only: true
   liveAuthority: NONE
