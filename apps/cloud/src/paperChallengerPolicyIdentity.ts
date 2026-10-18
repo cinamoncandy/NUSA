@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 
-export const PAPER_CHALLENGER_POLICY_VERSION = "paper-challenger-policy-v1";
+export const PAPER_CHALLENGER_POLICY_VERSION = "paper-challenger-policy-v2";
 
 export function paperChallengerPolicyIdentity(input: Readonly<{
   candidateId: string;
   candidateVersion: string;
   familyId: string;
   evidenceFingerprintSha256: string;
+  originalRunFingerprintSha256: string;
   replayRunFingerprintSha256: string;
   researchDecisionReference: string;
 }>): Readonly<{ decisionFingerprint: string; approvalReference: string }> {
@@ -16,6 +17,7 @@ export function paperChallengerPolicyIdentity(input: Readonly<{
     input.candidateVersion,
     input.familyId,
     input.evidenceFingerprintSha256,
+    input.originalRunFingerprintSha256,
     input.replayRunFingerprintSha256,
     input.researchDecisionReference,
   ])).digest("hex");

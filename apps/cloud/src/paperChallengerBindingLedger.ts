@@ -111,7 +111,7 @@ function parseActivation(record: EvolutionRecord): PaperChallengerActivationRece
 function validateGovernanceAuthorization(value: PaperChallengerGovernanceAuthorization, binding: PaperCandidateExecutionBinding, researchLineage?: PaperResearchLineage): PaperChallengerGovernanceAuthorization {
   const approval = value?.approval;
   const policyIdentity = approval?.actorType === "POLICY" && researchLineage != null
-    ? paperChallengerPolicyIdentity({ candidateId: binding.candidateId, candidateVersion: binding.candidateStrategy?.specificationHash ?? "", familyId: binding.candidateStrategy?.familyId ?? "", evidenceFingerprintSha256: binding.bindingFingerprintSha256, replayRunFingerprintSha256: researchLineage.replayRunFingerprintSha256, researchDecisionReference: researchLineage.researchDecisionReference })
+    ? paperChallengerPolicyIdentity({ candidateId: binding.candidateId, candidateVersion: binding.candidateStrategy?.specificationHash ?? "", familyId: binding.candidateStrategy?.familyId ?? "", evidenceFingerprintSha256: binding.bindingFingerprintSha256, originalRunFingerprintSha256: researchLineage.originalRunFingerprintSha256, replayRunFingerprintSha256: researchLineage.replayRunFingerprintSha256, researchDecisionReference: researchLineage.researchDecisionReference })
     : undefined;
   if (!value?.strategyId?.trim() || value.strategyId.length > 240 || value.candidateId !== binding.candidateId || value.candidateVersion !== binding.candidateStrategy?.specificationHash
     || value.familyId !== binding.candidateStrategy?.familyId || value.evidenceFingerprintSha256 !== binding.bindingFingerprintSha256 || value.lifecycle !== "CHALLENGER"

@@ -69,7 +69,7 @@ function governance(value: PaperCandidateExecutionBinding = binding()) {
 }
 
 function policyGovernance(value: PaperCandidateExecutionBinding = binding()) {
-  const policy = paperChallengerPolicyIdentity({ candidateId: value.candidateId, candidateVersion: value.candidateStrategy!.specificationHash, familyId: value.candidateStrategy!.familyId, evidenceFingerprintSha256: value.bindingFingerprintSha256, replayRunFingerprintSha256: lineage.replayRunFingerprintSha256, researchDecisionReference: lineage.researchDecisionReference });
+  const policy = paperChallengerPolicyIdentity({ candidateId: value.candidateId, candidateVersion: value.candidateStrategy!.specificationHash, familyId: value.candidateStrategy!.familyId, evidenceFingerprintSha256: value.bindingFingerprintSha256, originalRunFingerprintSha256: lineage.originalRunFingerprintSha256, replayRunFingerprintSha256: lineage.replayRunFingerprintSha256, researchDecisionReference: lineage.researchDecisionReference });
   return { ...governance(value), strategyId: `${value.candidateStrategy!.familyId}:${value.candidateId}`, approval: { actorType: "POLICY" as const, approvalReference: policy.approvalReference, approvedAt: 1, decisionFingerprint: policy.decisionFingerprint } };
 }
 
@@ -200,6 +200,25 @@ describe("PaperChallengerBindingLedger", () => {
     const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
     persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...authorization, strategyId: "forged-strategy" } }) });
     assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+  });
+
+  it("rejects a persisted POLICY original Research snapshot substitution", () => {
+    const authorization = policyGovernance();
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const record = persistence.records[0]!;
+    const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
+    persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, researchLineage: { ...lineage, originalRunFingerprintSha256: "f".repeat(64) } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+  });
+
+  it("accepts and recovers a POLICY approval bound to the exact original Research snapshot", () => {
+    const authorization = policyGovernance();
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const recovered = new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000);
+    assert.deepEqual(recovered?.researchLineage, lineage);
+    assert.deepEqual(recovered?.governanceAuthorization, authorization);
   });
 
   it("recomputes deterministic policy approval identity from immutable Research lineage", () => {

@@ -81,6 +81,7 @@ export class PaperChallengerPolicyApproval implements StrategyGovernanceChalleng
       candidateVersion,
       familyId,
       evidenceFingerprintSha256: request.evidenceFingerprintSha256,
+      originalRunFingerprintSha256: lineage.originalRunFingerprintSha256,
       replayRunFingerprintSha256: lineage.replayRunFingerprintSha256,
       researchDecisionReference: lineage.researchDecisionReference,
     });

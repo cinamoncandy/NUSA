@@ -6,6 +6,7 @@ import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PaperChallengerDeploymentRuntime, type QualifiedPaperChallengerArtifact } from "./paperChallengerDeploymentRuntime";
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
+import { paperChallengerPolicyIdentity } from "./paperChallengerPolicyIdentity";
 import type { PaperResearchLineage } from "./paperResearchLineage";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
@@ -120,7 +121,11 @@ describe("PaperChallengerPolicyApproval (ADR-0018)", () => {
     const authorization = policy.requireExecutableChallenger(request);
     assert.equal(authorization.lifecycle, "CHALLENGER");
     assert.equal(authorization.approval.actorType, "POLICY");
-    assert.match(authorization.approval.approvalReference, /^policy:paper-challenger-policy-v1:/);
+    const expectedIdentity = paperChallengerPolicyIdentity({ candidateId: request.candidateId, candidateVersion: request.candidateVersion, familyId: request.familyId, evidenceFingerprintSha256: request.evidenceFingerprintSha256, originalRunFingerprintSha256: researchLineage.originalRunFingerprintSha256, replayRunFingerprintSha256: researchLineage.replayRunFingerprintSha256, researchDecisionReference: researchLineage.researchDecisionReference });
+    assert.equal(authorization.approval.approvalReference, expectedIdentity.approvalReference);
+    assert.equal(authorization.approval.decisionFingerprint, expectedIdentity.decisionFingerprint);
+    assert.notEqual(paperChallengerPolicyIdentity({ candidateId: request.candidateId, candidateVersion: request.candidateVersion, familyId: request.familyId, evidenceFingerprintSha256: request.evidenceFingerprintSha256, originalRunFingerprintSha256: "f".repeat(64), replayRunFingerprintSha256: researchLineage.replayRunFingerprintSha256, researchDecisionReference: researchLineage.researchDecisionReference }).decisionFingerprint, expectedIdentity.decisionFingerprint, "the original Research snapshot is part of deterministic POLICY identity");
+    assert.match(authorization.approval.approvalReference, /^policy:paper-challenger-policy-v2:/);
     assert.match(authorization.approval.decisionFingerprint, /^[a-f0-9]{64}$/);
     assert.deepEqual(policy.requireExecutableChallenger(request).approval.decisionFingerprint, authorization.approval.decisionFingerprint, "approval is deterministic");
     const receipt = runtimeWith(policy, opens).deploy(deployInput);

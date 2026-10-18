@@ -8,7 +8,7 @@ base_commit: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
 implementation_branch: codex/paper-policy-fingerprint-verify
 pull_request: 2804
 authority_impact: research_paper_evidence_binding
-objective: "Persist the exact Strategy Governance authorization on the existing append-only PAPER binding ledger, and independently recompute deterministic POLICY authorization identity from the immutable Research lineage on replay."
+objective: "Persist exact Strategy Governance authorization on the append-only PAPER binding ledger and bind its deterministic POLICY identity to immutable original and replay Research provenance."
 architecture_impact:
   acknowledged: true
   analysis: "Reuses PaperChallengerBindingLedger and its existing hash-chained Evolution Learning store. No duplicate verifier/store. Legacy activation records remain readable but cannot seed new closed-learning evidence without Governance identity."
@@ -17,6 +17,8 @@ scope:
   - verify_candidate_version_family_and_binding_fingerprint_cross_links
   - verify_research_lineage_candidate_version_matches_binding_on_activation_and_replay
   - recompute_deterministic_policy_approval_fingerprint_from_research_lineage
+  - bind_policy_identity_to_original_research_run_fingerprint
+  - reject_original_research_snapshot_substitution_on_restart_replay
   - reject_governance_identity_drift_on_restart_replay
   - fail_closed_for_legacy_activation_missing_governance_identity_in_learning
   - add_tamper_and_identity_mismatch_regressions
@@ -29,6 +31,9 @@ acceptance:
   - new_activation_persists_exact_governance_decision_identity
   - wrong_candidate_version_family_or_binding_fingerprint_is_rejected
   - mismatched_research_lineage_candidate_version_is_rejected_before_persist_and_on_replay
+  - substituted_original_research_run_fingerprint_is_rejected_on_replay
+  - policy_producer_and_replay_verifier_compute_equal_identity_from_original_and_replay_fingerprints
+  - exact_original_research_snapshot_remains_eligible_for_policy_activation_and_replay
   - tampered_deterministic_policy_approval_fingerprint_is_rejected
   - changed_or_tampered_persisted_authorization_fails_closed
   - restart_replay_requires_same_governance_identity
@@ -48,18 +53,19 @@ validation:
   validate_full: PASS
   security_gate: PASS
   lint: "PASS with 26 pre-existing warnings; zero errors"
-  focused_tests: "49 prior identity regressions PASS plus POLICY/HUMAN downgrade regression on the implemented 5d21020 head; state-only follow-up does not change the code-under-test"
-  local_adversarial_followup: "PASS: a validly shaped but mismatched Research lineage candidateVersion is rejected on activation before persistence and when tampered in persisted replay state; POLICY authorization exercised."
-  review_feedback: "Exact head 5d21020 repaired the POLICY→HUMAN downgrade. Follow-up review 5561755266 found stale AIPOS evidence. Head 4c84e64 then fixed POLICY strategyId replay drift and added persisted tamper coverage; its exact-head checks are in progress."
-  exact_head_ci: PENDING_ON_4c84e64_AND_INVALIDATED_BY_AIPOS_SYNC_COMMIT
-  exact_head_ci_run: 39104654874
-  exact_head_paper_runtime_run: 39104654870
-  exact_head_companion_runs: "event bridge 39104653585 PASS; readiness 39104654883 IN_PROGRESS; rehearsal 39104654889 IN_PROGRESS; capability guard 39104654864 IN_PROGRESS; read-only credential integration 39104654900 IN_PROGRESS"
-  fresh_non_author_validation: PENDING_FOR_POST_SYNC_HEAD
+  focused_tests: "54/54 focused Governance/PAPER/deployment/closed-learning tests PASS, including valid original provenance recovery and syntactically valid originalRunFingerprintSha256 substitution rejection"
+  local_adversarial_followup: "PASS: candidateVersion, strategyId, POLICY→HUMAN namespace downgrade, approval fingerprint, and original Research snapshot substitution are rejected on replay; genuine HUMAN approval and historical no-candidateStrategy compatibility remain covered."
+  review_feedback: "Fresh non-author Validator report on e52a563 identified P1: originalRunFingerprintSha256 was absent from POLICY identity, allowing closed-learning provenance substitution. Repair binds it in producer/replay and bumps the identity version to v2; no historical record is rewritten."
+  previous_exact_head_ci: PASS_ON_e52a563_INVALIDATED_BY_ORIGINAL_RUN_BINDING_REPAIR
+  previous_exact_head_ci_run: 39104970129
+  previous_exact_head_paper_runtime_run: 39104970093
+  previous_exact_head_companion_runs: "event bridge 39104968936; readiness 39104970115; rehearsal 39104970199; capability guard 39104970114; read-only credential integration 39104970150; all PASS"
+  exact_head_ci: PENDING_FOR_ORIGINAL_RUN_BINDING_REPAIR_CANDIDATE
+  fresh_non_author_validation: PENDING_FOR_POST_REPAIR_EXACT_HEAD
   independent_audit: PENDING
   release: PENDING
-first_broken_transition: "PR #2804 4c84e64 strategyId repair → exact-head checks → AIPOS evidence sync"
-next: "Finish 4c84e64 exact-head checks, sync AIPOS to the verified head on this branch, then require new exact-head CI and a fresh separate non-author Validator review before Audit; continue the full P0-5 artifact graph verifier only after those gates."
+first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
+next: "Run local adversarial/type/build/security/AIPOS validation, commit code/tests/AIPOS together to the existing PR branch, then require fresh exact-head CI/runtime and a separate fresh non-author Validator before Audit."
 safety:
   paper_only: true
   liveAuthority: NONE
