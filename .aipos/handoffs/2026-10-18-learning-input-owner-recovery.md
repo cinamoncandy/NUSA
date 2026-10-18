@@ -13,7 +13,8 @@ Canonical PR: #2792 (`feat/learning-input-set-a2`), base `3659e45e011032b71e3789
 
 - New canonical Research evidence read-back test covers exact timestamp, ghost ID, and corrupted-chain fail-closed behavior: 4/4 history tests PASS.
 - Typecheck, build, `validate:full`, safety invariants, and `git diff --check` PASS.
-- These edits are not yet committed or covered by fresh exact-head CI/Audit.
+- Implementation commit `5d780808f2f8d948299064abe0b1460a72c88a50`; exact-head CI run `39119847026` PASS.
+- Independent Audit, Release, merge, and runtime acceptance have not run; PR remains Draft.
 
 ## FIRST_BROKEN_TRANSITION
 
