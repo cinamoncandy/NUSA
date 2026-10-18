@@ -1,0 +1,74 @@
+id: WO-DATA-20261018-NEW-DATASET-V2-WRITE
+title: "Require provenance v2 for every new research dataset manifest"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 26970651043c0e38e03428b181d5e7f59e4ce57b
+implementation_branch: WO-DATA-20261018-NEW-DATASET-V2-WRITE
+authority_impact: research_dataset_provenance_contract
+objective: "Close every canonical dataset-manifest mint/write path that can create schemaVersion 1 while preserving read-only compatibility for historical v1 artifacts. New manifests require v2 provenance bound to source evidence; a producer without it must fail closed."
+owner_authorization: "Explicit owner request to execute the DATA/EVIDENCE master directive; this authorizes research-evidence code only and no release, merge, or production mutation."
+architecture_impact:
+  acknowledged: true
+  analysis: "Strengthens the existing canonical research dataset contract, SQLite store, Cloud materializer, and desktop/offline factory. No new store or research engine. Historical v1 bytes remain immutable and readable; all new factory output is v2, and SQLite rejects new v1 rows."
+  references:
+    - packages/contracts/src/researchDatasetSemantics.ts
+    - packages/storage/src/researchDatasetManifest.ts
+    - apps/cloud/src/researchDatasetManifestMaterializer.ts
+    - apps/cloud/src/researchCandleBackfill.ts
+    - packages/storage/src/researchCandleStore.ts
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+scope:
+  - forbid_new_v1_manifest_rows
+  - forbid_new_v1_factory_manifests
+  - preserve_historical_v1_read_and_checksum_validation
+  - bind_cloud_manifest_v2_to_durable_raw_page_receipts
+  - fail_closed_on_incomplete_or_corrupt_source_receipts
+  - update_writer_and_storage_regression_tests
+prohibited:
+  - rewriting_historical_v1_rows_or_ids
+  - deriving_raw_source_identity_from_output_candles
+  - placeholder_or_synthetic_provenance_in_production
+  - relaxing_manifest_or_quality_validation
+  - LIVE_authority_or_production_mutation
+acceptance:
+  - newly_inserted_schema_v1_manifest_is_rejected
+  - historical_schema_v1_manifest_reads_with_checksum_validation
+  - canonical_factory_emits_v2_or_fails_closed_without_provenance
+  - complete_v2_provenance_manifest_persists_and_recomputes_identity
+  - absent_or_corrupt_raw_source_receipts_block_manifest_materialization
+  - research_materializer_never_emits_v1
+  - paper_only_live_none_production_mutation_false_ai_zero_authority
+validation:
+  commands:
+    - node --test dist/packages/storage/src/researchDatasetManifest.test.js
+    - node --test tests/research-candle-material.test.js
+    - node --test tests/research-experiment-composition.test.js
+    - node --test tests/research-candle-backfill.test.js
+    - node --test tests/research-dataset.test.js
+    - node --test tests/research-dataset-manifest-chronology.test.js
+    - node --test tests/research-history-pagination.test.js
+    - node --test tests/research-timeframe-selection.test.js
+    - pnpm run preflight
+    - pnpm run typecheck
+    - pnpm run build
+    - pnpm run validate:full
+    - pnpm run security:gate
+  build: PASS
+  focused_tests: "PASS 110/110 plus point-in-time regime evidence 3/3 and timeframe provenance regressions 13/13"
+  preflight: PASS
+  typecheck: PASS
+  validate_full: PASS
+  security_gate: PASS
+  exact_head_ci: PENDING
+  independent_validation: PENDING
+  audit: PENDING
+  release: PENDING
+first_broken_transition: implementation_to_fresh_exact_head_ci
+next: "Refresh main and open-PR inventory, commit and publish one draft P0-2 PR if no successor exists, wait for fresh exact-head CI, then obtain non-author validation and Audit; do not merge without the canonical release gate."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

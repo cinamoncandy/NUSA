@@ -43,6 +43,10 @@ export class SqliteResearchDatasetManifestStore {
     const manifestSha256 = fingerprint(manifest);
     const existing = this.db.connection.prepare(`SELECT manifest_json AS manifestJson, manifest_sha256 AS manifestSha256 FROM ${TABLE} WHERE dataset_id = ?`).get(manifest.datasetId) as { manifestJson: string; manifestSha256: string } | undefined;
     if (existing != null && (existing.manifestJson !== manifestJson || existing.manifestSha256 !== manifestSha256)) throw new ResearchDatasetManifestStoreError("MANIFEST_CONFLICT", "a different manifest already exists for this datasetId");
+    if (manifest.schemaVersion === 1) {
+      if (existing != null) return manifestSha256; // Exact historical retry is a read-equivalent no-op.
+      throw new ResearchDatasetManifestStoreError("MANIFEST_LEGACY_WRITE_DISABLED", "new dataset manifests require schema v2 provenance");
+    }
     if (existing == null) this.db.connection.prepare(`INSERT INTO ${TABLE} (dataset_id, manifest_json, manifest_sha256) VALUES (?, ?, ?)`).run(manifest.datasetId, manifestJson, manifestSha256);
     return manifestSha256;
   }

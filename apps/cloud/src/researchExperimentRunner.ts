@@ -5,7 +5,7 @@ import { buildResearchProvenance, canonicalSha256, hashResearchInputCore, Resear
 import { buildWalkForwardWindows, type WalkForwardWindowConfig } from "./researchWalkForwardWindows";
 import type { HoldoutKey } from "../../../packages/storage/src/researchHoldoutLedger";
 import { createResearchPrecommit, type ResearchPrecommit } from "../../../packages/contracts/src/researchPrecommit";
-import { calculateResearchCandleSha256, calculateResearchDatasetId } from "../../../packages/contracts/src/researchDatasetSemantics";
+import { calculateResearchCandleSha256, calculateResearchDatasetId, calculateResearchDatasetIdV2, type HistoricalDatasetManifest } from "../../../packages/contracts/src/researchDatasetSemantics";
 
 /**
  * Runs one experiment for one challenger variant: VALIDATION window first; the HOLDOUT window is evaluated only when
@@ -20,7 +20,7 @@ export interface ExperimentRunnerPorts {
   readonly holdout: { claim(key: HoldoutKey, evaluationId: string, usedAtMs: number): "CLAIMED" | "ALREADY_USED"; overlapsUsedHoldout(hash: string, market: string, intervalMs: number, startMs: number, endMs: number): boolean };
   readonly now: () => number;
   readonly precommitStore?: { create(precommit: ResearchPrecommit): ResearchPrecommit };
-  readonly datasetManifest?: { read(datasetId: string): { readonly datasetId: string; readonly source: string; readonly market: string; readonly interval: string; readonly candleCount: number; readonly startOpenTime: number; readonly endCloseTime: number; readonly contentSha256: string } };
+  readonly datasetManifest?: { read(datasetId: string): HistoricalDatasetManifest };
 }
 
 export interface ExperimentSpec {
@@ -69,7 +69,10 @@ export function runResearchExperiment(ports: ExperimentRunnerPorts, spec: Experi
       if (persisted.length !== manifest.candleCount || persisted.some((candle) => candle.volume == null)) return skip("DATASET_MANIFEST_VOLUME_MISSING");
       const canonical = persisted.map((candle) => ({ market: spec.market, interval: manifest.interval as "1m" | "3m" | "5m" | "10m" | "15m" | "30m" | "60m" | "240m" | "1d", openTime: candle.closeTimeMs - intervalMs, closeTime: candle.closeTimeMs, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume! }));
       const contentSha256 = calculateResearchCandleSha256(canonical);
-      if (contentSha256 !== manifest.contentSha256 || calculateResearchDatasetId(manifest.source, canonical, contentSha256) !== manifest.datasetId) return skip("DATASET_MANIFEST_CONTENT_MISMATCH");
+      const datasetId = manifest.schemaVersion === 1
+        ? calculateResearchDatasetId(manifest.source, canonical, contentSha256)
+        : manifest.provenance == null ? undefined : calculateResearchDatasetIdV2(manifest.source, canonical, contentSha256, manifest.provenance);
+      if (contentSha256 !== manifest.contentSha256 || datasetId !== manifest.datasetId) return skip("DATASET_MANIFEST_CONTENT_MISMATCH");
     }
     const total = spec.windows.trainMs + spec.windows.validationMs + spec.windows.holdoutMs;
     const rows = ports.candles.read(spec.market, intervalMs, spec.endCloseMs - total + intervalMs, spec.endCloseMs);

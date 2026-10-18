@@ -6,6 +6,8 @@ const {
   createHistoricalDatasetManifest,
   verifyHistoricalDatasetManifest,
 } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
+const provenance = require("./helpers/research-dataset-provenance.js");
+const { calculateResearchDatasetId } = require("../dist/packages/contracts/src/researchDatasetSemantics.js");
 
 const DAY = 86_400_000;
 const BASE = Date.parse("2026-08-01T00:00:00.000Z");
@@ -32,6 +34,7 @@ test("manifest creation rejects explicit provenance time before the final candle
   assert.throws(
     () => createHistoricalDatasetManifest(candles, {
       source: "test-source",
+      provenance,
       createdAt: new Date(endCloseTime - 1).toISOString(),
     }),
     /createdAt cannot precede the final candle closeTime/,
@@ -41,6 +44,7 @@ test("manifest creation rejects explicit provenance time before the final candle
 test("manifest verification rejects a forged explicit provenance time before endCloseTime", () => {
   const valid = createHistoricalDatasetManifest(candles, {
     source: "test-source",
+    provenance,
     createdAt: new Date(endCloseTime).toISOString(),
   });
   const forged = { ...valid, createdAt: new Date(endCloseTime - 1).toISOString() };
@@ -54,6 +58,7 @@ test("manifest chronology allows equality and later explicit provenance timestam
   for (const createdAt of [endCloseTime, endCloseTime + DAY]) {
     const manifest = createHistoricalDatasetManifest(candles, {
       source: "test-source",
+      provenance,
       createdAt: new Date(createdAt).toISOString(),
     });
     assert.doesNotThrow(() => verifyHistoricalDatasetManifest(manifest, candles));
@@ -61,7 +66,9 @@ test("manifest chronology allows equality and later explicit provenance timestam
 });
 
 test("legacy deterministic epoch sentinel remains valid", () => {
-  const manifest = createHistoricalDatasetManifest(candles, { source: "test-source" });
+  const v2 = createHistoricalDatasetManifest(candles, { source: "test-source", provenance });
+  const manifest = { ...v2, schemaVersion: 1, datasetId: calculateResearchDatasetId(v2.source, candles, v2.contentSha256) };
+  delete manifest.provenance;
   assert.equal(manifest.createdAt, "1970-01-01T00:00:00.000Z");
   assert.doesNotThrow(() => verifyHistoricalDatasetManifest(manifest, candles));
 });

@@ -1,4 +1,5 @@
 import type { StoredResearchCandle } from "../../../packages/storage/src/researchCandleStore";
+import { createHash } from "node:crypto";
 
 /**
  * One-time history fill for the research candle store from Upbit's PUBLIC 1-minute candle endpoint (no
@@ -62,6 +63,9 @@ export function parseUpbitMinuteCandles(raw: unknown, market: string): ParsedCan
 export interface BackfillStore {
   earliestCloseTime(market: string, intervalMs: number): number | undefined;
   append(market: string, intervalMs: number, candles: readonly StoredResearchCandle[]): number;
+  read?: (market: string, intervalMs: number, fromCloseTimeMs: number, toCloseTimeMs: number) => readonly StoredResearchCandle[];
+  hasMaterialCoverage?: (market: string, intervalMs: number, fromCloseTimeMs: number, toCloseTimeMs: number, source: string, sourceFingerprint: string) => boolean;
+  appendWithMaterial?: (market: string, intervalMs: number, candles: readonly StoredResearchCandle[], material: { readonly source: string; readonly sourceFingerprint: string; readonly evidenceFingerprintSha256: string; readonly missingBuckets: number; readonly incompleteBuckets: number; readonly rejectedObservations: number }) => number;
 }
 
 export interface BackfillResult {
@@ -88,12 +92,28 @@ export interface BackfillInput {
 }
 
 const iso = (ms: number): string => new Date(ms).toISOString().slice(0, 19);
+const sha256 = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
+export const UPBIT_CANDLE_SOURCE_FINGERPRINT = sha256("UPBIT_PUBLIC_CANDLES:minute:1:v1");
+
+function recordPage(store: BackfillStore, market: string, raw: unknown, toIso: string | undefined, observedAt: string, candles: readonly StoredResearchCandle[], rejected: number): number {
+  if (candles.length === 0) return 0;
+  if (store.appendWithMaterial == null) return store.append(market, MINUTE_MS, candles);
+  const missingBuckets = candles.slice(1).reduce((sum, candle, index) => sum + Math.max(0, (candle.closeTimeMs - candles[index]!.closeTimeMs) / MINUTE_MS - 1), 0);
+  return store.appendWithMaterial(market, MINUTE_MS, candles, {
+    source: "UPBIT_PUBLIC_CANDLES",
+    sourceFingerprint: UPBIT_CANDLE_SOURCE_FINGERPRINT,
+    evidenceFingerprintSha256: sha256({ endpoint: UPBIT_MINUTE_CANDLES_URL, market, count: BACKFILL_PAGE_SIZE, to: toIso ?? null, observedAt, response: raw }),
+    missingBuckets,
+    incompleteBuckets: 0,
+    rejectedObservations: rejected,
+  });
+}
 
 export async function backfillMarket(input: BackfillInput): Promise<BackfillResult> {
   const { market, store } = input;
   if (!MARKET.test(market)) throw new Error("backfill market is invalid");
   if (!Number.isSafeInteger(input.nowMs) || input.nowMs <= 0) throw new Error("backfill clock is invalid");
-  if (!Number.isSafeInteger(input.targetSpanMs) || input.targetSpanMs < MINUTE_MS) throw new Error("backfill span is invalid");
+  if (!Number.isSafeInteger(input.targetSpanMs) || input.targetSpanMs < MINUTE_MS || input.targetSpanMs % MINUTE_MS !== 0) throw new Error("backfill span is invalid");
   const anchor = Math.floor(input.nowMs / MINUTE_MS) * MINUTE_MS; // the last minute that has fully closed
   const goal = anchor - input.targetSpanMs;
   const delay = input.pageDelayMs ?? 150;
@@ -106,8 +126,16 @@ export async function backfillMarket(input: BackfillInput): Promise<BackfillResu
     const earliest = store.earliestCloseTime(market, MINUTE_MS);
     return Object.freeze({ market, status, recorded, rejected, pages, ...(earliest === undefined ? {} : { earliestCloseMs: earliest }), ...(errorCode === undefined ? {} : { errorCode }) });
   };
-  const reached = (): boolean => { const earliest = store.earliestCloseTime(market, MINUTE_MS); return earliest !== undefined && earliest <= goal; };
-  if (reached()) return result("COMPLETE");
+  const targetStart = goal + MINUTE_MS;
+  const reached = (): boolean => { const earliest = store.earliestCloseTime(market, MINUTE_MS); return earliest !== undefined && earliest <= targetStart; };
+  const expectedCandles = (anchor - targetStart) / MINUTE_MS + 1;
+  const receiptsComplete = (): boolean => {
+    if (store.read == null || store.hasMaterialCoverage == null) return false;
+    const candles = store.read(market, MINUTE_MS, targetStart, anchor);
+    return candles.length === expectedCandles && candles.every((candle, index) => candle.closeTimeMs === targetStart + index * MINUTE_MS)
+      && store.hasMaterialCoverage(market, MINUTE_MS, targetStart, anchor, "UPBIT_PUBLIC_CANDLES", UPBIT_CANDLE_SOURCE_FINGERPRINT);
+  };
+  if (reached() && receiptsComplete()) return result("COMPLETE");
   while (pages < maxPages) {
     let raw: unknown;
     try {
@@ -119,17 +147,36 @@ export async function backfillMarket(input: BackfillInput): Promise<BackfillResu
     pages += 1;
     const parsed = parseUpbitMinuteCandles(raw, market);
     rejected += parsed.rejected;
-    if (parsed.oldestStartMs === undefined) return result(parsed.rejected > 0 ? "ERROR" : "COMPLETE", parsed.rejected > 0 ? "MALFORMED_PAGE" : undefined);
+    if (parsed.oldestStartMs === undefined) {
+      if (parsed.rejected > 0) return result("ERROR", "MALFORMED_PAGE");
+      return receiptsComplete() ? result("COMPLETE") : result("INCOMPLETE", "SOURCE_RECEIPTS_INCOMPLETE");
+    }
     try {
-      // Evaluated now, in the same synchronous step as the append: only strictly older, fully closed candles.
+      // Existing rows are only re-recorded as material after appendWithMaterial proves their exact content matches the fetched source page.
       const ceiling = store.earliestCloseTime(market, MINUTE_MS) ?? Number.POSITIVE_INFINITY;
-      const fresh = parsed.candles.filter((c) => c.closeTimeMs < ceiling && c.closeTimeMs <= anchor);
-      if (fresh.length > 0) recorded += store.append(market, MINUTE_MS, fresh);
+      const pageCandles = parsed.candles.filter((candle) => candle.closeTimeMs >= targetStart && candle.closeTimeMs <= anchor);
+      const existing = store.read == null || pageCandles.length === 0 ? new Map<number, StoredResearchCandle>() : new Map(store.read(market, MINUTE_MS, pageCandles[0]!.closeTimeMs, pageCandles.at(-1)!.closeTimeMs).map((candle) => [candle.closeTimeMs, candle]));
+      const eligible = pageCandles.filter((candle) => {
+        const prior = existing.get(candle.closeTimeMs);
+        return candle.closeTimeMs < ceiling || (prior != null && prior.open === candle.open && prior.high === candle.high && prior.low === candle.low && prior.close === candle.close && prior.volume === candle.volume);
+      });
+      if (store.appendWithMaterial == null) {
+        const fresh = eligible.filter((candle) => candle.closeTimeMs < ceiling);
+        if (fresh.length > 0) recorded += store.append(market, MINUTE_MS, fresh);
+      } else {
+        let group: StoredResearchCandle[] = [];
+        const flush = (): void => { if (group.length > 0) recorded += recordPage(store, market, raw, cursor, new Date(input.nowMs).toISOString(), group, parsed.rejected); group = []; };
+        for (const candle of eligible) {
+          if (group.length > 0 && candle.closeTimeMs !== group.at(-1)!.closeTimeMs + MINUTE_MS) flush();
+          group.push(candle);
+        }
+        flush();
+      }
     } catch (error) {
       return result("ERROR", typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "STORE_FAILED");
     }
-    if (reached()) return result("COMPLETE");
-    if (parsed.oldestStartMs <= goal) return result("COMPLETE"); // the exchange has nothing older inside the span
+    if (reached() && receiptsComplete()) return result("COMPLETE");
+    if (parsed.oldestStartMs <= goal) return result("INCOMPLETE", "SOURCE_RECEIPTS_INCOMPLETE"); // the source reaches the target but some stored candles lack verified receipts
     cursor = iso(parsed.oldestStartMs);
     await input.sleep(delay);
   }
@@ -230,7 +277,7 @@ export async function fillRecentGaps(input: {
         const hi = wanted[wanted.length - 1]!.closeTimeMs;
         const existing = new Set(store.read(market, MINUTE_MS, lo, hi).map((candle) => candle.closeTimeMs));
         const fresh = wanted.filter((candle) => !existing.has(candle.closeTimeMs));
-        if (fresh.length > 0) recorded += store.append(market, MINUTE_MS, fresh);
+        if (fresh.length > 0) recorded += recordPage(store, market, raw, cursor, new Date(input.nowMs).toISOString(), fresh, parsed.rejected);
       }
     } catch (error) {
       return done("ERROR", typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "STORE_FAILED");

@@ -3031,6 +3031,22 @@ current_ui_startup_warmup:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
   finding: "Cold start 3.3 s from abroad, sign-in 2.4 s: warm the connection during the saved-session read (a credential-free GET of /health) and show the sign-in split in Settings; the authentication flow itself is untouched"
+
+current_dataset_v2_write_20261018:
+  work_order: WO-DATA-20261018-NEW-DATASET-V2-WRITE
+  status: VERIFYING
+  branch: WO-DATA-20261018-NEW-DATASET-V2-WRITE
+  base_sha: 26970651043c0e38e03428b181d5e7f59e4ce57b
+  first_broken_transition: implementation_to_fresh_exact_head_ci
+  scope: "All new dataset-manifest factory/write paths emit v2 only; preserve immutable historical v1 reads. Cloud v2 binds durable raw-page receipts and quality results."
+  finding: "Desktop canonical factory now emits v2 only and requires provenance; research real-run and forward-study producers bind captured Upbit page fingerprints, transform/config/schema/quality/replay fingerprints; SQLite rejects new v1 writes while exact historical v1 reads remain checksum-verified. Cloud materializer emits v2 only from matching durable receipts and verified aggregation."
+  validation: "BUILD PASS; focused dataset/storage/backfill/composition/desktop-forward tests 110/110 PASS; point-in-time regime evidence 3/3 PASS; timeframe provenance regressions 13/13 PASS; preflight PASS; typecheck PASS; validate:full PASS after unshallowing isolated clone; security:gate PASS with zero secrets/unmitigated advisories. Initial exact-head CI exposed a test fixture missing explicit raw-source identity and source SHA; fixture repaired, fresh exact-head CI required."
+  next: "Commit the test-fixture correction; refresh protected main and push updated PR head; wait for fresh exact-head CI and request fresh non-author validation plus independent Audit. No merge/release until exact authorization."
+  exact_head_ci: PENDING
+  independent_validation: PENDING
+  audit: PENDING
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_decision_funnel:
   work_order: WO-PAPER-20261006-DECISION-FUNNEL
   status: READY_FOR_REVIEW

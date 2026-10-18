@@ -278,7 +278,7 @@ export function composeResearchExperiments(input: {
           const lastClose = store.latestCloseTime(market, M);
           if (firstClose != null && lastClose != null) {
             try {
-              materializeResearchDatasetManifest({ store: datasetManifests, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString() });
+              materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString(), sourceCommitSha: settings.sourceCommitSha });
               log(`[research-manifest] ${market} materialized dataset manifest`);
             } catch (error) { log(`[research-manifest] ${market} blocked: ${error instanceof Error ? error.message : "unknown"}`); }
           }
@@ -310,7 +310,7 @@ export function composeResearchExperiments(input: {
           const lastClose = store.latestCloseTime(market, M);
           if (firstClose != null && lastClose != null) {
             try {
-              materializeResearchDatasetManifest({ store: datasetManifests, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString() });
+              materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString(), sourceCommitSha: settings.sourceCommitSha });
               log(`[research-manifest] ${market} materialized dataset manifest after gap fill`);
             } catch (error) { log(`[research-manifest] ${market} blocked after gap fill: ${error instanceof Error ? error.message : "unknown"}`); }
           }
