@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
   buildLearningDecision,
   assessChange,
-  withApplication,
   learningDecisionFingerprint,
   assertLearningDecision,
   type LearningDecisionInput,
@@ -28,7 +27,6 @@ const inputSet = (cutoff = 900) =>
   });
 
 const SPEC_A = "a".repeat(64);
-const SPEC_B = "b".repeat(64);
 
 function decisionInput(overrides: Partial<LearningDecisionInput> = {}): LearningDecisionInput {
   return {
@@ -153,17 +151,11 @@ describe("A1 immutable surface - section 29", () => {
 });
 
 describe("A1 is a receipt, not an authority - section 24", () => {
-  it("reports nothing as applied until a bounded application says so", () => {
+  it("cannot claim application; that outcome belongs to the separate A4 receipt", () => {
     const decision = buildLearningDecision(decisionInput());
-    assert.deepEqual([...decision.appliedChanges], [], "admission is not application");
-  });
-
-  it("refuses an application that reports a surface the decision never admitted", () => {
-    const decision = buildLearningDecision(decisionInput({ proposedChanges: [{ surface: "qualificationThreshold", currentValue: 0.05, proposedValue: 0.01 }] }));
-    assert.throws(
-      () => withApplication(decision, { appliedChanges: [decision.proposedChanges[0]], resultingResearchSpecFingerprint: SPEC_B }),
-      /never admitted/,
-    );
+    assert.equal("appliedChanges" in decision, false);
+    assert.equal("resultingResearchSpecFingerprint" in decision, false);
+    assert.equal(decision.decisionOutcome, "ADMISSIBLE");
   });
 
   it("recomputes the owner aperture before trusting a durable decision receipt", () => {
@@ -175,50 +167,16 @@ describe("A1 is a receipt, not an authority - section 24", () => {
       rejectedChanges: [],
       decisionOutcome: "ADMISSIBLE" as const,
     };
-    assert.throws(() => withApplication(forged as never, { appliedChanges: [...forged.admissibleChanges] as never, resultingResearchSpecFingerprint: SPEC_B }), /owner aperture/);
-  });
-
-  it("rejects an applied receipt without the resulting spec identity", () => {
-    const decision = buildLearningDecision(decisionInput());
-    const forged = {
-      ...decision,
-      appliedChanges: [...decision.admissibleChanges],
-      decisionOutcome: "APPLIED" as const,
-    };
-    assert.throws(() => assertLearningDecision(forged), /require a resulting research spec fingerprint/);
-  });
-
-  it("refuses an application that reports a value the decision never admitted", () => {
-    const decision = buildLearningDecision(decisionInput());
-    const overreach = { ...decision.admissibleChanges[0], proposedValue: 4 };
-    assert.throws(() => withApplication(decision, { appliedChanges: [overreach], resultingResearchSpecFingerprint: SPEC_B }), /never admitted/);
-  });
-
-  it("returns a new decision rather than editing the original", () => {
-    const decision = buildLearningDecision(decisionInput());
-    const applied = withApplication(decision, { appliedChanges: [...decision.admissibleChanges], resultingResearchSpecFingerprint: SPEC_B });
-    assert.equal(decision.resultingResearchSpecFingerprint, undefined, "the original is untouched");
-    assert.equal(applied.resultingResearchSpecFingerprint, SPEC_B);
-    assert.equal(applied.appliedChanges.length, 1);
-    assert.notEqual(learningDecisionFingerprint(applied), learningDecisionFingerprint(decision), "application is a new identity, never an in-place rewrite");
-  });
-
-  it("records a failed application as no applied change rather than inventing one", () => {
-    const decision = buildLearningDecision(decisionInput());
-    const failed = withApplication(decision, { appliedChanges: [], resultingResearchSpecFingerprint: SPEC_B });
-    assert.equal(failed.decisionOutcome, "REJECTED");
-    assert.deepEqual([...failed.appliedChanges], []);
+    assert.throws(() => assertLearningDecision(forged), /owner aperture/);
   });
 
   it("a decision is immutable once built, on every construction path", () => {
     const decision = buildLearningDecision(decisionInput());
     assert.ok(Object.isFrozen(decision), "a built decision is frozen");
-    const applied = withApplication(decision, { appliedChanges: [...decision.admissibleChanges], resultingResearchSpecFingerprint: SPEC_B });
-    assert.ok(Object.isFrozen(applied), "an applied decision is frozen too");
     // Immutability is a construction guarantee, not a replay precondition: a receipt read back from
     // durable storage is a fresh object by definition, so validation checks content rather than the
     // frozen flag.
-    assert.throws(() => assertLearningDecision({ ...decision, decisionOutcome: "NOT_A_REAL_OUTCOME" }), /outside the closed set/);
+    assert.throws(() => assertLearningDecision({ ...decision, decisionOutcome: "APPLIED" }), /outside the closed set/);
   });
 });
 
