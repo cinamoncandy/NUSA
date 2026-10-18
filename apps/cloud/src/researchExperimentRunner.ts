@@ -121,9 +121,13 @@ export function runResearchExperiment(ports: ExperimentRunnerPorts, spec: Experi
         startingCash: 1,
         startingPositionQuantity: 0,
       } as unknown as ResearchInputSnapshot;
-      if (spec.causedByLearning != null) {
+      if (spec.causedByLearning != null || ports.resolveLearningParent != null) {
         const applied = ports.resolveLearningParent?.();
-        if (applied == null || applied.learningCycleId !== spec.causedByLearning.learningCycleId || applied.applicationFingerprint !== spec.causedByLearning.applicationFingerprint || applied.learningDecisionFingerprint !== spec.causedByLearning.learningDecisionFingerprint) throw new ResearchProvenanceError("LEARNING_PARENT_MISMATCH", "causal parent is not the current durable APPLIED learning receipt");
+        const claimed = spec.causedByLearning;
+        const matches = claimed == null
+          ? applied == null
+          : applied != null && applied.learningCycleId === claimed.learningCycleId && applied.applicationFingerprint === claimed.applicationFingerprint && applied.learningDecisionFingerprint === claimed.learningDecisionFingerprint;
+        if (!matches) throw new ResearchProvenanceError("LEARNING_PARENT_MISMATCH", "research causal parent does not match the current durable APPLIED learning receipt");
       }
       const precommit = ports.precommitStore == null ? undefined : createResearchPrecommit({
         schemaVersion: 1,
