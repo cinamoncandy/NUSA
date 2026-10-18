@@ -24,7 +24,6 @@ const inputSet = (cutoff = 900) =>
     researchEvidence: [{ recordId: "trial-a", recordedAt: 100 }],
     paperEvidence: [{ recordId: "p1", recordedAt: 200 }],
     policies: POLICIES,
-    metaPartitionIdentity: "meta-train",
   });
 
 const SPEC_A = "a".repeat(64);

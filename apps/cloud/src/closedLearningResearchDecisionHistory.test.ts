@@ -53,6 +53,9 @@ test("persists the complete Research denominator into the canonical Cloud SQLite
     assert.equal(result.state.qualifiedForLeague, 1);
     assert.deepEqual(result.state.records.map((record) => record.outcome), ["REJECTED", "INSUFFICIENT", "QUALIFIED_FOR_LEAGUE"]);
     assert.ok(result.state.records.every((record) => record.authority === "PAPER_ONLY" && record.liveAuthority === "NONE" && record.productionMutationAllowed === false && record.aiAuthority === "ZERO_AUTHORITY"));
+    const evaluationId = `closed-learning-replay:${REPLAY}:rejected`;
+    assert.deepEqual(history.readEvidence(evaluationId), { recordId: evaluationId, recordedAt: 1_000 });
+    assert.equal(history.readEvidence("ghost"), undefined);
     const migration = database.connection.prepare("SELECT id FROM schema_migrations WHERE id = ?").get("021_research_factory_decision_history") as { id: string } | undefined;
     assert.equal(migration?.id, "021_research_factory_decision_history");
   } finally {
@@ -93,6 +96,18 @@ test("changed denominator under an existing replay identity fails closed", () =>
       }),
     });
     assert.throws(() => history.persist(changed, 2_000), /RESEARCH_FACTORY_HISTORY_REPLAY_MISMATCH/);
+  } finally {
+    database.close();
+  }
+});
+
+test("canonical Research evidence read-back fails closed when the decision history chain is corrupt", () => {
+  const database = new SqliteDatabase(":memory:");
+  try {
+    const history = new ClosedLearningResearchDecisionHistory(database);
+    history.persist(replayResult(), 1_000);
+    database.connection.prepare("UPDATE research_factory_decision_history SET record_json = ? WHERE sequence = 1").run("{}");
+    assert.throws(() => history.readEvidence(`closed-learning-replay:${REPLAY}:rejected`), /RESEARCH_FACTORY_HISTORY_LEDGER_INTEGRITY_VIOLATION/);
   } finally {
     database.close();
   }
