@@ -1,0 +1,115 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  LEARNING_STATUS_FIELDS,
+  LEARNING_STATUS_IDENTIFIERS,
+  LEARNING_STATUS_VERSION,
+  buildLearningLoopStatus,
+  type LearningStatusSource,
+} from "./learningLoopStatus";
+
+const FULL: LearningStatusSource = Object.freeze({
+  inputSet: Object.freeze({ fingerprint: "a".repeat(64), learningCycleId: "learning-cycle:" + "a".repeat(64) }),
+  decision: Object.freeze({ fingerprint: "b".repeat(64) }),
+  application: Object.freeze({ fingerprint: "c".repeat(64), applicationOutcome: "REJECTED" as const }),
+  meta: Object.freeze({ eligible: false, partition: "meta-holdout" as const, cyclesEvaluated: 0, reason: "meta-OOS meta-holdout has 0 completed cycle(s) of 3 required" }),
+  supersession: Object.freeze({ links: 4, lineageLength: 3, forked: false }),
+  exploration: Object.freeze({ attempts: 9, allotted: 4, suppressed: 5, exhausted: true, allotmentRemaining: 0 }),
+});
+
+describe("M2 - display-only status projection (section 28)", () => {
+  it("reports the required identities when they exist", () => {
+    const status = buildLearningLoopStatus(FULL);
+    assert.equal(status.schemaVersion, LEARNING_STATUS_VERSION);
+    assert.equal(status.latestLearningInputSetFingerprint, "a".repeat(64));
+    assert.equal(status.latestLearningCycleId, "learning-cycle:" + "a".repeat(64));
+    assert.equal(status.latestLearningDecisionFingerprint, "b".repeat(64));
+    assert.equal(status.latestApplicationFingerprint, "c".repeat(64));
+    assert.equal(status.applicationOutcome, "REJECTED");
+    assert.equal(status.metaPartition, "meta-holdout");
+    assert.match(status.supersessionStatus ?? "", /links=4/, "supersession count is reported");
+    assert.match(status.supersessionStatus ?? "", /lineage=3/);
+    assert.match(status.supersessionStatus ?? "", /fork=NONE/);
+    assert.match(status.explorationStatus ?? "", /EXHAUSTED/);
+    assert.match(status.explorationStatus ?? "", /remaining=0/);
+  });
+
+  it("omits fields whose source has not produced them, rather than inventing defaults", () => {
+    const status = buildLearningLoopStatus({});
+    assert.deepEqual(Object.keys(status), ["schemaVersion"], "an empty status reports nothing, not zeroes");
+    assert.equal(status.latestLearningInputSetFingerprint, undefined);
+    assert.equal(status.applicationOutcome, undefined);
+    assert.equal(status.metaEligibility, undefined);
+    assert.equal(status.supersessionStatus, undefined);
+    assert.equal(status.explorationStatus, undefined);
+  });
+
+  it("carries only fields from the closed projection set", () => {
+    for (const source of [{}, FULL, { inputSet: FULL.inputSet }, { exploration: FULL.exploration }]) {
+      const status = buildLearningLoopStatus(source);
+      for (const key of Object.keys(status)) assert.ok(LEARNING_STATUS_FIELDS.includes(key), "unexpected projection field " + key);
+    }
+  });
+
+  it("holds only scalars, matching the shape the enclosing loop status accepts", () => {
+    const status = buildLearningLoopStatus(FULL);
+    for (const [key, value] of Object.entries(status)) {
+      assert.ok(typeof value === "string" || typeof value === "number", key + " is a scalar rather than a nested structure");
+    }
+  });
+
+  it("is frozen so a reader cannot edit a report into a directive", () => {
+    const status = buildLearningLoopStatus(FULL);
+    assert.ok(Object.isFrozen(status));
+  });
+
+  it("is deterministic for identical sources", () => {
+    const first = buildLearningLoopStatus(FULL);
+    const second = buildLearningLoopStatus(FULL);
+    assert.deepEqual({ ...first }, { ...second }, "the same recorded state reports the same status");
+  });
+
+  it("never mutates the sources it reads", () => {
+    const before = JSON.stringify(FULL);
+    buildLearningLoopStatus(FULL);
+    assert.equal(JSON.stringify(FULL), before, "the sources are byte-identical after the projection");
+  });
+
+  it("reports eligibility with the reason attached, never as a bare permission", () => {
+    const status = buildLearningLoopStatus(FULL);
+    assert.match(status.metaEligibility ?? "", /^INELIGIBLE/, "the verdict is stated");
+    assert.match(status.metaEligibility ?? "", /required/, "and always with the condition that produced it");
+    assert.ok((status.metaEligibility ?? "").includes("-"), "verdict and reason are joined, so a reader cannot see one without the other");
+  });
+});
+
+describe("M2 - the projection stays an output", () => {
+  it("holds identifiers as identifiers, and nothing that looks like an instruction", () => {
+    const status = buildLearningLoopStatus(FULL);
+    for (const field of LEARNING_STATUS_IDENTIFIERS) {
+      const value = (status as Record<string, unknown>)[field];
+      assert.equal(typeof value, "string", field + " is an identifier string");
+    }
+    // No field carries a mutation, a target value, or a command-like payload. Anchored at the start
+    // so ordinary report names such as `latestLearningInputSetFingerprint` are not false positives.
+    for (const key of Object.keys(status)) {
+      assert.ok(!/^(apply|set|mutate|command|directive|approve|update|write|commit)/i.test(key), "projection field " + key + " reads as an instruction");
+    }
+  });
+
+  it("reports a rejection outcome without ever changing what it describes", () => {
+    const rejected = buildLearningLoopStatus({ application: { fingerprint: "c".repeat(64), applicationOutcome: "REJECTED" as const } });
+    const applied = buildLearningLoopStatus({ application: { fingerprint: "c".repeat(64), applicationOutcome: "APPLIED" as const } });
+    // Both are pure descriptions: differing only in the recorded value proves the projection carries
+    // no independent behaviour of its own.
+    assert.equal(rejected.applicationOutcome, "REJECTED");
+    assert.equal(applied.applicationOutcome, "APPLIED");
+    assert.notDeepEqual({ ...rejected }, { ...applied });
+    assert.equal(Object.keys(rejected).length, Object.keys(applied).length, "same shape, different recorded fact");
+  });
+
+  it("survives an unexpected source shape without throwing", () => {
+    assert.doesNotThrow(() => buildLearningLoopStatus(null as unknown as LearningStatusSource));
+    assert.equal(buildLearningLoopStatus(null as unknown as LearningStatusSource).schemaVersion, LEARNING_STATUS_VERSION);
+  });
+});
