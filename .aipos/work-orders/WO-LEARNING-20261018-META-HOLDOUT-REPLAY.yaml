@@ -37,4 +37,5 @@ validation:
   focused: "metaOos: 17/17 PASS; file-backed restart verifies replay, no duplicate durable assignment, and changed holdout rejection."
   full_suite: "pnpm test with installed Git Bash directories prepended to PATH: 1248 isolated test files PASS. Initial environment-only bash ENOENT was reproduced and corrected without changing test assertions."
   gates: "build PASS; typecheck PASS; validate:full PASS; security:gate PASS; aipos:yaml/provenance PASS; lint PASS with 26 existing warnings."
-  pending: "Commit/push to existing PR #2795, exact-head CI, and independent review. Audit/Release intentionally blocked by unresolved policy owners."
+  exact_head_ci: "PASS; workflow_dispatch run 39124665789 completed SUCCESS on da2033ba8c939ba837e167cbab6ccf2b1fbcdfbc, including validation and aggregate coverage. This is exact-tree CI evidence, not Audit or Release."
+  pending: "Fresh independent review. Audit/Release intentionally blocked by unresolved policy owners and production call-graph gaps."
