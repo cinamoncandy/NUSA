@@ -138,6 +138,7 @@ jobs:
           mkdir -p "$RELEASE_TREE"
           tar -xzf "$RUNNER_TEMP/nusa-release.tar.gz" -C "$RELEASE_TREE"
           test -f "$RELEASE_TREE/scripts/oracle-validate.js"
+          rm -- "$RUNNER_TEMP/nusa-release.tar.gz"
           echo "RELEASE_TREE=$RELEASE_TREE" >> "$GITHUB_ENV"
 
       - name: Require reviewed host release helper exact match

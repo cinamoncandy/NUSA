@@ -1,0 +1,46 @@
+id: WO-OPS-20261018-ORACLE-STAGE-SPACE
+title: "Avoid duplicate Oracle release staging bytes without weakening disk guards"
+status: VALIDATOR_P1_REPAIRED_PENDING_EXACT_HEAD_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2791
+base_branch: main
+implementation_branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
+pull_request: 2805
+authority_impact: release-pipeline-hygiene
+objective: "Allow the exact-main Oracle PAPER release to stage on the constrained host when the verified unpacked source already occupies the target filesystem, while preserving the root free-space guard and the cross-device copy fallback."
+finding: "Exact-main Oracle PAPER Release run 39100544697 reached staging after artifact extraction and state backup, then failed closed with available=5280886784 required=5949247701 source=1550406500. The artifact was 506610705 bytes; current host diagnosis 39100280323 showed 7.4G free, two retained release directories, and no safe release-prune opportunity."
+scope:
+  - "deploy/oracle/nusa-release-step.sh: restrict stage input to the canonical runner-temp extraction, account for same-device rename vs cross-device copy, and atomically move same-filesystem content after preserving ownership."
+  - ".github/workflows/oracle-paper-release.yml: remove only the checksum-verified temporary archive after successful extraction."
+  - "tests/oracle-paper-release-workflow.test.js: assert archive deletion order, source confinement, same-device move, and cross-device fallback."
+exclusions:
+  - "Do not delete server worktrees, release directories, runtime state, backups, or caches. Do not change disk thresholds, retention, activation, rollback, PAPER/LIVE authority, credentials, or server volume. Do not deploy or install the root-owned host helper from this task."
+architecture_impact:
+  acknowledged: true
+  analysis: "This keeps the existing exact-main Oracle release flow and changes only its bounded stage handoff. It does not alter runtime authority, activation, rollback, or persistent PAPER state."
+  references:
+    - docs/operations/oracle-p1-008-runbook.md
+    - .aipos/architecture.md
+acceptance:
+  - "The release tar is removed only after its digest check and successful extraction."
+  - "The privileged helper accepts only a direct, non-symlink run extraction under the configured runner temp root."
+  - "Same-filesystem staging attempts rename-only (`mv --no-copy`); if rename cannot occur, full-copy headroom is re-checked before any explicit copy fallback."
+  - "Cross-filesystem staging retains the existing full-copy headroom requirement and behavior."
+  - "Focused tests, shell syntax, AIPOS YAML/drift, and repository preflight pass; deployment remains unclaimed until the host helper is installed through canonical infrastructure review."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Source must resolve to a direct non-symlink nusa-release-tree-<run id> child of the canonical runner temp. Same-device staging is rename-only first; any rename failure must pass the full-copy headroom gate before explicit copy fallback. Cross-device staging retains the guarded copy. Disk reserve and 512 MiB margin remain enforced."
+rollback: "Revert the workflow/helper change; no host mutation is part of this work order."
+verification_commands:
+  - node --test tests/oracle-paper-release-workflow.test.js
+  - bash -n deploy/oracle/nusa-release-step.sh
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm exec eslint tests/oracle-paper-release-workflow.test.js
+validation: "Exact head 0dabdbfb087f83979eac3d72df096f0a01325cbc: full CI and companions PASS; fresh Codex Validator found P1 unsafe implicit mv copy fallback. Local repair makes rename `mv --no-copy` and rechecks full-copy headroom before explicit copy fallback; 23/23 focused tests, bash -n, and git diff --check PASS. New exact-head CI and fresh review required."
+previous_pr_head: 0dabdbfb087f83979eac3d72df096f0a01325cbc
+previous_pr_head_ci: "Full CI PASS, but superseded by fresh Validator P1 unsafe mv fallback finding."
+residual: "The exact-main release will continue refusing to run until the reviewed root-owned host helper is installed through its canonical infrastructure path. No Oracle server mutation or runtime proof is claimed."
