@@ -190,13 +190,11 @@ describe("A3 - insufficient is legitimate and the floor is owner-fixed (section 
         objectiveVersion: "objective-v1",
         proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }],
         reasonEvidence: ["trial-a"],
-        metaOosPartition: "meta-holdout",
-        metaCyclesEvaluated: 999,
         createdAt: "2026-10-18T00:00:00.000Z",
         sourceCommit: "273d785df7b14c3a8e541ae45ea71fe3aacb49b4",
         runtimeIdentity: "runtime-test",
       });
-      assert.equal(decision.decisionOutcome, "APPLIED", "the decision itself is admissible");
+      assert.equal(decision.decisionOutcome, "ADMISSIBLE", "the decision itself is admissible, not META-eligible");
 
       const { ledger } = fixture();
       const eligibility = ledger.eligibility("meta-holdout");
@@ -232,8 +230,6 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
       objectiveVersion: "objective-v1",
       proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }],
       reasonEvidence: ["trial-a"],
-      metaOosPartition: "meta-train",
-      metaCyclesEvaluated: 5,
       createdAt: "2026-10-18T00:00:00.000Z",
       sourceCommit: CONTEXT.sourceCommit,
       runtimeIdentity: "runtime-test",
