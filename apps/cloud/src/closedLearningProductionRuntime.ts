@@ -206,6 +206,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const periods = Object.freeze({
     listOpenPeriods: () => pendingPeriods.list(),
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
+    nextPeriodIndex: () => baseHandle.nextPaperRealizedPeriodIndex(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
     closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
     retireOpenPeriodForReplacement: (periodId: string, reason: string) => baseHandle.retirePaperRealizedPeriodForReplacement(periodId, reason),
@@ -268,6 +269,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const rollover = new ClosedLearningRolloverScheduler({
     listOpenPeriods: periods.listOpenPeriods,
     listRealizedPeriods: periods.listRealizedPeriods,
+    nextPeriodIndex: periods.nextPeriodIndex,
     readCanonicalPaperAccount,
     now: () => Date.now(),
     evaluationPeriodMs: closedLearningConfig.evaluationPeriodMs,
@@ -380,7 +382,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     if (!isOwnerBaselineSourceCommitSha(sourceCommitSha)) return;
     const market = config.upbitMarkets[0];
     if (market == null) return;
-    const periodIndex = periods.listRealizedPeriods().reduce((maximum, item) => Math.max(maximum, item.record.periodIndex), -1) + 1;
+    const periodIndex = periods.nextPeriodIndex();
     const input = buildOwnerBaselinePaperPeriodInput({
       market,
       periodIndex,
