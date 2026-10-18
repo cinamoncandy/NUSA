@@ -50,13 +50,13 @@ validation:
   lint: "PASS with 26 pre-existing warnings; zero errors"
   focused_tests: "PASS 49/49"
   local_adversarial_followup: "PASS: a validly shaped but mismatched Research lineage candidateVersion is rejected on activation before persistence and when tampered in persisted replay state; POLICY authorization exercised."
-  review_feedback: "A GitHub COMMENT on head 02e22589b104e26cdb102ec1a81e2f3feadaa7a2 was authored by the PR owner, so it is not independent acceptance. Its P1 lineage candidateVersion finding was reproduced and fixed locally."
-  exact_head_ci: PENDING
-  fresh_non_author_validation: PENDING
+  review_feedback: "Fresh chatgpt-codex-connector review of exact head 0f3b18c found P1 legacy-read regression: pre-Governance activation may carry researchLineage while omitting candidateStrategy. The repair keeps those historical records readable, while governed/new records remain fail-closed. Fresh review of the repair head is required."
+  exact_head_ci: PENDING_AFTER_REPAIR_COMMIT
+  fresh_non_author_validation: CHANGES_REQUESTED_ON_0f3b18c
   independent_audit: PENDING
   release: PENDING
-first_broken_transition: "locally validated Research-lineage candidate-version binding fix → fresh exact-head CI"
-next: "Run fresh exact-head CI; obtain fresh exact-head non-author validator acceptance (do not count the owner-authored COMMENT) before any Audit request; then continue the full P0-5 artifact graph verifier."
+first_broken_transition: "Codex P1 legacy lineage replay compatibility → corrected replay discriminator → fresh exact-head CI"
+next: "Commit the legacy-read repair, run fresh exact-head CI, then require a fresh chatgpt-codex-connector review of that exact head before any Audit request; then continue the full P0-5 artifact graph verifier."
 safety:
   paper_only: true
   liveAuthority: NONE

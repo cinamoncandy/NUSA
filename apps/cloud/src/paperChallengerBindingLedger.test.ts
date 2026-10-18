@@ -95,6 +95,17 @@ describe("PaperChallengerBindingLedger", () => {
     assert.equal(restarted.current("KRW-BTC", 3_000)?.governanceAuthorization, undefined);
   });
 
+  it("keeps legacy lineage activation without candidate strategy readable but ungoverned", () => {
+    const persistence = new MemoryLedger();
+    const { candidateStrategy: legacyCandidateStrategy, ...legacyBinding } = binding();
+    void legacyCandidateStrategy;
+    persistence.append({ opportunityId: "paper-challenger:KRW-BTC:legacy-lineage:active", problem: "NUSA PAPER challenger binding lifecycle", evidenceReferences: [], hypothesis: JSON.stringify({ schemaVersion: 1, status: "ACTIVE", market: "KRW-BTC", binding: legacyBinding, activatedAt: legacyBinding.periodStartAt, researchLineage: lineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), changeReference: "candidate:" + legacyBinding.candidateId, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(legacyBinding.periodStartAt).toISOString() });
+    const restarted = new PaperChallengerBindingLedger(persistence);
+    assert.equal(restarted.read("KRW-BTC", 3_000)?.candidateId, "challenger-a-v9");
+    assert.deepEqual(restarted.lineage("KRW-BTC", 3_000), lineage);
+    assert.equal(restarted.current("KRW-BTC", 3_000)?.governanceAuthorization, undefined);
+  });
+
   it("rejects lineage for a different candidate", () => {
     const runtime = new PaperChallengerBindingLedger(new MemoryLedger());
     assert.throws(() => runtime.activate("KRW-BTC", binding(), Object.freeze({ ...lineage, candidateId: "different" }), governance()), /lineage candidate conflict/);
