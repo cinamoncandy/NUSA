@@ -4,8 +4,8 @@ import { assessChange, assertLearningDecision, learningDecisionFingerprint, type
 /**
  * A4 - bounded application, plus M3 integration with the existing steering surface.
  *
- * A1's `APPLIED` means "at least one change was admitted", not "the runtime already changed". This
- * module is the step that turns an admitted change into an actual, bounded, exactly-once side effect,
+ * A1's `ADMISSIBLE` means "at least one change passed the local aperture", not "the runtime changed".
+ * This module is the step that turns an admitted change into an actual, bounded, exactly-once side effect,
  * and it produces the receipt that says what really happened.
  *
  * Three properties are load-bearing here.
@@ -244,7 +244,7 @@ export function applyBoundedChange(
 
   // A decision that never admitted a change has nothing to apply, whatever it claims.
   const change = decision.admissibleChanges[0];
-  if (decision.decisionOutcome !== "APPLIED" || change == null) {
+  if (decision.decisionOutcome !== "ADMISSIBLE" || change == null) {
     const receipt = refusal(decision, fingerprint, "none", 0, 0, 0, context, "decision outcome did not admit a bounded change");
     registry.record(receipt);
     return receipt;

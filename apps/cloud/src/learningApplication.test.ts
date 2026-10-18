@@ -45,8 +45,6 @@ function decisionWith(proposed: readonly LearningChangeRequest[], _currentValue:
     objectiveVersion: "objective-v1",
     proposedChanges: proposed,
     reasonEvidence: ["trial-a"],
-    metaOosPartition: "meta-holdout",
-    metaCyclesEvaluated: 4,
     createdAt: "2026-10-18T00:00:00.000Z",
     sourceCommit: CONTEXT.sourceCommit,
     runtimeIdentity: "runtime-test",
@@ -88,7 +86,7 @@ describe("A4 - the meta-OOS eligibility gate is fail-closed (section 17)", () =>
   it("does not mutate research policy even for a perfectly admissible decision", () => {
     const state = { value: 1 };
     const decision = decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1);
-    assert.equal(decision.decisionOutcome, "APPLIED", "the decision itself is admissible");
+    assert.equal(decision.decisionOutcome, "ADMISSIBLE", "the decision itself is admissible, not applied");
     const receipt = applyBoundedChange(decision, NOT_YET_ELIGIBLE, ports(state), CONTEXT, new ApplicationRegistry());
     assert.equal(receipt.applicationOutcome, "REJECTED");
     assert.equal(state.value, 1);
