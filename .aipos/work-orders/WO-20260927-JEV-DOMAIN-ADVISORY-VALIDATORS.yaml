@@ -34,13 +34,17 @@ evidence:
   current_main_reconvergence: 'Historical pre-repair evidence only: generic DOMAIN_ADVISORY_V1 coexisted with
     MARKET_MICROSTRUCTURE_V1. At the current repaired head, the generic production path is absent, all 18 deferred
     tasks remain UNAVAILABLE and non-emitting, and only separately accepted specialized validators remain.'
-  validation_source_head: d7d17e7da5cb1f9d091b5dbcfb43a759a18337fe
-  current_validation: 36/36 PASS; strict build/root/mobile typecheck/validate:full/lint/security PASS after ADR
-    repair
+  historical_validation_source_head: 'd7d17e7da5cb1f9d091b5dbcfb43a759a18337fe; contains the prohibited
+    generic DOMAIN_ADVISORY_V1 path and is not repaired-state acceptance.'
+  validation_source_head: 09f517f029a8c05327ffc861031348bc3816ad78
+  current_validation: 'CI39157572385 SUCCESS on repaired head09f517f02 (validation, coverage shards, aggregate,
+    and test). The prior 36/36 focused receipt is historical repaired-lineage evidence only.'
   validation_receipt: .aipos/evidence/jev-2337-adr0019-repair-20261016.json
-  independent_review: FAIL on df6b08d8:6198128771 P1 ADR-0019 and P2 envelope coverage. Applied findings remain
-    relevant after base-only merge; fresh clearance pending.
-  exact_head_ci: PENDING_NEW_HEAD;38848572619 success is historical and does not clear architecture finding
+  independent_review: 'FAIL on09f517f02; discussion4308376333 found the repaired validation was still bound to
+    historical prohibited head d7d17e7d. This metadata repair separates historical and repaired heads; fresh
+    exact-head clearance remains required.'
+  exact_head_ci: 'CI39157572385 SUCCESS on09f517f02; historical after this metadata repair, so new exact-head CI is
+    required.'
   audit_release_runtime: PENDING
   prior_exact_head_ci: 38745643392 SUCCESS on df6b08d8; historical10c base, not current-main acceptance
   stale_parent_blocker_cleanup: 'Fresh GitHub #2329 merged04a17e14 on2026-09-27; ancestry to c26 proven. Old quota
