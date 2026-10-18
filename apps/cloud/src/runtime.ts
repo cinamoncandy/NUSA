@@ -113,6 +113,7 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly retirePaperRealizedPeriodForReplacement: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForAccountChange: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForUnstreamedMarket: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
+  readonly disposeIncompletePaperRealizedPeriod: (input: Parameters<PaperRealizedPeriodProducer["disposeIncompletePeriodFromCanonicalAccount"]>[0]) => ReturnType<PaperRealizedPeriodProducer["disposeIncompletePeriodFromCanonicalAccount"]>;
   readonly retirePaperRealizedPeriodForMixedBinding: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly inspectPaperRealizedPeriodForMixedBinding: (periodId: string) => { readonly evidenceFingerprintSha256: string } | null;
   /** Canonical chronology allocator; includes realized, active pending and terminal disposition indexes. */
@@ -305,6 +306,7 @@ export function startCloudRuntime(
       maximumPeriods: 1_000,
       // Retention may never delete a realized period a surviving ledger record cites (v2 M1/A7).
       retentionGuard: evolutionLedgerRetentionGuard(new SqliteEvolutionLearningLedger(durableRepository.database())),
+      sourceRuntimeSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim() || undefined,
       onLifecycleEvent: (event) => paperLearningRecorder.record({
         cycleId: `paper-period:${event.periodId}`,
         stage: event.type,
@@ -760,6 +762,8 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForReplacement: (periodId, reason) => requirePaperRealizedPeriodProducer().retireOpenPeriodForReplacement(periodId, reason),
     retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     retirePaperRealizedPeriodForUnstreamedMarket: (periodId, streamedMarkets) => requirePaperRealizedPeriodProducer().retireOpenPeriodForUnstreamedMarket(periodId, streamedMarkets),
+    disposeIncompletePaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().disposeIncompletePeriodFromCanonicalAccount(input),
+    nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),
     retirePaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForMixedBinding(periodId),
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
     nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),

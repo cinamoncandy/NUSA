@@ -201,6 +201,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const pendingPeriods = new ClosedLearningPendingPeriodReader(database);
   const periods = Object.freeze({
     listOpenPeriods: () => pendingPeriods.list(),
+    nextPeriodIndex: () => baseHandle.nextPaperRealizedPeriodIndex?.() ?? (baseHandle.listPaperRealizedPeriods().reduce((v, item) => Math.max(v, item.record.periodIndex), -1) + 1),
+    disposeIncompletePeriodFromCanonicalAccount: baseHandle.disposeIncompletePaperRealizedPeriod,
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
     nextPeriodIndex: () => baseHandle.nextPaperRealizedPeriodIndex(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
@@ -261,6 +263,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listOpenPeriods: periods.listOpenPeriods,
     listRealizedPeriods: periods.listRealizedPeriods,
     nextPeriodIndex: periods.nextPeriodIndex,
+    disposeIncompletePeriodFromCanonicalAccount: periods.disposeIncompletePeriodFromCanonicalAccount,
     readCanonicalPaperAccount,
     now: () => Date.now(),
     evaluationPeriodMs: closedLearningConfig.evaluationPeriodMs,
@@ -449,7 +452,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         if (persistable != null && !writeBaselineShadowRecord(config.cloudStateDbPath, persistable)) baselineShadow.markUnpersisted();
       }
       refreshDurableCycles();
-      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
+      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods(), pendingPeriods.dispositions()); } catch { /* display only */ }
       try { loopStatus.observeRuleReplay(latestBaselineRuleReplay(periods.listRealizedPeriods())); } catch { loopStatus.observeRuleReplay(undefined); }
     })().catch((error: unknown) => { loopStatus.observeError(Date.now(), tickErrorClass(error)); persistLastBlocked(); throw error; });
     closedLearningTick = task;

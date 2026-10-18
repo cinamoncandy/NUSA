@@ -171,3 +171,11 @@ test("realized append cannot reuse a quarantined interval under a different iden
   assert.throws(() => store.append(envelope), /cannot become realized performance/);
   assert.equal(store.list().length, 0); assert.equal(store.listPendingDispositions().length, 1);
 }));
+
+
+test("retired successor index remains reserved by immutable disposition history", () => memory((_db, store) => {
+  const input = request(); store.putPending(input.original); store.markPendingIneligible(input);
+  store.retirePending(input.successor.periodId, input.successor.checksum);
+  assert.throws(() => store.putPending(pending(22, 300, "different-successor")), /reserved by immutable disposition/);
+  assert.equal(store.listPendingDispositions().length, 1);
+}));
