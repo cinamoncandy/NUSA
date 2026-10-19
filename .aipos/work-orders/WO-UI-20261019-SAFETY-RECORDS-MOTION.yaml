@@ -1,0 +1,24 @@
+id: WO-UI-20261019-SAFETY-RECORDS-MOTION
+title: "Redesign step 3: Safety lock rings and Records 'today' timeline"
+status: IN_PROGRESS
+priority: P2
+owner: ui
+repository: cinamoncandy/NUSA
+base_branch: main
+design: "https://claude.ai/artifact/9HDnUa8kLe8h58M4oEvMuV (owner: 'do it all', 2026-10-19)"
+objective: "Finish the four-screen redesign: Safety opens with three slowly turning rings around a padlock (one per fixed lock of the build), Records opens with today's timeline from real heartbeat timestamps, the latest one pulsing."
+scope:
+  - safetyRings.tsx (build facts only, no props) mounted in safetyView.tsx
+  - recordsTimelineModel.ts (pure, tested) and the timeline in recordsView.tsx; App.tsx passes the live heartbeat
+prohibited:
+  - any LIVE enable path, any server value that could make LIVE look unlocked, invented events
+acceptance:
+  - only real, past, same-KST-day timestamps are listed
+  - motion stops with the OS reduce-motion setting
+validation:
+  local: "recordsTimelineModel 2, mobile-safety-records-motion 2, mobile-product-v5 4, mobile-safety-screen-model pass; mobile tsc no error in changed files. Device run NOT RUN."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
