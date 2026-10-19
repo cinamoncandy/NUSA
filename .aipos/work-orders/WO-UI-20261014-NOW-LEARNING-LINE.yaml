@@ -1,0 +1,24 @@
+id: WO-UI-20261014-NOW-LEARNING-LINE
+title: "Now tab: 'is it learning?' line from the existing learning model"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/now-learning-line
+parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted (Now tab four answers); current calm design kept; 'continue'."
+change:
+  - "apps/mobile/src/learningLineModel.ts: buildNowLearningLine, a short plain-words variant (no champion/challenger or promotion jargon; null when research is not reported)."
+  - "apps/mobile/src/nowView.tsx: one line after the P&L, loss-limit and why lines, attention colour when it warns, hidden when stale/blocked."
+not_changed: "No new data, model or server change; buildLearningLine is the same model the HOME detail view already uses."
+remaining: "The Autopilot status line needs a server-side read of the Worker health and is a separate work order."
+verification_commands:
+  - "node --test tests/mobile-now-learning-line.test.js"
+  - "node scripts/lint-mobile.js && node scripts/validate-architecture.js"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
