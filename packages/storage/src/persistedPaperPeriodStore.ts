@@ -257,6 +257,11 @@ export class SqlitePersistedPaperPeriodStore {
     const payload = canonical(envelope);
     const digest = checksum(payload);
     this.db.transaction(() => {
+      const existing = this.db.connection.prepare(`SELECT payload_json, checksum FROM ${TABLE} WHERE record_id = ?`).get(envelope.record.recordId) as { payload_json?: string; checksum?: string } | undefined;
+      if (existing != null) {
+        if (existing.checksum !== digest || existing.payload_json !== payload) throw new PersistedPaperPeriodStoreError("RECORD_ID_CONFLICT", "persisted PAPER recordId was reused with different evidence", envelope.record.recordId);
+        return;
+      }
       if (this.rawPendingRows().some((row) => {
         const terminal = decodeDisposition(row);
         if (terminal == null) return false;
@@ -276,11 +281,6 @@ export class SqlitePersistedPaperPeriodStore {
         return envelope.record.periodStartAt < terminal.reason.boundaryAt && envelope.record.periodEndAt > row.periodStartAt;
       })) {
         throw new PersistedPaperPeriodStoreError("PENDING_TERMINAL", "ineligible PAPER period cannot become realized performance", envelope.record.recordId);
-      }
-      const existing = this.db.connection.prepare(`SELECT payload_json, checksum FROM ${TABLE} WHERE record_id = ?`).get(envelope.record.recordId) as { payload_json?: string; checksum?: string } | undefined;
-      if (existing != null) {
-        if (existing.checksum !== digest || existing.payload_json !== payload) throw new PersistedPaperPeriodStoreError("RECORD_ID_CONFLICT", "persisted PAPER recordId was reused with different evidence", envelope.record.recordId);
-        return;
       }
       const chronologyConflict = this.db.connection.prepare(`SELECT record_id FROM ${TABLE} WHERE (period_index < ? AND period_end_at > ?) OR (period_index > ? AND period_start_at < ?) LIMIT 1`).get(envelope.record.periodIndex, envelope.record.periodStartAt, envelope.record.periodIndex, envelope.record.periodEndAt) as { record_id?: string } | undefined;
       if (chronologyConflict != null) throw new PersistedPaperPeriodStoreError("PERIOD_CHRONOLOGY_CONFLICT", `PAPER period chronology conflicts with ${String(chronologyConflict.record_id)}`, envelope.record.recordId);

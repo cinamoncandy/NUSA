@@ -152,6 +152,14 @@ test("only finalizePending can realize an active disposition successor, and its 
     assert.equal(store.list().length, 1);
     assert.deepEqual(store.listPending(), []);
     assert.equal(store.listPendingDispositions().length, 1);
+    assert.deepEqual(store.append(valid), valid);
+    assert.equal(store.list().length, 1);
+    assert.deepEqual(store.listPending(), []);
+    const conflictingReplay = { ...valid, record: { ...valid.record, realizedReturns: { "candidate-a": 0.02 } } };
+    assert.throws(
+      () => store.append(conflictingReplay),
+      (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "RECORD_ID_CONFLICT",
+    );
   } finally {
     db.close();
   }
