@@ -3072,15 +3072,15 @@ current_evidence_verifier_20261018:
   work_order: WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
   status: VERIFYING
   branch: codex/paper-policy-fingerprint-verify
-  base_sha: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
+  base_sha: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
   pr: 2804
   first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
   finding: "PR #2804 now recomputes deterministic POLICY v2 identity including original Research provenance, but the v1→v2 identity bump made exact historical v1 POLICY activations unreadable during lifecycle replay."
   implementation: "POLICY v2 remains the only issuance path and binds candidate/version/family, evidence plus original/replay Research fingerprints and decision reference. Replay additionally recognizes only an exact historical v1 fingerprint/reference through a replay-only helper, strips Governance authorization from that recovered legacy receipt, and therefore preserves read access without granting closed-learning eligibility. Tampered v1 and new v1 activation attempts fail closed. Implementation commit: 0efd828ea7d45a2297d68a9e5b16687926ff9ca4."
-  validation: "Integrated current protected main 7ec5c21fe960783ea107b961dff76b31a8e9e15e locally without content conflicts. On the integrated tree: typecheck, build, validate:full, security:gate, lint (26 warnings, zero errors), six-file focused suite (57/57), and git diff --check PASS. Exact resulting commit, GitHub exact-head CI/runtime, and fresh non-author Validator remain pending; previous head receipts are not reused."
+  validation: "On source tree based on protected main 7ec5c21fe960783ea107b961dff76b31a8e9e15e: build PASS; typecheck PASS; validate:full PASS; security:gate PASS (0 unmitigated high/critical, 0 secrets); lint PASS with 26 warnings/0 errors; focused Governance/PAPER/durable-ledger suite PASS 66/66; git diff --check PASS. New durable SQLite test exposed and fixed a real persistence bug: the canonical ledger rejected valid >2,000-character activation receipts; the capped limit is now 16 KiB. Old exact-head receipts are invalidated by this follow-up. Verify fresh exact-head GitHub CI/runtime and obtain a fresh non-author Validator dynamically for the pushed PR head."
   review_feedback: "Latest non-author Codex finding on fa65b0a765c477613d7db316125f84f0fb43f507: preserve read access to v1 policy records after the v2 identity bump. Repair is replay-only, performs no historical rewrite, removes Governance eligibility on successful v1 recovery, and retains strict v2/new-activation validation."
   evidence_binding: "Static AIPOS intentionally does not self-claim the final PR SHA's future CI/review result. Exact-head CI/runtime and non-author review must be verified dynamically from GitHub against the current PR head before Audit."
-  remaining: "Commit and push the validated current-main integration; dynamically verify exact-head CI/runtime and obtain a fresh non-author zero-finding receipt on that SHA before Independent Audit/Release. Full independent sealed DATA→PAPER verifier remains open."
+  remaining: "Dynamically verify new exact-head GitHub CI/runtime and obtain a fresh non-author zero-finding Validator receipt before Independent Audit/Release. Full independent sealed DATA→PAPER verifier remains open."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_decision_funnel:

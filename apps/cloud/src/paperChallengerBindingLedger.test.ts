@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
+import type { SqliteEvolutionLearningLedger as SqliteEvolutionLearningLedgerType } from "../../../packages/storage/src/evolutionLearningLedger";
 import type { PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { legacyPaperChallengerPolicyIdentity, paperChallengerPolicyIdentity } from "./paperChallengerPolicyIdentity";
 import type { PaperResearchLineage } from "./paperResearchLineage";
 
-type RecordValue = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
+type RecordValue = Parameters<SqliteEvolutionLearningLedgerType["append"]>[0];
 
 class MemoryLedger {
   public readonly records: RecordValue[] = [];
@@ -98,6 +102,40 @@ describe("PaperChallengerBindingLedger", () => {
     assert.deepEqual(recovered?.researchLineage, lineage);
     assert.deepEqual(recovered?.governanceAuthorization, governance());
     assert.deepEqual(restarted.lineage("KRW-BTC", 3_000), lineage);
+  });
+
+  it("reconstructs the same POLICY authorization from the durable SQLite ledger after close and reopen", () => {
+    const directory = mkdtempSync(join(tmpdir(), "nusa-paper-policy-restart-"));
+    const filename = join(directory, "learning.sqlite");
+    try {
+      const firstDb = new SqliteDatabase(filename);
+      let expectedAuthorization: ReturnType<typeof policyGovernance>;
+      try {
+        const ledger = new SqliteEvolutionLearningLedger(firstDb);
+        const bindings = new PaperChallengerBindingLedger(ledger);
+        expectedAuthorization = policyGovernance();
+        bindings.activate("KRW-BTC", binding(), lineage, expectedAuthorization);
+        assert.equal(ledger.size(), 1);
+      } finally {
+        firstDb.close();
+      }
+
+      const restartedDb = new SqliteDatabase(filename);
+      try {
+        const ledger = new SqliteEvolutionLearningLedger(restartedDb);
+        const bindings = new PaperChallengerBindingLedger(ledger);
+        const recovered = bindings.current("KRW-BTC", 3_000);
+        assert.deepEqual(recovered?.governanceAuthorization, expectedAuthorization);
+        assert.deepEqual(recovered?.researchLineage, lineage);
+        assert.equal(recovered?.binding.liveAuthority, "NONE");
+        assert.equal(recovered?.binding.productionMutationAllowed, false);
+        assert.equal(ledger.size(), 1, "replay must not append a duplicate activation");
+      } finally {
+        restartedDb.close();
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("keeps legacy lineage-free activation history readable", () => {

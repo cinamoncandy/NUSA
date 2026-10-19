@@ -37,6 +37,7 @@ acceptance:
   - tampered_deterministic_policy_approval_fingerprint_is_rejected
   - changed_or_tampered_persisted_authorization_fails_closed
   - restart_replay_requires_same_governance_identity
+  - durable_sqlite_close_reopen_reconstructs_same_policy_identity_without_duplicate_activation
   - legacy_activation_read_compatibility_is_preserved
   - legacy_activation_without_governance_identity_cannot_seed_closed_learning
   - paper_only_live_none_production_mutation_false_ai_zero_authority
@@ -53,19 +54,20 @@ validation:
   validate_full: PASS
   security_gate: PASS
   lint: "PASS with 26 pre-existing warnings; zero errors"
-  focused_tests: "57/57 focused Governance/PAPER/deployment/closed-learning tests PASS after v1 POLICY replay-read compatibility repair"
+  focused_tests: "66/66 Governance/PAPER/deployment/closed-learning and durable-ledger tests PASS"
+  durable_sqlite_restart_test: PASS
   local_adversarial_followup: "PASS: candidateVersion, strategyId, POLICY→HUMAN namespace downgrade, approval fingerprint, original Research snapshot substitution, tampered v1 POLICY identity, and new-v1-activation attempts are rejected; exact historical v1 POLICY receipt remains readable only after Governance eligibility is removed."
   review_feedback: "Latest non-author Codex review on fa65b0a765c477613d7db316125f84f0fb43f507 found P1: the v2 identity bump made exact historical v1 POLICY activations unreadable during lifecycle replay. Repair commit 0efd828ea7d45a2297d68a9e5b16687926ff9ca4 adds replay-only exact v1 identity verification; a verified v1 receipt is returned as legacy ungoverned evidence, while tampered v1 and all new v1 activation attempts fail closed. No historical record is rewritten."
-  local_post_v1_repair: "After merging current protected main 7ec5c21fe960783ea107b961dff76b31a8e9e15e (no content conflicts), the integrated tree passed pnpm run typecheck, pnpm run build, pnpm run validate:full, pnpm run security:gate, pnpm run lint (26 warnings, zero errors), and the six-file focused node --test command (57/57); git diff --check is clean. These local results do not replace fresh exact-head GitHub CI/runtime or Validator evidence; resulting commit SHA and those remote receipts remain pending."
-  implementation_commit: 0efd828ea7d45a2297d68a9e5b16687926ff9ca4
+  local_post_v1_repair: "Follow-up adds a real SqliteDatabase/SqliteEvolutionLearningLedger close-reopen replay regression and corrects stale AIPOS evidence pointers. pnpm run build, typecheck, validate:full, security:gate, lint (26 warnings/zero errors), and focused 7-file node --test (66/66) passed on this source tree; git diff --check is clean. The durable test exposed that actual SQLite persistence rejected canonical activation receipts exceeding the prior 2,000-character hypothesis limit; the shared ledger retains a bounded 16,384-character limit. These local results do not replace fresh exact-head GitHub CI/runtime or non-author Validator evidence."
+  implementation_commit: DYNAMIC_GITHUB_LOOKUP_REQUIRED_AFTER_FOLLOWUP_PUSH
   latest_main_integrated: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
-  previous_exact_head_ci: PASS_ON_957a78c5debd4b51baa11da24d624326e60484af_INVALIDATED_BY_CURRENT_MAIN_INTEGRATION
+  previous_exact_head_ci: PASS_ON_4b7f1c7f3bc2343e58a14c459c69590b6d054b45_INVALIDATED_BY_FOLLOWUP_COMMIT
   exact_head_ci: DYNAMIC_GITHUB_LOOKUP_REQUIRED_FOR_CURRENT_PR_HEAD
   fresh_non_author_validation: DYNAMIC_EXACT_HEAD_REVIEW_REQUIRED
   independent_audit: PENDING
   release: PENDING
 first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
-next: "Commit the validated current-main integration and AIPOS sync, then push and verify exact-head CI/runtime. Obtain a separate fresh non-author Validator against that resulting SHA before Audit. Static AIPOS must not self-claim future CI/review results; verify receipts dynamically from GitHub."
+next: "Follow-up implementation and local gates are complete. Preserve PR as Draft/HOLD; dynamically verify exact-head CI/runtime on the pushed head and obtain a separate fresh non-author Validator against that SHA before Audit. Static AIPOS must not self-claim future CI/review results."
 safety:
   paper_only: true
   liveAuthority: NONE

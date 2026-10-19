@@ -120,6 +120,22 @@ test("forbidden fields are rejected before they can be persisted", () => {
   }
 });
 
+test("hypothesis payload remains bounded while allowing canonical Governance/PAPER receipts", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db);
+    const canonicalReceipt = { ...record("opp:canonical-receipt", "2026-08-29T00:00:00.000Z"), hypothesis: "x".repeat(2_001) };
+    assert.equal(ledger.append(canonicalReceipt).hypothesis.length, 2_001);
+    assert.throws(
+      () => ledger.append({ ...record("opp:oversized", "2026-08-29T00:01:00.000Z"), hypothesis: "x".repeat(16_385) }),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_RECORD",
+    );
+    assert.equal(ledger.size(), 1);
+  } finally {
+    db.close();
+  }
+});
+
 test("malformed persisted payload is rejected during startup replay", () => {
   const filename = databasePath();
   const db = new SqliteDatabase(filename);
