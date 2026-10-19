@@ -43,7 +43,7 @@ validator_followup_20261019:
   change: "Public append now fails closed for a disposition successor; only finalizePending may authorize it after matching the active pending snapshot, advisory, candidate provenance, market, and chronology."
   regression: "A forged candidate return envelope is rejected without changing pending or realized history; the matching canonical finalizePending path succeeds."
   local_validation: "Build PASS; focused PAPER/storage suite 33/33 PASS; TypeScript typecheck PASS; diff check PASS."
-  exact_head_ci: PENDING
+  exact_head_ci: "PASS on code head 580fa559d438fcef899ae3ff95ade24ddf9619df; CI run 39248868980 and all six companion workflows PASS."
   fresh_review: PENDING
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner: nusa
