@@ -9,8 +9,40 @@ const pending = (periodIndex, periodStartAt, periodId = `period-${periodIndex}`,
   const payloadJson = JSON.stringify({ schemaVersion: 1, periodId, periodIndex, periodStartAt, observations, observationIds: [] });
   return { periodId, periodIndex, periodStartAt, payloadJson, checksum: hash(payloadJson) };
 };
+const realized = (recordId, periodIndex, periodStartAt) => ({
+  record: {
+    recordId,
+    periodIndex,
+    periodStartAt,
+    periodEndAt: periodStartAt + 50,
+    advisory: {
+      schemaVersion: 1,
+      generatedAt: new Date(0).toISOString(),
+      policy: { maximumCandidateWeight: 1, minimumEvidenceBreadth: 1, maximumCandidateCount: 1, maximumFamilyWeight: 1 },
+      entries: [],
+      excludedCandidateIds: [],
+      reasons: [],
+      provenance: { sourceDatasetIds: [] },
+    },
+    realizedReturns: {},
+    benchmarkReturn: 0,
+    turnoverCostRate: 0,
+    status: "COMPLETED",
+    costEvidence: {
+      evidenceId: "isolated-test-cost",
+      source: "PAPER_EXECUTION_RECEIPT",
+      evidenceKind: "OBSERVED",
+      evidenceFingerprintSha256: hash(`cost:${recordId}:${periodIndex}:${periodStartAt}`),
+      observedAt: periodStartAt + 1,
+      feeRate: 0,
+      spreadRate: 0,
+      slippageRate: 0,
+    },
+  },
+  candidateProvenance: [],
+});
 
-test("retired disposition successor cannot be resurrected with the reserved identity and altered evidence", () => {
+test("retired disposition successor cannot be resurrected as pending or realized evidence", () => {
   const db = new SqliteDatabase(":memory:");
   try {
     const store = new SqlitePersistedPaperPeriodStore(db);
@@ -28,6 +60,8 @@ test("retired disposition successor cannot be resurrected with the reserved iden
         blockedEvidenceFingerprintSha256: hash("isolated incomplete evidence"),
       },
     });
+
+    store.putPending(successor); // exact active replay remains idempotent
     store.retirePending(successor.periodId, successor.checksum);
 
     const staleDifferentPayload = pending(22, 200, successor.periodId, [{ status: "STALE_REPLAY" }]);
@@ -40,8 +74,17 @@ test("retired disposition successor cannot be resurrected with the reserved iden
       () => store.putPending(staleDifferentStart),
       (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "PERIOD_INDEX_CONFLICT",
     );
+    assert.throws(
+      () => store.append(realized(successor.periodId, successor.periodIndex, 300)),
+      (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "PENDING_TERMINAL",
+    );
+    assert.throws(
+      () => store.append(realized("other-successor", successor.periodIndex, 300)),
+      (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "PENDING_TERMINAL",
+    );
 
     assert.deepEqual(store.listPending(), []);
+    assert.deepEqual(store.list(), []);
     assert.equal(store.listPendingDispositions().length, 1);
     assert.equal(store.nextPeriodIndex(), 23);
   } finally {
