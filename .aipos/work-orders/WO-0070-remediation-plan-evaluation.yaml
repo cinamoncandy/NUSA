@@ -1,6 +1,6 @@
 id: WO-0070
 title: Deterministic Remediation Plan Evaluation
-status: ready
+status: completed
 branch: agent/wo-0070-remediation-plan-evaluation
 base_sha: 030880026a091a34da4fa3dfb2ad3845436655e3
 # Added by WO-0071 (non-destructive). This is the EARLIER of two distinct work orders that were
@@ -75,3 +75,14 @@ verification:
   - relevant focused tests
   - git diff --check
 next_on_pass: human review and normal PR process
+repository_reconciliation:
+  recorded_by_work_order: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+  pull_request: 731
+  merged: true
+  merged_at: "2026-08-23T13:17:56Z"
+  merged_head: 27d50d0b7b98dc353acccbca87abe6a75c3fe035
+  merge_commit: e4655a8ce837d5327c855c0572d68477b9e2facc
+  protected_main_at_reconciliation: 44840f96e80d1e9e664b15743767eb6c717d978a
+  merge_commit_is_ancestor_of_protected_main: true
+  evidence_source: "GitHub PR metadata, changed-file list, and local git ancestry check. Historical validation claims above are preserved as reported; this reconciliation did not rerun them."
+
