@@ -21,5 +21,7 @@ test("the Learning screen shows the funnel only from a live snapshot, and its mo
   assert.match(view, /const funnel = buildLearningFunnel\(learningFunnel\);/);
   assert.match(view, /<PaperShadowMonitorView \{\.\.\.monitorProps\} \/>/, "the detail monitors do not receive the extra prop");
   assert.match(funnel, /isReduceMotionEnabled\(\)/);
-  assert.match(funnel, /if \(reducedMotion \|\| width === 0\) return undefined;/);
+  assert.match(funnel, /from "@shopify\/react-native-skia"/);
+  assert.match(funnel, /if \(reducedMotion\) \{ warmFunnelField\(field, 6\); render\(\); return undefined; \}/);
+  assert.match(funnel, /cancelAnimationFrame\(frame\)/);
 });
