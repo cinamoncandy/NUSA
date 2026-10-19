@@ -1,6 +1,6 @@
 id: WO-0070
 title: Deterministic Remediation Prioritization
-status: in_progress
+status: completed
 branch: agent/wo-0070-deterministic-remediation-prioritization
 base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
 # Added by WO-0071 (non-destructive). Two distinct work orders were both registered as WO-0070.
@@ -109,3 +109,14 @@ validation:
   aipos_drift: PASS
   security_gate: PASS_SECRETS_0
   diff_check: PASS
+repository_reconciliation:
+  recorded_by_work_order: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+  pull_request: 738
+  merged: true
+  merged_at: "2026-08-23T22:35:18Z"
+  merged_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
+  merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+  protected_main_at_reconciliation: 44840f96e80d1e9e664b15743767eb6c717d978a
+  merge_commit_is_ancestor_of_protected_main: true
+  evidence_source: "GitHub PR metadata, changed-file list, and local git ancestry check. Historical validation claims above are preserved as reported; this reconciliation did not rerun them."
+
