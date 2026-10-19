@@ -1,11 +1,30 @@
 id: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
 title: "Make canonical PAPER pending consumers recovery-safe across immutable schemaVersion=2 dispositions"
 status: IN_PROGRESS
+support_checkpoint_20261019:
+  evidence: .aipos/handoffs/2026-10-19-closed-loop-convergence-support.md
+  target_pr: 2808
+  target_head: 851362692add2afd6c355d333c15c9a947e26cf2
+  local: "TypeScript compile,117 focused tests,validate:full PASS. Support only; no new independent verdict."
+  gate: "Draft retained; fresh non-author VALIDATOR,canonical Audit/Release and actual-runtime prerequisites remain required."
+runtime_follow_up_20261019:
+  latest_main: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+  exact_main_paper_run: 39175607407
+  readiness_run: 39175589808
+  finding: "Actual PAPER E2E is truthfully INCOMPLETE (SMA0/20; no order/fill/PnL mutation; research collection disabled in E2E). #2589 latest runtime reports 37 owner-baseline realized periods, zero candidate-bound cycles/receipts and WAITING_FOR_EVALUATION_WINDOW because no qualified candidate-bound cycle is attempted."
+  validation: "Read-only runtime artifact and readiness log inspected. E2E restart/recovery exercised; order idempotency is not applicable without an automatic order. No deployment or runtime mutation."
+  next: "Do not activate this WO's disposition path before required independent review/Audit/Release and P0 future-fill evidence. Obtain natural exact-main Research qualification first; then verify candidate-bound period, cycle, restart and replay."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+scope_correction_20261019:
+  finding: "Draft #2808 wired markPendingIneligible into production rollover despite this WO's prohibition. Removed that production binding and CloudRuntimeHandle mutator exposure; added production-root regression. Store/producer disposition implementation and test-only scheduler port remain available but are not activated by production composition."
+  validation: "Build PASS; production-root4/4; disposition/rollover117/117; validate:full PASS; lint PASS (26 pre-existing warnings). Full suite did not finish because Electron binary is absent after scripts-disabled install. Local security:gate FAIL on high dependency advisories and exact-source backport checks; no security controls changed. Fresh exact-head CI pending."
+  next: "Push correction as a new commit on existing PR branch; require fresh exact-head CI, non-author review, canonical Audit/Release. Production activation remains prohibited until P0 future-fill acceptance."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 5b347b4b73b88f720c1452270e6ad6bfd61eca3a
-implementation_branch: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
+base_commit: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+implementation_branch: codex/pending-disposition-main-20261018
 authority_impact: paper_runtime_recovery
 objective: "Upgrade the existing pending-period consumer/recovery path so schemaVersion=2 terminal dispositions are validated and quarantined, only the canonical schemaVersion=1 successor is consumable, and all period-index allocation reserves terminal history."
 owner_authorization: "2026-10-18 OWNER explicitly ordered the NUSA DEV complete-convergence master execution for P0 future-fill acceptance -> P1 schemaVersion=2 consumer compatibility -> P2 disposition integration, with learning-loop scope excluded."

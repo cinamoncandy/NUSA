@@ -201,7 +201,6 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const pendingPeriods = new ClosedLearningPendingPeriodReader(database);
   const periods = Object.freeze({
     listOpenPeriods: () => pendingPeriods.list(),
-    disposeIncompletePeriodFromCanonicalAccount: baseHandle.disposeIncompletePaperRealizedPeriod,
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
     nextPeriodIndex: () => baseHandle.nextPaperRealizedPeriodIndex(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
@@ -262,7 +261,6 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listOpenPeriods: periods.listOpenPeriods,
     listRealizedPeriods: periods.listRealizedPeriods,
     nextPeriodIndex: periods.nextPeriodIndex,
-    disposeIncompletePeriodFromCanonicalAccount: periods.disposeIncompletePeriodFromCanonicalAccount,
     readCanonicalPaperAccount,
     now: () => Date.now(),
     evaluationPeriodMs: closedLearningConfig.evaluationPeriodMs,
