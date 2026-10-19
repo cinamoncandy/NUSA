@@ -43,6 +43,19 @@ export interface PersonalPaperTodayRealized {
   readonly evaluatedAt: number;
 }
 
+/** Display only: how far Research candidates got (from the closed-learning loop's meta-learning ledger). Non-negative integers. */
+export interface PersonalPaperLearningFunnel {
+  /** Configurations tested in recorded experiments. */
+  readonly configurations: number;
+  /** Configurations that passed discovery (in-sample screen). */
+  readonly discoveryPasses: number;
+  /** Configurations that passed the independent holdout. */
+  readonly holdoutPasses: number;
+  /** Closed-learning cycles evaluated by this runtime. */
+  readonly cyclesEvaluated: number;
+  readonly evaluatedAt: number;
+}
+
 export interface PersonalPaperRuntimeHeartbeat {
   readonly startedAt: number;
   readonly lastHeartbeatAt: number;
@@ -77,6 +90,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly lossLimit?: PersonalPaperLossLimit;
   /** Display only: today's (Asia/Seoul) realized PAPER P&L in KRW from the account's fills, computed outside RISK. Absent without a canonical PAPER loop or on an inconsistent ledger. */
   readonly todayRealized?: PersonalPaperTodayRealized;
+  /** Display only: candidates tested -> discovery -> holdout -> cycles. Absent when the closed-learning loop reports no ledger. */
+  readonly learningFunnel?: PersonalPaperLearningFunnel;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
