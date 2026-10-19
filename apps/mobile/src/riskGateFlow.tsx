@@ -11,7 +11,7 @@ const TRACK = 168;
 const DOTS = 4;
 const CYCLE_MS = 2600;
 
-export function RiskGateFlow({ gate }: { readonly gate: RiskGateModel }) {
+export function RiskGateFlow({ gate, windowNote = null }: { readonly gate: RiskGateModel; /** Shown when the buy counters started after a mid-day server restart (partialWindowNote). */ readonly windowNote?: string | null }) {
   const [reducedMotion, setReducedMotion] = useState(true);
   const runs = useRef(Array.from({ length: DOTS }, () => new Animated.Value(0))).current;
   const pulse = useRef(new Animated.Value(0)).current;
@@ -39,7 +39,7 @@ export function RiskGateFlow({ gate }: { readonly gate: RiskGateModel }) {
     return () => { loops.forEach((loop) => loop.stop()); gateLoop.stop(); };
   }, [reducedMotion, runs, pulse]);
 
-  const waiting = gate.waiting == null ? null : gate.waiting.toLocaleString("en-US");
+  const waiting = gate.waiting == null || gate.waiting === 0 ? null : gate.waiting.toLocaleString("en-US");
   return <View style={styles.card} testID="now-risk-gate" accessibilityRole="summary" accessibilityLabel={`${gate.headline.replace("\n", ". ")}. ${gate.detail}`}>
     <Text style={styles.caption}>신호 → 위험 → 주문</Text>
     <View style={styles.stage} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -51,7 +51,7 @@ export function RiskGateFlow({ gate }: { readonly gate: RiskGateModel }) {
       }]} />)}
       <Animated.View style={[styles.gateHalo, { opacity: reducedMotion ? 0.4 : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.7] }) }]} />
       <View style={styles.gate} />
-      <View style={styles.after} />
+      <View style={styles.after}>{Array.from({ length: 6 }, (_, i) => <View key={i} style={styles.dash} />)}</View>
       <View style={styles.sink} />
     </View>
     <View style={styles.labels}>
@@ -60,6 +60,7 @@ export function RiskGateFlow({ gate }: { readonly gate: RiskGateModel }) {
       <Text style={[styles.label, styles.muted]}>주문 0</Text>
     </View>
     <Text style={styles.detail}>{gate.detail}</Text>
+    {windowNote ? <Text style={styles.detail} testID="now-risk-gate-window">{windowNote}</Text> : null}
   </View>;
 }
 
@@ -72,7 +73,9 @@ const styles = StyleSheet.create({
   dot: { position: "absolute", left: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: calmColors.text },
   gateHalo: { position: "absolute", left: TRACK + 6, width: 26, height: 44, borderRadius: 13, backgroundColor: calmColors.attention },
   gate: { position: "absolute", left: TRACK + 12, width: 14, height: 36, borderRadius: 7, backgroundColor: calmColors.attention },
-  after: { position: "absolute", left: TRACK + 30, right: 16, height: 2, borderTopWidth: 2, borderColor: "#2A3440", borderStyle: "dashed" },
+  // Dashes are separate segments: a one-sided dashed border renders solid on Android.
+  after: { position: "absolute", left: TRACK + 32, right: 20, height: 2, flexDirection: "row", justifyContent: "space-between", overflow: "hidden" },
+  dash: { width: 4, height: 2, backgroundColor: "#2A3440" },
   sink: { position: "absolute", right: 0, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: "#343C45" },
   labels: { flexDirection: "row", justifyContent: "space-between", marginTop: 12 },
   label: { color: calmColors.text, fontSize: readableFont(12) },

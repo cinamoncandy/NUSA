@@ -18,6 +18,7 @@ acceptance:
   - motion stops with the OS reduce-motion setting
 validation:
   local: "riskGateModel tests 2, mobile-risk-gate 2, mobile-loss-limit + mobile-product-v5 14 pass; mobile tsc reports no error in the changed files. Device run NOT RUN."
+review_2026_10_19: "Independent review PASS_WITH_NOTES, no P0/P1. Fixed: dashed path drawn as segments (Android), partial-window note after a mid-day restart, no \"0 대기\" label."
 remaining: "Learning (funnel), Safety (lock rings) and Records (timeline) screens from the same design, as separate PRs."
 safety:
   paper_only: true

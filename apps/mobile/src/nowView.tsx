@@ -11,7 +11,7 @@ import { buildLossLimitLine, buildTodayRealizedLine } from "./lossLimitModel";
 import { describePaperOrderReason } from "./paperOrderReason";
 import { explainDecision } from "./whyNoTradeModel";
 import { useDailyCounts } from "./useDailyCounts";
-import { chooseDailyCounts } from "./dailyResetModel";
+import { chooseDailyCounts, partialWindowNote } from "./dailyResetModel";
 import { staleLabel } from "./cachedSnapshotModel";
 import { DecisionRings } from "./decisionRings";
 import { buildNowScreen } from "./nowScreenModel";
@@ -82,7 +82,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
       <Text style={styles.brand}>NUSA</Text>
       <CalmHeadline tone={gate ? "ATTENTION" : model.tone} text={gate ? gate.headline : model.headline} sub={gate ? (lossLimit?.text ?? model.sub) : model.sub} />
-      {gate ? <RiskGateFlow gate={gate} /> : <View style={model.dim ? styles.dim : undefined} testID="now-hero">
+      {gate ? <RiskGateFlow gate={gate} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} /> : <View style={model.dim ? styles.dim : undefined} testID="now-hero">
         <DecisionRings status={ringsStatus} decisionCount={blocked ? null : dailyCounts.decisionCount} paperOrderCount={blocked ? null : dailyCounts.paperOrderCount} marketLabel={heroMarket} />
       </View>}
       <View style={styles.block}>
