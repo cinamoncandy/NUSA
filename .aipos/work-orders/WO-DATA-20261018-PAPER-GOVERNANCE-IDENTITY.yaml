@@ -22,6 +22,8 @@ scope:
   - reject_governance_identity_drift_on_restart_replay
   - fail_closed_for_legacy_activation_missing_governance_identity_in_learning
   - add_tamper_and_identity_mismatch_regressions
+  - bound_shared_learning_ledger_hypothesis_by_utf8_bytes_with_ascii_and_multibyte_boundaries
+  - keep_pr_description_workflow_receipts_current_for_the_exact_head
 prohibited:
   - rewriting_historical_activation_records
   - creating_or_qualifying_synthetic_paper_evidence
@@ -40,6 +42,9 @@ acceptance:
   - durable_sqlite_close_reopen_reconstructs_same_policy_identity_without_duplicate_activation
   - legacy_activation_read_compatibility_is_preserved
   - legacy_activation_without_governance_identity_cannot_seed_closed_learning
+  - hypothesis_accepts_16kib_minus_one_and_exactly_16kib_utf8_bytes_and_rejects_16kib_plus_one
+  - ascii_and_multibyte_utf8_boundary_cases_are_covered
+  - pr_description_no_longer_calls_successful_guard_run_in_progress_and_marks_old_head_receipts_stale_after_repair
   - paper_only_live_none_production_mutation_false_ai_zero_authority
 validation:
   commands:
@@ -49,6 +54,7 @@ validation:
     - pnpm run security:gate
     - pnpm run lint
     - node --test dist/apps/cloud/src/paperChallengerBindingLedger.test.js dist/apps/cloud/src/paperChallengerPolicyApproval.test.js dist/apps/cloud/src/paperChallengerDeploymentRuntime.test.js dist/apps/cloud/src/paperChallengerDeploymentRuntime.handoff.test.js dist/apps/cloud/src/closedLearningEvidenceIdentitySource.test.js dist/apps/cloud/src/closedLearningLineageReplayInputSource.test.js
+    - node --test dist/packages/storage/src/evolutionLearningLedger.test.js
   typecheck: PASS
   build: PASS
   validate_full: PASS
@@ -59,6 +65,7 @@ validation:
   local_adversarial_followup: "PASS: candidateVersion, strategyId, POLICY→HUMAN namespace downgrade, approval fingerprint, original Research snapshot substitution, tampered v1 POLICY identity, and new-v1-activation attempts are rejected; exact historical v1 POLICY receipt remains readable only after Governance eligibility is removed."
   review_feedback: "Latest non-author Codex review on fa65b0a765c477613d7db316125f84f0fb43f507 found P1: the v2 identity bump made exact historical v1 POLICY activations unreadable during lifecycle replay. Repair commit 0efd828ea7d45a2297d68a9e5b16687926ff9ca4 adds replay-only exact v1 identity verification; a verified v1 receipt is returned as legacy ungoverned evidence, while tampered v1 and all new v1 activation attempts fail closed. No historical record is rewritten."
   local_post_v1_repair: "Follow-up adds a real SqliteDatabase/SqliteEvolutionLearningLedger close-reopen replay regression and corrects stale AIPOS evidence pointers. pnpm run build, typecheck, validate:full, security:gate, lint (26 warnings/zero errors), and focused 7-file node --test (66/66) passed on this source tree; git diff --check is clean. The durable test exposed that actual SQLite persistence rejected canonical activation receipts exceeding the prior 2,000-character hypothesis limit; the shared ledger retains a bounded 16,384-character limit. These local results do not replace fresh exact-head GitHub CI/runtime or non-author Validator evidence."
+  p2_followup_local: "On the clean PR head checkout, the shared ledger now explicitly bounds hypothesis by UTF-8 bytes at 16,384, retaining the bounded string-length check. Added ASCII and multibyte below/at/above regressions; the shared record factory truncates at 2,000 characters, so boundary inputs are applied after factory creation to test the actual persistence trust boundary. build PASS; focused 7-file suite including shared storage ledger PASS 66/66; typecheck PASS; validate:full PASS; security:gate PASS (0 unmitigated, 0 secrets); lint PASS (26 existing warnings, 0 errors); git diff --check PASS. This is local evidence only; exact-head GitHub CI/runtime and fresh non-author Validator remain pending after push."
   implementation_commit: DYNAMIC_GITHUB_LOOKUP_REQUIRED_AFTER_FOLLOWUP_PUSH
   latest_main_integrated: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
   previous_exact_head_ci: PASS_ON_4b7f1c7f3bc2343e58a14c459c69590b6d054b45_INVALIDATED_BY_FOLLOWUP_COMMIT
@@ -67,7 +74,7 @@ validation:
   independent_audit: PENDING
   release: PENDING
 first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
-next: "Follow-up implementation and local gates are complete. Preserve PR as Draft/HOLD; dynamically verify exact-head CI/runtime on the pushed head and obtain a separate fresh non-author Validator against that SHA before Audit. Static AIPOS must not self-claim future CI/review results."
+next: "Two validator P2 repairs are locally verified: 16 KiB UTF-8 byte boundaries and PR body Guard receipt freshness. Push a normal fast-forward commit only if the remote ref still equals the inspected parent, refresh PR body with new-head gates pending and prior receipts stale, then verify exact-head CI/PAPER runtime/all restricted-LIVE safety workflows and obtain a fresh independent non-author Validator for the new SHA. Preserve Draft/HOLD; no Audit/Release/merge. Static AIPOS must not self-claim future CI/review results."
 safety:
   paper_only: true
   liveAuthority: NONE

@@ -120,17 +120,36 @@ test("forbidden fields are rejected before they can be persisted", () => {
   }
 });
 
-test("hypothesis payload remains bounded while allowing canonical Governance/PAPER receipts", () => {
+test("hypothesis payload is bounded at 16 KiB of UTF-8 while allowing canonical Governance/PAPER receipts", () => {
   const db = new SqliteDatabase(":memory:");
   try {
     const ledger = new SqliteEvolutionLearningLedger(db);
     const canonicalReceipt = { ...record("opp:canonical-receipt", "2026-08-29T00:00:00.000Z"), hypothesis: "x".repeat(2_001) };
     assert.equal(ledger.append(canonicalReceipt).hypothesis.length, 2_001);
-    assert.throws(
-      () => ledger.append({ ...record("opp:oversized", "2026-08-29T00:01:00.000Z"), hypothesis: "x".repeat(16_385) }),
-      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_RECORD",
-    );
-    assert.equal(ledger.size(), 1);
+
+    const asciiBelow = "a".repeat(16_383);
+    const asciiAt = "a".repeat(16_384);
+    const asciiAbove = "a".repeat(16_385);
+    const multibyteBelow = "가".repeat(5_461);
+    const multibyteAt = `${multibyteBelow}a`;
+    const multibyteAbove = `${multibyteBelow}ab`;
+    for (const [label, hypothesis, expectedBytes] of [
+      ["ascii-below", asciiBelow, 16_383],
+      ["ascii-at", asciiAt, 16_384],
+      ["multibyte-below", multibyteBelow, 16_383],
+      ["multibyte-at", multibyteAt, 16_384],
+    ] as const) {
+      const stored = ledger.append({ ...record(`opp:${label}`, `2026-08-29T00:${String(2 + ledger.size()).padStart(2, "0")}:00.000Z`), hypothesis });
+      assert.equal(Buffer.byteLength(stored.hypothesis, "utf8"), expectedBytes);
+    }
+    for (const [label, hypothesis] of [["ascii-above", asciiAbove], ["multibyte-above", multibyteAbove]] as const) {
+      assert.equal(Buffer.byteLength(hypothesis, "utf8"), 16_385);
+      assert.throws(
+        () => ledger.append({ ...record(`opp:${label}`, `2026-08-29T00:${String(2 + ledger.size()).padStart(2, "0")}:00.000Z`), hypothesis }),
+        (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_RECORD",
+      );
+    }
+    assert.equal(ledger.size(), 5);
   } finally {
     db.close();
   }
