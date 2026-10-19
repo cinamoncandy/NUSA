@@ -16,6 +16,7 @@ addendum_2026_10_19: "Owner approved (chat, 2026-10-19): commit the SHA-256 mani
 next:
   - "Data step: a dispatch-only read-only workflow on the PAPER host downloads the pre-registered public klines and funding history; per the 2026-10-19 addendum only the SHA-256 manifest is committed, and evaluation re-fetches and verifies every hash."
   - "Evaluation step (PR #2810): apps/cloud/src/futures/futuresRegimeStudy.ts (pure evaluator, independent review fixed on-the-hour funding being skipped) + scripts/run-futures-regime-study.js + .github/workflows/futures-regime-study.yml; refuses without a committed research/futures/futures-history-manifest.json or with a committed holdout result. Order: merge, deploy, run freeze, commit manifest, deploy, run study ONCE (operating rule: no second dispatch), commit the printed result immediately."
+history_frozen_2026_10_19: "Release 83bedc35a deployed (run 39231499161, DEPLOYED, health_only current_release matches). futures-history-freeze run 39233732866: 10 files, klines 8292 rows each (no gap), funding 4146 rows each, manifest digest a30cf0d3b9d7ea8444951557ada0426507d142e321eaf289c73e845a32764147, committed as research/futures/futures-history-manifest.json. Holdout not read."
 not_changed: "No code, data, strategy, limit or runtime change; documentation only."
 safety:
   paper_only: true
