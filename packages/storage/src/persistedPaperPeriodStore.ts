@@ -257,13 +257,13 @@ export class SqlitePersistedPaperPeriodStore {
     const payload = canonical(envelope);
     const digest = checksum(payload);
     this.db.transaction(() => {
+      const pendingRows = this.rawPendingRows().map((row) => ({ row, terminal: decodeDisposition(row) }));
       const existing = this.db.connection.prepare(`SELECT payload_json, checksum FROM ${TABLE} WHERE record_id = ?`).get(envelope.record.recordId) as { payload_json?: string; checksum?: string } | undefined;
       if (existing != null) {
         if (existing.checksum !== digest || existing.payload_json !== payload) throw new PersistedPaperPeriodStoreError("RECORD_ID_CONFLICT", "persisted PAPER recordId was reused with different evidence", envelope.record.recordId);
         return;
       }
-      if (this.rawPendingRows().some((row) => {
-        const terminal = decodeDisposition(row);
+      if (pendingRows.some(({ row, terminal }) => {
         if (terminal == null) return false;
         const successor = terminal.successor;
         const touchesOriginal = row.periodId === envelope.record.recordId || row.periodIndex === envelope.record.periodIndex;

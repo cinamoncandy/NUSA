@@ -160,6 +160,11 @@ test("only finalizePending can realize an active disposition successor, and its 
       () => store.append(conflictingReplay),
       (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "RECORD_ID_CONFLICT",
     );
+    db.connection.prepare("UPDATE research_paper_forward_period_pending SET payload_json=? WHERE period_id=?").run(JSON.stringify({ schemaVersion: 2, kind: "INELIGIBLE_PENDING_PERIOD" }), original.periodId);
+    assert.throws(
+      () => store.append(valid),
+      (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "INVALID_PENDING_DISPOSITION",
+    );
   } finally {
     db.close();
   }
