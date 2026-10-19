@@ -45,3 +45,28 @@ test("unreadable or tampered records and non-durable paths are ignored", () => {
   recordRuntimeFailure(db, "UNCAUGHT_EXCEPTION", new Error("boom"), 5);
   assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), { schemaVersion: 1, kind: "UNCAUGHT_EXCEPTION", code: fingerprint("boom"), at: 5 });
 });
+
+
+test("bounded first causes survive a durable record without publishing SQL messages or owner identities", () => {
+  const db = stateDb();
+  const cause = Object.assign(new Error("database locked token SECRET owner PRIVATE"), { errcode: 261 });
+  const reason = new Error("PAPER_WRITER_LEASE_LOST", { cause });
+  recordRuntimeFailure(db, "CLOSED_LEARNING_SCHEDULER", reason, 9);
+  const bytes = readFileSync(runtimeFailureRecordPath(db)!, "utf8");
+  assert.deepEqual(JSON.parse(bytes), { schemaVersion: 1, kind: "CLOSED_LEARNING_SCHEDULER", code: "PAPER_WRITER_LEASE_LOST", at: 9, causeCode: "SQLITE_BUSY" });
+  assert.equal(/SECRET|PRIVATE|token|owner/.test(bytes), false);
+  assert.equal(readPreviousRuntimeFailure(db), "PREVIOUS_CLOSED_LEARNING_SCHEDULER:PAPER_WRITER_LEASE_LOST");
+});
+
+test("untrusted and cyclic causes are bounded and never copied into the receipt", () => {
+  const db = stateDb();
+  const reason = new Error("PAPER_WRITER_LEASE_LOST", { cause: new Error("TOKEN_SECRET") });
+  recordRuntimeFailure(db, "STARTUP", reason, 9);
+  assert.equal(JSON.parse(readFileSync(runtimeFailureRecordPath(db)!, "utf8")).causeCode, undefined);
+  reason.cause = reason;
+  recordRuntimeFailure(db, "STARTUP", reason, 10);
+  assert.equal(JSON.parse(readFileSync(runtimeFailureRecordPath(db)!, "utf8")).causeCode, undefined);
+  reason.cause = new Error("PAPER_WRITER_LEASE_EXPIRED");
+  recordRuntimeFailure(db, "STARTUP", reason, 11);
+  assert.equal(JSON.parse(readFileSync(runtimeFailureRecordPath(db)!, "utf8")).causeCode, "PAPER_WRITER_LEASE_EXPIRED");
+});
