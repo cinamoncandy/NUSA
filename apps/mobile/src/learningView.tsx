@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { PaperShadowMonitorView } from "./paperShadowMonitorView";
 import { buildLearningScreen } from "./learningScreenModel";
+import { buildLearningFunnel } from "./learningFunnelModel";
+import { LearningFunnel } from "./learningFunnel";
 import { CalmHeadline, CalmRow, CalmTitle } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 
-type Props = React.ComponentProps<typeof PaperShadowMonitorView>;
+type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown };
 
 /**
  * "학습" — calm redesign of the PAPER tab. The summary is new; the full read-only monitors
@@ -14,14 +16,21 @@ type Props = React.ComponentProps<typeof PaperShadowMonitorView>;
  */
 export function LearningView(props: Props) {
   const [details, setDetails] = useState(false);
+  const { learningFunnel, ...monitorProps } = props;
   const model = buildLearningScreen(props.paper);
+  const funnel = buildLearningFunnel(learningFunnel);
   if (details) return <View style={styles.screen}>
     <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.back} testID="learning-summary-back"><Text style={styles.backText}>‹ 학습 요약</Text></Pressable>
-    <PaperShadowMonitorView {...props} />
+    <PaperShadowMonitorView {...monitorProps} />
   </View>;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="learning-view">
     <CalmTitle text="학습" />
     <CalmHeadline tone={model.tone} text={model.headline} sub={model.sub} />
+    {funnel ? <>
+      <Text style={styles.funnelHead} accessibilityRole="header">{funnel.headline}</Text>
+      <Text style={styles.funnelSub}>{funnel.sub}</Text>
+      <LearningFunnel model={funnel} />
+    </> : null}
     <View style={styles.track} accessibilityLabel={model.steps.map((s) => `${s.label} ${s.state === "DONE" ? "확인" : s.state === "BLOCKED" ? "막힘" : "없음"}`).join(", ")}>
       {model.steps.map((step) => <View key={step.label} style={styles.step}>
         <View style={[styles.node, step.state === "DONE" ? styles.done : step.state === "BLOCKED" ? styles.blocked : null]} />
@@ -47,6 +56,8 @@ const styles = StyleSheet.create({
   stepLabel: { color: calmColors.muted, fontSize: readableFont(12) },
   narrow: { color: calmColors.attention, fontSize: readableFont(14), lineHeight: 21, marginHorizontal: 20, marginBottom: 6 },
   list: { paddingHorizontal: 20 },
+  funnelHead: { color: calmColors.text, fontSize: readableFont(18), lineHeight: 26, fontWeight: "700", marginHorizontal: 20, marginTop: 18 },
+  funnelSub: { color: calmColors.muted, fontSize: readableFont(13), lineHeight: 19, marginHorizontal: 20, marginTop: 4 },
   fold: { marginHorizontal: 20, marginTop: 8, minHeight: 52, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   foldText: { color: calmColors.text, fontSize: readableFont(14) },
   back: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, backgroundColor: calmColors.ground },
