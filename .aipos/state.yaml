@@ -1187,6 +1187,29 @@ latest_portfolio_risk_data_quality_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "External account credentials, Cloudflare/runtime proof, physical Galaxy acceptance, and human LIVE gate remain unchanged."
 
+aipos_completion_reconciliation_20261019:
+  work_order: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+  base_commit: 44840f96e80d1e9e664b15743767eb6c717d978a
+  objective: "Correct stale completion statuses for merged remediation PRs without rewriting historical validation evidence."
+  verified_repository_truth:
+    WO-0069:
+      pull_request: 708
+      merge_commit: 124890eb2f49f0e98f1b8b262acbb72f699cdb6c
+      ancestor_of_base: true
+    WO-0070.deterministic-remediation-prioritization:
+      pull_request: 738
+      merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+      ancestor_of_base: true
+    WO-0070.remediation-plan-evaluation:
+      pull_request: 731
+      merge_commit: e4655a8ce837d5327c855c0572d68477b9e2facc
+      ancestor_of_base: true
+  verification: "Node 24 / pnpm 11.7.0; repository validate, AIPOS YAML (499 files), provenance, work-order index (483 orders), drift, cross-AI conformance, and git diff check PASS. GitHub PR state/file lists and local ancestry confirm merges; historical CI claims were not rerun or upgraded."
+  next: "Run AIPOS-only validation; create a documentation-only PR only after local checks pass."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 base_branch: main
 active_branch: main
 active_successor_branch: null
@@ -3872,3 +3895,4 @@ current_research_breakout_walkforward:
   finding: "Over six consecutive 42-day windows, long-only breakouts (N=20/50/100) failed the pre-registered pass rule: 2-3 positive windows, negative average in DOWN windows, and 2x-cost survival in only 2 windows. The earlier all-positive last third came almost entirely from one +17% rally window. Re-applying the unchanged rule to 383 days of never-seen prior data reproduced the failure (2-3 positive windows, DOWN-window averages -8% to -19%, UP-window averages +7% to +9%): regime-dependent, not an edge. Not promotion evidence; no candidate is proposed for deployment."
   next: "Pre-register a regime-signal variant (no entry on a down signal) and evaluate it only on new forward data (for example the next 60 days) before any Research experiment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
