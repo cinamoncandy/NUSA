@@ -101,6 +101,8 @@ export interface ResearchExperimentComposition {
   /** Display only: each bar length's experiment tick summary, keyed "1m", "15m", ... */
   readonly experimentTicksByInterval: () => Readonly<Record<string, ReturnType<ResearchExperimentOrchestrator["experimentTicks"]>>>;
   readonly tickOnce: () => TickReport;
+  /** Cooperative production path: same deterministic tick, yielding between bounded experiment steps. */
+  readonly tickOnceAsync: () => Promise<TickReport>;
   readonly backfill: () => Promise<readonly BackfillResult[]>;
   /** Refills missing closed minutes inside the recent history from the public candle endpoint. */
   readonly fillGaps: () => Promise<readonly GapFillResult[]>;
@@ -340,26 +342,62 @@ export function composeResearchExperiments(input: {
   let first: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let tickNumber = 0;
-  const tickOnce = (): TickReport => {
-    let first: TickReport | undefined;
+  let scheduledTick: Promise<void> | undefined;
+
+  const nextTickPlan = (): { readonly every: number; readonly tickLongBars: boolean } => {
     let every = 1;
     try { const n = input.longBarTickEvery?.() ?? 1; every = Number.isSafeInteger(n) && n >= 1 && n <= 24 ? n : 1; } catch { every = 1; }
     const tickLongBars = tickNumber % every === 0;
     tickNumber += 1;
+    return Object.freeze({ every, tickLongBars });
+  };
+  const logTickReport = (minutes: number, report: TickReport): void => {
+    const completed = report.experiments.filter((e) => e.outcome.status === "COMPLETED").length;
+    log(`[research-experiments] tick ${minutes === 1 ? "" : `${minutes}m `}${report.status} started=${report.started} resumed=${report.resumed} stopped=${report.stopped} experiments=${report.experiments.length} completed=${completed}`);
+  };
+  const tickOnce = (): TickReport => {
+    let firstReport: TickReport | undefined;
+    const { every, tickLongBars } = nextTickPlan();
     settings.intervalsMinutes.forEach((minutes, index) => {
       // The first bar length also collects candles, so it always ticks; longer ones follow the meta-learning steering.
       if (index > 0 && !tickLongBars) { log(`[research-experiments] tick ${minutes}m deferred by meta-learning steering (every ${every})`); return; }
       try {
         const report = orchestrators[index]!.tick();
-        if (index === 0) first = report;
-        const completed = report.experiments.filter((e) => e.outcome.status === "COMPLETED").length;
-        log(`[research-experiments] tick ${minutes === 1 ? "" : `${minutes}m `}${report.status} started=${report.started} resumed=${report.resumed} stopped=${report.stopped} experiments=${report.experiments.length} completed=${completed}`);
+        if (index === 0) firstReport = report;
+        logTickReport(minutes, report);
       } catch (error) {
         if (index === 0) throw error;
         log(`[research-experiments] tick ${minutes}m failed: ${error instanceof Error ? error.message : "unknown"}`);
       }
     });
-    return first!;
+    return firstReport!;
+  };
+  const yieldProductionTurn = (): Promise<void> => new Promise((resolve, reject) => {
+    setImmediate(() => stopped ? reject(new Error("research experiment composition stopped")) : resolve());
+  });
+  const tickOnceAsync = async (): Promise<TickReport> => {
+    let firstReport: TickReport | undefined;
+    const { every, tickLongBars } = nextTickPlan();
+    for (let index = 0; index < settings.intervalsMinutes.length; index += 1) {
+      const minutes = settings.intervalsMinutes[index]!;
+      if (index > 0 && !tickLongBars) { log(`[research-experiments] tick ${minutes}m deferred by meta-learning steering (every ${every})`); continue; }
+      try {
+        const report = await orchestrators[index]!.tickAsync(yieldProductionTurn);
+        if (index === 0) firstReport = report;
+        if (stopped) return firstReport ?? report;
+        logTickReport(minutes, report);
+      } catch (error) {
+        if (index === 0) throw error;
+        log(`[research-experiments] tick ${minutes}m failed: ${error instanceof Error ? error.message : "unknown"}`);
+      }
+    }
+    return firstReport!;
+  };
+  const scheduleTick = (): void => {
+    if (stopped || scheduledTick != null) return;
+    const task = tickOnceAsync().then(() => undefined, () => undefined);
+    scheduledTick = task;
+    void task.finally(() => { if (scheduledTick === task) scheduledTick = undefined; });
   };
   return Object.freeze({
     datasetManifests,
@@ -373,6 +411,7 @@ export function composeResearchExperiments(input: {
       return Object.freeze(byInterval);
     },
     tickOnce,
+    tickOnceAsync,
     backfill,
     fillGaps,
     start: () => {
@@ -387,9 +426,9 @@ export function composeResearchExperiments(input: {
       preparationActive = false;
       clearPreparedRecovery();
       scheduleBackfill(1, 20_000);
-      first = setTimeout(() => { try { tickOnce(); } catch { /* isolated */ } }, 60_000);
+      first = setTimeout(scheduleTick, 60_000);
       first.unref?.();
-      timer = setInterval(() => { try { tickOnce(); } catch { /* isolated */ } }, settings.tickMs);
+      timer = setInterval(scheduleTick, settings.tickMs);
       timer.unref?.();
       if (settings.backfill) { gapTimer = setInterval(() => { void fillGaps(); }, 6 * 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
