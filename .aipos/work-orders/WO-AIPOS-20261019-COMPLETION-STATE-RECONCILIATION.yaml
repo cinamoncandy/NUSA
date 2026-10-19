@@ -17,6 +17,7 @@ scope:
   - Mark WO-0070 deterministic remediation prioritization completed from merged PR #738.
   - Mark WO-0070 remediation plan evaluation completed from merged PR #731.
   - Record exact merged head/commit, current protected-main SHA, and ancestry evidence for each correction.
+  - Reconcile the embedded current_non_live_work_order status for the canonical prioritization scope without deleting its historical provenance.
   - Add a separate state entry identifying this reconciliation and its truthful verification status.
   - Preserve the distinct scope identities for the two WO-0070 records.
 non_goals:
@@ -30,6 +31,7 @@ constraints:
   - PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY.
 acceptance_criteria:
   - All three corrected work orders identify their canonical merged PR and exact merge commit.
+  - The embedded current_non_live_work_order state no longer reports the already-merged prioritization task as in progress.
   - All three merge commits are ancestors of the recorded protected-main SHA.
   - The two WO-0070 scopes remain distinguishable and no evidence is conflated.
   - AIPOS YAML, provenance, work-order index, drift, and cross-AI conformance checks pass.
