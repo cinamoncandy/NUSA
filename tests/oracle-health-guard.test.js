@@ -22,6 +22,10 @@ test("public-market recovery is workload-aware and bounded", () => {
   assert.match(script, /r\.get\("lastError"\) == "PUBLIC_MARKET_FAILED"/);
   assert.match(script, /lastMarketEventAt/);
   assert.match(script, /COOLDOWN_MS=900000/);
+  assert.match(script, /MARKER_DIR=\/var\/lib\/nusa-health-guard/);
+  assert.match(script, /install -d -o root -g root -m 0700 "\$MARKER_DIR"/);
+  assert.match(script, /mktemp "\$\{MARKER_DIR\}\/.public-market-restart\.XXXXXX"/);
+  assert.doesNotMatch(script, /\$\{MARKER\}\.tmp\.\$\$/);
   assert.match(script, /last_market.*prev_market/);
   assert.match(script, /no repeat restart/);
   assert.match(script, /release_activation_active/);
@@ -34,7 +38,9 @@ test("public-market recovery is workload-aware and bounded", () => {
 });
 
 test("guard stays fail-closed and does not mutate database history", () => {
+  assert.match(script, /paper supervisor inactive; no watchdog restart/);
   assert.match(script, /paper endpoint unhealthy; no blind restart/);
+  assert.equal((script.match(/systemctl restart nusa\.service/g) ?? []).length, 1, "PAPER restart exists only in the PUBLIC_MARKET_FAILED bounded recovery path");
   assert.match(script, /mcp health degraded while PAPER upstream is unavailable; suppressing dependent-service restart/);
   assert.doesNotMatch(script, /sqlite3|DELETE FROM|UPDATE\s+.+SET|INSERT INTO|VACUUM/i);
   assert.doesNotMatch(script, /liveAuthority|productionMutationAllowed|aiAuthority/i);

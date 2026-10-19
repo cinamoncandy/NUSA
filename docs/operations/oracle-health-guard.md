@@ -59,7 +59,7 @@ cmp --silent deploy/oracle/nusa-health-guard /usr/local/sbin/nusa-health-guard
 
 ## Recovery marker
 
-The marker defaults to `/var/lib/nusa/.nusa/health-guard-public-market-restart`. It records only the stale market-event timestamp and bounded restart-at timestamp used to prevent repeated restart of the same outage. It is not trading state, market history, candidate evidence, or authorization state.
+The marker is `/var/lib/nusa-health-guard/public-market-restart`. The guard creates `/var/lib/nusa-health-guard` root-owned mode `0700` and creates each temporary marker atomically with `mktemp` before rename, so the unprivileged `nusa` runtime cannot pre-create or redirect the root write. The marker records only the stale market-event timestamp and bounded restart-at timestamp used to prevent repeated restart of the same outage. It is not trading state, market history, candidate evidence, or authorization state.
 
 ## Safety invariants
 
@@ -72,3 +72,4 @@ The marker defaults to `/var/lib/nusa/.nusa/health-guard-public-market-restart`.
 - no Risk/Governance/Release bypass
 - no duplicate scheduler/watchdog/control plane
 - fail closed when the upstream condition is ambiguous
+- an inactive PAPER supervisor is never restarted by this watchdog; the service unit owns its own failure restart policy

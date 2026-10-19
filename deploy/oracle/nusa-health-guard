@@ -2,7 +2,8 @@
 set -eu
 PAPER_HEALTH_URL=${PAPER_HEALTH_URL:-http://127.0.0.1:41731/health}
 UPBIT_PUBLIC_URL=${UPBIT_PUBLIC_URL:-https://api.upbit.com/v1/ticker?markets=KRW-XRP}
-MARKER=${NUSA_HEALTH_GUARD_MARKER:-/var/lib/nusa/.nusa/health-guard-public-market-restart}
+MARKER_DIR=/var/lib/nusa-health-guard
+MARKER=${MARKER_DIR}/public-market-restart
 COOLDOWN_MS=900000
 probe() {
   curl -fsS --max-time 3 "$1" >/dev/null 2>&1
@@ -70,8 +71,8 @@ maybe_recover_public_market() {
     logger -p daemon.err -t nusa-health-guard "paper public-market workload stale and Upbit public REST unreachable; no restart"
     return 1
   fi
-  mkdir -p "$(dirname "$MARKER")"
-  tmp="${MARKER}.tmp.$$"
+  install -d -o root -g root -m 0700 "$MARKER_DIR"
+  tmp=$(mktemp "${MARKER_DIR}/.public-market-restart.XXXXXX")
   printf '%s %s\n' "$last_market" "$now_ms" > "$tmp"
   chmod 600 "$tmp"
   mv -f "$tmp" "$MARKER"
@@ -85,21 +86,24 @@ maybe_recover_public_market() {
   return 1
 }
 rc=0
+paper_supervisor_active=true
 if ! systemctl is-active --quiet nusa.service; then
+  paper_supervisor_active=false
   if release_activation_active; then
     logger -p daemon.warning -t nusa-health-guard "paper supervisor inactive during canonical release activation; suppressing watchdog restart"
-    rc=1
   else
-    logger -p daemon.warning -t nusa-health-guard "paper supervisor inactive; one bounded restart"
-    systemctl restart nusa.service || rc=1
+    logger -p daemon.err -t nusa-health-guard "paper supervisor inactive; no watchdog restart"
   fi
+  rc=1
 fi
-if probe "$PAPER_HEALTH_URL"; then
+if [ "$paper_supervisor_active" = true ] && probe "$PAPER_HEALTH_URL"; then
   paper_healthy=true
   if ! maybe_recover_public_market; then paper_healthy=false; rc=1; fi
 else
   paper_healthy=false
-  logger -p daemon.err -t nusa-health-guard "paper endpoint unhealthy; no blind restart"
+  if [ "$paper_supervisor_active" = true ]; then
+    logger -p daemon.err -t nusa-health-guard "paper endpoint unhealthy; no blind restart"
+  fi
   rc=1
 fi
 if ! probe http://127.0.0.1:3001/health; then

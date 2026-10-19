@@ -11,7 +11,7 @@ authority_impact: none
 objective: "Put the already-deployed bounded Oracle health watchdog and its systemd ownership contract under repository review so host recovery behavior cannot drift outside source control."
 finding: "A natural PUBLIC_MARKET_FAILED incident left the PAPER process HTTP-healthy while its market workload was stale after bounded WebSocket reconnect exhaustion. The existing host-only health guard checked HTTP process health and did not detect the stale workload. The deployed repair recovered PAPER with one bounded restart and remained a no-op under healthy workload, but the executable and unit/timer were not tracked in the repository."
 scope:
-  - "Track the exact deployed /usr/local/sbin/nusa-health-guard behavior as deploy/oracle/nusa-health-guard."
+  - "Track and harden the deployed /usr/local/sbin/nusa-health-guard behavior as deploy/oracle/nusa-health-guard."
   - "Track the existing nusa-health-guard.service and nusa-health-guard.timer ownership contract."
   - "Add structural regression coverage for workload-aware PUBLIC_MARKET_FAILED recovery, cooldown/deduplication, release suppression, upstream reachability and fail-closed behavior."
   - "Document explicit reviewed-source installation and healthy no-op acceptance."
@@ -49,5 +49,5 @@ verification_commands:
   - git diff --check
   - pnpm run validate:full
   - pnpm run security:gate
-validation: "Host runtime before source canonicalization: PAPER/Autopilot/Upbit/MCP active; /health HTTP 200; failed units 0; installed guard SHA-256 4589bfb1f5900180b401886fcb7c106e92aa492fb807f2e8d1364a445b8a357d; timer active. Exact-head CI and fresh non-author review remain pending."
+validation: "Initial exact head f91d90ef had CI/companions PASS but fresh non-author review found two P1s: root marker/temp under nusa-writable /var/lib/nusa permitted symlink redirection, and inactive PAPER could bypass PUBLIC_MARKET_FAILED eligibility via an unbounded timer restart. Repair moves marker state to root-owned /var/lib/nusa-health-guard with mktemp and removes inactive-supervisor restart. Fresh exact-head CI/review required."
 next: "Run focused exact-head tests and CI, then require fresh non-author validation and the existing Audit/Release chain before merge. Do not self-approve or merge."
