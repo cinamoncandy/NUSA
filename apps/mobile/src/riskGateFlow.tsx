@@ -12,7 +12,7 @@ import { GATE_STREAMLINES, createGateField, gateParticlePoint, gateStreamline, g
 // on: one settled still frame is drawn instead.
 const SCENE_HEIGHT = 250;
 const PARTICLES = 1100;
-const FRAME_MS = 33;
+const FRAME_MS = 42;
 const ALPHA_LEVELS = [0.2, 0.4, 0.65, 0.9] as const;
 
 export function RiskGateFlow({ gate, windowNote = null }: { readonly gate: RiskGateModel; /** Shown when the buy counters started after a mid-day server restart (partialWindowNote). */ readonly windowNote?: string | null }) {
@@ -40,24 +40,29 @@ export function RiskGateFlow({ gate, windowNote = null }: { readonly gate: RiskG
     const field = createGateField(PARTICLES, 7, width);
     const gy = gateY(g), cx = width / 2;
     const scale = width / 390;
+    // Allocation-light frames: the guide hairlines depend only on the width, and point objects come from one reusable pool.
+    const streams = Skia.Path.Make();
+    for (let i = 0; i < GATE_STREAMLINES; i += 1) gateStreamline(i, g).forEach((p, k) => { if (k === 0) streams.moveTo(p.x, p.y); else streams.lineTo(p.x, p.y); });
+    const pool: SkPoint[] = Array.from({ length: PARTICLES + field.settledX.length }, () => ({ x: 0, y: 0 }));
+    let used = 0;
+    const take = (x: number, y: number): SkPoint => { const p = pool[used]!; used += 1; p.x = x; p.y = y; return p; };
 
     const render = () => {
       setPicture(createPicture((canvas) => {
         paints.hair.setColor(paints.flow); paints.hair.setAlphaf(0.07);
-        const streams = Skia.Path.Make();
-        for (let i = 0; i < GATE_STREAMLINES; i += 1) gateStreamline(i, g).forEach((p, k) => { if (k === 0) streams.moveTo(p.x, p.y); else streams.lineTo(p.x, p.y); });
         canvas.drawPath(streams, paints.hair);
+        used = 0;
 
         const flowing: SkPoint[][] = ALPHA_LEVELS.map(() => []);
         for (let i = 0; i < field.count; i += 1) {
           const p = gateParticlePoint(field, i, g);
           const a = field.alpha[i]! * Math.min(1, p.u * 6) * (1 - 0.2 * p.u);
-          flowing[Math.min(ALPHA_LEVELS.length - 1, Math.floor(a * 4.99))]!.push({ x: p.x, y: p.y });
+          flowing[Math.min(ALPHA_LEVELS.length - 1, Math.floor(a * 4.99))]!.push(take(p.x, p.y));
         }
         const settled: SkPoint[][] = [[], [], []];
         for (let s = 0; s < field.settledX.length; s += 1) {
           const light = settledLight(field, s);
-          if (light > 0.02) settled[Math.min(2, Math.floor(light * 2.99))]!.push({ x: field.settledX[s]!, y: field.settledY[s]! });
+          if (light > 0.02) settled[Math.min(2, Math.floor(light * 2.99))]!.push(take(field.settledX[s]!, field.settledY[s]!));
         }
         paints.dot.setColor(paints.flow);
         paints.dot.setStrokeWidth(1.6 * scale + 0.4);
@@ -97,7 +102,7 @@ export function RiskGateFlow({ gate, windowNote = null }: { readonly gate: RiskG
   }, [width, reducedMotion, paints]);
 
   const waiting = gate.waiting == null || gate.waiting === 0 ? null : gate.waiting.toLocaleString("en-US");
-  return <View style={styles.card} testID="now-risk-gate" accessibilityRole="summary" accessibilityLabel={`${gate.headline.replace("\n", ". ")}. ${gate.detail}`}>
+  return <View style={styles.card} testID="now-risk-gate" accessible accessibilityRole="summary" accessibilityLabel={`${gate.headline.replace(/\n/g, ". ")}. ${gate.detail}`}>
     <Text style={styles.caption}>신호 → 위험 → 주문</Text>
     <View style={styles.stage} onLayout={(e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width))} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" testID="now-risk-gate-scene">
       {width > 0 ? <Canvas style={{ width, height: SCENE_HEIGHT }}>{picture ? <Picture picture={picture} /> : null}</Canvas> : null}
