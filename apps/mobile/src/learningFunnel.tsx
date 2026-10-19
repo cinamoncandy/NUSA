@@ -41,7 +41,7 @@ export function LearningFunnel({ model }: { readonly model: LearningFunnelModel 
     <View style={{ height }}>
       {model.stages.map((stage, i) => {
         const attention = stage.tone === "ATTENTION";
-        return <View key={stage.label} style={[styles.bar, { top: i * STEP, left: `${Math.round((1 - stage.width) * 50)}%`, width: `${Math.round(stage.width * 100)}%`, borderColor: attention ? calmColors.attention : "#2A3440", backgroundColor: attention ? "#1A140A" : "#0A1017" }]}>
+        return <View key={stage.label} style={[styles.bar, { top: i * STEP, left: `${Math.round((1 - stage.width) * 50)}%`, width: `${Math.round(stage.width * 100)}%`, borderColor: attention ? calmColors.attention : calmColors.line, backgroundColor: calmColors.ground }]}>
           <Text style={[styles.label, attention ? { color: calmColors.attention } : null]} numberOfLines={1}>{stage.label}</Text>
           <Text style={[styles.value, attention ? { color: calmColors.attention } : null]}>{stage.value.toLocaleString("en-US")}</Text>
         </View>;
