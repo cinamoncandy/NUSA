@@ -227,13 +227,11 @@ export function composeResearchExperiments(input: {
       const variantId = `sma_${fast}_${slow}${tag.replace("-", "_")}`;
       return variantFor(variantId, proxy(`research-challenger-${variantId}`, fast, slow), { fast, slow });
     });
-    // RSI mean-reversion family (pre-committed grid): its own experiment family, compared against the same SMA 5/20 champion.
     const rsiVariants = RSI_CHALLENGER_GRID.map(([period, threshold]) => {
       const variantId = `rsi_${period}_${threshold}${tag.replace("-", "_")}`;
       const challenger = buildRsiResearchStrategy({ strategyId: `research-challenger-${variantId}`, version: "1.0.0", market, period, threshold, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: RSI_TIMEOUT_BARS * minutes, positionPercent: 50, maxPositionNotional: 500_000 });
       return variantFor(variantId, challenger, { family: "rsi", period, threshold, timeoutBars: RSI_TIMEOUT_BARS }, `rsi-research${tag}`);
     });
-    // Donchian breakout family (pre-committed grid): its own experiment family, compared against the same SMA 5/20 champion.
     const donchianVariants = DONCHIAN_GRID.map((period) => {
       const variantId = `donchian_${period}${tag.replace("-", "_")}`;
       const challenger = buildDonchianResearchStrategy({ strategyId: `research-challenger-${variantId}`, version: "1.0.0", market, period, takeProfitPercent: 3, stopLossPercent: 2, timeoutMinutes: DONCHIAN_TIMEOUT_BARS * minutes, positionPercent: 50, maxPositionNotional: 500_000 });
@@ -242,7 +240,6 @@ export function composeResearchExperiments(input: {
     const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants, ...donchianVariants];
     const orchestrator = new ResearchExperimentOrchestrator({
       variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant, precommitStore: precommits,
-      // Closed 1m candles are collected once per tick by the 1m-equivalent first orchestrator only.
       collect: (nowMs) => { if (minutes === settings.intervalsMinutes[0]) collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store }); },
       candles: bars, holdout, now, sourceCommitSha: settings.sourceCommitSha,
       models: { fill: "fill-close-v1", fee: `fee-${RESEARCH_BACKTEST_COST.feeRate}-v1`, slippage: `slip-${RESEARCH_BACKTEST_COST.slippageBps}bps-v1` },
@@ -264,10 +261,11 @@ export function composeResearchExperiments(input: {
   const sleep = input.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let backfillTimer: ReturnType<typeof setTimeout> | undefined;
   let backfilling = false;
+  let researchTickActive = false;
   const w = settings.windows;
-  const targetSpanMs = w.trainMs + w.validationMs + w.holdoutMs + DAY_MS; // one day of margin
+  const targetSpanMs = w.trainMs + w.validationMs + w.holdoutMs + DAY_MS;
   const backfill = async (): Promise<readonly BackfillResult[]> => {
-    if (backfilling || stopped) return Object.freeze([]);
+    if (backfilling || researchTickActive || stopped) return Object.freeze([]);
     backfilling = true;
     const results: BackfillResult[] = [];
     try {
@@ -294,12 +292,10 @@ export function composeResearchExperiments(input: {
     }
     return Object.freeze(results);
   };
-  // Restart and feed gaps inside the recent history are never revisited by the collector; longer bars need every
-  // minute, so refill missing minutes from the same public source after the history fill and every 6 hours.
   let gapFilling = false;
   let gapTimer: ReturnType<typeof setInterval> | undefined;
   const fillGaps = async (): Promise<readonly GapFillResult[]> => {
-    if (gapFilling || stopped) return Object.freeze([]);
+    if (gapFilling || researchTickActive || stopped) return Object.freeze([]);
     gapFilling = true;
     const results: GapFillResult[] = [];
     try {
@@ -340,6 +336,7 @@ export function composeResearchExperiments(input: {
 
   let timer: ReturnType<typeof setInterval> | undefined;
   let first: ReturnType<typeof setTimeout> | undefined;
+  let tickRetry: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let tickNumber = 0;
   let scheduledTick: Promise<void> | undefined;
@@ -359,7 +356,6 @@ export function composeResearchExperiments(input: {
     let firstReport: TickReport | undefined;
     const { every, tickLongBars } = nextTickPlan();
     settings.intervalsMinutes.forEach((minutes, index) => {
-      // The first bar length also collects candles, so it always ticks; longer ones follow the meta-learning steering.
       if (index > 0 && !tickLongBars) { log(`[research-experiments] tick ${minutes}m deferred by meta-learning steering (every ${every})`); return; }
       try {
         const report = orchestrators[index]!.tick();
@@ -376,25 +372,37 @@ export function composeResearchExperiments(input: {
     setImmediate(() => stopped ? reject(new Error("research experiment composition stopped")) : resolve());
   });
   const tickOnceAsync = async (): Promise<TickReport> => {
-    let firstReport: TickReport | undefined;
-    const { every, tickLongBars } = nextTickPlan();
-    for (let index = 0; index < settings.intervalsMinutes.length; index += 1) {
-      const minutes = settings.intervalsMinutes[index]!;
-      if (index > 0 && !tickLongBars) { log(`[research-experiments] tick ${minutes}m deferred by meta-learning steering (every ${every})`); continue; }
-      try {
-        const report = await orchestrators[index]!.tickAsync(yieldProductionTurn);
-        if (index === 0) firstReport = report;
-        if (stopped) return firstReport ?? report;
-        logTickReport(minutes, report);
-      } catch (error) {
-        if (index === 0) throw error;
-        log(`[research-experiments] tick ${minutes}m failed: ${error instanceof Error ? error.message : "unknown"}`);
+    if (researchTickActive) throw new Error("research experiment tick already active");
+    if (backfilling || gapFilling) throw new Error("research evidence writer active");
+    researchTickActive = true;
+    try {
+      let firstReport: TickReport | undefined;
+      const { every, tickLongBars } = nextTickPlan();
+      for (let index = 0; index < settings.intervalsMinutes.length; index += 1) {
+        const minutes = settings.intervalsMinutes[index]!;
+        if (index > 0 && !tickLongBars) { log(`[research-experiments] tick ${minutes}m deferred by meta-learning steering (every ${every})`); continue; }
+        try {
+          const report = await orchestrators[index]!.tickAsync(yieldProductionTurn);
+          if (index === 0) firstReport = report;
+          if (stopped) return firstReport ?? report;
+          logTickReport(minutes, report);
+        } catch (error) {
+          if (index === 0) throw error;
+          log(`[research-experiments] tick ${minutes}m failed: ${error instanceof Error ? error.message : "unknown"}`);
+        }
       }
+      return firstReport!;
+    } finally {
+      researchTickActive = false;
     }
-    return firstReport!;
   };
   const scheduleTick = (): void => {
-    if (stopped || scheduledTick != null) return;
+    if (stopped || scheduledTick != null || tickRetry != null) return;
+    if (backfilling || gapFilling) {
+      tickRetry = setTimeout(() => { tickRetry = undefined; scheduleTick(); }, 1_000);
+      tickRetry.unref?.();
+      return;
+    }
     const task = tickOnceAsync().then(() => undefined, () => undefined);
     scheduledTick = task;
     void task.finally(() => { if (scheduledTick === task) scheduledTick = undefined; });
@@ -416,8 +424,6 @@ export function composeResearchExperiments(input: {
     fillGaps,
     start: () => {
       if (stopped || timer != null) return;
-      // The runtime recovers only the first orchestrator (it is the one handed to startCloudRuntime). Every
-      // other bar length must recover here, before its first tick, or it stays RECOVERY_NOT_READY forever.
       orchestrators.slice(1).forEach((other, index) => {
         let status = "FAIL_CLOSED";
         try { status = other.recover().status; } catch { status = "FAIL_CLOSED"; }
@@ -433,6 +439,6 @@ export function composeResearchExperiments(input: {
       if (settings.backfill) { gapTimer = setInterval(() => { void fillGaps(); }, 6 * 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
-    stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
+    stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (tickRetry != null) clearTimeout(tickRetry); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });
 }
