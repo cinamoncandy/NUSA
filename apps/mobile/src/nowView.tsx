@@ -11,10 +11,12 @@ import { buildLossLimitLine, buildTodayRealizedLine } from "./lossLimitModel";
 import { describePaperOrderReason } from "./paperOrderReason";
 import { explainDecision } from "./whyNoTradeModel";
 import { useDailyCounts } from "./useDailyCounts";
-import { chooseDailyCounts } from "./dailyResetModel";
+import { chooseDailyCounts, partialWindowNote } from "./dailyResetModel";
 import { staleLabel } from "./cachedSnapshotModel";
 import { DecisionRings } from "./decisionRings";
 import { buildNowScreen } from "./nowScreenModel";
+import { buildRiskGate } from "./riskGateModel";
+import { RiskGateFlow } from "./riskGateFlow";
 import { CalmBigNumber, CalmHeadline, CalmStats } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
@@ -71,21 +73,23 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
     paperOrderCount: heartbeat?.paperOrderCount ?? null,
     fillCount: heartbeat?.paperFillCount ?? null,
   });
+  // Redesign 2026-10-19: when the loss limit holds new buys, say where the flow stopped (the risk gate), not just "no execution".
+  const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount });
   const ringsStatus = field.phase === "HALTED" ? { title: field.headline, detail: field.detail, tone: "halt" as const } : null;
   const heroMarket = Array.isArray(heartbeat?.tradedMarkets) && typeof heartbeat?.tradedMarkets[0] === "string" ? heartbeat.tradedMarkets[0] as string : null;
   const needsSetup = notConfigured != null || readOnlyError != null;
   return <View style={styles.shell} testID="now-screen">
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
       <Text style={styles.brand}>NUSA</Text>
-      <CalmHeadline tone={model.tone} text={model.headline} sub={model.sub} />
-      <View style={model.dim ? styles.dim : undefined} testID="now-hero">
+      <CalmHeadline tone={gate ? "ATTENTION" : model.tone} text={gate ? gate.headline : model.headline} sub={gate ? (lossLimit?.text ?? model.sub) : model.sub} />
+      {gate ? <RiskGateFlow gate={gate} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} /> : <View style={model.dim ? styles.dim : undefined} testID="now-hero">
         <DecisionRings status={ringsStatus} decisionCount={blocked ? null : dailyCounts.decisionCount} paperOrderCount={blocked ? null : dailyCounts.paperOrderCount} marketLabel={heroMarket} />
-      </View>
+      </View>}
       <View style={styles.block}>
         <CalmBigNumber value={model.equity} caption={model.delta ?? undefined} captionTone={model.deltaTone} dim={model.dim} />
       </View>
       {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
-      {lossLimit == null ? null : <View style={styles.why} testID="now-loss-limit">
+      {lossLimit == null || gate ? null : <View style={styles.why} testID="now-loss-limit">
         <Text style={[styles.whyText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
       </View>}
       {model.why == null ? null : <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.why} testID="now-why">
