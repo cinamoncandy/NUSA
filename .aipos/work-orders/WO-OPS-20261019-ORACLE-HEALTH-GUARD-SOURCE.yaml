@@ -1,0 +1,53 @@
+id: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
+title: "Canonicalize the deployed Oracle PAPER health guard without adding a second watchdog"
+status: VERIFYING
+owner: nusa-server-automation
+repository: cinamoncandy/NUSA
+issue: 1949
+base_branch: main
+base_commit: 91db289a392f08aaf367cc15bec16f852d2b4edb
+implementation_branch: ops/health-guard-source-1949
+authority_impact: none
+objective: "Put the already-deployed bounded Oracle health watchdog and its systemd ownership contract under repository review so host recovery behavior cannot drift outside source control."
+finding: "A natural PUBLIC_MARKET_FAILED incident left the PAPER process HTTP-healthy while its market workload was stale after bounded WebSocket reconnect exhaustion. The existing host-only health guard checked HTTP process health and did not detect the stale workload. The deployed repair recovered PAPER with one bounded restart and remained a no-op under healthy workload, but the executable and unit/timer were not tracked in the repository."
+scope:
+  - "Track the exact deployed /usr/local/sbin/nusa-health-guard behavior as deploy/oracle/nusa-health-guard."
+  - "Track the existing nusa-health-guard.service and nusa-health-guard.timer ownership contract."
+  - "Add structural regression coverage for workload-aware PUBLIC_MARKET_FAILED recovery, cooldown/deduplication, release suppression, upstream reachability and fail-closed behavior."
+  - "Document explicit reviewed-source installation and healthy no-op acceptance."
+exclusions:
+  - "Do not alter nusa-release-step or implicitly install a new privileged helper from ordinary releases."
+  - "Do not add another timer, scheduler, watchdog or control plane."
+  - "Do not edit the database, writer lease, release symlink, runtime environment, Risk, Governance, qualification, OOS, cost or sample thresholds."
+  - "Do not enable LIVE/REAL authority or broker mutation."
+architecture_impact:
+  acknowledged: true
+  analysis: "The change source-controls the single watchdog already installed on the Oracle PAPER host. Runtime ownership and timer cadence stay unchanged; no new subsystem is introduced."
+  references:
+    - deploy/oracle/nusa-health-guard
+    - deploy/oracle/nusa-health-guard.service
+    - deploy/oracle/nusa-health-guard.timer
+    - docs/operations/oracle-health-guard.md
+acceptance:
+  - "POSIX shell syntax passes."
+  - "Recovery is eligible only for workload STALE + PUBLIC_MARKET_FAILED with a valid last market timestamp and reachable Upbit public REST."
+  - "The same outage cannot trigger a repeat restart and a 15-minute cooldown bounds different failures."
+  - "Canonical release activation suppresses watchdog PAPER restart."
+  - "Healthy workload execution is a no-op and preserves the PAPER PID."
+  - "Unreachable PAPER endpoint remains fail-closed with no blind restart."
+  - "Installed host executable can be compared byte-for-byte with reviewed source."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+rollback: "Revert this source-control commit. The existing host watchdog is not changed by the PR itself; any host installation remains an explicit reviewed infrastructure operation."
+verification_commands:
+  - node --test tests/oracle-health-guard.test.js
+  - sh -n deploy/oracle/nusa-health-guard
+  - git diff --check
+  - pnpm run validate:full
+  - pnpm run security:gate
+validation: "Host runtime before source canonicalization: PAPER/Autopilot/Upbit/MCP active; /health HTTP 200; failed units 0; installed guard SHA-256 4589bfb1f5900180b401886fcb7c106e92aa492fb807f2e8d1364a445b8a357d; timer active. Exact-head CI and fresh non-author review remain pending."
+next: "Run focused exact-head tests and CI, then require fresh non-author validation and the existing Audit/Release chain before merge. Do not self-approve or merge."
