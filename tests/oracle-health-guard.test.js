@@ -24,7 +24,7 @@ test("public-market recovery is workload-aware and bounded", () => {
   assert.match(script, /COOLDOWN_MS=900000/);
   assert.match(script, /MARKER_DIR=\/var\/lib\/nusa-health-guard/);
   assert.match(script, /install -d -o root -g root -m 0700 "\$MARKER_DIR"/);
-  assert.match(script, /mktemp "\$\{MARKER_DIR\}\/.public-market-restart\.XXXXXX"/);
+  assert.match(script, /mktemp "\$\{MARKER_DIR\}\/\.public-market-restart\.XXXXXX"/);
   assert.doesNotMatch(script, /\$\{MARKER\}\.tmp\.\$\$/);
   assert.match(script, /last_market.*prev_market/);
   assert.match(script, /no repeat restart/);
@@ -48,6 +48,7 @@ test("guard stays fail-closed and does not mutate database history", () => {
 
 test("systemd owner remains one bounded timer-driven guard", () => {
   assert.match(service, /^Type=oneshot$/m);
+  assert.match(service, /^TimeoutStartSec=15min$/m);
   assert.match(service, /^ExecStart=\/usr\/local\/sbin\/nusa-health-guard$/m);
   assert.match(timer, /^OnBootSec=4min$/m);
   assert.match(timer, /^OnUnitActiveSec=5min$/m);
