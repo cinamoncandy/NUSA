@@ -12,6 +12,7 @@ document: docs/RESEARCH_PREREG_2026-10-14_FUTURES_REGIME_LONG_SHORT.md
 preconditions:
   - "B0 public data probe passed (run 38520735288, all http=200)."
   - "Futures core merged (#2703)."
+addendum_2026_10_19: "Owner approved (chat, 2026-10-19): commit the SHA-256 manifest instead of the raw files; evaluation re-fetches and verifies every hash. Data step: scripts/fetch-futures-history.js + .github/workflows/futures-history-freeze.yml (PR #2810). No rule changed."
 next:
   - "Data step: a dispatch-only read-only workflow on the PAPER host downloads the pre-registered public klines and funding history; the raw files and SHA-256 hashes are committed before evaluation."
   - "Evaluation step: an offline script using the merged simulator and risk gate, run once on the holdout."
