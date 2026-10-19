@@ -3074,29 +3074,30 @@ current_evidence_verifier_20261018:
   branch: codex/paper-policy-fingerprint-verify
   base_sha: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
   pr: 2804
-  implementation_head_sha: cd5e392cb0c909c740e1fb7d083489f7bf027775
-  implementation_head_state: OPEN_DRAFT_MERGEABLE
+  last_verified_evidence_checkpoint_sha: dfa50343f5ac781c108a96ea304b51d1d0d1871b
+  checkpoint_state: OPEN_DRAFT_MERGEABLE
+  checkpoint_base_sha: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
   first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
   implementation: "POLICY v2 binds candidate/version/family, evidence plus original/replay Research fingerprints and decision reference. Replay-only exact historical v1 recovery preserves read access without Governance eligibility; tampered v1 and new v1 activation fail closed. No historical rewrite."
   utf8_byte_bound_repair: "COMPLETE on source head f31524533ddaffe2191b06a31e3221185bdfa5d3: shared hypothesis cap is 16,384 UTF-8 bytes with retained string bound; ASCII/multibyte below/at/above regressions are included."
   sqlite_restart_replay: "PASS on source head f31524533ddaffe2191b06a31e3221185bdfa5d3: close/reopen reconstructs the same POLICY identity and Research lineage without duplicate activation."
-  latest_exact_head_workflows:
-    checkpoint_sha: cd5e392cb0c909c740e1fb7d083489f7bf027775
-    ci: "39198847220 PASS"
-    paper_runtime: "39198847229 PASS"
-    capability_guard: "39198847218 PASS"
-    activation: "39198847216 PASS"
-    transport: "39198847213 PASS"
-    read_only_broker: "39198847223 PASS"
-  validator_on_checkpoint_head: "CHANGES_REQUESTED; P0=0, P1=0, P2=1. P2: AIPOS current state and PR description lagged this exact head and its six successful workflows. This record synchronizes the AIPOS checkpoint; this receipt is not a verdict on its successor."
-  previous_checkpoint_history: "Earlier reviewed head 8364ba94093757c10585e6f0d860576f3d868e72 had six successful workflows and a separate CHANGES_REQUESTED/P2=1 receipt. Earlier repair heads and receipts remain historical and are not reused as current validation."
-  successor_head_exact_workflows: "PENDING_DYNAMIC_LOOKUP_AFTER_THIS_AIPOS_COMMIT; resolve the resulting PR head from GitHub and verify all six workflows against that exact SHA. Do not claim this parent checkpoint evidence for the successor."
-  pr_body_correction: "PENDING_SUCCESSOR_HEAD_REFRESH; current PR body must be refreshed after the AIPOS commit and successor-head workflow lookup, without changing source head."
-  successor_head_fresh_validator: PENDING
+  checkpoint_exact_head_workflows:
+    ci: "39201179134 PASS"
+    paper_runtime: "39201179153 PASS"
+    capability_guard: "39201179053 PASS"
+    activation: "39201179214 PASS"
+    transport: "39201179082 PASS"
+    read_only_broker: "39201179055 PASS"
+  validator_on_checkpoint: "CHANGES_REQUESTED on dfa50343f5ac781c108a96ea304b51d1d0d1871b; P0=0, P1=0, P2=1. Finding: AIPOS was pinned to older cd5e checkpoint while PR body and dfa workflows were current. This checkpoint records the finding and adopts non-self-referential dynamic evidence resolution."
+  work_order_checkpoint_sync: "The work order was updated after checkpoint dfa to record its six passing workflows, this Validator finding, and the dynamic evidence-resolution contract. That documentation-only commit does not alter source behavior."
+  evidence_resolution_contract: "AIPOS checkpoint SHA/run IDs are immutable historical receipts, never asserted as the live PR head. At each verification, obtain the live exact head/base/state from GitHub PR metadata and query all six workflows by that exact head SHA; reconcile those results in the PR body/Validator receipt. Do not create repeated AIPOS-only commits solely to record post-commit statuses, because that would invalidate the head and recreate the same stale-evidence loop."
+  successor_head_status: "Resolve live from GitHub immediately before Validator; current state file intentionally describes the last completed evidence checkpoint, not a self-referential claim about its own commit SHA."
+  pr_body_checkpoint: "PR body was refreshed to checkpoint dfa50343f5ac781c108a96ea304b51d1d0d1871b and its six PASS run IDs. After final AIPOS sync commit, update body to the resulting live head and its exact-head receipts without another source commit."
+  independent_validator_current_head: PENDING
   independent_audit: PENDING
   release: PENDING
-  remaining: "Resolve the resulting exact PR head from GitHub, verify base freshness and all six exact-head workflows, refresh the PR body to that exact SHA and evidence, then obtain a fresh non-author Validator. Keep Draft/HOLD. Full independent sealed DATA→PAPER verifier remains open/out of scope."
-  next: "After this state sync commit, resolve PR #2804 head/base and exact-head runs dynamically; refresh PR description, then request a fresh independent Validator. Do not Audit/Release/merge."
+  remaining: "Resolve the resulting PR head/base from GitHub, verify all six exact-head workflows, refresh PR body without changing source head, then request fresh independent Validator. Keep Draft/HOLD. Full independent sealed DATA→PAPER verifier remains open/out of scope."
+  next: "Read the live PR head and all six exact-head receipts from GitHub; update PR body to that head, then obtain fresh non-author Validator. The immutable checkpoint record plus dynamic lookup is the evidence contract; no repetitive status-only commits. Do not Audit/Release/merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_decision_funnel:
   work_order: WO-PAPER-20261006-DECISION-FUNNEL
