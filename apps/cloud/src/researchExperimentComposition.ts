@@ -294,6 +294,7 @@ export function composeResearchExperiments(input: {
   };
   let gapFilling = false;
   let gapTimer: ReturnType<typeof setInterval> | undefined;
+  let gapRetry: ReturnType<typeof setTimeout> | undefined;
   const fillGaps = async (): Promise<readonly GapFillResult[]> => {
     if (gapFilling || researchTickActive || stopped) return Object.freeze([]);
     gapFilling = true;
@@ -322,13 +323,22 @@ export function composeResearchExperiments(input: {
     }
     return Object.freeze(results);
   };
+  const scheduleGapFill = (): void => {
+    if (stopped || gapRetry != null) return;
+    if (researchTickActive || backfilling || gapFilling) {
+      gapRetry = setTimeout(() => { gapRetry = undefined; scheduleGapFill(); }, 1_000);
+      gapRetry.unref?.();
+      return;
+    }
+    void fillGaps();
+  };
   const scheduleBackfill = (attempt: number, delayMs: number): void => {
     if (stopped || !settings.backfill) return;
     backfillTimer = setTimeout(() => {
       void backfill().then((results) => {
         const done = results.length === settings.markets.length && results.every((r) => r.status === "COMPLETE");
         if (!done && attempt < 3) scheduleBackfill(attempt + 1, 10 * M);
-        else void fillGaps();
+        else scheduleGapFill();
       });
     }, delayMs);
     backfillTimer.unref?.();
@@ -436,9 +446,9 @@ export function composeResearchExperiments(input: {
       first.unref?.();
       timer = setInterval(scheduleTick, settings.tickMs);
       timer.unref?.();
-      if (settings.backfill) { gapTimer = setInterval(() => { void fillGaps(); }, 6 * 60 * M); gapTimer.unref?.(); }
+      if (settings.backfill) { gapTimer = setInterval(scheduleGapFill, 6 * 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
-    stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (tickRetry != null) clearTimeout(tickRetry); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
+    stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (gapRetry != null) clearTimeout(gapRetry); if (backfillTimer != null) clearTimeout(backfillTimer); if (tickRetry != null) clearTimeout(tickRetry); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });
 }
