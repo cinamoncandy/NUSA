@@ -3074,16 +3074,22 @@ current_evidence_verifier_20261018:
   branch: codex/paper-policy-fingerprint-verify
   base_sha: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
   pr: 2804
+  reviewed_head_sha: f31524533ddaffe2191b06a31e3221185bdfa5d3
   first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
-  finding: "PR #2804 now recomputes deterministic POLICY v2 identity including original Research provenance, but the v1→v2 identity bump made exact historical v1 POLICY activations unreadable during lifecycle replay."
-  implementation: "POLICY v2 remains the only issuance path and binds candidate/version/family, evidence plus original/replay Research fingerprints and decision reference. Replay additionally recognizes only an exact historical v1 fingerprint/reference through a replay-only helper, strips Governance authorization from that recovered legacy receipt, and therefore preserves read access without granting closed-learning eligibility. Tampered v1 and new v1 activation attempts fail closed. Implementation commit: 0efd828ea7d45a2297d68a9e5b16687926ff9ca4."
-  validation: "On source tree based on protected main 7ec5c21fe960783ea107b961dff76b31a8e9e15e: build PASS; typecheck PASS; validate:full PASS; security:gate PASS (0 unmitigated high/critical, 0 secrets); lint PASS with 26 warnings/0 errors; focused Governance/PAPER/durable-ledger suite PASS 66/66; git diff --check PASS. New durable SQLite test exposed and fixed a real persistence bug: the canonical ledger rejected valid >2,000-character activation receipts; the capped limit is now 16 KiB. Old exact-head receipts are invalidated by this follow-up. Verify fresh exact-head GitHub CI/runtime and obtain a fresh non-author Validator dynamically for the pushed PR head."
-  review_feedback: "Latest non-author Codex finding on fa65b0a765c477613d7db316125f84f0fb43f507: preserve read access to v1 policy records after the v2 identity bump. Repair is replay-only, performs no historical rewrite, removes Governance eligibility on successful v1 recovery, and retains strict v2/new-activation validation."
-  evidence_binding: "Static AIPOS intentionally does not self-claim the final PR SHA's future CI/review result. Exact-head CI/runtime and non-author review must be verified dynamically from GitHub against the current PR head before Audit."
-  p2_repair: "Locally repaired the shared Evolution Learning ledger hypothesis limit to 16,384 UTF-8 bytes and added ASCII/multibyte below/at/above tests; the 7-file durable Governance/PAPER/storage suite passes 66/66. The PR description's stale Guard wording is queued for correction to completed/success run 39189550572 while explicitly invalidating all old-head receipts after the repair commit. Local build/typecheck/validate:full/security:gate/lint passed (26 existing lint warnings, 0 errors). New exact-head workflow receipts and fresh non-author Validator are pending; remain Draft/HOLD."
-  remaining: "Dynamically verify new exact-head GitHub CI/runtime and obtain a fresh non-author zero-finding Validator receipt before Independent Audit/Release. Full independent sealed DATA→PAPER verifier remains open."
+  implementation: "POLICY v2 binds candidate/version/family, evidence plus original/replay Research fingerprints and decision reference. Replay-only exact historical v1 recovery preserves read access without Governance eligibility; tampered v1 and new v1 activation fail closed. No historical rewrite."
+  utf8_byte_bound_repair: "COMPLETE on reviewed head f31524533ddaffe2191b06a31e3221185bdfa5d3: shared hypothesis cap is 16,384 UTF-8 bytes with retained string bound; ASCII/multibyte below/at/above regressions are included."
+  sqlite_restart_replay: "PASS on reviewed head f31524533ddaffe2191b06a31e3221185bdfa5d3: close/reopen reconstructs the same POLICY identity and Research lineage without duplicate activation."
+  pr_body_correction: "COMPLETE for reviewed head f31524533ddaffe2191b06a31e3221185bdfa5d3: stale Guard run 39189550572 wording was corrected to completed/success; body must be refreshed after the AIPOS-only head advance."
+  local_validation: "On source tree based on main 7ec5c21fe960783ea107b961dff76b31a8e9e15e: build, typecheck, validate:full, security:gate PASS; lint PASS (26 existing warnings, 0 errors); focused Governance/PAPER/durable-ledger suite 66/66 PASS; git diff --check PASS."
+  exact_head_workflows_on_reviewed_head: "PASS on f31524533ddaffe2191b06a31e3221185bdfa5d3: CI 39191907881; PAPER runtime 39191907945; capability 39191907876; activation 39191907893; transport 39191907819; read-only broker 39191907836. These receipts are no longer exact-head evidence after the planned AIPOS commit."
+  validator_on_reviewed_head: "CHANGES_REQUESTED; P0=0, P1=0, P2=1. Finding: active work order and state described the PR-body correction as queued and exact-head checks/validation as pending despite current evidence. This AIPOS synchronization records that finding and corrects the handoff; the receipt is stale once the branch advances."
+  new_head_exact_workflows: PENDING_AFTER_AIPOS_SYNC_COMMIT
+  new_head_fresh_validator: PENDING_AFTER_AIPOS_SYNC_COMMIT
+  independent_audit: PENDING
+  release: PENDING
+  remaining: "After the AIPOS-only commit, re-read PR head/base and update PR body to label f315... receipts historical; verify all six required workflows on the new exact head, then obtain a fresh independent Validator. Keep Draft/HOLD until that Validator accepts. Full independent sealed DATA→PAPER verifier remains open/out of scope."
+  next: "Verify the remote branch still descends from reviewed head f31524533ddaffe2191b06a31e3221185bdfa5d3; make one normal non-force AIPOS handoff commit; refresh PR body for the resulting head; verify new exact-head CI/PAPER/safety workflows and fresh independent Validator. No Audit/Release/merge in this step."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
 current_decision_funnel:
   work_order: WO-PAPER-20261006-DECISION-FUNNEL
   status: READY_FOR_REVIEW
