@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { backfillMarket, parseUpbitMinuteCandles, createUpbitMinuteCandleFetcher, BackfillRateLimitedError, BACKFILL_PAGE_SIZE, UPBIT_MINUTE_CANDLES_URL } = require("../dist/apps/cloud/src/researchCandleBackfill.js");
+const { backfillMarket, parseUpbitMinuteCandles, createUpbitMinuteCandleFetcher, BackfillRateLimitedError, BACKFILL_PAGE_SIZE, UPBIT_MINUTE_CANDLES_URL, UPBIT_CANDLE_SOURCE_FINGERPRINT } = require("../dist/apps/cloud/src/researchCandleBackfill.js");
 const { readResearchExperimentSettings } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
 const { SqliteDatabase, SqliteResearchCandleStore } = require("../dist/packages/storage/src/index.js");
 
@@ -9,7 +9,7 @@ const MARKET = "KRW-XRP";
 const NOW = Date.UTC(2026, 9, 3, 6, 0, 30); // 30 s into a minute: the current minute is NOT closed
 const ANCHOR = Math.floor(NOW / M) * M;
 const stamp = (startMs) => new Date(startMs).toISOString().slice(0, 19);
-const candle = (startMs, price = 1000) => ({ market: MARKET, candle_date_time_utc: stamp(startMs), opening_price: price, high_price: price + 1, low_price: price - 1, trade_price: price + 0.5 });
+const candle = (startMs, price = 1000) => ({ market: MARKET, candle_date_time_utc: stamp(startMs), opening_price: price, high_price: price + 1, low_price: price - 1, trade_price: price + 0.5, candle_acc_trade_volume: 2 });
 
 // An exchange with one candle per minute from `firstStartMs` to the in-progress minute, served newest first like Upbit.
 function exchange(firstStartMs) {
@@ -33,8 +33,9 @@ test("an empty store is filled back to the target span with closed minutes only"
   assert.equal(result.status, "COMPLETE");
   assert.ok(store.latestCloseTime(MARKET, M) <= ANCHOR, "the in-progress minute is never stored");
   assert.equal(store.latestCloseTime(MARKET, M), ANCHOR);
-  assert.ok(store.earliestCloseTime(MARKET, M) <= ANCHOR - 3 * 3_600_000);
+  assert.ok(store.earliestCloseTime(MARKET, M) <= ANCHOR - 3 * 3_600_000 + M);
   assert.ok(store.count(MARKET, M) >= 180);
+  assert.equal(store.hasMaterialCoverage(MARKET, M, ANCHOR - 3 * 3_600_000 + M, ANCHOR, "UPBIT_PUBLIC_CANDLES", UPBIT_CANDLE_SOURCE_FINGERPRINT), true, "every target candle has a durable source-page receipt");
   assert.equal(ex.calls[0], undefined, "the first request asks for the newest page");
   assert.ok(ex.calls.slice(1).every((c) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(c)));
 });
@@ -46,11 +47,11 @@ test("it only writes candles older than anything already stored and never confli
   store.append(MARKET, M, live);
   const liveEarliest = store.earliestCloseTime(MARKET, M);
   const result = await run(store, { fetchPage: exchange(ANCHOR - 24 * 3_600_000).fetchPage });
-  assert.equal(result.status, "COMPLETE");
+  assert.equal(result.status, "INCOMPLETE", "unmatched live candles cannot be represented as source-verified evidence");
   const kept = store.read(MARKET, M, liveEarliest, ANCHOR);
   assert.equal(kept.length, 30);
   assert.ok(kept.every((c) => c.open === 5 && c.close === 5.5), "live candles are untouched");
-  assert.ok(store.earliestCloseTime(MARKET, M) <= ANCHOR - 3 * 3_600_000);
+  assert.ok(store.earliestCloseTime(MARKET, M) <= ANCHOR - 3 * 3_600_000 + M);
 });
 
 test("a finished store makes no request", async () => {
@@ -82,11 +83,33 @@ test("request and store errors stop the attempt with a code and never throw", as
   assert.equal(garbage.errorCode, "MALFORMED_PAGE");
 });
 
+test("an empty upstream page cannot claim completion without full source-receipt coverage", async () => {
+  const result = await run(newStore(), { fetchPage: async () => [] });
+  assert.equal(result.status, "INCOMPLETE");
+  assert.equal(result.errorCode, "SOURCE_RECEIPTS_INCOMPLETE");
+});
+
 test("the page budget bounds the work", async () => {
   const store = newStore();
   const result = await run(store, { targetSpanMs: 20 * 86_400_000, maxPages: 2, fetchPage: exchange(ANCHOR - 30 * 86_400_000).fetchPage });
   assert.equal(result.status, "INCOMPLETE");
   assert.equal(result.pages, 2);
+});
+
+test("a non-minute-aligned target span is rejected instead of producing fractional coverage", async () => {
+  await assert.rejects(run(newStore(), { targetSpanMs: 3 * M + 1, fetchPage: exchange(ANCHOR - 24 * 3_600_000).fetchPage }), /backfill span is invalid/);
+});
+
+test("existing identical candles can acquire receipts, but receipt-incomplete history is not complete", async () => {
+  const store = newStore();
+  const raw = [];
+  for (let start = ANCHOR - 4 * M; start < ANCHOR; start += M) raw.push(candle(start, 1000 + ((start / M) % 7)));
+  const rows = raw.map((item) => ({ closeTimeMs: Date.parse(`${item.candle_date_time_utc}Z`) + M, open: item.opening_price, high: item.high_price, low: item.low_price, close: item.trade_price, volume: item.candle_acc_trade_volume }));
+  store.append(MARKET, M, rows);
+  const result = await run(store, { targetSpanMs: 3 * M, fetchPage: async () => raw });
+  assert.equal(result.status, "COMPLETE");
+  assert.equal(result.recorded, 0, "receipt recovery does not rewrite immutable candles");
+  assert.equal(store.hasMaterialCoverage(MARKET, M, ANCHOR - 2 * M, ANCHOR, "UPBIT_PUBLIC_CANDLES", UPBIT_CANDLE_SOURCE_FINGERPRINT), true);
 });
 
 test("malformed or inconsistent candles are dropped and counted, never stored", () => {

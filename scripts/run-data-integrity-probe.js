@@ -11,8 +11,17 @@ const M = 60_000;
 const DAY = 24 * 60 * M;
 const FUTURE_SKEW_MS = 5_000;
 
-function probe({ db, now = Date.now() }) {
+function probe({ db, now = Date.now(), currentNow = () => now }) {
   const since = now - 7 * DAY;
+  // The live DB keeps receiving public-market rows while this read-only probe scans large tables.
+  // A single start-time cutoff therefore turns rows inserted during a slow probe into false
+  // "future" evidence. Refresh only the wall-clock used by each future check; all historical
+  // windows remain anchored to the probe start for deterministic, comparable counts.
+  const futureCutoff = () => {
+    const observedNow = Number(currentNow());
+    if (!Number.isSafeInteger(observedNow) || observedNow <= 0) throw new Error("data-integrity probe clock is invalid");
+    return Math.max(now, observedNow) + FUTURE_SKEW_MS;
+  };
   const one = (sql, ...args) => Number(Object.values(db.prepare(sql).get(...args))[0] ?? 0);
   const series = db.prepare("SELECT market, interval_ms AS i, COUNT(*) AS n, MIN(close_time_ms) AS a, MAX(close_time_ms) AS b FROM research_closed_candles WHERE close_time_ms > ? GROUP BY market, interval_ms").all(since);
   let candleMissing = 0; let staleSeries = 0; let maxLatestAgeMs = 0;
@@ -31,15 +40,15 @@ function probe({ db, now = Date.now() }) {
     candleMissing7d: candleMissing,
     candleMisaligned: one("SELECT COUNT(*) FROM research_closed_candles WHERE close_time_ms % interval_ms <> 0"),
     candleInvalidOhlc: one("SELECT COUNT(*) FROM research_closed_candles WHERE high < open OR high < close OR low > open OR low > close OR low > high"),
-    candleFuture: one("SELECT COUNT(*) FROM research_closed_candles WHERE close_time_ms > ?", now + FUTURE_SKEW_MS),
+    candleFuture: one("SELECT COUNT(*) FROM research_closed_candles WHERE close_time_ms > ?", futureCutoff()),
     candleStaleSeries: staleSeries,
     candleMaxLatestAgeMs: maxLatestAgeMs,
     orderBookMarkets24h: one("SELECT COUNT(DISTINCT market) FROM research_orderbook_samples WHERE captured_at_ms > ?", now - DAY),
     orderBookRows24h: one("SELECT COUNT(*) FROM research_orderbook_samples WHERE captured_at_ms > ?", now - DAY),
     orderBookCrossed: one("SELECT COUNT(*) FROM research_orderbook_samples WHERE best_bid > best_ask"),
-    orderBookFuture: one("SELECT COUNT(*) FROM research_orderbook_samples WHERE captured_at_ms > ?", now + FUTURE_SKEW_MS),
+    orderBookFuture: one("SELECT COUNT(*) FROM research_orderbook_samples WHERE captured_at_ms > ?", futureCutoff()),
     tradeRows24h: one("SELECT COUNT(*) FROM research_trade_ticks_v2 WHERE traded_at_ms > ?", now - DAY),
-    tradeFuture: one("SELECT COUNT(*) FROM research_trade_ticks_v2 WHERE traded_at_ms > ?", now + FUTURE_SKEW_MS),
+    tradeFuture: one("SELECT COUNT(*) FROM research_trade_ticks_v2 WHERE traded_at_ms > ?", futureCutoff()),
   };
   const fail = out.candleMisaligned + out.candleInvalidOhlc + out.candleFuture + out.orderBookCrossed + out.orderBookFuture + out.tradeFuture > 0;
   const warn = out.candleMissing7d + out.candleStaleSeries > 0;
@@ -63,7 +72,7 @@ if (require.main === module) {
     if (!path.startsWith("/")) throw new Error("state path");
     const db = new DatabaseSync(path, { readOnly: true });
     try {
-      const result = probe({ db });
+      const result = probe({ db, currentNow: Date.now });
       console.log("DATA_INTEGRITY", JSON.stringify(result));
       writeResult(path, result);
     } finally { db.close(); }

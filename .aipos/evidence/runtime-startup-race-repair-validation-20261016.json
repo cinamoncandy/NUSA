@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "source_head": "2e9aa095aa057c3c6e3a5e544af999dc29293072",
+  "base_main": "10c153464b40326a061e548cf44abfb479d07fc0",
+  "branch": "fix/paper-startup-evidence-invalidation-20261015",
+  "first_broken_transition": "fresh Research recovery validation -> stable startup READY/FAIL_CLOSED result",
+  "root_cause": "evidenceUnchanged detected a commit racing recovery.recover but validateRecovery still returned the pre-change result; synchronous startup aborts after preparation also left five native SQLite evidence sessions undisposed",
+  "fix": {
+    "validation_attempt_limit": 3,
+    "unstable_result": "FAIL_CLOSED:RECOVERY_EVIDENCE_UNSTABLE",
+    "startup_abort_cleanup": "finishPreparedRecovery on every synchronous post-prepare startup failure"
+  },
+  "files_sha256": {
+    "apps/cloud/src/researchExperimentComposition.ts": "bd3eabca8c1b788b6540d789a2fb3f9e144bc06263378a096200e68eff1db50b",
+    "apps/cloud/src/closedLearningProductionRuntime.ts": "baba6d8b3aabfa438ba51d243aa6839dea8c4f22cc95c5043bd65247535f0ce3",
+    "tests/research-startup-recovery.test.js": "82282ac087f7a5e94d57034cba48bc5484df1f34f1ec571378dcd2dea9803f4b",
+    "tests/closed-learning-daemon-fatal-exit.test.js": "17dc8e3f80280966e0bdb31b539c21a6125b5289a0577a05526e195c359cc0b1"
+  },
+  "environment": {
+    "node": "24.21.0",
+    "typescript": "5.9.3",
+    "node_heap_limit_mb": 2048
+  },
+  "validation": {
+    "full_typescript_emit_build": "PASS",
+    "startup_recovery_focused": "PASS_19_OF_19",
+    "combined_startup_and_daemon_focused": "PASS_23_OF_23",
+    "root_and_mobile_typecheck": "PASS",
+    "validate_full": "PASS",
+    "javascript_lint": "PASS",
+    "security_gate": "PASS_ZERO_SECRETS_ZERO_UNMITIGATED_HIGH_CRITICAL",
+    "git_diff_check": "PASS"
+  },
+  "bounded_environment_repairs": [
+    "shared node_modules symlink rejected by non-interactive pnpm purge guard",
+    "offline install missing http-cache-semantics-4.2.0 tarball",
+    "default 512MB Node heap OOM during full TypeScript emit",
+    "private frozen install plus 2048MB heap completed build and gates"
+  ],
+  "independent_review": "PENDING_REVALIDATION_AFTER_SOURCE_HEAD_CHANGE",
+  "exact_head_ci": "PENDING_AFTER_RUN_38815103630_EXPOSED_AND_LOCAL_REPAIR_FIXED_INDENTATION_COUPLED_DAEMON_TEST",
+  "audit": "NOT_RUN",
+  "release": "NOT_AUTHORIZED",
+  "runtime_acceptance": "NOT_CLAIMED",
+  "VERIFIED": false,
+  "PERFORMANCE": "UNPROVEN"
+}

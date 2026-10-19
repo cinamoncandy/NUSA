@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import { bindResearchQualificationIdentity } from "../../../packages/contracts/src/researchQualificationIdentity";
 import { ClosedLearningResearchWorkerClient, type ClosedLearningResearchWorkerProcess } from "./closedLearningResearchWorkerClient";
 
 const ORIGINAL = "a".repeat(64);
@@ -14,7 +15,7 @@ function payload() {
     operation: "REPLAY_PAPER_EVIDENCE",
     originalRunFingerprintSha256: ORIGINAL,
     replayRunFingerprintSha256: REPLAY,
-    qualification: {
+    qualification: bindResearchQualificationIdentity(REPLAY, {
       schemaVersion: 1,
       candidates: [
         { candidateId: "r", outcome: "REJECTED", reasons: ["FAIL"], summary: "rejected" },
@@ -25,7 +26,7 @@ function payload() {
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
-    },
+    }),
     deployment: {
       schemaVersion: 1,
       status: "NOT_DEPLOYABLE",
@@ -134,8 +135,8 @@ test("fails closed on process failure, provenance drift, authority drift, covera
   assert.throws(() => client(() => ({ status: 1, stdout: "", stderr: "broken" })).replay(ORIGINAL, { q: {} }), /failed closed/);
   assert.throws(() => client(() => ({ status: 0, stdout: JSON.stringify({ ...payload(), originalRunFingerprintSha256: "e".repeat(64) }), stderr: "" })).replay(ORIGINAL, { q: {} }), /provenance/);
   assert.throws(() => client(() => ({ status: 0, stdout: JSON.stringify({ ...payload(), liveAuthority: "LIVE" }), stderr: "" })).replay(ORIGINAL, { q: {} }), /authority/);
-  const filtered = payload();
-  filtered.qualification.coverage.candidateCount = 2;
+  const base = payload();
+  const filtered = { ...base, qualification: { ...base.qualification, coverage: { ...base.qualification.coverage, candidateCount: 2 } } };
   assert.throws(() => client(() => ({ status: 0, stdout: JSON.stringify(filtered), stderr: "" })).replay(ORIGINAL, { q: {} }), /coverage reconciliation/);
   const drifted = deployablePayload();
   drifted.deployment.artifact.researchLineage.replayRunFingerprintSha256 = "e".repeat(64);

@@ -1,3 +1,4 @@
+const { buildPaperObservedExecutionQuote } = require("../dist/apps/cloud/src/paperRuntimeExecutionCostEvidence.js");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
@@ -53,7 +54,8 @@ const portfolio = Object.freeze({
   deployedCapital: 1_000_000, cashCapital: 9_000_000, reservedCapital: 0, grossShare: 0.1, futuresShare: 0, decidedAt: 1_000
 });
 
-const tick = Object.freeze({ now: 2_000, market: "KRW-BTC", price: 50_000_000, observedAt: 1_500, mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY", portfolio, decisions: Object.freeze([decision]) });
+const { depth: _depth, depthFingerprintSha256: _hash, ...observedQuote } = buildPaperObservedExecutionQuote({ market: "KRW-BTC", observedAt: 1_500, totalAskSize: 1, totalBidSize: 1, units: [{ askPrice: 50_000_000, bidPrice: 49_999_999, askSize: 1, bidSize: 1 }] });
+const tick = Object.freeze({ observedQuote, now: 2_000, market: "KRW-BTC", price: 50_000_000, observedAt: 1_500, mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY", portfolio, decisions: Object.freeze([decision]) });
 
 function fillThroughBoundary() {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }) });

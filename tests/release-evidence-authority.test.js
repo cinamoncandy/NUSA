@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { validateVersionedScenarioEvent } = require("../dist/apps/cloud/src/versionedScenarioEvidence.js");
 const { evaluateAuthoritativeRelease } = require("../dist/apps/cloud/src/releaseEvidenceAuthority.js");
+const { createResearchRunManifest } = require("../dist/apps/cloud/src/researchRunValidation.js");
 
 const target = {
   targetId: "target-1", validationProfile: "SCENARIO_BASED", strategyId: "s", strategyVersion: "1",
@@ -30,4 +31,25 @@ test("authoritative evaluator cannot approve from booleans or missing reports", 
   assert.equal(result.status, "BLOCKED");
   assert.ok(result.blockers.includes("RESEARCH_VALIDATION_INCOMPLETE"));
   assert.ok(result.blockers.includes("OWNER_REVIEW_MISSING"));
+});
+
+test("release authority blocks four passing copies of one gate even with a synthetic matching review", () => {
+  const manifests = Array.from({ length: 4 }, (_, index) => createResearchRunManifest({
+    runId: `duplicate-wf-${index}`, runType: "WALK_FORWARD", strategyId: target.strategyId,
+    strategyVersion: target.strategyVersion, parameterSet: { fast: 5, slow: 20 },
+    datasetId: target.datasetId, datasetChecksum: target.datasetChecksum,
+    datasetStart: "2026-01-01T00:00:00.000Z", datasetEnd: "2026-02-01T00:00:00.000Z",
+    sampleCount: 100, createdAt: target.createdAt, codeVersion: target.codeVersion, config: {}, result: {}
+  }));
+  const reports = manifests.map((manifest) => ({
+    runId: manifest.runId, runType: manifest.runType, status: "PASS", reasons: [],
+    checkedAt: target.createdAt, resultChecksum: manifest.resultChecksum
+  }));
+  const result = evaluateAuthoritativeRelease({
+    target, bundle, dashboard: { ...dashboard, releaseStatus: "READY_FOR_OWNER_REVIEW" }, manifests, reports,
+    reviews: [{ reviewId: "synthetic-review", bundleChecksum: bundle.bundleChecksum, decision: "APPROVE", reviewedAt: "2026-07-15T01:00:00.000Z" }],
+    evaluatedAt: "2026-07-15T02:00:00.000Z"
+  });
+  assert.equal(result.status, "BLOCKED");
+  assert.ok(result.blockers.includes("RESEARCH_VALIDATION_INCOMPLETE"));
 });

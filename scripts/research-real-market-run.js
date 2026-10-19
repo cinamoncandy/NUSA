@@ -2,6 +2,7 @@
 
 const path = require("node:path");
 const fs = require("node:fs");
+const { createHash } = require("node:crypto");
 const {
   evaluateUpbitDailyCandleFreshness,
   mapUpbitDayCandlesToResearchCandles,
@@ -30,6 +31,8 @@ const { featureFingerprint, validateEvidenceProvenance, requireCurrentResearchDa
 const { validateResearchCandidateSpecification } = require("../dist/apps/desktop/src/cloud/researchCandidateSpecification.js");
 const { buildInvestmentLearningEvidence, buildInvestmentResearchAttentionPlan, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
 const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
+
+const sha256 = value => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 
 const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
@@ -500,12 +503,14 @@ async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT
   let before = Math.floor(dataAsOf / INTERVAL_MS) * INTERVAL_MS;
   const candles = [];
   const sourceRequests = [];
+  const rawSourceIdentitySha256s = [];
   for (let page = 0; page < Math.ceil(count / 200); page += 1) {
     const pageSize = Math.min(200, count - candles.length);
     const requestPath = `${upbitCandleRequestPath(TIMEFRAME)}?market=${market}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`;
     if (page > 0) await pause(REQUEST_THROTTLE_MS);
     const raw = await fetchPage(requestPath);
     if (!Array.isArray(raw) || raw.length !== pageSize) throw new Error("Upbit research history is incomplete");
+    rawSourceIdentitySha256s.push(sha256({ endpoint: `https://api.upbit.com${requestPath}`, response: raw }));
     const mapped = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf, interval: TIMEFRAME });
     if (mapped.length !== pageSize) throw new Error("Upbit research page contains incomplete candles");
     for (let index = 0; index < mapped.length; index += 1) {
@@ -519,7 +524,7 @@ async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT
     candles.unshift(...mapped);
     before = mapped[0].openTime;
   }
-  return { candles, sourceRequests };
+  return { candles, sourceRequests, rawSourceIdentitySha256s };
 }
 
 /**
@@ -541,15 +546,28 @@ function buildPublishedFreshness(freshness) {
   };
 }
 
-function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
+function createMarketDataset({ market, dataAsOf, candles, sourceRequests, rawSourceIdentitySha256s }) {
   const freshness = evaluateUpbitCandleFreshness(candles, dataAsOf, TIMEFRAME);
   if (!freshness.fresh) {
     throw new Error(`${market} completed ${TIMEFRAME} candle source is stale by ${freshness.lagIntervals} interval(s)`);
   }
+  const sourceCommitSha = requiredResearchSourceCommitSha();
+  if (!/^[a-f0-9]{40}$/.test(sourceCommitSha || "") || !Array.isArray(rawSourceIdentitySha256s) || rawSourceIdentitySha256s.length === 0) throw new Error("RESEARCH_DATASET_PROVENANCE_UNAVAILABLE");
+  const provenance = {
+    rawSourceIdentitySha256s,
+    transformationGraphSha256: sha256(["Upbit raw day page", "mapUpbitDayCandlesToResearchCandles", "UTC completed intervals", "v2"]),
+    transformationConfigSha256: sha256({ market, timeframe: TIMEFRAME, dataAsOf, ordering: "OPEN_TIME_ASC", missingPolicy: "REJECT" }),
+    schemaContractSha256: sha256(["CanonicalResearchCandle", "market", "interval", "openTime", "closeTime", "OHLCV"]),
+    qualitySuiteSha256: sha256(["closed candle freshness", "complete fixed page sizes", "market and cursor continuity", "no gaps", "v1"]),
+    qualityResultsSha256: sha256({ candleCount: candles.length, continuity: "CONTIGUOUS", missingCandleCount: 0, fresh: freshness.fresh, expectedLatestCloseTime: freshness.expectedLatestCloseTime, actualLatestCloseTime: freshness.actualLatestCloseTime }),
+    derivedFeatureLineageSha256: sha256({ derivedFeatures: [] }),
+    replayRuntimeSha256: sha256({ sourceCommitSha, nodeVersion: process.version, timeframe: TIMEFRAME }),
+  };
   const manifest = createHistoricalDatasetManifest(candles, {
     source: "upbit-public-api",
     sourceRequest: sourceRequests.join(" | "),
-    createdAt: new Date(dataAsOf).toISOString()
+    createdAt: new Date(dataAsOf).toISOString(),
+    provenance
   });
   const currentDatasetIdentity = requireCurrentResearchDatasetIdentity({ manifest, freshness, observedAt: dataAsOf });
   return Object.freeze({ market, candles, sourceRequests, freshness, manifest, currentDatasetIdentity });

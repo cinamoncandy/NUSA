@@ -35,8 +35,11 @@ with the `nusa-paper-host` label on this host. Run it as an unprivileged account
 `/opt/nusa/bin/nusa-release-step`, outside the release tree, and grant that runner account
 passwordless sudo for that exact helper only. A missing runner leaves dispatches queued without
 deploying anything. The workflow builds on GitHub-hosted Linux and verifies the built archive's
-SHA-256 before the host backs up, stages, switches, restarts, and checks readiness. Never build
-the repository on the 1 GB PAPER host as part of a release.
+SHA-256. Before backup or other release mutation, it also requires the installed `/opt/nusa/bin/nusa-release-step`
+to be byte-for-byte identical to `deploy/oracle/nusa-release-step.sh` from the exact reviewed bundle. If that helper
+source changed, install the reviewed root-owned helper first; never let the release tree replace its own privileged
+helper. Only then may the host back up, stage, switch, restart, and check readiness. Never build the repository on
+the 1 GB PAPER host as part of a release.
 
 Create the service user and persistent directories with the least privileges required by your host policy. The helper installs all four units from the exact staged release; do not copy units from a dirty checkout.
 
@@ -84,7 +87,7 @@ When root disk pressure is high, use the privileged helper rather than ad-hoc wi
 sudo /opt/nusa/bin/nusa-release-step prune
 ```
 
-The prune operation validates every direct child of `/opt/nusa/releases` as a real 40-hex release directory before deleting anything. It always preserves the active release, the rollback release recorded in `.previous-release`, and the four newest additional releases. It never touches `/var/lib/nusa` or `/var/backups/nusa`.
+The prune operation validates every direct child of `/opt/nusa/releases` as a real 40-hex release directory before deleting anything. It always preserves the active release and the rollback release recorded in `.previous-release`, and retains no additional superseded release (`RELEASE_RETENTION=0`). The host previously retained two extras, but an observed 2026-10-17 release had four 1.6 GB trees, an 88% idle root baseline, and 93% staging pressure. One-generation rollback remains intact while superseded source remains recoverable from GitHub. It never touches `/var/lib/nusa` or `/var/backups/nusa`.
 
 ## Preflight validation
 
@@ -98,12 +101,10 @@ sudo node scripts/oracle-validate.js
 `oracle-validate` fails closed if the environment file, backup directory, service unit, localhost binding, token strength, persistent database location, or current symlink contract is invalid.
 
 ## When to dispatch the release workflow
-The workflow verifies that the requested source is the current protected main at two points only: when the build job
-starts, and once more at the start of the host job, before the download. Nothing re-checks main after that, so a merge
-that lands after the host job's recheck is not detected and the already-built source is still activated. A merge that
-lands earlier is caught: the build job or the host recheck stops with "Protected main moved after build" and the host is
-unchanged (seen in run 87). Do not rely on the gate to cover the rest of the roughly 5-minute run. To avoid wasted or
-stale releases:
+The workflow verifies that the requested source is the current protected main three times: when the build job
+starts, at the start of the host job before download, and immediately before activation after backup/staging/preflight.
+A merge that lands before the final check therefore fails closed instead of activating a stale release. To avoid wasted
+releases:
 1. Dispatch only when no merge is queued or in flight, and take `source_sha` from the current main tip.
 2. Wait for the post-merge `CI` push run on that exact SHA to be green; the workflow requires it and fails otherwise.
 3. If main moved before the host recheck, nothing was changed on the host; repeat steps 1-2 with the new tip. If main may
@@ -119,7 +120,9 @@ sudo /opt/nusa/bin/nusa-release-step activate <full-40-char-sha>
 ```
 
 The switch records the prior release path and reports `readinessRequired=true`. It does not restart services itself and does not touch persistent data.
-The helper executes the staged `scripts/atomic-deploy.js`, `scripts/oracle-readiness-check.js`, and `scripts/autopilot-readiness.js`; no host-side copy of those scripts is used.
+The helper executes the staged `scripts/atomic-deploy.js`, `scripts/oracle-readiness-check.js`, and `scripts/autopilot-readiness.js`; no host-side copy of those scripts is used. After initial readiness, the same root-owned `activate` helper retains ownership for a 180-second stability soak. It repeatedly proves PAPER readiness, Autopilot readiness, systemd liveness, and exact release identity. During soak, authenticated `/ready` keeps its short 5-second fail-closed budget so a real listener/lease loss is detected quickly. Only after `/ready` passes, the two non-mutating mobile-owner route-presence probes share a separate bounded 15-second proof window, using a 2-second per-request timeout and 500 ms retry delay. This prevents one transient route-probe timeout from consuming the already-proven readiness budget while sustained route failure still rolls back. Any failure stays inside the existing activation rollback boundary; a one-shot listener that later loses its PAPER writer lease is never accepted as `DEPLOYED`.
+
+Before copying an immutable release into `/opt/nusa/releases`, the root-owned helper computes the extracted source size and requires enough free root space to complete the copy while still preserving the existing 92% disk-guard boundary plus a 512 MiB safety margin. Preflight then checks the actual post-stage root usage and refuses activation at or above 92%. The workflow never deletes host data; persistent state, backups, and Evidence are untouched.
 
 ## Acceptance check
 

@@ -1,4 +1,4 @@
-import { SqliteCandidatePromotionRepository, SqliteResearchCandleStore, SqliteResearchEvaluationLedger, SqliteResearchHoldoutLedger, SqliteResearchMemoryRepository, SqliteResearchSessionRepository, SqlitePaperMarketObservationRepository, type SqliteDatabase } from "../../../packages/storage/src/index";
+import { SqliteCandidatePromotionRepository, SqliteResearchCandleStore, SqliteResearchDatasetManifestStore, SqliteResearchEvaluationLedger, SqliteResearchHoldoutLedger, SqliteResearchMemoryRepository, SqliteResearchSessionRepository, SqlitePaperMarketObservationRepository, SqliteResearchPrecommitRepository, type SqliteDatabase } from "../../../packages/storage/src/index";
 import { BacktestResearchEvaluator, buildDonchianResearchStrategy, buildRsiResearchStrategy, buildSmaResearchStrategy } from "./backtestResearchEvaluator";
 import { ResearchAutomationRuntime } from "./researchAutomationRuntime";
 import { ResearchExperimentOrchestrator, type ResearchVariant, type TickReport } from "./researchExperimentOrchestrator";
@@ -7,6 +7,8 @@ import { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
 import { collectClosedCandles } from "./researchCandleCollector";
 import { backfillMarket, createUpbitMinuteCandleFetcher, fillRecentGaps, type BackfillResult, type GapFillResult } from "./researchCandleBackfill";
 import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
+import { materializeResearchDatasetManifest } from "./researchDatasetManifestMaterializer";
+import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 
 /**
  * Composition of the continuous research experiments. DISABLED unless NUSA_CLOUD_RESEARCH_EXPERIMENTS is exactly
@@ -89,6 +91,10 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
 }
 
 export interface ResearchExperimentComposition {
+  readonly datasetManifests: SqliteResearchDatasetManifestStore;
+  /** Synchronous startup only: validate evidence without changing Research session state. */
+  readonly prepareRecovery: () => void;
+  readonly finishPreparedRecovery: () => void;
   readonly orchestrator: ResearchExperimentOrchestrator;
   /** One orchestrator per configured bar length, in settings order; `orchestrator` is the first. */
   readonly orchestrators: readonly ResearchExperimentOrchestrator[];
@@ -121,13 +127,78 @@ export function composeResearchExperiments(input: {
   const db = input.database;
 
   const store = new SqliteResearchCandleStore(db);
+  const datasetManifests = new SqliteResearchDatasetManifestStore(db);
   const holdout = new SqliteResearchHoldoutLedger(db);
   const observations = new SqlitePaperMarketObservationRepository(db);
   const ledger = new SqliteResearchEvaluationLedger(db);
+  const precommits = new SqliteResearchPrecommitRepository(db);
   const candidates = new SqliteCandidatePromotionRepository(db);
   const memory = new SqliteResearchMemoryRepository(db);
   const sessions = new SqliteResearchSessionRepository(db);
   const recovery = new ResearchRecoveryCoordinator({ repository: candidates, evaluationLedger: ledger, now });
+  let preparationActive = false;
+  type EvidenceSession = ReturnType<typeof db.connection.createSession>;
+  let preparedRecovery: { readonly version: number; readonly schema: number; readonly sessions: readonly EvidenceSession[]; readonly result: ResearchRecoveryResult } | undefined;
+  // Exact read set of ResearchRecoveryCoordinator and its two repositories. PAPER lease,
+  // account and Research session-state writes are not inputs to evidence validation.
+  const recoveryEvidenceTables = ["research_evaluation_ledger", "research_candidates", "research_champion_pointer", "research_promotion_commands", "research_promotion_audit"] as const;
+  const dataVersion = (): number => Number((db.connection.prepare("PRAGMA data_version").get() as { data_version: number }).data_version);
+  const schemaVersion = (): number => Number((db.connection.prepare("PRAGMA schema_version").get() as { schema_version: number }).schema_version);
+  const clearPreparedRecovery = (): void => {
+    const previous = preparedRecovery;
+    preparedRecovery = undefined;
+    for (const session of previous?.sessions ?? []) session.close();
+  };
+  const hasNullEvidenceKey = (): boolean => {
+    // SQLite changesets omit rows with NULL primary keys; the legacy TEXT PRIMARY KEY
+    // schema permits them. Never reuse READY over such malformed evidence.
+    return db.connection.prepare("SELECT 1 FROM research_candidates WHERE candidate_id IS NULL LIMIT 1").get() != null ||
+      db.connection.prepare("SELECT 1 FROM research_promotion_commands WHERE command_id IS NULL LIMIT 1").get() != null;
+  };
+  const evidenceUnchanged = (prepared: NonNullable<typeof preparedRecovery>): boolean => {
+    if (dataVersion() !== prepared.version || schemaVersion() !== prepared.schema || hasNullEvidenceKey()) return false;
+    const unchanged = prepared.sessions.every((session) => session.changeset().byteLength === 0);
+    // External commits can occur while the change trackers are inspected.
+    return unchanged && dataVersion() === prepared.version && schemaVersion() === prepared.schema;
+  };
+  const recoveryValidationAttempts = 3;
+  const validateRecovery = (): ResearchRecoveryResult => {
+    clearPreparedRecovery();
+    for (let attempt = 0; attempt < recoveryValidationAttempts; attempt++) {
+      const sessions: EvidenceSession[] = [];
+      let retained = false;
+      try {
+        for (const table of recoveryEvidenceTables) sessions.push(db.connection.createSession({ table }));
+        const version = dataVersion();
+        const schema = schemaVersion();
+        const result = recovery.recover();
+        const prepared = { version, schema, sessions, result };
+        if (evidenceUnchanged(prepared)) {
+          preparedRecovery = prepared;
+          retained = true;
+          return result;
+        }
+      } finally {
+        if (!retained) for (const session of sessions) session.close();
+      }
+    }
+    return Object.freeze({
+      status: "FAIL_CLOSED",
+      snapshot: null,
+      reasons: Object.freeze(["RECOVERY_EVIDENCE_UNSTABLE"]),
+    });
+  };
+  const prepareRecovery = (): void => {
+    preparationActive = true;
+    validateRecovery();
+  };
+  const startupRecovery = {
+    recover: (): ResearchRecoveryResult => {
+      if (!preparationActive) return recovery.recover();
+      if (preparedRecovery != null && evidenceUnchanged(preparedRecovery)) return preparedRecovery.result;
+      return validateRecovery();
+    },
+  };
 
   const market = settings.markets[0]!;
   const bars = new AggregatedResearchCandleSource(store, M);
@@ -143,10 +214,10 @@ export function composeResearchExperiments(input: {
       strategy, candles: bars, intervalMs, backtest: RESEARCH_BACKTEST_COST,
     });
     const variantFor = (variantId: string, challenger: ReturnType<typeof proxy>, config: unknown, experimentFamilyPrefix?: string): ResearchVariant => {
-      const coordinator = new ResearchRuntimeCoordinator({ champion: evaluatorFor(champion, "PAPER_ONLY"), challenger: evaluatorFor(challenger, "ZERO_AUTHORITY"), ledger });
+      const coordinator = new ResearchRuntimeCoordinator({ champion: evaluatorFor(champion, "PAPER_ONLY"), challenger: evaluatorFor(challenger, "ZERO_AUTHORITY"), ledger, precommitStore: precommits });
       const runtime = new ResearchAutomationRuntime({
         coordinator, sessions, memory, registerCandidate: (identity) => { log(`[research-experiments] candidate gate eligible (not registered, governed promotion paths unchanged): ${identity.strategyId}@${identity.strategyVersion}`); return Object.freeze({ identity, lifecycle: "RESEARCHING" as const }); }, listCandidates: () => candidates.listCandidates(),
-        recovery, now, maxEvidenceAgeMs: 14 * DAY_MS,
+        recovery: startupRecovery, now, maxEvidenceAgeMs: 14 * DAY_MS,
       });
       return { variantId, champion: { strategy: champion, config: CHAMPION_PROXY }, challenger: { strategy: challenger, config }, runtime, ...(experimentFamilyPrefix == null ? {} : { experimentFamilyPrefix }) };
     };
@@ -168,7 +239,7 @@ export function composeResearchExperiments(input: {
     });
     const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants, ...donchianVariants];
     const orchestrator = new ResearchExperimentOrchestrator({
-      variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant,
+      variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant, precommitStore: precommits,
       // Closed 1m candles are collected once per tick by the 1m-equivalent first orchestrator only.
       collect: (nowMs) => { if (minutes === settings.intervalsMinutes[0]) collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store }); },
       candles: bars, holdout, now, sourceCommitSha: settings.sourceCommitSha,
@@ -176,6 +247,8 @@ export function composeResearchExperiments(input: {
       evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
       featurePipeline: { version: "closed-candle-agg-v1", config: { intervalMs, maxInternalGapMs: 30_000, volume: 0 } },
       experimentFamilyPrefix: `sma-research${tag}`,
+      datasetManifest: { read: (datasetId: string) => datasetManifests.read(datasetId) },
+      datasetIdForMarket: (targetMarket: string) => datasetManifests.latest(targetMarket, `${intervalMs / 60_000}m`)?.datasetId ?? "missing-dataset-manifest",
       failureEvidence: () => ledger.list().filter((record) => record.provenance?.windowRole === "VALIDATION" && record.provenance.interval === `${minutes}m`),
     });
     return { orchestrator, variantCount: variants.length };
@@ -200,6 +273,16 @@ export function composeResearchExperiments(input: {
         if (stopped) break;
         const result = await backfillMarket({ market, targetSpanMs, nowMs: now(), store, fetchPage, sleep });
         results.push(result);
+        if (result.status === "COMPLETE") {
+          const firstClose = store.earliestCloseTime(market, M);
+          const lastClose = store.latestCloseTime(market, M);
+          if (firstClose != null && lastClose != null) {
+            try {
+              materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString(), sourceCommitSha: settings.sourceCommitSha });
+              log(`[research-manifest] ${market} materialized dataset manifest`);
+            } catch (error) { log(`[research-manifest] ${market} blocked: ${error instanceof Error ? error.message : "unknown"}`); }
+          }
+        }
         log(`[research-backfill] ${market} ${result.status} recorded=${result.recorded} rejected=${result.rejected} pages=${result.pages}${result.errorCode === undefined ? "" : ` error=${result.errorCode}`}`);
       }
     } catch (error) {
@@ -222,6 +305,16 @@ export function composeResearchExperiments(input: {
         if (stopped) break;
         const result = await fillRecentGaps({ market, windowMs: targetSpanMs, nowMs: now(), store, fetchPage, sleep });
         results.push(result);
+        if (result.status === "NO_GAPS" || result.status === "FILLED") {
+          const firstClose = store.earliestCloseTime(market, M);
+          const lastClose = store.latestCloseTime(market, M);
+          if (firstClose != null && lastClose != null) {
+            try {
+              materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString(), sourceCommitSha: settings.sourceCommitSha });
+              log(`[research-manifest] ${market} materialized dataset manifest after gap fill`);
+            } catch (error) { log(`[research-manifest] ${market} blocked after gap fill: ${error instanceof Error ? error.message : "unknown"}`); }
+          }
+        }
         log(`[research-gap-fill] ${market} ${result.status} missing=${result.missing} recorded=${result.recorded} rejected=${result.rejected} pages=${result.pages}${result.errorCode === undefined ? "" : ` error=${result.errorCode}`}`);
       }
     } catch (error) {
@@ -269,6 +362,9 @@ export function composeResearchExperiments(input: {
     return first!;
   };
   return Object.freeze({
+    datasetManifests,
+    prepareRecovery,
+    finishPreparedRecovery: () => { preparationActive = false; clearPreparedRecovery(); },
     orchestrator,
     orchestrators,
     experimentTicksByInterval: () => {
@@ -288,6 +384,8 @@ export function composeResearchExperiments(input: {
         try { status = other.recover().status; } catch { status = "FAIL_CLOSED"; }
         log(`[research-experiments] recover ${settings.intervalsMinutes[index + 1]}m ${status}`);
       });
+      preparationActive = false;
+      clearPreparedRecovery();
       scheduleBackfill(1, 20_000);
       first = setTimeout(() => { try { tickOnce(); } catch { /* isolated */ } }, 60_000);
       first.unref?.();
@@ -296,6 +394,6 @@ export function composeResearchExperiments(input: {
       if (settings.backfill) { gapTimer = setInterval(() => { void fillGaps(); }, 6 * 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
-    stop: () => { stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
+    stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (backfillTimer != null) clearTimeout(backfillTimer); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });
 }

@@ -125,6 +125,7 @@ function harness(options: {
   inspectMixed?: boolean;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
   priorRealized?: readonly PersistedPaperPeriodEnvelope[];
+  nextIndex?: number;
 }) {
   const events: string[] = [];
   const openInputs: PaperRealizedPeriodOpenInput[] = [];
@@ -136,6 +137,7 @@ function harness(options: {
   const port: ClosedLearningRolloverPort = {
     listOpenPeriods: () => openPeriods,
     listRealizedPeriods: () => realized,
+    nextPeriodIndex: () => options.nextIndex ?? Math.max(-1, ...realized.map((item) => item.record.periodIndex), ...openPeriods.map((item) => item.periodIndex)) + 1,
     readCanonicalPaperAccount: () => account(options.now),
     ...(options.evaluationPeriodMs === undefined ? {} : { evaluationPeriodMs: options.evaluationPeriodMs }),
     ...(options.clock === undefined ? {} : { now: () => options.clock! }),
@@ -340,6 +342,14 @@ describe("closed-learning rollover after a period closed without a successor", (
     assert.deepEqual(events, [`open:closed-learning-rollover:1:${LATER}:${LATER}:1`]);
   });
 
+  it("uses the canonical reserved index allocator instead of recomputing from realized history", () => {
+    const { scheduler, openInputs } = harness({ now: LATER, openPeriods: [], nextIndex: 7 });
+    const result = scheduler.runOnce();
+    assert.equal(result.status, "STALLED_PERIOD_REOPENED");
+    assert.equal(openInputs[0]?.periodIndex, 7);
+    assert.match(openInputs[0]?.periodId ?? "", /rollover:7:/);
+  });
+
   it("waits instead of reopening at or before the last realized period end", () => {
     const { scheduler, events } = harness({ now: NEXT_KST_DAY, openPeriods: [] });
     const result = scheduler.runOnce();
@@ -352,6 +362,7 @@ describe("closed-learning rollover after a period closed without a successor", (
     const port: ClosedLearningRolloverPort = {
       listOpenPeriods: () => [],
       listRealizedPeriods: () => [],
+      nextPeriodIndex: () => 0,
       readCanonicalPaperAccount: () => account(LATER),
       closePeriodFromCanonicalAccount: () => { throw new Error("unexpected close"); },
       openPeriodFromCanonicalAccount: () => { throw new Error("unexpected open"); },
@@ -389,6 +400,7 @@ describe("closed-learning rollover when a period is bound to a market the runtim
     const base: ClosedLearningRolloverPort = {
       listOpenPeriods: () => over.open ?? [],
       listRealizedPeriods: () => over.realized ?? [],
+      nextPeriodIndex: () => 1,
       readCanonicalPaperAccount: () => account(LATER),
       closePeriodFromCanonicalAccount: ({ periodId }) => { events.push(`close:${periodId}`); throw new Error("canonical PAPER period benchmark evidence is unavailable"); },
       openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.market}:${input.candidateProvenance[0]?.candidateId}`); return { ...plan("WAIT", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
@@ -453,6 +465,7 @@ describe("closed-learning rollover across a replaced PAPER account (owner capita
     const port: ClosedLearningRolloverPort = {
       listOpenPeriods: () => [plan("WAIT")],
       listRealizedPeriods: () => [envelope("record-0", 0)],
+      nextPeriodIndex: () => 1,
       readCanonicalPaperAccount: () => newAccount,
       closePeriodFromCanonicalAccount: () => { calls.push("close"); throw new Error("must not close across accounts"); },
       openPeriodFromCanonicalAccount: (input) => { calls.push("open"); opened.push(input); return Object.freeze({ ...plan("WAIT", input.periodId), periodIndex: input.periodIndex, periodStartAt: input.periodStartAt }); },
@@ -516,6 +529,7 @@ describe("closed-learning rollover resumes a closed period whose cycle threw", (
     const port: ClosedLearningRolloverPort = {
       listOpenPeriods: () => open,
       listRealizedPeriods: () => realized,
+      nextPeriodIndex: () => Math.max(-1, ...realized.map((item) => item.record.periodIndex), ...open.map((item) => item.periodIndex)) + 1,
       readCanonicalPaperAccount: () => account(nowAccount),
       now: () => wallClock,
       closePeriodFromCanonicalAccount: ({ periodId, periodEndAt }) => {
@@ -672,6 +686,7 @@ describe("closed-learning rollover keeps an owner-baseline period as a self-obse
     const port: ClosedLearningRolloverPort = {
       listOpenPeriods: () => (options.open === false ? [] : [openPlan]),
       listRealizedPeriods: () => Object.freeze([closed]),
+      nextPeriodIndex: () => 1,
       readCanonicalPaperAccount: () => account(NEXT_KST_DAY),
       ...(options.clock === undefined ? {} : { now: () => options.clock! }),
       ...(options.streamed === undefined ? {} : { streamedMarkets: () => options.streamed! }),

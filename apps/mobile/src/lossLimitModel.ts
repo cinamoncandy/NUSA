@@ -10,7 +10,7 @@ const isInt = (value: unknown, min: number): value is number => typeof value ===
 
 export interface LossLimitLine {
   /** "STOPPED" when today's consecutive losses reached the limit; "WARNING" one loss before it. */
-  readonly state: "STOPPED" | "WARNING";
+  readonly state: "STOPPED" | "WARNING" | "DISABLED";
   readonly text: string;
 }
 
@@ -23,6 +23,9 @@ export function buildLossLimitLine(lossLimit: unknown, now: number, otherStopAct
   const { consecutiveLossCount: count, maxConsecutiveLosses: max, evaluatedAt } = lossLimit as Record<string, unknown>;
   if (!isInt(count, 0) || !isInt(max, 1) || !isInt(evaluatedAt, 0) || !Number.isFinite(now)) return null;
   if (evaluatedAt > now || kstDay(evaluatedAt) !== kstDay(now)) return null;
+  const enabled = (lossLimit as Record<string, unknown>).consecutiveLossLimitEnabled;
+  if (enabled !== undefined && typeof enabled !== "boolean") return null;
+  if (enabled === false) return Object.freeze({ state: "DISABLED", text: `PAPER 연속손실 제한 해제 · 오늘 연속 ${count}번 손실. 다른 위험 검사는 유지돼요.` });
   if (count >= max) {
     return Object.freeze({ state: "STOPPED", text: otherStopActive
       ? `오늘 연속 ${count}번 손실이라 새로 사지 않아요. 다른 정지 사유도 있어서 자정이 지나도 바로 다시 시작하지 않을 수 있어요.`

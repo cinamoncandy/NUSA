@@ -313,8 +313,8 @@ test("the previous stop reason is published only as a coded value and never as f
   }, 41889);
 });
 
-test("/health publishes the loss-limit counts as five non-negative integers, and nothing when any is malformed", async () => {
-  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 5, todayLosingSells: 4 };
+test("/health publishes loss counts and the explicit enforcement policy without private data", async () => {
+  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, consecutiveLossLimitEnabled: false, todayCompletedSells: 5, todayLosingSells: 4 };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: session }) }, async (handle) => {
     const body = JSON.parse((await request(handle.port, "/health")).body);
     assert.deepEqual(body.runtime.paperLossSession, session);

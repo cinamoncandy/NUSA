@@ -124,6 +124,19 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     },
   });
 
+  // Evidence validation is read-only and can be expensive. Do it before owning the renewable
+  // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
+  let longBarTickEvery = 1;
+  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
+  researchExperiments?.prepareRecovery();
+  try {
+  // Cloud AI durability opens the same canonical SQLite file and performs its own full-file
+  // fail-closed integrity checks. Complete those checks before acquiring the renewable PAPER
+  // writer lease; otherwise a production-sized database can starve the lease heartbeat before
+  // the HTTP listener and closed-learning scheduler become serviceable. This changes ordering
+  // only: AI remains zero-authority and uses the same durable stores.
+  const cloudAiRuntime = createCloudAiRuntime(env);
+
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
   const paperRepository = config.paperInitialCapitalKrw === undefined
@@ -135,8 +148,6 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
   // Meta-learning steering (researchMetaLearning.ts): starts NORMAL and follows the latest meta-learning evaluation.
-  let longBarTickEvery = 1;
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
   // Research-only recording of the public order book and trades already streamed (Upbit keeps no history of either).
   const microstructureRecorder = microstructureRecorderEnabled(env) ? new MarketMicrostructureRecorder(new SqliteMarketMicrostructureStore(database)) : undefined;
   // Research-only all-KRW order book, once a minute; markets the WebSocket recorder samples are left to it.
@@ -166,7 +177,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     undefined,
     undefined,
     researchExperiments?.orchestrator,
-    createCloudAiRuntime(env),
+    cloudAiRuntime,
     undefined,
     undefined,
     undefined,
@@ -191,6 +202,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const periods = Object.freeze({
     listOpenPeriods: () => pendingPeriods.list(),
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
+    nextPeriodIndex: () => baseHandle.nextPaperRealizedPeriodIndex(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
     closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
     retireOpenPeriodForReplacement: (periodId: string, reason: string) => baseHandle.retirePaperRealizedPeriodForReplacement(periodId, reason),
@@ -248,6 +260,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const rollover = new ClosedLearningRolloverScheduler({
     listOpenPeriods: periods.listOpenPeriods,
     listRealizedPeriods: periods.listRealizedPeriods,
+    nextPeriodIndex: periods.nextPeriodIndex,
     readCanonicalPaperAccount,
     now: () => Date.now(),
     evaluationPeriodMs: closedLearningConfig.evaluationPeriodMs,
@@ -360,7 +373,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     if (!isOwnerBaselineSourceCommitSha(sourceCommitSha)) return;
     const market = config.upbitMarkets[0];
     if (market == null) return;
-    const periodIndex = periods.listRealizedPeriods().reduce((maximum, item) => Math.max(maximum, item.record.periodIndex), -1) + 1;
+    const periodIndex = periods.nextPeriodIndex();
     const input = buildOwnerBaselinePaperPeriodInput({
       market,
       periodIndex,
@@ -484,7 +497,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   initialTimer.unref?.();
   rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
   rolloverTimer.unref?.();
-  researchExperiments?.start();
+  try { researchExperiments?.start(); }
+  finally { researchExperiments?.finishPreparedRecovery(); }
 
   return Object.freeze({
     handle,
@@ -499,6 +513,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     readPaperPerformanceEvidence,
     evaluatePaperGovernanceFeedback,
   });
+  } catch (error) {
+    // Preparation begins before lease acquisition. Any synchronous startup failure must release
+    // the native SQLite change trackers, including an active competing writer or runtime fault.
+    researchExperiments?.finishPreparedRecovery();
+    throw error;
+  }
 }
 
 function main(): void {

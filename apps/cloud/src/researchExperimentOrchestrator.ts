@@ -8,6 +8,7 @@ import { planResearchSession, researchSessionIdFor } from "./researchSessionPlan
 import { runResearchExperiment, type ExperimentOutcome, type ExperimentRunnerPorts, type ExperimentSpec } from "./researchExperimentRunner";
 import type { WalkForwardWindowConfig } from "./researchWalkForwardWindows";
 import type { ResearchSessionStartInput } from "./researchAutomationRuntime";
+import type { ResearchPrecommit } from "../../../packages/contracts/src/researchPrecommit";
 
 /**
  * Drives the continuous research experiments one `tick` at a time. It owns no timer and no storage: the
@@ -55,6 +56,9 @@ export interface OrchestratorOptions {
   readonly experimentFamilyPrefix: string;
   /** Validation-role evaluation records of this orchestrator's bar length, read from the durable Research ledger (display only). */
   readonly failureEvidence?: () => readonly ResearchComparisonEvidence[];
+  readonly precommitStore?: { create(precommit: ResearchPrecommit): ResearchPrecommit };
+  readonly datasetManifest?: ExperimentRunnerPorts["datasetManifest"];
+  readonly datasetIdForMarket?: (market: string) => string;
 }
 
 export interface ResearchExperimentTickSummary {
@@ -249,6 +253,7 @@ export class ResearchExperimentOrchestrator {
           if (last != null && validationEnd < last + this.options.windows.validationMs) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); continue; }
           const outcome = runResearchExperiment(this.portsFor(variant), {
             sessionId, market, intervalMs: this.options.intervalMs, endCloseMs, windows: this.options.windows,
+            datasetId: this.options.datasetIdForMarket?.(market),
             champion: variant.champion, challenger: variant.challenger,
             featurePipeline: this.options.featurePipeline, evaluator: this.options.evaluator, models: this.options.models,
             sourceCommitSha: this.options.sourceCommitSha,
@@ -257,6 +262,8 @@ export class ResearchExperimentOrchestrator {
             hypothesisLineage: `${variant.experimentFamilyPrefix ?? this.options.experimentFamilyPrefix}:${variant.variantId}`,
             split: { identity: `wf-${this.options.windows.trainMs / 60_000}-${this.options.windows.validationMs / 60_000}-${this.options.windows.holdoutMs / 60_000}m` },
             walkForwardConfig: { windows: this.options.windows, challenger: variant.challenger.config },
+            candidateCohort: this.options.variants.map((item) => ({ id: item.variantId, strategyId: item.challenger.strategy.strategyId, strategyVersion: item.challenger.strategy.version, parameters: item.challenger.config as Readonly<Record<string, unknown>> })),
+            searchUniverse: { variantIds: this.options.variants.map((item) => item.variantId), selectionRule: "PREDECLARED_VARIANTS", trialCount: this.options.variants.length, intervalMs: this.options.intervalMs },
           });
           experiments.push({ variantId: variant.variantId, market, outcome });
           session = this.options.sessions.load(sessionId) ?? session;
@@ -270,6 +277,6 @@ export class ResearchExperimentOrchestrator {
   }
 
   private portsFor(variant: ResearchVariant): ExperimentRunnerPorts {
-    return { runExperiment: (input) => variant.runtime.runExperiment(input), candles: this.options.candles, holdout: this.options.holdout, now: this.options.now };
+    return { runExperiment: (input) => variant.runtime.runExperiment(input), candles: this.options.candles, holdout: this.options.holdout, now: this.options.now, precommitStore: this.options.precommitStore, datasetManifest: this.options.datasetManifest };
   }
 }

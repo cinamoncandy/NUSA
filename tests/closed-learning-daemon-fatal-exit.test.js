@@ -11,7 +11,7 @@ const main = compiled.match(/function main\(\) \{[\s\S]*?\r?\n\}/)?.[0];
 assert.ok(main, "exercise the actual compiled daemon entrypoint");
 const runtimeBinding = main.match(/\(0, (\w+)\.registerGracefulShutdown\)/)?.[1];
 assert.ok(runtimeBinding, "bind the actual compiler-generated runtime import");
-const fatalHandler = compiled.match(/const failClosedScheduler = ([\s\S]*?);\r?\n    const scheduleTick/)?.[1];
+const fatalHandler = compiled.match(/const failClosedScheduler = ([\s\S]*?);\r?\n\s*const scheduleTick/)?.[1];
 assert.ok(fatalHandler, "exercise the actual scheduler failure handler too");
 const failureBinding = fatalHandler.match(/\(0, (\w+)\.recordRuntimeFailure\)/)?.[1];
 assert.ok(failureBinding);

@@ -104,6 +104,7 @@ function structurallyValid(request, identity, limits) {
   if (!["seenSignalIds", "seenCommandIds", "seenClientOrderIds"].every((key) => identity[key] instanceof Set)) return false;
 
   if (limits == null || typeof limits !== "object") return false;
+  if (limits.consecutiveLossLimitEnabled !== undefined && typeof limits.consecutiveLossLimitEnabled !== "boolean") return false;
   return ["maxOrderNotional", "maxPositionNotional", "maxOpenOrders", "maxOrdersPerSecond", "maxOrdersPerMinute",
     "maxSameSideStreak", "maxSymbolExposureNotional", "maxPortfolioExposureNotional", "maxDailyBuyNotional",
     "maxDailySellNotional", "maxDailyLoss", "maxConsecutiveLosses", "maxSessionDrawdownRatio",
@@ -168,7 +169,7 @@ function derivePreTradeReasons(request, identity, limits) {
 
   const session = request.sessionState;
   if (session.dailyRealizedPnL < 0 && Math.abs(session.dailyRealizedPnL) >= limits.maxDailyLoss) found.add("DAILY_LOSS_LIMIT");
-  if (session.consecutiveLossCount >= limits.maxConsecutiveLosses) found.add("CONSECUTIVE_LOSS_LIMIT");
+  if (limits.consecutiveLossLimitEnabled !== false && session.consecutiveLossCount >= limits.maxConsecutiveLosses) found.add("CONSECUTIVE_LOSS_LIMIT");
   if (session.sessionPeakEquity > 0 && (session.sessionPeakEquity - session.sessionEquity) / session.sessionPeakEquity >= limits.maxSessionDrawdownRatio) {
     found.add("SESSION_DRAWDOWN_LIMIT");
   }

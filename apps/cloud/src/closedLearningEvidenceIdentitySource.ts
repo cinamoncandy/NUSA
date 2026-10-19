@@ -59,7 +59,7 @@ function marketOf(period: PersistedPaperPeriodEnvelope): string {
 
 function activationFor(period: PersistedPaperPeriodEnvelope, bindings: Pick<PaperChallengerBindingLedger, "current">): PaperChallengerActivationReceipt {
   const activation = bindings.current(marketOf(period), period.record.periodStartAt);
-  if (activation?.researchLineage == null) throw new PaperResearchLineageUnavailable();
+  if (activation?.researchLineage == null || activation.governanceAuthorization == null) throw new PaperResearchLineageUnavailable();
   return activation;
 }
 
