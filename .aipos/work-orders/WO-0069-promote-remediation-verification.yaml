@@ -1,6 +1,6 @@
 id: WO-0069
 title: Promote Verified Remediation Verification into Repository
-status: ready
+status: completed
 branch: agent/wo-0069-promote-remediation-verification
 base_sha: 9284c0cfb0a00d7afe64a5f63fcc12ce355ee4cf
 objective: >-
@@ -64,3 +64,14 @@ verification:
   - pnpm test
   - git diff --check
 next_on_pass: human review and normal PR process
+repository_reconciliation:
+  recorded_by_work_order: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+  pull_request: 708
+  merged: true
+  merged_at: "2026-08-23T10:39:46Z"
+  merged_head: 87d36e81a2ed852179639212dce11331dedd0433
+  merge_commit: 124890eb2f49f0e98f1b8b262acbb72f699cdb6c
+  protected_main_at_reconciliation: 44840f96e80d1e9e664b15743767eb6c717d978a
+  merge_commit_is_ancestor_of_protected_main: true
+  evidence_source: "GitHub PR metadata, changed-file list, and local git ancestry check. Historical validation claims above are preserved as reported; this reconciliation did not rerun them."
+
