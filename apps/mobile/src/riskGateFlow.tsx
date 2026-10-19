@@ -65,7 +65,7 @@ export function RiskGateFlow({ gate, windowNote = null }: { readonly gate: RiskG
 }
 
 const styles = StyleSheet.create({
-  card: { marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: 22, backgroundColor: "#0A1017", borderWidth: StyleSheet.hairlineWidth, borderColor: "#2A3440" },
+  card: { marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: 22, backgroundColor: calmColors.ground, borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line },
   caption: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 1, marginBottom: 14 },
   stage: { height: 40, justifyContent: "center" },
   source: { position: "absolute", left: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: calmColors.text },
@@ -75,8 +75,8 @@ const styles = StyleSheet.create({
   gate: { position: "absolute", left: TRACK + 12, width: 14, height: 36, borderRadius: 7, backgroundColor: calmColors.attention },
   // Dashes are separate segments: a one-sided dashed border renders solid on Android.
   after: { position: "absolute", left: TRACK + 32, right: 20, height: 2, flexDirection: "row", justifyContent: "space-between", overflow: "hidden" },
-  dash: { width: 4, height: 2, backgroundColor: "#2A3440" },
-  sink: { position: "absolute", right: 0, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: "#343C45" },
+  dash: { width: 4, height: 2, backgroundColor: calmColors.line },
+  sink: { position: "absolute", right: 0, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: calmColors.muted },
   labels: { flexDirection: "row", justifyContent: "space-between", marginTop: 12 },
   label: { color: calmColors.text, fontSize: readableFont(12) },
   gateLabel: { color: calmColors.attention, fontWeight: "600" },
