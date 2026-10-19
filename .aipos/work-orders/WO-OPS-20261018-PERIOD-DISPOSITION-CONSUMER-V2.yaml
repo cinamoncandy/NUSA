@@ -20,6 +20,21 @@ scope_correction_20261019:
   validation: "Build PASS; production-root4/4; disposition/rollover117/117; validate:full PASS; lint PASS (26 pre-existing warnings). Full suite did not finish because Electron binary is absent after scripts-disabled install. Local security gate differed (two audit advisories/backport-source mismatch); canonical exact-head CI security gate PASS. Exact-head CI39180802824, PAPER run39180802893 and companions39180802929,39180802855,39180802808,39180802827 PASS on103db92fe3c05f85472a326d9b8e5e9599eddc1c. PAPER classifier is INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; workflow success does not prove the learning loop."
   next: "Obtain non-author review, canonical Audit/Release and natural P0 future-fill/Research qualification evidence. Production activation remains prohibited until acceptance."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+ci_repair_20261019:
+  target_pr: 2808
+  observed_main: 91db289a392f08aaf367cc15bec16f852d2b4edb
+  pre_fix_head: c51780421d9e444a47a0447648a050ec0bcc5d40
+  failed_run: 39242585445
+  root_cause: "append required byte-identical active successor payload and immutable receipt snapshot; legitimate observation accumulation changed observation fields, causing PENDING_TERMINAL on finalization."
+  change: "Compare the full persisted plan identity excluding only observationIds, observations, and lastObservedAt; require a valid active pending checksum/snapshot and keep retired/mismatched successors fail-closed."
+  local_validation: "Typecheck PASS; validate:full PASS; focused progression/storage/resurrection tests 18/18 PASS; pnpm test PASS (1245 isolated files; Git Bash supplied on command PATH)."
+  exact_head_ci: PENDING
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED_IN_THIS_INCREMENT
+  next: "Push only after local validation (done); wait for fresh exact-head CI, request a fresh non-author review, retain Draft and all production activation gates."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main

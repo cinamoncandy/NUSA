@@ -172,6 +172,16 @@ function validatePendingSnapshot(value: PersistedPaperPendingPeriod): void {
   if (plan == null || plan.schemaVersion !== 1 || plan.periodId !== value.periodId || plan.periodIndex !== value.periodIndex || plan.periodStartAt !== value.periodStartAt) dispositionError();
 }
 
+function activeSuccessorMatchesReceipt(active: PersistedPaperPendingPeriod | undefined, successor: PersistedPaperPendingPeriod): boolean {
+  if (active == null || decodeDisposition(active) != null) return false;
+  validatePendingSnapshot(active);
+  const activePlan = JSON.parse(active.payloadJson) as Record<string, unknown>;
+  const successorPlan = JSON.parse(successor.payloadJson) as Record<string, unknown>;
+  const { observationIds: _activeIds, observations: _activeObservations, lastObservedAt: _activeObservedAt, ...activeIdentity } = activePlan;
+  const { observationIds: _receiptIds, observations: _receiptObservations, lastObservedAt: _receiptObservedAt, ...receiptIdentity } = successorPlan;
+  return canonical(activeIdentity) === canonical(receiptIdentity);
+}
+
 function validateDisposition(value: PersistedPaperPendingDisposition, row: PersistedPaperPendingPeriod): void {
   exactKeys(value, ["schemaVersion", "kind", "evidenceFingerprintSha256", "original", "reason", "successor", "validPerformanceEvidence", "paperOnly", "liveAuthority", "productionMutationAllowed", "aiAuthority"]);
   if (value.schemaVersion !== 2 || value.kind !== "INELIGIBLE_PENDING_PERIOD" || value.validPerformanceEvidence !== false
@@ -241,7 +251,7 @@ export class SqlitePersistedPaperPeriodStore {
         const touchesSuccessor = successor.periodId === envelope.record.recordId || successor.periodIndex === envelope.record.periodIndex;
         if (touchesSuccessor) {
           const active = this.rawPending(successor.periodId);
-          const activeMatchesReceipt = active != null && decodeDisposition(active) == null && canonical(active) === canonical(successor);
+          const activeMatchesReceipt = activeSuccessorMatchesReceipt(active, successor);
           const recordMatchesSuccessor = envelope.record.recordId === successor.periodId && envelope.record.periodIndex === successor.periodIndex && envelope.record.periodStartAt === successor.periodStartAt;
           if (!(activeMatchesReceipt && recordMatchesSuccessor)) return true;
         }

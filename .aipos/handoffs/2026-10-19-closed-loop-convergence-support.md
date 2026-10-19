@@ -104,3 +104,33 @@ has no fresh Claude VALIDATOR session available and does not impersonate one.
 
 LEARNING_LOOP_VERIFIED=false; PERFORMANCE_IMPROVEMENT=UNPROVEN.
 PAPER_ONLY/liveAuthority=NONE/productionMutationAllowed=false/aiAuthority=ZERO_AUTHORITY.
+
+## Follow-up — #2808 CI repair
+
+- Fresh protected main: `91db289a392f08aaf367cc15bec16f852d2b4edb`.
+- Existing #2808 remained OPEN/DRAFT/MERGEABLE on head
+  `c51780421d9e444a47a0447648a050ec0bcc5d40`; exact-head workflow run
+  `39242585445` failed at `pnpm run build` on the changed learning progression
+  test. The companion PAPER/safety workflow results do not override the failure.
+- Reproduced the failure locally. Root cause: `append()` required the active
+  successor pending row to remain byte-identical to the immutable receipt snapshot,
+  so valid observed fills changed the row and prevented finalization.
+- Minimal storage fix compares all plan identity/provenance fields while excluding
+  only the three observation-progress fields. A retired/mismatched successor still
+  fails closed because it must exist as an active, checksum-valid plan with the same
+  persisted identity as the receipt.
+- Validation: TypeScript typecheck PASS; `pnpm run validate:full` PASS; focused
+  progression, disposition-store and resurrection tests 18/18 PASS; `pnpm test`
+  PASS across 1245 isolated test files. The first full-suite attempt failed only
+  because Git Bash was absent from the command PATH; the rerun supplied the existing
+  Git Bash path for that process only. Architecture reports produced by validation
+  were removed from this temporary worktree after the run.
+- New source head has not yet received remote exact-head CI or fresh non-author
+  review. PR stays Draft. No Audit, Release, merge, deployment, or production
+  disposition activation is claimed or authorized here. Real research qualification
+  and candidate-bound PAPER closed-loop evidence remain unproven.
+
+Next: push the local repair to the existing #2808 branch after verifying its remote
+head is unchanged, then use only fresh exact-head CI and a fresh non-author Validator.
+Safety remains PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false /
+aiAuthority=ZERO_AUTHORITY.
