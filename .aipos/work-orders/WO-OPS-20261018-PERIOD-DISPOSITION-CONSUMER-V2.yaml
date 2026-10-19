@@ -23,17 +23,19 @@ scope_correction_20261019:
 ci_repair_20261019:
   target_pr: 2808
   observed_main: 91db289a392f08aaf367cc15bec16f852d2b4edb
+  validated_code_head: 407f81254676cbb2be3443f0a1d4ad1ec06ac2a3
+  latest_main_reconciliation: "Merged protected main 91db289a392f08aaf367cc15bec16f852d2b4edb into the existing PR branch; no content conflicts."
   pre_fix_head: c51780421d9e444a47a0447648a050ec0bcc5d40
   failed_run: 39242585445
   root_cause: "append required byte-identical active successor payload and immutable receipt snapshot; legitimate observation accumulation changed observation fields, causing PENDING_TERMINAL on finalization."
   change: "Compare the full persisted plan identity excluding only observationIds, observations, and lastObservedAt; require a valid active pending checksum/snapshot and keep retired/mismatched successors fail-closed."
-  local_validation: "Typecheck PASS; validate:full PASS; focused progression/storage/resurrection tests 18/18 PASS; pnpm test PASS (1245 isolated files; Git Bash supplied on command PATH)."
-  exact_head_ci: PENDING
+  local_validation: "After latest-main integration: build PASS; 8 targeted PAPER/storage regression files PASS; validate:full PASS; typecheck PASS; diff check PASS. Prior full suite passed 1245 isolated files before latest-main integration."
+  exact_head_ci: "PASS on validated code head 407f81254676cbb2be3443f0a1d4ad1ec06ac2a3; CI run 39246748103 and all six companion workflows PASS. AIPOS evidence successor requires its own fresh exact-head CI."
   independent_review: PENDING
   audit: PENDING
   release: PENDING
   runtime_activation: PROHIBITED_IN_THIS_INCREMENT
-  next: "Push only after local validation (done); wait for fresh exact-head CI, request a fresh non-author review, retain Draft and all production activation gates."
+  next: "Request a fresh non-author review on the current source head; keep Draft and all production activation gates."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner: nusa
 repository: cinamoncandy/NUSA
