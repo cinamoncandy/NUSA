@@ -75,13 +75,15 @@ No code change, fresh full isolated suite or local security/lint run is claimed.
   environment-sensitive and is not reported as a canonical CI failure.
 - Exact-head verification completed: PR #2808 remains OPEN/DRAFT/MERGEABLE, base
   `7ec5c21fe960783ea107b961dff76b31a8e9e15e` still equals current protected main,
-  head is `19f8a6a98c7468b19f4f6d669c265087aa0c486e`; canonical CI `39180280595`
-  and coverage aggregate passed. Actual PAPER run `39180280593` produced artifact
-  `12156270597`, bound to that exact source SHA, with result `INCOMPLETE`:
-  one public Upbit ticker, SMA `0/20`, `PAPER_ORDERBOOK_UNRECONCILED`, no order/fill
-  or PnL change; restart/supervisor recovery passed, order idempotency N/A. All four
-  restricted/read-only safety companions passed. PR has zero review submissions and
-  zero inline review comments; no independent Audit/Release verdict exists.
+  head is `103db92fe3c05f85472a326d9b8e5e9599eddc1c`; canonical CI `39180802824`
+  including aggregate coverage passed. Actual PAPER run `39180802893` and all four
+  restricted/read-only companions (`39180802929`, `39180802855`, `39180802808`,
+  `39180802827`) passed as workflow runs on that exact head. PAPER's semantic
+  classifier is `INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL`; these workflow successes
+  do not prove an autonomous order, fill, PnL change, candidate-bound cycle, or
+  closed loop. PR remains draft, has no review submissions or inline review threads,
+  and has no independent Audit/Release verdict. Current main remains
+  `7ec5c21fe960783ea107b961dff76b31a8e9e15e`.
 - Current actionable sequence is: preserve #2808 as draft; obtain a fresh non-author
   review for the safety-boundary correction; separately obtain naturally
   matured, exact-main Research qualification evidence;
