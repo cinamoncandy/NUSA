@@ -69,10 +69,21 @@ No code change, fresh full isolated suite or local security/lint run is claimed.
 - Local `pnpm run security:gate` returned FAIL: registry audit reported high
   advisories 1240991 (`http-cache-semantics`) and 1240992 (`braces`), and the
   repository's exact-source compensating-backport checks also failed. This PR changes
-  neither dependency nor those controls; no assertion/gate was weakened. Fresh
-  exact-head CI must determine current canonical status.
-- Current actionable sequence is: preserve #2808 as draft; get fresh exact-head CI
-  and non-author review for the safety-boundary correction; separately obtain naturally
+  neither dependency nor those controls; no assertion/gate was weakened. The fresh
+  canonical CI on exact head `19f8a6a98c7468b19f4f6d669c265087aa0c486e` ran its
+  security gate successfully, so the local registry/backport mismatch was
+  environment-sensitive and is not reported as a canonical CI failure.
+- Exact-head verification completed: PR #2808 remains OPEN/DRAFT/MERGEABLE, base
+  `7ec5c21fe960783ea107b961dff76b31a8e9e15e` still equals current protected main,
+  head is `19f8a6a98c7468b19f4f6d669c265087aa0c486e`; canonical CI `39180280595`
+  and coverage aggregate passed. Actual PAPER run `39180280593` produced artifact
+  `12156270597`, bound to that exact source SHA, with result `INCOMPLETE`:
+  one public Upbit ticker, SMA `0/20`, `PAPER_ORDERBOOK_UNRECONCILED`, no order/fill
+  or PnL change; restart/supervisor recovery passed, order idempotency N/A. All four
+  restricted/read-only safety companions passed. PR has zero review submissions and
+  zero inline review comments; no independent Audit/Release verdict exists.
+- Current actionable sequence is: preserve #2808 as draft; obtain a fresh non-author
+  review for the safety-boundary correction; separately obtain naturally
   matured, exact-main Research qualification evidence;
   only then verify a genuine candidate-bound PAPER period, closed-learning cycle,
   restart and replay. This checkout has no authority to activate the disposition path
