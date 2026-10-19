@@ -2492,16 +2492,16 @@ current_mobile_home_simplify:
 
 current_ops_oracle_stability_rollback_20261019:
   work_order: WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK
-  status: VALIDATOR_P1_STATE_REPAIRED_PENDING_CURRENT_MAIN_RECONVERGENCE
+  status: CURRENT_MAIN_RECONVERGED_VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
   branch: fix/oracle-stability-rollback-2770
   issue: 2770
   pull_request: 2819
   base_sha: 91db289a392f08aaf367cc15bec16f852d2b4edb
-  previous_validated_head: 636392bab1aae347f171080502b04eaf0eab3869
-  current_main_at_registration: bedc3b75e79062d86702d89323d6f6eecc73274b
+  previous_validated_head: e7ef7ee02ceef1300747705585861c5f57f3922b
+  current_main_at_reconvergence: bedc3b75e79062d86702d89323d6f6eecc73274b
   finding: "Oracle release 39242644208 passed initial authenticated PAPER readiness and Autopilot readiness, then false-rolled back when the first 5-second stability /ready proof timed out with SUPERVISOR_ACTIVE_LISTENER_BOUND; rollback also left Autopilot executing the rejected release until one bounded service restart reconverged cwd."
-  validation: "Pre-registration head 636392bab1aae347f171080502b04eaf0eab3869 had all six exact-head workflows PASS; fresh Validator reported P0=0, one remaining P1 for this missing state registration, and the prior P2 runbook mismatch resolved. Focused Oracle release tests 23/23, bash -n and git diff --check PASS. These receipts become historical after this state commit/main reconvergence and are not acceptance for the successor head."
-  next: "Merge current protected main without rewriting history -> fresh exact-head CI/companions -> fresh non-author Validator with zero actionable findings -> deterministic Audit/Release -> install exact merged root-owned helper -> natural exact-main Oracle release and 180-second soak proof."
+  validation: "Reconverged head e7ef7ee02ceef1300747705585861c5f57f3922b had all six exact-head workflows PASS. Fresh non-author Validator found one P1 only: this state entry still described main reconvergence as pending after bedc3b75e79062d86702d89323d6f6eecc73274b had already been merged. This successor updates execution state only; e7ef7ee receipts are historical and fresh exact-head CI/Validator remain mandatory."
+  next: "Fresh exact-head CI/companions -> fresh non-author Validator with zero actionable findings -> deterministic Audit/Release -> install exact merged root-owned helper -> natural exact-main Oracle release and 180-second soak proof."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_stage_space:
