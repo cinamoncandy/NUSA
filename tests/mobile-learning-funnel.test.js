@@ -11,12 +11,13 @@ const app = read("apps/mobile/App.tsx");
 
 test("the heartbeat carries the Research funnel as integers from the closed-learning status only", () => {
   assert.match(runtime, /const learningFunnelHeartbeat = \(\): \{ learningFunnel\?: PersonalPaperLearningFunnel \} =>/);
+  assert.match(runtime, /holdoutPasses > discoveryPasses\) return \{\};/);
   assert.match(runtime, /Number\.isSafeInteger\(v\) && \(v as number\) >= 0/);
   assert.match(runtime, /\.\.\.research, \.\.\.learningFunnelHeartbeat\(\) \}\)/);
 });
 
 test("the Learning screen shows the funnel only from a live snapshot, and its motion respects reduce-motion", () => {
-  assert.match(app, /learningFunnel=\{snapshot\?\.operations\.heartbeat\?\.learningFunnel \?\? null\}/);
+  assert.equal((app.match(/learningFunnel=\{snapshot\?\.operations\.heartbeat\?\.learningFunnel \?\? null\}/g) || []).length, 2, "both entries to the Learning screen");
   assert.match(view, /const funnel = buildLearningFunnel\(learningFunnel\);/);
   assert.match(view, /<PaperShadowMonitorView \{\.\.\.monitorProps\} \/>/, "the detail monitors do not receive the extra prop");
   assert.match(funnel, /isReduceMotionEnabled\(\)/);

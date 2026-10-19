@@ -18,6 +18,7 @@ acceptance:
   - motion stops with the OS reduce-motion setting
 validation:
   local: "learningFunnelModel 2, mobile-learning-funnel 2, mobile-product-v5 4, cloud-runtime-liveness-health 35 pass; mobile tsc no error in changed files. Device run NOT RUN."
+review_2026_10_19: "Independent review PASS_WITH_NOTES, no P0/P1. Fixed: holdout above discovery is not drawn (server and app), cycle count labelled as this run, accessible summary, funnel on both Learning entries, more tests."
 remaining: "Safety (lock rings) and Records (timeline) screens; deploy so the server sends learningFunnel."
 safety:
   paper_only: true

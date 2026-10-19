@@ -269,7 +269,8 @@ export function startCloudRuntime(
       const values = [meta?.configurations, meta?.discoveryPasses, meta?.holdoutPasses, status?.cyclesEvaluated];
       if (!values.every((v) => Number.isSafeInteger(v) && (v as number) >= 0)) return {};
       const [configurations, discoveryPasses, holdoutPasses, cyclesEvaluated] = values as number[];
-      if (discoveryPasses > configurations || holdoutPasses > configurations) return {};
+      // The ledger sums the two separately; a holdout count above discovery cannot be drawn as a funnel, so nothing is sent.
+      if (discoveryPasses > configurations || holdoutPasses > discoveryPasses) return {};
       return { learningFunnel: Object.freeze({ configurations, discoveryPasses, holdoutPasses, cyclesEvaluated, evaluatedAt: Date.now() }) };
     } catch { return {}; }
   };

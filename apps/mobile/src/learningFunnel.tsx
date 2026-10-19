@@ -35,7 +35,7 @@ export function LearningFunnel({ model }: { readonly model: LearningFunnelModel 
   }, [reducedMotion, width, drops]);
 
   const height = STEP * model.stages.length;
-  return <View style={styles.wrap} testID="learning-funnel" accessibilityRole="summary"
+  return <View style={styles.wrap} testID="learning-funnel" accessible accessibilityRole="summary"
     accessibilityLabel={model.stages.map((s) => `${s.label} ${s.value}`).join(", ")}
     onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
     <View style={{ height }}>
