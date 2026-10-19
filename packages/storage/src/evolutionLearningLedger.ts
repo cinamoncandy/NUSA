@@ -6,6 +6,7 @@ import { canonicalResearchJson } from "../../contracts/src/researchRuntime";
 const SCHEMA_VERSION = 1 as const;
 const GENESIS_HASH = "0".repeat(64);
 const MAX_RECORDS = 4_096;
+const MAX_HYPOTHESIS_BYTES = 16_384;
 const OUTCOMES = new Set<EvolutionLearningRecord["outcome"]>([
   "SUCCESS",
   "PARTIAL_SUCCESS",
@@ -71,10 +72,10 @@ function invalid(code: string, message: string): never {
   throw new EvolutionLearningLedgerError(code, `${code}: ${message}`);
 }
 
-function text(value: unknown, field: string, maximum: number): string {
+function text(value: unknown, field: string, maximum: number, maximumBytes?: number): string {
   if (typeof value !== "string") invalid("INVALID_RECORD", `${field} must be text`);
   const normalized = value.trim();
-  if (!normalized || normalized.length > maximum || FORBIDDEN_VALUE.test(normalized)) invalid("INVALID_RECORD", `${field} is invalid`);
+  if (!normalized || normalized.length > maximum || (maximumBytes !== undefined && Buffer.byteLength(normalized, "utf8") > maximumBytes) || FORBIDDEN_VALUE.test(normalized)) invalid("INVALID_RECORD", `${field} is invalid`);
   return normalized;
 }
 
@@ -106,7 +107,7 @@ function normalize(value: EvolutionLearningRecord): EvolutionLearningRecord {
   });
   const uniqueEvidenceReferences = [...new Set(evidenceReferences)].sort((left, right) => left.localeCompare(right));
   if (uniqueEvidenceReferences.length === 0) invalid("EVIDENCE_REQUIRED", "learning evidence is required");
-  const hypothesis = text(candidate.hypothesis, "hypothesis", 2_000);
+  const hypothesis = text(candidate.hypothesis, "hypothesis", MAX_HYPOTHESIS_BYTES, MAX_HYPOTHESIS_BYTES);
   const changeReference = text(candidate.changeReference, "changeReference", 240);
   const validationStatus = text(candidate.validationStatus, "validationStatus", 80);
   if (typeof candidate.outcome !== "string" || !OUTCOMES.has(candidate.outcome as EvolutionLearningRecord["outcome"])) invalid("INVALID_RECORD", "learning outcome is invalid");
