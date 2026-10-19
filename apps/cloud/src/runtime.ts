@@ -41,6 +41,7 @@ import {
   type PersonalPaperRuntimeHaltReason,
   type PersonalPaperRuntimeHeartbeat,
   type PersonalPaperLossLimit,
+  type PersonalPaperLearningFunnel,
   type PersonalPaperTodayRealized
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
@@ -260,6 +261,18 @@ export function startCloudRuntime(
       return realizedPnlKrw == null ? {} : { todayRealized: Object.freeze({ realizedPnlKrw, evaluatedAt: now }) };
     } catch { return {}; }
   };
+  // Display only: the Research funnel from the closed-learning loop status (meta-learning ledger). Integers only; a failing read is ignored.
+  const learningFunnelHeartbeat = (): { learningFunnel?: PersonalPaperLearningFunnel } => {
+    try {
+      const status = closedLearningStatus?.() as Record<string, unknown> | null | undefined;
+      const meta = status?.metaLearning as Record<string, unknown> | undefined;
+      const values = [meta?.configurations, meta?.discoveryPasses, meta?.holdoutPasses, status?.cyclesEvaluated];
+      if (!values.every((v) => Number.isSafeInteger(v) && (v as number) >= 0)) return {};
+      const [configurations, discoveryPasses, holdoutPasses, cyclesEvaluated] = values as number[];
+      if (discoveryPasses > configurations || holdoutPasses > configurations) return {};
+      return { learningFunnel: Object.freeze({ configurations, discoveryPasses, holdoutPasses, cyclesEvaluated, evaluatedAt: Date.now() }) };
+    } catch { return {}; }
+  };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
@@ -275,7 +288,7 @@ export function startCloudRuntime(
     const research = researchProgress != null
       ? { researchCollection: researchProgress }
       : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
-    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research });
+    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat() });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
