@@ -1,0 +1,39 @@
+name: Futures History Freeze
+
+# Data step of the pre-registered futures regime long/short research (docs/RESEARCH_PREREG_2026-10-14_FUTURES_REGIME_LONG_SHORT.md §4).
+# Dispatch by hand only. It runs the reviewed script scripts/fetch-futures-history.js FROM THE DEPLOYED RELEASE on the PAPER host
+# (no repository checkout, no third-party action, no secret): public Binance USD-M GETs only (4h klines + funding history, five symbols,
+# 2023-01-01..2026-10-14), written to a per-run temporary directory that is removed when the step ends, and prints the SHA-256 manifest as
+# an annotation so it can be committed before any evaluation reads the data. Any HTTP error (451 included), gap or malformed row aborts the
+# run with nothing kept. It takes no API key, places no order and changes nothing on the host. PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: futures-history-freeze
+  cancel-in-progress: false
+
+jobs:
+  freeze:
+    name: Fetch and hash the pre-registered public futures history
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 15
+    steps:
+      - name: Fetch (public GET only), hash, print the manifest, delete the files
+        shell: bash
+        run: |
+          set +e
+          script=/opt/nusa/current/scripts/fetch-futures-history.js
+          [ -f "$script" ] || { echo "::error::the deployed release does not contain scripts/fetch-futures-history.js (deploy first)"; exit 1; }
+          dir="$(mktemp -d "$RUNNER_TEMP/futures-history.XXXXXX")" || exit 1
+          trap 'rm -rf "$dir"' EXIT
+          out="$(ionice -c3 nice -n19 node "$script" "$dir" 2>&1)"
+          status=$?
+          printf '%s\n' "$out"
+          body="$(printf '%s' "${out:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::notice title=futures-history-manifest status=${status}::${body}"
+          exit "$status"
