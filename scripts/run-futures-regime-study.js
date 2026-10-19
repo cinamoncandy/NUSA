@@ -4,7 +4,8 @@
  * §4-§7 and the 2026-10-19 addendum). Re-fetches the public history in memory, refuses to run unless every file matches the committed
  * manifest (research/futures/futures-history-manifest.json), then runs the compiled pure evaluator
  * (dist/apps/cloud/src/futures/futuresRegimeStudy.js) on the development and holdout splits at base and doubled costs, N = 50 plus the
- * N = 20 / 100 sensitivity. It refuses if a holdout result is already committed (the holdout is evaluated exactly once).
+ * N = 20 / 100 sensitivity. It refuses if a holdout result is already committed. The file guard alone cannot stop a second dispatch
+ * before that commit, so "exactly once" is also an operating rule: dispatch once, then commit the printed report before anything else.
  * Writes nothing, places nothing, takes no key. PAPER only.
  */
 const fs = require("node:fs");
@@ -59,13 +60,13 @@ function evaluate(files, study) {
   return report;
 }
 
-async function main({ fetchImpl = fetch, study = require("../dist/apps/cloud/src/futures/futuresRegimeStudy.js") } = {}) {
-  if (fs.existsSync(HOLDOUT_RESULT)) throw new StudyRunError("HOLDOUT_ALREADY_EVALUATED");
-  if (!fs.existsSync(MANIFEST)) throw new StudyRunError("MANIFEST_NOT_COMMITTED");
-  const committed = JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
+async function main({ fetchImpl = fetch, study = null, manifestPath = MANIFEST, resultPath = HOLDOUT_RESULT } = {}) {
+  if (fs.existsSync(resultPath)) throw new StudyRunError("HOLDOUT_ALREADY_EVALUATED");
+  if (!fs.existsSync(manifestPath)) throw new StudyRunError("MANIFEST_NOT_COMMITTED");
+  const committed = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const fresh = await history.fetchHistory({ fetchImpl });
   if (!history.verify(fresh, committed).ok) throw new StudyRunError("HISTORY_HASH_MISMATCH");
-  return evaluate(fresh.files, study);
+  return evaluate(fresh.files, study ?? require("../dist/apps/cloud/src/futures/futuresRegimeStudy.js"));
 }
 
 module.exports = { evaluate, parseFiles, main, StudyRunError, BASE_COSTS, STRESS_COSTS, HOLDOUT_START };

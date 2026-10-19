@@ -40,7 +40,20 @@ test("only the holdout at N = 50 decides the verdict; development and other N ar
   assert.equal(report.verdict, "FAIL", "N = 20 passing must not pass the study");
 });
 
-test("it refuses to evaluate when the committed manifest is missing or the fresh fetch does not match", async () => {
-  await assert.rejects(runner.main({ fetchImpl: async () => { throw new Error("no network in test"); } }), (e) => ["MANIFEST_NOT_COMMITTED", "HOLDOUT_ALREADY_EVALUATED"].includes(e.code) || e.message === "no network in test");
-  assert.equal(history.verify({ manifest: { startMs: 1, endMs: 2, interval: "4h", symbols: [], files: { a: { sha256: "x", rows: 1 } } } }, { startMs: 1, endMs: 2, interval: "4h", symbols: [], files: { a: { sha256: "y", rows: 1 } } }).ok, false);
+test("main refuses an already-evaluated holdout, a missing manifest and a hash mismatch, before evaluating", async () => {
+  const path = require("node:path"); const os = require("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "futures-study-"));
+  const manifestPath = path.join(dir, "m.json"); const resultPath = path.join(dir, "r.json");
+  const noFetch = async () => { throw new Error("must not fetch"); };
+  const neverStudy = { runRegimeStudy: () => assert.fail("must not evaluate"), passRule: () => assert.fail("must not evaluate") };
+  fs.writeFileSync(resultPath, "{}");
+  await assert.rejects(runner.main({ fetchImpl: noFetch, study: neverStudy, manifestPath, resultPath }), { code: "HOLDOUT_ALREADY_EVALUATED" });
+  fs.rmSync(resultPath);
+  await assert.rejects(runner.main({ fetchImpl: noFetch, study: neverStudy, manifestPath, resultPath }), { code: "MANIFEST_NOT_COMMITTED" });
+  fs.writeFileSync(manifestPath, JSON.stringify({ startMs: 0, endMs: 0, interval: "4h", symbols: [], files: {} }));
+  const original = history.fetchHistory;
+  history.fetchHistory = async () => ({ files: {}, manifest: { startMs: 1, endMs: 2, interval: "4h", symbols: [], files: {} } });
+  try {
+    await assert.rejects(runner.main({ fetchImpl: noFetch, study: neverStudy, manifestPath, resultPath }), { code: "HISTORY_HASH_MISMATCH" });
+  } finally { history.fetchHistory = original; fs.rmSync(dir, { recursive: true, force: true }); }
 });
