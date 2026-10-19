@@ -2406,6 +2406,19 @@ current_mobile_tab_contour:
   branch: claude/nusa-repository-j93sd8-tabs-contour
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+
+current_mobile_now_risk_gate_particles_20261020:
+  work_order: WO-UI-20261019-NOW-RISK-GATE
+  pull_request: 2820
+  base_sha: 1f9925081d4a73ef007be6b41af6cd6caac38be1
+  prior_head: 5ae7459e25ea21f4ebe3220f93860faa378a04d0
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_REVIEW
+  root_cause: "The Skia drawing API uses readonly SkPoint fields, while the reused per-frame point pool mutates x/y through SkPoint. Exact-head CI failed TypeScript with TS2540."
+  fix: "Represent only the mutable pool storage as MutablePoint; preserve SkPoint at the drawPoints boundary."
+  validation: "Mobile typecheck PASS; root typecheck PASS; mobile lint PASS (215 files); all compiled mobile tests PASS (100/100), including risk-gate particle boundaries."
+  next: "Push the minimal fix to existing PR #2820; exact-head CI and fresh review; keep merge held until Learning technical runtime proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_mobile_paper_body:
   work_order: WO-UI-20261001-PAPER-BODY
   status: READY_FOR_REVIEW
@@ -3903,4 +3916,3 @@ current_research_breakout_walkforward:
   finding: "Over six consecutive 42-day windows, long-only breakouts (N=20/50/100) failed the pre-registered pass rule: 2-3 positive windows, negative average in DOWN windows, and 2x-cost survival in only 2 windows. The earlier all-positive last third came almost entirely from one +17% rally window. Re-applying the unchanged rule to 383 days of never-seen prior data reproduced the failure (2-3 positive windows, DOWN-window averages -8% to -19%, UP-window averages +7% to +9%): regime-dependent, not an edge. Not promotion evidence; no candidate is proposed for deployment."
   next: "Pre-register a regime-signal variant (no entry on a down signal) and evaluate it only on new forward data (for example the next 60 days) before any Research experiment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
