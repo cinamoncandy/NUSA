@@ -44,3 +44,18 @@ test("fails closed on a gap, on a region block (never retried), and on missing f
   assert.equal(calls, 1, "451 is final: no retry and no workaround");
   await assert.rejects(fetchHistory({ fetchImpl: fakeFetch({ dropFunding: true }), sleep: noSleep }), (e) => e.code === "FUNDING_TOO_SHORT");
 });
+
+test("verify is key-order independent and refuses another range, symbol list or a bare manifest", async () => {
+  const a = await fetchHistory({ fetchImpl: fakeFetch(), sleep: noSleep });
+  const reordered = { ...a.manifest, files: Object.fromEntries(Object.entries(a.manifest.files).reverse()) };
+  assert.equal(verify(a, reordered).ok, true);
+  assert.equal(verify(a, { ...a.manifest, endMs: a.manifest.endMs - 1 }).ok, false);
+  assert.equal(verify(a, { ...a.manifest, symbols: ["BTCUSDT"] }).ok, false);
+  assert.equal(verify({ files: a.files }, a.manifest).ok, false);
+});
+
+test("429 and 5xx are retried, then fail closed", async () => {
+  let calls = 0;
+  await assert.rejects(fetchHistory({ fetchImpl: async () => { calls += 1; return { ok: false, status: 503, json: async () => ({}) }; }, sleep: noSleep }), (e) => e.code === "HTTP_RETRY_EXHAUSTED");
+  assert.equal(calls, 4);
+});

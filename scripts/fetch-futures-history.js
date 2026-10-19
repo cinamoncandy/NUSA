@@ -92,9 +92,14 @@ async function fetchHistory({ fetchImpl = fetch, sleep = (ms) => new Promise((r)
 
 /** Compares a fresh fetch with a committed manifest: the evaluation must refuse to run unless this returns ok. */
 function verify(fresh, committed) {
-  const a = JSON.stringify(fresh.files ? fresh.manifest.files : fresh.files); const b = JSON.stringify(committed.files);
-  const sameRange = fresh.manifest.startMs === committed.startMs && fresh.manifest.endMs === committed.endMs;
-  return { ok: sameRange && a === b, sameRange };
+  const m = fresh?.manifest;
+  if (m == null || committed == null || typeof committed !== "object") return { ok: false, sameRange: false };
+  const sameRange = m.startMs === committed.startMs && m.endMs === committed.endMs && m.interval === committed.interval
+    && JSON.stringify(m.symbols) === JSON.stringify(committed.symbols);
+  const names = Object.keys(m.files).sort();
+  const sameFiles = committed.files != null && JSON.stringify(names) === JSON.stringify(Object.keys(committed.files).sort())
+    && names.every((n) => committed.files[n]?.sha256 === m.files[n].sha256 && committed.files[n]?.rows === m.files[n].rows);
+  return { ok: sameRange && sameFiles, sameRange };
 }
 
 function write(outDir, { files, manifest }) {
