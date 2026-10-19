@@ -182,6 +182,17 @@ function activeSuccessorMatchesReceipt(active: PersistedPaperPendingPeriod | und
   return canonical(activeIdentity) === canonical(receiptIdentity);
 }
 
+function envelopeMatchesPendingPlan(envelope: PersistedPaperPeriodEnvelope, pending: PersistedPaperPendingPeriod): boolean {
+  const plan = JSON.parse(pending.payloadJson) as Record<string, unknown>;
+  const candidateProvenance = [...envelope.candidateProvenance].sort((left, right) => left.candidateId.localeCompare(right.candidateId));
+  return envelope.record.recordId === pending.periodId
+    && envelope.record.periodIndex === pending.periodIndex
+    && envelope.record.periodStartAt === pending.periodStartAt
+    && envelope.record.market === plan.market
+    && canonical(envelope.record.advisory) === canonical(plan.advisory)
+    && canonical(candidateProvenance) === canonical(plan.candidateProvenance);
+}
+
 function validateDisposition(value: PersistedPaperPendingDisposition, row: PersistedPaperPendingPeriod): void {
   exactKeys(value, ["schemaVersion", "kind", "evidenceFingerprintSha256", "original", "reason", "successor", "validPerformanceEvidence", "paperOnly", "liveAuthority", "productionMutationAllowed", "aiAuthority"]);
   if (value.schemaVersion !== 2 || value.kind !== "INELIGIBLE_PENDING_PERIOD" || value.validPerformanceEvidence !== false
@@ -238,6 +249,10 @@ export class SqlitePersistedPaperPeriodStore {
   }
 
   public append(envelope: PersistedPaperPeriodEnvelope): PersistedPaperPeriodEnvelope {
+    return this.appendInternal(envelope);
+  }
+
+  private appendInternal(envelope: PersistedPaperPeriodEnvelope, authorizedPending?: PersistedPaperPendingPeriod): PersistedPaperPeriodEnvelope {
     validateEnvelope(envelope);
     const payload = canonical(envelope);
     const digest = checksum(payload);
@@ -253,7 +268,10 @@ export class SqlitePersistedPaperPeriodStore {
           const active = this.rawPending(successor.periodId);
           const activeMatchesReceipt = activeSuccessorMatchesReceipt(active, successor);
           const recordMatchesSuccessor = envelope.record.recordId === successor.periodId && envelope.record.periodIndex === successor.periodIndex && envelope.record.periodStartAt === successor.periodStartAt;
-          if (!(activeMatchesReceipt && recordMatchesSuccessor)) return true;
+          const finalizesAuthorizedPending = authorizedPending != null && active != null
+            && canonical(active) === canonical(authorizedPending)
+            && envelopeMatchesPendingPlan(envelope, active);
+          if (!(activeMatchesReceipt && recordMatchesSuccessor && finalizesAuthorizedPending)) return true;
         }
         return envelope.record.periodStartAt < terminal.reason.boundaryAt && envelope.record.periodEndAt > row.periodStartAt;
       })) {
@@ -406,7 +424,7 @@ export class SqlitePersistedPaperPeriodStore {
     return this.db.transaction(() => {
       const pending = this.getPending(periodId);
       if (pending == null || pending.checksum !== expectedChecksum) throw new PersistedPaperPeriodStoreError("PENDING_IDENTITY_CONFLICT", "pending PAPER period evidence is unavailable or changed", periodId);
-      const stored = this.append(envelope);
+      const stored = this.appendInternal(envelope, pending);
       this.db.connection.prepare(`DELETE FROM ${PENDING_TABLE} WHERE period_id = ? AND checksum = ?`).run(periodId, expectedChecksum);
       return stored;
     });

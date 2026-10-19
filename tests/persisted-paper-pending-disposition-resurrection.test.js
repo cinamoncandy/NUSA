@@ -41,6 +41,15 @@ const realized = (recordId, periodIndex, periodStartAt) => ({
   },
   candidateProvenance: [],
 });
+const advisory = (candidateId) => ({
+  schemaVersion: 1,
+  generatedAt: new Date(0).toISOString(),
+  policy: { maximumCandidateWeight: 1, minimumEvidenceBreadth: 1, maximumCandidateCount: 1, maximumFamilyWeight: 1 },
+  entries: [{ id: candidateId }],
+  excludedCandidateIds: [],
+  reasons: [],
+  provenance: { sourceDatasetIds: [] },
+});
 
 test("retired disposition successor cannot be resurrected as pending or realized evidence", () => {
   const db = new SqliteDatabase(":memory:");
@@ -87,6 +96,62 @@ test("retired disposition successor cannot be resurrected as pending or realized
     assert.deepEqual(store.list(), []);
     assert.equal(store.listPendingDispositions().length, 1);
     assert.equal(store.nextPeriodIndex(), 23);
+  } finally {
+    db.close();
+  }
+});
+
+test("only finalizePending can realize an active disposition successor, and its envelope must match the plan", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const store = new SqlitePersistedPaperPeriodStore(db);
+    const original = pending(21, 100);
+    const successor = pending(22, 200);
+    const candidateProvenance = [{ candidateId: "candidate-a", datasetId: "dataset-a", datasetContentSha256: hash("dataset-a") }];
+    successor.payloadJson = JSON.stringify({ schemaVersion: 1, periodId: successor.periodId, periodIndex: successor.periodIndex, periodStartAt: successor.periodStartAt, market: "KRW-BTC", advisory: advisory("candidate-a"), candidateProvenance, observations: [], observationIds: [] });
+    successor.checksum = hash(successor.payloadJson);
+    store.putPending(original);
+    store.markPendingIneligible({
+      original,
+      successor,
+      reason: {
+        stage: "PERIOD_CLOSE",
+        code: "INCOMPLETE_EXECUTION_COST_EVIDENCE",
+        boundaryAt: 200,
+        sourceRuntimeSha: null,
+        blockedEvidenceFingerprintSha256: hash("incomplete original"),
+      },
+    });
+
+    const forged = {
+      record: {
+        ...realized(successor.periodId, successor.periodIndex, successor.periodStartAt).record,
+        market: "KRW-BTC",
+        advisory: advisory("candidate-b"),
+        realizedReturns: { "candidate-b": 0.25 },
+      },
+      candidateProvenance: [{ candidateId: "candidate-b", datasetId: "dataset-b", datasetContentSha256: hash("dataset-b") }],
+    };
+    assert.throws(
+      () => store.append(forged),
+      (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "PENDING_TERMINAL",
+    );
+    assert.deepEqual(store.list(), []);
+    assert.equal(store.listPending().length, 1);
+
+    const valid = {
+      record: {
+        ...realized(successor.periodId, successor.periodIndex, successor.periodStartAt).record,
+        market: "KRW-BTC",
+        advisory: advisory("candidate-a"),
+        realizedReturns: { "candidate-a": 0.01 },
+      },
+      candidateProvenance,
+    };
+    assert.deepEqual(store.finalizePending(successor.periodId, successor.checksum, valid), valid);
+    assert.equal(store.list().length, 1);
+    assert.deepEqual(store.listPending(), []);
+    assert.equal(store.listPendingDispositions().length, 1);
   } finally {
     db.close();
   }

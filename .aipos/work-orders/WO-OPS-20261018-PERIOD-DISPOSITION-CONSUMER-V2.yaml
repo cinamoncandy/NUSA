@@ -37,6 +37,15 @@ ci_repair_20261019:
   runtime_activation: PROHIBITED_IN_THIS_INCREMENT
   next: "Request a fresh non-author review on the current source head; keep Draft and all production activation gates."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+validator_followup_20261019:
+  reviewed_head: 45d041c3a67fc044286d1c81e37fd17f1214561c
+  finding: "Fresh non-author Codex review found that public append could accept a forged realized envelope for an active disposition successor because the exception checked chronology identity but not active-plan advisory/candidate provenance."
+  change: "Public append now fails closed for a disposition successor; only finalizePending may authorize it after matching the active pending snapshot, advisory, candidate provenance, market, and chronology."
+  regression: "A forged candidate return envelope is rejected without changing pending or realized history; the matching canonical finalizePending path succeeds."
+  local_validation: "Build PASS; focused PAPER/storage suite 33/33 PASS; TypeScript typecheck PASS; diff check PASS."
+  exact_head_ci: PENDING
+  fresh_review: PENDING
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
