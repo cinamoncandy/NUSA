@@ -1,0 +1,78 @@
+id: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+schema_version: 1
+title: Reconcile merged remediation work-order completion state
+status: IN_PROGRESS
+priority: 70
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 44840f96e80d1e9e664b15743767eb6c717d978a
+implementation_branch: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+authority_impact: none
+objective: >-
+  Reconcile three stale AIPOS remediation work-order statuses with already merged canonical PRs,
+  preserving all historical validation claims and recording only independently verified merge provenance.
+scope:
+  - Mark WO-0069 completed from merged PR #708 and preserve its pre-existing implementation/validation history.
+  - Mark WO-0070 deterministic remediation prioritization completed from merged PR #738.
+  - Mark WO-0070 remediation plan evaluation completed from merged PR #731.
+  - Record exact merged head/commit, current protected-main SHA, and ancestry evidence for each correction.
+  - Add a separate state entry identifying this reconciliation and its truthful verification status.
+  - Preserve the distinct scope identities for the two WO-0070 records.
+non_goals:
+  - No runtime, product, trading, risk, strategy, or execution changes.
+  - No changes to historical test claims beyond labeling their provenance accurately.
+  - No PR merge, release, deployment, broker action, or LIVE authority.
+constraints:
+  - Do not rewrite or delete historical evidence.
+  - Do not infer CI results from merge status; historical validations remain attributed to their recorded sources.
+  - Each completion correction must be backed by GitHub PR metadata, changed-file evidence, and merge-commit ancestry to the exact protected main SHA.
+  - PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY.
+acceptance_criteria:
+  - All three corrected work orders identify their canonical merged PR and exact merge commit.
+  - All three merge commits are ancestors of the recorded protected-main SHA.
+  - The two WO-0070 scopes remain distinguishable and no evidence is conflated.
+  - AIPOS YAML, provenance, work-order index, drift, and cross-AI conformance checks pass.
+  - Diff is limited to AIPOS work-order/state records and this work order.
+verification:
+  - pnpm run aipos:yaml
+  - pnpm run aipos:provenance
+  - pnpm run aipos:index
+  - pnpm run aipos:drift
+  - pnpm run aipos:conformance
+  - git diff --check
+completion:
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  local_repository_truth:
+    protected_main: 44840f96e80d1e9e664b15743767eb6c717d978a
+    merged_work_orders:
+      WO-0069:
+        pull_request: 708
+        head: 87d36e81a2ed852179639212dce11331dedd0433
+        merge_commit: 124890eb2f49f0e98f1b8b262acbb72f699cdb6c
+      WO-0070.deterministic-remediation-prioritization:
+        pull_request: 738
+        head: d83b7e0354681df3b1b86bee1e0d805d2108b970
+        merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+      WO-0070.remediation-plan-evaluation:
+        pull_request: 731
+        head: 27d50d0b7b98dc353acccbca87abe6a75c3fe035
+        merge_commit: e4655a8ce837d5327c855c0572d68477b9e2facc
+  local_validation:
+    aipos_yaml: PASS_499_FILES
+    aipos_provenance: PASS
+    aipos_work_order_index: PASS_483_WORK_ORDERS
+    aipos_drift: PASS
+    aipos_cross_ai_conformance: PASS
+    git_diff_check: PASS
+    repository_validate: PASS
+  exact_head_ci: PENDING
+  independent_review: PENDING
+  merge: NOT_PERFORMED
+  deployment: NOT_APPLICABLE
+  safety:
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+next_action: Run the listed local AIPOS checks, then open a documentation-only PR after they pass.
+
