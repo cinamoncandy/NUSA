@@ -13,7 +13,10 @@ import { evaluatePaperFuturesOrder } from "./paperFuturesRiskGate";
  * - Liquidation is checked every bar against the bar's adverse extreme (low for LONG, high for SHORT), conservatively.
  * - Funding at each funding time inside a bar is settled at that bar's close price.
  * - One shared PAPER account (10,000 USDT) across the five symbols; margin per entry = 20% of start-of-KST-day equity at 2x.
- * - A position still open at the window end is closed at the last bar's close and counted as a round trip.
+ * - A position still open at the window end is closed at the last bar's close and counted as a round trip (exit costs count in drawdown).
+ * - Funding stamped at a bar's open (00/08/16 UTC) belongs to that bar and is charged when a position is held in it.
+ * - Drawdown is measured on bar-close equity; liquidation (not drawdown) uses the intrabar extreme.
+ * - Regime ties (close == SMA) are DOWN. A SHORT counts toward §5 by the UTC month it opened. Net return = net PnL / entry notional.
  */
 export interface StudyBar { readonly openTime: number; readonly open: number; readonly high: number; readonly low: number; readonly close: number; readonly closeTime: number }
 export interface StudyFunding { readonly time: number; readonly rate: number }
@@ -136,7 +139,7 @@ export function runRegimeStudy(input: StudyInput): StudyResult {
         const fs = input.funding[symbol] ?? [];
         let k = fundingIdx.get(symbol)!;
         while (k < fs.length && fs[k]!.time <= bar.closeTime) {
-          if (fs[k]!.time > bar.openTime && account.positions.some((p) => p.symbol === symbol)) {
+          if (fs[k]!.time >= bar.openTime && account.positions.some((p) => p.symbol === symbol)) {
             const before = account.positions.length;
             account = applyFunding(account, symbol, fs[k]!.rate, bar.close, fs[k]!.time, input.costs);
             if (account.positions.length < before) settle(symbol, fs[k]!.time, true);
@@ -179,7 +182,9 @@ export function runRegimeStudy(input: StudyInput): StudyResult {
     const r = applyOrder(account, { id: `o${seq += 1}`, symbol, side: position.side === "LONG" ? "SHORT" : "LONG", quantity: position.quantity, leverage: position.leverage, marginMode: "ISOLATED", reduceOnly: true }, bar.close, bar.closeTime, input.costs);
     if (r.status === "FILLED") { account = r.account; settle(symbol, bar.closeTime, false); }
   }
-  const months = monthRegimes(input.bars.BTCUSDT ?? []);
+  if (last >= 0) { const equity = accountEquity(account, closes(last)); peak = Math.max(peak, equity); maxDd = Math.max(maxDd, (peak - equity) / peak); }
+  if (input.bars.BTCUSDT == null) throw new Error("STUDY_BTC_REGIME_MISSING");
+  const months = monthRegimes(input.bars.BTCUSDT);
   const pnlBySymbol = Object.fromEntries(symbols.map((s) => [s, trades.filter((t) => t.symbol === s).reduce((sum, t) => sum + t.netPnl, 0)]));
   return Object.freeze({
     trades: Object.freeze(trades),

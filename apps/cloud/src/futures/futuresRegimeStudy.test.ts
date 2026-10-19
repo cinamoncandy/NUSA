@@ -43,13 +43,20 @@ describe("futures regime study", () => {
 
   it("charges funding inside a held bar", () => {
     const b = bars(breakout([111, 112, 113]));
-    const withFunding = run(b, [{ time: b[222]!.openTime + 1, rate: 0.01 }]);
-    assert.ok(withFunding.trades[0]!.netPnl < run(b).trades[0]!.netPnl);
+    for (const time of [b[222]!.openTime, b[222]!.openTime + 1]) {
+      const withFunding = run(b, [{ time, rate: 0.01 }]);
+      assert.ok(withFunding.trades[0]!.netPnl < run(b).trades[0]!.netPnl, `funding at ${time}`);
+    }
   });
 
   it("rejects bars that are not aligned across symbols", () => {
     const b = bars(breakout([111]));
     assert.throws(() => runRegimeStudy({ bars: { BTCUSDT: b, ETHUSDT: b.slice(1) }, funding: {}, windowStart: T0, windowEnd: T0 + b.length * H4, breakoutN: 50, costs: COSTS }), /STUDY_BARS_NOT_ALIGNED/);
+  });
+
+  it("requires BTCUSDT for the §5 month regime", () => {
+    const b = bars(breakout([111]));
+    assert.throws(() => runRegimeStudy({ bars: { ETHUSDT: b }, funding: {}, windowStart: T0, windowEnd: T0 + b.length * H4, breakoutN: 50, costs: COSTS }), /STUDY_BTC_REGIME_MISSING/);
   });
 
   it("passRule names every failed §6 condition", () => {
