@@ -256,8 +256,8 @@ export class SqlitePersistedPaperPeriodStore {
   public putPending(input: PersistedPaperPendingPeriod): void {
     if (!input.periodId.trim() || !Number.isSafeInteger(input.periodIndex) || input.periodIndex < 0 || !Number.isSafeInteger(input.periodStartAt) || input.periodStartAt < 0) throw new PersistedPaperPeriodStoreError("INVALID_PENDING_PERIOD", "pending PAPER period identity is invalid", input.periodId);
     this.db.transaction(() => {
-      if (this.listPendingDispositions().some((item) => [item.original, item.successor].some((reserved) => reserved.periodIndex === input.periodIndex && reserved.periodId !== input.periodId))) {
-        throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_CONFLICT", "pending index is reserved by immutable disposition history", input.periodId);
+      if (this.listPendingDispositions().some((item) => [item.original, item.successor].some((reserved) => reserved.periodIndex === input.periodIndex || reserved.periodId === input.periodId))) {
+        throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_CONFLICT", "pending identity or index is reserved by immutable disposition history", input.periodId);
       }
       const existing = this.db.connection.prepare(`SELECT period_index, period_start_at, payload_json, checksum FROM ${PENDING_TABLE} WHERE period_id = ?`).get(input.periodId) as Record<string, unknown> | undefined;
       if (existing != null) {
@@ -390,7 +390,12 @@ export class SqlitePersistedPaperPeriodStore {
       const result = this.db.connection.prepare(`UPDATE ${PENDING_TABLE} SET payload_json = ?, checksum = ? WHERE period_id = ? AND checksum = ?`)
         .run(payload, checksum(payload), current.periodId, current.checksum) as { changes?: number };
       if (Number(result.changes ?? 0) !== 1) throw new PersistedPaperPeriodStoreError("PENDING_IDENTITY_CONFLICT", "pending PAPER evidence changed during disposition", current.periodId);
-      this.putPending(input.successor);
+      try {
+        this.db.connection.prepare(`INSERT INTO ${PENDING_TABLE} (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)`)
+          .run(input.successor.periodId, input.successor.periodIndex, input.successor.periodStartAt, input.successor.payloadJson, input.successor.checksum);
+      } catch (error) {
+        throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_CONFLICT", error instanceof Error ? error.message : "pending PAPER successor persistence failed", input.successor.periodId);
+      }
       return JSON.parse(payload) as PersistedPaperPendingDisposition;
     });
   }
