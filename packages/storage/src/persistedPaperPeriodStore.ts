@@ -234,9 +234,18 @@ export class SqlitePersistedPaperPeriodStore {
     this.db.transaction(() => {
       if (this.rawPendingRows().some((row) => {
         const terminal = decodeDisposition(row);
-        return terminal != null && (row.periodId === envelope.record.recordId || row.periodIndex === envelope.record.periodIndex
-          || (terminal.successor.periodIndex === envelope.record.periodIndex && terminal.successor.periodId !== envelope.record.recordId)
-          || (envelope.record.periodStartAt < terminal.reason.boundaryAt && envelope.record.periodEndAt > row.periodStartAt));
+        if (terminal == null) return false;
+        const successor = terminal.successor;
+        const touchesOriginal = row.periodId === envelope.record.recordId || row.periodIndex === envelope.record.periodIndex;
+        if (touchesOriginal) return true;
+        const touchesSuccessor = successor.periodId === envelope.record.recordId || successor.periodIndex === envelope.record.periodIndex;
+        if (touchesSuccessor) {
+          const active = this.rawPending(successor.periodId);
+          const activeMatchesReceipt = active != null && decodeDisposition(active) == null && canonical(active) === canonical(successor);
+          const recordMatchesSuccessor = envelope.record.recordId === successor.periodId && envelope.record.periodIndex === successor.periodIndex && envelope.record.periodStartAt === successor.periodStartAt;
+          if (!(activeMatchesReceipt && recordMatchesSuccessor)) return true;
+        }
+        return envelope.record.periodStartAt < terminal.reason.boundaryAt && envelope.record.periodEndAt > row.periodStartAt;
       })) {
         throw new PersistedPaperPeriodStoreError("PENDING_TERMINAL", "ineligible PAPER period cannot become realized performance", envelope.record.recordId);
       }
@@ -256,13 +265,13 @@ export class SqlitePersistedPaperPeriodStore {
   public putPending(input: PersistedPaperPendingPeriod): void {
     if (!input.periodId.trim() || !Number.isSafeInteger(input.periodIndex) || input.periodIndex < 0 || !Number.isSafeInteger(input.periodStartAt) || input.periodStartAt < 0) throw new PersistedPaperPeriodStoreError("INVALID_PENDING_PERIOD", "pending PAPER period identity is invalid", input.periodId);
     this.db.transaction(() => {
-      if (this.listPendingDispositions().some((item) => [item.original, item.successor].some((reserved) => reserved.periodIndex === input.periodIndex || reserved.periodId === input.periodId))) {
-        throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_CONFLICT", "pending identity or index is reserved by immutable disposition history", input.periodId);
-      }
       const existing = this.db.connection.prepare(`SELECT period_index, period_start_at, payload_json, checksum FROM ${PENDING_TABLE} WHERE period_id = ?`).get(input.periodId) as Record<string, unknown> | undefined;
       if (existing != null) {
         if (Number(existing.period_index) !== input.periodIndex || Number(existing.period_start_at) !== input.periodStartAt || String(existing.payload_json) !== input.payloadJson || String(existing.checksum) !== input.checksum) throw new PersistedPaperPeriodStoreError("PERIOD_ID_CONFLICT", "pending PAPER period was reused with different evidence", input.periodId);
         return;
+      }
+      if (this.listPendingDispositions().some((item) => [item.original, item.successor].some((reserved) => reserved.periodIndex === input.periodIndex || reserved.periodId === input.periodId))) {
+        throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_CONFLICT", "pending identity or index is reserved by immutable disposition history", input.periodId);
       }
       try { this.db.connection.prepare(`INSERT INTO ${PENDING_TABLE} (period_id, period_index, period_start_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?)`).run(input.periodId, input.periodIndex, input.periodStartAt, input.payloadJson, input.checksum); }
       catch (error) { throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_CONFLICT", error instanceof Error ? error.message : "pending PAPER period persistence failed", input.periodId); }
@@ -278,14 +287,6 @@ export class SqlitePersistedPaperPeriodStore {
     });
   }
 
-  /**
-   * Applies the owner-set retention bound while refusing to delete evidence a surviving record cites.
-   *
-   * A cited period is protected rather than fatal: dropping it would leave the runtime unable to
-   * start, and an outage is not a safer outcome than a slightly larger ledger. The refusal is never
-   * silent — `protectedRecordIds` is reported so an operator can see that the bound did not hold, and
-   * the bound itself is never relaxed to make the report go away.
-   */
   public prune(maximumPeriods: number, guard: RealizedPeriodRetentionGuard): PersistedPaperPeriodRetentionResult {
     if (!Number.isSafeInteger(maximumPeriods) || maximumPeriods < 1 || maximumPeriods > 1_000) throw new PersistedPaperPeriodStoreError("INVALID_RETENTION", "PAPER period retention must be between 1 and 1000");
     if (guard == null || typeof guard.referencedRecordIds !== "function") throw new PersistedPaperPeriodStoreError("MISSING_RETENTION_GUARD", "PAPER period retention requires a reference-aware guard");
@@ -335,11 +336,6 @@ export class SqlitePersistedPaperPeriodStore {
     }));
   }
 
-  /**
-   * Allocates from every durable chronology owner: realized periods, active pending plans and
-   * immutable terminal dispositions. A terminal index is history and may never be reused merely
-   * because it is excluded from performance or from the open-plan reader.
-   */
   public nextPeriodIndex(): number {
     const pending = this.rawPendingRows();
     let maximum = -1;
@@ -347,8 +343,6 @@ export class SqlitePersistedPaperPeriodStore {
       const disposition = decodeDisposition(row);
       if (disposition == null) validatePendingSnapshot(row);
       maximum = Math.max(maximum, row.periodIndex);
-      // A terminal receipt reserves both its retired source index and successor index, even if
-      // that successor is later retired and no active pending row remains for it.
       if (disposition != null) maximum = Math.max(maximum, disposition.successor.periodIndex);
     }
     for (const envelope of this.list()) maximum = Math.max(maximum, envelope.record.periodIndex);
@@ -358,7 +352,6 @@ export class SqlitePersistedPaperPeriodStore {
     return maximum + 1;
   }
 
-  /** No realized envelope is produced. Original history and successor commit in one existing SQLite transaction. */
   public markPendingIneligible(input: {
     readonly original: PersistedPaperPendingPeriod;
     readonly reason: PaperPendingIneligibilityReason;
@@ -381,7 +374,6 @@ export class SqlitePersistedPaperPeriodStore {
         return terminal;
       }
       if (canonical(current) !== canonical(input.original)) throw new PersistedPaperPeriodStoreError("PENDING_IDENTITY_CONFLICT", "pending PAPER evidence changed before disposition", current.periodId);
-      // Reserve every retained index, including dispositions. A stale writer cannot split an already active successor.
       const others = this.rawPendingRows().filter((row) => row.periodId !== current.periodId);
       if (others.some((row) => decodeDisposition(row) == null || row.periodIndex >= current.periodIndex)
         || this.list().some((item) => item.record.periodIndex >= current.periodIndex || item.record.periodEndAt > current.periodStartAt)) {
@@ -410,11 +402,6 @@ export class SqlitePersistedPaperPeriodStore {
     });
   }
 
-  /**
-   * Removes a pending (never realized) period whose checksum still matches. Used only when the
-   * canonical PAPER account it was opened against has been replaced; realized periods are never
-   * touched.
-   */
   public retirePending(periodId: string, expectedChecksum: string): void {
     this.db.transaction(() => {
       const current = this.rawPending(periodId);
