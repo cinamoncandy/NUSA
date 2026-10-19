@@ -64,3 +64,9 @@ fails and another N passes, that is a new hypothesis for a new pre-registration 
 - PASS: open a formal Research experiment and a futures shadow run on live public data (still PAPER, still no keys).
 - FAIL: record it in a research note, keep futures in research only, and report to the owner.
 - Either way the owner decides any next step that changes strategy, limits or capital.
+
+## Addendum 2026-10-19 (data handling only; made before any futures history was downloaded)
+Owner decision 2026-10-19: instead of committing the raw files, the SHA-256 manifest of the fetched files is committed, and the
+evaluation re-fetches the same public history and refuses to run unless every file hash matches the committed manifest
+(`scripts/fetch-futures-history.js`, `verify()`). Closed historical bars are immutable, so the integrity guarantee is unchanged.
+No hypothesis, symbol, range, split, cost, risk limit or pass rule in §1-§8 changes.
