@@ -53,7 +53,7 @@ function TimelineRow({ event }: { readonly event: TimelineEvent }) {
     loop.start();
     return () => loop.stop();
   }, [reducedMotion, event.tone, pulse]);
-  const color = event.tone === "NOW" ? calmColors.order : event.tone === "ATTENTION" ? calmColors.attention : event.tone === "MUTED" ? "#343C45" : calmColors.text;
+  const color = event.tone === "NOW" ? calmColors.order : event.tone === "ATTENTION" ? calmColors.attention : event.tone === "MUTED" ? calmColors.muted : calmColors.text;
   return <View style={styles.event}>
     <View style={styles.dotBox} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {event.tone === "NOW" && !reducedMotion ? <Animated.View style={[styles.halo, { backgroundColor: color, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.4] }) }] }]} /> : null}

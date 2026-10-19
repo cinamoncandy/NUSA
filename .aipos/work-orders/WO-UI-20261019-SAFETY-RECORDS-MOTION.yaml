@@ -17,6 +17,7 @@ acceptance:
   - motion stops with the OS reduce-motion setting
 validation:
   local: "recordsTimelineModel 2, mobile-safety-records-motion 2, mobile-product-v5 4, mobile-safety-screen-model pass; mobile tsc no error in changed files. Device run NOT RUN."
+review_2026_10_19: "Independent review PASS_WITH_NOTES. Fixed: loss limit is its own row timed by the server evaluation (a fill never claims to be the loss), no \"오늘 N번째\" count (window semantics), stale heartbeat not passed, \"지금\" only within 2 minutes, design-token colours."
 safety:
   paper_only: true
   liveAuthority: NONE

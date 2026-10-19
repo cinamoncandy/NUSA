@@ -17,7 +17,7 @@ test("the safety rings are build facts with no server input and stop with reduce
 });
 
 test("the records timeline reads only the live heartbeat and its pulse stops with reduce-motion", () => {
-  assert.match(app, /<MoreMenuView heartbeat=\{snapshot\?\.operations\.heartbeat \?\? null\}/);
+  assert.match(app, /<MoreMenuView heartbeat=\{stale \? null : snapshot\?\.operations\.heartbeat \?\? null\}/);
   assert.match(records, /buildTodayTimeline\(heartbeat, Date\.now\(\)\)/);
   assert.match(records, /if \(reducedMotion \|\| event\.tone !== "NOW"\) return undefined;/);
 });
