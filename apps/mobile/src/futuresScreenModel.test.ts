@@ -18,7 +18,7 @@ test("without a snapshot nothing reads as zero or healthy and the screen says it
 
 test("limits are shown as the fixed hints from the limits passed in", () => {
   const m = buildFuturesScreen(null, LIMITS);
-  assert.deepEqual(m.usage.map((r) => r.hint), ["한도 5.0%", "한도 3번", "최소 25%"]);
+  assert.deepEqual(m.usage.map((r) => r.hint), ["한도 5%", "한도 3번", "최소 25%"]);
 });
 
 test("a valid snapshot lists positions, the total and the usage against the limits", () => {
@@ -28,7 +28,7 @@ test("a valid snapshot lists positions, the total and the usage against the limi
   assert.equal(m.positions[0]!.value, "−₩1,200");
   assert.equal(m.positions[0]!.tone, "LOSS");
   assert.equal(m.positions.at(-1)!.label, "평가 손익 합계");
-  assert.equal(m.usage[0]!.value, "4.0%");
+  assert.equal(m.usage[0]!.value, "4%");
   assert.equal(m.usage[0]!.tone, "ATTENTION", "4% is at 80% of the 5% limit");
   assert.equal(m.usage[1]!.value, "1 / 3");
   assert.equal(m.usage[2]!.value, "40%");

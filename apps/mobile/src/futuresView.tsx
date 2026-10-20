@@ -26,7 +26,7 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
     <View style={styles.sub}><SectionLabel left={model.sub} /></View>
     {sections.map((s, g) => <Reveal key={s.title} index={g} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left={s.title} right={`${s.rows.length}`} />
-      {s.rows.map((row) => <CalmRow key={row.label} label={row.label} hint={row.hint} value={row.value} tone={row.tone} />)}
+      {s.rows.map((row, i) => <CalmRow key={`${i}-${row.label}`} label={row.label} hint={row.hint} value={row.value} tone={row.tone} />)}
     </Reveal>)}
   </ScrollView>;
 }
