@@ -1,0 +1,19 @@
+id: WO-UI-20261020-INSTRUMENT-REDESIGN
+title: "App redesign in the owner-chosen 계기판 (instrument) direction"
+status: IN_REVIEW
+owner_decision: "Owner, 2026-10-20 (chat): rejected the particle 흐름, AI aurora and light finance-app proposals (game-like / ordinary); chose the dark 계기판 design (artifact https://claude.ai/artifact/NHtuyNuaRcCxVLg2j8kGux) and asked for fast motion and all four screens."
+history:
+  - "2026-10-19: calm redesign step 1-3 merged (#2812 Now gate, #2813 Learning funnel, #2814 Safety rings + Records timeline)."
+  - "2026-10-19: Now particle scene merged (#2820); superseded by #2822."
+  - "Branch claude/learning-particle-scene (Learning particles) was pushed without a PR and is superseded by #2823; not deleted."
+prs:
+  - "#2822 Now: 새 매수 멈춤 hero, decision odometer + heartbeat, signal rail stopping at the amber gate, ledger, server streak cells."
+  - "#2823 Learning: one cell per tested strategy unit chart (stacked on #2822)."
+  - "#2824 Safety AND circuit + Records log (stacked on #2823)."
+not_in_app: "The design's 24-hour ruler: the server sends no stop time, so drawing it would invent one."
+verification: "Each PR: root tsc, mobile tsc --noEmit, mobile tests 751/751, lint-mobile, independent non-author review with fixes. No device check."
+lesson: "Run `pnpm run typecheck` equivalents (root and apps/mobile tsconfig) before every push: the root tsc does not type-check mobile .tsx (a #2822 type error was found this way before CI)."
+next:
+  - "After #2822-#2824 merge and main CI is green: deploy main, verify with oracle-host-diagnose health_only."
+  - "Then run futures-regime-study once (manifest committed in #2816) and commit the printed result."
+not_changed: "No limit, threshold, capital or server value. PAPER only, liveAuthority=NONE, aiAuthority=ZERO_AUTHORITY."
