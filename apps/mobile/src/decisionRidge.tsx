@@ -39,7 +39,7 @@ export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion
   readonly testID?: string;
 }) {
   const rowCount = model.rows.length;
-  const height = Math.max(180, Math.round(Math.min(width * 0.86, 40 + rowCount * 22)));
+  const height = Math.round(width * 0.86);
   const [picture, setPicture] = useState<SkPicture | null>(null);
   const born = useRef(Date.now());
   const drops = useRef<Drop[]>([]);
@@ -116,7 +116,7 @@ export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion
   return <View style={{ width, height }} testID={testID} accessible accessibilityLabel={label} {...pan.panHandlers}>
     <Canvas style={{ width, height }} pointerEvents="none">{picture ? <Picture picture={picture} /> : null}</Canvas>
     <View pointerEvents="none" style={StyleSheet.absoluteFill} importantForAccessibility="no-hide-descendants">
-      {model.rows.map((row, k) => (row.hour % 3 === 0 || k === rowCount - 1)
+      {model.rows.map((row, k) => ((row.hour % 3 === 0 && k < rowCount - 2) || k === rowCount - 1)
         ? <Text key={`${row.hour}-${k}`} style={[fieldFonts.mono, styles.hour, { top: layout.y0(k) - 7 }, k === rowCount - 1 ? styles.hourNow : null]}>{String(row.hour).padStart(2, "0")}</Text>
         : null)}
       {tone === "limit" && model.stop != null ? <Text style={[fieldFonts.mono, styles.limit, { top: layout.y0(model.stop.row) - 18 }]}>LIMIT</Text> : null}
@@ -128,7 +128,9 @@ export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion
 function ridgeLayout(model: DecisionTerrainModel, height: number) {
   const R = Math.max(1, model.rows.length), top = Math.round(height * 0.22), bottom = height - 14;
   const gap = R > 1 ? (bottom - top) / (R - 1) : 0;
-  return { top, bottom, gap, amp: Math.max(28, gap * 5.2), y0: (k: number) => top + k * gap };
+  // Peaks may rise into the headroom above the first line but never past it; with few rows the gap is large, so cap by headroom too.
+  const headroom = Math.max(24, top - 6);
+  return { top, bottom, gap, amp: Math.min(headroom, Math.max(28, gap * 5.2)), y0: (k: number) => top + k * gap };
 }
 
 interface RenderInput {
@@ -145,7 +147,7 @@ function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, to
   const { gap, amp, y0 } = ridgeLayout(model, height);
   const left = LABEL_W, right = width - 4, span = right - left;
   const limited = tone === "limit" && model.stop != null;
-  const xAt = (i: number, k: number) => left + (span * i) / (TERRAIN_POINTS - 1) + tilt * (k - R / 2) * 3;
+  const xAt = (i: number, k: number) => left + 12 + ((span - 24) * i) / (TERRAIN_POINTS - 1) + Math.max(-1, Math.min(1, tilt)) * (k - R / 2) * 1.6;
   const markers: { x: number; y: number; base: number; now: boolean }[] = [];
 
   for (let k = 0; k < R; k += 1) {
