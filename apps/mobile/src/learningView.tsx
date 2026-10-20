@@ -4,8 +4,9 @@ import { PaperShadowMonitorView } from "./paperShadowMonitorView";
 import { buildLearningScreen } from "./learningScreenModel";
 import { buildLearningFunnel } from "./learningFunnelModel";
 import { LearningFunnel } from "./learningFunnel";
-import { CalmHeadline, CalmRow, CalmTitle } from "./uiKit";
-import { calmColors } from "./uiKitModel";
+import { InstrumentHero } from "./instrumentKit";
+import { CalmRow } from "./uiKit";
+import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 
 type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown };
@@ -24,9 +25,10 @@ export function LearningView(props: Props) {
     <PaperShadowMonitorView {...monitorProps} />
   </View>;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="learning-view">
-    <CalmTitle text="학습" />
-    <CalmHeadline tone={model.tone} text={model.headline} sub={model.sub} />
-    {funnel ? <LearningFunnel model={funnel} /> : null}
+    {funnel ? <LearningFunnel model={funnel} /> : <>
+      <InstrumentHero index="02 / 학습" lines={[{ text: model.headline, color: calmToneColor(model.tone) }]} />
+      {model.sub ? <Text style={styles.sub}>{model.sub}</Text> : null}
+    </>}
     <View style={styles.track} accessibilityLabel={model.steps.map((s) => `${s.label} ${s.state === "DONE" ? "확인" : s.state === "BLOCKED" ? "막힘" : "없음"}`).join(", ")}>
       {model.steps.map((step) => <View key={step.label} style={styles.step}>
         <View style={[styles.node, step.state === "DONE" ? styles.done : step.state === "BLOCKED" ? styles.blocked : null]} />
@@ -44,6 +46,7 @@ export function LearningView(props: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: calmColors.ground },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
+  sub: { color: calmColors.muted, fontSize: readableFont(14), lineHeight: 21, paddingHorizontal: 20, marginTop: 10, marginBottom: 8 },
   track: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14 },
   step: { alignItems: "center", gap: 6, flex: 1 },
   node: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: calmColors.muted },

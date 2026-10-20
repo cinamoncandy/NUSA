@@ -13,11 +13,11 @@ import { explainDecision } from "./whyNoTradeModel";
 import { useDailyCounts } from "./useDailyCounts";
 import { chooseDailyCounts, partialWindowNote } from "./dailyResetModel";
 import { staleLabel } from "./cachedSnapshotModel";
-import { DecisionRings } from "./decisionRings";
+import { InstrumentNow } from "./instrumentNow";
 import { buildNowScreen } from "./nowScreenModel";
 import { buildRiskGate } from "./riskGateModel";
 import { RiskGateFlow } from "./riskGateFlow";
-import { CalmBigNumber, CalmHeadline, CalmStats } from "./uiKit";
+import { CalmBigNumber } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 
@@ -76,16 +76,11 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const rawLossLimit: { readonly consecutiveLossCount?: unknown; readonly maxConsecutiveLosses?: unknown; readonly periodStartedAt?: unknown; readonly limitReachedAt?: unknown } | null = heartbeat?.lossLimit ?? null;
   // Redesign 2026-10-19: when the loss limit holds new buys, say where the flow stopped (the risk gate), not just "no execution".
   const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount, consecutiveLossCount: rawLossLimit?.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit?.maxConsecutiveLosses, periodStartedAt: rawLossLimit?.periodStartedAt, limitReachedAt: rawLossLimit?.limitReachedAt, now: Date.now() });
-  const ringsStatus = field.phase === "HALTED" ? { title: field.headline, detail: field.detail, tone: "halt" as const } : null;
-  const heroMarket = Array.isArray(heartbeat?.tradedMarkets) && typeof heartbeat?.tradedMarkets[0] === "string" ? heartbeat.tradedMarkets[0] as string : null;
   const needsSetup = notConfigured != null || readOnlyError != null;
   return <View style={styles.shell} testID="now-screen">
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
       <Text style={styles.brand}>NUSA</Text>
-      {gate ? null : <CalmHeadline tone={model.tone} text={model.headline} sub={model.sub} />}
-      {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} /> : <View style={model.dim ? styles.dim : undefined} testID="now-hero">
-        <DecisionRings status={ringsStatus} decisionCount={blocked ? null : dailyCounts.decisionCount} paperOrderCount={blocked ? null : dailyCounts.paperOrderCount} marketLabel={heroMarket} />
-      </View>}
+      {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} stats={model.stats} />}
       <View style={styles.block}>
         <CalmBigNumber value={model.equity} caption={model.delta ?? undefined} captionTone={model.deltaTone} dim={model.dim} />
       </View>
@@ -96,7 +91,6 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
       {model.why == null ? null : <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.why} testID="now-why">
         <Text style={styles.whyText}>{model.why} <Text style={styles.link}>왜요?</Text></Text>
       </Pressable>}
-      {gate ? null : <View style={[styles.block, model.dim ? styles.dim : undefined]}><CalmStats items={model.stats} /></View>}
       <Text style={styles.footnote}>숫자는 서버가 시작된 뒤부터 센 값이에요</Text>
       {needsSetup ? <Pressable accessibilityRole="button" onPress={onGoSettings} style={styles.setup} testID="now-setup">
         <Text style={styles.setupText}>연결 설정 열기 →</Text>
