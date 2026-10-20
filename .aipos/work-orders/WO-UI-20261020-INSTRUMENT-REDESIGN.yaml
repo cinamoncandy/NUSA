@@ -17,3 +17,6 @@ next:
   - "After #2822-#2824 merge and main CI is green: deploy main, verify with oracle-host-diagnose health_only."
   - "Then run futures-regime-study once (manifest committed in #2816) and commit the printed result."
 not_changed: "No limit, threshold, capital or server value. PAPER only, liveAuthority=NONE, aiAuthority=ZERO_AUTHORITY."
+addendum_2026_10_20_always_on_and_icon:
+  - "PR #2831: the instrument design now renders in every Now state (InstrumentNow) and on Learning with or without funnel data; before, it showed only with the risk gate or funnel data."
+  - "App icon redrawn in the instrument language (white hairline N, panel corner ticks, one lime decision dot) via build/generate-nusa-appicon.js; Android vectors, launcher PNGs, desktop icons regenerated. Owner asked 2026-10-20 in chat. Not yet seen on a real device."
