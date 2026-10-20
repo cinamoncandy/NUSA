@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { PAPER_FUTURES_OWNER_LIMITS } from "../../../packages/contracts/src/paperFutures";
+import { FUTURES_SCREEN_LIMITS } from "./futuresLimits";
 import { buildFuturesScreen } from "./futuresScreenModel";
 import { futuresSafetyRows } from "./futuresSafetyRows";
 import { InstrumentHero, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
@@ -10,11 +10,7 @@ import { calmColors } from "./uiKitModel";
 /** "선물" — display-only paper futures status. `futures` is the server's futures snapshot; null/absent shows an honest "not started". */
 export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>) {
   const reduced = useReducedMotion();
-  const model = buildFuturesScreen(futures, {
-    maxDailyLossRatio: PAPER_FUTURES_OWNER_LIMITS.maxDailyLossRatio,
-    minLiquidationDistanceRatio: PAPER_FUTURES_OWNER_LIMITS.minLiquidationDistanceRatio,
-    maxConsecutiveLosses: PAPER_FUTURES_OWNER_LIMITS.maxConsecutiveLosses,
-  });
+  const model = buildFuturesScreen(futures, FUTURES_SCREEN_LIMITS);
   const sections = [
     { title: "상태", rows: model.status },
     { title: "포지션 · 손익", rows: model.positions },
