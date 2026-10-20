@@ -12,10 +12,13 @@ test("rows run from the window start to the current hour, labelled in KST", () =
   const m = buildDecisionTerrain({ trace: trace(WINDOW, () => 4), now });
   assert.deepEqual(m.rows.map((r) => r.hour), [9, 10, 11, 12, 13]);
   assert.equal(m.progress, 0.5);
+  assert.deepEqual(m.rows.map((r) => r.startAt), [0, 1, 2, 3, 4].map((r) => WINDOW + r * H), "each row knows when its hour starts");
   assert.ok(m.hasTrace);
   assert.equal(m.rows[0]!.values[0], 1, "heights are relative to the busiest bucket");
   assert.equal(m.rows[4]!.values[5], 1, "the bucket holding `now` is observed");
   assert.equal(m.rows[4]!.values[7], null, "the future is unobserved, not zero");
+  assert.deepEqual(m.rows.map((r) => r.decisionCount), [48, 48, 48, 48, 28], "hour totals count observed buckets only (the 13:00 row stops at the bucket holding 13:30)");
+  assert.deepEqual(m.rows.map((r) => r.orderCount), [0, 0, 0, 0, 0]);
   assert.equal(m.thisHour, 4 * 7, "only observed buckets of this hour count (13:00 to the bucket holding 13:30)");
 });
 
@@ -32,6 +35,8 @@ test("orders become row positions; the loss-limit stop maps onto a visible row",
   const now = WINDOW + 5 * H;
   const m = buildDecisionTerrain({ trace: trace(WINDOW, () => 2, (b) => (b === 14 ? 1 : 0)), now, limitReachedAt: WINDOW + 2 * H + 15 * 60_000 });
   assert.deepEqual(m.rows[1]!.orders, [(2 + 0.5) / 12]);
+  assert.equal(m.rows[1]!.orderCount, 1);
+  assert.equal(m.rows[0]!.orderCount, 0);
   assert.deepEqual(m.stop, { row: 2, at: 0.25 });
   assert.equal(buildDecisionTerrain({ trace: null, now, limitReachedAt: now + 1 }).stop, null, "a future stop is ignored");
   const late = WINDOW + 20 * H;
@@ -44,7 +49,7 @@ test("missing, malformed or other-day traces draw no terrain but keep the clock"
     const m = buildDecisionTerrain({ trace: bad, now });
     assert.equal(m.hasTrace, false);
     assert.equal(m.thisHour, null);
-    assert.ok(m.rows.every((r) => r.values.every((v) => v === null)));
+    assert.ok(m.rows.every((r) => r.values.every((v) => v === null) && r.decisionCount === null && r.orderCount === null));
     assert.equal(m.rows.length, 4);
   }
   assert.equal(parseDecisionTrace(trace(WINDOW, () => 1))?.since, WINDOW);
