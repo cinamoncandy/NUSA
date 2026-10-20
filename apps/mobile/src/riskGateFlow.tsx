@@ -1,130 +1,195 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { AccessibilityInfo, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { BlendMode, Canvas, PaintStyle, Picture, PointMode, Skia, StrokeCap, createPicture, type SkPicture, type SkPoint } from "@shopify/react-native-skia";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Easing, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
+import { fieldFonts } from "./fieldFonts";
 import type { RiskGateModel } from "./riskGateModel";
-import { GATE_STREAMLINES, createGateField, gateParticlePoint, gateStreamline, gateY, settledLight, stepGateField, warmGateField, type GateGeometry } from "./riskGateParticles";
+import { Heartbeat, Odometer, Panel, SectionLabel, instrumentType, useReducedMotion } from "./instrumentKit";
 
-// Now-screen hero while the consecutive-loss limit holds new buys (redesign 2026-10-19, step 4): a few thousand decision particles
-// stream toward the risk gate, narrow, and pile up in front of it; the channel after the gate stays dotted and empty because no order
-// went out. Presentation only (riskGateParticles.ts draws no server value). Motion stops entirely when the OS reduce-motion setting is
-// on: one settled still frame is drawn instead.
-const SCENE_HEIGHT = 250;
-const PARTICLES = 1100;
-const FRAME_MS = 42;
-const ALPHA_LEVELS = [0.2, 0.4, 0.65, 0.9] as const;
-type MutablePoint = { x: number; y: number };
+// Now-screen block while the consecutive-loss limit holds new buys (redesign 2026-10-20, owner-chosen 계기판 design): a big
+// "새 매수 멈춤", today's decisions rolling up over a heartbeat, a schematic rail where signals run to the risk gate and stop (the
+// order side stays dashed and empty), a tap-to-explain ledger and the streak cells. Presentation of server counters only; an
+// unknown counter is left out, never drawn as 0. Every loop stops when the OS reduce-motion setting is on.
+const RAIL_HEIGHT = 118;
+const NODES = [0.04, 0.37, 0.71, 0.96] as const;
+const PULSES = 6;
+const CYCLE_MS = 1100;
 
-export function RiskGateFlow({ gate, windowNote = null }: { readonly gate: RiskGateModel; /** Shown when the buy counters started after a mid-day server restart (partialWindowNote). */ readonly windowNote?: string | null }) {
-  const [reducedMotion, setReducedMotion] = useState(true);
+export function RiskGateFlow({ gate, lossText = null, windowNote = null }: {
+  readonly gate: RiskGateModel;
+  /** The server's loss-limit sentence (buildLossLimitLine). */
+  readonly lossText?: string | null;
+  /** Shown when the buy counters started after a mid-day server restart (partialWindowNote). */
+  readonly windowNote?: string | null;
+}) {
+  const reducedMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
-  const [picture, setPicture] = useState<SkPicture | null>(null);
+  const fmt = (n: number) => n.toLocaleString("en-US");
+  const rows = [
+    { key: "판단", value: gate.decisions, ratio: 1, amber: false, note: "시장을 보고 사고팔지 따져 본 횟수예요. 멈춘 날에도 계속 돌아요." },
+    gate.signals == null ? null : { key: "매수 신호", value: gate.signals, ratio: gate.signals / gate.decisions, amber: false, note: "조건이 맞아서 사려고 했던 횟수예요." },
+    gate.waiting == null ? null : { key: "대기", value: gate.waiting, ratio: gate.waiting / gate.decisions, amber: true, note: "신호는 났지만 연속 손실 한도 때문에 사지 않고 기다린 횟수예요." },
+    { key: "새 주문", value: 0, ratio: 0, amber: false, note: "오늘 새로 낸 연습 주문이에요. 실제 돈은 쓰지 않아요." },
+  ].filter((r): r is NonNullable<typeof r> => r != null);
 
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (mounted) setReducedMotion(v); }).catch(() => { if (mounted) setReducedMotion(false); });
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
-    return () => { mounted = false; sub.remove(); };
-  }, []);
-
-  const paints = useMemo(() => {
-    const dot = Skia.Paint(); dot.setAntiAlias(true); dot.setStyle(PaintStyle.Stroke); dot.setStrokeCap(StrokeCap.Round); dot.setBlendMode(BlendMode.Plus);
-    const hair = Skia.Paint(); hair.setAntiAlias(true); hair.setStyle(PaintStyle.Stroke); hair.setStrokeWidth(1);
-    const fill = Skia.Paint(); fill.setAntiAlias(true);
-    return { dot, hair, fill, flow: Skia.Color(calmColors.text), gate: Skia.Color(calmColors.attention), line: Skia.Color(calmColors.muted), clear: Skia.Color("transparent") };
-  }, []);
-
-  useEffect(() => {
-    if (width <= 0) return undefined;
-    const g: GateGeometry = { width, height: SCENE_HEIGHT };
-    const field = createGateField(PARTICLES, 7, width);
-    const gy = gateY(g), cx = width / 2;
-    const scale = width / 390;
-    // Allocation-light frames: the guide hairlines depend only on the width, and point objects come from one reusable pool.
-    const streams = Skia.Path.Make();
-    for (let i = 0; i < GATE_STREAMLINES; i += 1) gateStreamline(i, g).forEach((p, k) => { if (k === 0) streams.moveTo(p.x, p.y); else streams.lineTo(p.x, p.y); });
-    const pool: MutablePoint[] = Array.from({ length: PARTICLES + field.settledX.length }, () => ({ x: 0, y: 0 }));
-    let used = 0;
-    const take = (x: number, y: number): MutablePoint => { const p = pool[used]!; used += 1; p.x = x; p.y = y; return p; };
-
-    const render = () => {
-      setPicture(createPicture((canvas) => {
-        paints.hair.setColor(paints.flow); paints.hair.setAlphaf(0.07);
-        canvas.drawPath(streams, paints.hair);
-        used = 0;
-
-        const flowing: SkPoint[][] = ALPHA_LEVELS.map(() => []);
-        for (let i = 0; i < field.count; i += 1) {
-          const p = gateParticlePoint(field, i, g);
-          const a = field.alpha[i]! * Math.min(1, p.u * 6) * (1 - 0.2 * p.u);
-          flowing[Math.min(ALPHA_LEVELS.length - 1, Math.floor(a * 4.99))]!.push(take(p.x, p.y));
-        }
-        const settled: SkPoint[][] = [[], [], []];
-        for (let s = 0; s < field.settledX.length; s += 1) {
-          const light = settledLight(field, s);
-          if (light > 0.02) settled[Math.min(2, Math.floor(light * 2.99))]!.push(take(field.settledX[s]!, field.settledY[s]!));
-        }
-        paints.dot.setColor(paints.flow);
-        paints.dot.setStrokeWidth(1.6 * scale + 0.4);
-        flowing.forEach((pts, level) => { if (pts.length > 0) { paints.dot.setAlphaf(ALPHA_LEVELS[level]!); canvas.drawPoints(PointMode.Points, pts, paints.dot); } });
-        paints.dot.setStrokeWidth(2.2);
-        settled.forEach((pts, level) => { if (pts.length > 0) { paints.dot.setAlphaf([0.25, 0.55, 0.9][level]!); canvas.drawPoints(PointMode.Points, pts, paints.dot); } });
-
-        // The gate: a hairline that fades to both sides, with a soft glow above it that brightens as particles arrive.
-        paints.fill.setShader(Skia.Shader.MakeLinearGradient({ x: 0, y: 0 }, { x: width, y: 0 }, [paints.clear, paints.gate, paints.clear], [0, 0.5, 1], 0));
-        paints.fill.setAlphaf(0.85 + field.glow * 0.15);
-        canvas.drawRect({ x: 0, y: gy, width, height: 2 }, paints.fill);
-        paints.fill.setShader(null);
-        paints.fill.setColor(paints.gate); paints.fill.setAlphaf(0.07 + field.glow * 0.25);
-        canvas.drawRect({ x: width * 0.12, y: gy - 26, width: width * 0.76, height: 26 }, paints.fill);
-
-        // After the gate: nothing went out, so the channel stays a dotted, empty line.
-        paints.hair.setColor(paints.gate); paints.hair.setAlphaf(0.5);
-        for (let y = gy + 10; y < SCENE_HEIGHT - 4; y += 7) canvas.drawLine(cx, y, cx, y + 2, paints.hair);
-      }, { width, height: SCENE_HEIGHT }));
-    };
-
-    if (reducedMotion) { warmGateField(field, 12, g); render(); return undefined; }
-    let alive = true, last = 0, frame = 0;
-    const loop = (t: number) => {
-      if (!alive) return;
-      if (t - last >= FRAME_MS) {
-        const dt = last === 0 ? FRAME_MS / 1000 : (t - last) / 1000;
-        last = t;
-        stepGateField(field, dt, g);
-        render();
-      }
-      frame = requestAnimationFrame(loop);
-    };
-    warmGateField(field, 6, g);
-    frame = requestAnimationFrame(loop);
-    return () => { alive = false; cancelAnimationFrame(frame); };
-  }, [width, reducedMotion, paints]);
-
-  const waiting = gate.waiting == null || gate.waiting === 0 ? null : gate.waiting.toLocaleString("en-US");
-  return <View style={styles.card} testID="now-risk-gate" accessible accessibilityRole="summary" accessibilityLabel={`${gate.headline.replace(/\n/g, ". ")}. ${gate.detail}`}>
-    <Text style={styles.caption}>신호 → 위험 → 주문</Text>
-    <View style={styles.stage} onLayout={(e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width))} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" testID="now-risk-gate-scene">
-      {width > 0 ? <Canvas style={{ width, height: SCENE_HEIGHT }}>{picture ? <Picture picture={picture} /> : null}</Canvas> : null}
+  return <View style={styles.wrap} testID="now-risk-gate" onLayout={(e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width) - 40)}>
+    <Text style={[fieldFonts.mono, instrumentType.index]}>01 / 지금</Text>
+    <View accessible accessibilityRole="header" accessibilityLabel={`새 매수 멈춤. ${lossText ?? gate.detail}`} style={styles.hero}>
+      <Text style={instrumentType.heroLine}>새 매수</Text>
+      <Text style={[instrumentType.heroLine, { color: calmColors.attention }]}>멈춤</Text>
     </View>
-    <View style={styles.labels}>
-      <Text style={styles.label}>{gate.signals == null ? "매수 신호" : `매수 신호 ${gate.signals.toLocaleString("en-US")}`}</Text>
-      <Text style={[styles.label, styles.gateLabel]}>{waiting == null ? "위험 — 멈춤" : `${waiting} 대기`}</Text>
-      <Text style={[styles.label, styles.muted]}>주문 0</Text>
+    <Text style={instrumentType.sub} accessibilityElementsHidden importantForAccessibility="no">{lossText ?? gate.detail}</Text>
+
+    <View style={styles.section}>
+      <SectionLabel left="판단 · 도는 중" right="오늘" />
+      <Odometer value={gate.decisions} size={84} reducedMotion={reducedMotion} />
+      <Heartbeat width={width} reducedMotion={reducedMotion} />
     </View>
-    <Text style={styles.detail}>{gate.detail}</Text>
-    {windowNote ? <Text style={styles.detail} testID="now-risk-gate-window">{windowNote}</Text> : null}
+
+    <View style={styles.section}>
+      <SectionLabel left="판단 → 신호 → 위험 → 주문" right="어디서 멈췄나" />
+      <Panel style={styles.railPanel}>
+        <View accessible accessibilityRole="summary" accessibilityLabel={`판단 ${fmt(gate.decisions)}${gate.signals == null ? "" : `, 매수 신호 ${fmt(gate.signals)}`}, 위험 단계에서 ${gate.waiting == null ? "멈춤" : `${fmt(gate.waiting)} 대기`}, 새 주문 0`}>
+          <Rail width={Math.max(0, width - 2)} gate={gate} reducedMotion={reducedMotion} />
+        </View>
+      </Panel>
+    </View>
+
+    <View style={styles.section}>
+      <SectionLabel left="오늘의 숫자" right="눌러서 뜻 보기" />
+      {rows.map((r, i) => <LedgerRow key={r.key} label={r.key} value={fmt(r.value)} ratio={r.ratio} amber={r.amber} note={r.note} last={i === rows.length - 1} reducedMotion={reducedMotion} />)}
+      {windowNote ? <Text style={styles.note} testID="now-risk-gate-window">{windowNote}</Text> : null}
+    </View>
+
+    {gate.streak == null ? null : <View style={styles.section} testID="now-risk-gate-streak">
+      <SectionLabel left="연속 손실" right="한도 도달" />
+      <Panel>
+        <View style={styles.cells}>{Array.from({ length: gate.streak.max }, (_, i) => <StreakCell key={i} index={i} filled={i < gate.streak!.count} reducedMotion={reducedMotion} />)}</View>
+        <View style={styles.streakRow}>
+          <Text style={styles.streakText}>{`${gate.streak.count} / ${gate.streak.max} · 자정에 초기화`}</Text>
+          <Text style={[fieldFonts.monoMedium, styles.hold]}>HOLD</Text>
+        </View>
+      </Panel>
+    </View>}
   </View>;
 }
 
+function Rail({ width, gate, reducedMotion }: { readonly width: number; readonly gate: RiskGateModel; readonly reducedMotion: boolean | null }) {
+  const pulses = useRef(Array.from({ length: PULSES }, () => new Animated.Value(0))).current;
+  const beat = useRef(new Animated.Value(0)).current;
+  const [x0, x1, xg, x3] = NODES.map((f) => f * width) as unknown as [number, number, number, number];
+  const run = Math.max(0, xg - x0 - 16);
+
+  useEffect(() => {
+    if (reducedMotion !== false || width <= 0) return undefined;
+    // The stagger is applied once, outside the loop, so every pulse keeps the same period and the stream stays even.
+    const loops = pulses.map((v, i) => Animated.sequence([
+      Animated.delay((CYCLE_MS / PULSES) * i),
+      Animated.loop(Animated.timing(v, { toValue: 1, duration: CYCLE_MS, easing: Easing.linear, useNativeDriver: true })),
+    ]));
+    const gateLoop = Animated.loop(Animated.timing(beat, { toValue: 1, duration: (CYCLE_MS / PULSES) * 2, easing: Easing.out(Easing.quad), useNativeDriver: true }));
+    loops.forEach((l) => l.start()); gateLoop.start();
+    return () => { loops.forEach((l) => l.stop()); gateLoop.stop(); };
+  }, [reducedMotion, width, pulses, beat]);
+
+  if (width <= 0) return <View style={{ height: RAIL_HEIGHT }} />;
+  const dashes = Math.max(0, Math.floor((x3 - xg - 8) / 7));
+  const num = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-US"));
+  const waitLabel = gate.waiting == null ? "멈춤" : `${num(gate.waiting)} 대기`;
+  return <View style={{ height: RAIL_HEIGHT }} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+    <View style={[styles.line, { left: x0, width: Math.max(0, xg - x0 - 3) }]} />
+    {Array.from({ length: dashes }, (_, i) => <View key={i} style={[styles.dash, { left: xg + 6 + i * 7 }]} />)}
+    {reducedMotion !== false ? null : pulses.map((v, i) => <Animated.View key={i} style={[styles.pulse, { left: x0, opacity: v.interpolate({ inputRange: [0, 0.12, 0.86, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [0, run] }) }] }]} />)}
+    <View style={[styles.node, { left: x0 - 4 }]} />
+    <View style={[styles.node, styles.hollow, { left: x1 - 4 }]} />
+    <View style={[styles.node, styles.hollow, styles.off, { left: x3 - 4 }]} />
+    <Animated.View style={[styles.halo, { left: xg - 9, opacity: reducedMotion !== false ? 0.3 : beat.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.2, 0.5, 0.2] }) }]} />
+    <View style={[styles.gate, { left: xg - 2.5 }]} />
+    {reducedMotion !== false ? null : <Animated.View style={[styles.ring, { left: xg - 14, opacity: beat.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.9, 0.6, 0] }), transform: [{ scale: beat.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.2] }) }] }]} />}
+    <Text style={[fieldFonts.mono, styles.cap, { left: x0 }]}>판단</Text>
+    <Text style={[fieldFonts.mono, styles.cap, styles.center, { left: x1 - 50 }]}>매수 신호</Text>
+    <Text style={[fieldFonts.mono, styles.cap, styles.center, styles.amber, { left: xg - 50, top: 10 }]}>위험 단계</Text>
+    <Text style={[fieldFonts.mono, styles.cap, styles.right, { left: x3 - 100 }]}>주문</Text>
+    <Text style={[fieldFonts.displayStrong, styles.val, { left: x0 }]}>{num(gate.decisions)}</Text>
+    <Text style={[fieldFonts.displayStrong, styles.val, styles.center, { left: x1 - 50 }]}>{num(gate.signals)}</Text>
+    <Text style={[fieldFonts.displayStrong, styles.val, styles.center, styles.amber, { left: xg - 50 }, waitLabel.length > 7 ? styles.valSmall : null]} numberOfLines={1}>{waitLabel}</Text>
+    <Text style={[fieldFonts.displayStrong, styles.val, styles.right, styles.muted, { left: x3 - 100 }]}>0</Text>
+  </View>;
+}
+
+function LedgerRow({ label, value, ratio, amber, note, last, reducedMotion }: { readonly label: string; readonly value: string; readonly ratio: number; readonly amber: boolean; readonly note: string; readonly last: boolean; readonly reducedMotion: boolean | null }) {
+  const [open, setOpen] = useState(false);
+  const fill = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reducedMotion === null) return undefined;
+    if (reducedMotion) { fill.setValue(1); return undefined; }
+    const a = Animated.timing(fill, { toValue: 1, duration: 900, easing: Easing.out(Easing.exp), useNativeDriver: true });
+    a.start();
+    return () => a.stop();
+  }, [reducedMotion, fill]);
+  const color = amber ? calmColors.attention : calmColors.text;
+  const w = Math.max(0, Math.min(1, ratio));
+  return <View style={[styles.row, last ? styles.rowLast : null]}>
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${label} ${value}`} accessibilityHint="뜻 보기" onPress={() => setOpen((v) => !v)} style={styles.rowPress}>
+      <View style={styles.rowTop}>
+        <Text style={styles.rowKey}>{label}</Text>
+        <Text style={[fieldFonts.displayStrong, styles.rowVal, { color }]}>{value}</Text>
+      </View>
+      <View style={styles.track}>
+        <Animated.View style={[styles.fill, { backgroundColor: color, width: `${w * 100}%`, transformOrigin: "left", transform: [{ scaleX: fill }] }]} />
+      </View>
+    </Pressable>
+    {open ? <Text style={styles.rowNote}>{note}</Text> : null}
+  </View>;
+}
+
+function StreakCell({ index, filled, reducedMotion }: { readonly index: number; readonly filled: boolean; readonly reducedMotion: boolean | null }) {
+  const s = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reducedMotion === null) return undefined;
+    if (reducedMotion) { s.setValue(1); return undefined; }
+    const a = Animated.timing(s, { toValue: 1, duration: 350, delay: index * 120, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true });
+    a.start();
+    return () => a.stop();
+  }, [reducedMotion, s, index]);
+  return <Animated.View style={[styles.cell, filled ? styles.cellOn : null, { transformOrigin: "bottom", transform: [{ scaleY: s }] }]} />;
+}
+
 const styles = StyleSheet.create({
-  card: { marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: 22, backgroundColor: calmColors.ground, borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line },
-  caption: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 1, marginBottom: 8 },
-  stage: { height: SCENE_HEIGHT, marginHorizontal: -8, overflow: "hidden" },
-  labels: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
-  label: { color: calmColors.text, fontSize: readableFont(12) },
-  gateLabel: { color: calmColors.attention, fontWeight: "600" },
+  wrap: { paddingHorizontal: 20, paddingTop: 12 },
+  hero: { marginTop: 14 },
+  section: { marginTop: 26 },
+  railPanel: { paddingHorizontal: 0, paddingVertical: 0 },
+  line: { position: "absolute", top: 57, height: 1.5, backgroundColor: calmColors.muted, opacity: 0.45 },
+  dash: { position: "absolute", top: 57, width: 2, height: 1.5, backgroundColor: calmColors.attention, opacity: 0.6 },
+  pulse: { position: "absolute", top: 56.5, width: 12, height: 3, backgroundColor: calmColors.text },
+  node: { position: "absolute", top: 54, width: 8, height: 8, borderRadius: 4, backgroundColor: calmColors.text },
+  hollow: { backgroundColor: calmColors.ground, borderWidth: 1.5, borderColor: calmColors.text },
+  off: { borderColor: calmColors.muted },
+  halo: { position: "absolute", top: 28, width: 18, height: 60, borderRadius: 9, backgroundColor: calmColors.attention },
+  gate: { position: "absolute", top: 34, width: 5, height: 48, backgroundColor: calmColors.attention },
+  ring: { position: "absolute", top: 44, width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: calmColors.attention },
+  cap: { position: "absolute", top: 14, color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 0.5 },
+  val: { position: "absolute", top: 80, color: calmColors.text, fontSize: 22, lineHeight: 28 },
+  valSmall: { fontSize: 16, top: 84 },
+  center: { width: 100, textAlign: "center" },
+  right: { width: 100, textAlign: "right" },
+  amber: { color: calmColors.attention },
   muted: { color: calmColors.muted },
-  detail: { color: calmColors.muted, fontSize: readableFont(12), marginTop: 6 },
+  row: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
+  rowLast: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: calmColors.line },
+  rowPress: { paddingVertical: 12, minHeight: 48 },
+  rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  rowKey: { color: calmColors.text, fontSize: readableFont(14) },
+  rowVal: { fontSize: 22, fontVariant: ["tabular-nums"] },
+  track: { height: 3, marginTop: 8, backgroundColor: calmColors.line, overflow: "hidden" },
+  fill: { height: 3 },
+  rowNote: { color: calmColors.muted, fontSize: readableFont(13), lineHeight: 19, paddingBottom: 12 },
+  note: { color: calmColors.muted, fontSize: readableFont(12), marginTop: 8 },
+  cells: { flexDirection: "row", gap: 6 },
+  cell: { flex: 1, height: 34, borderWidth: 1, borderColor: calmColors.attention },
+  cellOn: { backgroundColor: calmColors.attention },
+  streakRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 10 },
+  streakText: { color: calmColors.muted, fontSize: readableFont(13) },
+  hold: { color: calmColors.attention, fontSize: readableFont(12), letterSpacing: 1 },
 });
