@@ -1,6 +1,6 @@
 id: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
 title: "Canonicalize the deployed Oracle PAPER health guard without adding a second watchdog"
-status: VERIFYING_CURRENT_MAIN_RECONVERGED
+status: VERIFYING_SUCCESSOR_AFTER_AIPOS_RECEIPT
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 1949
@@ -53,5 +53,5 @@ verification_commands:
   - git diff --check
   - pnpm run validate:full
   - pnpm run security:gate
-validation: "Remote PR head c897f692ffab544d77878c279c621da7a87eb422 had all six workflows PASS, but base 05af71c0eed3ff11aa0fd0efb4e485f4ce7bc936 was stale versus protected main 7e560405ad15b4eec8a5e46b0ad32873286df525. Local paired-lock source tree matched that PR head. Current main was merged without rewriting history at 2fe6ca103795f3e1a105d059ba51426847e9425e. On the reconverged source merge, health-guard focused suite reports 5 PASS / 4 Linux-only SKIP; validate:full and security:gate PASS. Windows lacks sh/bash/flock; Linux exact-head CI must execute shell syntax, contention, and kernel-release tests. The following AIPOS handoff commit invalidates current-head binding; no host mutation is authorized."
-next: "After this AIPOS handoff commit, dynamically re-fetch protected main, PR head/base, and all six exact-head checks. If current and green, request a fresh non-author Validator on that exact SHA, then canonical Audit/Release. Keep Draft; do not install, self-approve, or merge."
+validation: "Prior exact PR head bf742859fd549c04d1fb1353b27999a3240ca9ca was current-base aligned and all six required workflows PASS (CI 39383215746; PAPER 39383215742; capability 39383215782; activation 39383215627; transport 39383215667; read-only broker 39383215624). Local tests/typecheck/build/validate:full/security:gate also PASS, with platform-specific sh/flock cases delegated to Linux CI. A fresh Validator request was posted as PR comment 6285334358 for that head. This AIPOS receipt commit makes those checks and the request historical; no host mutation is authorized."
+next: "Dynamically re-fetch current protected main, PR head/base, and all six required checks for the successor created by this AIPOS receipt. If aligned and green, request a fresh non-author Validator on that successor; then canonical Audit/Release. Keep Draft; do not install, self-approve, or merge."

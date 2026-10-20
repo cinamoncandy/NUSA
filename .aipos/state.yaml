@@ -2492,7 +2492,7 @@ current_mobile_home_simplify:
 
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
-  status: CURRENT_MAIN_RECONVERGED_PENDING_EXACT_HEAD_VALIDATION
+  status: VERIFYING_SUCCESSOR_AFTER_AIPOS_RECEIPT
   issue: 1949
   pull_request: 2818
   branch: ops/health-guard-source-1949
@@ -2501,8 +2501,11 @@ current_ops_oracle_health_guard_lock:
   main_sync_commit: 2fe6ca103795f3e1a105d059ba51426847e9425e
   finding: "Fresh main sync confirms a TOCTOU race: health guard uses pgrep suppression before marker mutation/restart while canonical release activation has no shared exclusion. The prior work order excluded the only canonical activation path despite requiring suppression."
   scope_amendment: "Owner approved shared flock /run/lock/nusa-paper-activation.lock across canonical release verbs that move the active release, install active units, or restart PAPER, plus the health guard. No new helper, scheduler, watchdog, control plane, or host installation. Guard rechecks workload and marker conditions under lock."
-  verification: "Remote PR head c897f692ffab544d77878c279c621da7a87eb422 had all six workflows PASS, but base 05af71c0eed3ff11aa0fd0efb4e485f4ce7bc936 was stale against current protected main 7e560405ad15b4eec8a5e46b0ad32873286df525. Local source tree matched that PR head. Merged current main without rewriting history at 2fe6ca103795f3e1a105d059ba51426847e9425e. Focused guard suite on the reconverged source: 5 PASS / 4 Linux-only SKIP; validate:full and security:gate PASS. Windows lacks sh/bash/flock; exact-head Linux CI must execute those checks. Current exact-head workflows are not verified yet."
-  next: "After this AIPOS handoff commit, dynamically re-fetch main/PR head/base and all six exact-head checks. If current and green, obtain a separate non-author Validator receipt; then canonical Audit/Release. Keep Draft and do not install or merge."
+  prior_exact_head: bf742859fd549c04d1fb1353b27999a3240ca9ca
+  prior_exact_head_workflows: "All six required workflows PASS: CI 39383215746; Actual PAPER 39383215742; Capability Guard 39383215782; Activation 39383215627; Transport 39383215667; Read-only Broker 39383215624."
+  prior_validator_request_comment: 6285334358
+  verification: "Protected main 7e560405ad15b4eec8a5e46b0ad32873286df525 was merged without rewriting history; the AIPOS receipt successor followed. On prior exact head bf742859fd549c04d1fb1353b27999a3240ca9ca, focused tests 29 PASS / 6 platform-specific SKIP; typecheck, build, validate:full, security:gate PASS; all six exact-head workflows PASS and formal non-author Validator requested. Current successor requires its own fresh exact-head checks and Validator. No host installation or mutation."
+  next: "After this AIPOS receipt commit, dynamically refetch protected main and PR metadata/checks; if all six checks pass on the exact current head, request fresh non-author Validator for that SHA. Keep Draft; then canonical Audit/Release only after formal acceptance."
   safety:
     paper_only: true
     liveAuthority: NONE
