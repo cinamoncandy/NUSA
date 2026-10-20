@@ -6,7 +6,7 @@ repository: cinamoncandy/NUSA
 issue: 1949
 base_branch: main
 base_commit: 05af71c0eed3ff11aa0fd0efb4e485f4ce7bc936
-implementation_branch: codex/oracle-health-guard-lock
+implementation_branch: ops/health-guard-source-1949
 authority_impact: none
 objective: "Put the already-deployed bounded Oracle health watchdog and its systemd ownership contract under repository review so host recovery behavior cannot drift outside source control."
 finding: "A natural PUBLIC_MARKET_FAILED incident left the PAPER process HTTP-healthy while its market workload was stale after bounded WebSocket reconnect exhaustion. The existing host-only health guard checked HTTP process health and did not detect the stale workload. The deployed repair recovered PAPER with one bounded restart and remained a no-op under healthy workload, but the executable and unit/timer were not tracked in the repository."
@@ -54,4 +54,4 @@ verification_commands:
   - pnpm run validate:full
   - pnpm run security:gate
 validation: "Inherited PR #2818 review evidence fixed root marker symlink redirection and inactive-supervisor restart. Fresh main sync 05af71c0 added no shared activation lock: current pgrep suppression is TOCTOU. The approved scope closes that P2 with one common root-owned flock across release mutations and watchdog recovery; guard rechecks workload/marker state after lock acquisition. Health guard structural regression 4 PASS; release helper regression 24 PASS / 2 Linux DB cases SKIPPED; both shell syntax checks PASS; validate:full PASS; security:gate PASS; AIPOS YAML PASS; diff check PASS. Four shell/flock contention/owner-exit cases are skipped on this Windows host because util-linux flock is unavailable; exact-head Linux CI must execute them. No host mutation is authorized."
-next: "Commit and fast-forward update the existing PR #2818 branch, then require Linux exact-head CI, fresh non-author validation, and canonical Audit/Release. Do not install, self-approve, or merge."
+next: "AIPOS follow-up reconciliation is underway because the first workflow snapshot on 16b5cad74879b5f1430889818e0e59b88160c659 became historical when workflow state was recorded. Publish the follow-up on the existing PR branch, then inspect new exact-head CI and Linux flock contention before fresh non-author validation and canonical Audit/Release. Do not install, self-approve, or merge."

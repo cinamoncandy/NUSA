@@ -2495,12 +2495,15 @@ current_ops_oracle_health_guard_lock:
   status: VERIFYING
   issue: 1949
   pull_request: 2818
-  branch: codex/oracle-health-guard-lock
+  branch: ops/health-guard-source-1949
+  local_checkout_branch: codex/oracle-health-guard-lock
   base_commit: 05af71c0eed3ff11aa0fd0efb4e485f4ce7bc936
+  exact_head: 16b5cad74879b5f1430889818e0e59b88160c659
   finding: "Fresh main sync confirms a TOCTOU race: health guard uses pgrep suppression before marker mutation/restart while canonical release activation has no shared exclusion. The prior work order excluded the only canonical activation path despite requiring suppression."
   scope_amendment: "Owner approved shared flock /run/lock/nusa-paper-activation.lock across canonical release verbs that move the active release, install active units, or restart PAPER, plus the health guard. No new helper, scheduler, watchdog, control plane, or host installation. Guard rechecks workload and marker conditions under lock."
-  verification: "Health-guard/release structural regression 4 PASS; release-helper regression 24 PASS / 2 Linux DB cases SKIPPED. Both shell syntax checks PASS via Git for Windows shells. validate:full PASS; security:gate PASS; AIPOS YAML PASS; diff check PASS. Four shell/flock contention/owner-exit cases are SKIPPED on this Windows host; Linux exact-head CI must execute them."
-  next: "Commit and fast-forward update PR #2818's existing branch, then require Linux exact-head CI, fresh non-author validation, and canonical Audit/Release. No host install/deploy or merge in this step."
+  verification: "Implementation commit 16b5cad74879b5f1430889818e0e59b88160c659 is pushed to the existing PR branch. Its first fresh exact-head snapshot had all six workflows in_progress; that evidence is historical after an AIPOS-only follow-up. Local health-guard/release structural regression 4 PASS; release-helper regression 24 PASS / 2 Linux DB cases SKIPPED; both shell syntax checks PASS; validate:full/security:gate/AIPOS YAML/diff check PASS. Four shell/flock contention/owner-exit cases require Linux CI."
+  exact_head_workflows: "First source head 16b5cad74879b5f1430889818e0e59b88160c659: CI 39373186888; Actual PAPER Runtime 39373186867; Capability Guard 39373186823; Activation 39373186777; Transport 39373186874; Read-only Broker 39373186809 (all in_progress at dispatch snapshot; not current after AIPOS follow-up)."
+  next: "An AIPOS follow-up is being fast-forwarded to the same PR branch to reconcile branch/head/workflow status. Then inspect the new exact-head workflows, including Linux flock contention, before fresh non-author validation and canonical Audit/Release. No host install/deploy or merge."
   safety:
     paper_only: true
     liveAuthority: NONE
