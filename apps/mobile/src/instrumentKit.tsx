@@ -94,6 +94,19 @@ export function Heartbeat({ width, reducedMotion }: { readonly width: number; re
   </View>;
 }
 
+/** Fast entrance: fades up 10 px in 260 ms on the native driver, staggered by `index`. A reduce-motion user gets it settled at once. */
+export function Reveal({ index = 0, reducedMotion, children, style }: { readonly index?: number; readonly reducedMotion: boolean | null; readonly children: React.ReactNode; readonly style?: StyleProp<ViewStyle> }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reducedMotion === null) return undefined;
+    if (reducedMotion) { v.setValue(1); return undefined; }
+    const anim = Animated.timing(v, { toValue: 1, duration: 260, delay: index * 55, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [index, reducedMotion, v]);
+  return <Animated.View style={[style, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>{children}</Animated.View>;
+}
+
 export const instrumentType = StyleSheet.create({
   index: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 2 },
   heroLine: { color: calmColors.text, fontSize: 54, lineHeight: 58, fontWeight: "700", letterSpacing: -2 },

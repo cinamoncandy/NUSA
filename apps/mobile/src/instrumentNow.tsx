@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Heartbeat, InstrumentHero, Odometer, Panel, SectionLabel, useReducedMotion } from "./instrumentKit";
+import { Heartbeat, InstrumentHero, Odometer, Panel, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
 import { readableFont } from "./designSystem";
@@ -21,8 +21,8 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, stats }
   const live = !dim && decisionCount != null;
   return <View style={dim ? styles.dim : undefined} testID="now-hero">
     <InstrumentHero index="01 / 지금" lines={[{ text: headline, color: calmToneColor(tone) }]} />
-    {sub ? <Text style={[instrumentSub, styles.sub]}>{sub}</Text> : null}
-    <View style={styles.panelWrap}>
+    {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
+    <Reveal index={2} reducedMotion={reduced} style={styles.panelWrap}>
       <Panel>
         <SectionLabel left="판단" right={live ? "LIVE" : "—"} />
         {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={44} reducedMotion={reduced} />}
@@ -30,12 +30,12 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, stats }
           {live ? <Heartbeat width={width} reducedMotion={reduced} /> : <View style={styles.flat} />}
         </View>
       </Panel>
-    </View>
+    </Reveal>
     <View style={styles.ledger}>
-      {stats.map((s) => <View key={s.label} style={styles.row}>
+      {stats.map((s, i) => <Reveal key={s.label} index={3 + i} reducedMotion={reduced} style={styles.row}>
         <Text style={[fieldFonts.mono, styles.rowLabel]}>{s.label}</Text>
         <Text style={[fieldFonts.mono, styles.rowValue, { color: calmToneColor(s.tone) }]}>{s.value}</Text>
-      </View>)}
+      </Reveal>)}
     </View>
   </View>;
 }
