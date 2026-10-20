@@ -6,7 +6,7 @@ import { liveUnavailableMessage } from "./fieldScreensModel";
 import { buildSafetyScreen } from "./safetyScreenModel";
 import { futuresSafetyRows } from "./futuresSafetyRows";
 import { SafetyCircuit } from "./safetyCircuit";
-import { InstrumentHero } from "./instrumentKit";
+import { InstrumentHero, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { CalmRow } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
@@ -14,17 +14,20 @@ import { readableFont } from "./designSystem";
 /** "안전" — calm redesign of the LIVE tab. Read-only: it has no action that enables LIVE or mutates anything. */
 export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAILED", refreshing, onRefresh }: LiveReadinessMonitorViewProps) {
   const [open, setOpen] = useState(false);
+  const reduced = useReducedMotion();
   const model = buildSafetyScreen(buildLiveGates(snapshot), snapshot?.blockers ?? []);
   const futuresRows = futuresSafetyRows();
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} testID="safety-view">
     <InstrumentHero index="03 / 안전" lines={[{ text: "실제 돈은" }, { text: "안 움직여요" }]} />
     <SafetyCircuit />
     <View style={styles.list}>
-      {model.rows.map((row) => <CalmRow key={row.label} label={row.label} hint={row.hint} value={row.value} tone={row.tone} />)}
+      <SectionLabel left="실거래 준비" right="읽기 전용" />
+      {model.rows.map((row, i) => <Reveal key={row.label} index={i} reducedMotion={reduced}><CalmRow label={row.label} hint={row.hint} value={row.value} tone={row.tone} /></Reveal>)}
       {snapshot == null ? <CalmRow label="실거래 준비 정보" hint={liveUnavailableMessage(unavailableKind)} value="받지 못함" tone="ATTENTION" /> : null}
     </View>
     <View style={[styles.list, styles.section]} testID="safety-futures">
-      {futuresRows.map((row) => <CalmRow key={row.label} label={row.label} hint={row.hint} value={row.value} tone={row.tone} />)}
+      <SectionLabel left="선물 · 모의 한도" right="고정" />
+      {futuresRows.map((row, i) => <Reveal key={row.label} index={i} reducedMotion={reduced}><CalmRow label={row.label} hint={row.hint} value={row.value} tone={row.tone} /></Reveal>)}
     </View>
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((value) => !value)} style={styles.fold} testID="safety-advanced-toggle">
       <Text style={styles.foldText}>고급 진단 (영문 원문·코드)</Text><Text style={styles.foldText}>{open ? "접기" : "펼치기"}</Text>
