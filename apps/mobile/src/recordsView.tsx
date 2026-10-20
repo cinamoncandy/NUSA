@@ -38,9 +38,9 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
   </ScrollView>;
 }
 
-// One log line: mono time, a tag only where the tone carries meaning, the text. The live line ends in a blinking cursor; it stops
-// when the OS reduce-motion setting is on.
-const TAG: Partial<Record<TimelineEvent["tone"], string>> = { NOW: "NOW", ATTENTION: "한도", MUTED: "시작" };
+// One log line: mono time, a tag named by the event kind, the text. The live line ends in a blinking cursor; it stops when the OS
+// reduce-motion setting is on.
+const TAG: Record<TimelineEvent["kind"], string> = { DECISION: "판단", FILL: "체결", LOSS_LIMIT: "한도", START: "시작" };
 
 function TimelineRow({ event, last }: { readonly event: TimelineEvent; readonly last: boolean }) {
   const reducedMotion = useReducedMotion();
@@ -56,12 +56,12 @@ function TimelineRow({ event, last }: { readonly event: TimelineEvent; readonly 
   }, [reducedMotion, event.tone, blink]);
   const amber = event.tone === "ATTENTION";
   const now = event.tone === "NOW";
-  const tag = TAG[event.tone];
+  const tag = now ? "NOW" : TAG[event.kind];
   return <View style={[styles.event, last ? styles.eventLast : null]}>
-    <Text style={[fieldFonts.mono, styles.eventTime, now ? { color: calmColors.text } : null]}>{event.time}</Text>
+    <Text style={[fieldFonts.mono, styles.eventTime, now ? { color: calmColors.text } : null]}>{now ? `지금\n${event.time}` : event.time}</Text>
     <View style={styles.eventMain}>
       <View style={styles.eventLine}>
-        {tag == null ? null : <Text style={[fieldFonts.mono, styles.tag, amber ? styles.tagAmber : null]}>{tag}</Text>}
+        <Text style={[fieldFonts.mono, styles.tag, amber ? styles.tagAmber : null]}>{tag}</Text>
         <Text style={[styles.eventText, event.tone === "MUTED" ? { color: calmColors.muted } : null]}>{event.text}</Text>
         {now ? <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.cursor, { opacity: blink }]} /> : null}
       </View>

@@ -28,7 +28,8 @@ export function SafetyCircuit() {
     return () => loop.stop();
   }, [reducedMotion, w, flow]);
 
-  const wireStart = w * 0.42, bus = w * 0.64, gateX = w * 0.7, gateW = 46, out = gateX + gateW, lockX = w - 26;
+  // Laid out from the right edge so the lock, the gate and the output wire never collide on a narrow phone.
+  const gateW = 46, lockX = w - 14, out = lockX - 40, gateX = out - gateW, bus = gateX - 18, wireStart = Math.min(w * 0.42, bus - 30);
   const mid = ROWS[1].y;
   const moving = reducedMotion === false;
   return <View style={styles.wrap} testID="safety-circuit">
@@ -43,10 +44,11 @@ export function SafetyCircuit() {
             <Text style={[fieldFonts.mono, styles.state, { top: r.y + 8 }]}>{r.state}</Text>
             <Wire x={wireStart} y={r.y} length={bus - wireStart} flow={flow} moving={moving} />
           </React.Fragment>)}
-          <Wire x={bus} y={ROWS[0].y} length={ROWS[2].y - ROWS[0].y} vertical flow={flow} moving={moving} />
+          <Wire x={bus} y={ROWS[0].y} length={mid - ROWS[0].y} vertical flow={flow} moving={moving} />
+          <Wire x={bus} y={mid} length={ROWS[2].y - mid} vertical reverse flow={flow} moving={moving} />
           <Wire x={bus} y={mid} length={gateX - bus} flow={flow} moving={moving} />
           <View style={[styles.gate, { left: gateX, top: mid - 24, width: gateW }]}><Text style={[fieldFonts.mono, styles.and]}>AND</Text></View>
-          <Wire x={out} y={mid} length={lockX - out - 10} flow={flow} moving={moving} />
+          <Wire x={out} y={mid} length={lockX - out - 12} flow={flow} moving={moving} />
           <View style={[styles.lockBody, { left: lockX - 10, top: mid - 8 }]} />
           <View style={[styles.lockShackle, { left: lockX - 5, top: mid - 18 }]} />
           <Text style={[styles.result, { top: mid + 28 }]}>실제 주문 불가</Text>
@@ -56,11 +58,11 @@ export function SafetyCircuit() {
   </View>;
 }
 
-/** A hairline wire with a dashed current running along it (native-driver translate). */
-function Wire({ x, y, length, vertical = false, flow, moving }: { readonly x: number; readonly y: number; readonly length: number; readonly vertical?: boolean; readonly flow: Animated.Value; readonly moving: boolean }) {
+/** A hairline wire with a dashed current running along it toward the gate (native-driver translate); `reverse` runs up. */
+function Wire({ x, y, length, vertical = false, reverse = false, flow, moving }: { readonly x: number; readonly y: number; readonly length: number; readonly vertical?: boolean; readonly reverse?: boolean; readonly flow: Animated.Value; readonly moving: boolean }) {
   if (length <= 0) return null;
   const n = Math.ceil(length / DASH) + 2;
-  const shift = flow.interpolate({ inputRange: [0, 1], outputRange: [-DASH, 0] });
+  const shift = flow.interpolate({ inputRange: [0, 1], outputRange: reverse ? [0, -DASH] : [-DASH, 0] });
   return <View pointerEvents="none" style={[styles.wire, vertical ? { left: x - 0.75, top: y, width: 1.5, height: length } : { left: x, top: y - 0.75, width: length, height: 1.5 }]}>
     {moving ? <Animated.View style={[vertical ? styles.dashCol : styles.dashRow, { transform: [vertical ? { translateY: shift } : { translateX: shift }] }]}>
       {Array.from({ length: n }, (_, i) => <View key={i} style={vertical ? styles.dashV : styles.dashH} />)}
