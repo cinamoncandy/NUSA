@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { aggregateClosedCandles, DEFAULT_CANDLE_INTERVAL_MS, type CandleObservation } from "./closedCandleAggregator";
 import type { StoredResearchCandle } from "../../../packages/storage/src/researchCandleStore";
 
@@ -56,20 +55,7 @@ export function collectClosedCandles(input: {
       const continuous = latest != null && first < latest + intervalMs;
       // Continuous history resumes at the last close; otherwise the oldest retained bucket may be truncated: skip it.
       const coverageStartMs = continuous ? (latest as number) : (Math.floor(first / intervalMs) + 1) * intervalMs;
-      // Ticker observations carry a per-message fingerprint, so a window always mixes many of them. The aggregator only
-      // accepts one provenance per batch; give it the shared source and record the batch's provenance as one digest of the
-      // per-message fingerprints instead (since 2026-10-17 the raw per-message values made every pass fail silently).
-      const sources = new Set(observations.map((o) => o.source).filter((v): v is string => v != null));
-      if (sources.size > 1) throw Object.assign(new Error("mixed observation sources"), { code: "MIXED_OBSERVATION_SOURCE" });
-      const batchDigest = (values: readonly (string | undefined)[]): string | undefined => {
-        const present = values.filter((v): v is string => v != null);
-        return present.length === 0 ? undefined : createHash("sha256").update(present.join("\n"), "utf8").digest("hex");
-      };
-      const aggregated = {
-        ...aggregateClosedCandles({ observations: observations.map((o) => ({ observedAt: o.observedAt, price: o.price, ...(o.source == null ? {} : { source: o.source }) })), nowMs: input.nowMs, coverageStartMs, intervalMs }),
-        sourceFingerprint: batchDigest(observations.map((o) => o.sourceFingerprint)),
-        evidenceFingerprintSha256: batchDigest(observations.map((o) => o.evidenceFingerprintSha256)),
-      };
+      const aggregated = aggregateClosedCandles({ observations, nowMs: input.nowMs, coverageStartMs, intervalMs });
       const fresh = aggregated.candles
         .filter((candle) => latest == null || candle.timestamp > latest)
         .map((candle): StoredResearchCandle => ({ closeTimeMs: candle.timestamp, open: candle.open, high: candle.high, low: candle.low, close: candle.close }));

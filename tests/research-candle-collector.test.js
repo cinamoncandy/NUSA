@@ -88,35 +88,3 @@ test("end to end on the real SQLite observation repository and candle store, and
   assert.equal(store.latestCloseTime("KRW-ETH", M), undefined);
   db.close();
 });
-
-test("per-message ticker fingerprints no longer fail the pass: the batch provenance is one digest (regression 2026-10-17)", () => {
-  const obs = [...dense(1, [100, 110, 95, 105]), ...dense(2, [105, 106, 104, 105])].map((o, i) => ({ ...o, sourceFingerprint: `fp-${i}`, evidenceFingerprintSha256: `ev-${i}` }));
-  const materials = [];
-  const f = fakes({ "KRW-BTC": obs });
-  f.sink.appendWithMaterial = (market, interval, candles, material) => { materials.push(material); return candles.length; };
-  const [r] = collectClosedCandles({ markets: ["KRW-BTC"], nowMs: T0 + 3 * M + 5_000, observations: f.observations, sink: f.sink });
-  assert.equal(r.status, "COLLECTED", JSON.stringify(r));
-  assert.equal(r.recorded, 1);
-  assert.match(materials[0].sourceFingerprint, /^[a-f0-9]{64}$/);
-  assert.match(materials[0].evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
-});
-
-test("two different upstream sources in one window are still refused, with a code", () => {
-  const obs = [...dense(1, [100, 110, 95, 105]), ...dense(2, [105, 106, 104, 105])].map((o, i) => ({ ...o, source: i % 2 ? "A" : "B" }));
-  const f = fakes({ "KRW-BTC": obs });
-  const [r] = collectClosedCandles({ markets: ["KRW-BTC"], nowMs: T0 + 3 * M + 5_000, observations: f.observations, sink: f.sink });
-  assert.equal(r.status, "ERROR");
-  assert.equal(r.errorCode, "MIXED_OBSERVATION_SOURCE");
-});
-
-test("end to end with the real observation store: ticks with real fingerprints become stored candles", () => {
-  const db = new SqliteDatabase(join(mkdtempSync(join(tmpdir(), "nusa-collector-")), "db.sqlite"));
-  try {
-    const repo = new SqlitePaperMarketObservationRepository(db);
-    const store = new SqliteResearchCandleStore(db);
-    for (const o of [...dense(1, [100, 110, 95, 105]), ...dense(2, [105, 106, 104, 105])]) repo.append({ market: "KRW-BTC", observedAt: o.observedAt, price: o.price, sourceFingerprint: require("node:crypto").createHash("sha256").update(String(o.observedAt)).digest("hex") });
-    const [r] = collectClosedCandles({ markets: ["KRW-BTC"], nowMs: T0 + 3 * M + 5_000, observations: repo, sink: store });
-    assert.equal(r.status, "COLLECTED", JSON.stringify(r));
-    assert.equal(store.count("KRW-BTC", M), 1);
-  } finally { db.close(); }
-});

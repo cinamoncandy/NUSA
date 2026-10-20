@@ -88,7 +88,7 @@ test("phase-aligned periodic gap repair retries after a cooperative Research tic
   const timers = installFakeTimers();
   try {
     composition.start();
-    const gapInterval = timers.intervals.find((item) => item.delay === 6 * 60 * M);
+    const gapInterval = timers.intervals.find((item) => item.delay === 60 * M);
     assert.ok(gapInterval, "six-hour periodic gap repair must be scheduled");
 
     const tick = composition.tickOnceAsync();
@@ -120,7 +120,7 @@ test("stop cancels a pending periodic gap retry created by a Research tick colli
   const timers = installFakeTimers();
   try {
     composition.start();
-    const gapInterval = timers.intervals.find((item) => item.delay === 6 * 60 * M);
+    const gapInterval = timers.intervals.find((item) => item.delay === 60 * M);
     assert.ok(gapInterval);
 
     const tick = composition.tickOnceAsync();

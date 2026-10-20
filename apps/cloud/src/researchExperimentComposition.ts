@@ -1,10 +1,9 @@
-import { SqliteCandidatePromotionRepository, SqliteResearchCandleStore, SqliteResearchDatasetManifestStore, SqliteResearchEvaluationLedger, SqliteResearchHoldoutLedger, SqliteResearchMemoryRepository, SqliteResearchSessionRepository, SqlitePaperMarketObservationRepository, SqliteResearchPrecommitRepository, type SqliteDatabase } from "../../../packages/storage/src/index";
+import { SqliteCandidatePromotionRepository, SqliteResearchCandleStore, SqliteResearchDatasetManifestStore, SqliteResearchEvaluationLedger, SqliteResearchHoldoutLedger, SqliteResearchMemoryRepository, SqliteResearchSessionRepository, SqliteResearchPrecommitRepository, type SqliteDatabase } from "../../../packages/storage/src/index";
 import { BacktestResearchEvaluator, buildDonchianResearchStrategy, buildRsiResearchStrategy, buildSmaResearchStrategy } from "./backtestResearchEvaluator";
 import { ResearchAutomationRuntime } from "./researchAutomationRuntime";
 import { ResearchExperimentOrchestrator, type ResearchVariant, type TickReport } from "./researchExperimentOrchestrator";
 import { ResearchRecoveryCoordinator } from "./researchRecoveryCoordinator";
 import { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
-import { collectClosedCandles } from "./researchCandleCollector";
 import { backfillMarket, createUpbitMinuteCandleFetcher, fillRecentGaps, type BackfillResult, type GapFillResult } from "./researchCandleBackfill";
 import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
 import { materializeResearchDatasetManifest } from "./researchDatasetManifestMaterializer";
@@ -129,10 +128,8 @@ export function composeResearchExperiments(input: {
   const db = input.database;
 
   const store = new SqliteResearchCandleStore(db);
-  const collectionState = new Map<string, string>();
   const datasetManifests = new SqliteResearchDatasetManifestStore(db);
   const holdout = new SqliteResearchHoldoutLedger(db);
-  const observations = new SqlitePaperMarketObservationRepository(db);
   const ledger = new SqliteResearchEvaluationLedger(db);
   const precommits = new SqliteResearchPrecommitRepository(db);
   const candidates = new SqliteCandidatePromotionRepository(db);
@@ -241,16 +238,10 @@ export function composeResearchExperiments(input: {
     const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants, ...donchianVariants];
     const orchestrator = new ResearchExperimentOrchestrator({
       variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant, precommitStore: precommits,
-      collect: (nowMs) => {
-        if (minutes !== settings.intervalsMinutes[0]) return;
-        // A failed market used to vanish silently (no candles from 2026-10-17 to 10-20). Log it, once per change of state.
-        for (const result of collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store })) {
-          const state = result.status === "ERROR" ? `ERROR:${result.errorCode ?? "UNKNOWN"}` : "OK";
-          if (collectionState.get(result.market) === state) continue;
-          collectionState.set(result.market, state);
-          log(`[research-candles] collect ${result.market} ${state === "OK" ? `OK recorded=${result.recorded}` : `failed code=${result.errorCode ?? "UNKNOWN"}`}`);
-        }
-      },
+      // The canonical 1m series is fed only by Upbit REST candles with raw-source receipts (backfill + gap fill, which now
+      // reaches the newest closed minute). Ticker-aggregated candles carry no receipt or volume, so writing them here blocked
+      // every dataset manifest; since 2026-10-17 they also failed silently. Collection is therefore off by design.
+      collect: () => undefined,
       candles: bars, holdout, now, sourceCommitSha: settings.sourceCommitSha,
       models: { fill: "fill-close-v1", fee: `fee-${RESEARCH_BACKTEST_COST.feeRate}-v1`, slippage: `slip-${RESEARCH_BACKTEST_COST.slippageBps}bps-v1` },
       evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
@@ -288,7 +279,7 @@ export function composeResearchExperiments(input: {
           const lastClose = store.latestCloseTime(market, M);
           if (firstClose != null && lastClose != null) {
             try {
-              materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString(), sourceCommitSha: settings.sourceCommitSha });
+              materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, Math.max(firstClose, lastClose - targetSpanMs + M), lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString(), sourceCommitSha: settings.sourceCommitSha });
               log(`[research-manifest] ${market} materialized dataset manifest`);
             } catch (error) { log(`[research-manifest] ${market} blocked: ${error instanceof Error ? error.message : "unknown"}`); }
           }
@@ -319,7 +310,7 @@ export function composeResearchExperiments(input: {
           const lastClose = store.latestCloseTime(market, M);
           if (firstClose != null && lastClose != null) {
             try {
-              materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, firstClose, lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString(), sourceCommitSha: settings.sourceCommitSha });
+              materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, Math.max(firstClose, lastClose - targetSpanMs + M), lastClose), source: `upbit-1m-closed:${market}:${M}`, createdAt: new Date(now()).toISOString(), sourceCommitSha: settings.sourceCommitSha });
               log(`[research-manifest] ${market} materialized dataset manifest after gap fill`);
             } catch (error) { log(`[research-manifest] ${market} blocked after gap fill: ${error instanceof Error ? error.message : "unknown"}`); }
           }
@@ -456,7 +447,7 @@ export function composeResearchExperiments(input: {
       first.unref?.();
       timer = setInterval(scheduleTick, settings.tickMs);
       timer.unref?.();
-      if (settings.backfill) { gapTimer = setInterval(scheduleGapFill, 6 * 60 * M); gapTimer.unref?.(); }
+      if (settings.backfill) { gapTimer = setInterval(scheduleGapFill, 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
     stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (gapRetry != null) clearTimeout(gapRetry); if (backfillTimer != null) clearTimeout(backfillTimer); if (tickRetry != null) clearTimeout(tickRetry); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
