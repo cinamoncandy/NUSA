@@ -1187,6 +1187,35 @@ latest_portfolio_risk_data_quality_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "External account credentials, Cloudflare/runtime proof, physical Galaxy acceptance, and human LIVE gate remain unchanged."
 
+aipos_completion_reconciliation_20261019:
+  work_order: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+  base_commit: 44840f96e80d1e9e664b15743767eb6c717d978a
+  objective: "Correct stale completion statuses for merged remediation PRs without rewriting historical validation evidence."
+  verified_repository_truth:
+    WO-0069:
+      pull_request: 708
+      merge_commit: 124890eb2f49f0e98f1b8b262acbb72f699cdb6c
+      ancestor_of_base: true
+    WO-0070.deterministic-remediation-prioritization:
+      pull_request: 738
+      merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+      ancestor_of_base: true
+    WO-0070.remediation-plan-evaluation:
+      pull_request: 731
+      merge_commit: e4655a8ce837d5327c855c0572d68477b9e2facc
+      ancestor_of_base: true
+    current_non_live_work_order:
+      scope_id: WO-0070.deterministic-remediation-prioritization
+      status: COMPLETED
+      pull_request: 738
+      merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+      ancestor_of_base: true
+  verification: "Node 24 / pnpm 11.7.0; repository validate, AIPOS YAML (499 files), provenance, work-order index (483 orders), drift, cross-AI conformance, and git diff check PASS. GitHub PR state/file lists and local ancestry confirm merges; historical CI claims were not rerun or upgraded."
+  next: "After exact-head CI, complete this metadata reconciliation; then select the next non-LIVE work order without weakening WO-0051."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 base_branch: main
 active_branch: main
 active_successor_branch: null
@@ -1201,7 +1230,7 @@ current_non_live_work_order:
   canonical_pull_request: 738
   canonical_implementation_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
   canonical_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
-  status: IN_PROGRESS
+  status: COMPLETED
   branch: agent/wo-0070-deterministic-remediation-prioritization
   base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
   implementation_commit: 3711390a
@@ -1210,6 +1239,8 @@ current_non_live_work_order:
   full_isolated_suite: PASS_581_FILES
   repository_gates: PASS
   scope: "Deterministic read-only prioritization of verified remediation proposals with bounded advisory output; no execution, Git, broker, Risk, LIVE, or AI authority."
+  reconciled_by: WO-AIPOS-20261019-COMPLETION-STATE-RECONCILIATION
+  completion_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
 wo_0071_validation:
   work_order: WO-0071
   pull_request: 744
@@ -2375,6 +2406,19 @@ current_mobile_tab_contour:
   branch: claude/nusa-repository-j93sd8-tabs-contour
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+
+current_mobile_now_risk_gate_particles_20261020:
+  work_order: WO-UI-20261019-NOW-RISK-GATE
+  pull_request: 2820
+  base_sha: 1f9925081d4a73ef007be6b41af6cd6caac38be1
+  prior_head: 5ae7459e25ea21f4ebe3220f93860faa378a04d0
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_REVIEW
+  root_cause: "The Skia drawing API uses readonly SkPoint fields, while the reused per-frame point pool mutates x/y through SkPoint. Exact-head CI failed TypeScript with TS2540."
+  fix: "Represent only the mutable pool storage as MutablePoint; preserve SkPoint at the drawPoints boundary."
+  validation: "Mobile typecheck PASS; root typecheck PASS; mobile lint PASS (215 files); all compiled mobile tests PASS (100/100), including risk-gate particle boundaries."
+  next: "Push the minimal fix to existing PR #2820; exact-head CI and fresh review; keep merge held until Learning technical runtime proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_mobile_paper_body:
   work_order: WO-UI-20261001-PAPER-BODY
   status: READY_FOR_REVIEW
@@ -2445,6 +2489,34 @@ current_mobile_home_simplify:
   branch: claude/nusa-repository-j93sd8-home-simplify
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
+
+current_ops_oracle_stability_rollback_20261019:
+  work_order: WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK
+  status: CURRENT_MAIN_RECONVERGED_VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+  branch: fix/oracle-stability-rollback-2770
+  issue: 2770
+  pull_request: 2819
+  base_sha: 91db289a392f08aaf367cc15bec16f852d2b4edb
+  previous_validated_head: e7ef7ee02ceef1300747705585861c5f57f3922b
+  current_main_at_reconvergence: bedc3b75e79062d86702d89323d6f6eecc73274b
+  finding: "Oracle release 39242644208 passed initial authenticated PAPER readiness and Autopilot readiness, then false-rolled back when the first 5-second stability /ready proof timed out with SUPERVISOR_ACTIVE_LISTENER_BOUND; rollback also left Autopilot executing the rejected release until one bounded service restart reconverged cwd."
+  validation: "Reconverged head e7ef7ee02ceef1300747705585861c5f57f3922b had all six exact-head workflows PASS. Fresh non-author Validator found one P1 only: this state entry still described main reconvergence as pending after bedc3b75e79062d86702d89323d6f6eecc73274b had already been merged. This successor updates execution state only; e7ef7ee receipts are historical and fresh exact-head CI/Validator remain mandatory."
+  next: "Fresh exact-head CI/companions -> fresh non-author Validator with zero actionable findings -> deterministic Audit/Release -> install exact merged root-owned helper -> natural exact-main Oracle release and 180-second soak proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_oracle_stage_space:
+  work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  status: VALIDATOR_P1_REPAIRED_PENDING_EXACT_HEAD_CI
+  branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
+  issue: 2791
+  pull_request: 2805
+  base_sha: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+  evidence: "Oracle release 39100544697 failed guarded staging: available 5280886784, required 5949247701, source 1550406500; artifact 506610705 bytes. Diagnosis 39100280323 showed 7.4G free and two protected releases."
+  previous_pr_head: 0dabdbfb087f83979eac3d72df096f0a01325cbc
+  previous_pr_head_ci: "CI 39103178517 and exact-head companions PASS, but fresh Codex Validator found P1 unsafe mv copy fallback; this head is superseded."
+  validation: "Exact head 0dabdbfb087f83979eac3d72df096f0a01325cbc had full PR CI PASS, but fresh Codex Validator found P1: GNU mv can silently copy after rename failure, bypassing rename-only headroom. Local repair uses mv --no-copy and re-applies full-copy headroom before explicit fallback copy; focused workflow tests 23/23, bash -n, and git diff --check PASS. Fresh exact-head CI required."
+  next: "Commit the P1 rename-only repair, run fresh exact-head CI, then obtain a fresh non-author review of that exact head. After merge, install the reviewed root-owned helper through the canonical host path before exact-main release/runtime verification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_paid_overflow_off_20261014:
   work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
@@ -3031,6 +3103,60 @@ current_ui_startup_warmup:
   authority_impact: none
   owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
   finding: "Cold start 3.3 s from abroad, sign-in 2.4 s: warm the connection during the saved-session read (a credential-free GET of /health) and show the sign-in split in Settings; the authentication flow itself is untouched"
+
+current_dataset_v2_write_20261018:
+  work_order: WO-DATA-20261018-NEW-DATASET-V2-WRITE
+  status: EXACT_MAIN_VERIFIED
+  branch: main
+  base_sha: 26970651043c0e38e03428b181d5e7f59e4ce57b
+  pr: 2801
+  pr_head_sha: eb1215a1e409c752d8cd7f25bc0190f1b2ba2c8c
+  merge_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  exact_main_sha: 63c7fdc00da65b65a58b2cce8c7862ab7e4d9642
+  first_broken_transition: "P0-5 independent sealed evidence verification across dataset → precommit → experiment → candidate → governance → PAPER"
+  scope: "All new dataset-manifest factory/write paths emit v2 only; preserve immutable historical v1 reads. Cloud v2 binds durable raw-page receipts and quality results."
+  finding: "Desktop canonical factory now emits v2 only and requires provenance; research real-run and forward-study producers bind captured Upbit page fingerprints, transform/config/schema/quality/replay fingerprints; SQLite rejects new v1 writes while exact historical v1 reads remain checksum-verified. Cloud materializer emits v2 only from matching durable receipts and verified aggregation."
+  validation: "PR exact-head CI 39097651708 PASS 6/6; fresh non-author validation PASS; independent OIDC Audit PASS; canonical Release run 39098201565 merged; exact-main CI 39098270400 PASS; exact-main public PAPER runtime 39098601136 PASS; Cloudflare runtime proof 39098634858 PASS."
+  exact_head_ci: PASS
+  independent_validation: PASS
+  audit: PASS
+  release: MERGED
+  exact_main_ci: PASS
+  exact_main_paper_runtime: PASS
+  oracle_production_runtime: NOT_CHECKED
+  android_stable_release: PENDING
+
+current_evidence_verifier_20261018:
+  work_order: WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
+  status: VERIFYING
+  branch: codex/paper-policy-fingerprint-verify
+  base_sha: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+  pr: 2804
+  last_verified_evidence_checkpoint_sha: dfa50343f5ac781c108a96ea304b51d1d0d1871b
+  checkpoint_state: OPEN_DRAFT_MERGEABLE
+  checkpoint_base_sha: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+  first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
+  implementation: "POLICY v2 binds candidate/version/family, evidence plus original/replay Research fingerprints and decision reference. Replay-only exact historical v1 recovery preserves read access without Governance eligibility; tampered v1 and new v1 activation fail closed. No historical rewrite."
+  utf8_byte_bound_repair: "COMPLETE on source head f31524533ddaffe2191b06a31e3221185bdfa5d3: shared hypothesis cap is 16,384 UTF-8 bytes with retained string bound; ASCII/multibyte below/at/above regressions are included."
+  sqlite_restart_replay: "PASS on source head f31524533ddaffe2191b06a31e3221185bdfa5d3: close/reopen reconstructs the same POLICY identity and Research lineage without duplicate activation."
+  checkpoint_exact_head_workflows:
+    ci: "39201179134 PASS"
+    paper_runtime: "39201179153 PASS"
+    capability_guard: "39201179053 PASS"
+    activation: "39201179214 PASS"
+    transport: "39201179082 PASS"
+    read_only_broker: "39201179055 PASS"
+  validator_on_checkpoint: "CHANGES_REQUESTED on dfa50343f5ac781c108a96ea304b51d1d0d1871b; P0=0, P1=0, P2=1. Finding: AIPOS was pinned to older cd5e checkpoint while PR body and dfa workflows were current. This checkpoint records the finding and adopts non-self-referential dynamic evidence resolution."
+  work_order_checkpoint_sync: "The work order was updated after checkpoint dfa to record its six passing workflows, this Validator finding, and the dynamic evidence-resolution contract. That documentation-only commit does not alter source behavior."
+  evidence_resolution_contract: "AIPOS checkpoint SHA/run IDs are immutable historical receipts, never asserted as the live PR head. At each verification, obtain the live exact head/base/state from GitHub PR metadata and query all six workflows by that exact head SHA; reconcile those results in the PR body/Validator receipt. Do not create repeated AIPOS-only commits solely to record post-commit statuses, because that would invalidate the head and recreate the same stale-evidence loop."
+  successor_head_status: "Resolve live from GitHub immediately before Validator; current state file intentionally describes the last completed evidence checkpoint, not a self-referential claim about its own commit SHA."
+  pr_body_checkpoint: "PR body was refreshed to checkpoint dfa50343f5ac781c108a96ea304b51d1d0d1871b and its six PASS run IDs. After final AIPOS sync commit, update body to the resulting live head and its exact-head receipts without another source commit."
+  independent_validator_current_head: PENDING
+  independent_audit: PENDING
+  release: PENDING
+  remaining: "Resolve the resulting PR head/base from GitHub, verify all six exact-head workflows, refresh PR body without changing source head, then request fresh independent Validator. Keep Draft/HOLD. Full independent sealed DATA→PAPER verifier remains open/out of scope."
+  next: "Read the live PR head and all six exact-head receipts from GitHub; update PR body to that head, then obtain fresh non-author Validator. The immutable checkpoint record plus dynamic lookup is the evidence contract; no repetitive status-only commits. Do not Audit/Release/merge."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_decision_funnel:
   work_order: WO-PAPER-20261006-DECISION-FUNNEL
   status: READY_FOR_REVIEW
@@ -3191,6 +3317,19 @@ current_runtime_startup_evidence_invalidation_20261015:
   runtime: "Read-only38729127377 at11:41:55Z: runtime89a9ceca HTTP200, periods15/cycles0/failures0/holdoutPasses0; main10c15346 rollout38700547000 failed and rolled back."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   next: "Draft review/CI, then canonical Audit/Release and exact-main rollout. Learning still requires a genuinely qualified challenger; no threshold relaxation."
+
+current_runtime_writer_cause_20261016:
+  work_order: WO-OPS-20261016-PAPER-WRITER-CAUSE
+  branch: codex/paper-writer-lease-cause-20261016
+  original_base_sha: 67630b806996a0774fa41d772e61de6192493a84
+  latest_main_reconvergence_base: 3659e45e011032b71e37896eed7c3aef2580c153
+  implementation_merge_commit: 1ae09a01865f4856ae1e1cdb63e8ccc1bd976824
+  status: LATEST_MAIN_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_REVIEW
+  first_broken_transition: exact-main restart/replay -> stable PAPER listener and writer-lease recovery
+  scope: 'Diagnostic precondition only; initiating runtime lease failure cause remains unproven. Writer first-cause retention is merged with current liveness/startup recovery locally; no authority or recovery policy is widened.'
+  local_validation: '31/31 focused PASS; typecheck/build/preflight/validate:full/security PASS; lint 0 errors and 26 pre-existing warnings; PAPER_ADAPTER blob 1113297fa143b4e26318e3c57152bdf2d620ddb6 exact-source check PASS.'
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: Commit AIPOS sync -> push exact head -> fresh exact-head CI -> fresh non-author Validator -> canonical Audit/Release -> exact-main natural runtime diagnosis.
 
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
+import type { RealizedPeriodRetentionGuard } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
 import {
   PaperRealizedPeriodProducer,
@@ -51,10 +52,14 @@ function closePeriod(plan: PaperRealizedPeriodOpenInput, overrides: Partial<Pape
   };
 }
 
-function producer(options?: ConstructorParameters<typeof PaperRealizedPeriodProducer>[1]) {
+// Retention is reference-aware by signature (v2 M1/A7); these fixtures cite no periods, so the
+// correct guard for them protects nothing and the retention bound behaves as it always has.
+const retentionGuard: RealizedPeriodRetentionGuard = { referencedRecordIds: () => new Set<string>() };
+
+function producer(options?: Omit<ConstructorParameters<typeof PaperRealizedPeriodProducer>[1], "retentionGuard">) {
   const db = new SqliteDatabase(":memory:");
   const repository = new SqlitePaperRealizedPeriodRepository(db);
-  return { db, repository, producer: new PaperRealizedPeriodProducer(repository, options) };
+  return { db, repository, producer: new PaperRealizedPeriodProducer(repository, { retentionGuard, ...options }) };
 }
 
 function codeOf(action: () => unknown): string {
@@ -69,7 +74,7 @@ describe("PaperRealizedPeriodProducer", () => {
       const original = buildOwnerBaselinePaperPeriodInput({ market: "KRW-XRP", periodIndex: 5, periodStartAt: BASE, sourceCommitSha: "a".repeat(40) });
       const continuation = { ...original, periodId: `closed-learning-rollover:5:${BASE}` };
       state.producer.openPeriod(continuation);
-      const restarted = new PaperRealizedPeriodProducer(state.repository);
+      const restarted = new PaperRealizedPeriodProducer(state.repository, { retentionGuard });
       restarted.retireOpenPeriodForReplacement(continuation.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:challenger-a");
       assert.equal(restarted.listOpenPeriods().length, 0);
       assert.equal(state.repository.getPending(continuation.periodId), undefined);
@@ -88,7 +93,7 @@ describe("PaperRealizedPeriodProducer", () => {
       state.producer.observeExecution({ observationId: "paper-tick-a", observedAt: plan.periodStartAt + 1, status: "WAIT" });
       const expected = closePeriod(plan);
       assert.deepEqual(state.producer.closePeriod(expected), expected.envelope);
-      const restarted = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(state.db));
+      const restarted = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(state.db), { retentionGuard });
       assert.deepEqual(restarted.listRealizedPeriods(), [expected.envelope]);
       assert.equal(Number((state.db.connection.prepare("SELECT COUNT(*) AS count FROM research_paper_forward_periods").get() as { count: number }).count), 1);
       assert.equal(Number((state.db.connection.prepare("SELECT COUNT(*) AS count FROM paper_realized_periods").get() as { count: number }).count), 0);
@@ -113,11 +118,30 @@ describe("PaperRealizedPeriodProducer", () => {
     try {
       const plan = state.producer.openPeriod(openPeriod());
       state.producer.observeExecution({ observationId: "paper-tick-a", observedAt: plan.periodStartAt + 1, status: "BLOCKED" });
-      const recovered = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(state.db));
+      const recovered = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(state.db), { retentionGuard });
       assert.equal(recovered.listOpenPeriods()[0]!.observationIds[0], "paper-tick-a");
       recovered.closePeriod({ envelope: closePeriod(plan, { status: "HALTED" }).envelope });
       assert.equal(recovered.listRealizedPeriods()[0]!.record.status, "HALTED");
     } finally { state.db.close(); }
+  });
+
+  it("recovers only the schema-v1 successor after a schema-v2 terminal disposition and keeps replay idempotent", () => {
+    const state = producer();
+    const successorState = producer();
+    try {
+      state.producer.openPeriod(openPeriod(0));
+      successorState.producer.openPeriod(openPeriod(1));
+      const original = state.repository.getPending("period-0")!;
+      const successor = successorState.repository.getPending("period-1")!;
+      const request = { original, successor, reason: { stage: "PERIOD_CLOSE" as const, code: "INCOMPLETE_EXECUTION_COST_EVIDENCE" as const, boundaryAt: successor.periodStartAt, sourceRuntimeSha: null, blockedEvidenceFingerprintSha256: HASH } };
+      const receipt = state.repository.markPendingIneligible(request);
+      const restarted = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(state.db), { retentionGuard });
+      assert.deepEqual(restarted.listOpenPeriods().map((item) => item.periodId), ["period-1"]);
+      assert.equal(restarted.nextPeriodIndex(), 2);
+      assert.deepEqual(state.repository.markPendingIneligible(request), receipt, "replay returns the immutable receipt");
+      assert.equal(state.repository.listPending().length, 1, "replay never duplicates the successor");
+      assert.equal(state.repository.listPendingDispositions().length, 1, "terminal original remains exactly once");
+    } finally { state.db.close(); successorState.db.close(); }
   });
 
   it("rejects missing cost provenance, candidate/provenance retirement, and chronology overlap", () => {
@@ -279,12 +303,13 @@ describe("mixed candidate binding detection, retirement receipt and ledger prese
     const first = setup(fills);
     const expected = first.state.producer.inspectOpenPeriodForMixedBinding("period-0")!;
     const restarted = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(first.state.db), {
+      retentionGuard,
       readCanonicalPaperAccount: () => accountFor(fills, BASE + 5_000) as never,
       readCanonicalPaperFills: () => [...fills].reverse() as never,
     });
     assert.deepEqual(restarted.inspectOpenPeriodForMixedBinding("period-0"), expected);
     restarted.retireOpenPeriodForMixedBinding("period-0");
-    const again = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(first.state.db));
+    const again = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(first.state.db), { retentionGuard });
     assert.equal(again.hasOpenPeriod(), false, "the retirement survives a restart");
   });
 

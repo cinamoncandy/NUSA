@@ -48,7 +48,7 @@ function lineageAt(
 ): { readonly lineage: PaperResearchLineage; readonly activation: PaperChallengerActivationReceipt } {
   const market = marketOf(period);
   const activation = bindings.current(market, period.record.periodStartAt);
-  if (activation?.researchLineage == null) throw new Error("closed learning canonical PAPER Research lineage is unavailable");
+  if (activation?.researchLineage == null || activation.governanceAuthorization == null) throw new Error("closed learning canonical PAPER Governance-bound Research lineage is unavailable");
   const lineage = validatePaperResearchLineage(activation.researchLineage);
   if (activation.binding.candidateId !== lineage.candidateId) throw new Error("closed learning PAPER binding conflicts with Research lineage");
   const provenance = candidateProvenanceFor(period, lineage.candidateId);

@@ -1,0 +1,85 @@
+id: WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
+title: "Persist Governance authorization identity through PAPER activation and replay"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+implementation_branch: codex/paper-policy-fingerprint-verify
+pull_request: 2804
+authority_impact: research_paper_evidence_binding
+objective: "Persist exact Strategy Governance authorization on the append-only PAPER binding ledger and bind its deterministic POLICY identity to immutable original and replay Research provenance."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuses PaperChallengerBindingLedger and its existing hash-chained Evolution Learning store. No duplicate verifier/store. Legacy activation records remain readable but cannot seed new closed-learning evidence without Governance identity."
+scope:
+  - persist_exact_governance_authorization_snapshot_in_paper_activation
+  - verify_candidate_version_family_and_binding_fingerprint_cross_links
+  - verify_research_lineage_candidate_version_matches_binding_on_activation_and_replay
+  - recompute_deterministic_policy_approval_fingerprint_from_research_lineage
+  - bind_policy_identity_to_original_research_run_fingerprint
+  - reject_original_research_snapshot_substitution_on_restart_replay
+  - reject_governance_identity_drift_on_restart_replay
+  - fail_closed_for_legacy_activation_missing_governance_identity_in_learning
+  - add_tamper_and_identity_mismatch_regressions
+  - bound_shared_learning_ledger_hypothesis_by_utf8_bytes_with_ascii_and_multibyte_boundaries
+  - keep_pr_description_workflow_receipts_current_for_the_exact_head
+prohibited:
+  - rewriting_historical_activation_records
+  - creating_or_qualifying_synthetic_paper_evidence
+  - changing_live_authority_or_production_mutation
+  - claiming_full_p0_5_sealed_verifier_complete
+acceptance:
+  - new_activation_persists_exact_governance_decision_identity
+  - wrong_candidate_version_family_or_binding_fingerprint_is_rejected
+  - mismatched_research_lineage_candidate_version_is_rejected_before_persist_and_on_replay
+  - substituted_original_research_run_fingerprint_is_rejected_on_replay
+  - policy_producer_and_replay_verifier_compute_equal_identity_from_original_and_replay_fingerprints
+  - exact_original_research_snapshot_remains_eligible_for_policy_activation_and_replay
+  - tampered_deterministic_policy_approval_fingerprint_is_rejected
+  - changed_or_tampered_persisted_authorization_fails_closed
+  - restart_replay_requires_same_governance_identity
+  - durable_sqlite_close_reopen_reconstructs_same_policy_identity_without_duplicate_activation
+  - legacy_activation_read_compatibility_is_preserved
+  - legacy_activation_without_governance_identity_cannot_seed_closed_learning
+  - hypothesis_accepts_16kib_minus_one_and_exactly_16kib_utf8_bytes_and_rejects_16kib_plus_one
+  - ascii_and_multibyte_utf8_boundary_cases_are_covered
+  - pr_description_no_longer_calls_successful_guard_run_in_progress_and_marks_old_head_receipts_stale_after_repair
+  - paper_only_live_none_production_mutation_false_ai_zero_authority
+validation:
+  commands:
+    - pnpm run typecheck
+    - pnpm run build
+    - pnpm run validate:full
+    - pnpm run security:gate
+    - pnpm run lint
+    - node --test dist/apps/cloud/src/paperChallengerBindingLedger.test.js dist/apps/cloud/src/paperChallengerPolicyApproval.test.js dist/apps/cloud/src/paperChallengerDeploymentRuntime.test.js dist/apps/cloud/src/paperChallengerDeploymentRuntime.handoff.test.js dist/apps/cloud/src/closedLearningEvidenceIdentitySource.test.js dist/apps/cloud/src/closedLearningLineageReplayInputSource.test.js
+    - node --test dist/packages/storage/src/evolutionLearningLedger.test.js
+  typecheck: PASS
+  build: PASS
+  validate_full: PASS
+  security_gate: PASS
+  lint: "PASS with 26 pre-existing warnings; zero errors"
+  focused_tests: "66/66 Governance/PAPER/deployment/closed-learning and durable-ledger tests PASS"
+  durable_sqlite_restart_test: PASS
+  local_adversarial_followup: "PASS: candidateVersion, strategyId, POLICY→HUMAN namespace downgrade, approval fingerprint, original Research snapshot substitution, tampered v1 POLICY identity, and new-v1-activation attempts are rejected; exact historical v1 POLICY receipt remains readable only after Governance eligibility is removed."
+  review_feedback: "Latest non-author Codex review on fa65b0a765c477613d7db316125f84f0fb43f507 found P1: the v2 identity bump made exact historical v1 POLICY activations unreadable during lifecycle replay. Repair commit 0efd828ea7d45a2297d68a9e5b16687926ff9ca4 adds replay-only exact v1 identity verification; a verified v1 receipt is returned as legacy ungoverned evidence, while tampered v1 and all new v1 activation attempts fail closed. No historical record is rewritten."
+  local_post_v1_repair: "Follow-up adds a real SqliteDatabase/SqliteEvolutionLearningLedger close-reopen replay regression and corrects stale AIPOS evidence pointers. pnpm run build, typecheck, validate:full, security:gate, lint (26 warnings/zero errors), and focused 7-file node --test (66/66) passed on this source tree; git diff --check is clean. The durable test exposed that actual SQLite persistence rejected canonical activation receipts exceeding the prior 2,000-character hypothesis limit; the shared ledger retains a bounded 16,384-character limit. These local results do not replace fresh exact-head GitHub CI/runtime or non-author Validator evidence."
+  p2_followup_local: "Validated implementation checkpoint f31524533ddaffe2191b06a31e3221185bdfa5d3: UTF-8 16,384-byte cap with ASCII/multibyte boundaries and SQLite restart/replay; build, typecheck, validate:full, security:gate, lint and 66/66 focused tests PASS. Parent-checkpoint exact-head workflows on cd5e392cb0c909c740e1fb7d083489f7bf027775 all PASS (CI 39198847220; PAPER 39198847229; capability 39198847218; activation 39198847216; transport 39198847213; broker 39198847223). Fresh Validator on that parent: CHANGES_REQUESTED P0=0/P1=0/P2=1 for AIPOS/body lag. Successor dfa50343f5ac781c108a96ea304b51d1d0d1871b exact-head CI 39201179134 and five companions 39201179153/39201179053/39201179214/39201179082/39201179055 all completed/success; PR body refreshed to dfa SHA. Validator on dfa found only P2 because AIPOS itself remained pinned to cd5e. This update records dfa checkpoint and establishes dynamic GitHub resolution to avoid self-referential status commits."
+  implementation_commit: f31524533ddaffe2191b06a31e3221185bdfa5d3
+  paper_runtime: "PASS on exact checkpoint dfa50343f5ac781c108a96ea304b51d1d0d1871b, run 39201179153; the live PR head is always resolved from GitHub metadata."
+  safety_workflows: "PASS on exact checkpoint dfa50343f5ac781c108a96ea304b51d1d0d1871b: capability 39201179053, activation 39201179214, transport 39201179082, read-only broker 39201179055."
+  validator_finding: "CHANGES_REQUESTED on exact checkpoint dfa50343f5ac781c108a96ea304b51d1d0d1871b; P0=0, P1=0, P2=1 because AIPOS current-state checkpoint lagged the target, despite PR body and six target workflows being current. This entry records the receipt and changes the evidence resolution contract."
+  latest_main_integrated: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+  previous_exact_head_ci: PASS_ON_4b7f1c7f3bc2343e58a14c459c69590b6d054b45_INVALIDATED_BY_FOLLOWUP_COMMIT
+  exact_head_ci: "PASS on checkpoint dfa50343f5ac781c108a96ea304b51d1d0d1871b, run 39201179134; all six target-head workflows PASS."
+  fresh_non_author_validation: "CHANGES_REQUESTED on checkpoint dfa50343f5ac781c108a96ea304b51d1d0d1871b, P0=0/P1=0/P2=1 for AIPOS checkpoint lag. New validation must resolve the then-current GitHub PR head and its own receipts dynamically; checkpoint SHA here is historical evidence, not a current-head assertion."
+  independent_audit: PENDING
+  release: PENDING
+first_broken_transition: "Research originalRunFingerprintSha256 → deterministic POLICY authorization identity → durable PAPER replay verification"
+next: "Resolve current PR head/base and six exact-head workflows directly from GitHub immediately before fresh Validator. Treat this work order's SHA/run IDs as immutable evidence checkpoints only; never create another state-only commit merely to write post-commit check results, since that self-invalidates the evidence. Validator must evaluate current GitHub head/body/run truth and confirm this dynamic checkpoint rule prevents stale claims. Keep Draft/HOLD; no Audit/Release/merge."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

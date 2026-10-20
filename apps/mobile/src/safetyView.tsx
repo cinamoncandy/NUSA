@@ -5,7 +5,9 @@ import { buildLiveGates } from "./liveGateModel";
 import { liveUnavailableMessage } from "./fieldScreensModel";
 import { buildSafetyScreen } from "./safetyScreenModel";
 import { futuresSafetyRows } from "./futuresSafetyRows";
-import { CalmRow, CalmTitle } from "./uiKit";
+import { SafetyCircuit } from "./safetyCircuit";
+import { InstrumentHero } from "./instrumentKit";
+import { CalmRow } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 
@@ -15,7 +17,8 @@ export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAI
   const model = buildSafetyScreen(buildLiveGates(snapshot), snapshot?.blockers ?? []);
   const futuresRows = futuresSafetyRows();
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} testID="safety-view">
-    <CalmTitle text="안전" />
+    <InstrumentHero index="03 / 안전" lines={[{ text: "실제 돈은" }, { text: "안 움직여요" }]} />
+    <SafetyCircuit />
     <View style={styles.list}>
       {model.rows.map((row) => <CalmRow key={row.label} label={row.label} hint={row.hint} value={row.value} tone={row.tone} />)}
       {snapshot == null ? <CalmRow label="실거래 준비 정보" hint={liveUnavailableMessage(unavailableKind)} value="받지 못함" tone="ATTENTION" /> : null}

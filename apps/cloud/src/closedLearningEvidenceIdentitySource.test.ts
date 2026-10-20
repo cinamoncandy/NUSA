@@ -71,6 +71,11 @@ function activation(candidateId = "candidate-a", original = ORIGINAL): PaperChal
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
     }),
+    governanceAuthorization: Object.freeze({
+      strategyId: "strategy-a", candidateId, candidateVersion: version, familyId: "family-a",
+      evidenceFingerprintSha256: "2".repeat(64), lifecycle: "CHALLENGER",
+      approval: Object.freeze({ actorType: "HUMAN", approvalReference: "owner:paper-challenger", approvedAt: 1, decisionFingerprint: "3".repeat(64) }),
+    }),
     liveAuthority: "NONE",
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
@@ -122,6 +127,13 @@ function snapshotReader(candidateId = "candidate-a"): ResearchRunReplaySnapshotR
 }
 
 describe("ClosedLearningEvidenceIdentitySource", () => {
+  it("refuses closed-learning evidence when persisted PAPER activation lacks Governance identity", () => {
+    const closed = period("legacy-governance", 1, 10_000);
+    const legacy = Object.freeze({ ...activation(), governanceAuthorization: undefined });
+    const source = new ClosedLearningEvidenceIdentitySource({ bindings: { current: () => legacy }, replaySnapshots: snapshotReader(), readRiskConfigHash: () => RISK });
+    assert.throws(() => source.build({ closedPeriod: closed, realizedPeriods: [closed] }), /Research lineage is unavailable/);
+  });
+
   it("builds a deterministic accumulated identity from same-lineage realized PAPER periods and immutable Research provenance", () => {
     const first = period("record-1", 1, 10_000);
     const second = period("record-2", 2, 20_000);

@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { SqliteDatabase } from "./index";
-import { SqlitePersistedPaperPeriodStore, type PersistedPaperPendingPeriod, type PaperPendingIneligibilityReason } from "./persistedPaperPeriodStore";
+import { SqlitePersistedPaperPeriodStore, type PersistedPaperPendingPeriod, type PaperPendingIneligibilityReason, type RealizedPeriodRetentionGuard } from "./persistedPaperPeriodStore";
+
+// Retention is reference-aware by signature (v2 M1/A7); this fixture cites no periods.
+const retentionGuard: RealizedPeriodRetentionGuard = { referencedRecordIds: () => new Set<string>() };
 
 // Isolated contract fixtures, never runtime/canary evidence.
 const hash = (s: string): string => createHash("sha256").update(s).digest("hex");
@@ -37,7 +40,7 @@ test("ineligible receipt preserves exact original bytes and cannot enter realize
   assert.deepEqual(store.listPending(), [input.successor]);
   assert.deepEqual(store.list(), []);
   assert.equal(JSON.parse(String(raw(db).payload_json)).schemaVersion, 2); // Old producer validatePlan(schemaVersion=1) rejects rollback.
-  store.prune(1);
+  store.prune(1, retentionGuard);
   assert.deepEqual(store.listPendingDispositions(), [receipt]);
 }));
 
@@ -136,6 +139,23 @@ test("an existing active successor or later history prevents a second branch of 
   assert.throws(() => store.markPendingIneligible(input), /overlap existing history/);
   assert.deepEqual(store.getPending(input.original.periodId), input.original);
   assert.equal(store.listPendingDispositions().length, 0);
+}));
+
+test("canonical index allocation reserves active and immutable terminal history", () => memory((_db, store) => {
+  const input = request();
+  store.putPending(input.original);
+  assert.equal(store.nextPeriodIndex(), 22, "the active pending index is reserved");
+  store.markPendingIneligible(input);
+  assert.equal(store.nextPeriodIndex(), 23, "terminal original plus active successor reserve both indexes");
+  store.retirePending(input.successor.periodId, input.successor.checksum);
+  assert.equal(store.nextPeriodIndex(), 22, "retiring the successor never makes terminal index 21 reusable");
+}));
+
+test("unknown pending schema fails closed during canonical index allocation", () => memory((db, store) => {
+  const input = pending(); store.putPending(input);
+  const unknown = JSON.stringify({ schemaVersion: 3, periodId: input.periodId, periodIndex: input.periodIndex, periodStartAt: input.periodStartAt });
+  db.connection.prepare("UPDATE research_paper_forward_period_pending SET payload_json=?, checksum=? WHERE period_id=?").run(unknown, hash(unknown), input.periodId);
+  assert.throws(() => store.nextPeriodIndex(), /pending PAPER disposition/);
 }));
 
 test("realized append cannot reuse a quarantined interval under a different identity or index", () => memory((_db, store) => {

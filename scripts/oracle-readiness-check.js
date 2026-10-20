@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("node:fs");
 const http = require("node:http");
+const net = require("node:net");
 const { spawnSync } = require("node:child_process");
 
 const envPath = process.env.NUSA_ENV_FILE || "/etc/nusa/cloud-runtime.env";
@@ -31,8 +32,10 @@ if (process.env.NUSA_DRY_RUN === "1") {
 
 const timeoutMs = Number(process.env.NUSA_READY_TIMEOUT_MS || 5000);
 const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 300_000);
+const routeProofWaitMs = Number(process.env.NUSA_READY_ROUTE_PROOF_WAIT_MS || 15_000);
 const retryDelayMs = Number(process.env.NUSA_READY_RETRY_DELAY_MS || 1_000);
 if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 300_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 300000]");
+if (!Number.isSafeInteger(routeProofWaitMs) || routeProofWaitMs < 1 || routeProofWaitMs > 30_000) throw new Error("NUSA_READY_ROUTE_PROOF_WAIT_MS must be an integer in [1, 30000]");
 if (!Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1 || retryDelayMs > 5_000) throw new Error("NUSA_READY_RETRY_DELAY_MS must be an integer in [1, 5000]");
 const requestStatus = (path, headers = {}, deadline = Number.POSITIVE_INFINITY) => new Promise((resolve, reject) => {
   const configuredTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000;
@@ -104,7 +107,9 @@ const awaitExpectedStatus = async (path, expectedStatus, deadline) => {
     try {
       const response = await requestStatus(path, {}, deadline);
       if (response.statusCode === expectedStatus) return { ok: true, statusCode: response.statusCode, attempts };
-      last = { kind: "response", actualStatus: response.statusCode };
+      // A concrete HTTP response proves the listener handled this route. A wrong status is a real
+      // contract failure (404 previously shipped to mobile), not a transport stall, so fail fast.
+      return { ok: false, attempts, last: { kind: "response", actualStatus: response.statusCode } };
     } catch (error) {
       last = { kind: "transport", message: error instanceof Error ? error.message : "route probe failed" };
     }
@@ -135,26 +140,73 @@ function journalTail(unit = process.env.NUSA_READINESS_JOURNAL_UNIT || "nusa", l
   }
 }
 
+// systemd returning from a restart only proves the launcher was spawned. A release whose writer
+// lease blocks startup keeps the unit "active" while port 41731 stays unbound, and that looks
+// identical -- as a bare ECONNREFUSED -- to a runtime that is merely still booting. Classify both
+// states on every startup timeout so the release run names the actual broken transition instead of
+// a transport error. Both probes are bounded and read-only; neither can change the verdict.
+const ACTIVE_UNIT_STATES = Object.freeze(new Set(["active", "activating", "reloading"]));
+function supervisorUnitState(unit = process.env.NUSA_READINESS_SYSTEMD_UNIT || "nusa", run = spawnSync) {
+  try {
+    const args = ["is-active", unit];
+    // Test seam only: a Node script standing in for systemctl, mirroring NUSA_READINESS_JOURNAL_STUB.
+    const stub = process.env.NUSA_READINESS_SYSTEMD_STUB;
+    const result = stub
+      ? run(process.execPath, [stub, ...args], { encoding: "utf8", timeout: 5_000 })
+      : run("systemctl", args, { encoding: "utf8", timeout: 5_000 });
+    if (result.status === null || typeof result.stdout !== "string") return "unknown";
+    const state = result.stdout.trim().split(/\s+/)[0];
+    return state && /^[a-z-]+$/.test(state) ? state : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+/** True only when something accepts a TCP connection on the dashboard port. Bounded to 2 s. */
+function probeListener(targetHost, targetPort, connect = (options, onConnect) => net.connect(options, onConnect)) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (listening) => { if (!settled) { settled = true; resolve(listening); } };
+    try {
+      const socket = connect({ host: targetHost, port: targetPort }, () => { socket.destroy(); finish(true); });
+      socket.setTimeout(2_000, () => { socket.destroy(); finish(false); });
+      socket.on("error", () => { socket.destroy(); finish(false); });
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+function classifyStartupPhase(supervisor, listening) {
+  const unitState = ACTIVE_UNIT_STATES.has(supervisor) ? "SUPERVISOR_ACTIVE"
+    : supervisor === "unknown" ? "SUPERVISOR_STATE_UNKNOWN" : "SUPERVISOR_INACTIVE";
+  return `${unitState}_${listening ? "LISTENER_BOUND" : "LISTENER_ABSENT"}`;
+}
+
 const run = async () => {
-  // One absolute startup deadline covers /ready and every required owner-route probe.
-  // Later probes consume only the remaining budget; they never reset the clock.
+  // The long startup deadline is exclusively for authenticated /ready.  Once /ready is healthy,
+  // route existence is a separate, bounded non-mutating proof.  Sharing one deadline caused a
+  // real post-activation false rollback when /ready consumed most of a short soak budget and the
+  // first owner-route probe hit one transient transport timeout.
   const deadline = Date.now() + startupWaitMs;
   const readiness = await awaitReadiness(deadline);
   if (!readiness.healthy) {
-    console.error(JSON.stringify({ status: "FAIL", stage: "startup_readiness", attempts: readiness.attempts, last: readiness.last ?? { httpStatus: readiness.httpStatus, ready: readiness.ready, checks: readiness.checks } }));
+    const supervisor = supervisorUnitState();
+    const listening = await probeListener(host, port);
+    console.error(JSON.stringify({ status: "FAIL", stage: "startup_readiness", phase: classifyStartupPhase(supervisor, listening), supervisor, listening, attempts: readiness.attempts, last: readiness.last ?? { httpStatus: readiness.httpStatus, ready: readiness.ready, checks: readiness.checks } }));
     for (const line of journalTail()) console.error(`[journal] ${line}`);
     process.exitCode = 1;
     return;
   }
 
   const routeChecks = [];
+  const routeDeadline = Date.now() + routeProofWaitMs;
   for (const path of REQUIRED_MOBILE_OWNER_AUTH_ROUTES) {
     // GET is intentionally used as a non-mutating route-presence probe. The canonical handlers
     // reject it with 405; 404 means this release is stale and cannot serve the mobile client.
-    // A freshly started 1 GB host can transiently stop servicing the event loop while bounded
-    // PAPER/Research startup work begins, so retry the exact route within the same bounded
-    // startup contract instead of treating one 5-second transport timeout as proof of absence.
-    const probe = await awaitExpectedStatus(path, 405, deadline);
+    // Both routes share one short route-proof deadline, independent of the startup deadline, so
+    // transient event-loop stalls can retry without extending the proof indefinitely.
+    const probe = await awaitExpectedStatus(path, 405, routeDeadline);
     if (!probe.ok) {
       console.error(JSON.stringify({ status: "FAIL", stage: "mobile_owner_route", route: path, expectedStatus: 405, attempts: probe.attempts, last: probe.last }));
       process.exitCode = 1;
@@ -165,9 +217,18 @@ const run = async () => {
   console.log(JSON.stringify({ status: "PASS", httpStatus: readiness.httpStatus, ready: true, checks: readiness.checks, startupAttempts: readiness.attempts, mobileOwnerAuthRoutes: routeChecks }));
 };
 
-run().catch((error) => {
-  console.error(JSON.stringify({ status: "FAIL", error: error instanceof Error ? error.message : "readiness request failed" }));
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  run().catch((error) => {
+    console.error(JSON.stringify({ status: "FAIL", error: error instanceof Error ? error.message : "readiness request failed" }));
+    process.exitCode = 1;
+  });
+}
 
-module.exports = { REQUIRED_MOBILE_OWNER_AUTH_ROUTES, journalTail, redactJournalLine };
+module.exports = {
+  REQUIRED_MOBILE_OWNER_AUTH_ROUTES,
+  classifyStartupPhase,
+  journalTail,
+  probeListener,
+  redactJournalLine,
+  supervisorUnitState,
+};

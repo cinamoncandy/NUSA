@@ -6,6 +6,7 @@ const {
   createHistoricalDatasetManifest,
   runWalkForwardExperiment,
 } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
+const provenance = require("./helpers/research-dataset-provenance.js");
 
 const DAY = 86_400_000;
 const BASE = Date.parse("2026-08-01T00:00:00.000Z");
@@ -33,6 +34,7 @@ function dataset(createdAt) {
     candles,
     manifest: createHistoricalDatasetManifest(candles, {
       source: "test-source",
+      provenance,
       ...(createdAt == null ? {} : { createdAt }),
     }),
   };

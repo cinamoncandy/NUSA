@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
 const { validateResearchCandles, createHistoricalDatasetManifest } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
+const provenance = require("./helpers/research-dataset-provenance.js");
 
 // Shaped like real responses from Upbit's public GET /v1/candles/days -- most recent first,
 // exactly as the live API returns them. No network call in this test.
@@ -29,7 +30,7 @@ test("mapped candles pass the research dataset's own validation and manifest che
   assert.equal(validated.continuityStatus, "CONTIGUOUS");
   assert.equal(validated.missingCandleCount, 0);
 
-  const manifest = createHistoricalDatasetManifest(candles, { source: "upbit-public-api", createdAt: "2026-01-04T00:00:00.000Z" });
+  const manifest = createHistoricalDatasetManifest(candles, { source: "upbit-public-api", createdAt: "2026-01-04T00:00:00.000Z", provenance });
   assert.equal(manifest.market, "KRW-BTC");
   assert.equal(manifest.interval, "1d");
   assert.equal(manifest.candleCount, 3);

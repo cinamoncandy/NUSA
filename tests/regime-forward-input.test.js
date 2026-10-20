@@ -2,12 +2,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createHistoricalDatasetManifest } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 const { prepareForwardInput } = require("../scripts/lib/regime-forward-input");
+const provenanceV2 = require("./helpers/research-dataset-provenance.js");
 const start = Date.parse("2026-10-14T00:00:00Z");
 const end = Date.parse("2026-12-13T00:00:00Z");
 function fixture() {
   const candles = Array.from({ length: 1440 }, (_, i) => ({ market: "KRW-BTC", interval: "60m", openTime: start + i * 3600000,
     closeTime: start + (i + 1) * 3600000, open: 100, high: 101, low: 99, close: 100, volume: 1 }));
-  return { candles, evaluatedAt: end, manifest: createHistoricalDatasetManifest(candles, { source: "UPBIT_PUBLIC_CANDLES", createdAt: new Date(end).toISOString() }),
+  return { candles, evaluatedAt: end, manifest: createHistoricalDatasetManifest(candles, { source: "UPBIT_PUBLIC_CANDLES", createdAt: new Date(end).toISOString(), provenance: provenanceV2 }),
     provenance: { sourceIdentity: "UPBIT_PUBLIC_CANDLES", sourceSha: "f12a7b8216e64933c8a6f1c8c9b5797c3a8abb62", datasetVersion: 1,
       acquiredAt: end, lineage: "UPBIT_PUBLIC_CANDLES_TO_RESEARCH_CANDLE_V1", retentionPolicy: "RESEARCH_AUDIT_RETAIN" } };
 }
