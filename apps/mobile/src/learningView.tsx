@@ -4,7 +4,7 @@ import { PaperShadowMonitorView } from "./paperShadowMonitorView";
 import { buildLearningScreen } from "./learningScreenModel";
 import { buildLearningFunnel } from "./learningFunnelModel";
 import { LearningFunnel } from "./learningFunnel";
-import { InstrumentHero, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
+import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { CalmRow } from "./uiKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
@@ -40,9 +40,9 @@ export function LearningView(props: Props) {
     {model.narrowest ? <Text style={styles.narrow}>{model.narrowest}</Text> : null}
     {model.rows.length === 0 ? null : <View style={styles.labelWrap}><SectionLabel left="성과 · 모의투자" right={`${model.rows.length}`} /></View>}
     <View style={styles.list}>{model.rows.map((row, i) => <Reveal key={row.label} index={2 + i} reducedMotion={reduced}><CalmRow label={row.label} value={row.value} tone={row.tone} /></Reveal>)}</View>
-    <Pressable accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
+    <PressScale accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
       <Text style={styles.foldText}>자세히 보기 (운영 · 학습 · 재현 · 실계좌)</Text><Text style={styles.foldText}>›</Text>
-    </Pressable>
+    </PressScale>
   </ScrollView>;
 }
 

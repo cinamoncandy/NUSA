@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { LiveReadinessMonitorViewProps } from "./liveReadinessMonitorView";
 import { buildLiveGates } from "./liveGateModel";
 import { liveUnavailableMessage } from "./fieldScreensModel";
 import { buildSafetyScreen } from "./safetyScreenModel";
 import { futuresSafetyRows } from "./futuresSafetyRows";
 import { SafetyCircuit } from "./safetyCircuit";
-import { InstrumentHero, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
+import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { CalmRow } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
@@ -29,9 +29,9 @@ export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAI
       <SectionLabel left="선물 · 모의 한도" right="고정" />
       {futuresRows.map((row, i) => <Reveal key={row.label} index={i} reducedMotion={reduced}><CalmRow label={row.label} hint={row.hint} value={row.value} tone={row.tone} /></Reveal>)}
     </View>
-    <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((value) => !value)} style={styles.fold} testID="safety-advanced-toggle">
+    <PressScale accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((value) => !value)} style={styles.fold} testID="safety-advanced-toggle">
       <Text style={styles.foldText}>고급 진단 (영문 원문·코드)</Text><Text style={styles.foldText}>{open ? "접기" : "펼치기"}</Text>
-    </Pressable>
+    </PressScale>
     {open ? <View style={styles.advanced} testID="safety-advanced">
       {model.advanced.map((line) => <Text key={line} style={styles.code}>{line}</Text>)}
       {unavailableReason ? <Text style={styles.code}>reason: {unavailableReason}</Text> : null}

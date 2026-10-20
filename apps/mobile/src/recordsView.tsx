@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { buildTodayTimeline, type TimelineEvent } from "./recordsTimelineModel";
 import type { MoreDestination } from "./navigationContract";
 import { RECORDS_GROUPS } from "./recordsScreenModel";
-import { InstrumentHero, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
+import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { fieldFonts } from "./fieldFonts";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
@@ -20,7 +20,7 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
     </View>}
     {RECORDS_GROUPS.map((group, g) => <Reveal key={group.title} index={g} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left={group.title} right={`${group.items.length}`} />
-      {group.items.map((item) => <Pressable
+      {group.items.map((item) => <PressScale
         accessibilityRole="button"
         accessibilityLabel={`${item.title}, ${item.hint}`}
         key={item.destination}
@@ -33,7 +33,7 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
           <Text style={styles.hint}>{item.hint}</Text>
         </View>
         <Text style={styles.chevron}>›</Text>
-      </Pressable>)}
+      </PressScale>)}
     </Reveal>)}
     <Text style={styles.footer}>모의투자 전용 · 실거래 잠김 · AI는 의견만</Text>
   </ScrollView>;
