@@ -25,7 +25,7 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, terrain
   return <View style={dim ? styles.dim : undefined} testID="now-hero">
     <InstrumentHero index="01 / 지금" lines={[{ text: headline, color: calmToneColor(tone) }]} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
-    <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width) - 40)}>
+    <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
       {width > 0 ? <DecisionTerrain model={terrain} tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} width={width} reducedMotion={reduced} /> : null}
     </View>
     <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>

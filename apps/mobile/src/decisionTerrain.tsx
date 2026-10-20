@@ -37,9 +37,12 @@ export function DecisionTerrain({ model, tone, decisionCount, width, reducedMoti
   const drops = useRef<Drop[]>([]);
   const lastCount = useRef<number | null>(decisionCount);
   const yawDrag = useRef(0);
+  const dragBase = useRef(0);
   const lastDrag = useRef(0);
   const modelRef = useRef(model);
   modelRef.current = model;
+  const smoothRef = useRef<readonly (readonly { readonly h: number; readonly seen: boolean }[])[]>([]);
+  smoothRef.current = useMemo(() => model.rows.map((r) => smoothTerrainRow(r.values)), [model]);
   const toneRef = useRef(tone);
   toneRef.current = tone;
 
@@ -57,16 +60,18 @@ export function DecisionTerrain({ model, tone, decisionCount, width, reducedMoti
     lastCount.current = decisionCount;
     if (reducedMotion !== false || prev == null || decisionCount == null || decisionCount <= prev) return;
     const n = Math.min(MAX_DROPS, decisionCount - prev), now = Date.now();
-    for (let i = 0; i < n; i += 1) drops.current.push({ born: now + i * 90, at: Math.max(0, modelRef.current.progress - i * 0.004) });
+    const head = liveProgress(modelRef.current, now);
+    for (let i = 0; i < n; i += 1) drops.current.push({ born: now + i * 90, at: Math.max(0, head - i * 0.004) });
   }, [decisionCount, reducedMotion]);
 
   useEffect(() => { gateBorn.current = tone === "limit" ? Date.now() : null; }, [tone]);
 
   const pan = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-    onPanResponderGrant: () => { lastDrag.current = Date.now(); },
-    onPanResponderMove: (_e, g) => { yawDrag.current = Math.max(-0.7, Math.min(0.7, g.dx * 0.005)); lastDrag.current = Date.now(); },
+    onPanResponderGrant: () => { dragBase.current = yawDrag.current; lastDrag.current = Date.now(); },
+    onPanResponderMove: (_e, g) => { yawDrag.current = Math.max(-0.7, Math.min(0.7, dragBase.current + g.dx * 0.005)); lastDrag.current = Date.now(); },
     onPanResponderRelease: () => { lastDrag.current = Date.now(); },
+    onPanResponderTerminate: () => { lastDrag.current = Date.now(); },
     onPanResponderTerminationRequest: () => true,
   }), []);
 
@@ -79,9 +84,10 @@ export function DecisionTerrain({ model, tone, decisionCount, width, reducedMoti
       const drift = still ? 0 : Math.sin(t * 0.21) * 0.26;
       const cam = terrainCamera(width, height, -0.32 + drift + yawDrag.current, still ? 1 : Math.min(1, t / INTRO_S));
       drops.current = drops.current.filter((d) => nowMs - d.born < DROP_MS);
-      setPicture(createPicture((canvas) => renderTerrain(canvas, { model: m, tone: toneRef.current, cam, t, nowMs, still, drops: drops.current, gateBorn: gateBorn.current, paints, colors })));
+      setPicture(createPicture((canvas) => renderTerrain(canvas, { model: m, smooth: smoothRef.current, progress: still ? m.progress : liveProgress(m, nowMs), tone: toneRef.current, cam, t, nowMs, still, drops: drops.current, gateBorn: gateBorn.current, paints, colors })));
     };
-    if (reducedMotion !== false) { draw(Date.now(), true); return undefined; }
+    // Reduce-motion (or not yet known): the settled-frame effect below draws; no loop starts.
+    if (reducedMotion !== false) return undefined;
     born.current = Date.now();
     let alive = true, last = 0, frame = 0;
     const loop = (ts: number) => {
@@ -97,7 +103,8 @@ export function DecisionTerrain({ model, tone, decisionCount, width, reducedMoti
   useEffect(() => {
     if (reducedMotion === false || width <= 0) return;
     const cam = terrainCamera(width, height, -0.32, 1);
-    setPicture(createPicture((canvas) => renderTerrain(canvas, { model, tone, cam, t: 99, nowMs: Date.now(), still: true, drops: [], gateBorn: null, paints, colors })));
+    const smooth = model.rows.map((r) => smoothTerrainRow(r.values));
+    setPicture(createPicture((canvas) => renderTerrain(canvas, { model, smooth, progress: model.progress, tone, cam, t: 99, nowMs: Date.now(), still: true, drops: [], gateBorn: null, paints, colors })));
   }, [model, tone, reducedMotion, width, height, paints, colors]);
 
   const firstHour = model.rows[0]?.hour ?? 9;
@@ -118,14 +125,20 @@ export function DecisionTerrain({ model, tone, decisionCount, width, reducedMoti
   </View>;
 }
 
+/** The write head moves with the clock between snapshots, inside the current hour row (it stops at the row's end until the next snapshot adds a row). */
+function liveProgress(model: DecisionTerrainModel, nowMs: number): number {
+  const live = (nowMs % 3_600_000) / 3_600_000;
+  return live >= model.progress ? live : model.progress;
+}
+
 interface RenderInput {
-  readonly model: DecisionTerrainModel; readonly tone: Tone; readonly cam: TerrainCamera; readonly t: number; readonly nowMs: number; readonly still: boolean;
+  readonly model: DecisionTerrainModel; readonly smooth: readonly (readonly { readonly h: number; readonly seen: boolean }[])[]; readonly progress: number; readonly tone: Tone; readonly cam: TerrainCamera; readonly t: number; readonly nowMs: number; readonly still: boolean;
   readonly drops: readonly Drop[]; readonly gateBorn: number | null;
   readonly paints: { readonly stroke: SkPaint; readonly dashed: SkPaint; readonly fill: SkPaint };
   readonly colors: { readonly ink: Float32Array; readonly muted: Float32Array; readonly line: Float32Array; readonly ground: Float32Array; readonly order: Float32Array; readonly amber: Float32Array };
 }
 
-function renderTerrain(canvas: SkCanvas, { model, tone, cam, t, nowMs, still, drops, gateBorn, paints, colors }: RenderInput): void {
+function renderTerrain(canvas: SkCanvas, { model, smooth: smoothRows, progress, tone, cam, t, nowMs, still, drops, gateBorn, paints, colors }: RenderInput): void {
   const { stroke, dashed, fill } = paints;
   const P = (x: number, y: number, z: number) => projectTerrain(x, y, z, cam);
   const rows = model.rows, R = rows.length;
@@ -164,17 +177,20 @@ function renderTerrain(canvas: SkCanvas, { model, tone, cam, t, nowMs, still, dr
     stroke.setAlphaf(1); stroke.setStrokeWidth(1.5); canvas.drawPath(path, stroke);
   };
 
+  let nowHeights: readonly number[] = [];
   for (let k = 0; k < R; k += 1) {
     gate(k);
     const row = rows[k]!, z = zOf(k), isNow = k === R - 1;
     const fog = Math.pow(1 - Math.min(1, z / (TERRAIN_ROW_DZ * Math.max(1, R - 1) + 1e-6)), 1.15);
     const grow = still ? 1 : easeOutCubic((t - 0.25 - k * 0.035) / 0.6);
-    const smooth = smoothTerrainRow(row.values);
-    const pts = smooth.map((s, i) => {
+    const smooth = smoothRows[k] ?? smoothTerrainRow(row.values);
+    const hs = smooth.map((s, i) => {
       let h = s.h * TERRAIN_HEIGHT * grow;
-      if (isNow && !still) { h += lift(i); if (i / (TERRAIN_POINTS - 1) <= model.progress) h += Math.sin(i * 0.55 - nowMs * 0.006) * 0.006; }
-      return P(xOf(i), h, z);
+      if (isNow && !still) { h += lift(i); if (i / (TERRAIN_POINTS - 1) <= progress) h += Math.sin(i * 0.55 - nowMs * 0.006) * 0.006; }
+      return h;
     });
+    const pts = hs.map((h, i) => P(xOf(i), h, z));
+    if (isNow) nowHeights = hs;
     const g0 = P(1, 0, z), g1 = P(-1, 0, z);
     const skirt = Skia.Path.Make(); skirt.moveTo(pts[0]!.x, pts[0]!.y); for (const p of pts) skirt.lineTo(p.x, p.y); skirt.lineTo(g0.x, g0.y); skirt.lineTo(g1.x, g1.y); skirt.close();
     fill.setColor(colors.ground); fill.setAlphaf(1); canvas.drawPath(skirt, fill);
@@ -182,19 +198,19 @@ function renderTerrain(canvas: SkCanvas, { model, tone, cam, t, nowMs, still, dr
     const color = amberRow ? colors.amber : colors.ink;
     const seenAny = smooth.some((s) => s.seen);
     if (isNow) {
-      const cut = Math.max(1, Math.floor(model.progress * (TERRAIN_POINTS - 1)));
+      const cut = Math.max(1, Math.floor(progress * (TERRAIN_POINTS - 1)));
       const solid = Skia.Path.Make(); solid.moveTo(pts[0]!.x, pts[0]!.y); for (let i = 1; i <= cut; i += 1) solid.lineTo(pts[i]!.x, pts[i]!.y);
       stroke.setColor(color); stroke.setStrokeWidth(1.8); stroke.setAlphaf(seenAny ? 1 : 0.5); canvas.drawPath(solid, stroke);
       const rest = Skia.Path.Make(); rest.moveTo(pts[cut]!.x, pts[cut]!.y); for (let i = cut + 1; i < TERRAIN_POINTS; i += 1) rest.lineTo(pts[i]!.x, pts[i]!.y);
       dashed.setColor(color); dashed.setStrokeWidth(1); dashed.setAlphaf(0.35); canvas.drawPath(rest, dashed);
     } else {
-      const ridge = Skia.Path.Make(); ridge.moveTo(pts[0]!.x, pts[0]!.y); for (const p of pts.slice(1)) ridge.lineTo(p.x, p.y);
+      const ridge = Skia.Path.Make(); ridge.moveTo(pts[0]!.x, pts[0]!.y); for (let i = 1; i < pts.length; i += 1) ridge.lineTo(pts[i]!.x, pts[i]!.y);
       const p = seenAny ? stroke : dashed;
       p.setColor(color); p.setStrokeWidth(1); p.setAlphaf((0.16 + 0.7 * fog) * (seenAny ? 1 : 0.6)); canvas.drawPath(ridge, p);
     }
     // PAPER orders stand on their ridge as lime beams.
     for (const at of row.orders) {
-      const i = Math.round(at * (TERRAIN_POINTS - 1)), base = pts[i]!, h = smooth[i]!.h * TERRAIN_HEIGHT * grow;
+      const i = Math.round(at * (TERRAIN_POINTS - 1)), base = pts[i]!, h = hs[i]!;
       const top = P(xOf(i), h + 0.7 * grow, z);
       stroke.setColor(colors.order); stroke.setStrokeWidth(1.5); stroke.setAlphaf(isNow ? 1 : 0.35 + 0.6 * fog); line(base, top, stroke);
       fill.setColor(colors.order); fill.setAlphaf(isNow ? 1 : 0.35 + 0.6 * fog);
@@ -203,10 +219,10 @@ function renderTerrain(canvas: SkCanvas, { model, tone, cam, t, nowMs, still, dr
   }
 
   // The write head: a hairline post, a dot on the ridge, and the needles of new decisions landing on it.
-  const z0 = zOf(R - 1), cx = -1 + 2 * model.progress;
+  const z0 = zOf(R - 1), cx = -1 + 2 * progress;
   const head = limited ? colors.amber : colors.ink;
-  const ci = Math.min(TERRAIN_POINTS - 1, Math.round(model.progress * (TERRAIN_POINTS - 1)));
-  const ridgeH = (smoothTerrainRow(rows[R - 1]!.values)[ci]?.h ?? 0) * TERRAIN_HEIGHT;
+  const ci = Math.min(TERRAIN_POINTS - 1, Math.round(progress * (TERRAIN_POINTS - 1)));
+  const ridgeH = nowHeights[ci] ?? 0;
   stroke.setColor(head); stroke.setStrokeWidth(1); stroke.setAlphaf(0.35); line(P(cx, 0, z0), P(cx, 0.95, z0), stroke);
   const dot = P(cx, ridgeH, z0); fill.setColor(head); fill.setAlphaf(1); canvas.drawCircle(dot.x, dot.y, 3, fill);
   for (const d of drops) {

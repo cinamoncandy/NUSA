@@ -34,6 +34,8 @@ test("orders become row positions; the loss-limit stop maps onto a visible row",
   assert.deepEqual(m.rows[1]!.orders, [(2 + 0.5) / 12]);
   assert.deepEqual(m.stop, { row: 2, at: 0.25 });
   assert.equal(buildDecisionTerrain({ trace: null, now, limitReachedAt: now + 1 }).stop, null, "a future stop is ignored");
+  const late = WINDOW + 20 * H;
+  assert.deepEqual(buildDecisionTerrain({ trace: null, now: late, limitReachedAt: WINDOW + H, maxRows: 4 }).stop, { row: 0, at: 0 }, "a stop before the oldest visible hour holds every visible row");
 });
 
 test("missing, malformed or other-day traces draw no terrain but keep the clock", () => {
