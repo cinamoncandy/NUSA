@@ -1,14 +1,15 @@
 id: WO-OPS-20261020-RESEARCH-CANDLE-STALL
 title: "Research 1m candle series stalled since 2026-10-17; canonical dataset eligibility"
 status: PARTIALLY_RESOLVED
-fresh_verified_at: "2026-10-20T11:50:00Z"
-fresh_main_sha: "1664103f530ab4785670bcafcdbe2fbe0dea60ba"
+fresh_verified_at: "2026-10-20T12:28:00Z"
+fresh_main_sha: "1b4a242941492f61bc4587f96c8ac2694b586352"
 fresh_oracle_runtime_sha: "1664103f530ab4785670bcafcdbe2fbe0dea60ba"
-found: "2026-10-20 while triaging the host and the closed-learning stall. Exact-main runtime is healthy and collecting, but research experiments remain SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND and closed learning has cyclesRecorded=0 / bootstrap=RESEARCH_NOT_DEPLOYABLE."
+runtime_main_alignment: "STALE_BY_POST_EVIDENCE_MAIN_ADVANCE"
+found: "Protected main advanced after the prior evidence checkpoint, while Oracle PAPER remains healthy on the previous cloud release. Research experiments remain SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND and closed learning remains cyclesRecorded=0 / bootstrap=RESEARCH_NOT_DEPLOYABLE. The first broken data transition is unchanged."
 root_cause: "Commit 11cf0b4db (2026-10-17) made aggregateClosedCandles refuse a batch with more than one sourceFingerprint. Every ticker observation carried its own per-message fingerprint, so every candle collection pass threw and researchExperimentComposition discarded the error. No 1m research candle was written after 10-17 until the REST-only repair."
-fix: "PR #2828 repaired the series head: only Upbit REST candles with raw-source receipts and volume write the canonical 1m series; ticker collection is a no-op; fillRecentGaps reaches the newest closed minute. Fresh exact-main 1664103f confirms the runtime is collecting and the head advances."
+fix: "PR #2828 repaired the series head: only Upbit REST candles with raw-source receipts and volume write the canonical 1m series; ticker collection is a no-op; fillRecentGaps reaches the newest closed minute. Fresh runtime verification confirms the REST-backed series head continues to advance."
 first_broken_transition: "verified contiguous 12-day Upbit 1m raw-source window -> sealed canonical dataset manifest"
-remaining_blocker: "The current 12-day canonical materialization window is not eligible. Fresh read-only DB verification on exact-main found 17,280 required close slots, 16,977 stored rows, 303 missing closes, and 12,407 stored rows without volume/verified raw-source coverage. The last legacy volume-less row closes at 2026-10-17T02:30:00Z. Separately, all 303 missing closes form one real-source gap from 2026-10-18T17:02:00Z through 2026-10-18T22:04:00Z. Direct read-only Upbit API verification shows the source jumps from the 17:00 candle to the 22:04 candle, so the gap cannot be recovered by re-fetching and must not be synthesized under missingCandlePolicy=REJECT."
+remaining_blocker: "The current 12-day canonical materialization window is still not eligible. Fresh read-only DB verification found 17,280 required close slots, 16,977 stored rows, 303 missing closes, and 12,283 stored rows in the current window without explicit volume. The last legacy volume-less row still closes at 2026-10-17T02:30:00Z. All 303 missing closes remain the same real-source gap from 2026-10-18T17:02:00Z through 2026-10-18T22:04:00Z. Prior direct read-only Upbit API verification showed the source jumps from the 17:00 candle to the 22:04 candle, so the gap cannot be recovered by re-fetching and must not be synthesized under missingCandlePolicy=REJECT."
 raw_source_evidence:
   source: "UPBIT_PUBLIC_CANDLES /v1/candles/minutes/1"
   market: "KRW-XRP"
@@ -16,8 +17,13 @@ raw_source_evidence:
   source_observation: "Around the gap the public source returns 2026-10-18T17:00:00 then 2026-10-18T22:04:00 candle starts; no source candles exist for the intervening minutes."
   synthetic_fill_allowed: false
 runtime_evidence:
-  research_candle_count: 38565
+  research_candle_count_health: 38655
+  research_candle_count_db: 38689
   research_required_candles: 15840
+  canonical_window_required_slots: 17280
+  canonical_window_stored_rows: 16977
+  canonical_window_missing_slots: 303
+  canonical_window_volume_ineligible_rows: 12283
   manifest_count: 0
   experiment_sessions_started: 0
   experiment_block_reason: "SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND"
@@ -33,7 +39,7 @@ earliest_natural_eligibility:
 canonical_owner: "NUSA 데이터 무결성"
 supporting_owners:
   - "NUSA 서버 자동화: keep REST collection, disk headroom and scheduled runtime healthy; no data rewrite"
-  - "NUSA 검증 런타임: after eligibility, independently verify exact-main manifest -> Research -> restart/replay continuity"
+  - "NUSA 검증 런타임: validate this AIPOS PR on its current exact head; independently verify exact-main runtime and, after eligibility, manifest -> Research -> restart/replay continuity"
   - "NUSA 학습루프: remain downstream-blocked until a sealed manifest and Research N+1 exist"
   - "NUSA 개발: no threshold/policy weakening; implement only if a new evidence-preserving defect is proven"
 decision:
@@ -44,7 +50,8 @@ decision:
 next_canonical_transition: "rolling window becomes fully raw-source eligible -> materialize schema-v2 dataset manifest -> fresh non-author verification -> Research N+1"
 not_a_problem:
   - "futuresCollector fundingStored/klinesStored 0 can mean no NEW rows; failures=0 remains the operative signal."
-  - "closedLearningLoop historical TICK_ERROR/PAPER_WRITER_LEASE_LOST is not the current first blocker while the exact-main process/workload are healthy."
-disk_accounting_2026_10_20: "Fresh root disk started at 91% used / 4.4 GB free. The canonical root-owned nusa-release-step prune verb was then executed: it validated release directory names, removed exactly one inactive release, preserved active 1664103f530ab4785670bcafcdbe2fbe0dea60ba and previous 9b6c99cee1750f02ae4dcb9cfe0dba429649dce5, and left nusa.service active. After prune: 88% used / 5.6 GB free. No database, backup or evidence file was deleted."
+  - "closedLearningLoop historical TICK_ERROR/PAPER_WRITER_LEASE_LOST is not the current first blocker while the process/workload are healthy."
+  - "Protected main advancing with a non-cloud change does not itself prove a data-integrity failure, but exact-main runtime alignment remains a separate Validation/Release obligation."
+disk_accounting_2026_10_20: "Canonical root-owned nusa-release-step prune removed exactly one inactive release, preserved active 1664103f530ab4785670bcafcdbe2fbe0dea60ba and previous rollback, and left nusa.service active. Fresh disk remains 88% used / about 5.6 GB free. No database, backup or evidence file was deleted."
 tooling: "PR #2829 added read-only per-directory disk diagnosis support."
 not_changed: "No risk limit, qualification threshold, capital authority, execution authority, source history or persisted candle row was changed. PAPER only; liveAuthority=NONE; productionMutationAllowed=false; realOrderAuthority=false; realTransferAuthority=false; aiAuthority=ZERO_AUTHORITY."
