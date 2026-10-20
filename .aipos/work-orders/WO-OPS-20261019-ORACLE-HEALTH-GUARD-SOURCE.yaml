@@ -5,7 +5,7 @@ owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 1949
 base_branch: main
-base_commit: 7e560405ad15b4eec8a5e46b0ad32873286df525
+base_commit: 442d93f957983e478f6098eaa4303e6c1025b948
 implementation_branch: ops/health-guard-source-1949
 authority_impact: none
 objective: "Put the already-deployed bounded Oracle health watchdog and its systemd ownership contract under repository review so host recovery behavior cannot drift outside source control."
@@ -45,6 +45,13 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
+latest_main_sync:
+  protected_main: 442d93f957983e478f6098eaa4303e6c1025b948
+  merge_commit: 8bb4d9911ff0037d5d233cf6d7412bf10221a87e
+  prior_successor_now_historical: ec109f98187f6a7e30ef16c35165d0a78762276f
+  prior_six_workflows: "All six passed on the prior SHA; those results are not release evidence for the new merge head."
+  local_validation: "Latest-main merge: 35 focused tests (29 PASS / 6 Linux-specific SKIP), validate:full PASS, security:gate PASS (0 secrets / 0 unmitigated advisories), typecheck PASS, build PASS. Exact-head CI/workflows remain mandatory after the AIPOS receipt commit."
+  next: "Push this AIPOS update, then fresh-check PR head/base and all six workflows; request Validator only if current and green. Draft stays; no host install, Audit, Release, or merge."
 rollback: "Revert this source-control commit. The existing host watchdog is not changed by the PR itself; any host installation remains an explicit reviewed infrastructure operation."
 verification_commands:
   - node --test tests/oracle-health-guard.test.js
