@@ -29,8 +29,17 @@ export function SectionLabel({ left, right = null }: { readonly left: string; re
   </View>;
 }
 
-export function Panel({ children, style }: { readonly children: React.ReactNode; readonly style?: StyleProp<ViewStyle> }) {
+export function Panel({ children, style, scan = false }: { readonly children: React.ReactNode; readonly style?: StyleProp<ViewStyle>; /** One bright scan line sweeps across the panel on entry (not under reduce-motion). */ readonly scan?: boolean }) {
   const reduced = useReducedMotion();
+  const [panelWidth, setPanelWidth] = useState(0);
+  const sweep = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!scan || reduced !== false || panelWidth <= 0) return undefined;
+    sweep.setValue(0);
+    const anim = Animated.timing(sweep, { toValue: 1, duration: 700, delay: 250, easing: Easing.inOut(Easing.cubic), useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [scan, reduced, panelWidth, sweep]);
   const k = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (reduced === null) return undefined;
@@ -40,8 +49,9 @@ export function Panel({ children, style }: { readonly children: React.ReactNode;
     return () => anim.stop();
   }, [reduced, k]);
   const grow = { opacity: k, transform: [{ scale: k.interpolate({ inputRange: [0, 1], outputRange: [3, 1] }) }] };
-  return <View style={[styles.panel, style]}>
+  return <View style={[styles.panel, style]} onLayout={scan ? (e) => setPanelWidth(Math.round(e.nativeEvent.layout.width)) : undefined}>
     {children}
+    {scan && reduced === false && panelWidth > 0 ? <Animated.View pointerEvents="none" style={[styles.scan, { opacity: sweep.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, panelWidth] }) }] }]} /> : null}
     <Animated.View pointerEvents="none" style={[styles.tick, styles.tickTopLeft, grow]} />
     <Animated.View pointerEvents="none" style={[styles.tick, styles.tickBottomRight, grow]} />
   </View>;
@@ -157,6 +167,7 @@ const styles = StyleSheet.create({
   labelLeft: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 1.2 },
   labelRight: { color: calmColors.text, fontSize: readableFont(11), letterSpacing: 1.2 },
   panel: { borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, padding: 14 },
+  scan: { position: "absolute", left: 0, top: 0, bottom: 0, width: 2, backgroundColor: calmColors.text, opacity: 0.9 },
   tick: { position: "absolute", width: 8, height: 8, borderColor: calmColors.text, opacity: 0.7 },
   tickTopLeft: { left: -1, top: -1, borderLeftWidth: 1, borderTopWidth: 1 },
   tickBottomRight: { right: -1, bottom: -1, borderRightWidth: 1, borderBottomWidth: 1 },

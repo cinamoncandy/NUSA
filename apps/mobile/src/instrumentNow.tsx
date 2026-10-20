@@ -23,7 +23,7 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, stats }
     <InstrumentHero index="01 / 지금" lines={[{ text: headline, color: calmToneColor(tone) }]} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
     <Reveal index={2} reducedMotion={reduced} style={styles.panelWrap}>
-      <Panel>
+      <Panel scan>
         <SectionLabel left="판단" right={live ? "LIVE" : "—"} />
         {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={44} reducedMotion={reduced} />}
         <View onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
