@@ -105,7 +105,6 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 32, width: "100%", maxWidth: 720, alignSelf: "center" },
   brand: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 5, paddingHorizontal: 20, paddingTop: 18 },
   dim: { opacity: 0.55 },
-  block: { paddingHorizontal: 20, marginTop: 6 },
   why: { marginHorizontal: 20, marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   whyText: { color: calmColors.text, fontSize: readableFont(15), lineHeight: 23 },
   link: { color: calmColors.muted, textDecorationLine: "underline" },

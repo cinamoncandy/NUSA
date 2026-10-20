@@ -44,11 +44,14 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, terrain
 /** Account value in the instrument language: a section label, the amount in the mono display face, and the change since the start. */
 export function InstrumentEquity({ value, caption, tone, dim }: { readonly value: string; readonly caption: string | null; readonly tone: CalmTone; readonly dim: boolean }) {
   const reduced = useReducedMotion();
-  return <Reveal index={6} reducedMotion={reduced} style={[styles.equity, dim ? styles.dim : null]}>
-    <SectionLabel left="평가금액" right="모의투자" />
-    <Text style={[fieldFonts.displayStrong, styles.equityValue]} accessibilityRole="header">{value}</Text>
-    {caption ? <Text style={[fieldFonts.mono, styles.equityCaption, { color: calmToneColor(tone) }]}>{caption}</Text> : null}
-  </Reveal>;
+  // The dim sits on an outer View: Reveal animates opacity itself and would override it.
+  return <View style={dim ? styles.dim : undefined}>
+    <Reveal index={6} reducedMotion={reduced} style={styles.equity}>
+      <SectionLabel left="평가금액" right="모의투자" />
+      <Text style={[fieldFonts.displayStrong, styles.equityValue]} accessibilityRole="header">{value}</Text>
+      {caption ? <Text style={[fieldFonts.mono, styles.equityCaption, { color: calmToneColor(tone) }]}>{caption}</Text> : null}
+    </Reveal>
+  </View>;
 }
 
 const instrumentSub = { color: calmColors.muted, fontSize: readableFont(14), lineHeight: 21 } as const;
