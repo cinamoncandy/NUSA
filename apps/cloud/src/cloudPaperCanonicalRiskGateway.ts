@@ -71,8 +71,6 @@ export interface CloudPaperLossSessionSnapshot {
   readonly periodIdentity: string;
   readonly periodStartedAt: number;
   readonly lastIncrementAt: number | null;
-  /** Fill time of the loss that made the streak reach the configured limit (null below it). */
-  readonly limitReachedAt?: number | null;
 }
 
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
@@ -174,7 +172,7 @@ function dailyNotional(state: PaperAccountState, now: number): Readonly<{ dailyB
   return Object.freeze({ dailyBuyNotional, dailySellNotional });
 }
 
-function realizedLossState(state: PaperAccountState, now: number, maxConsecutiveLosses?: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number; todayCompletedSells: number; todayLosingSells: number; lastIncrementAt: number | null; limitReachedAt: number | null }> {
+function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number; todayCompletedSells: number; todayLosingSells: number; lastIncrementAt: number | null }> {
   const positions = new Map<string, { quantity: number; averageEntryPrice: number }>();
   const sells: Array<{ pnl: number; filledAt: number }> = [];
   const sellOrders = new Map<string, { pnl: number; filledAt: number }>();
@@ -186,7 +184,7 @@ function realizedLossState(state: PaperAccountState, now: number, maxConsecutive
       positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextAverage });
       continue;
     }
-    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER, todayCompletedSells: 0, todayLosingSells: 0, lastIncrementAt: null, limitReachedAt: null });
+    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER, todayCompletedSells: 0, todayLosingSells: 0, lastIncrementAt: null });
     const pnl = (order.price - prior.averageEntryPrice) * order.quantity - order.fee;
     const nextQuantity = Math.max(0, prior.quantity - order.quantity);
     positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : prior.averageEntryPrice });
@@ -206,10 +204,7 @@ function realizedLossState(state: PaperAccountState, now: number, maxConsecutive
     consecutiveLossCount += 1;
   }
   const lastIncrementAt = consecutiveLossCount === 0 ? null : completed[completed.length - 1]!.filledAt;
-  // Display only: the fill of the loss that made today's streak reach the limit (later losses of the same streak do not move it).
-  const max = maxConsecutiveLosses;
-  const limitReachedAt = max != null && Number.isSafeInteger(max) && max >= 1 && consecutiveLossCount >= max ? completed[completed.length - consecutiveLossCount + max - 1]!.filledAt : null;
-  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount, todayCompletedSells: completed.length, todayLosingSells: completed.filter((sell) => sell.pnl < 0).length, lastIncrementAt, limitReachedAt });
+  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount, todayCompletedSells: completed.length, todayLosingSells: completed.filter((sell) => sell.pnl < 0).length, lastIncrementAt });
 }
 
 export interface CloudPaperCanonicalRiskGatewayOptions {
@@ -280,9 +275,9 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const symbolExposureNotional = (position?.quantity ?? 0) * input.price;
     const portfolioExposureNotional = input.state.positions.reduce((sum, item) => sum + item.quantity * item.markPrice, 0);
     const notionals = dailyNotional(input.state, input.now);
-    const lossState = realizedLossState(input.state, input.now, this.limits.maxConsecutiveLosses);
+    const lossState = realizedLossState(input.state, input.now);
     if (Number.isFinite(lossState.dailyRealizedPnL)) {
-      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, consecutiveLossLimitEnabled: this.limits.consecutiveLossLimitEnabled !== false, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt, limitReachedAt: lossState.limitReachedAt });
+      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, consecutiveLossLimitEnabled: this.limits.consecutiveLossLimitEnabled !== false, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt });
     }
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);

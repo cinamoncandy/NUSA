@@ -5,7 +5,8 @@ const path = require("node:path");
 
 test("the heartbeat lossLimit carries the day start and the last loss time, display only, from the risk session", () => {
   const runtime = fs.readFileSync(path.resolve(__dirname, "../apps/cloud/src/runtime.ts"), "utf8");
-  assert.match(runtime, /periodStartedAt: session\.periodStartedAt, \.\.\.\(session\.limitReachedAt == null \? \{\} : \{ limitReachedAt: session\.limitReachedAt \}\)/);
+  assert.match(runtime, /periodStartedAt: session\.periodStartedAt, \.\.\.\(limitReachedAt == null \? \{\} : \{ limitReachedAt \}\)/);
+  assert.match(runtime, /computeLimitReachedAt\(account\.fills, session\.evaluatedAt, session\.consecutiveLossCount, session\.maxConsecutiveLosses\)/);
 });
 
 test("the contract keeps ordered day markers and drops only a bad marker, never the loss limit", () => {
@@ -23,8 +24,7 @@ test("the contract keeps ordered day markers and drops only a bad marker, never 
   assert.deepEqual({ ...attempt({ ...base, periodStartedAt: "100" }) }, base);
 });
 
-test("the stop time is the loss that reached the limit, not a later loss of the same streak", () => {
+test("the pinned RISK gateway is not touched: the stop time is rebuilt outside it", () => {
   const gw = fs.readFileSync(path.resolve(__dirname, "../apps/cloud/src/cloudPaperCanonicalRiskGateway.ts"), "utf8");
-  assert.match(gw, /consecutiveLossCount >= max \? completed\[completed\.length - consecutiveLossCount \+ max - 1\]!\.filledAt : null/);
-  assert.match(gw, /realizedLossState\(input\.state, input\.now, this\.limits\.maxConsecutiveLosses\)/);
+  assert.doesNotMatch(gw, /limitReachedAt/);
 });
