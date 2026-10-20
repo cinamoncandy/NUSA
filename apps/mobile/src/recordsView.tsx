@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { buildTodayTimeline, type TimelineEvent } from "./recordsTimelineModel";
 import type { MoreDestination } from "./navigationContract";
 import { RECORDS_GROUPS } from "./recordsScreenModel";
-import { CalmTitle } from "./uiKit";
+import { InstrumentHero, SectionLabel, useReducedMotion } from "./instrumentKit";
+import { fieldFonts } from "./fieldFonts";
 import { calmColors } from "./uiKitModel";
 import { labelFont, readableFont } from "./designSystem";
 
@@ -11,11 +12,10 @@ import { labelFont, readableFont } from "./designSystem";
 export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (destination: MoreDestination) => void; /** Live heartbeat only (display); null when stale. */ heartbeat?: unknown }>) {
   const events = buildTodayTimeline(heartbeat, Date.now());
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="records-view">
-    <CalmTitle text="기록" />
+    <InstrumentHero index="04 / 기록" lines={[{ text: "오늘의" }, { text: "로그" }]} />
     {events.length === 0 ? null : <View style={styles.timeline} testID="records-today" accessibilityLabel={`오늘: ${events.map((e) => `${e.time} ${e.text}`).join(", ")}`}>
-      <Text style={styles.groupTitle}>오늘 (한국 시간)</Text>
-      <View style={styles.rail} />
-      {events.map((event) => <TimelineRow key={`${event.at}-${event.text}`} event={event} />)}
+      <SectionLabel left="오늘 · 한국 시간" right={`${events.length}`} />
+      {events.map((event, i) => <TimelineRow key={`${event.at}-${event.text}`} event={event} last={i === events.length - 1} />)}
     </View>}
     {RECORDS_GROUPS.map((group) => <View key={group.title} style={styles.group}>
       <Text style={styles.groupTitle}>{group.title}</Text>
@@ -38,45 +38,48 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
   </ScrollView>;
 }
 
-function TimelineRow({ event }: { readonly event: TimelineEvent }) {
-  const [reducedMotion, setReducedMotion] = useState(true);
-  const pulse = useRef(new Animated.Value(0)).current;
+// One log line: mono time, a tag only where the tone carries meaning, the text. The live line ends in a blinking cursor; it stops
+// when the OS reduce-motion setting is on.
+const TAG: Partial<Record<TimelineEvent["tone"], string>> = { NOW: "NOW", ATTENTION: "한도", MUTED: "시작" };
+
+function TimelineRow({ event, last }: { readonly event: TimelineEvent; readonly last: boolean }) {
+  const reducedMotion = useReducedMotion();
+  const blink = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (mounted) setReducedMotion(v); }).catch(() => { if (mounted) setReducedMotion(false); });
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
-    return () => { mounted = false; sub.remove(); };
-  }, []);
-  useEffect(() => {
-    if (reducedMotion || event.tone !== "NOW") return undefined;
-    const loop = Animated.loop(Animated.timing(pulse, { toValue: 1, duration: 1800, easing: Easing.out(Easing.ease), useNativeDriver: true }));
+    if (reducedMotion !== false || event.tone !== "NOW") return undefined;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(blink, { toValue: 0, duration: 0, delay: 500, useNativeDriver: true }),
+      Animated.timing(blink, { toValue: 1, duration: 0, delay: 500, useNativeDriver: true }),
+    ]));
     loop.start();
     return () => loop.stop();
-  }, [reducedMotion, event.tone, pulse]);
-  const color = event.tone === "NOW" ? calmColors.order : event.tone === "ATTENTION" ? calmColors.attention : event.tone === "MUTED" ? calmColors.muted : calmColors.text;
-  return <View style={styles.event}>
-    <View style={styles.dotBox} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {event.tone === "NOW" && !reducedMotion ? <Animated.View style={[styles.halo, { backgroundColor: color, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.4] }) }] }]} /> : null}
-      <View style={[event.tone === "NOW" ? styles.dotNow : styles.dot, { backgroundColor: color }]} />
-    </View>
+  }, [reducedMotion, event.tone, blink]);
+  const amber = event.tone === "ATTENTION";
+  const now = event.tone === "NOW";
+  const tag = TAG[event.tone];
+  return <View style={[styles.event, last ? styles.eventLast : null]}>
+    <Text style={[fieldFonts.mono, styles.eventTime, now ? { color: calmColors.text } : null]}>{event.time}</Text>
     <View style={styles.eventMain}>
-      <Text style={[styles.eventTime, event.tone === "NOW" ? { color: calmColors.order } : null]}>{event.tone === "NOW" ? `지금 · ${event.time}` : event.time}</Text>
-      <Text style={[styles.eventText, event.tone === "MUTED" ? { color: calmColors.muted } : null]}>{event.text}</Text>
+      <View style={styles.eventLine}>
+        {tag == null ? null : <Text style={[fieldFonts.mono, styles.tag, amber ? styles.tagAmber : null]}>{tag}</Text>}
+        <Text style={[styles.eventText, event.tone === "MUTED" ? { color: calmColors.muted } : null]}>{event.text}</Text>
+        {now ? <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.cursor, { opacity: blink }]} /> : null}
+      </View>
     </View>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  timeline: { paddingHorizontal: 20, marginTop: 14, marginBottom: 6 },
-  rail: { position: "absolute", left: 26, top: 34, bottom: 10, width: 2, backgroundColor: calmColors.line },
-  event: { flexDirection: "row", gap: 12, paddingVertical: 8 },
-  dotBox: { width: 14, alignItems: "center", paddingTop: 4 },
-  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 1 },
-  dotNow: { width: 12, height: 12, borderRadius: 6 },
-  halo: { position: "absolute", top: 4, width: 12, height: 12, borderRadius: 6 },
-  eventMain: { flex: 1, gap: 2 },
-  eventTime: { color: calmColors.muted, fontSize: readableFont(12), fontFamily: "monospace" },
-  eventText: { color: calmColors.text, fontSize: readableFont(15), lineHeight: 21 },
+  timeline: { paddingHorizontal: 20, marginTop: 24, marginBottom: 6 },
+  event: { flexDirection: "row", gap: 10, paddingVertical: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
+  eventLast: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: calmColors.line },
+  eventMain: { flex: 1 },
+  eventLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  eventTime: { width: 48, color: calmColors.muted, fontSize: readableFont(12), paddingTop: 2 },
+  eventText: { color: calmColors.text, fontSize: readableFont(14), lineHeight: 20, flexShrink: 1 },
+  tag: { color: calmColors.muted, fontSize: readableFont(11), borderWidth: 1, borderColor: calmColors.line, paddingHorizontal: 5 },
+  tagAmber: { color: calmColors.attention, borderColor: calmColors.attention },
+  cursor: { width: 7, height: 14, backgroundColor: calmColors.attention },
   screen: { flex: 1, backgroundColor: calmColors.ground },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
   group: { paddingHorizontal: 20, marginTop: 14 },
