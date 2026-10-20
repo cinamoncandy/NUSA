@@ -70,3 +70,22 @@ Owner decision 2026-10-19: instead of committing the raw files, the SHA-256 mani
 evaluation re-fetches the same public history and refuses to run unless every file hash matches the committed manifest
 (`scripts/fetch-futures-history.js`, `verify()`). Closed historical bars are immutable, so the integrity guarantee is unchanged.
 No hypothesis, symbol, range, split, cost, risk limit or pass rule in §1-§8 changes.
+
+## Result 2026-10-20 (holdout evaluated once)
+Run `futures-regime-study` 39352194710 on release fd278dc35, after the history was re-fetched and matched the committed manifest.
+Full report: `research/futures/futures-regime-holdout-result.json`.
+
+**Verdict: FAIL.** Holdout, N = 50, failed §6 conditions 1, 3, 4 and 5:
+
+| Holdout N = 50 | Base costs | Doubled costs |
+| --- | --- | --- |
+| Round trips | 112 | 112 |
+| Mean net return per trip | -0.22% | -0.41% |
+| Profitable symbols | 0 / 5 | 0 / 5 |
+| SHORT P&L in DOWN months | -899 USDT | -1,282 USDT |
+| Max drawdown | 53.9% | 56.2% |
+| Liquidations | 0 | 0 |
+
+Per §6–§8: the result is recorded as FAIL, no parameter is tuned on this holdout, and futures stay research-only. The sensitivity
+runs (N = 20 / 100) are reported in the file and cannot pass the study. N = 100 also failed (drawdown 39.6%). Any idea drawn
+from them is a new hypothesis that needs a new pre-registration on new data. The owner decides any next step.

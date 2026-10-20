@@ -20,6 +20,9 @@ test("the Learning screen shows the funnel only from a live snapshot, and its mo
   assert.equal((app.match(/learningFunnel=\{snapshot\?\.operations\.heartbeat\?\.learningFunnel \?\? null\}/g) || []).length, 2, "both entries to the Learning screen");
   assert.match(view, /const funnel = buildLearningFunnel\(learningFunnel\);/);
   assert.match(view, /<PaperShadowMonitorView \{\.\.\.monitorProps\} \/>/, "the detail monitors do not receive the extra prop");
-  assert.match(funnel, /isReduceMotionEnabled\(\)/);
-  assert.match(funnel, /if \(reducedMotion \|\| width === 0\) return undefined;/);
+  assert.match(funnel, /const reducedMotion = useReducedMotion\(\);/);
+  assert.match(funnel, /if \(reducedMotion === null \|\| inner <= 0\) return undefined;/, "nothing moves before the OS answers");
+  assert.match(funnel, /if \(reducedMotion\) \{ wipe\.setValue\(1\); return undefined; \}/);
+  assert.match(funnel, /useNativeDriver: true/);
+  assert.match(funnel, /buildWaffle\(tested, discovery, holdout\)/, "the grid is the server counts, one cell per strategy");
 });

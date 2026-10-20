@@ -19,6 +19,15 @@ acceptance:
 validation:
   local: "riskGateModel tests 2, mobile-risk-gate 2, mobile-loss-limit + mobile-product-v5 14 pass; mobile tsc reports no error in the changed files. Device run NOT RUN."
 review_2026_10_19: "Independent review PASS_WITH_NOTES, no P0/P1. Fixed: dashed path drawn as segments (Android), partial-window note after a mid-day restart, no \"0 대기\" label."
+ci_repair_2026_10_20:
+  pull_request: 2820
+  base: 1f9925081d4a73ef007be6b41af6cd6caac38be1
+  prior_head: 5ae7459e25ea21f4ebe3220f93860faa378a04d0
+  root_cause: "SkPoint exposes readonly x/y, but the reusable per-frame point pool mutated values through that readonly type; exact-head CI failed with TS2540."
+  fix: "Use a local mutable pool element type and retain SkPoint only at the drawing boundary."
+  local_validation: "Mobile TypeScript PASS; root TypeScript PASS; Mobile lint PASS (215 files); all compiled mobile tests PASS (100/100); particle gate invariant tests PASS."
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_REVIEW
+  remaining: "Push to existing PR, verify exact-head CI and fresh review; hold merge until Learning technical runtime proof. Physical-device acceptance remains not run."
 remaining: "Learning (funnel), Safety (lock rings) and Records (timeline) screens from the same design, as separate PRs."
 safety:
   paper_only: true

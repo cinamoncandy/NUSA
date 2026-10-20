@@ -8,18 +8,25 @@ const flow = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/riskGat
 
 test("the Now screen tells where the flow stopped when the loss limit holds buys", () => {
   assert.match(view, /buildRiskGate\(\{ lossLimitState: lossLimit\?\.state \?\? null/);
-  assert.match(view, /gate \? <RiskGateFlow gate=\{gate\} windowNote=\{partialWindowNote\(heartbeat\?\.buyCountsSince, Date\.now\(\)\)\} \/> : <View/);
+  assert.match(view, /gate \? <RiskGateFlow gate=\{gate\} lossText=\{lossLimit\?\.text \?\? null\} windowNote=\{partialWindowNote\(heartbeat\?\.buyCountsSince, Date\.now\(\)\)\} \/> : <View/);
+  assert.match(view, /consecutiveLossCount: rawLossLimit\?\.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit\?\.maxConsecutiveLosses/);
   assert.match(view, /blocked \|\| field\.phase !== "ATTENTION" \? null/, "never over a stale, halted or degraded state");
 });
 
-test("the gate motion stops when the OS reduce-motion setting is on and uses only presentation", () => {
-  assert.match(flow, /isReduceMotionEnabled\(\)/);
-  assert.match(flow, /if \(reducedMotion\) return undefined;/);
-  assert.match(flow, /useNativeDriver: true/);
-  assert.doesNotMatch(flow, /fetch\(|apiClient|setState\(.*order/i, "no network or trading action");
+test("the instrument block keeps every loop on the native driver and stops it for reduce-motion", () => {
+  const kit = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/instrumentKit.tsx"), "utf8");
+  assert.match(kit, /isReduceMotionEnabled\(\)/);
+  assert.doesNotMatch(flow + kit, /useNativeDriver: false/);
+  assert.match(flow, /if \(reducedMotion !== false \|\| width <= 0\) return undefined;/);
+  assert.match(kit, /if \(reducedMotion !== false \|\| width <= 0\) \{ x\.setValue\(0\); return undefined; \}/);
+  assert.match(kit, /useState<boolean \| null>\(null\)/, "nothing moves before the OS answers");
+  assert.doesNotMatch(flow + kit, /fetch\(|apiClient|setState\(.*order/i, "no network or trading action");
 });
 
-test("the empty path after the gate is drawn as segments (a one-sided dashed border is solid on Android)", () => {
-  assert.doesNotMatch(flow, /borderStyle: "dashed"/);
+test("an unknown counter is left out, never drawn as 0, and the order side stays empty", () => {
+  assert.match(flow, /gate\.signals == null \? null :/);
+  assert.match(flow, /gate\.waiting == null \? null :/);
+  assert.match(flow, /\(n == null \? "\u2014"/);
   assert.match(flow, /styles\.dash/);
+  assert.doesNotMatch(flow, /borderStyle: "dashed"/, "a one-sided dashed border renders solid on Android");
 });

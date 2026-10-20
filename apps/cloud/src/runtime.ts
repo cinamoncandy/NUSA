@@ -46,7 +46,7 @@ import {
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { DashboardPrincipal } from "./mobileDashboardHttp";
-import { computeTodayRealizedPnlKrw } from "./paperTodayRealized";
+import { computeLimitReachedAt, computeTodayRealizedPnlKrw } from "./paperTodayRealized";
 import type { CloudAiRuntime } from "./ai/runtime";
 import { AI_CALIBRATION_OUTCOME_DEFINITION_ID, attributionScope, createCloudAiRuntime } from "./ai/runtime";
 import { projectAiReadOnly } from "./ai/projection";
@@ -246,11 +246,20 @@ export function startCloudRuntime(
   };
   // Display-only: the numbers and the strategy reason behind the latest canonical decision, so the app can say why nothing was traded.
   let lastDecisionDetail: PersonalPaperDecisionDetail | undefined;
+  // Display only: when today's streak reached the limit, rebuilt from the PAPER account's fills outside the pinned RISK gateway.
+  const limitReachedAtFor = (session: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number }): number | null => {
+    try {
+      const account = effectivePaperLoop?.snapshot();
+      return account == null ? null : computeLimitReachedAt(account.fills, session.evaluatedAt, session.consecutiveLossCount, session.maxConsecutiveLosses);
+    } catch { return null; }
+  };
   // Display only: the consecutive-loss limit state the canonical risk gateway last evaluated. A failing read must never affect the heartbeat.
   const lossLimitHeartbeat = (): { lossLimit?: PersonalPaperLossLimit } => {
     let session: ReturnType<NonNullable<typeof productionPaperRiskGate>["lossSession"]> = null;
     try { session = productionPaperRiskGate?.lossSession() ?? null; } catch { session = null; }
-    return session == null ? {} : { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt, ...(session.consecutiveLossLimitEnabled === undefined ? {} : { consecutiveLossLimitEnabled: session.consecutiveLossLimitEnabled }) }) };
+    if (session == null) return {};
+    const limitReachedAt = limitReachedAtFor(session);
+    return { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt, periodStartedAt: session.periodStartedAt, ...(limitReachedAt == null ? {} : { limitReachedAt }), ...(session.consecutiveLossLimitEnabled === undefined ? {} : { consecutiveLossLimitEnabled: session.consecutiveLossLimitEnabled }) }) };
   };
   // Display only: today's realized P&L from the PAPER loop's own fills, outside the RISK gateway. A failing read is ignored.
   const todayRealizedHeartbeat = (): { todayRealized?: PersonalPaperTodayRealized } => {

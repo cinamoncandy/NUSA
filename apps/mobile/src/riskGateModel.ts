@@ -10,6 +10,13 @@ export interface RiskGateInput {
   readonly paperOrderCount: number | null;
   readonly buySignalCount?: unknown;
   readonly buyBlockedCount?: unknown;
+  /** From the server's lossLimit: today's consecutive losses and the limit, for the streak cells. */
+  readonly consecutiveLossCount?: unknown;
+  readonly maxConsecutiveLosses?: unknown;
+  /** From the server's lossLimit: start of the KST day and the fill time of the loss that reached the limit. */
+  readonly periodStartedAt?: unknown;
+  readonly limitReachedAt?: unknown;
+  readonly now?: number;
 }
 
 export interface RiskGateModel {
@@ -18,6 +25,12 @@ export interface RiskGateModel {
   /** Buy signals that reached the gate and waited there; null when the server did not report it. */
   readonly waiting: number | null;
   readonly signals: number | null;
+  /** Today's decision count (always known when the gate shows). */
+  readonly decisions: number;
+  /** Consecutive losses against the limit; null unless both are valid integers and the count reached the limit. */
+  readonly streak: { readonly count: number; readonly max: number } | null;
+  /** Today's ruler: day start, the moment buys stopped (the limit-reaching loss) and now. Null unless the server sent both markers in order. */
+  readonly day: { readonly start: number; readonly stop: number; readonly now: number } | null;
 }
 
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null);
@@ -28,11 +41,19 @@ export function buildRiskGate(input: RiskGateInput): RiskGateModel | null {
   if (decisions == null || decisions === 0 || count(input.paperOrderCount) !== 0) return null;
   const signals = count(input.buySignalCount);
   const waiting = count(input.buyBlockedCount);
+  const lossCount = count(input.consecutiveLossCount);
+  const lossMax = count(input.maxConsecutiveLosses);
+  const streak = lossCount != null && lossMax != null && lossMax >= 1 && lossMax <= 20 && lossCount >= lossMax ? Object.freeze({ count: lossCount, max: lossMax }) : null;
+  const start = count(input.periodStartedAt), stop = count(input.limitReachedAt), now = input.now;
+  const day = streak != null && start != null && stop != null && typeof now === "number" && Number.isFinite(now) && start <= stop && stop <= now && now - start <= 86_400_000 ? Object.freeze({ start, stop, now }) : null;
   const fmt = (n: number) => n.toLocaleString("en-US");
   return Object.freeze({
     headline: "판단은 돌고 있어요\n새 매수는 위험 단계에서 멈춤",
     detail: waiting != null && waiting > 0 ? `매수 신호 ${fmt(waiting)}번이 문 앞에서 기다려요` : `판단 ${fmt(decisions)}번 · 새 주문 0건`,
     waiting,
     signals,
+    decisions,
+    streak,
+    day,
   });
 }
