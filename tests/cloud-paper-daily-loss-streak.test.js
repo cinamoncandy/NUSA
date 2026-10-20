@@ -56,13 +56,30 @@ test('the loss-limit counts behind a decision are published for display: today o
   let session;
   evaluate(losingRoundTrips(60_000), (gateway) => { session = gateway.lossSession(); });
   assert.deepEqual(session, { evaluatedAt: NOW, consecutiveLossCount: 3, maxConsecutiveLosses: CLOUD_PAPER_RISK_LIMITS.maxConsecutiveLosses, consecutiveLossLimitEnabled: true, todayCompletedSells: 3, todayLosingSells: 3,
-    periodIdentity: '2026-10-01', periodStartedAt: Date.parse('2026-10-01T00:00:00+09:00'), lastIncrementAt: NOW - 60_000 - 60_000 + 1_000 });
+    periodIdentity: '2026-10-01', periodStartedAt: Date.parse('2026-10-01T00:00:00+09:00'), lastIncrementAt: NOW - 60_000 - 60_000 + 1_000, limitReachedAt: NOW - 60_000 - 60_000 + 1_000 });
   evaluate(losingRoundTrips(DAY), (gateway) => { session = gateway.lossSession(); });
   assert.equal(session.todayCompletedSells, 0, 'yesterday\'s sells are not today\'s');
   assert.equal(session.consecutiveLossCount, 0);
   assert.equal(session.lastIncrementAt, null, 'no streak, no last increment');
+  assert.equal(session.limitReachedAt, null, 'below the limit there is no stop time');
   const db = new SqliteDatabase(':memory:');
   try { assert.equal(new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 100_000, sourceCommitSha: 'a'.repeat(40) }).lossSession(), null, 'nothing before the first evaluation'); } finally { db.close(); }
+});
+
+test('the display stop time is the loss that reached the limit, not a later loss of the same streak', () => {
+  // Four losing round trips: the third reaches the limit of 3, the fourth only extends the streak.
+  const fills = [];
+  for (let i = 0; i < 4; i += 1) {
+    const t = NOW - 60_000 - (4 - i) * 60_000;
+    fills.push({ id: `b${i}`, orderId: `ob${i}`, market: 'KRW-BTC', side: 'BUY', quantity: 1, price: 100, fee: 0, filledAt: t });
+    fills.push({ id: `s${i}`, orderId: `os${i}`, market: 'KRW-BTC', side: 'SELL', quantity: 1, price: 99, fee: 0, filledAt: t + 1_000 });
+  }
+  let session;
+  evaluate(fills, (gateway) => { session = gateway.lossSession(); });
+  assert.equal(CLOUD_PAPER_RISK_LIMITS.maxConsecutiveLosses, 3);
+  assert.equal(session.consecutiveLossCount, 4);
+  assert.equal(session.lastIncrementAt, NOW - 60_000 - 60_000 + 1_000, 'the fourth loss');
+  assert.equal(session.limitReachedAt, NOW - 60_000 - 2 * 60_000 + 1_000, 'the third loss is when buys stopped');
 });
 
 // The trading day is the canonical Asia/Seoul day (the same one CanonicalRiskSafetyGate and the learning rollover use), so the
