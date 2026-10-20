@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Canvas, Path, Skia } from "@shopify/react-native-skia";
 import { calmColors } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
@@ -30,11 +30,46 @@ export function SectionLabel({ left, right = null }: { readonly left: string; re
 }
 
 export function Panel({ children, style }: { readonly children: React.ReactNode; readonly style?: StyleProp<ViewStyle> }) {
+  const reduced = useReducedMotion();
+  const k = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced === null) return undefined;
+    if (reduced) { k.setValue(1); return undefined; }
+    const anim = Animated.spring(k, { toValue: 1, speed: 24, bounciness: 14, delay: 120, useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [reduced, k]);
+  const grow = { opacity: k, transform: [{ scale: k.interpolate({ inputRange: [0, 1], outputRange: [3, 1] }) }] };
   return <View style={[styles.panel, style]}>
     {children}
-    <View pointerEvents="none" style={[styles.tick, styles.tickTopLeft]} />
-    <View pointerEvents="none" style={[styles.tick, styles.tickBottomRight]} />
+    <Animated.View pointerEvents="none" style={[styles.tick, styles.tickTopLeft, grow]} />
+    <Animated.View pointerEvents="none" style={[styles.tick, styles.tickBottomRight, grow]} />
   </View>;
+}
+
+const DECODE_GLYPHS = "▮▯░▒▓01/\\<>+=";
+/** Decodes a statement left to right in about 0.6 s: unresolved characters flicker through mono glyphs, then lock. Settled text under reduce-motion. */
+function useDecoded(text: string, reduced: boolean | null): string {
+  const [shown, setShown] = useState(text);
+  useEffect(() => {
+    if (reduced !== false) { setShown(text); return undefined; }
+    const total = text.length;
+    const started = Date.now();
+    const tick = () => {
+      const locked = Math.min(total, Math.floor(((Date.now() - started) / 600) * total));
+      setShown(text.split("").map((ch, i) => (i < locked || /\s/.test(ch) ? ch : DECODE_GLYPHS[Math.floor(Math.random() * DECODE_GLYPHS.length)])).join(""));
+      if (locked >= total) clearInterval(timer);
+    };
+    const timer = setInterval(tick, 40);
+    tick();
+    return () => clearInterval(timer);
+  }, [text, reduced]);
+  return shown;
+}
+
+function HeroLine({ text, style, reduced }: { readonly text: string; readonly style: StyleProp<TextStyle>; readonly reduced: boolean | null }) {
+  const shown = useDecoded(text, reduced);
+  return <Text style={style}>{shown}</Text>;
 }
 
 /** Each digit is a 0-9 column that rolls to its value, ones place first. A changed value rolls again. */
@@ -127,10 +162,11 @@ const styles = StyleSheet.create({
 
 /** Screen opener of the instrument design: a mono index ("03 / 안전") over a large two-line statement. */
 export function InstrumentHero({ index, lines, label }: { readonly index: string; readonly lines: readonly { readonly text: string; readonly amber?: boolean; readonly color?: string }[]; readonly label?: string }) {
+  const reduced = useReducedMotion();
   return <View style={heroStyles.wrap}>
     <Text style={[fieldFonts.mono, instrumentType.index]}>{index}</Text>
     <View style={heroStyles.lines} accessible accessibilityRole="header" accessibilityLabel={label ?? lines.map((l) => l.text).join(" ")}>
-      {lines.map((l) => <Text key={l.text} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]}>{l.text}</Text>)}
+      {lines.map((l) => <HeroLine key={l.text} text={l.text} reduced={reduced} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]} />)}
     </View>
   </View>;
 }
