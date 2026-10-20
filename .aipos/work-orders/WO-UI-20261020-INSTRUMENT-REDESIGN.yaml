@@ -27,6 +27,9 @@ addendum_2026_10_20_decision_terrain:
 addendum_2026_10_20_ridgeline:
   - "Owner replaced the 3D decision terrain with the ridgeline prototype (artifact 8tTvnUZJh6y3F9UX29pAbD): '능선으로 하고 다른 시안 보여줘'. The app's main motion graphic on Now is now DecisionRidge (stacked hairline hour lines, live scan, lime order points, amber lines after the loss-limit stop); the 3D terrain component, camera and projection were removed. The model (decisionTerrainModel) and the server decision trace (#2833) are unchanged."
 
+# Addendum (futures tab): a display-only "선물" primary tab (Home/Paper/Live/Futures/More). No futures state exists on the
+# server yet, so the app passes null and the screen honestly shows "시작 전" (nothing invented). Limits come from
+# PAPER_FUTURES_OWNER_LIMITS; no limit, threshold or authority changed. Not seen on a real device.
 # Addendum (gate dots): the 실거래 tab's readiness gates are one row of dots (filled = passed, hollow = checking, amber
 # breathing = blocked) that fill in left to right; a tap shows that gate's reason. Display only, no action; reduce-motion
 # shows one settled frame. Gate data and the "통과해도 실거래는 켜지지 않아요" note are unchanged. Not seen on a real device.

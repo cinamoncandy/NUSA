@@ -16,6 +16,7 @@ export type { HomeDestination } from "./homeView";
 export { LearningView as PaperShadowMonitorView } from "./learningView";
 export { SafetyView as LiveReadinessMonitorView } from "./safetyView";
 export { RecordsView as MoreMenuView } from "./recordsView";
+export { FuturesView } from "./futuresView";
 export { TabTransition } from "./tabTransition";
 export { PortfolioView } from "./portfolioView";
 export { NotificationView } from "./notificationView";
