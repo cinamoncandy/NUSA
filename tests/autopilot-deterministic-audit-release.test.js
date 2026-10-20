@@ -118,16 +118,26 @@ test("Release recovers bounded post-merge CI and suppresses duplicate Cloudflare
   assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
 });
 
-test("Release dispatches exact-main runtime evidence and guarded downstream release workflows after post-merge CI succeeds", () => {
-  assert.match(workflow, /Dispatch exact-main runtime evidence and CI-gated downstream workflows directly/);
-  assert.match(workflow, /CURRENT_MAIN=.*branches\/main/);
-  assert.match(workflow, /CURRENT_MAIN.*MERGED_MAIN/);
-  assert.match(workflow, /actions\/workflows\/wo-0059-actual-paper-runtime\.yml\/dispatches/);
-  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-promote\.yml\/dispatches/);
-  assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
-  assert.match(workflow, /actions\/workflows\/android-stable-release-trigger\.yml\/dispatches/);
-  assert.doesNotMatch(workflow, /actions\/workflows\/android-stable-release\.yml\/dispatches/);
-  assert.match(workflow, /actions\/workflows\/windows-desktop-stable-release\.yml\/dispatches/);
+test("Release dispatches only active unowned exact-main downstream workflows after post-merge CI succeeds", () => {
+  const downstream = workflow.split("- name: Dispatch exact-main runtime evidence and CI-gated downstream workflows directly", 2)[1];
+  assert.match(downstream, /CURRENT_MAIN=.*branches\/main/);
+  assert.match(downstream, /CURRENT_MAIN.*MERGED_MAIN/);
+  assert.match(downstream, /dispatch_exact_main_downstream\(\)/);
+  assert.match(downstream, /actions\/workflows\/\$workflow.*--jq '\.state'/);
+  assert.match(downstream, /state.*disabled_manually/);
+  assert.match(downstream, /Skipping intentionally disabled downstream workflow/);
+  assert.match(downstream, /state.*active/);
+  assert.match(downstream, /Unexpected downstream workflow state/);
+  assert.match(downstream, /actions\/workflows\/\$workflow\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(downstream, /suppressing duplicate dispatch/);
+  assert.match(downstream, /actions\/workflows\/\$workflow\/dispatches/);
+  assert.match(downstream, /dispatch_exact_main_downstream wo-0059-actual-paper-runtime\.yml/);
+  assert.match(downstream, /dispatch_exact_main_downstream autopilot-cloudflare-promote\.yml/);
+  assert.match(downstream, /inputs\[head_sha\]=\$MERGED_MAIN/);
+  assert.match(downstream, /dispatch_exact_main_downstream android-stable-release-trigger\.yml/);
+  assert.doesNotMatch(downstream, /android-stable-release\.yml/);
+  assert.match(downstream, /dispatch_exact_main_downstream windows-desktop-stable-release\.yml/);
+  assert.doesNotMatch(downstream, /enable.*workflow|workflows\/.*\/enable/i, "Release must never re-enable an intentionally disabled workflow");
 });
 
 test("safety invariants remain fail-closed", () => {

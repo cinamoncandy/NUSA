@@ -2490,6 +2490,17 @@ current_mobile_home_simplify:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 
+current_ops_release_downstream_dispatch_20261021:
+  work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  issue: 2843
+  branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
+  base_sha: 4027b2c82c79a24543fe1f739d7f0e9b0e2d6a0b
+  finding: "Audit/Release 39469748838 merged #2818 and recovered post-merge CI, then failed because Android Stable Release Trigger was disabled_manually while the Release step unconditionally workflow_dispatch'ed it."
+  validation: "Focused deterministic Audit/Release tests 14/14 PASS; workflow YAML parse PASS; git diff --check PASS. Exact-head CI/companions and fresh non-author Validator remain required."
+  next: "Preserve one deterministic Release engine; skip intentionally disabled downstreams, suppress existing exact-main owners, fail closed on unexpected states, then fresh CI/Validator/Audit/Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
   status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI

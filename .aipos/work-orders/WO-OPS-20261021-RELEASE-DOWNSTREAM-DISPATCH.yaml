@@ -1,0 +1,34 @@
+id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
+title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+owner: nusa-server-automation
+repository: cinamoncandy/NUSA
+issue: 2843
+base_branch: main
+base_commit: 4027b2c82c79a24543fe1f739d7f0e9b0e2d6a0b
+implementation_branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
+authority_impact: deployment-control
+finding: "Deterministic Audit/Release run 39469748838 canonically merged PR #2818 and recovered exact-main CI, then failed only because its post-merge downstream step unconditionally workflow_dispatch'ed android-stable-release-trigger.yml while that workflow was intentionally disabled_manually; GitHub returned HTTP 422."
+first_broken_transition: "post-merge exact-main CI SUCCESS -> downstream workflow dispatch"
+root_cause: "The existing deterministic Release step assumes every optional downstream workflow is active and dispatchable. It does not read workflow state or suppress a duplicate exact-main run before dispatch."
+scope:
+  - "Reuse the existing Autopilot Deterministic Audit Release workflow; do not add a second release engine or scheduler."
+  - "Read each downstream workflow's GitHub Actions state before workflow_dispatch."
+  - "Treat disabled_manually as an explicit intentional skip without enabling the workflow."
+  - "For active workflows, suppress duplicate dispatch when an exact-main queued/in-progress/success run already owns convergence."
+  - "Fail closed on unexpected workflow states or API-read failure."
+  - "Add focused regression coverage for disabled-manually and duplicate-suppression behavior."
+acceptance:
+  - "Focused deterministic Audit/Release tests pass."
+  - "Workflow YAML parses."
+  - "git diff --check passes."
+  - "Exact-head CI and required companion workflows pass."
+  - "Fresh non-author Validator reports zero actionable P0/P1/P2 findings."
+  - "Governed Audit/Release merges only through existing nusa/release-authorized authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next: "Commit exact implementation -> fresh exact-head CI/companions -> fresh non-author Validator -> deterministic Audit/Release. Do not re-enable the Android workflow as part of this repair."

@@ -561,8 +561,36 @@ jobs:
           set -euo pipefail
           CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           if [ "$CURRENT_MAIN" != "$MERGED_MAIN" ]; then echo "Main advanced from $MERGED_MAIN to $CURRENT_MAIN; newer Release chain owns post-merge evidence."; exit 0; fi
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-promote.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release-trigger.yml/dispatches" -f ref=main
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/windows-desktop-stable-release.yml/dispatches" -f ref=main
-          echo "Dispatched Actual PAPER runtime evidence, Cloudflare Promote, Android stable trigger, and Windows Desktop Stable Release for $MERGED_MAIN."
+          dispatch_exact_main_downstream() {
+            local workflow="$1"
+            shift
+            local state runs owner
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq '.state')"
+            if [ "$state" = "disabled_manually" ]; then
+              echo "::notice::Skipping intentionally disabled downstream workflow $workflow for $MERGED_MAIN."
+              return 0
+            fi
+            if [ "$state" != "active" ]; then
+              echo "::error::Unexpected downstream workflow state: workflow=$workflow state=$state" >&2
+              return 1
+            fi
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$MERGED_MAIN&per_page=100")"
+            owner="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[]
+              | select(.head_sha == $sha and (
+                  .status == "queued" or .status == "in_progress" or .status == "pending"
+                  or .status == "waiting" or .status == "requested"
+                  or (.status == "completed" and .conclusion == "success")
+                ))]
+              | sort_by(.created_at) | reverse | .[0].id // empty' <<<"$runs")"
+            if [ -n "$owner" ]; then
+              echo "Exact-main downstream $workflow already owns convergence for $MERGED_MAIN via run $owner; suppressing duplicate dispatch."
+              return 0
+            fi
+            gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/dispatches" -f ref=main "$@"
+            echo "Dispatched exact-main downstream $workflow for $MERGED_MAIN."
+          }
+
+          dispatch_exact_main_downstream wo-0059-actual-paper-runtime.yml
+          dispatch_exact_main_downstream autopilot-cloudflare-promote.yml -f "inputs[head_sha]=$MERGED_MAIN"
+          dispatch_exact_main_downstream android-stable-release-trigger.yml
+          dispatch_exact_main_downstream windows-desktop-stable-release.yml
