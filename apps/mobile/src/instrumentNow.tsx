@@ -29,7 +29,7 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, terrain
       {width > 0 ? <DecisionTerrain model={terrain} tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} width={width} reducedMotion={reduced} /> : null}
     </View>
     <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
-      <SectionLabel left="판단 · 오늘" right={live ? "LIVE" : "—"} />
+      <SectionLabel left="판단 · 오늘" right={live ? "LIVE" : "—"} live={live} />
       {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={44} reducedMotion={reduced} />}
     </Reveal>
     <View style={styles.ledger}>
