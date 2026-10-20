@@ -1856,6 +1856,12 @@ Audited: 2026-10-20
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/instrumentKit.tsx |
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/uiKit.tsx |
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/uiKitModel.ts |
+| type | apps/mobile/src/gateDots.tsx | apps/mobile/src/liveGateModel.ts |
+| runtime | apps/mobile/src/gateDots.tsx | apps/mobile/src/gateDotsModel.ts |
+| runtime | apps/mobile/src/gateDots.tsx | apps/mobile/src/fieldFonts.tsx |
+| runtime | apps/mobile/src/gateDots.tsx | apps/mobile/src/uiKitModel.ts |
+| runtime | apps/mobile/src/gateDots.tsx | apps/mobile/src/designSystem.ts |
+| type | apps/mobile/src/gateDotsModel.ts | apps/mobile/src/liveGateModel.ts |
 | runtime | apps/mobile/src/holoSphere.tsx | apps/mobile/src/fieldFonts.tsx |
 | runtime | apps/mobile/src/holoSphere.tsx | apps/mobile/src/designSystem.ts |
 | runtime | apps/mobile/src/holoSphere.tsx | apps/mobile/src/holoModel.ts |
@@ -2162,6 +2168,7 @@ Audited: 2026-10-20
 | runtime | apps/mobile/src/safetyView.tsx | apps/mobile/src/fieldScreensModel.ts |
 | runtime | apps/mobile/src/safetyView.tsx | apps/mobile/src/safetyScreenModel.ts |
 | runtime | apps/mobile/src/safetyView.tsx | apps/mobile/src/futuresSafetyRows.ts |
+| runtime | apps/mobile/src/safetyView.tsx | apps/mobile/src/gateDots.tsx |
 | runtime | apps/mobile/src/safetyView.tsx | apps/mobile/src/safetyCircuit.tsx |
 | runtime | apps/mobile/src/safetyView.tsx | apps/mobile/src/instrumentKit.tsx |
 | runtime | apps/mobile/src/safetyView.tsx | apps/mobile/src/uiKit.tsx |

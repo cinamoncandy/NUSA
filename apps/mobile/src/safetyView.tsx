@@ -5,6 +5,7 @@ import { buildLiveGates } from "./liveGateModel";
 import { liveUnavailableMessage } from "./fieldScreensModel";
 import { buildSafetyScreen } from "./safetyScreenModel";
 import { futuresSafetyRows } from "./futuresSafetyRows";
+import { GateDots } from "./gateDots";
 import { SafetyCircuit } from "./safetyCircuit";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { CalmRow } from "./uiKit";
@@ -15,14 +16,16 @@ import { readableFont } from "./designSystem";
 export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAILED", refreshing, onRefresh }: LiveReadinessMonitorViewProps) {
   const [open, setOpen] = useState(false);
   const reduced = useReducedMotion();
-  const model = buildSafetyScreen(buildLiveGates(snapshot), snapshot?.blockers ?? []);
+  const gates = buildLiveGates(snapshot);
+  const model = buildSafetyScreen(gates, snapshot?.blockers ?? []);
   const futuresRows = futuresSafetyRows();
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} testID="safety-view">
     <InstrumentHero index="03 / 실거래" lines={[{ text: "실제 돈은" }, { text: "안 움직여요" }]} />
     <SafetyCircuit />
     <View style={styles.list}>
       <SectionLabel left="실거래 준비" right="읽기 전용" />
-      {model.rows.map((row, i) => <Reveal key={row.label} index={i} reducedMotion={reduced}><CalmRow label={row.label} hint={row.hint} value={row.value} tone={row.tone} /></Reveal>)}
+      {model.rows.filter((row) => row.label === "실거래" || row.label === "AI").map((row, i) => <Reveal key={row.label} index={i} reducedMotion={reduced}><CalmRow label={row.label} hint={row.hint} value={row.value} tone={row.tone} /></Reveal>)}
+      {gates == null ? null : <GateDots gates={gates} reducedMotion={reduced} />}
       {snapshot == null ? <CalmRow label="실거래 준비 정보" hint={liveUnavailableMessage(unavailableKind)} value="받지 못함" tone="ATTENTION" /> : null}
     </View>
     <View style={[styles.list, styles.section]} testID="safety-futures">
