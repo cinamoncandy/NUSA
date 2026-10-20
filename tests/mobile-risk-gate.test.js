@@ -12,14 +12,17 @@ test("the Now screen tells where the flow stopped when the loss limit holds buys
   assert.match(view, /blocked \|\| field\.phase !== "ATTENTION" \? null/, "never over a stale, halted or degraded state");
 });
 
-test("the gate motion stops when the OS reduce-motion setting is on and uses only presentation", () => {
+test("the gate scene is a Skia particle picture; reduce-motion draws one settled still frame and no loop", () => {
   assert.match(flow, /isReduceMotionEnabled\(\)/);
-  assert.match(flow, /if \(reducedMotion\) return undefined;/);
-  assert.match(flow, /useNativeDriver: true/);
+  assert.match(flow, /from "@shopify\/react-native-skia"/);
+  assert.match(flow, /if \(reducedMotion\) \{ warmGateField\(field, 12, g\); render\(\); return undefined; \}/);
+  assert.match(flow, /cancelAnimationFrame\(frame\)/);
   assert.doesNotMatch(flow, /fetch\(|apiClient|setState\(.*order/i, "no network or trading action");
 });
 
-test("the empty path after the gate is drawn as segments (a one-sided dashed border is solid on Android)", () => {
-  assert.doesNotMatch(flow, /borderStyle: "dashed"/);
-  assert.match(flow, /styles\.dash/);
+test("the scene reads no server value and keeps the channel after the gate empty", () => {
+  const model = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/riskGateParticles.ts"), "utf8");
+  assert.doesNotMatch(model, /fetch\(|apiClient|heartbeat|snapshot|order(?:Count)?\b.*=/i);
+  assert.match(flow, /nothing went out, so the channel stays a dotted, empty line/);
+  assert.match(flow, /testID="now-risk-gate-scene"/);
 });

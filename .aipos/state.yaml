@@ -2248,6 +2248,7 @@ current_closed_loop_convergence_support_20261019:
   next: "Obtain a fresh non-author Validator verdict on the P2 fix, then canonical Audit/Release. Independently obtain natural exact-main Research qualification and genuine candidate-bound PAPER cycle/restart/replay evidence. Keep Draft; do not activate production disposition."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+
 current_cloudflare_runtime_github_credential_preflight:
   work_order: WO-20260927-PR2067-RUNTIME-GITHUB-CREDENTIAL
   status: READY_FOR_REVIEW
@@ -2422,6 +2423,19 @@ current_mobile_tab_contour:
   branch: claude/nusa-repository-j93sd8-tabs-contour
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+
+current_mobile_now_risk_gate_particles_20261020:
+  work_order: WO-UI-20261019-NOW-RISK-GATE
+  pull_request: 2820
+  base_sha: 1f9925081d4a73ef007be6b41af6cd6caac38be1
+  prior_head: 5ae7459e25ea21f4ebe3220f93860faa378a04d0
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_REVIEW
+  root_cause: "The Skia drawing API uses readonly SkPoint fields, while the reused per-frame point pool mutates x/y through SkPoint. Exact-head CI failed TypeScript with TS2540."
+  fix: "Represent only the mutable pool storage as MutablePoint; preserve SkPoint at the drawPoints boundary."
+  validation: "Mobile typecheck PASS; root typecheck PASS; mobile lint PASS (215 files); all compiled mobile tests PASS (100/100), including risk-gate particle boundaries."
+  next: "Push the minimal fix to existing PR #2820; exact-head CI and fresh review; keep merge held until Learning technical runtime proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_mobile_paper_body:
   work_order: WO-UI-20261001-PAPER-BODY
   status: READY_FOR_REVIEW
@@ -2492,6 +2506,20 @@ current_mobile_home_simplify:
   branch: claude/nusa-repository-j93sd8-home-simplify
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
+
+current_ops_oracle_stability_rollback_20261019:
+  work_order: WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK
+  status: CURRENT_MAIN_RECONVERGED_VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+  branch: fix/oracle-stability-rollback-2770
+  issue: 2770
+  pull_request: 2819
+  base_sha: 91db289a392f08aaf367cc15bec16f852d2b4edb
+  previous_validated_head: e7ef7ee02ceef1300747705585861c5f57f3922b
+  current_main_at_reconvergence: bedc3b75e79062d86702d89323d6f6eecc73274b
+  finding: "Oracle release 39242644208 passed initial authenticated PAPER readiness and Autopilot readiness, then false-rolled back when the first 5-second stability /ready proof timed out with SUPERVISOR_ACTIVE_LISTENER_BOUND; rollback also left Autopilot executing the rejected release until one bounded service restart reconverged cwd."
+  validation: "Reconverged head e7ef7ee02ceef1300747705585861c5f57f3922b had all six exact-head workflows PASS. Fresh non-author Validator found one P1 only: this state entry still described main reconvergence as pending after bedc3b75e79062d86702d89323d6f6eecc73274b had already been merged. This successor updates execution state only; e7ef7ee receipts are historical and fresh exact-head CI/Validator remain mandatory."
+  next: "Fresh exact-head CI/companions -> fresh non-author Validator with zero actionable findings -> deterministic Audit/Release -> install exact merged root-owned helper -> natural exact-main Oracle release and 180-second soak proof."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_stage_space:
   work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
@@ -3919,4 +3947,3 @@ current_research_breakout_walkforward:
   finding: "Over six consecutive 42-day windows, long-only breakouts (N=20/50/100) failed the pre-registered pass rule: 2-3 positive windows, negative average in DOWN windows, and 2x-cost survival in only 2 windows. The earlier all-positive last third came almost entirely from one +17% rally window. Re-applying the unchanged rule to 383 days of never-seen prior data reproduced the failure (2-3 positive windows, DOWN-window averages -8% to -19%, UP-window averages +7% to +9%): regime-dependent, not an edge. Not promotion evidence; no candidate is proposed for deployment."
   next: "Pre-register a regime-signal variant (no entry on a down signal) and evaluate it only on new forward data (for example the next 60 days) before any Research experiment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-

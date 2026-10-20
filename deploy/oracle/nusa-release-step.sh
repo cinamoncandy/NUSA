@@ -32,6 +32,7 @@ readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912
 readonly POST_ACTIVATION_SOAK_SECONDS=180
 readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10
 readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=15000
+readonly POST_ACTIVATION_READY_WINDOW_MS=30000
 readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000
 readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500
 
@@ -184,15 +185,19 @@ rollback_schema_compatible() {
 }
 
 rollback_and_restore() {
-  local rollback_release
+  local rollback_release rollback_legacy_ok=true
   rollback_release="$(previous_release)"
   [ -n "$rollback_release" ] || die "rollback release is unavailable"
   assert_segmented_replay_compatible "$rollback_release"
+  # Legacy rollback releases may predate Autopilot. When the rollback release does contain the
+  # canonical Autopilot unit, converge that process too; otherwise a symlink rollback can leave
+  # Autopilot executing the rejected candidate from its already-resolved cwd.
+  [ -f "${rollback_release}/deploy/oracle/nusa-autopilot.service" ] && rollback_legacy_ok=false
   NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
   bind_runtime_source_identity "$(active_release_sha)"
-  install_units_from_release "$(active_release)" true
-  enable_units true
-  restart_units true
+  install_units_from_release "$(active_release)" "$rollback_legacy_ok"
+  enable_units "$rollback_legacy_ok"
+  restart_units "$rollback_legacy_ok"
 }
 
 previous_release() {
@@ -303,11 +308,12 @@ prove_post_activation_stability() {
     systemctl is-active --quiet "$SERVICE" || return 1
     systemctl is-active --quiet "$AUTOPILOT_SERVICE" || return 1
 
-    # The initial activation readiness owns the long cold-start budget.  Soak /ready checks stay
-    # deliberately short so a real listener/lease loss fails closed quickly.  The two non-mutating
-    # mobile-owner route probes get a separate bounded proof window so one transient event-loop stall
-    # cannot consume the entire /ready budget and trigger a false rollback after readiness passed.
-    NUSA_READY_STARTUP_WAIT_MS=5000 \
+    # The initial activation readiness owns the long cold-start budget. During the bounded soak,
+    # keep each request short but allow a 30s retry window: the 1 GB Oracle host has observed
+    # startup event-loop stalls longer than 5s even after /ready first passed. A truly lost listener
+    # still fails closed within this bounded window, well inside the 180s soak. The two non-mutating
+    # mobile-owner route probes keep their separate bounded proof window.
+    NUSA_READY_STARTUP_WAIT_MS="$POST_ACTIVATION_READY_WINDOW_MS" \
       NUSA_READY_ROUTE_PROOF_WAIT_MS="$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS" \
       NUSA_READY_TIMEOUT_MS="$POST_ACTIVATION_READY_TIMEOUT_MS" \
       NUSA_READY_RETRY_DELAY_MS="$POST_ACTIVATION_READY_RETRY_DELAY_MS" \
