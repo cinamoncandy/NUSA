@@ -8,7 +8,7 @@ const flow = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/riskGat
 
 test("the Now screen tells where the flow stopped when the loss limit holds buys", () => {
   assert.match(view, /buildRiskGate\(\{ lossLimitState: lossLimit\?\.state \?\? null/);
-  assert.match(view, /gate \? <RiskGateFlow gate=\{gate\} lossText=\{lossLimit\?\.text \?\? null\} windowNote=\{partialWindowNote\(heartbeat\?\.buyCountsSince, Date\.now\(\)\)\} \/> : <View/);
+  assert.match(view, /gate \? <RiskGateFlow gate=\{gate\} lossText=\{lossLimit\?\.text \?\? null\} windowNote=\{partialWindowNote\(heartbeat\?\.buyCountsSince, Date\.now\(\)\)\} \/> : <InstrumentNow/);
   assert.match(view, /consecutiveLossCount: rawLossLimit\?\.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit\?\.maxConsecutiveLosses/);
   assert.match(view, /blocked \|\| field\.phase !== "ATTENTION" \? null/, "never over a stale, halted or degraded state");
 });

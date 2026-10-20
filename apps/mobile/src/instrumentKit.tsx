@@ -113,11 +113,11 @@ const styles = StyleSheet.create({
 });
 
 /** Screen opener of the instrument design: a mono index ("03 / 안전") over a large two-line statement. */
-export function InstrumentHero({ index, lines, label }: { readonly index: string; readonly lines: readonly { readonly text: string; readonly amber?: boolean }[]; readonly label?: string }) {
+export function InstrumentHero({ index, lines, label }: { readonly index: string; readonly lines: readonly { readonly text: string; readonly amber?: boolean; readonly color?: string }[]; readonly label?: string }) {
   return <View style={heroStyles.wrap}>
     <Text style={[fieldFonts.mono, instrumentType.index]}>{index}</Text>
     <View style={heroStyles.lines} accessible accessibilityRole="header" accessibilityLabel={label ?? lines.map((l) => l.text).join(" ")}>
-      {lines.map((l) => <Text key={l.text} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : null]}>{l.text}</Text>)}
+      {lines.map((l) => <Text key={l.text} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]}>{l.text}</Text>)}
     </View>
   </View>;
 }
