@@ -68,4 +68,4 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next: "Push the final AIPOS validation record to the existing PR branch without rewriting history; require exact-head CI/companions on that resulting SHA, then fresh independent non-author VALIDATOR. Keep Draft. Do not self-review, mark Ready, start Audit/Release, or merge from this implementation session."
+next: "Dynamically re-fetch the current protected main, PR head/base, and all required exact-head checks. If still aligned and green, hand that exact SHA to a separate fresh independent non-author VALIDATOR. Keep Draft. Do not self-review, mark Ready, start Audit/Release, or merge from this implementation session. Avoid self-referential current-head evidence in AIPOS."
