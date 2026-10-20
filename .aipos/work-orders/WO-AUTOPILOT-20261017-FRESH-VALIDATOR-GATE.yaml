@@ -1,10 +1,10 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: VERIFYING
+status: CURRENT_MAIN_RECONVERGED_AIPOS_STATE_REGISTERED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: ee7033740dbf8bc0fb95454413d28de6ee771c2f
+base_commit: 7e560405ad15b4eec8a5e46b0ad32873286df525
 branch: fix/validator-evidence-gate-2760
 issue: 2760
 authority_impact: release_governance_fail_closed
@@ -56,14 +56,16 @@ acceptance:
 validation:
   red: "tests/autopilot-fresh-validator-gate.test.js reproduced 0/3 pass on protected-main behavior before implementation."
   static_contracts: "37/37 focused workflow/control-plane/evidence tests PASS after routing and artifact enforcement; workflow authority map, action pin/input, and AIPOS YAML validators PASS."
-  build_typecheck: PENDING
-  exact_head_ci: PENDING
-  fresh_non_author_review: PENDING
+  build_typecheck: "PASS on locally validated successor worktree: pnpm run build, pnpm run typecheck, pnpm run validate:full, pnpm run preflight, pnpm run security:gate; focused tests 22/22 and full pnpm run test 1259 isolated test files PASS. Windows required Git Bash on PATH for the full suite."
+  exact_head_ci: "Historical only: fdc81d4d1694a41f0152aa5ab8908a5cccd194b9 had CI run 39014447418 and five required PAPER/safety companions PASS; these do not validate the successor head."
+  fresh_non_author_review: "Historical only: fdc81d4d1694a41f0152aa5ab8908a5cccd194b9 received FAIL, P0=0/P1=2 for stale current-main alignment and missing canonical AIPOS state registration. Both are addressed in the successor; fresh review is required."
   audit_release: PENDING
+evidence:
+  current_state_entry: .aipos/evidence/current-validator-gate-state-entry.yaml
 safety:
   paper_only_context: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next: "Finish canonical build/typecheck/full validators, commit and push one Draft PR that closes #2760, require fresh exact-head CI, then hand the exact head to a separate fresh non-author VALIDATOR. Do not self-review or mark Ready from this implementation session."
+next: "Commit and push this locally validated successor to the existing PR branch without rewriting history; then require fresh exact-head CI/companions and a separate fresh non-author VALIDATOR. Keep Draft. Do not self-review, mark Ready, start Audit/Release, or merge from this implementation session."
