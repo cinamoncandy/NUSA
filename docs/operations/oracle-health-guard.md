@@ -37,8 +37,10 @@ The deployed executable path remains `/usr/local/sbin/nusa-health-guard`. Keepin
 ## Explicit install / convergence
 
 Only install a reviewed exact source. Do not edit the database, lease rows, release symlink, or runtime environment as part of this operation.
+The updated guard and canonical release helper must be installed from the same reviewed source before enabling the guard timer. Installing only one side leaves the host on a mixed protocol that cannot guarantee atomic exclusion.
 
 ```bash
+sudo install -o root -g root -m 0755 deploy/oracle/nusa-release-step.sh /opt/nusa/bin/nusa-release-step
 sudo install -o root -g root -m 0755 deploy/oracle/nusa-health-guard /usr/local/sbin/nusa-health-guard
 sudo install -o root -g root -m 0644 deploy/oracle/nusa-health-guard.service /etc/systemd/system/nusa-health-guard.service
 sudo install -o root -g root -m 0644 deploy/oracle/nusa-health-guard.timer /etc/systemd/system/nusa-health-guard.timer
@@ -61,6 +63,7 @@ Also require byte identity between reviewed source and installed executable:
 
 ```bash
 cmp --silent deploy/oracle/nusa-health-guard /usr/local/sbin/nusa-health-guard
+cmp --silent deploy/oracle/nusa-release-step.sh /opt/nusa/bin/nusa-release-step
 ```
 
 ## Recovery marker

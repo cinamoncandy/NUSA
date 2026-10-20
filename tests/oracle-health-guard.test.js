@@ -158,3 +158,10 @@ test("systemd owner remains one bounded timer-driven guard", () => {
   assert.match(timer, /^RandomizedDelaySec=30s$/m);
   assert.match(timer, /^Persistent=true$/m);
 });
+
+test("host convergence requires matching guard and canonical release helper", () => {
+  const operations = fs.readFileSync(path.join(root, "docs/operations/oracle-health-guard.md"), "utf8");
+  assert.match(operations, /must be installed from the same reviewed source before enabling the guard timer/);
+  assert.match(operations, /deploy\/oracle\/nusa-release-step\.sh \/opt\/nusa\/bin\/nusa-release-step/);
+  assert.match(operations, /cmp --silent deploy\/oracle\/nusa-release-step\.sh \/opt\/nusa\/bin\/nusa-release-step/);
+});
