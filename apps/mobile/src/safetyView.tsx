@@ -20,7 +20,7 @@ export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAI
   const model = buildSafetyScreen(gates, snapshot?.blockers ?? []);
   const futuresRows = futuresSafetyRows();
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} testID="safety-view">
-    <InstrumentHero index="03 / 안전" lines={[{ text: "실제 돈은" }, { text: "안 움직여요" }]} />
+    <InstrumentHero index="03 / 실거래" lines={[{ text: "실제 돈은" }, { text: "안 움직여요" }]} />
     <SafetyCircuit />
     <View style={styles.list}>
       <SectionLabel left="실거래 준비" right="읽기 전용" />

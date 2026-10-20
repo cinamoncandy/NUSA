@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 test("UIUX-002 presents the canonical four-tab product navigation while preserving deeper routes", () => {
   const app = read("App.tsx");
   const contract = read("src/navigationContract.ts");
-  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "Futures", "More"\]/);
   assert.match(app, /<PrimaryNavigation/);
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);

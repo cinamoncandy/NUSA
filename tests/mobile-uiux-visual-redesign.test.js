@@ -82,7 +82,7 @@ test("Bottom navigation uses a restrained active rail with the four-destination 
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   const contract = read("src/navigationContract.ts");
   const nav = read("src/primaryNavigation.tsx");
-  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "Futures", "More"\]/);
   assert.match(nav, /backgroundColor: theme\.colors\.navSurface/);
   assert.match(nav, /backgroundColor: active \? theme\.colors\.aiSignalEnd/);
   assert.match(app, /<PrimaryNavigation/);
