@@ -1,11 +1,11 @@
 id: WO-OPS-20261020-RESEARCH-CANDLE-STALL
 title: "Research 1m candle series stalled since 2026-10-17; canonical dataset eligibility"
 status: PARTIALLY_RESOLVED
-fresh_verified_at: "2026-10-20T12:28:00Z"
-fresh_main_sha: "1b4a242941492f61bc4587f96c8ac2694b586352"
-fresh_oracle_runtime_sha: "1664103f530ab4785670bcafcdbe2fbe0dea60ba"
-runtime_main_alignment: "STALE_BY_POST_EVIDENCE_MAIN_ADVANCE"
-found: "Protected main advanced after the prior evidence checkpoint, while Oracle PAPER remains healthy on the previous cloud release. Research experiments remain SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND and closed learning remains cyclesRecorded=0 / bootstrap=RESEARCH_NOT_DEPLOYABLE. The first broken data transition is unchanged."
+fresh_verified_at: "2026-10-20T17:50:50Z"
+fresh_main_sha: "7255ea23934df417ac68c42c44de6673d07f803a"
+fresh_oracle_runtime_sha: "1b4a242941492f61bc4587f96c8ac2694b586352"
+runtime_main_alignment: "STALE_BY_PROTECTED_MAIN_ADVANCE"
+found: "Fresh protected main is 7255ea23934df417ac68c42c44de6673d07f803a. Oracle PAPER release attempt 2 completed DEPLOYED for 1b4a242941492f61bc4587f96c8ac2694b586352 with authenticated readiness and 180-second soak PASS. At 2026-10-20T17:50Z the host current symlink and runtime SHA match 1b4a2429; local/public workload is HEALTHY, but runtime is behind current main. Research experiments still skip for missing sealed dataset manifest and closed learning remains cyclesRecorded=0 / bootstrap=RESEARCH_NOT_DEPLOYABLE. The first broken data transition is unchanged."
 root_cause: "Commit 11cf0b4db (2026-10-17) made aggregateClosedCandles refuse a batch with more than one sourceFingerprint. Every ticker observation carried its own per-message fingerprint, so every candle collection pass threw and researchExperimentComposition discarded the error. No 1m research candle was written after 10-17 until the REST-only repair."
 fix: "PR #2828 repaired the series head: only Upbit REST candles with raw-source receipts and volume write the canonical 1m series; ticker collection is a no-op; fillRecentGaps reaches the newest closed minute. Fresh runtime verification confirms the REST-backed series head continues to advance."
 first_broken_transition: "verified contiguous 12-day Upbit 1m raw-source window -> sealed canonical dataset manifest"
@@ -16,9 +16,27 @@ raw_source_evidence:
   observed_gap_utc: "2026-10-18T17:02:00Z..2026-10-18T22:04:00Z close slots"
   source_observation: "Around the gap the public source returns 2026-10-18T17:00:00 then 2026-10-18T22:04:00 candle starts; no source candles exist for the intervening minutes."
   synthetic_fill_allowed: false
+release_evidence:
+  run_id: 39423404154
+  attempt: 2
+  requested_sha: "1b4a242941492f61bc4587f96c8ac2694b586352"
+  result: "DEPLOYED"
+  authenticated_paper_readiness: "PASS"
+  autopilot_readiness: "PASS"
+  post_activation_soak: "180s PASS"
+  activation_at_utc: "2026-10-20T13:17:33Z"
 runtime_evidence:
-  research_candle_count_health: 38655
-  research_candle_count_db: 38689
+  observed_at_utc: "2026-10-20T17:50:50Z"
+  active_release_sha: "1b4a242941492f61bc4587f96c8ac2694b586352"
+  process_health: "HEALTHY"
+  workload_health: "HEALTHY"
+  runtime_error: null
+  heartbeat_advancing: true
+  market_events_advancing: true
+  paper_fill_count: 314
+  research_candle_count_health: 38975
+  research_candle_count_db_last_verified_at_utc: "2026-10-20T12:28:00Z"
+  research_candle_count_db_last_verified: 38689
   research_required_candles: 15840
   canonical_window_required_slots: 17280
   canonical_window_stored_rows: 16977
@@ -29,8 +47,10 @@ runtime_evidence:
   experiment_block_reason: "SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND"
   closed_learning_cycles_recorded: 0
   closed_learning_bootstrap: "RESEARCH_NOT_DEPLOYABLE"
-  process_health: "HEALTHY"
-  workload_health: "HEALTHY"
+  research_experiment_last_status: "OK"
+  research_manifest_missing: true
+  realized_periods: 68
+  closed_learning_last_blocked_reason: "TICK_ERROR"
 earliest_natural_eligibility:
   legacy_volume_less_clear_approx_utc: "2026-10-29T02:30:00Z"
   source_gap_clear_approx_utc: "2026-10-30T22:04:00Z"
@@ -52,6 +72,6 @@ not_a_problem:
   - "futuresCollector fundingStored/klinesStored 0 can mean no NEW rows; failures=0 remains the operative signal."
   - "closedLearningLoop historical TICK_ERROR/PAPER_WRITER_LEASE_LOST is not the current first blocker while the process/workload are healthy."
   - "Protected main advancing with a non-cloud change does not itself prove a data-integrity failure, but exact-main runtime alignment remains a separate Validation/Release obligation."
-disk_accounting_2026_10_20: "Canonical root-owned nusa-release-step prune removed exactly one inactive release, preserved active 1664103f530ab4785670bcafcdbe2fbe0dea60ba and previous rollback, and left nusa.service active. Fresh disk remains 88% used / about 5.6 GB free. No database, backup or evidence file was deleted."
+disk_accounting_2026_10_20: "At 2026-10-20T17:50Z the root disk was 86% used with 6,750,904 KiB available. Active release 1b4a242941492f61bc4587f96c8ac2694b586352 remained current and nusa.service active. The earlier bounded prune removed only inactive release/temp artifacts; no database, backup or evidence file was deleted."
 tooling: "PR #2829 added read-only per-directory disk diagnosis support."
 not_changed: "No risk limit, qualification threshold, capital authority, execution authority, source history or persisted candle row was changed. PAPER only; liveAuthority=NONE; productionMutationAllowed=false; realOrderAuthority=false; realTransferAuthority=false; aiAuthority=ZERO_AUTHORITY."
