@@ -133,7 +133,7 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(wrapper, /readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912/);
   assert.match(wrapper, /readonly POST_ACTIVATION_SOAK_SECONDS=180/);
   assert.match(wrapper, /readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10/);
-  assert.match(wrapper, /readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=15000/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=30000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_WINDOW_MS=30000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500/);
@@ -187,6 +187,7 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(soak, /sleep "\$POST_ACTIVATION_CHECK_INTERVAL_SECONDS"/);
   assert.match(soak, /NUSA_READY_STARTUP_WAIT_MS="\$POST_ACTIVATION_READY_WINDOW_MS"/);
   assert.match(soak, /NUSA_READY_ROUTE_PROOF_WAIT_MS="\$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS"/);
+  assert.match(wrapper, /POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=30000/);
   assert.match(soak, /NUSA_READY_TIMEOUT_MS="\$POST_ACTIVATION_READY_TIMEOUT_MS"/);
   assert.match(soak, /NUSA_READY_RETRY_DELAY_MS="\$POST_ACTIVATION_READY_RETRY_DELAY_MS"/);
 
