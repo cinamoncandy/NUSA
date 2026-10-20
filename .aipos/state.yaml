@@ -2492,7 +2492,7 @@ current_mobile_home_simplify:
 
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
-  status: VERIFYING_SUCCESSOR_AFTER_AIPOS_RECEIPT
+  status: LOCAL_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI
   issue: 1949
   pull_request: 2818
   branch: ops/health-guard-source-1949
@@ -2503,13 +2503,15 @@ current_ops_oracle_health_guard_lock:
   latest_protected_main: 442d93f957983e478f6098eaa4303e6c1025b948
   prior_successor_now_historical: ec109f98187f6a7e30ef16c35165d0a78762276f
   latest_main_sync_local_validation: "35 focused tests: 29 PASS / 6 Linux-specific SKIP; validate:full PASS; security:gate PASS (0 secrets, 0 unmitigated advisories); typecheck PASS; build PASS. These are pre-AIPOS-receipt local results; new exact-head workflows still required."
+  rollback_toctou_repair: "Found and fixed a remaining race: standalone rollback previously read and compatibility-checked .previous-release before taking the shared flock, while atomic-deploy.js consumed the mutable pointer only after lock acquisition. Rollback now locks before target read/validation/switch; regression asserts that order."
+  latest_local_validation: "Focused tests 5 PASS / 4 SKIP (Windows lacks sh/flock); validate:full PASS; security:gate PASS (0 secrets, 0 unmitigated advisories); typecheck/build command completed without reported compiler errors; git diff --check PASS. POSIX shell and flock runtime cases remain delegated to Linux exact-head CI."
   finding: "Fresh main sync confirms a TOCTOU race: health guard uses pgrep suppression before marker mutation/restart while canonical release activation has no shared exclusion. The prior work order excluded the only canonical activation path despite requiring suppression."
   scope_amendment: "Owner approved shared flock /run/lock/nusa-paper-activation.lock across canonical release verbs that move the active release, install active units, or restart PAPER, plus the health guard. No new helper, scheduler, watchdog, control plane, or host installation. Guard rechecks workload and marker conditions under lock."
   prior_exact_head: bf742859fd549c04d1fb1353b27999a3240ca9ca
   prior_exact_head_workflows: "All six required workflows PASS: CI 39383215746; Actual PAPER 39383215742; Capability Guard 39383215782; Activation 39383215627; Transport 39383215667; Read-only Broker 39383215624."
   prior_validator_request_comment: 6285334358
   verification: "Earlier successor ec109f98187f6a7e30ef16c35165d0a78762276f had all six exact-head workflows PASS (CI 39384029204; Actual PAPER 39384029354; capability 39384029236; activation 39384029262; transport 39384029203; read-only broker 39384029259), but protected main advanced to 442d93f957983e478f6098eaa4303e6c1025b948 after PR #2832 merged, so that validation is historical for release readiness. Latest main was merged into this branch; the new resulting SHA requires exact-head checks and a fresh Validator. No host installation or mutation."
-  next: "Record the latest-main merge commit, push the AIPOS update, then dynamically verify this successor's exact head/base and six workflows. If aligned and green, request a fresh non-author Validator for that SHA. Keep Draft; Audit/Release only after formal acceptance."
+  next: "Commit and push the rollback lock-order repair with this AIPOS receipt, then dynamically verify the new exact head/base and all six required workflows. If aligned and green, request a fresh non-author Validator for that SHA. Keep Draft; no host installation, Audit, Release, or merge before formal gates."
   safety:
     paper_only: true
     liveAuthority: NONE

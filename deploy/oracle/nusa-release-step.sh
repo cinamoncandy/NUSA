@@ -410,10 +410,10 @@ case "$verb" in
     ;;
 
   rollback)
+    acquire_paper_activation_lock
     rollback_release="$(previous_release)"
     [ -n "$rollback_release" ] || die "rollback release is unavailable"
     assert_segmented_replay_compatible "$rollback_release"
-    acquire_paper_activation_lock
     NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
     bind_runtime_source_identity "$(active_release_sha)"
     ;;

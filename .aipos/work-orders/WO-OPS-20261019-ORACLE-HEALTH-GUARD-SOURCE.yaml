@@ -17,7 +17,7 @@ scope:
   - "Add structural regression coverage for workload-aware PUBLIC_MARKET_FAILED recovery, cooldown/deduplication, release suppression, upstream reachability and fail-closed behavior."
   - "Document explicit reviewed-source installation and healthy no-op acceptance."
 exclusions:
-  - "Acquire the shared lock in every canonical helper verb that can move the active release, install active units, or restart PAPER; do not implicitly install a new privileged helper from ordinary releases."
+  - "Acquire the shared lock before reading or validating mutable active/previous release state in every canonical helper verb that can move the active release, install active units, or restart PAPER; do not implicitly install a new privileged helper from ordinary releases."
   - "Do not add another timer, scheduler, watchdog or control plane."
   - "Do not edit the database, writer lease, release symlink, runtime environment, Risk, Governance, qualification, OOS, cost or sample thresholds."
   - "Do not enable LIVE/REAL authority or broker mutation."
@@ -34,7 +34,7 @@ acceptance:
   - "POSIX shell syntax passes."
   - "Recovery is eligible only for workload STALE + PUBLIC_MARKET_FAILED with a valid last market timestamp and reachable Upbit public REST."
   - "The same outage cannot trigger a repeat restart and a 15-minute cooldown bounds different failures."
-  - "All canonical release mutations and watchdog PAPER recovery serialize on the same stable root-owned flock; a busy lock makes the watchdog a no-op before marker mutation or PAPER restart."
+  - "All canonical release mutations and watchdog PAPER recovery serialize on the same stable root-owned flock; rollback target discovery and compatibility validation occur under that lock, and a busy lock makes the watchdog a no-op before marker mutation or PAPER restart."
   - "The watchdog rechecks workload failure identity, marker dedupe, and cooldown after acquiring the lock; lock ownership releases automatically after process failure/exit."
   - "Healthy workload execution is a no-op and preserves the PAPER PID."
   - "Unreachable PAPER endpoint remains fail-closed with no blind restart."
@@ -61,4 +61,4 @@ verification_commands:
   - pnpm run validate:full
   - pnpm run security:gate
 validation: "Prior exact PR head bf742859fd549c04d1fb1353b27999a3240ca9ca was current-base aligned and all six required workflows PASS (CI 39383215746; PAPER 39383215742; capability 39383215782; activation 39383215627; transport 39383215667; read-only broker 39383215624). Local tests/typecheck/build/validate:full/security:gate also PASS, with platform-specific sh/flock cases delegated to Linux CI. A fresh Validator request was posted as PR comment 6285334358 for that head. This AIPOS receipt commit makes those checks and the request historical; no host mutation is authorized."
-next: "Dynamically re-fetch current protected main, PR head/base, and all six required checks for the successor created by this AIPOS receipt. If aligned and green, request a fresh non-author Validator on that successor; then canonical Audit/Release. Keep Draft; do not install, self-approve, or merge."
+next: "Rollback previously read and compatibility-checked .previous-release before taking the shared lock, allowing the validated target to differ from the target consumed by atomic-deploy.js after a concurrent activation. The rollback branch now acquires the shared lock first and performs target discovery, compatibility validation, and switch while held; structural regression asserts this order. Re-run the work-order verification commands, then record a new exact-head commit and re-fetch protected main, PR head/base, all six required checks, and fresh non-author Validator. Keep Draft; do not install, self-approve, Audit, Release, or merge."

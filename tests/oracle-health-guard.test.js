@@ -59,6 +59,10 @@ test("release activation and watchdog recovery share an atomic exclusion lock", 
     const section = release.slice(start, end + 5);
     assert.ok(section.indexOf("acquire_paper_activation_lock") < section.indexOf(mutation), `${verb} must lock before ${mutation}`);
   }
+  const rollback = release.slice(release.indexOf("  rollback)"), release.indexOf("\n  restart)"));
+  assert.ok(rollback.indexOf("acquire_paper_activation_lock") < rollback.indexOf('rollback_release="$(previous_release)"'), "rollback must lock before reading its target");
+  assert.ok(rollback.indexOf('rollback_release="$(previous_release)"') < rollback.indexOf('assert_segmented_replay_compatible "$rollback_release"'), "rollback target must be validated after it is read under lock");
+  assert.ok(rollback.indexOf('assert_segmented_replay_compatible "$rollback_release"') < rollback.indexOf("NUSA_DEPLOY_ACTION=rollback"), "rollback must validate the locked target before switching");
   const activate = release.slice(release.indexOf("  activate)"));
   assert.ok(activate.indexOf("acquire_paper_activation_lock") < activate.indexOf('node "$(script_in "$dir" atomic-deploy.js)"'));
   assert.match(release, /exec 9>>"\$ACTIVATION_LOCK_FILE"/);
