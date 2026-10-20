@@ -412,6 +412,9 @@ export class SqlitePersistedPaperPeriodStore {
       if (successorReserved) {
         throw new PersistedPaperPeriodStoreError("PERIOD_INDEX_CONFLICT", "PAPER successor identity or index is reserved by immutable disposition history", input.successor.periodId);
       }
+      if (this.list().some((item) => item.record.recordId === input.successor.periodId)) {
+        throw new PersistedPaperPeriodStoreError("RECORD_ID_CONFLICT", "PAPER successor recordId is already used by realized history", input.successor.periodId);
+      }
       const result = this.db.connection.prepare(`UPDATE ${PENDING_TABLE} SET payload_json = ?, checksum = ? WHERE period_id = ? AND checksum = ?`)
         .run(payload, checksum(payload), current.periodId, current.checksum) as { changes?: number };
       if (Number(result.changes ?? 0) !== 1) throw new PersistedPaperPeriodStoreError("PENDING_IDENTITY_CONFLICT", "pending PAPER evidence changed during disposition", current.periodId);

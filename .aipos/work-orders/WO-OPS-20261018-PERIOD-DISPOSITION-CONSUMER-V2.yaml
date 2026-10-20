@@ -61,6 +61,15 @@ validator_followup_20261020:
   unresolved_review_thread: PRRT_kwDOTUbne86uJ_ar
   latest_main_observation: fd278dc3534281abfe3a14c0056e8b25dc5219ed
   latest_main_delta: "From synced parent b032426, only mobile UI redesign files and its UI work order changed; no storage/AIPOS-state overlap or semantic dependency. GitHub reported mergeable=true after sync; strict up-to-date protection could not be read (403), recheck at release gate."
+  followup_20261020_realized_id_finding:
+    reviewed_head: ff29b9b23c662d95fbe44e8e4c9e544ef974e015
+    finding: "Fresh exact-head review found markPendingIneligible can insert a successor whose periodId already exists in realized history at an earlier index, because the pending and realized tables have separate primary keys. Later finalizePending then fails with RECORD_ID_CONFLICT."
+    change: "Before terminalizing the original pending row, reject successor periodId matching any realized recordId with RECORD_ID_CONFLICT; retain transactional rollback."
+    regression: "tests/persisted-paper-pending-disposition-resurrection.test.js verifies an earlier realized ID cannot be used by a later successor, the original remains pending and disposition count unchanged, and a fresh successor remains admissible."
+    local_validation: "Build PASS; focused resurrection regression 4/4 PASS; pnpm test PASS across 1,256 isolated test files; pnpm run validate:full PASS."
+    prior_exact_head_ci: "PASS on ff29b9b23c662d95fbe44e8e4c9e544ef974e015 — CI 39351410003; PAPER 39351410040; Capability 39351410021; Activation 39351410011; Read-only Broker 39351410016; Transport 39351410051."
+    exact_head_ci: PENDING_AFTER_SECOND_P2_REPAIR_COMMIT
+    fresh_non_author_validator: PENDING_AFTER_NEW_EXACT_HEAD_CI
   audit: PENDING
   release: PENDING
   runtime_activation: PROHIBITED

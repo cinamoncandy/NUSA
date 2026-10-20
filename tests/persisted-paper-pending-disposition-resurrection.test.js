@@ -137,6 +137,37 @@ test("a new disposition cannot raw-insert a successor identity reserved by prior
   }
 });
 
+test("a new disposition cannot reuse a realized record id for its successor", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const store = new SqlitePersistedPaperPeriodStore(db);
+    store.append(realized("already-realized", 20, 100));
+    const original = pending(21, 200, "next-original");
+    store.putPending(original);
+    const reason = {
+      stage: "PERIOD_CLOSE",
+      code: "INCOMPLETE_EXECUTION_COST_EVIDENCE",
+      boundaryAt: 300,
+      sourceRuntimeSha: null,
+      blockedEvidenceFingerprintSha256: hash("incomplete successor id conflict"),
+    };
+
+    assert.throws(
+      () => store.markPendingIneligible({ original, successor: pending(22, 300, "already-realized"), reason }),
+      (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "RECORD_ID_CONFLICT",
+      "a successor must not reserve an id already present in realized history",
+    );
+
+    assert.deepEqual(store.getPending(original.periodId), original, "failed disposition leaves the original pending row untouched");
+    assert.equal(store.listPendingDispositions().length, 0);
+    assert.equal(store.list().length, 1);
+    store.markPendingIneligible({ original, successor: pending(22, 300, "fresh-successor"), reason });
+    assert.deepEqual(store.listPending().map((item) => item.periodId), ["fresh-successor"]);
+  } finally {
+    db.close();
+  }
+});
+
 test("only finalizePending can realize an active disposition successor, and its envelope must match the plan", () => {
   const db = new SqliteDatabase(":memory:");
   try {
