@@ -193,8 +193,6 @@ function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, to
     fill.setColor(colors.ground); fill.setAlphaf(1); canvas.drawPath(skirt, fill);
 
     const color = amber ? colors.amber : colors.ink;
-    // A soft light pass travels from the oldest line to the newest, then rests: the lines it crosses brighten for a moment. It never changes a shape.
-    const pass = still || R < 2 ? 0 : Math.max(0, 1 - Math.abs((((t * 0.16) % 1.35) * (R + 3) - 2) - k) / 2.2);
     const recency = R > 1 ? k / (R - 1) : 1;
     if (isNow) {
       const cut = Math.max(1, Math.min(TERRAIN_POINTS - 1, Math.floor(progress * (TERRAIN_POINTS - 1))));
@@ -219,7 +217,7 @@ function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, to
       const ridge = Skia.Path.Make(); ridge.moveTo(xs[0]!, ys[0]!); for (let i = 1; i < TERRAIN_POINTS; i += 1) ridge.lineTo(xs[i]!, ys[i]!);
       const p = seenAny ? stroke : dashed;
       const picked = selected === k;
-      p.setColor(color); p.setStrokeWidth(picked ? 2 : 1 + 0.6 * pass); p.setAlphaf(picked ? 1 : Math.min(1, ((amber ? 0.85 : 0.3 + 0.55 * recency) + 0.45 * pass) * (seenAny ? 1 : 0.5 + 0.5 * pass))); canvas.drawPath(ridge, p);
+      p.setColor(color); p.setStrokeWidth(picked ? 2 : 1); p.setAlphaf(picked ? 1 : (amber ? 0.85 : 0.3 + 0.55 * recency) * (seenAny ? 1 : 0.5)); canvas.drawPath(ridge, p);
     }
     for (const at of row.orders) {
       const i = Math.round(at * (TERRAIN_POINTS - 1));
