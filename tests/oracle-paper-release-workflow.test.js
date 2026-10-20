@@ -137,6 +137,10 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_WINDOW_MS=30000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500/);
+  assert.match(runbook, /Initial authenticated `\/ready` keeps the 300-second cold-start budget, with each request capped at 5 seconds and 1-second retry delay\./);
+  assert.match(runbook, /initial activation uses each route request cap of 5 seconds and a 1-second retry delay\./);
+  assert.match(runbook, /During soak, authenticated `\/ready` uses a bounded 30-second retry window, with each request capped at 2 seconds and 500 ms retry delay/);
+  assert.match(runbook, /post-activation checks, with route requests capped at 2 seconds and a 500 ms retry delay/);
 
   const routeProofWindow = Number(wrapper.match(/readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=(\d+)/)?.[1]);
   const readyWindow = Number(wrapper.match(/readonly POST_ACTIVATION_READY_WINDOW_MS=(\d+)/)?.[1]);
