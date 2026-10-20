@@ -129,6 +129,7 @@ export function composeResearchExperiments(input: {
   const db = input.database;
 
   const store = new SqliteResearchCandleStore(db);
+  const collectionState = new Map<string, string>();
   const datasetManifests = new SqliteResearchDatasetManifestStore(db);
   const holdout = new SqliteResearchHoldoutLedger(db);
   const observations = new SqlitePaperMarketObservationRepository(db);
@@ -240,7 +241,16 @@ export function composeResearchExperiments(input: {
     const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants, ...donchianVariants];
     const orchestrator = new ResearchExperimentOrchestrator({
       variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant, precommitStore: precommits,
-      collect: (nowMs) => { if (minutes === settings.intervalsMinutes[0]) collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store }); },
+      collect: (nowMs) => {
+        if (minutes !== settings.intervalsMinutes[0]) return;
+        // A failed market used to vanish silently (no candles from 2026-10-17 to 10-20). Log it, once per change of state.
+        for (const result of collectClosedCandles({ markets: settings.markets, nowMs, observations, sink: store })) {
+          const state = result.status === "ERROR" ? `ERROR:${result.errorCode ?? "UNKNOWN"}` : "OK";
+          if (collectionState.get(result.market) === state) continue;
+          collectionState.set(result.market, state);
+          log(`[research-candles] collect ${result.market} ${state === "OK" ? `OK recorded=${result.recorded}` : `failed code=${result.errorCode ?? "UNKNOWN"}`}`);
+        }
+      },
       candles: bars, holdout, now, sourceCommitSha: settings.sourceCommitSha,
       models: { fill: "fill-close-v1", fee: `fee-${RESEARCH_BACKTEST_COST.feeRate}-v1`, slippage: `slip-${RESEARCH_BACKTEST_COST.slippageBps}bps-v1` },
       evaluator: { version: "backtest-eval-v1", modelVersion: "dsl-backtest-v1" },
