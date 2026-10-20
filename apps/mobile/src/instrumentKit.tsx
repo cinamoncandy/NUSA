@@ -10,8 +10,9 @@ import { readableFont } from "./designSystem";
  * a rolling odometer and a scrolling heartbeat trace. Presentation only. Every loop runs on the native driver and stops entirely
  * when the OS reduce-motion setting is on.
  */
-export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(true);
+/** null until the OS answers: nothing loops and no entrance plays before then, so a reduce-motion user never sees motion. */
+export function useReducedMotion(): boolean | null {
+  const [reduced, setReduced] = useState<boolean | null>(null);
   useEffect(() => {
     let mounted = true;
     AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (mounted) setReduced(v); }).catch(() => { if (mounted) setReduced(false); });
@@ -37,7 +38,7 @@ export function Panel({ children, style }: { readonly children: React.ReactNode;
 }
 
 /** Each digit is a 0-9 column that rolls to its value, ones place first. A changed value rolls again. */
-export function Odometer({ value, size, color = calmColors.text, reducedMotion }: { readonly value: number; readonly size: number; readonly color?: string; readonly reducedMotion: boolean }) {
+export function Odometer({ value, size, color = calmColors.text, reducedMotion }: { readonly value: number; readonly size: number; readonly color?: string; readonly reducedMotion: boolean | null }) {
   const chars = value.toLocaleString("en-US").split("");
   return <View style={styles.odo} accessible accessibilityLabel={value.toLocaleString("en-US")}>
     {chars.map((ch, i) => /\d/.test(ch)
@@ -46,11 +47,13 @@ export function Odometer({ value, size, color = calmColors.text, reducedMotion }
   </View>;
 }
 
-function OdometerDigit({ digit, size, color, delay, reducedMotion }: { readonly digit: number; readonly size: number; readonly color: string; readonly delay: number; readonly reducedMotion: boolean }) {
+function OdometerDigit({ digit, size, color, delay, reducedMotion }: { readonly digit: number; readonly size: number; readonly color: string; readonly delay: number; readonly reducedMotion: boolean | null }) {
   const h = size * 1.08;
-  const y = useRef(new Animated.Value(reducedMotion ? -digit * h : 0)).current;
+  const y = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (reducedMotion === null) return undefined;
     if (reducedMotion) { y.setValue(-digit * h); return undefined; }
+    y.setValue(0);
     const anim = Animated.timing(y, { toValue: -digit * h, duration: 800, delay, easing: Easing.out(Easing.exp), useNativeDriver: true });
     anim.start();
     return () => anim.stop();
@@ -74,11 +77,11 @@ export function heartbeatPath(width: number): string {
 }
 
 /** A heartbeat trace that scrolls while the runtime is deciding: it says "alive", not a measured signal. */
-export function Heartbeat({ width, reducedMotion }: { readonly width: number; readonly reducedMotion: boolean }) {
+export function Heartbeat({ width, reducedMotion }: { readonly width: number; readonly reducedMotion: boolean | null }) {
   const x = useRef(new Animated.Value(0)).current;
   const path = useMemo(() => (width > 0 ? Skia.Path.MakeFromSVGString(heartbeatPath(width)) : null), [width]);
   useEffect(() => {
-    if (reducedMotion || width <= 0) { x.setValue(0); return undefined; }
+    if (reducedMotion !== false || width <= 0) { x.setValue(0); return undefined; }
     const loop = Animated.loop(Animated.timing(x, { toValue: -width, duration: 1400, easing: Easing.linear, useNativeDriver: true }));
     loop.start();
     return () => loop.stop();

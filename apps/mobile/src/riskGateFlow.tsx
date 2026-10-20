@@ -38,7 +38,7 @@ export function RiskGateFlow({ gate, lossText = null, windowNote = null }: {
       <Text style={instrumentType.heroLine}>새 매수</Text>
       <Text style={[instrumentType.heroLine, { color: calmColors.attention }]}>멈춤</Text>
     </View>
-    <Text style={instrumentType.sub}>{lossText ?? gate.detail}</Text>
+    <Text style={instrumentType.sub} accessibilityElementsHidden importantForAccessibility="no">{lossText ?? gate.detail}</Text>
 
     <View style={styles.section}>
       <SectionLabel left="판단 · 도는 중" right="오늘" />
@@ -50,7 +50,7 @@ export function RiskGateFlow({ gate, lossText = null, windowNote = null }: {
       <SectionLabel left="판단 → 신호 → 위험 → 주문" right="어디서 멈췄나" />
       <Panel style={styles.railPanel}>
         <View accessible accessibilityRole="summary" accessibilityLabel={`판단 ${fmt(gate.decisions)}${gate.signals == null ? "" : `, 매수 신호 ${fmt(gate.signals)}`}, 위험 단계에서 ${gate.waiting == null ? "멈춤" : `${fmt(gate.waiting)} 대기`}, 새 주문 0`}>
-          <Rail width={Math.max(0, width - 28)} gate={gate} reducedMotion={reducedMotion} />
+          <Rail width={Math.max(0, width - 2)} gate={gate} reducedMotion={reducedMotion} />
         </View>
       </Panel>
     </View>
@@ -74,19 +74,19 @@ export function RiskGateFlow({ gate, lossText = null, windowNote = null }: {
   </View>;
 }
 
-function Rail({ width, gate, reducedMotion }: { readonly width: number; readonly gate: RiskGateModel; readonly reducedMotion: boolean }) {
+function Rail({ width, gate, reducedMotion }: { readonly width: number; readonly gate: RiskGateModel; readonly reducedMotion: boolean | null }) {
   const pulses = useRef(Array.from({ length: PULSES }, () => new Animated.Value(0))).current;
   const beat = useRef(new Animated.Value(0)).current;
   const [x0, x1, xg, x3] = NODES.map((f) => f * width) as unknown as [number, number, number, number];
   const run = Math.max(0, xg - x0 - 16);
 
   useEffect(() => {
-    if (reducedMotion || width <= 0) return undefined;
-    const loops = pulses.map((v, i) => Animated.loop(Animated.sequence([
+    if (reducedMotion !== false || width <= 0) return undefined;
+    // The stagger is applied once, outside the loop, so every pulse keeps the same period and the stream stays even.
+    const loops = pulses.map((v, i) => Animated.sequence([
       Animated.delay((CYCLE_MS / PULSES) * i),
-      Animated.timing(v, { toValue: 1, duration: CYCLE_MS, easing: Easing.linear, useNativeDriver: true }),
-      Animated.timing(v, { toValue: 0, duration: 0, useNativeDriver: true }),
-    ])));
+      Animated.loop(Animated.timing(v, { toValue: 1, duration: CYCLE_MS, easing: Easing.linear, useNativeDriver: true })),
+    ]));
     const gateLoop = Animated.loop(Animated.timing(beat, { toValue: 1, duration: (CYCLE_MS / PULSES) * 2, easing: Easing.out(Easing.quad), useNativeDriver: true }));
     loops.forEach((l) => l.start()); gateLoop.start();
     return () => { loops.forEach((l) => l.stop()); gateLoop.stop(); };
@@ -95,31 +95,33 @@ function Rail({ width, gate, reducedMotion }: { readonly width: number; readonly
   if (width <= 0) return <View style={{ height: RAIL_HEIGHT }} />;
   const dashes = Math.max(0, Math.floor((x3 - xg - 8) / 7));
   const num = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-US"));
+  const waitLabel = gate.waiting == null ? "멈춤" : `${num(gate.waiting)} 대기`;
   return <View style={{ height: RAIL_HEIGHT }} pointerEvents="none" importantForAccessibility="no-hide-descendants">
     <View style={[styles.line, { left: x0, width: Math.max(0, xg - x0 - 3) }]} />
     {Array.from({ length: dashes }, (_, i) => <View key={i} style={[styles.dash, { left: xg + 6 + i * 7 }]} />)}
-    {reducedMotion ? null : pulses.map((v, i) => <Animated.View key={i} style={[styles.pulse, { left: x0, opacity: v.interpolate({ inputRange: [0, 0.12, 0.86, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [0, run] }) }] }]} />)}
+    {reducedMotion !== false ? null : pulses.map((v, i) => <Animated.View key={i} style={[styles.pulse, { left: x0, opacity: v.interpolate({ inputRange: [0, 0.12, 0.86, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [0, run] }) }] }]} />)}
     <View style={[styles.node, { left: x0 - 4 }]} />
     <View style={[styles.node, styles.hollow, { left: x1 - 4 }]} />
     <View style={[styles.node, styles.hollow, styles.off, { left: x3 - 4 }]} />
-    <Animated.View style={[styles.halo, { left: xg - 9, opacity: reducedMotion ? 0.3 : beat.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.2, 0.5, 0.2] }) }]} />
+    <Animated.View style={[styles.halo, { left: xg - 9, opacity: reducedMotion !== false ? 0.3 : beat.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.2, 0.5, 0.2] }) }]} />
     <View style={[styles.gate, { left: xg - 2.5 }]} />
-    {reducedMotion ? null : <Animated.View style={[styles.ring, { left: xg - 14, opacity: beat.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.9, 0.6, 0] }), transform: [{ scale: beat.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.2] }) }] }]} />}
+    {reducedMotion !== false ? null : <Animated.View style={[styles.ring, { left: xg - 14, opacity: beat.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.9, 0.6, 0] }), transform: [{ scale: beat.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.2] }) }] }]} />}
     <Text style={[fieldFonts.mono, styles.cap, { left: x0 }]}>판단</Text>
     <Text style={[fieldFonts.mono, styles.cap, styles.center, { left: x1 - 50 }]}>매수 신호</Text>
     <Text style={[fieldFonts.mono, styles.cap, styles.center, styles.amber, { left: xg - 50, top: 10 }]}>위험 단계</Text>
     <Text style={[fieldFonts.mono, styles.cap, styles.right, { left: x3 - 100 }]}>주문</Text>
     <Text style={[fieldFonts.displayStrong, styles.val, { left: x0 }]}>{num(gate.decisions)}</Text>
     <Text style={[fieldFonts.displayStrong, styles.val, styles.center, { left: x1 - 50 }]}>{num(gate.signals)}</Text>
-    <Text style={[fieldFonts.displayStrong, styles.val, styles.center, styles.amber, { left: xg - 50 }]} numberOfLines={1} adjustsFontSizeToFit>{gate.waiting == null ? "멈춤" : `${num(gate.waiting)} 대기`}</Text>
+    <Text style={[fieldFonts.displayStrong, styles.val, styles.center, styles.amber, { left: xg - 50 }, waitLabel.length > 7 ? styles.valSmall : null]} numberOfLines={1}>{waitLabel}</Text>
     <Text style={[fieldFonts.displayStrong, styles.val, styles.right, styles.muted, { left: x3 - 100 }]}>0</Text>
   </View>;
 }
 
-function LedgerRow({ label, value, ratio, amber, note, last, reducedMotion }: { readonly label: string; readonly value: string; readonly ratio: number; readonly amber: boolean; readonly note: string; readonly last: boolean; readonly reducedMotion: boolean }) {
+function LedgerRow({ label, value, ratio, amber, note, last, reducedMotion }: { readonly label: string; readonly value: string; readonly ratio: number; readonly amber: boolean; readonly note: string; readonly last: boolean; readonly reducedMotion: boolean | null }) {
   const [open, setOpen] = useState(false);
-  const fill = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const fill = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (reducedMotion === null) return undefined;
     if (reducedMotion) { fill.setValue(1); return undefined; }
     const a = Animated.timing(fill, { toValue: 1, duration: 900, easing: Easing.out(Easing.exp), useNativeDriver: true });
     a.start();
@@ -141,9 +143,10 @@ function LedgerRow({ label, value, ratio, amber, note, last, reducedMotion }: { 
   </View>;
 }
 
-function StreakCell({ index, filled, reducedMotion }: { readonly index: number; readonly filled: boolean; readonly reducedMotion: boolean }) {
-  const s = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+function StreakCell({ index, filled, reducedMotion }: { readonly index: number; readonly filled: boolean; readonly reducedMotion: boolean | null }) {
+  const s = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (reducedMotion === null) return undefined;
     if (reducedMotion) { s.setValue(1); return undefined; }
     const a = Animated.timing(s, { toValue: 1, duration: 350, delay: index * 120, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true });
     a.start();
@@ -168,6 +171,7 @@ const styles = StyleSheet.create({
   ring: { position: "absolute", top: 44, width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: calmColors.attention },
   cap: { position: "absolute", top: 14, color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 0.5 },
   val: { position: "absolute", top: 80, color: calmColors.text, fontSize: 22, lineHeight: 28 },
+  valSmall: { fontSize: 16, top: 84 },
   center: { width: 100, textAlign: "center" },
   right: { width: 100, textAlign: "right" },
   amber: { color: calmColors.attention },
