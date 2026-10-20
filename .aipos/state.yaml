@@ -2239,7 +2239,7 @@ current_closed_loop_convergence_support_20261019:
   branch: codex/pending-disposition-main-20261018
   implementation_parent_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
   repair_commit: eb35bda01
-  validated_evidence_head: 8d9825f45cc08997475c1c27fd461bcfc2b33be6
+  validated_evidence_head: ad20ea228639983c634e89b58dcd44783ef5764d
   observed_main: fd278dc3534281abfe3a14c0056e8b25dc5219ed
   main_delta_assessment: "Compared b032426 to fd278dc: intervening main work is the UI instrument redesign plus its AIPOS work order, with no overlap or semantic dependency on this storage change. PR API reports mergeable=true/mergeable_state=behind; branch-protection strict/up-to-date setting is not readable to this integration (403), so avoid pre-validation churn and recheck the release gate after exact-head CI."
   validator_finding_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
@@ -2248,31 +2248,37 @@ current_closed_loop_convergence_support_20261019:
   followup_finding: "Fresh exact-head review found a second P2: markPendingIneligible can reserve a successor periodId already present in realized history because disposition reservation checks only immutable dispositions; finalization later fails with RECORD_ID_CONFLICT."
   repair: "Before terminalizing the current row, reject a proposed successor periodId or periodIndex already present in immutable disposition history; transaction rollback preserves the original pending row. Regression covers old successor ID reuse at a different later index and confirms a fresh ID still succeeds."
   local_validation: "Frozen-lockfile install with scripts initially disabled; after process-local Git Bash PATH and pnpm rebuild electron for the existing locked dependency, pnpm test PASS across 1,256 isolated test files; build PASS; focused regression 3/3 PASS; pnpm run validate:full PASS."
-  prior_repair_head_ci: PASS
-  prior_repair_head: 8d9825f45cc08997475c1c27fd461bcfc2b33be6
-  prior_exact_head_ci_run: 39350584569
-  prior_exact_head_paper_run: 39350584589
-  prior_exact_head_capability_run: 39350584556
-  prior_exact_head_activation_run: 39350584622
-  prior_exact_head_read_only_broker_run: 39350584594
-  prior_exact_head_transport_run: 39350584637
-  reviewed_followup_head: ff29b9b23c662d95fbe44e8e4c9e544ef974e015
+  earlier_repair_head_ci: PASS
+  earlier_repair_head: 8d9825f45cc08997475c1c27fd461bcfc2b33be6
+  earlier_exact_head_ci_run: 39350584569
+  earlier_exact_head_paper_run: 39350584589
+  earlier_exact_head_capability_run: 39350584556
+  earlier_exact_head_activation_run: 39350584622
+  earlier_exact_head_read_only_broker_run: 39350584594
+  earlier_exact_head_transport_run: 39350584637
+  previous_evidence_head: ff29b9b23c662d95fbe44e8e4c9e544ef974e015
+  previous_exact_head_ci_run: 39351410003
+  previous_exact_head_paper_run: 39351410040
+  previous_exact_head_capability_run: 39351410021
+  previous_exact_head_activation_run: 39351410011
+  previous_exact_head_read_only_broker_run: 39351410016
+  previous_exact_head_transport_run: 39351410051
   current_head_ci: PASS
-  exact_head_ci_run: 39351410003
-  exact_head_paper_run: 39351410040
-  exact_head_capability_run: 39351410021
-  exact_head_activation_run: 39351410011
-  exact_head_read_only_broker_run: 39351410016
-  exact_head_transport_run: 39351410051
-  fresh_validator: PENDING_AFTER_SECOND_P2_REPAIR
-  validator_request_comment_id: 6280885731
-  unresolved_review_threads: [PRRT_kwDOTUbne86uJ_ar, PRRT_kwDOTUbne86uKaAQ]
+  exact_head_ci_run: 39352610567
+  exact_head_paper_run: 39352610565
+  exact_head_capability_run: 39352610641
+  exact_head_activation_run: 39352610564
+  exact_head_read_only_broker_run: 39352610635
+  exact_head_transport_run: 39352610703
+  fresh_non_author_review: "PASS/no major issues at exact head ad20ea228639983c634e89b58dcd44783ef5764d; comment 6281080931; summary reports has_any_findings=false and has_unresolved_findings=false."
+  resolved_review_threads: [PRRT_kwDOTUbne86uJ_ar, PRRT_kwDOTUbne86uKaAQ]
+  formal_validator: PENDING_EXACT_HEAD_P0_P1_P2_RECEIPT
   legacy_prior_validated_head: 580fa559d438fcef899ae3ff95ade24ddf9619df
   legacy_prior_exact_head_ci_run: 39248868980
   legacy_prior_failed_merge_run: 39242585445
-  validation: "Prior 580fa559, 8a369409, and 8d9825f evidence is stale after the second P2 repair. Exact head ff29b9b CI 39351410003 and PAPER/safety/read-only workflows 39351410040, 39351410021, 39351410011, 39351410016, 39351410051 all completed success. The second fresh review finding is recorded above. The minimal repair rejects a proposed successor ID already present in realized records before terminalizing the original, with rollback/fresh-ID regression; focused regression 4/4, build, full 1,256 isolated test files, and validate:full pass locally. No risk/qualification/cost/sample/OOS or authority gate changed."
+  validation: "Exact current code/evidence head ad20ea228639983c634e89b58dcd44783ef5764d has CI 39352610567 and all five PAPER/safety/read-only companion workflows 39352610565, 39352610641, 39352610564, 39352610635, 39352610703 completed success. Fresh non-author Codex review comment 6281080931 on this exact SHA reports no major issues; summary findings=false/unresolved=false; both P2 threads are resolved. Local focused regression 4/4, build, full 1,256 isolated test files, and validate:full pass. Formal P0/P1/P2 Validator receipt, Independent Audit, Release, merge, and genuine candidate-bound PAPER learning-loop proof remain pending. No risk/qualification/cost/sample/OOS or authority gate changed."
   evidence: .aipos/handoffs/2026-10-19-closed-loop-convergence-support.md
-  next: "Commit the second P2 code/test repair with its AIPOS evidence, push to the existing PR branch, then require new exact-head CI and fresh non-author review. Keep Draft. Audit/Release remain gated. Independently obtain natural exact-main Research qualification and genuine candidate-bound PAPER cycle/restart/replay evidence; do not activate production disposition."
+  next: "Obtain a separate formal Validator receipt with P0/P1/P2 counts bound to the exact head, then run canonical Independent Audit and Release only through their authorized gates. Keep Draft until then. Independently obtain natural exact-main Research qualification and genuine candidate-bound PAPER cycle/restart/replay evidence; do not activate production disposition."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 

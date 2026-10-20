@@ -68,8 +68,9 @@ validator_followup_20261020:
     regression: "tests/persisted-paper-pending-disposition-resurrection.test.js verifies an earlier realized ID cannot be used by a later successor, the original remains pending and disposition count unchanged, and a fresh successor remains admissible."
     local_validation: "Build PASS; focused resurrection regression 4/4 PASS; pnpm test PASS across 1,256 isolated test files; pnpm run validate:full PASS."
     prior_exact_head_ci: "PASS on ff29b9b23c662d95fbe44e8e4c9e544ef974e015 — CI 39351410003; PAPER 39351410040; Capability 39351410021; Activation 39351410011; Read-only Broker 39351410016; Transport 39351410051."
-    exact_head_ci: PENDING_AFTER_SECOND_P2_REPAIR_COMMIT
-    fresh_non_author_validator: PENDING_AFTER_NEW_EXACT_HEAD_CI
+    exact_head_ci: "PASS on ad20ea228639983c634e89b58dcd44783ef5764d — CI 39352610567, PAPER 39352610565, Capability 39352610641, Activation 39352610564, Read-only Broker 39352610635, Transport 39352610703."
+    fresh_non_author_review: "PASS/no major issues on exact head ad20ea228639983c634e89b58dcd44783ef5764d; comment 6281080931; findings=false and unresolved=false; both P2 threads resolved."
+    formal_non_author_validator: PENDING_EXACT_SHA_SEVERITY_RECEIPT
   audit: PENDING
   release: PENDING
   runtime_activation: PROHIBITED
