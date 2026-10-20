@@ -3798,7 +3798,7 @@ current_autopilot_fresh_validator_gate_20261020:
   issue: 2760
   pull_request: 2772
   branch: fix/validator-evidence-gate-2760
-  status: CURRENT_MAIN_RECONVERGED_AIPOS_STATE_REGISTERED_PENDING_EXACT_HEAD_CI
+  status: CURRENT_MAIN_RECONVERGED_AIPOS_STATE_REGISTERED_PENDING_NEW_EVIDENCE_HEAD_CI
   base_sha: 7e560405ad15b4eec8a5e46b0ad32873286df525
   previous_head: fdc81d4d1694a41f0152aa5ab8908a5cccd194b9
   previous_head_ci:
@@ -3820,7 +3820,18 @@ current_autopilot_fresh_validator_gate_20261020:
   repair:
     - merged_current_protected_main_without_rewriting_history
     - registered_work_order_and_phase_in_canonical_state
-  next: "Run recorded local gates, push only after PASS, obtain fresh exact-head CI and companion workflows, then fresh independent non-author Validator. Keep Draft; Audit/Release/merge remain blocked."
+  validated_successor_head: 4cbfdc93d6fb01e50cc985a8f19af5641c439136
+  exact_head_ci:
+    ci_run: 39378962568
+    actual_paper_run: 39378962602
+    capability_guard_run: 39378962558
+    activation_rehearsal_run: 39378962564
+    transport_readiness_run: 39378962551
+    readonly_broker_run: 39378962553
+    result: PASS_ALL_SIX_ON_VALIDATED_SUCCESSOR
+    status_after_evidence_commit: HISTORICAL_REQUIRES_FRESH_SUCCESSOR_CHECKS
+  fresh_non_author_validator: PENDING_FOR_CURRENT_HEAD_AFTER_FRESH_EXACT_HEAD_CHECKS
+  next: "Push this AIPOS evidence successor to the existing PR branch without rewriting history; obtain fresh exact-head CI/companions, then fresh independent non-author Validator. Keep Draft; Audit/Release/merge remain blocked."
   safety:
     liveAuthority: NONE
     productionMutationAllowed: false

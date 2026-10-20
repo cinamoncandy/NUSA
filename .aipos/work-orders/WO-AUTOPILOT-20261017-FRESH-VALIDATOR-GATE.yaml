@@ -57,7 +57,7 @@ validation:
   red: "tests/autopilot-fresh-validator-gate.test.js reproduced 0/3 pass on protected-main behavior before implementation."
   static_contracts: "37/37 focused workflow/control-plane/evidence tests PASS after routing and artifact enforcement; workflow authority map, action pin/input, and AIPOS YAML validators PASS."
   build_typecheck: "PASS on locally validated successor worktree: pnpm run build, pnpm run typecheck, pnpm run validate:full, pnpm run preflight, pnpm run security:gate; focused tests 22/22 and full pnpm run test 1259 isolated test files PASS. Windows required Git Bash on PATH for the full suite."
-  exact_head_ci: "Historical only: fdc81d4d1694a41f0152aa5ab8908a5cccd194b9 had CI run 39014447418 and five required PAPER/safety companions PASS; these do not validate the successor head."
+  exact_head_ci: "Historical only: successor 4cbfdc93d6fb01e50cc985a8f19af5641c439136 passed CI run 39378962568 and five companions (Actual PAPER 39378962602, Capability Guard 39378962558, Activation 39378962564, Transport 39378962551, Read-only Broker 39378962553). These results do not validate any later AIPOS evidence-recording successor."
   fresh_non_author_review: "Historical only: fdc81d4d1694a41f0152aa5ab8908a5cccd194b9 received FAIL, P0=0/P1=2 for stale current-main alignment and missing canonical AIPOS state registration. Both are addressed in the successor; fresh review is required."
   audit_release: PENDING
 evidence:
@@ -68,4 +68,4 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next: "Commit and push this locally validated successor to the existing PR branch without rewriting history; then require fresh exact-head CI/companions and a separate fresh non-author VALIDATOR. Keep Draft. Do not self-review, mark Ready, start Audit/Release, or merge from this implementation session."
+next: "After recording these exact-head results, push the AIPOS evidence successor to the existing PR branch without rewriting history; require fresh CI/companions on that new exact head, then fresh independent non-author VALIDATOR. Keep Draft. Do not self-review, mark Ready, start Audit/Release, or merge from this implementation session."
