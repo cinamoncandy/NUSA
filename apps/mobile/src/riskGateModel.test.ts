@@ -35,9 +35,9 @@ test("the streak cells use the server's own count and limit, and nothing else", 
 test("the day ruler needs the server's day start and stop time, in order, within one day", () => {
   const base = { lossLimitState: "STOPPED" as const, decisionCount: 3292, paperOrderCount: 0, consecutiveLossCount: 3, maxConsecutiveLosses: 3 };
   const start = Date.UTC(2026, 9, 19, 15), stop = start + 56 * 60_000, now = start + 735 * 60_000;
-  assert.deepEqual(buildRiskGate({ ...base, periodStartedAt: start, lastLossAt: stop, now })?.day, { start, stop, now });
+  assert.deepEqual(buildRiskGate({ ...base, periodStartedAt: start, limitReachedAt: stop, now })?.day, { start, stop, now });
   assert.equal(buildRiskGate({ ...base, now })?.day, null, "an older server sends no markers: no ruler");
-  assert.equal(buildRiskGate({ ...base, periodStartedAt: start, lastLossAt: now + 1, now })?.day, null);
-  assert.equal(buildRiskGate({ ...base, periodStartedAt: start, lastLossAt: stop, now: start + 86_400_001 })?.day, null);
-  assert.equal(buildRiskGate({ ...base, consecutiveLossCount: 2, periodStartedAt: start, lastLossAt: stop, now })?.day, null, "no stop below the limit");
+  assert.equal(buildRiskGate({ ...base, periodStartedAt: start, limitReachedAt: now + 1, now })?.day, null);
+  assert.equal(buildRiskGate({ ...base, periodStartedAt: start, limitReachedAt: stop, now: start + 86_400_001 })?.day, null);
+  assert.equal(buildRiskGate({ ...base, consecutiveLossCount: 2, periodStartedAt: start, limitReachedAt: stop, now })?.day, null, "no stop below the limit");
 });

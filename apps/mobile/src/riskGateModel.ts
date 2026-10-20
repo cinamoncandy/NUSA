@@ -15,7 +15,7 @@ export interface RiskGateInput {
   readonly maxConsecutiveLosses?: unknown;
   /** From the server's lossLimit: start of the KST day and the fill time of the loss that reached the limit. */
   readonly periodStartedAt?: unknown;
-  readonly lastLossAt?: unknown;
+  readonly limitReachedAt?: unknown;
   readonly now?: number;
 }
 
@@ -44,7 +44,7 @@ export function buildRiskGate(input: RiskGateInput): RiskGateModel | null {
   const lossCount = count(input.consecutiveLossCount);
   const lossMax = count(input.maxConsecutiveLosses);
   const streak = lossCount != null && lossMax != null && lossMax >= 1 && lossMax <= 20 && lossCount >= lossMax ? Object.freeze({ count: lossCount, max: lossMax }) : null;
-  const start = count(input.periodStartedAt), stop = count(input.lastLossAt), now = input.now;
+  const start = count(input.periodStartedAt), stop = count(input.limitReachedAt), now = input.now;
   const day = streak != null && start != null && stop != null && typeof now === "number" && Number.isFinite(now) && start <= stop && stop <= now && now - start <= 86_400_000 ? Object.freeze({ start, stop, now }) : null;
   const fmt = (n: number) => n.toLocaleString("en-US");
   return Object.freeze({

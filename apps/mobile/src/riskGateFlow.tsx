@@ -141,7 +141,7 @@ function DayRuler({ day, width, reducedMotion }: { readonly day: NonNullable<Ris
   const x = (t: number) => Math.max(0, Math.min(width, ((t - day.start) / DAY_MS) * width));
   const xs = x(day.stop), xn = x(day.now);
   const dashes = Math.max(0, Math.floor((width - xn - 4) / 6));
-  const nowBelow = Math.abs(xn - xs) < 80;
+  const nowBelow = Math.abs(xn - xs) < 120;
   const stopLabelLeft = Math.min(Math.max(0, xs + 4), width - 86);
   return <View style={{ height: 74 }} accessible accessibilityRole="image" accessibilityLabel={`오늘 ${hhmm(day.start)}부터 ${hhmm(day.stop)}까지 매수 가능, 그 뒤 지금 ${hhmm(day.now)}까지 새 매수 멈춤`}>
     <View style={[styles.rBase, { width }]} />
@@ -153,7 +153,7 @@ function DayRuler({ day, width, reducedMotion }: { readonly day: NonNullable<Ris
     <Text style={[fieldFonts.mono, styles.rFlagText, { left: stopLabelLeft }]}>{`${hhmm(day.stop)} 한도`}</Text>
     <View style={[styles.rNow, { left: xn - 5, top: nowBelow ? 50 : 26, transform: [{ rotate: nowBelow ? "225deg" : "45deg" }] }]} />
     <Text style={[fieldFonts.mono, styles.rNowText, { left: Math.min(Math.max(0, xn - 30), width - 60), top: nowBelow ? 58 : 10 }]}>지금</Text>
-    {nowBelow ? null : [0, 6, 12, 18, 24].map((h) => <Text key={h} style={[fieldFonts.mono, styles.rHour, { left: Math.min(width - 16, Math.max(0, (h / 24) * width - 7)) }]}>{String(h).padStart(2, "0")}</Text>)}
+    {[0, 6, 12, 18, 24].filter((h) => !nowBelow || Math.abs((h / 24) * width - xn) > 34).map((h) => <Text key={h} style={[fieldFonts.mono, styles.rHour, { left: Math.min(width - 16, Math.max(0, (h / 24) * width - 7)) }]}>{String(h).padStart(2, "0")}</Text>)}
   </View>;
 }
 
