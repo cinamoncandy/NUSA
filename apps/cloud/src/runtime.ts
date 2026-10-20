@@ -47,6 +47,7 @@ import {
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { DashboardPrincipal } from "./mobileDashboardHttp";
 import { computeLimitReachedAt, computeTodayRealizedPnlKrw } from "./paperTodayRealized";
+import { PaperDecisionTrace } from "./paperDecisionTrace";
 import type { CloudAiRuntime } from "./ai/runtime";
 import { AI_CALIBRATION_OUTCOME_DEFINITION_ID, attributionScope, createCloudAiRuntime } from "./ai/runtime";
 import { projectAiReadOnly } from "./ai/projection";
@@ -239,6 +240,8 @@ export function startCloudRuntime(
   // canonical PAPER boundary is active; without it nothing measures BUY outcomes and 0/0 would be a false statement.
   const BUY_WINDOW_MS = 86_400_000;
   const buyWindow = { key: Math.floor(runtimeStartedAt / BUY_WINDOW_MS), signals: 0, blocked: 0, decisions: 0, orders: 0, feedDisconnects: 0, feedStaleGaps: 0, feedMaxGapMs: 0 };
+  // Display only: the same window's decisions and orders per 5 minutes, for the app's decision terrain.
+  const decisionTrace = new PaperDecisionTrace(BUY_WINDOW_MS, runtimeStartedAt);
   let lastTickerArrivalMs: number | null = null;
   const rollBuyWindow = (nowMs: number): void => {
     const key = Math.floor(nowMs / BUY_WINDOW_MS);
@@ -289,7 +292,7 @@ export function startCloudRuntime(
     const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
     // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
     const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
-    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]), ...lossLimitHeartbeat(), ...todayRealizedHeartbeat() };
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, decisionTrace: decisionTrace.snapshot(Date.now()), ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]), ...lossLimitHeartbeat(), ...todayRealizedHeartbeat() };
     // Display only; a failing provider must never affect the heartbeat.
     let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }
@@ -507,6 +510,7 @@ export function startCloudRuntime(
         heartbeat.decisionCount += state.decisions.length;
         rollBuyWindow(Date.now());
         buyWindow.decisions += state.decisions.length;
+        decisionTrace.record("decision", state.decisions.length, Date.now());
         // A supplied loop is a read/recovery fixture unless it is composed behind the
         // canonical Cloud PAPER risk boundary. Never let dependency injection create a
         // second mutation path for strategy ticks.
@@ -528,6 +532,7 @@ export function startCloudRuntime(
           heartbeat.paperOrderCount += result.orders.length;
           rollBuyWindow(Date.now());
           buyWindow.orders += result.orders.length;
+          decisionTrace.record("order", result.orders.length, Date.now());
           heartbeat.paperFillCount += result.fills.length;
           // Display-only: a BUY decision, and a BUY the boundary explicitly refused (BLOCKED or REJECTED). WAIT, DUPLICATE and FAILED are not counted as refusals.
           if (canonicalDecision?.action === "BUY") { rollBuyWindow(Date.now()); buyWindow.signals += 1; if (result.status === "BLOCKED" || result.status === "REJECTED") buyWindow.blocked += 1; }

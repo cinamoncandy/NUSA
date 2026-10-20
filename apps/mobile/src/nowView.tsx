@@ -17,6 +17,7 @@ import { InstrumentNow } from "./instrumentNow";
 import { buildNowScreen } from "./nowScreenModel";
 import { buildRiskGate } from "./riskGateModel";
 import { RiskGateFlow } from "./riskGateFlow";
+import { buildDecisionTerrain } from "./decisionTerrainModel";
 import { CalmBigNumber } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
@@ -73,14 +74,17 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
     paperOrderCount: heartbeat?.paperOrderCount ?? null,
     fillCount: heartbeat?.paperFillCount ?? null,
   });
+  // The main motion graphic: today's decision terrain from the server's display-only trace (nothing drawn while stale or blocked).
+  const traceSource: { readonly decisionCount?: unknown; readonly decisionTrace?: unknown } | null = heartbeat ?? null;
   const rawLossLimit: { readonly consecutiveLossCount?: unknown; readonly maxConsecutiveLosses?: unknown; readonly periodStartedAt?: unknown; readonly limitReachedAt?: unknown } | null = heartbeat?.lossLimit ?? null;
   // Redesign 2026-10-19: when the loss limit holds new buys, say where the flow stopped (the risk gate), not just "no execution".
   const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount, consecutiveLossCount: rawLossLimit?.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit?.maxConsecutiveLosses, periodStartedAt: rawLossLimit?.periodStartedAt, limitReachedAt: rawLossLimit?.limitReachedAt, now: Date.now() });
+  const terrain = buildDecisionTerrain({ trace: blocked ? null : traceSource?.decisionTrace, now: Date.now(), limitReachedAt: blocked ? null : rawLossLimit?.limitReachedAt });
   const needsSetup = notConfigured != null || readOnlyError != null;
   return <View style={styles.shell} testID="now-screen">
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
       <Text style={styles.brand}>NUSA</Text>
-      {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} stats={model.stats} />}
+      {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} terrain={terrain} decisionCount={dailyCounts.decisionCount} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} terrain={terrain} stats={model.stats} />}
       <View style={styles.block}>
         <CalmBigNumber value={model.equity} caption={model.delta ?? undefined} captionTone={model.deltaTone} dim={model.dim} />
       </View>

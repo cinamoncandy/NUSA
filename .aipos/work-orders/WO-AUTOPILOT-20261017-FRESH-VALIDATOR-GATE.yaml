@@ -1,10 +1,10 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: CURRENT_MAIN_RECONVERGED_AIPOS_STATE_REGISTERED_PENDING_EXACT_HEAD_CI
+status: CURRENT_MAIN_SYNCED_LOCAL_VALIDATION_PASS_PENDING_CONDITIONAL_REF_UPDATE
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 7e560405ad15b4eec8a5e46b0ad32873286df525
+base_commit: 9b6c99cee1750f02ae4dcb9cfe0dba429649dce5
 branch: fix/validator-evidence-gate-2760
 issue: 2760
 authority_impact: release_governance_fail_closed
@@ -68,4 +68,8 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next: "Dynamically re-fetch the current protected main, PR head/base, and all required exact-head checks. If still aligned and green, hand that exact SHA to a separate fresh independent non-author VALIDATOR. Keep Draft. Do not self-review, mark Ready, start Audit/Release, or merge from this implementation session. Avoid self-referential current-head evidence in AIPOS."
+current_main_sync: "Fresh GitHub verification found protected main 9b6c99cee1750f02ae4dcb9cfe0dba429649dce5 while PR #2772 remained at e0d1465ba6d50e740c766f1daca02459858b0c48. The branches diverged by 8 PR-only and 12 main-only commits from 7e560405ad15b4eec8a5e46b0ad32873286df525. No changed-path overlap was found; the merge applied cleanly in an isolated worktree. Local synchronized checkpoint fa83cb282fcee259f568bc7dd95d515d4f0046b8 plus AIPOS status successor e36b2427c7eb3e28cfeaaae285635694b657d8ec are committed and locally validated. The GitHub PR branch remains unchanged; exact-head CI and fresh non-author validation are pending."
+local_sync_checkpoint: fa83cb282fcee259f568bc7dd95d515d4f0046b8
+remote_update_plan: "Publish only after reconstructing the validated local tree byte-for-byte through GitHub Git Database API and confirming the API-created tree SHA equals local HEAD^{tree}. Create the successor commit with first parent e0d1465ba6d50e740c766f1daca02459858b0c48 and second parent 9b6c99cee1750f02ae4dcb9cfe0dba429649dce5; then update the existing PR branch with expected_sha=e0d1465ba6d50e740c766f1daca02459858b0c48 and force=false. Any mismatch or lease rejection means stop without changing the ref."
+validation_after_sync: "PASS: pnpm run preflight, pnpm run build, pnpm run typecheck, pnpm run validate:full, pnpm run security:gate, git diff --check, and pnpm run test (1263 isolated test files). The first full-suite attempt failed only because bash was absent from PATH; rerunning with installed Git Bash on this process PATH passed. Exact-head GitHub workflows and fresh non-author Validator remain pending."
+next: "Re-fetch PR #2772 and protected main, then publish the exact validated tree via the GitHub Git Database API only if its SHA matches local HEAD^{tree}; create a two-parent merge commit and conditionally update the existing PR branch from expected head e0d1465ba6d50e740c766f1daca02459858b0c48 with force=false. Then obtain fresh exact-head workflows and a separate non-author VALIDATOR. Keep Draft. Do not self-review, mark Ready, start Audit/Release, or merge. Avoid self-referential current-head evidence in AIPOS."
