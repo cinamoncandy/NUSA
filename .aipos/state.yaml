@@ -2490,6 +2490,23 @@ current_mobile_home_simplify:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 
+current_ops_oracle_health_guard_lock:
+  work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
+  status: VERIFYING
+  issue: 1949
+  pull_request: 2818
+  branch: codex/oracle-health-guard-lock
+  base_commit: 05af71c0eed3ff11aa0fd0efb4e485f4ce7bc936
+  finding: "Fresh main sync confirms a TOCTOU race: health guard uses pgrep suppression before marker mutation/restart while canonical release activation has no shared exclusion. The prior work order excluded the only canonical activation path despite requiring suppression."
+  scope_amendment: "Owner approved shared flock /run/lock/nusa-paper-activation.lock across canonical release verbs that move the active release, install active units, or restart PAPER, plus the health guard. No new helper, scheduler, watchdog, control plane, or host installation. Guard rechecks workload and marker conditions under lock."
+  verification: "Health-guard/release structural regression 4 PASS; release-helper regression 24 PASS / 2 Linux DB cases SKIPPED. Both shell syntax checks PASS via Git for Windows shells. validate:full PASS; security:gate PASS; AIPOS YAML PASS; diff check PASS. Four shell/flock contention/owner-exit cases are SKIPPED on this Windows host; Linux exact-head CI must execute them."
+  next: "Commit and fast-forward update PR #2818's existing branch, then require Linux exact-head CI, fresh non-author validation, and canonical Audit/Release. No host install/deploy or merge in this step."
+  safety:
+    paper_only: true
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+
 current_ops_oracle_stability_rollback_20261019:
   work_order: WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK
   status: CURRENT_MAIN_RECONVERGED_VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION

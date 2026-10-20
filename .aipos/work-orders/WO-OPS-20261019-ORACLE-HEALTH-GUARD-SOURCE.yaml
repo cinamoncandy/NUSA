@@ -1,38 +1,41 @@
 id: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
 title: "Canonicalize the deployed Oracle PAPER health guard without adding a second watchdog"
-status: VERIFYING
+status: IN_PROGRESS
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 1949
 base_branch: main
-base_commit: 91db289a392f08aaf367cc15bec16f852d2b4edb
-implementation_branch: ops/health-guard-source-1949
+base_commit: 05af71c0eed3ff11aa0fd0efb4e485f4ce7bc936
+implementation_branch: codex/oracle-health-guard-lock
 authority_impact: none
 objective: "Put the already-deployed bounded Oracle health watchdog and its systemd ownership contract under repository review so host recovery behavior cannot drift outside source control."
 finding: "A natural PUBLIC_MARKET_FAILED incident left the PAPER process HTTP-healthy while its market workload was stale after bounded WebSocket reconnect exhaustion. The existing host-only health guard checked HTTP process health and did not detect the stale workload. The deployed repair recovered PAPER with one bounded restart and remained a no-op under healthy workload, but the executable and unit/timer were not tracked in the repository."
 scope:
   - "Track and harden the deployed /usr/local/sbin/nusa-health-guard behavior as deploy/oracle/nusa-health-guard."
+  - "Close the release-activation/watchdog-restart check-then-act race with one shared root-owned flock at /run/lock/nusa-paper-activation.lock."
   - "Track the existing nusa-health-guard.service and nusa-health-guard.timer ownership contract."
   - "Add structural regression coverage for workload-aware PUBLIC_MARKET_FAILED recovery, cooldown/deduplication, release suppression, upstream reachability and fail-closed behavior."
   - "Document explicit reviewed-source installation and healthy no-op acceptance."
 exclusions:
-  - "Do not alter nusa-release-step or implicitly install a new privileged helper from ordinary releases."
+  - "Acquire the shared lock in every canonical helper verb that can move the active release, install active units, or restart PAPER; do not implicitly install a new privileged helper from ordinary releases."
   - "Do not add another timer, scheduler, watchdog or control plane."
   - "Do not edit the database, writer lease, release symlink, runtime environment, Risk, Governance, qualification, OOS, cost or sample thresholds."
   - "Do not enable LIVE/REAL authority or broker mutation."
 architecture_impact:
   acknowledged: true
-  analysis: "The change source-controls the single watchdog already installed on the Oracle PAPER host. Runtime ownership and timer cadence stay unchanged; no new subsystem is introduced."
+  analysis: "The change source-controls the single existing watchdog and serializes only release activation versus watchdog recovery using one shared kernel flock. It adds no scheduler, watchdog, control plane, or host installation action. The narrow nusa-release-step activate change is necessary because the prior pgrep check was non-atomic."
   references:
     - deploy/oracle/nusa-health-guard
     - deploy/oracle/nusa-health-guard.service
     - deploy/oracle/nusa-health-guard.timer
+    - deploy/oracle/nusa-release-step.sh
     - docs/operations/oracle-health-guard.md
 acceptance:
   - "POSIX shell syntax passes."
   - "Recovery is eligible only for workload STALE + PUBLIC_MARKET_FAILED with a valid last market timestamp and reachable Upbit public REST."
   - "The same outage cannot trigger a repeat restart and a 15-minute cooldown bounds different failures."
-  - "Canonical release activation suppresses watchdog PAPER restart."
+  - "All canonical release mutations and watchdog PAPER recovery serialize on the same stable root-owned flock; a busy lock makes the watchdog a no-op before marker mutation or PAPER restart."
+  - "The watchdog rechecks workload failure identity, marker dedupe, and cooldown after acquiring the lock; lock ownership releases automatically after process failure/exit."
   - "Healthy workload execution is a no-op and preserves the PAPER PID."
   - "Unreachable PAPER endpoint remains fail-closed with no blind restart."
   - "Installed host executable can be compared byte-for-byte with reviewed source."
@@ -46,8 +49,9 @@ rollback: "Revert this source-control commit. The existing host watchdog is not 
 verification_commands:
   - node --test tests/oracle-health-guard.test.js
   - sh -n deploy/oracle/nusa-health-guard
+  - bash -n deploy/oracle/nusa-release-step.sh
   - git diff --check
   - pnpm run validate:full
   - pnpm run security:gate
-validation: "Initial exact head f91d90ef had CI/companions PASS but fresh non-author review found two P1s: root marker/temp under nusa-writable /var/lib/nusa permitted symlink redirection, and inactive PAPER could bypass PUBLIC_MARKET_FAILED eligibility via an unbounded timer restart. Repair moves marker state to root-owned /var/lib/nusa-health-guard with mktemp and removes inactive-supervisor restart. Fresh exact-head CI/review required."
-next: "Run focused exact-head tests and CI, then require fresh non-author validation and the existing Audit/Release chain before merge. Do not self-approve or merge."
+validation: "Inherited PR #2818 review evidence fixed root marker symlink redirection and inactive-supervisor restart. Fresh main sync 05af71c0 added no shared activation lock: current pgrep suppression is TOCTOU. The approved scope closes that P2 with one common root-owned flock across release mutations and watchdog recovery; guard rechecks workload/marker state after lock acquisition. Health guard structural regression 4 PASS; release helper regression 24 PASS / 2 Linux DB cases SKIPPED; both shell syntax checks PASS; validate:full PASS; security:gate PASS; AIPOS YAML PASS; diff check PASS. Four shell/flock contention/owner-exit cases are skipped on this Windows host because util-linux flock is unavailable; exact-head Linux CI must execute them. No host mutation is authorized."
+next: "Commit and fast-forward update the existing PR #2818 branch, then require Linux exact-head CI, fresh non-author validation, and canonical Audit/Release. Do not install, self-approve, or merge."

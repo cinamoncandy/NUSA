@@ -23,6 +23,7 @@ readonly RESEARCH_SERVICE=nusa-research.service
 readonly RESEARCH_TIMER=nusa-research.timer
 readonly AUTOPILOT_SERVICE=nusa-autopilot.service
 readonly SERVICE_USER=nusa
+readonly ACTIVATION_LOCK_FILE=/run/lock/nusa-paper-activation.lock
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
 readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
@@ -37,6 +38,14 @@ readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000
 readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
+
+# Serialize every canonical operation that can change the active release or PAPER service.
+# flock is released by the kernel when this process exits, including abnormal termination.
+acquire_paper_activation_lock() {
+  command -v flock >/dev/null 2>&1 || die "flock is required for safe PAPER activation serialization"
+  exec 9>>"$ACTIVATION_LOCK_FILE" || die "cannot open PAPER activation lock"
+  flock 9 || die "cannot acquire PAPER activation lock"
+}
 
 # The SHA is the only caller-supplied value that reaches a path, so it is validated here rather
 # than trusted from the workflow. Anything but a full lowercase commit SHA is refused outright.
@@ -354,6 +363,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     install_units_from_release "$dir"
     enable_units
     ;;
@@ -394,6 +404,7 @@ case "$verb" in
     validate_sha "${1:-}"
     dir="$(release_dir "$1")"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
     bind_runtime_source_identity "$1"
     ;;
@@ -402,11 +413,13 @@ case "$verb" in
     rollback_release="$(previous_release)"
     [ -n "$rollback_release" ] || die "rollback release is unavailable"
     assert_segmented_replay_compatible "$rollback_release"
+    acquire_paper_activation_lock
     NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
     bind_runtime_source_identity "$(active_release_sha)"
     ;;
 
   restart)
+    acquire_paper_activation_lock
     systemctl daemon-reload
     enable_units
     restart_units
@@ -417,6 +430,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
     activation_started="$(date --iso-8601=seconds)"
     paper_ready=false

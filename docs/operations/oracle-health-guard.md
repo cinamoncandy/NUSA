@@ -14,10 +14,16 @@ The guard therefore distinguishes process health from workload health. It author
 - the last market-event timestamp is present;
 - the same stale market timestamp has not already received a recovery attempt;
 - the 15-minute restart cooldown has expired;
-- no canonical Oracle release activation is running;
+- the shared root-owned PAPER activation lock is available;
 - Upbit public REST is reachable.
 
 After the restart it waits for workload state `HEALTHY` with no runtime error. Failure stays fail-closed. An unhealthy PAPER HTTP endpoint is never blindly restarted, and MCP restart remains suppressed while its PAPER upstream is unavailable.
+
+## Atomic release/recovery exclusion
+
+Every canonical release-helper verb that can change the active release, install active units, or restart PAPER (`install-units`, `switch`, `rollback`, `restart`, and `activate`) shares `/run/lock/nusa-paper-activation.lock` with the watchdog's bounded PAPER recovery via `flock`. For `activate`, the helper holds the exclusive lock from before the deployment pointer switch through readiness/rollback completion. The watchdog acquires it non-blocking before creating or changing the recovery marker, then rechecks the workload failure and marker/cooldown state under lock; if the lock is busy or `flock` is unavailable, it fails closed without marker mutation or PAPER restart. This replaces process-name polling, which had a check-then-act race. The lock is runtime coordination only, not a second scheduler or authority store, and the kernel releases it when its owning process exits or fails.
+
+The source change does not install or alter the root-owned host helper. Deployment/installation remains an explicit separately reviewed operation.
 
 ## Reviewed source
 

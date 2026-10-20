@@ -4,12 +4,15 @@ PAPER_HEALTH_URL=${PAPER_HEALTH_URL:-http://127.0.0.1:41731/health}
 UPBIT_PUBLIC_URL=${UPBIT_PUBLIC_URL:-https://api.upbit.com/v1/ticker?markets=KRW-XRP}
 MARKER_DIR=/var/lib/nusa-health-guard
 MARKER=${MARKER_DIR}/public-market-restart
+ACTIVATION_LOCK_FILE=/run/lock/nusa-paper-activation.lock
 COOLDOWN_MS=900000
 probe() {
   curl -fsS --max-time 3 "$1" >/dev/null 2>&1
 }
-release_activation_active() {
-  pgrep -f '/opt/nusa/bin/nusa-release-step activate [0-9a-f]{40}' >/dev/null 2>&1
+acquire_recovery_lock() {
+  command -v flock >/dev/null 2>&1 || return 1
+  exec 9>>"$ACTIVATION_LOCK_FILE" || return 1
+  flock -n 9 >/dev/null 2>&1
 }
 restart_once() {
   name=$1; unit=$2; url=$3
@@ -51,6 +54,17 @@ print("HEALTHY" if w.get("state")=="HEALTHY" and not r.get("lastError") else "NO
 maybe_recover_public_market() {
   failure=$(paper_workload_failure)
   [ -n "$failure" ] || return 0
+  if ! acquire_recovery_lock; then
+    logger -p daemon.warning -t nusa-health-guard "canonical release activation or lock failure; suppressing watchdog recovery without marker mutation"
+    return 1
+  fi
+  # The pre-lock health sample only decides whether to contend for the lock. It never
+  # authorizes mutation: refresh the workload identity and marker/cooldown under exclusion.
+  failure=$(paper_workload_failure)
+  if [ -z "$failure" ]; then
+    logger -p daemon.info -t nusa-health-guard "PAPER workload recovered before exclusion; no watchdog mutation"
+    return 0
+  fi
   last_market=$(printf '%s' "$failure" | awk '{print $1}')
   now_ms=$(printf '%s' "$failure" | awk '{print $2}')
   prev_market=0; prev_restart=0
@@ -61,10 +75,6 @@ maybe_recover_public_market() {
   fi
   if [ "$prev_restart" -gt 0 ] 2>/dev/null && [ $((now_ms-prev_restart)) -lt "$COOLDOWN_MS" ]; then
     logger -p daemon.err -t nusa-health-guard "paper public-market workload stale during restart cooldown; no restart"
-    return 1
-  fi
-  if release_activation_active; then
-    logger -p daemon.warning -t nusa-health-guard "paper public-market workload stale during canonical release activation; suppressing watchdog restart"
     return 1
   fi
   if ! probe "$UPBIT_PUBLIC_URL"; then
@@ -89,11 +99,7 @@ rc=0
 paper_supervisor_active=true
 if ! systemctl is-active --quiet nusa.service; then
   paper_supervisor_active=false
-  if release_activation_active; then
-    logger -p daemon.warning -t nusa-health-guard "paper supervisor inactive during canonical release activation; suppressing watchdog restart"
-  else
-    logger -p daemon.err -t nusa-health-guard "paper supervisor inactive; no watchdog restart"
-  fi
+  logger -p daemon.err -t nusa-health-guard "paper supervisor inactive; no watchdog restart"
   rc=1
 fi
 if [ "$paper_supervisor_active" = true ] && probe "$PAPER_HEALTH_URL"; then
