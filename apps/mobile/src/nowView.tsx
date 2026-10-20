@@ -73,7 +73,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
     paperOrderCount: heartbeat?.paperOrderCount ?? null,
     fillCount: heartbeat?.paperFillCount ?? null,
   });
-  const rawLossLimit = heartbeat?.lossLimit != null && typeof heartbeat.lossLimit === "object" ? heartbeat.lossLimit as Record<string, unknown> : null;
+  const rawLossLimit: { readonly consecutiveLossCount?: unknown; readonly maxConsecutiveLosses?: unknown } | null = heartbeat?.lossLimit ?? null;
   // Redesign 2026-10-19: when the loss limit holds new buys, say where the flow stopped (the risk gate), not just "no execution".
   const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount, consecutiveLossCount: rawLossLimit?.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit?.maxConsecutiveLosses });
   const ringsStatus = field.phase === "HALTED" ? { title: field.headline, detail: field.detail, tone: "halt" as const } : null;
