@@ -44,8 +44,18 @@ current_autopilot_fresh_validator_gate_20261020:
     readonly_broker_run: 39378962553
     result: PASS_ALL_SIX_ON_VALIDATED_SUCCESSOR
     status_after_evidence_commit: HISTORICAL_REQUIRES_FRESH_SUCCESSOR_CHECKS
-  fresh_non_author_validator: PENDING_FOR_CURRENT_HEAD_AFTER_FRESH_EXACT_HEAD_CHECKS
-  next: "Push this AIPOS evidence successor to the existing branch without rewriting history; run all required checks on the new exact head, then obtain a fresh independent non-author Validator. Keep Draft; Audit/Release/merge remain blocked."
+  aipos_evidence_successor_head: de440808fb30c5b0291d4e6dff9cf2090fc3fafe
+  latest_successor_ci:
+    ci_run: 39379663687
+    actual_paper_run: 39379663605
+    capability_guard_run: 39379663731
+    activation_rehearsal_run: 39379663688
+    transport_readiness_run: 39379663628
+    readonly_broker_run: 39379663625
+    result: PASS_ALL_SIX_ON_EXACT_HEAD
+    status_after_this_record_commit: HISTORICAL_REQUIRES_FRESH_SUCCESSOR_CHECKS
+  fresh_non_author_validator: PENDING_ON_FINAL_EXACT_HEAD
+  next: "Push this final AIPOS validation record to the existing PR branch without rewriting history; require exact-head CI/companions on that resulting SHA and then a fresh independent non-author Validator. Keep Draft; Audit/Release/merge remain blocked."
   safety:
     liveAuthority: NONE
     productionMutationAllowed: false
