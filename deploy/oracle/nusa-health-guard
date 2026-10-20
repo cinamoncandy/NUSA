@@ -4,14 +4,22 @@ PAPER_HEALTH_URL=${PAPER_HEALTH_URL:-http://127.0.0.1:41731/health}
 UPBIT_PUBLIC_URL=${UPBIT_PUBLIC_URL:-https://api.upbit.com/v1/ticker?markets=KRW-XRP}
 MARKER_DIR=/var/lib/nusa-health-guard
 MARKER=${MARKER_DIR}/public-market-restart
-ACTIVATION_LOCK_FILE=/run/lock/nusa-paper-activation.lock
+ACTIVATION_LOCK_DIR=/run/nusa-paper-activation
+ACTIVATION_LOCK_FILE=${ACTIVATION_LOCK_DIR}/activation.lock
 COOLDOWN_MS=900000
 probe() {
   curl -fsS --max-time 3 "$1" >/dev/null 2>&1
 }
 acquire_recovery_lock() {
   command -v flock >/dev/null 2>&1 || return 1
+  install -d -o root -g root -m 0700 "$ACTIVATION_LOCK_DIR" || return 1
+  [ -d "$ACTIVATION_LOCK_DIR" ] && [ ! -L "$ACTIVATION_LOCK_DIR" ] || return 1
+  [ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_DIR" 2>/dev/null)" = "0:0:700" ] || return 1
+  [ ! -L "$ACTIVATION_LOCK_FILE" ] || return 1
+  umask 077
   exec 9>>"$ACTIVATION_LOCK_FILE" || return 1
+  [ -f "$ACTIVATION_LOCK_FILE" ] && [ ! -L "$ACTIVATION_LOCK_FILE" ] || return 1
+  [ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_FILE" 2>/dev/null)" = "0:0:600" ] || return 1
   flock -n 9 >/dev/null 2>&1
 }
 restart_once() {

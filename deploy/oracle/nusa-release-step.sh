@@ -23,7 +23,8 @@ readonly RESEARCH_SERVICE=nusa-research.service
 readonly RESEARCH_TIMER=nusa-research.timer
 readonly AUTOPILOT_SERVICE=nusa-autopilot.service
 readonly SERVICE_USER=nusa
-readonly ACTIVATION_LOCK_FILE=/run/lock/nusa-paper-activation.lock
+readonly ACTIVATION_LOCK_DIR=/run/nusa-paper-activation
+readonly ACTIVATION_LOCK_FILE="${ACTIVATION_LOCK_DIR}/activation.lock"
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
 readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
@@ -43,7 +44,14 @@ die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
 # flock is released by the kernel when this process exits, including abnormal termination.
 acquire_paper_activation_lock() {
   command -v flock >/dev/null 2>&1 || die "flock is required for safe PAPER activation serialization"
+  install -d -o root -g root -m 0700 "$ACTIVATION_LOCK_DIR" || die "cannot create protected PAPER activation lock directory"
+  [[ -d "$ACTIVATION_LOCK_DIR" && ! -L "$ACTIVATION_LOCK_DIR" ]] || die "PAPER activation lock directory is not a real directory"
+  [[ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_DIR")" == "0:0:700" ]] || die "PAPER activation lock directory ownership/mode is unsafe"
+  [[ ! -L "$ACTIVATION_LOCK_FILE" ]] || die "PAPER activation lock must not be a symlink"
+  umask 077
   exec 9>>"$ACTIVATION_LOCK_FILE" || die "cannot open PAPER activation lock"
+  [[ -f "$ACTIVATION_LOCK_FILE" && ! -L "$ACTIVATION_LOCK_FILE" ]] || die "PAPER activation lock is not a regular file"
+  [[ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_FILE")" == "0:0:600" ]] || die "PAPER activation lock ownership/mode is unsafe"
   flock 9 || die "cannot acquire PAPER activation lock"
 }
 

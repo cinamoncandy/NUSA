@@ -31,7 +31,11 @@ test("public-market recovery is workload-aware and bounded", () => {
   assert.doesNotMatch(script, /\$\{MARKER\}\.tmp\.\$\$/);
   assert.match(script, /last_market.*prev_market/);
   assert.match(script, /no repeat restart/);
-  assert.match(script, /ACTIVATION_LOCK_FILE=\/run\/lock\/nusa-paper-activation\.lock/);
+  assert.match(script, /ACTIVATION_LOCK_DIR=\/run\/nusa-paper-activation/);
+  assert.match(script, /ACTIVATION_LOCK_FILE=\$\{ACTIVATION_LOCK_DIR\}\/activation\.lock/);
+  assert.match(script, /install -d -o root -g root -m 0700 "\$ACTIVATION_LOCK_DIR"/);
+  assert.match(script, /stat -c '%u:%g:%a' -- "\$ACTIVATION_LOCK_FILE"/);
+  assert.match(script, /"0:0:600"/);
   assert.match(script, /flock -n 9/);
   assert.match(script, /suppressing watchdog recovery without marker mutation/);
   assert.doesNotMatch(script, /pgrep/);
@@ -43,7 +47,10 @@ test("public-market recovery is workload-aware and bounded", () => {
 });
 
 test("release activation and watchdog recovery share an atomic exclusion lock", () => {
-  assert.match(release, /readonly ACTIVATION_LOCK_FILE=\/run\/lock\/nusa-paper-activation\.lock/);
+  assert.match(release, /readonly ACTIVATION_LOCK_DIR=\/run\/nusa-paper-activation/);
+  assert.match(release, /readonly ACTIVATION_LOCK_FILE="\$\{ACTIVATION_LOCK_DIR\}\/activation\.lock"/);
+  assert.match(release, /install -d -o root -g root -m 0700 "\$ACTIVATION_LOCK_DIR"/);
+  assert.match(release, /stat -c '%u:%g:%a' -- "\$ACTIVATION_LOCK_FILE"/);
   assert.match(release, /acquire_paper_activation_lock\(\)/);
   for (const [verb, mutation] of [
     ["install-units", "install_units_from_release"],
@@ -109,7 +116,7 @@ test("a contended shared flock runs no watchdog-side mutation", (t) => {
     const result = spawnSync("sh", ["-c", [
       'flock -n "$1" -c "sleep 1" & holder=$!',
       "sleep 0.1",
-      'if flock -n "$1" -c "touch \\\"$2\\\""; then exit 1; fi',
+      'if MARKER="$2" flock -n "$1" -c \'touch "$MARKER"\'; then exit 1; fi',
       'wait "$holder"',
       '[ ! -e "$2" ]',
     ].join("\n"), "nusa-lock-test", lock, marker], { encoding: "utf8", timeout: 5000 });
@@ -130,10 +137,10 @@ test("release activation waits for an in-progress watchdog recovery lock holder"
   const releaseAcquired = path.join(temp, "release-acquired");
   try {
     const result = spawnSync("sh", ["-c", [
-      'flock -n "$1" -c \'touch "$2"; sleep 0.3\' & holder=$!',
+      'GUARD_READY="$2" flock -n "$1" -c \'touch "$GUARD_READY"; sleep 0.3\' & holder=$!',
       'i=0; while [ ! -e "$2" ] && [ "$i" -lt 100 ]; do sleep 0.01; i=$((i+1)); done',
       '[ -e "$2" ] || exit 2',
-      'flock "$1" -c \'touch "$3"\'',
+      'RELEASE_ACQUIRED="$3" flock "$1" -c \'touch "$RELEASE_ACQUIRED"\'',
       'wait "$holder"',
       '[ -e "$3" ]',
     ].join("\n"), "nusa-lock-order-test", lock, guardReady, releaseAcquired], { encoding: "utf8", timeout: 5000 });
