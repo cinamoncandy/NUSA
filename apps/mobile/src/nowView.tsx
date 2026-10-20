@@ -13,12 +13,11 @@ import { explainDecision } from "./whyNoTradeModel";
 import { useDailyCounts } from "./useDailyCounts";
 import { chooseDailyCounts, partialWindowNote } from "./dailyResetModel";
 import { staleLabel } from "./cachedSnapshotModel";
-import { InstrumentNow } from "./instrumentNow";
+import { InstrumentEquity, InstrumentNow } from "./instrumentNow";
 import { buildNowScreen } from "./nowScreenModel";
 import { buildRiskGate } from "./riskGateModel";
 import { RiskGateFlow } from "./riskGateFlow";
 import { buildDecisionTerrain } from "./decisionTerrainModel";
-import { CalmBigNumber } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 
@@ -85,9 +84,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
       <Text style={styles.brand}>NUSA</Text>
       {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} terrain={terrain} decisionCount={dailyCounts.decisionCount} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} terrain={terrain} stats={model.stats} />}
-      <View style={styles.block}>
-        <CalmBigNumber value={model.equity} caption={model.delta ?? undefined} captionTone={model.deltaTone} dim={model.dim} />
-      </View>
+      <InstrumentEquity value={model.equity} caption={model.delta} tone={model.deltaTone} dim={model.dim} />
       {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
       {lossLimit == null || gate ? null : <View style={styles.why} testID="now-loss-limit">
         <Text style={[styles.whyText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
