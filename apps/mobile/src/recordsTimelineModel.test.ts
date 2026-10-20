@@ -6,6 +6,7 @@ const NOW = Date.UTC(2026, 9, 15, 3, 15); // 12:15 KST
 test("lists only real same-day events, newest first, in KST; the loss limit is its own row", () => {
   const events = buildTodayTimeline({ lastPaperDecisionAt: NOW - 60_000, lastPaperFillAt: Date.UTC(2026, 9, 14, 15, 56), startedAt: Date.UTC(2026, 9, 15, 2, 46), lossLimit: { consecutiveLossCount: 3, maxConsecutiveLosses: 3, evaluatedAt: NOW - 30_000 } }, NOW);
   assert.deepEqual(events.map((e) => [e.time, e.tone]), [["12:14", "ATTENTION"], ["12:14", "NOW"], ["11:46", "MUTED"], ["00:56", "NORMAL"]]);
+  assert.deepEqual(events.map((e) => e.kind), ["LOSS_LIMIT", "DECISION", "START", "FILL"], "the log tag follows the event kind, not its colour");
   assert.equal(events[0].text, "연속 손실 3/3 확인 · 새 매수 멈춤");
   assert.equal(events[3].text, "마지막 PAPER 체결", "a fill never claims to be the loss that hit the limit");
 });
