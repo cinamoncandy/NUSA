@@ -4,7 +4,7 @@ import { PaperShadowMonitorView } from "./paperShadowMonitorView";
 import { buildLearningScreen } from "./learningScreenModel";
 import { buildLearningFunnel } from "./learningFunnelModel";
 import { LearningFunnel } from "./learningFunnel";
-import { InstrumentHero } from "./instrumentKit";
+import { InstrumentHero, Reveal, useReducedMotion } from "./instrumentKit";
 import { CalmRow } from "./uiKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
@@ -17,6 +17,7 @@ type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server 
  */
 export function LearningView(props: Props) {
   const [details, setDetails] = useState(false);
+  const reduced = useReducedMotion();
   const { learningFunnel, ...monitorProps } = props;
   const model = buildLearningScreen(props.paper);
   const funnel = buildLearningFunnel(learningFunnel);
@@ -27,7 +28,7 @@ export function LearningView(props: Props) {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="learning-view">
     {funnel ? <LearningFunnel model={funnel} /> : <>
       <InstrumentHero index="02 / 학습" lines={[{ text: model.headline, color: calmToneColor(model.tone) }]} />
-      {model.sub ? <Text style={styles.sub}>{model.sub}</Text> : null}
+      {model.sub ? <Reveal index={1} reducedMotion={reduced}><Text style={styles.sub}>{model.sub}</Text></Reveal> : null}
     </>}
     <View style={styles.track} accessibilityLabel={model.steps.map((s) => `${s.label} ${s.state === "DONE" ? "확인" : s.state === "BLOCKED" ? "막힘" : "없음"}`).join(", ")}>
       {model.steps.map((step) => <View key={step.label} style={styles.step}>
@@ -36,7 +37,7 @@ export function LearningView(props: Props) {
       </View>)}
     </View>
     {model.narrowest ? <Text style={styles.narrow}>{model.narrowest}</Text> : null}
-    <View style={styles.list}>{model.rows.map((row) => <CalmRow key={row.label} label={row.label} value={row.value} tone={row.tone} />)}</View>
+    <View style={styles.list}>{model.rows.map((row, i) => <Reveal key={row.label} index={2 + i} reducedMotion={reduced}><CalmRow label={row.label} value={row.value} tone={row.tone} /></Reveal>)}</View>
     <Pressable accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
       <Text style={styles.foldText}>자세히 보기 (운영 · 학습 · 재현 · 실계좌)</Text><Text style={styles.foldText}>›</Text>
     </Pressable>
