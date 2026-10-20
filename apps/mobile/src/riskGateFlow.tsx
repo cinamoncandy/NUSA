@@ -5,7 +5,7 @@ import { readableFont } from "./designSystem";
 import { fieldFonts } from "./fieldFonts";
 import type { RiskGateModel } from "./riskGateModel";
 import type { DecisionTerrainModel } from "./decisionTerrainModel";
-import { DecisionTerrain } from "./decisionTerrain";
+import { DecisionRidge } from "./decisionRidge";
 import { Heartbeat, Odometer, Panel, SectionLabel, instrumentType, useReducedMotion } from "./instrumentKit";
 
 // Now-screen block while the consecutive-loss limit holds new buys (redesign 2026-10-20, owner-chosen 계기판 design): a big
@@ -19,7 +19,7 @@ const CYCLE_MS = 1100;
 
 export function RiskGateFlow({ gate, lossText = null, windowNote = null, terrain = null, decisionCount = null }: {
   readonly gate: RiskGateModel;
-  /** The main motion graphic: today's decision terrain with the amber gate at the stop time. Without it the heartbeat trace stands in. */
+  /** The main motion graphic: today's decision ridgeline with the lines from the stop time on in amber. Without it the heartbeat trace stands in. */
   readonly terrain?: DecisionTerrainModel | null;
   /** Today's decision count, so new decisions drop needles on the terrain. */
   readonly decisionCount?: number | null;
@@ -48,7 +48,7 @@ export function RiskGateFlow({ gate, lossText = null, windowNote = null, terrain
 
     <View style={styles.section}>
       <SectionLabel left="판단 · 도는 중" right="오늘" />
-      {terrain == null ? <Heartbeat width={width} reducedMotion={reducedMotion} /> : width > 0 ? <DecisionTerrain model={terrain} tone="limit" decisionCount={decisionCount} width={width} reducedMotion={reducedMotion} /> : null}
+      {terrain == null ? <Heartbeat width={width} reducedMotion={reducedMotion} /> : width > 0 ? <DecisionRidge model={terrain} tone="limit" decisionCount={decisionCount} width={width} reducedMotion={reducedMotion} /> : null}
       <Odometer value={gate.decisions} size={84} reducedMotion={reducedMotion} />
     </View>
 
