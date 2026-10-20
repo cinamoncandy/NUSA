@@ -124,19 +124,20 @@ test("Release dispatches only active unowned exact-main downstream workflows aft
   assert.match(downstream, /CURRENT_MAIN.*MERGED_MAIN/);
   assert.match(downstream, /dispatch_exact_main_downstream\(\)/);
   assert.match(downstream, /actions\/workflows\/\$workflow.*--jq '\.state'/);
-  assert.match(downstream, /state.*disabled_manually/);
-  assert.match(downstream, /Skipping intentionally disabled downstream workflow/);
+  assert.match(downstream, /allow_manual_disable/);
+  assert.match(downstream, /state.*disabled_manually.*allow_manual_disable/s);
+  assert.match(downstream, /Skipping intentionally disabled optional downstream workflow/);
   assert.match(downstream, /state.*active/);
   assert.match(downstream, /Unexpected downstream workflow state/);
   assert.match(downstream, /actions\/workflows\/\$workflow\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
   assert.match(downstream, /suppressing duplicate dispatch/);
   assert.match(downstream, /actions\/workflows\/\$workflow\/dispatches/);
-  assert.match(downstream, /dispatch_exact_main_downstream wo-0059-actual-paper-runtime\.yml/);
-  assert.match(downstream, /dispatch_exact_main_downstream autopilot-cloudflare-promote\.yml/);
+  assert.match(downstream, /dispatch_exact_main_downstream wo-0059-actual-paper-runtime\.yml false/);
+  assert.match(downstream, /dispatch_exact_main_downstream autopilot-cloudflare-promote\.yml false/);
   assert.match(downstream, /inputs\[head_sha\]=\$MERGED_MAIN/);
-  assert.match(downstream, /dispatch_exact_main_downstream android-stable-release-trigger\.yml/);
+  assert.match(downstream, /dispatch_exact_main_downstream android-stable-release-trigger\.yml true/);
   assert.doesNotMatch(downstream, /android-stable-release\.yml/);
-  assert.match(downstream, /dispatch_exact_main_downstream windows-desktop-stable-release\.yml/);
+  assert.match(downstream, /dispatch_exact_main_downstream windows-desktop-stable-release\.yml false/);
   assert.doesNotMatch(downstream, /enable.*workflow|workflows\/.*\/enable/i, "Release must never re-enable an intentionally disabled workflow");
 });
 

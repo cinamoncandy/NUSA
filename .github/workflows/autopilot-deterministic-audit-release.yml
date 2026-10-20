@@ -563,11 +563,12 @@ jobs:
           if [ "$CURRENT_MAIN" != "$MERGED_MAIN" ]; then echo "Main advanced from $MERGED_MAIN to $CURRENT_MAIN; newer Release chain owns post-merge evidence."; exit 0; fi
           dispatch_exact_main_downstream() {
             local workflow="$1"
-            shift
+            local allow_manual_disable="$2"
+            shift 2
             local state runs owner
             state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq '.state')"
-            if [ "$state" = "disabled_manually" ]; then
-              echo "::notice::Skipping intentionally disabled downstream workflow $workflow for $MERGED_MAIN."
+            if [ "$state" = "disabled_manually" ] && [ "$allow_manual_disable" = "true" ]; then
+              echo "::notice::Skipping intentionally disabled optional downstream workflow $workflow for $MERGED_MAIN."
               return 0
             fi
             if [ "$state" != "active" ]; then
@@ -590,7 +591,7 @@ jobs:
             echo "Dispatched exact-main downstream $workflow for $MERGED_MAIN."
           }
 
-          dispatch_exact_main_downstream wo-0059-actual-paper-runtime.yml
-          dispatch_exact_main_downstream autopilot-cloudflare-promote.yml -f "inputs[head_sha]=$MERGED_MAIN"
-          dispatch_exact_main_downstream android-stable-release-trigger.yml
-          dispatch_exact_main_downstream windows-desktop-stable-release.yml
+          dispatch_exact_main_downstream wo-0059-actual-paper-runtime.yml false
+          dispatch_exact_main_downstream autopilot-cloudflare-promote.yml false -f "inputs[head_sha]=$MERGED_MAIN"
+          dispatch_exact_main_downstream android-stable-release-trigger.yml true
+          dispatch_exact_main_downstream windows-desktop-stable-release.yml false

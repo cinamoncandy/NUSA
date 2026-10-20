@@ -14,7 +14,7 @@ root_cause: "The existing deterministic Release step assumes every optional down
 scope:
   - "Reuse the existing Autopilot Deterministic Audit Release workflow; do not add a second release engine or scheduler."
   - "Read each downstream workflow's GitHub Actions state before workflow_dispatch."
-  - "Treat disabled_manually as an explicit intentional skip without enabling the workflow."
+  - "Treat disabled_manually as an explicit skip only for the allowlisted optional Android stable trigger; required downstreams remain fail-closed, and no workflow is enabled automatically."
   - "For active workflows, suppress duplicate dispatch when an exact-main queued/in-progress/success run already owns convergence."
   - "Fail closed on unexpected workflow states or API-read failure."
   - "Add focused regression coverage for disabled-manually and duplicate-suppression behavior."
