@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { InstrumentHero, Odometer, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
-import { DecisionTerrain } from "./decisionTerrain";
+import { DecisionRidge } from "./decisionRidge";
 import type { DecisionTerrainModel } from "./decisionTerrainModel";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
@@ -17,7 +17,7 @@ interface Props {
   readonly stats: readonly { readonly label: string; readonly value: string; readonly tone: CalmTone }[];
 }
 
-/** "지금" instrument view for every state without the risk gate: hero line, the decision terrain, the decision odometer, ledger. Presentation only. */
+/** "지금" instrument view for every state without the risk gate: hero line, the decision ridgeline, the decision odometer, ledger. Presentation only. */
 export function InstrumentNow({ tone, headline, sub, dim, decisionCount, terrain, stats }: Props) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
@@ -26,7 +26,7 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, terrain
     <InstrumentHero index="01 / 지금" lines={[{ text: headline, color: calmToneColor(tone) }]} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
     <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
-      {width > 0 ? <DecisionTerrain model={terrain} tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} width={width} reducedMotion={reduced} /> : null}
+      {width > 0 ? <DecisionRidge model={terrain} tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} width={width} reducedMotion={reduced} /> : null}
     </View>
     <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
       <SectionLabel left="판단 · 오늘" right={live ? "LIVE" : "—"} live={live} />
