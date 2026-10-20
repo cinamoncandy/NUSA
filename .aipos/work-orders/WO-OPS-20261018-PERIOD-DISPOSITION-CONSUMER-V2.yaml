@@ -52,11 +52,15 @@ validator_followup_20261020:
   change: "Validate the proposed successor periodId and periodIndex against all decoded immutable disposition original/successor reservations before updating the current row or inserting the successor. Throw PERIOD_INDEX_CONFLICT; remain transactionally fail-closed."
   regression: "tests/persisted-paper-pending-disposition-resurrection.test.js verifies a retired prior successor ID cannot be raw-inserted at a later index, the failed attempt rolls back the original row, disposition history stays intact, and a fresh successor identity remains admissible."
   repair_commit: eb35bda01
+  validated_evidence_head: 8d9825f45cc08997475c1c27fd461bcfc2b33be6
   local_validation: "Node 24.18.0 / pnpm 11.7.0; frozen-lockfile install; process-local Git Bash PATH; pnpm rebuild electron for existing locked dependency; pnpm test PASS across 1,256 isolated test files; build PASS; focused resurrection test file 3/3 PASS; pnpm run validate:full PASS."
-  exact_head_ci: PENDING_AIPOS_SUCCESSOR
-  fresh_non_author_validator: PENDING_EXACT_HEAD_CI
+  exact_head_ci: "PASS — CI 39350584569 at 8d9825f45cc08997475c1c27fd461bcfc2b33be6"
+  exact_head_paper_and_safety: "PASS — PAPER 39350584589; Capability 39350584556; Activation 39350584622; Read-only Broker 39350584594; Transport 39350584637"
+  fresh_non_author_validator: PENDING
+  validator_request_comment_id: 6280783236
+  unresolved_review_thread: PRRT_kwDOTUbne86uJ_ar
   latest_main_observation: fd278dc3534281abfe3a14c0056e8b25dc5219ed
-  latest_main_delta: "From synced parent b032426, only mobile UI redesign files and its UI work order changed; no storage/AIPOS-state overlap or semantic dependency. GitHub reports mergeable=true/behind; strict up-to-date protection could not be read (403), to recheck at release gate."
+  latest_main_delta: "From synced parent b032426, only mobile UI redesign files and its UI work order changed; no storage/AIPOS-state overlap or semantic dependency. GitHub reported mergeable=true after sync; strict up-to-date protection could not be read (403), recheck at release gate."
   audit: PENDING
   release: PENDING
   runtime_activation: PROHIBITED
