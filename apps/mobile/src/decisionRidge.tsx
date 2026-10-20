@@ -130,7 +130,7 @@ function ridgeLayout(model: DecisionTerrainModel, height: number) {
   const gap = R > 1 ? (bottom - top) / (R - 1) : 0;
   // Peaks may rise into the headroom above the first line but never past it; with few rows the gap is large, so cap by headroom too.
   const headroom = Math.max(24, top - 6);
-  return { top, bottom, gap, amp: Math.min(headroom, Math.max(28, gap * 5.2)), y0: (k: number) => top + k * gap };
+  return { top, bottom, gap, amp: Math.min(headroom / 1.25, Math.max(24, gap * 5.2)), y0: (k: number) => top + k * gap };
 }
 
 interface RenderInput {
@@ -147,7 +147,7 @@ function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, to
   const { gap, amp, y0 } = ridgeLayout(model, height);
   const left = LABEL_W, right = width - 4, span = right - left;
   const limited = tone === "limit" && model.stop != null;
-  const xAt = (i: number, k: number) => left + 12 + ((span - 24) * i) / (TERRAIN_POINTS - 1) + Math.max(-1, Math.min(1, tilt)) * (k - R / 2) * 1.6;
+  const xAt = (i: number, k: number) => left + 12 + ((span - 24) * i) / (TERRAIN_POINTS - 1) + Math.max(-1, Math.min(1, tilt)) * (k - R / 2) * Math.min(1.6, 19 / Math.max(1, R));
   const markers: { x: number; y: number; base: number; now: boolean }[] = [];
 
   for (let k = 0; k < R; k += 1) {
@@ -165,7 +165,7 @@ function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, to
         const age = (nowMs - d.born) / 1000;
         if (age < 0) continue;
         const dx = (x01 - d.at) * 22;
-        h += gap * 1.6 * Math.exp(-dx * dx) * Math.max(0, 1 - age / (DROP_MS / 1000));
+        h += Math.min(gap * 1.6, amp * 0.6) * Math.exp(-dx * dx) * Math.max(0, 1 - age / (DROP_MS / 1000));
       }
       xs.push(xAt(i, k)); ys.push(base - h);
     }
