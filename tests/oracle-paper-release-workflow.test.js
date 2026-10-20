@@ -99,7 +99,10 @@ test("a release that cannot prove either runtime ready is rolled back, not left 
   assert.match(activateCase, /systemctl is-active --quiet "\$AUTOPILOT_SERVICE"/);
 
   const rollbackHelper = wrapper.slice(wrapper.indexOf("rollback_and_restore()"), wrapper.indexOf("\n}\n", wrapper.indexOf("rollback_and_restore()")) + 2);
-  orderIn(rollbackHelper, ["NUSA_DEPLOY_ACTION=rollback", "bind_runtime_source_identity", "install_units_from_release", "enable_units", "restart_units"]);
+  orderIn(rollbackHelper, ["rollback_legacy_ok=true", "nusa-autopilot.service", "NUSA_DEPLOY_ACTION=rollback", "bind_runtime_source_identity", "install_units_from_release", "enable_units", "restart_units"]);
+  assert.match(rollbackHelper, /rollback_legacy_ok=false/, "a modern rollback release must restart its own Autopilot runtime");
+  assert.match(rollbackHelper, /restart_units "\$rollback_legacy_ok"/, "rollback restart policy must follow the rollback release capability");
+  assert.doesNotMatch(rollbackHelper, /restart_units true/, "modern rollback must not unconditionally leave the candidate Autopilot running");
   assert.doesNotMatch(wrapper, /scripts\/[a-z0-9-]*restore[a-z0-9-]*\.js/i);
   assert.doesNotMatch(rollbackHelper, /rm\s+-rf\s+\/var\/lib\/nusa|DROP\s+TABLE/i, "the failure path must not touch persistent state");
 });
@@ -131,13 +134,17 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(wrapper, /readonly POST_ACTIVATION_SOAK_SECONDS=180/);
   assert.match(wrapper, /readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10/);
   assert.match(wrapper, /readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=15000/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_READY_WINDOW_MS=30000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500/);
 
   const routeProofWindow = Number(wrapper.match(/readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=(\d+)/)?.[1]);
+  const readyWindow = Number(wrapper.match(/readonly POST_ACTIVATION_READY_WINDOW_MS=(\d+)/)?.[1]);
   const requestTimeout = Number(wrapper.match(/readonly POST_ACTIVATION_READY_TIMEOUT_MS=(\d+)/)?.[1]);
   const retryDelay = Number(wrapper.match(/readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=(\d+)/)?.[1]);
   const twoAttemptsAcrossBothOwnerRoutes = 2 * ((2 * requestTimeout) + retryDelay);
+  assert.equal(readyWindow, 30_000, "post-activation /ready retries must survive the observed startup stall class without using the long cold-start budget");
+  assert.ok(readyWindow < 180_000, "post-activation /ready proof remains bounded inside the 180s soak");
   assert.ok(
     routeProofWindow >= twoAttemptsAcrossBothOwnerRoutes,
     "route proof must let both owner routes each survive one transient timeout without weakening /ready failure speed",
@@ -178,7 +185,7 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(soak, /oracle-readiness-check\.js/);
   assert.match(soak, /autopilot-readiness\.js/);
   assert.match(soak, /sleep "\$POST_ACTIVATION_CHECK_INTERVAL_SECONDS"/);
-  assert.match(soak, /NUSA_READY_STARTUP_WAIT_MS=5000/);
+  assert.match(soak, /NUSA_READY_STARTUP_WAIT_MS="\$POST_ACTIVATION_READY_WINDOW_MS"/);
   assert.match(soak, /NUSA_READY_ROUTE_PROOF_WAIT_MS="\$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS"/);
   assert.match(soak, /NUSA_READY_TIMEOUT_MS="\$POST_ACTIVATION_READY_TIMEOUT_MS"/);
   assert.match(soak, /NUSA_READY_RETRY_DELAY_MS="\$POST_ACTIVATION_READY_RETRY_DELAY_MS"/);
@@ -319,9 +326,11 @@ test("rollback restores a legacy release that predates the Autopilot systemd uni
   const rollbackStart = wrapper.indexOf("rollback_and_restore()");
   const rollbackEnd = wrapper.indexOf("\n}\n", rollbackStart) + 2;
   const rollback = wrapper.slice(rollbackStart, rollbackEnd);
-  assert.match(rollback, /install_units_from_release "\$\(active_release\)" true/);
-  assert.match(rollback, /enable_units true/);
-  assert.match(rollback, /restart_units true/);
+  assert.match(rollback, /rollback_legacy_ok=true/);
+  assert.match(rollback, /\[ -f "\$\{rollback_release\}\/deploy\/oracle\/nusa-autopilot\.service" \] && rollback_legacy_ok=false/);
+  assert.match(rollback, /install_units_from_release "\$\(active_release\)" "\$rollback_legacy_ok"/);
+  assert.match(rollback, /enable_units "\$rollback_legacy_ok"/);
+  assert.match(rollback, /restart_units "\$rollback_legacy_ok"/);
 
   const installStart = wrapper.indexOf("install_units_from_release()");
   const installEnd = wrapper.indexOf("\n}\n", installStart) + 2;
