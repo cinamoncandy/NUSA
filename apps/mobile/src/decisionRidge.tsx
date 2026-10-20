@@ -29,7 +29,7 @@ function liveProgress(model: DecisionTerrainModel, nowMs: number): number {
   return live >= model.progress ? live : model.progress;
 }
 
-export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion, testID = "now-terrain" }: {
+export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion, testID = "now-terrain", selectedRow = null, onSelectRow }: {
   readonly model: DecisionTerrainModel;
   readonly tone: Tone;
   /** Today's decision count; each increase lifts the live line at the write head. */
@@ -37,6 +37,9 @@ export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion
   readonly width: number;
   readonly reducedMotion: boolean | null;
   readonly testID?: string;
+  /** Records: the picked hour row (0 = oldest visible) is drawn brighter inside a hairline band; tapping a line calls onSelectRow. */
+  readonly selectedRow?: number | null;
+  readonly onSelectRow?: (row: number) => void;
 }) {
   const rowCount = model.rows.length;
   const height = Math.round(width * 0.86);
@@ -53,6 +56,12 @@ export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion
   smoothRef.current = useMemo(() => model.rows.map((r) => smoothTerrainRow(r.values)), [model]);
   const toneRef = useRef(tone);
   toneRef.current = tone;
+  const selectedRef = useRef<number | null>(selectedRow);
+  selectedRef.current = selectedRow;
+  const selectRef = useRef(onSelectRow);
+  selectRef.current = onSelectRow;
+  const heightRef = useRef(0);
+  heightRef.current = height;
 
   const paints = useMemo(() => {
     const stroke = Skia.Paint(); stroke.setAntiAlias(true); stroke.setStyle(PaintStyle.Stroke); stroke.setStrokeJoin(StrokeJoin.Round); stroke.setStrokeCap(StrokeCap.Round);
@@ -72,10 +81,18 @@ export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion
   }, [decisionCount, reducedMotion]);
 
   const pan = useMemo(() => PanResponder.create({
+    // A tap picks a line (Records only); a horizontal drag still tilts the ridges, a vertical one scrolls the page.
+    onStartShouldSetPanResponder: () => selectRef.current != null,
     onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
     onPanResponderGrant: () => { dragBase.current = tiltDrag.current; lastDrag.current = Date.now(); },
     onPanResponderMove: (_e, g) => { tiltDrag.current = Math.max(-1, Math.min(1, dragBase.current + g.dx / 160)); lastDrag.current = Date.now(); },
-    onPanResponderRelease: () => { lastDrag.current = Date.now(); },
+    onPanResponderRelease: (e, g) => {
+      lastDrag.current = Date.now();
+      const pick = selectRef.current, m = modelRef.current;
+      if (pick == null || Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8 || m.rows.length === 0) return;
+      const { top, gap } = ridgeLayout(m, heightRef.current);
+      pick(gap === 0 ? 0 : Math.max(0, Math.min(m.rows.length - 1, Math.round((e.nativeEvent.locationY - top) / gap))));
+    },
     onPanResponderTerminate: () => { lastDrag.current = Date.now(); },
     onPanResponderTerminationRequest: () => true,
   }), []);
@@ -87,7 +104,7 @@ export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion
       if (!still && (nowMs - lastDrag.current) / 1000 > 1.5) tiltDrag.current *= 0.94;
       const tilt = still ? 0 : tiltDrag.current + Math.sin(t * 0.25) * 0.12;
       drops.current = drops.current.filter((d) => nowMs - d.born < DROP_MS);
-      setPicture(createPicture((canvas) => renderRidge(canvas, { model: modelRef.current, smooth: smoothRef.current, progress: still ? modelRef.current.progress : liveProgress(modelRef.current, nowMs), tone: toneRef.current, width, height, tilt, t, nowMs, still, drops: drops.current, paints, colors })));
+      setPicture(createPicture((canvas) => renderRidge(canvas, { model: modelRef.current, smooth: smoothRef.current, progress: still ? modelRef.current.progress : liveProgress(modelRef.current, nowMs), tone: toneRef.current, selected: selectedRef.current, width, height, tilt, t, nowMs, still, drops: drops.current, paints, colors })));
     };
     if (reducedMotion !== false) return undefined; // the settled-frame effect below draws
     born.current = Date.now();
@@ -105,8 +122,8 @@ export function DecisionRidge({ model, tone, decisionCount, width, reducedMotion
   useEffect(() => {
     if (reducedMotion === false || width <= 0) return;
     const smooth = model.rows.map((r) => smoothTerrainRow(r.values));
-    setPicture(createPicture((canvas) => renderRidge(canvas, { model, smooth, progress: model.progress, tone, width, height, tilt: 0, t: 99, nowMs: Date.now(), still: true, drops: [], paints, colors })));
-  }, [model, tone, reducedMotion, width, height, paints, colors]);
+    setPicture(createPicture((canvas) => renderRidge(canvas, { model, smooth, progress: model.progress, tone, selected: selectedRow, width, height, tilt: 0, t: 99, nowMs: Date.now(), still: true, drops: [], paints, colors })));
+  }, [model, tone, selectedRow, reducedMotion, width, height, paints, colors]);
 
   const layout = ridgeLayout(model, height);
   const chip = tone === "limit" ? "HOLD" : tone === "live" ? "LIVE" : "—";
@@ -134,13 +151,13 @@ function ridgeLayout(model: DecisionTerrainModel, height: number) {
 }
 
 interface RenderInput {
-  readonly model: DecisionTerrainModel; readonly smooth: Smooth; readonly progress: number; readonly tone: Tone;
+  readonly model: DecisionTerrainModel; readonly smooth: Smooth; readonly progress: number; readonly tone: Tone; readonly selected: number | null;
   readonly width: number; readonly height: number; readonly tilt: number; readonly t: number; readonly nowMs: number; readonly still: boolean; readonly drops: readonly Drop[];
   readonly paints: { readonly stroke: SkPaint; readonly dashed: SkPaint; readonly fill: SkPaint };
   readonly colors: { readonly ink: Float32Array; readonly ground: Float32Array; readonly order: Float32Array; readonly amber: Float32Array };
 }
 
-function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, tone, width, height, tilt, t, nowMs, still, drops, paints, colors }: RenderInput): void {
+function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, tone, selected, width, height, tilt, t, nowMs, still, drops, paints, colors }: RenderInput): void {
   const { stroke, dashed, fill } = paints;
   const rows = model.rows, R = rows.length;
   if (R === 0) return;
@@ -199,12 +216,19 @@ function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, to
     } else {
       const ridge = Skia.Path.Make(); ridge.moveTo(xs[0]!, ys[0]!); for (let i = 1; i < TERRAIN_POINTS; i += 1) ridge.lineTo(xs[i]!, ys[i]!);
       const p = seenAny ? stroke : dashed;
-      p.setColor(color); p.setStrokeWidth(1); p.setAlphaf((amber ? 0.85 : 0.3 + 0.55 * recency) * (seenAny ? 1 : 0.5)); canvas.drawPath(ridge, p);
+      const picked = selected === k;
+      p.setColor(color); p.setStrokeWidth(picked ? 2 : 1); p.setAlphaf(picked ? 1 : (amber ? 0.85 : 0.3 + 0.55 * recency) * (seenAny ? 1 : 0.5)); canvas.drawPath(ridge, p);
     }
     for (const at of row.orders) {
       const i = Math.round(at * (TERRAIN_POINTS - 1));
       markers.push({ x: xs[i]!, y: ys[i]!, base, now: isNow });
     }
+  }
+
+  // The picked hour sits in a hairline band, drawn after every ridge so a taller line in front cannot cover it.
+  if (selected != null && selected >= 0 && selected < R) {
+    stroke.setColor(colors.ink); stroke.setStrokeWidth(1); stroke.setAlphaf(0.25);
+    canvas.drawRect(Skia.XYWHRect(left - 4, y0(selected) - Math.max(gap, 10) * 0.75, width - left + 2, Math.max(gap, 10) * 1.1), stroke);
   }
 
   // Orders last, so no ridge hides them: a lime point on a stem.
