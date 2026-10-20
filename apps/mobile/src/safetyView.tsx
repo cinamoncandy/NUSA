@@ -24,7 +24,7 @@ export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAI
     <SafetyCircuit />
     <View style={styles.list}>
       <SectionLabel left="실거래 준비" right="읽기 전용" />
-      {model.rows.slice(0, 2).map((row, i) => <Reveal key={row.label} index={i} reducedMotion={reduced}><CalmRow label={row.label} hint={row.hint} value={row.value} tone={row.tone} /></Reveal>)}
+      {model.rows.filter((row) => row.label === "실거래" || row.label === "AI").map((row, i) => <Reveal key={row.label} index={i} reducedMotion={reduced}><CalmRow label={row.label} hint={row.hint} value={row.value} tone={row.tone} /></Reveal>)}
       {gates == null ? null : <GateDots gates={gates} reducedMotion={reduced} />}
       {snapshot == null ? <CalmRow label="실거래 준비 정보" hint={liveUnavailableMessage(unavailableKind)} value="받지 못함" tone="ATTENTION" /> : null}
     </View>
