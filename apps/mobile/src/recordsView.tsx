@@ -1,25 +1,26 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { buildTodayTimeline, type TimelineEvent } from "./recordsTimelineModel";
 import type { MoreDestination } from "./navigationContract";
 import { RECORDS_GROUPS } from "./recordsScreenModel";
-import { InstrumentHero, SectionLabel, useReducedMotion } from "./instrumentKit";
+import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { fieldFonts } from "./fieldFonts";
 import { calmColors } from "./uiKitModel";
-import { labelFont, readableFont } from "./designSystem";
+import { readableFont } from "./designSystem";
 
 /** "기록" — calm redesign of the More menu. Same `onOpen` contract as MoreMenuView. */
 export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (destination: MoreDestination) => void; /** Live heartbeat only (display); null when stale. */ heartbeat?: unknown }>) {
   const events = buildTodayTimeline(heartbeat, Date.now());
+  const reduced = useReducedMotion();
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="records-view">
     <InstrumentHero index="04 / 기록" lines={[{ text: "오늘의" }, { text: "로그" }]} />
     {events.length === 0 ? null : <View style={styles.timeline} testID="records-today" accessibilityLabel={`오늘: ${events.map((e) => `${e.time} ${e.text}`).join(", ")}`}>
       <SectionLabel left="오늘 · 한국 시간" right={`${events.length}`} />
       {events.map((event, i) => <TimelineRow key={`${event.at}-${event.text}`} event={event} last={i === events.length - 1} />)}
     </View>}
-    {RECORDS_GROUPS.map((group) => <View key={group.title} style={styles.group}>
-      <Text style={styles.groupTitle}>{group.title}</Text>
-      {group.items.map((item) => <Pressable
+    {RECORDS_GROUPS.map((group, g) => <Reveal key={group.title} index={g} reducedMotion={reduced} style={styles.group}>
+      <SectionLabel left={group.title} right={`${group.items.length}`} />
+      {group.items.map((item) => <PressScale
         accessibilityRole="button"
         accessibilityLabel={`${item.title}, ${item.hint}`}
         key={item.destination}
@@ -32,8 +33,8 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
           <Text style={styles.hint}>{item.hint}</Text>
         </View>
         <Text style={styles.chevron}>›</Text>
-      </Pressable>)}
-    </View>)}
+      </PressScale>)}
+    </Reveal>)}
     <Text style={styles.footer}>모의투자 전용 · 실거래 잠김 · AI는 의견만</Text>
   </ScrollView>;
 }
@@ -83,7 +84,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: calmColors.ground },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
   group: { paddingHorizontal: 20, marginTop: 14 },
-  groupTitle: { color: calmColors.muted, fontSize: labelFont(12), marginBottom: 4 },
   row: { flexDirection: "row", alignItems: "center", minHeight: 60, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line, gap: 12 },
   rowMain: { flex: 1, gap: 2 },
   rowTitle: { color: calmColors.text, fontSize: readableFont(16) },
