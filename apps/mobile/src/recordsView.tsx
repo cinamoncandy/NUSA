@@ -19,14 +19,20 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
   const hb = heartbeat != null && typeof heartbeat === "object" ? heartbeat as { readonly decisionTrace?: unknown; readonly lossLimit?: { readonly limitReachedAt?: unknown } } : null;
   const terrain = buildDecisionTerrain({ trace: hb?.decisionTrace, now, limitReachedAt: hb?.lossLimit?.limitReachedAt });
   const [width, setWidth] = useState(0);
-  const [picked, setPicked] = useState<number | null>(null);
-  const row = terrain.rows.length === 0 ? null : terrain.rows[Math.min(picked ?? terrain.rows.length - 1, terrain.rows.length - 1)]!;
+  // The pick is remembered by the hour it starts, not by row index: rows slide when a new hour arrives. No pick (or an hour that
+  // scrolled out of view) follows the live hour.
+  const [pickedStart, setPickedStart] = useState<number | null>(null);
+  const lastRow = terrain.rows.length - 1;
+  const foundRow = pickedStart == null ? -1 : terrain.rows.findIndex((r) => r.startAt === pickedStart);
+  const rowIndex = foundRow >= 0 ? foundRow : lastRow;
+  const row = lastRow < 0 ? null : terrain.rows[rowIndex]!;
+  const pick = (index: number) => setPickedStart(index >= lastRow ? null : terrain.rows[index]?.startAt ?? null);
   const hourEvents = row == null ? [] : events.filter((e) => e.at >= row.startAt && e.at < row.startAt + 3_600_000);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="records-view">
     <InstrumentHero index="04 / 기록" lines={[{ text: "오늘의" }, { text: "로그" }]} />
     {hb == null || !terrain.hasTrace || row == null ? null : <View style={styles.ridge} testID="records-ridge" onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
       <SectionLabel left="하루 · 한 줄 = 한 시간" right="눌러서 고르기" />
-      {width > 0 ? <DecisionRidge model={terrain} tone={terrain.stop != null ? "limit" : "live"} decisionCount={null} width={width} reducedMotion={reduced} selectedRow={picked ?? terrain.rows.length - 1} onSelectRow={setPicked} testID="records-ridge-graphic" /> : null}
+      {width > 0 ? <DecisionRidge model={terrain} tone={terrain.stop != null ? "limit" : "live"} decisionCount={null} width={width} reducedMotion={reduced} selectedRow={rowIndex} onSelectRow={pick} testID="records-ridge-graphic" /> : null}
       <View style={styles.hour} testID="records-ridge-hour" accessible accessibilityLabel={`${String(row.hour).padStart(2, "0")}시, 판단 ${row.decisionCount ?? 0}번, 주문 ${row.orderCount ?? 0}번`}>
         <Text style={[fieldFonts.mono, styles.hourTitle]}>{String(row.hour).padStart(2, "0")}:00</Text>
         <Text style={[fieldFonts.mono, styles.hourStat]}>판단 {(row.decisionCount ?? 0).toLocaleString("en-US")} · 주문 {(row.orderCount ?? 0).toLocaleString("en-US")}</Text>

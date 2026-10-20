@@ -219,15 +219,16 @@ function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, to
       const picked = selected === k;
       p.setColor(color); p.setStrokeWidth(picked ? 2 : 1); p.setAlphaf(picked ? 1 : (amber ? 0.85 : 0.3 + 0.55 * recency) * (seenAny ? 1 : 0.5)); canvas.drawPath(ridge, p);
     }
-    if (selected === k) {
-      // The picked hour sits in a hairline band so it reads as chosen even when its line is low.
-      stroke.setColor(colors.ink); stroke.setStrokeWidth(1); stroke.setAlphaf(0.25);
-      canvas.drawRect(Skia.XYWHRect(left - 4, base - gap * 0.75, width - left + 2, gap * 1.1), stroke);
-    }
     for (const at of row.orders) {
       const i = Math.round(at * (TERRAIN_POINTS - 1));
       markers.push({ x: xs[i]!, y: ys[i]!, base, now: isNow });
     }
+  }
+
+  // The picked hour sits in a hairline band, drawn after every ridge so a taller line in front cannot cover it.
+  if (selected != null && selected >= 0 && selected < R) {
+    stroke.setColor(colors.ink); stroke.setStrokeWidth(1); stroke.setAlphaf(0.25);
+    canvas.drawRect(Skia.XYWHRect(left - 4, y0(selected) - Math.max(gap, 10) * 0.75, width - left + 2, Math.max(gap, 10) * 1.1), stroke);
   }
 
   // Orders last, so no ridge hides them: a lime point on a stem.
