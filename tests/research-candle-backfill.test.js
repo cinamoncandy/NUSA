@@ -199,3 +199,17 @@ test("gap fill stops on a rate limit without retrying", async () => {
   assert.equal(result.status, "RATE_LIMITED");
   assert.equal(calls, 1);
 });
+
+test("gap fill also fetches the newest closed minutes after the last stored close (the series head is written only by REST candles)", async () => {
+  const store = newStore();
+  const stale = ANCHOR - 300 * M;
+  const live = [];
+  for (let close = stale - 120 * M; close <= stale; close += M) live.push(stored(close, 5));
+  store.append(MARKET, M, live);
+  const ex = exchange(ANCHOR - 24 * 3_600_000);
+  const result = await fillRecentGaps({ market: MARKET, windowMs: 600 * M, nowMs: NOW, store, fetchPage: ex.fetchPage, sleep: async () => undefined });
+  assert.equal(result.status, "FILLED");
+  assert.equal(result.missing, 300, "the 300 closed minutes after the stale head");
+  assert.equal(store.latestCloseTime(MARKET, M), ANCHOR, "head caught up to the newest closed minute");
+  assert.equal(store.count(MARKET, M), 121 + 300);
+});

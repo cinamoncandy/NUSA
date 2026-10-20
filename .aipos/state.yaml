@@ -2234,20 +2234,20 @@ current_comparable_evaluator_failure_slice:
 
 current_closed_loop_convergence_support_20261019:
   work_order: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
-  status: LATEST_MAIN_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_FORMAL_VALIDATOR
+  status: LATEST_MAIN_LOCAL_VALIDATION_PASS_PENDING_REMOTE_TREE_IDENTITY_AND_EXACT_HEAD_CI
   pr: 2808
   branch: codex/pending-disposition-main-20261018
   pre_sync_head: 070294b019638472933a35799fef77e493f04b6e
-  latest_main: 8cc5d42e61c39591bc7fb78c6d3e6ce35c74cb90
+  latest_main: 269d28c7a71390715c869864c968f658684db5bd
   prior_sync_merge_commit: 97b50704a53529b38194f652dac0437e20b0f793
-  latest_main_merge_commit: PENDING_GITHUB_GIT_DATA_COMMIT
+  latest_main_merge_commit: "Self-referential SHA is intentionally not embedded; verify the exact GitHub PR head after the expected-old-head ref update."
   prior_sync_code_head: 97b50704a53529b38194f652dac0437e20b0f793
-  latest_main_composition: "Local composed tree validated; pending one remote merge commit with first parent 070294b019638472933a35799fef77e493f04b6e and second parent 8cc5d42e61c39591bc7fb78c6d3e6ce35c74cb90."
+  latest_main_composition: "Protected main is 269d28c7a71390715c869864c968f658684db5bd. The local prior sync checkpoint is 3276554c82c44487627c4bed8a165c8b4150153f; compare shows 11 commits/15 net paths from that checkpoint, while d9a5470db4064c954be46a8d20762a848bb2168e to current main adds only the two Oracle diagnostic files. The candidate index composes the current-main file changes with the #2808 disposition paths; exact remote tree equality and fresh validation are pending."
   implementation_parent_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
   repair_commit: eb35bda01
   validated_evidence_head: ad20ea228639983c634e89b58dcd44783ef5764d
-  observed_main: 8cc5d42e61c39591bc7fb78c6d3e6ce35c74cb90
-  main_delta_assessment: "Compared PR base b032426 to protected main 8cc5d42: 22 commits / 26 files across mobile instrument/learning/safety UI, futures holdout record, and the latest 24-hour PAPER loss-limit ruler. The only overlapping path is apps/cloud/src/runtime.ts; its display-only risk-session markers were combined additively with the PR's sourceRuntimeSha binding, without touching risk decisions or authority. Latest main was freshly reconfirmed; local Git authentication is invalid, so exact ref updates require the connected GitHub Git Data API and matching local tree verification."
+  observed_main: 269d28c7a71390715c869864c968f658684db5bd
+  main_delta_assessment: "Compared with the local 3276554 sync checkpoint, protected main is 11 commits/15 net paths ahead; the current tree includes Research, display-only PAPER risk-ruler, and Oracle diagnostic updates. Compared with d9a5470, only the two Oracle diagnostic workflow/test files are new. Current-main source paths are composed without changing disposition semantics; exact local/remote integrated-tree equality is pending."
   validator_finding_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
   validator_finding: "Fresh exact-head review identified P2: markPendingIneligible raw-inserts a later successor without checking whether its periodId was reserved by an earlier immutable disposition whose successor is retired/finalized."
   followup_finding_head: ff29b9b23c662d95fbe44e8e4c9e544ef974e015
@@ -2272,10 +2272,10 @@ current_closed_loop_convergence_support_20261019:
   pre_sync_head_ci: PASS
   pre_sync_head_ci_run: 39353280367
   pre_sync_head_companion_runs: [39353280374, 39353280433, 39353280387, 39353280354, 39353280356]
-  prior_sync_local_validation: "On the 3276554-based sync tree only: typecheck/build/full test 1,257 isolated files/preflight/validate:full/diff-check passed. This evidence does not cover main 8cc5d42 changes."
-  latest_main_local_validation: "Composed 8cc5d42 + PR 070294b + AIPOS checkpoint tree: TypeScript typecheck PASS; build PASS; new main risk-ruler + disposition regressions 14/14 PASS; full pnpm test PASS (1,258 isolated files); preflight PASS; validate:full PASS exit 0; AIPOS provenance PASS; git diff --check PASS. The canonical remote merge commit SHA has not yet been created; exact-head CI/companions remain pending."
-  current_head_ci: PENDING_LATEST_MAIN_COMPOSED_HEAD
-  current_head_companion_workflows: PENDING_LATEST_MAIN_COMPOSED_HEAD
+  prior_sync_local_validation: "Historical only: the 3276554-based sync passed typecheck/build/full test (1,257 isolated files)/preflight/validate:full/diff-check; later main changes are not covered."
+  latest_main_local_validation: "PASS on the 269d28c + PR #2808 + AIPOS working candidate: tsc --noEmit, build, pnpm test (1,258 isolated files), focused disposition/restart/rollover/production-root suite (48 tests), preflight, validate:full, and diff check. GitHub tree identity and fresh exact-head workflows remain pending."
+  current_head_ci: PENDING_FINAL_SYNC
+  current_head_companion_workflows: PENDING_FINAL_SYNC
   exact_head_ci_run: 39352610567
   exact_head_paper_run: 39352610565
   exact_head_capability_run: 39352610641
@@ -2288,9 +2288,9 @@ current_closed_loop_convergence_support_20261019:
   legacy_prior_validated_head: 580fa559d438fcef899ae3ff95ade24ddf9619df
   legacy_prior_exact_head_ci_run: 39248868980
   legacy_prior_failed_merge_run: 39242585445
-  validation: "Before main synchronization, exact head 070294b019638472933a35799fef77e493f04b6e had CI 39353280367 and PAPER/safety/read-only companion runs 39353280374, 39353280433, 39353280387, 39353280354, 39353280356 all completed success; generic Codex review comment 6281175907 says no major issues but is not a formal severity-count Validator. A local sync to 3276554 was tested (typecheck/build/full test 1,257 isolated files/preflight/validate:full/diff-check PASS), but main then advanced to 8cc5d42 before push. The 8cc5d42 delta has now been composed locally: 6 commits / 9 files, with only runtime.ts overlapping additively; its full validation remains pending. Formal Validator, Independent Audit, Release, merge, and genuine candidate-bound PAPER learning-loop proof remain pending. No risk/qualification/cost/sample/OOS or authority gate changed."
+  validation: "PR head 1c2214328b657342ce0273d74c77a3efe86080cb has historical exact-head CI/PAPER/safety PASS only. Current protected main is 269d28c7a71390715c869864c968f658684db5bd; the #2808+current-main+AIPOS integrated candidate is composed locally, but fresh local validation and exact tree identity are pending. Exact-head CI/companions, formal Validator, Independent Audit, Release, merge, and genuine candidate-bound PAPER learning-loop proof remain pending. No risk/qualification/cost/sample/OOS or authority gate changed."
   evidence: .aipos/handoffs/2026-10-19-closed-loop-convergence-support.md
-  next: "Create one remote merge commit whose parents are PR head 070294b019638472933a35799fef77e493f04b6e and protected main 8cc5d42e61c39591bc7fb78c6d3e6ce35c74cb90, using GitHub connector Git Data API because local git auth is invalid; move the existing branch ref only with expected old head 070294b019638472933a35799fef77e493f04b6e and verify resulting tree exactly matches this locally validated tree. Require fresh exact-head CI, five PAPER/safety companions, and formal non-author P0/P1/P2 Validator. Keep Draft. Only then use canonical Independent Audit and authorized Release gates. Independently obtain natural exact-main Research qualification and genuine candidate-bound PAPER cycle/restart/replay evidence; do not activate production disposition."
+  next: "Compose protected main d9a5470db4064c954be46a8d20762a848bb2168e into PR head 1c2214328b657342ce0273d74c77a3efe86080cb, run full local validation, then create one GitHub merge commit with those exact parent SHAs and update only the existing PR branch via expected-head compare-and-swap after the remote tree matches the validated local tree. Require six fresh exact-head workflows, zero unresolved threads, and formal non-author P0/P1/P2 Validator. Keep Draft; only after Validator ACCEPTED and fresh base check proceed to Independent Audit and authorized Release. Do not activate production disposition."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 
