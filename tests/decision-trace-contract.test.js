@@ -26,7 +26,7 @@ test("the operations contract keeps a well-formed decision trace and drops a mal
 });
 
 test("the runtime reports the trace only with the canonical PAPER boundary and records decisions and orders", () => {
-  const body = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8");
+  const body = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8").replace(/\r\n/g, "\n");
   assert.match(body, /const paper = productionPaperBoundary == null \? \{\} : \{[^\n]*decisionTrace: decisionTrace\.snapshot\(Date\.now\(\)\)/);
   assert.match(body, /buyWindow\.decisions \+= state\.decisions\.length;\n\s*decisionTrace\.record\("decision", state\.decisions\.length, Date\.now\(\)\);/);
   assert.match(body, /buyWindow\.orders \+= result\.orders\.length;\n\s*decisionTrace\.record\("order", result\.orders\.length, Date\.now\(\)\);/);
