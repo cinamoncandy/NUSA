@@ -2492,18 +2492,17 @@ current_mobile_home_simplify:
 
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
-  status: VERIFYING
+  status: CURRENT_MAIN_RECONVERGED_PENDING_EXACT_HEAD_VALIDATION
   issue: 1949
   pull_request: 2818
   branch: ops/health-guard-source-1949
-  local_checkout_branch: codex/oracle-health-guard-lock
-  base_commit: 05af71c0eed3ff11aa0fd0efb4e485f4ce7bc936
-  exact_head: f106b8d56726b8348bf2e4c2a85dfb05173d36fb
+  local_checkout_branch: codex/oracle-health-guard-current-main
+  base_commit: 7e560405ad15b4eec8a5e46b0ad32873286df525
+  main_sync_commit: 2fe6ca103795f3e1a105d059ba51426847e9425e
   finding: "Fresh main sync confirms a TOCTOU race: health guard uses pgrep suppression before marker mutation/restart while canonical release activation has no shared exclusion. The prior work order excluded the only canonical activation path despite requiring suppression."
   scope_amendment: "Owner approved shared flock /run/lock/nusa-paper-activation.lock across canonical release verbs that move the active release, install active units, or restart PAPER, plus the health guard. No new helper, scheduler, watchdog, control plane, or host installation. Guard rechecks workload and marker conditions under lock."
-  verification: "Implementation commit 16b5cad74879b5f1430889818e0e59b88160c659 is pushed; paired-install docs/test correction is on f106b8d56726b8348bf2e4c2a85dfb05173d36fb. Latest local health guard/release focused suites 5 PASS / 4 Linux-only SKIP; release compatibility suites 24 PASS / 2 Linux DB SKIP; shell syntax, validate:full, security:gate, AIPOS YAML, and diff check PASS. Six exact-head workflows on f106 were in progress/queued; the final state-only synchronization commit will supersede their exact-head binding."
-  exact_head_workflows: "Paired-install source head f106b8d56726b8348bf2e4c2a85dfb05173d36fb: CI 39373645181 (queued); Actual PAPER Runtime 39373645110; Capability Guard 39373645150; Activation 39373645175; Transport 39373645155; Read-only Broker 39373645187 (in_progress/queued at snapshot; historical after state-only synchronization)."
-  next: "Wait for the six Linux/GitHub workflows triggered by the final AIPOS state-only sync on the resulting exact head. Make no further source or metadata changes unless a real failure requires repair; then fresh non-author Validator and canonical Audit/Release. No host install/deploy or merge."
+  verification: "Remote PR head c897f692ffab544d77878c279c621da7a87eb422 had all six workflows PASS, but base 05af71c0eed3ff11aa0fd0efb4e485f4ce7bc936 was stale against current protected main 7e560405ad15b4eec8a5e46b0ad32873286df525. Local source tree matched that PR head. Merged current main without rewriting history at 2fe6ca103795f3e1a105d059ba51426847e9425e. Focused guard suite on the reconverged source: 5 PASS / 4 Linux-only SKIP; validate:full and security:gate PASS. Windows lacks sh/bash/flock; exact-head Linux CI must execute those checks. Current exact-head workflows are not verified yet."
+  next: "After this AIPOS handoff commit, dynamically re-fetch main/PR head/base and all six exact-head checks. If current and green, obtain a separate non-author Validator receipt; then canonical Audit/Release. Keep Draft and do not install or merge."
   safety:
     paper_only: true
     liveAuthority: NONE
