@@ -111,3 +111,18 @@ const styles = StyleSheet.create({
   odo: { flexDirection: "row", alignItems: "flex-start" },
   beat: { height: HEARTBEAT_HEIGHT, overflow: "hidden", marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line },
 });
+
+/** Screen opener of the instrument design: a mono index ("03 / 안전") over a large two-line statement. */
+export function InstrumentHero({ index, lines, label }: { readonly index: string; readonly lines: readonly { readonly text: string; readonly amber?: boolean }[]; readonly label?: string }) {
+  return <View style={heroStyles.wrap}>
+    <Text style={[fieldFonts.mono, instrumentType.index]}>{index}</Text>
+    <View style={heroStyles.lines} accessible accessibilityRole="header" accessibilityLabel={label ?? lines.map((l) => l.text).join(" ")}>
+      {lines.map((l) => <Text key={l.text} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : null]}>{l.text}</Text>)}
+    </View>
+  </View>;
+}
+
+const heroStyles = StyleSheet.create({
+  wrap: { paddingHorizontal: 20, paddingTop: 12 },
+  lines: { marginTop: 14 },
+});

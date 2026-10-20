@@ -78,7 +78,7 @@ validator_followup_20261020:
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+base_commit: 8cc5d42e61c39591bc7fb78c6d3e6ce35c74cb90
 implementation_branch: codex/pending-disposition-main-20261018
 authority_impact: paper_runtime_recovery
 objective: "Upgrade the existing pending-period consumer/recovery path so schemaVersion=2 terminal dispositions are validated and quarantined, only the canonical schemaVersion=1 successor is consumable, and all period-index allocation reserves terminal history."
@@ -154,4 +154,19 @@ validation:
 external_blocker:
   code: RUNTIME_ACTIVATION_OUT_OF_SCOPE
   detail: "This P1 increment does not assert current protected-main runtime acceptance. Production markPendingIneligible activation remains prohibited until its separate P0 runtime evidence and Release gates are independently verified."
-next: "Push the exact implementation head, require exact-head CI, then hand off to a fresh non-author reviewer and the normal Audit/Release chain. Do not activate markPendingIneligible in production in this work order."
+latest_main_sync_20261020:
+  previous_pr_head: 070294b019638472933a35799fef77e493f04b6e
+  protected_main: 8cc5d42e61c39591bc7fb78c6d3e6ce35c74cb90
+  sync_merge_commit: PENDING_GITHUB_GIT_DATA_COMMIT
+  assessment: "Compared old PR base b032426 to protected main 8cc5d42: 22 commits / 26 files across mobile UI/futures holdout and PAPER risk day-ruler UI. Delta from 3276554 is 6 commits / 9 files; only apps/cloud/src/runtime.ts overlaps. The display-only risk markers were integrated additively with sourceRuntimeSha, without altering risk decision logic or authority. Local Git auth is invalid; use GitHub connector only after local composed-tree tests and exact tree identity verification."
+  previous_exact_head_evidence: "070294b019638472933a35799fef77e493f04b6e: CI 39353280367 and companion PAPER/safety/read-only runs 39353280374, 39353280433, 39353280387, 39353280354, 39353280356 completed success. Generic Codex review comment 6281175907 says no major issues; this is not a formal P0/P1/P2 Validator receipt. All are historical after sync."
+  prior_3276554_sync_local_validation: "Typecheck/build/full suite 1,257 isolated files/preflight/validate:full/diff-check PASS; does not cover 8cc5d42 changes."
+  latest_main_composed_local_validation: "Composed 8cc5d42 + PR 070294b + AIPOS checkpoint tree: TypeScript typecheck PASS; build PASS; risk-ruler and disposition regressions 14/14 PASS; full pnpm test PASS (1,258 isolated files); preflight PASS; validate:full PASS exit 0; AIPOS provenance PASS; git diff --check PASS. Exact remote merge SHA and exact-head CI remain pending."
+  current_pr_checkpoint_head_validation: PENDING_EXACT_HEAD_CI
+  exact_head_companion_workflows: PENDING
+  formal_validator: PENDING_EXACT_HEAD_P0_P1_P2_RECEIPT
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next: "Create one remote merge commit whose parents are PR head 070294b019638472933a35799fef77e493f04b6e and protected main 8cc5d42e61c39591bc7fb78c6d3e6ce35c74cb90, using GitHub connector Git Data API because local git auth is invalid; update the existing branch ref only with expected old head 070294b019638472933a35799fef77e493f04b6e and verify the tree matches local validation. Require fresh exact-head CI, five PAPER/safety companions, and formal non-author P0/P1/P2 Validator. Keep Draft. Only then use canonical Independent Audit and authorized Release gates. Do not activate markPendingIneligible in production in this work order."

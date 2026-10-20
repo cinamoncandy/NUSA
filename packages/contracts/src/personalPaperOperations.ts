@@ -36,6 +36,10 @@ export interface PersonalPaperLossLimit {
   readonly consecutiveLossCount: number;
   readonly maxConsecutiveLosses: number;
   readonly evaluatedAt: number;
+  /** Display only: start of the KST trading day the counts belong to. */
+  readonly periodStartedAt?: number;
+  /** Display only: fill time of the loss that made today's streak reach the limit (absent below the limit). */
+  readonly limitReachedAt?: number;
 }
 
 export interface PersonalPaperTodayRealized {
@@ -390,6 +394,7 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   if (record.researchCollectionState !== undefined && (record.researchCollection !== undefined || !["DISABLED", "INVALID", "UNAVAILABLE"].includes(record.researchCollectionState as string))) delete record.researchCollectionState;
   if (record.tradedMarkets !== undefined && !isValidMarketList(record.tradedMarkets)) delete record.tradedMarkets;
   if (record.lossLimit !== undefined && !isValidLossLimit(record.lossLimit)) delete record.lossLimit;
+  if (record.lossLimit !== undefined) dropBadLossMarkers(record.lossLimit as Record<string, unknown>);
   if (record.todayRealized !== undefined && !isValidTodayRealized(record.todayRealized)) delete record.todayRealized;
 }
 
@@ -403,6 +408,13 @@ function isValidLossLimit(value: unknown): boolean {
   if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return (v.consecutiveLossLimitEnabled === undefined || typeof v.consecutiveLossLimitEnabled === "boolean") && isCount(v.consecutiveLossCount) && isCount(v.maxConsecutiveLosses, 1) && isTimeMs(v.evaluatedAt);
+}
+
+/** The optional day markers are display-only extras: a bad or out-of-order one is dropped on its own and never hides the loss limit. */
+function dropBadLossMarkers(value: Record<string, unknown>): void {
+  const at = value.evaluatedAt as number;
+  if (value.periodStartedAt !== undefined && (!isTimeMs(value.periodStartedAt) || (value.periodStartedAt as number) > at || at - (value.periodStartedAt as number) > 86_400_000)) delete value.periodStartedAt;
+  if (value.limitReachedAt !== undefined && (!isTimeMs(value.limitReachedAt) || (value.limitReachedAt as number) > at || (value.periodStartedAt !== undefined && (value.limitReachedAt as number) < (value.periodStartedAt as number)))) delete value.limitReachedAt;
 }
 
 function isValidMarketList(value: unknown): boolean {
