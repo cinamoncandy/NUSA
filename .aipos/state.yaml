@@ -2492,27 +2492,28 @@ current_mobile_home_simplify:
 
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
-  status: VALIDATOR_FINDINGS_LOCALLY_REPAIRED_PENDING_EXACT_HEAD_CI
+  status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   issue: 1949
   pull_request: 2818
   branch: ops/health-guard-source-1949
-  local_checkout_branch: codex/oracle-health-guard-current-main
-  base_commit: 442d93f957983e478f6098eaa4303e6c1025b948
+  local_checkout_branch: ops/health-guard-source-1949
+  base_commit: 1b4a242941492f61bc4587f96c8ac2694b586352
   main_sync_commit: 2fe6ca103795f3e1a105d059ba51426847e9425e
-  latest_main_sync_commit: 8bb4d9911ff0037d5d233cf6d7412bf10221a87e
-  latest_protected_main: 442d93f957983e478f6098eaa4303e6c1025b948
+  latest_main_sync_commit: bcdfa448575aaaa4c06572772102448610f5c995
+  latest_protected_main: 1b4a242941492f61bc4587f96c8ac2694b586352
   prior_successor_now_historical: ec109f98187f6a7e30ef16c35165d0a78762276f
   latest_main_sync_local_validation: "35 focused tests: 29 PASS / 6 Linux-specific SKIP; validate:full PASS; security:gate PASS (0 secrets, 0 unmitigated advisories); typecheck PASS; build PASS. These are pre-AIPOS-receipt local results; new exact-head workflows still required."
   validator_findings_repaired: "Fresh formal Validator on exact head 899dccdd3b198c2370d72c32da2ab994ec001066: P0=0, P1=1, P2=1, CHANGES_REQUESTED. P1: unprivileged precreation/locking of /run/lock/nusa-paper-activation.lock; P2: child-shell paths not inherited by flock -c. Moved the single shared exclusion to /run/nusa-paper-activation/activation.lock and verify root:root 0700 directory plus root:root 0600 regular inode in both callers; fixed flock tests to pass paths via environment."
-  latest_local_validation: "Focused tests 5 PASS / 4 SKIP (Windows lacks sh/flock); validate:full PASS; security:gate PASS (0 secrets, 0 unmitigated advisories); typecheck/build command completed without reported compiler errors; git diff --check PASS. POSIX shell and flock runtime cases remain delegated to Linux exact-head CI."
+  latest_local_validation: "After sync merge bcdfa448575aaaa4c06572772102448610f5c995 from protected main 1b4a242941492f61bc4587f96c8ac2694b586352: focused tests 9/9 PASS on Linux, sh/bash syntax PASS, validate:full PASS, security:gate PASS (0 secrets, 0 unmitigated advisories), typecheck PASS, build PASS (changed-test fast gate correctly delegates to PR CI), git diff --check PASS. Initial pnpm install failed only because Electron binary fetch was unavailable; offline install with ELECTRON_SKIP_BINARY_DOWNLOAD=1 succeeded without skipping validation. Fresh exact-head workflows and non-author Validator remain required."
+  runtime_followup: "Exact-main Oracle release run 39423404154 deployed 1b4a242941492f61bc4587f96c8ac2694b586352; readiness and 180s soak PASS. At 2026-10-20T13:18Z local/public health, MCP, Upbit relay PASS; current 68 realized periods, 0 durable cycles, Research manifest missing, disk 90%, nusa-disk-guard.service failed from prior >=92% guard event. Physical mobile app device unavailable."
   finding: "Fresh main sync confirms a TOCTOU race: health guard uses pgrep suppression before marker mutation/restart while canonical release activation has no shared exclusion. The prior work order excluded the only canonical activation path despite requiring suppression."
   scope_amendment: "Owner approved one shared flock across canonical release verbs that move the active release, install active units, or restart PAPER, plus the health guard. Validator P1 requires the shared inode to be protected from unprivileged precreation; repair preserves the single exclusion domain at /run/nusa-paper-activation/activation.lock with root:root 0700 directory and root:root 0600 inode. No new helper, scheduler, watchdog, control plane, or host installation. Guard rechecks workload and marker conditions under lock."
   prior_exact_head: bf742859fd549c04d1fb1353b27999a3240ca9ca
   prior_exact_head_workflows: "All six required workflows PASS: CI 39383215746; Actual PAPER 39383215742; Capability Guard 39383215782; Activation 39383215627; Transport 39383215667; Read-only Broker 39383215624."
   prior_validator_request_comment: 6285334358
-  verification: "Earlier successor ec109f98187f6a7e30ef16c35165d0a78762276f had all six exact-head workflows PASS (CI 39384029204; Actual PAPER 39384029354; capability 39384029236; activation 39384029262; transport 39384029203; read-only broker 39384029259), but protected main advanced to 442d93f957983e478f6098eaa4303e6c1025b948 after PR #2832 merged, so that validation is historical for release readiness. Latest main was merged into this branch; the new resulting SHA requires exact-head checks and a fresh Validator. No host installation or mutation."
-  latest_repair_validation: "Focused suite 6 PASS / 3 util-linux flock SKIP; Git POSIX sh syntax PASS; validate:full PASS; security:gate PASS (0 secrets, 0 unmitigated advisories); typecheck/build PASS; AIPOS YAML and git diff --check PASS. The new root-only lock path and corrected flock child environment test pass static/focused checks; Linux exact-head CI must run the actual lock contention/kernel-release cases."
-  next: "Commit/push the Validator-driven lock-directory and flock child-test repair with AIPOS evidence. Then fresh-check protected main, PR exact head/base, six workflows; request new formal non-author Validator only when green. No host install, Audit, Release, or merge until gates pass."
+  verification: "Earlier successor ec109f98187f6a7e30ef16c35165d0a78762276f had all six exact-head workflows PASS (CI 39384029204; Actual PAPER 39384029354; capability 39384029236; activation 39384029262; transport 39384029203; read-only broker 39384029259), but every earlier head is historical. Protected main is now 1b4a242941492f61bc4587f96c8ac2694b586352 and was merged into this branch at bcdfa448575aaaa4c06572772102448610f5c995. The receipt successor requires fresh exact-head checks and Validator. No host installation or mutation."
+  prior_repair_validation: "Previous main sync validation: focused suite 6 PASS / 3 util-linux flock SKIP; Git POSIX sh syntax PASS; validate:full PASS; security:gate PASS (0 secrets, 0 unmitigated advisories); typecheck/build PASS. Those results are historical; current successor uses latest_local_validation above."
+  next: "Push the synchronized existing PR branch with this AIPOS receipt. Require fresh exact-head six workflows and fresh non-author Validator; then Audit, Release, merge. Only after merge install the reviewed health guard + release helper together through the documented canonical path. Do not alter the disk guard policy or delete host data."
   safety:
     paper_only: true
     liveAuthority: NONE

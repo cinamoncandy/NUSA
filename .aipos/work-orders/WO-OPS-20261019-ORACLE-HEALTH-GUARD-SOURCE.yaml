@@ -47,12 +47,14 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
 latest_main_sync:
-  protected_main: 442d93f957983e478f6098eaa4303e6c1025b948
-  merge_commit: 8bb4d9911ff0037d5d233cf6d7412bf10221a87e
+  protected_main: 1b4a242941492f61bc4587f96c8ac2694b586352
+  merge_commit: bcdfa448575aaaa4c06572772102448610f5c995
+  pre_receipt_head: bcdfa448575aaaa4c06572772102448610f5c995
+  release_runtime_followup: "Oracle release 39423404154 deployed exact protected main 1b4a242941492f61bc4587f96c8ac2694b586352; authenticated PAPER readiness, Autopilot readiness, and 180-second soak PASS. Read-only post-release local/public health, MCP and Upbit relay all HTTP 200. Disk 90%; nusa-disk-guard.service previously failed at 93% threshold, its current single-run status remains unresolved due SentinelX service policy not allowing this unit."
+  local_validation: "Focused oracle health guard tests 9/9 PASS on Linux; sh -n and bash -n PASS; validate:full PASS; security:gate PASS with 0 secrets / 0 unmitigated advisories; typecheck PASS; build PASS (changed-test fast gate deferred to canonical PR CI); git diff --check PASS. Initial dependency install failed on Electron binary network fetch; offline pnpm install with ELECTRON_SKIP_BINARY_DOWNLOAD=1 succeeded, and all validations then ran without tests disabled."
   prior_successor_now_historical: ec109f98187f6a7e30ef16c35165d0a78762276f
   prior_six_workflows: "All six passed on the prior SHA; those results are not release evidence for the new merge head."
-  local_validation: "Latest-main merge: 35 focused tests (29 PASS / 6 Linux-specific SKIP), validate:full PASS, security:gate PASS (0 secrets / 0 unmitigated advisories), typecheck PASS, build PASS. Exact-head CI/workflows remain mandatory after the AIPOS receipt commit."
-  next: "Push this AIPOS update, then fresh-check PR head/base and all six workflows; request Validator only if current and green. Draft stays; no host install, Audit, Release, or merge."
+  next: "Push the synchronized PR head with this receipt, then require fresh CI/companions and a non-author Validator. Keep Draft; no host install, Audit, Release, or merge before those gates."
 rollback: "Revert this source-control commit. The existing host watchdog is not changed by the PR itself; any host installation remains an explicit reviewed infrastructure operation."
 verification_commands:
   - node --test tests/oracle-health-guard.test.js
