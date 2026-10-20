@@ -17,7 +17,7 @@ const GAP = 4;
 export function LearningFunnel({ model }: { readonly model: LearningFunnelModel }) {
   const reducedMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
-  const [tested, discovery, holdout] = model.stages.map((s) => s.value) as unknown as [number, number, number];
+  const [tested = 0, discovery = 0, holdout = 0] = model.stages.length === 3 ? model.stages.map((s) => s.value) : [];
   const waffle = useMemo(() => buildWaffle(tested, discovery, holdout), [tested, discovery, holdout]);
   const wipe = useRef(new Animated.Value(0)).current;
   const inner = Math.max(0, width - 28);
@@ -47,6 +47,7 @@ export function LearningFunnel({ model }: { readonly model: LearningFunnelModel 
   }, [reducedMotion, inner, wipe]);
 
   const zero = holdout === 0;
+  if (model.stages.length !== 3) return null;
   return <View style={styles.wrap} testID="learning-funnel" onLayout={(e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width) - 40)}>
     <Text style={[fieldFonts.mono, styles.index]}>02 / 학습</Text>
     <View style={styles.hero} accessible accessibilityRole="header" accessibilityLabel={model.headline.replace(/\n/g, " ")}>
@@ -57,9 +58,9 @@ export function LearningFunnel({ model }: { readonly model: LearningFunnelModel 
     <Text style={styles.sub}>{model.sub}</Text>
 
     {waffle ? <View style={styles.section}>
-      <SectionLabel left={waffle.unit === 1 ? "전략 1개 = 1칸" : `1칸 = 전략 ${waffle.unit}개`} right={tested.toLocaleString("en-US")} />
+      <SectionLabel left={waffle.unit === 1 ? "전략 1개 = 1칸" : `1칸 ≈ 전략 ${waffle.unit}개`} right={tested.toLocaleString("en-US")} />
       <Panel>
-        <View style={{ height: gridH + 12 }} accessible accessibilityRole="image" accessibilityLabel={model.stages.map((s) => `${s.label} ${s.value}`).join(", ")}>
+        <View style={{ height: gridH + 12, overflow: "hidden" }} accessible accessibilityRole="image" accessibilityLabel={model.stages.map((s) => `${s.label} ${s.value}`).join(", ")}>
           {picture ? <Canvas style={{ width: inner, height: gridH }}><Picture picture={picture} /></Canvas> : null}
           {reducedMotion === false ? <Animated.View pointerEvents="none" style={[styles.wipe, { width: inner, height: gridH, transform: [{ translateX: wipe.interpolate({ inputRange: [0, 1], outputRange: [0, inner] }) }] }]} /> : null}
           <View style={[styles.gate, { top: gridH + 8 }]} />
