@@ -36,11 +36,36 @@ export interface PersonalPaperLossLimit {
   readonly consecutiveLossCount: number;
   readonly maxConsecutiveLosses: number;
   readonly evaluatedAt: number;
+  /** Display only: start of the KST trading day the counts belong to. */
+  readonly periodStartedAt?: number;
+  /** Display only: fill time of the loss that made today's streak reach the limit (absent below the limit). */
+  readonly limitReachedAt?: number;
 }
 
 export interface PersonalPaperTodayRealized {
   readonly realizedPnlKrw: number;
   readonly evaluatedAt: number;
+}
+
+/** Display only: how far Research candidates got (from the closed-learning loop's meta-learning ledger). Non-negative integers. */
+export interface PersonalPaperLearningFunnel {
+  /** Configurations tested in recorded experiments. */
+  readonly configurations: number;
+  /** Configurations that passed discovery (in-sample screen). */
+  readonly discoveryPasses: number;
+  /** Configurations that passed the independent holdout. */
+  readonly holdoutPasses: number;
+  /** Closed-learning cycles evaluated by this runtime. */
+  readonly cyclesEvaluated: number;
+  readonly evaluatedAt: number;
+}
+
+/** Display only: decisions and PAPER orders per 5-minute bucket of the current 09:00 KST window (288 buckets). Buckets before `since` were not observed by this runtime. */
+export interface PersonalPaperDecisionTrace {
+  readonly since: number;
+  readonly bucketMs: number;
+  readonly decisions: readonly number[];
+  readonly orders: readonly number[];
 }
 
 export interface PersonalPaperRuntimeHeartbeat {
@@ -77,6 +102,10 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly lossLimit?: PersonalPaperLossLimit;
   /** Display only: today's (Asia/Seoul) realized PAPER P&L in KRW from the account's fills, computed outside RISK. Absent without a canonical PAPER loop or on an inconsistent ledger. */
   readonly todayRealized?: PersonalPaperTodayRealized;
+  /** Display only: candidates tested -> discovery -> holdout -> cycles. Absent when the closed-learning loop reports no ledger. */
+  readonly learningFunnel?: PersonalPaperLearningFunnel;
+  /** Display only: the same window's decisions and orders per 5 minutes, for the app's decision terrain. Absent without a canonical PAPER boundary. */
+  readonly decisionTrace?: PersonalPaperDecisionTrace;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -375,7 +404,16 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   if (record.researchCollectionState !== undefined && (record.researchCollection !== undefined || !["DISABLED", "INVALID", "UNAVAILABLE"].includes(record.researchCollectionState as string))) delete record.researchCollectionState;
   if (record.tradedMarkets !== undefined && !isValidMarketList(record.tradedMarkets)) delete record.tradedMarkets;
   if (record.lossLimit !== undefined && !isValidLossLimit(record.lossLimit)) delete record.lossLimit;
+  if (record.lossLimit !== undefined) dropBadLossMarkers(record.lossLimit as Record<string, unknown>);
   if (record.todayRealized !== undefined && !isValidTodayRealized(record.todayRealized)) delete record.todayRealized;
+  if (record.decisionTrace !== undefined && !isValidDecisionTrace(record.decisionTrace)) delete record.decisionTrace;
+}
+
+function isValidDecisionTrace(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const buckets = (a: unknown): boolean => Array.isArray(a) && a.length === 288 && a.every((n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0 && n <= 10_000_000);
+  return isTimeMs(v.since) && v.bucketMs === 300_000 && buckets(v.decisions) && buckets(v.orders);
 }
 
 function isValidTodayRealized(value: unknown): boolean {
@@ -388,6 +426,13 @@ function isValidLossLimit(value: unknown): boolean {
   if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return (v.consecutiveLossLimitEnabled === undefined || typeof v.consecutiveLossLimitEnabled === "boolean") && isCount(v.consecutiveLossCount) && isCount(v.maxConsecutiveLosses, 1) && isTimeMs(v.evaluatedAt);
+}
+
+/** The optional day markers are display-only extras: a bad or out-of-order one is dropped on its own and never hides the loss limit. */
+function dropBadLossMarkers(value: Record<string, unknown>): void {
+  const at = value.evaluatedAt as number;
+  if (value.periodStartedAt !== undefined && (!isTimeMs(value.periodStartedAt) || (value.periodStartedAt as number) > at || at - (value.periodStartedAt as number) > 86_400_000)) delete value.periodStartedAt;
+  if (value.limitReachedAt !== undefined && (!isTimeMs(value.limitReachedAt) || (value.limitReachedAt as number) > at || (value.periodStartedAt !== undefined && (value.limitReachedAt as number) < (value.periodStartedAt as number)))) delete value.limitReachedAt;
 }
 
 function isValidMarketList(value: unknown): boolean {
