@@ -69,7 +69,11 @@ function useDecoded(text: string, reduced: boolean | null): string {
 
 function HeroLine({ text, style, reduced }: { readonly text: string; readonly style: StyleProp<TextStyle>; readonly reduced: boolean | null }) {
   const shown = useDecoded(text, reduced);
-  return <Text style={style}>{shown}</Text>;
+  // The real text reserves the layout (no rewrap while glyphs flicker); the decoded copy is drawn over it and stays hidden until the OS answers.
+  return <View>
+    <Text style={[style, { opacity: 0 }]}>{text}</Text>
+    <Text style={[style, StyleSheet.absoluteFill, reduced === null ? { opacity: 0 } : null]}>{shown}</Text>
+  </View>;
 }
 
 /** Each digit is a 0-9 column that rolls to its value, ones place first. A changed value rolls again. */
