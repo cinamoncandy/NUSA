@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Canvas, Path, Skia } from "@shopify/react-native-skia";
 import { calmColors } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
@@ -22,11 +22,55 @@ export function useReducedMotion(): boolean | null {
   return reduced;
 }
 
-export function SectionLabel({ left, right = null }: { readonly left: string; readonly right?: string | null }) {
-  return <View style={styles.label}>
-    <Text style={[fieldFonts.mono, styles.labelLeft]}>{left}</Text>
-    {right == null ? null : <Text style={[fieldFonts.mono, styles.labelRight]}>{right}</Text>}
+/** Mono section heading. The hairline under it draws in from the left; `live` puts a pulsing dot before the right-hand text. */
+export function SectionLabel({ left, right = null, live = false }: { readonly left: string; readonly right?: string | null; readonly live?: boolean }) {
+  const reduced = useReducedMotion();
+  const [width, setWidth] = useState(0);
+  const draw = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced === null) return undefined;
+    if (reduced) { draw.setValue(1); return undefined; }
+    const anim = Animated.timing(draw, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [reduced, draw]);
+  // Scale about the left edge: scaleX around the centre plus a translateX that pins the left side.
+  const lineStyle = { transform: [{ translateX: draw.interpolate({ inputRange: [0, 1], outputRange: [-width / 2, 0] }) }, { scaleX: draw }] };
+  return <View style={styles.labelWrap} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
+    <View style={styles.label}>
+      <Text style={[fieldFonts.mono, styles.labelLeft]}>{left}</Text>
+      <View style={styles.labelRightRow}>
+        {live ? <LivePulse reducedMotion={reduced} /> : null}
+        {right == null ? null : <Text style={[fieldFonts.mono, styles.labelRight]}>{right}</Text>}
+      </View>
+    </View>
+    {width > 0 ? <Animated.View pointerEvents="none" style={[styles.labelLine, lineStyle]} /> : null}
   </View>;
+}
+
+/** A small dot that breathes while the runtime is live. Still under reduce-motion. */
+export function LivePulse({ reducedMotion }: { readonly reducedMotion: boolean | null }) {
+  const v = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (reducedMotion !== false) { v.setValue(1); return undefined; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(v, { toValue: 0.25, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(v, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [reducedMotion, v]);
+  return <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.pulse, { opacity: v }]} />;
+}
+
+/** A Pressable that dips to 97% when pressed and springs back. Everything else (testID, role, label, style) passes through. */
+export function PressScale({ children, style, onPressIn, onPressOut, ...rest }: PressableProps) {
+  const reduced = useReducedMotion();
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (value: number) => { if (reduced === false) Animated.spring(scale, { toValue: value, speed: 40, bounciness: value === 1 ? 10 : 0, useNativeDriver: true }).start(); };
+  return <Animated.View style={{ transform: [{ scale }] }}>
+    <Pressable {...rest} style={style} onPressIn={(e) => { to(0.97); onPressIn?.(e); }} onPressOut={(e) => { to(1); onPressOut?.(e); }}>{children}</Pressable>
+  </Animated.View>;
 }
 
 export function Panel({ children, style, scan = false }: { readonly children: React.ReactNode; readonly style?: StyleProp<ViewStyle>; /** One bright scan line sweeps across the panel on entry (not under reduce-motion). */ readonly scan?: boolean }) {
@@ -163,7 +207,11 @@ export const instrumentType = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  label: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 },
+  labelWrap: { marginBottom: 10 },
+  label: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 4 },
+  labelRightRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  labelLine: { height: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
+  pulse: { width: 6, height: 6, borderRadius: 3, backgroundColor: calmColors.order },
   labelLeft: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 1.2 },
   labelRight: { color: calmColors.text, fontSize: readableFont(11), letterSpacing: 1.2 },
   panel: { borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, padding: 14 },
