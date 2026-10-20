@@ -101,6 +101,42 @@ test("retired disposition successor cannot be resurrected as pending or realized
   }
 });
 
+test("a new disposition cannot raw-insert a successor identity reserved by prior disposition history", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const store = new SqlitePersistedPaperPeriodStore(db);
+    const firstOriginal = pending(21, 100, "first-original");
+    const retiredSuccessor = pending(22, 200, "reserved-successor");
+    const reason = (boundaryAt) => ({
+      stage: "PERIOD_CLOSE",
+      code: "INCOMPLETE_EXECUTION_COST_EVIDENCE",
+      boundaryAt,
+      sourceRuntimeSha: null,
+      blockedEvidenceFingerprintSha256: hash(`incomplete:${boundaryAt}`),
+    });
+    store.putPending(firstOriginal);
+    store.markPendingIneligible({ original: firstOriginal, successor: retiredSuccessor, reason: reason(200) });
+    store.retirePending(retiredSuccessor.periodId, retiredSuccessor.checksum);
+
+    const nextOriginal = pending(23, 300, "next-original");
+    store.putPending(nextOriginal);
+    assert.throws(
+      () => store.markPendingIneligible({ original: nextOriginal, successor: pending(24, 400, retiredSuccessor.periodId), reason: reason(400) }),
+      (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "PERIOD_INDEX_CONFLICT",
+      "raw successor insert must not reuse a prior reserved ID at another index",
+    );
+
+    assert.deepEqual(store.getPending(nextOriginal.periodId), nextOriginal, "failed attempts roll back the original transition");
+    assert.equal(store.listPendingDispositions().length, 1);
+    assert.deepEqual(store.listPending().map((item) => item.periodId), [nextOriginal.periodId]);
+    store.markPendingIneligible({ original: nextOriginal, successor: pending(24, 400, "fresh-successor"), reason: reason(400) });
+    assert.equal(store.listPendingDispositions().length, 2, "a fresh successor identity remains admissible");
+    assert.equal(store.nextPeriodIndex(), 25);
+  } finally {
+    db.close();
+  }
+});
+
 test("only finalizePending can realize an active disposition successor, and its envelope must match the plan", () => {
   const db = new SqliteDatabase(":memory:");
   try {

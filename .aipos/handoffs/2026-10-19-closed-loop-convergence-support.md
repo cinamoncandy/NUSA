@@ -105,6 +105,15 @@ has no fresh Claude VALIDATOR session available and does not impersonate one.
 LEARNING_LOOP_VERIFIED=false; PERFORMANCE_IMPROVEMENT=UNPROVEN.
 PAPER_ONLY/liveAuthority=NONE/productionMutationAllowed=false/aiAuthority=ZERO_AUTHORITY.
 
+## Follow-up — fresh exact-head P2 / successor-ID reservation — 2026-10-20
+
+- Protected main observed before the repair commit: `fd278dc3534281abfe3a14c0056e8b25dc5219ed`. Compared with the synced parent `b032426025bb8c8cdf86fe2bf11d17a1d9a467bb`, main contains the instrument UI redesign and its AIPOS work order; no storage or active learning work-order overlap/semantic dependency was found. PR REST reports mergeable=true with state `behind`; the integration cannot read strict up-to-date branch protection (403), so recheck at the release gate rather than repeatedly synchronizing before validation.
+- PR #2808 was synchronized to main `b032426025bb8c8cdf86fe2bf11d17a1d9a467bb` at exact head `8a3694099e326621e4fbc3a4a3f72532c6477f22`. All five review threads are resolved, but a fresh review on this head found a new P2 in `markPendingIneligible`: the raw successor insert did not check prior immutable disposition reservations, allowing a retired/finalized successor ID to be reused at a later index.
+- Minimal repair checks the proposed successor's ID and index against every immutable disposition's original and successor before the current-row update/insert. Regression exercises retired-successor ID reuse, verifies transactional rollback, and confirms a fresh identity is accepted.
+- Isolated clone, Node 24.18.0 / pnpm 11.7.0; frozen-lockfile install with scripts disabled; build PASS; focused regression 3/3 PASS; `pnpm run validate:full` PASS.
+- The tested repair is not yet committed or pushed; therefore exact-head CI, fresh non-author Validator, Audit, and Release are pending. Keep PR Draft. Do not activate production disposition, fabricate PAPER evidence, or claim learning-loop completion.
+- Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`; `LEARNING_LOOP_VERIFIED=false`, `PERFORMANCE_IMPROVEMENT=UNPROVEN`.
+
 ## Follow-up — #2808 CI repair
 
 - Fresh protected main: `91db289a392f08aaf367cc15bec16f852d2b4edb`.

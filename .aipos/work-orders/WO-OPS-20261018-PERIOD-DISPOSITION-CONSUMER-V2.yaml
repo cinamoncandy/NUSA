@@ -46,6 +46,20 @@ validator_followup_20261019:
   exact_head_ci: "PASS on code head 580fa559d438fcef899ae3ff95ade24ddf9619df; CI run 39248868980 and all six companion workflows PASS."
   fresh_review: PENDING
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+validator_followup_20261020:
+  reviewed_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
+  finding: "Fresh exact-head review found that markPendingIneligible's raw successor INSERT bypasses putPending's immutable-disposition reservation check; a later disposition could reuse a retired/finalized earlier successor periodId at a different index."
+  change: "Validate the proposed successor periodId and periodIndex against all decoded immutable disposition original/successor reservations before updating the current row or inserting the successor. Throw PERIOD_INDEX_CONFLICT; remain transactionally fail-closed."
+  regression: "tests/persisted-paper-pending-disposition-resurrection.test.js verifies a retired prior successor ID cannot be raw-inserted at a later index, the failed attempt rolls back the original row, disposition history stays intact, and a fresh successor identity remains admissible."
+  local_validation: "Node 24.18.0 / pnpm 11.7.0; frozen-lockfile install with scripts disabled; pnpm run build PASS; focused resurrection test file 3/3 PASS; pnpm run validate:full PASS."
+  exact_head_ci: PENDING_REPAIR_COMMIT
+  fresh_non_author_validator: PENDING_EXACT_HEAD_CI
+  latest_main_observation: fd278dc3534281abfe3a14c0056e8b25dc5219ed
+  latest_main_delta: "From synced parent b032426, only mobile UI redesign files and its UI work order changed; no storage/AIPOS-state overlap or semantic dependency. GitHub reports mergeable=true/behind; strict up-to-date protection could not be read (403), to recheck at release gate."
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main

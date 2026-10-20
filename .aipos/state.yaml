@@ -2234,18 +2234,24 @@ current_comparable_evaluator_failure_slice:
 
 current_closed_loop_convergence_support_20261019:
   work_order: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
-  status: P2_FIXED_EXACT_HEAD_CI_PASS_PENDING_FRESH_REVIEW_AND_RESEARCH_QUALIFICATION
+  status: P2_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_FRESH_VALIDATOR
   pr: 2808
-  validated_code_head: 580fa559d438fcef899ae3ff95ade24ddf9619df
-  exact_head_ci_run: 39248868980
-  validator_finding_head: 45d041c3a67fc044286d1c81e37fd17f1214561c
-  validator_finding: "Fresh non-author Codex review identified P2: public append could persist a forged realized envelope against an active disposition successor without binding advisory/candidate provenance to its plan."
-  prior_head: c51780421d9e444a47a0447648a050ec0bcc5d40
+  branch: codex/pending-disposition-main-20261018
+  implementation_parent_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
+  observed_main: fd278dc3534281abfe3a14c0056e8b25dc5219ed
+  main_delta_assessment: "Compared b032426 to fd278dc: intervening main work is the UI instrument redesign plus its AIPOS work order, with no overlap or semantic dependency on this storage change. PR API reports mergeable=true/mergeable_state=behind; branch-protection strict/up-to-date setting is not readable to this integration (403), so avoid pre-validation churn and recheck the release gate after exact-head CI."
+  validator_finding_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
+  validator_finding: "Fresh exact-head review identified P2: markPendingIneligible raw-inserts a later successor without checking whether its periodId was reserved by an earlier immutable disposition whose successor is retired/finalized."
+  repair: "Before terminalizing the current row, reject a proposed successor periodId or periodIndex already present in immutable disposition history; transaction rollback preserves the original pending row. Regression covers old successor ID reuse at a different later index and confirms a fresh ID still succeeds."
+  local_validation: "Frozen-lockfile install with scripts disabled; pnpm run build PASS; tests/persisted-paper-pending-disposition-resurrection.test.js 3/3 PASS; pnpm run validate:full PASS."
+  current_head_ci: PENDING_AFTER_REPAIR_COMMIT
+  fresh_validator: PENDING_AFTER_EXACT_HEAD_CI
+  prior_validated_head: 580fa559d438fcef899ae3ff95ade24ddf9619df
+  prior_exact_head_ci_run: 39248868980
   prior_failed_merge_run: 39242585445
-  observed_main: 91db289a392f08aaf367cc15bec16f852d2b4edb
-  validation: "Reproduced exact-head CI failure locally: a legitimate successor with new PAPER observations was rejected because active payload was compared byte-for-byte with its immutable initial receipt. Fixed by comparing the complete non-observation plan identity while allowing the documented observation fields to advance. After merging protected main 91db289a392f08aaf367cc15bec16f852d2b4edb, build, targeted PAPER/storage regression files, validate:full, typecheck, and exact-head CI39246748103 passed on code head 407f81254676cbb2be3443f0a1d4ad1ec06ac2a3. Fresh non-author review on 45d041c3a67fc044286d1c81e37fd17f1214561c found a P2 forged-envelope append path; it is fixed on 580fa559d438fcef899ae3ff95ade24ddf9619df, with focused suite 33/33, typecheck, and exact-head CI39248868980 plus all six companion workflows PASS. Fresh review of the P2 fix is pending. No risk/qualification/cost/sample/OOS or authority gate changed."
+  validation: "Prior 580fa559 exact-head evidence is stale after main synchronization and the new 8a369409 review finding. Repair is local-only at this point; build, focused regression 3/3, and validate:full pass. No exact-head CI or fresh Validator result is claimed for the repair commit. No risk/qualification/cost/sample/OOS or authority gate changed."
   evidence: .aipos/handoffs/2026-10-19-closed-loop-convergence-support.md
-  next: "Obtain a fresh non-author Validator verdict on the P2 fix, then canonical Audit/Release. Independently obtain natural exact-main Research qualification and genuine candidate-bound PAPER cycle/restart/replay evidence. Keep Draft; do not activate production disposition."
+  next: "Commit and push the minimum P2 repair to the existing PR branch after confirming its remote head remains 8a369409; require fresh exact-head CI and a fresh non-author Validator. Keep Draft. Audit/Release remain gated. Independently obtain natural exact-main Research qualification and genuine candidate-bound PAPER cycle/restart/replay evidence; do not activate production disposition."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 
