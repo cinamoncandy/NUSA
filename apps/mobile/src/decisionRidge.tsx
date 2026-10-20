@@ -176,8 +176,10 @@ function renderRidge(canvas: SkCanvas, { model, smooth: smoothRows, progress, to
     const ys: number[] = [], xs: number[] = [];
     for (let i = 0; i < TERRAIN_POINTS; i += 1) {
       const x01 = i / (TERRAIN_POINTS - 1);
-      let h = smooth[i]!.h * amp * grow;
-      if (!still && seenAny) h += Math.sin(x01 * 14 - t * 1.6 + k * 0.7) * 0.8 * Math.min(1, smooth[i]!.h * 3 + 0.2);
+      // The whole range breathes: a slow swell rolls from the newest line back through the older ones, with a livelier ripple on top.
+      const swell = still ? 1 : 1 + 0.1 * Math.sin(t * 0.9 - (R - 1 - k) * 0.55);
+      let h = smooth[i]!.h * amp * grow * swell;
+      if (!still && seenAny) h += Math.sin(x01 * 12 - t * 1.4 + k * 0.7) * 2 * Math.min(1, smooth[i]!.h * 3 + 0.2);
       if (isNow && !still) for (const d of drops) {
         const age = (nowMs - d.born) / 1000;
         if (age < 0) continue;
