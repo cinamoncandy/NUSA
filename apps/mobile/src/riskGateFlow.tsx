@@ -55,6 +55,11 @@ export function RiskGateFlow({ gate, lossText = null, windowNote = null }: {
       </Panel>
     </View>
 
+    {gate.day == null ? null : <View style={styles.section} testID="now-risk-gate-day">
+      <SectionLabel left="오늘 24시간" right={`${hhmm(gate.day.stop)}에 멈춤`} />
+      <Panel><DayRuler day={gate.day} width={Math.max(0, width - 30)} reducedMotion={reducedMotion} /></Panel>
+    </View>}
+
     <View style={styles.section}>
       <SectionLabel left="오늘의 숫자" right="눌러서 뜻 보기" />
       {rows.map((r, i) => <LedgerRow key={r.key} label={r.key} value={fmt(r.value)} ratio={r.ratio} amber={r.amber} note={r.note} last={i === rows.length - 1} reducedMotion={reducedMotion} />)}
@@ -114,6 +119,41 @@ function Rail({ width, gate, reducedMotion }: { readonly width: number; readonly
     <Text style={[fieldFonts.displayStrong, styles.val, styles.center, { left: x1 - 50 }]}>{num(gate.signals)}</Text>
     <Text style={[fieldFonts.displayStrong, styles.val, styles.center, styles.amber, { left: xg - 50 }, waitLabel.length > 7 ? styles.valSmall : null]} numberOfLines={1}>{waitLabel}</Text>
     <Text style={[fieldFonts.displayStrong, styles.val, styles.right, styles.muted, { left: x3 - 100 }]}>0</Text>
+  </View>;
+}
+
+const KST_MS = 9 * 3_600_000;
+const DAY_MS = 86_400_000;
+const hhmm = (ms: number) => { const d = new Date(ms + KST_MS); return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
+
+/** Today's KST day as a ruler: buyable until the limit-reaching loss, held from there to now, the rest of the day still ahead. */
+function DayRuler({ day, width, reducedMotion }: { readonly day: NonNullable<RiskGateModel["day"]>; readonly width: number; readonly reducedMotion: boolean | null }) {
+  const grow = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reducedMotion === null || width <= 0) return undefined;
+    if (reducedMotion) { grow.setValue(1); return undefined; }
+    grow.setValue(0);
+    const a = Animated.timing(grow, { toValue: 1, duration: 900, easing: Easing.out(Easing.exp), useNativeDriver: true });
+    a.start();
+    return () => a.stop();
+  }, [reducedMotion, width, grow]);
+  if (width <= 0) return <View style={{ height: 74 }} />;
+  const x = (t: number) => Math.max(0, Math.min(width, ((t - day.start) / DAY_MS) * width));
+  const xs = x(day.stop), xn = x(day.now);
+  const dashes = Math.max(0, Math.floor((width - xn - 4) / 6));
+  const nowBelow = Math.abs(xn - xs) < 80;
+  const stopLabelLeft = Math.min(Math.max(0, xs + 4), width - 86);
+  return <View style={{ height: 74 }} accessible accessibilityRole="image" accessibilityLabel={`오늘 ${hhmm(day.start)}부터 ${hhmm(day.stop)}까지 매수 가능, 그 뒤 지금 ${hhmm(day.now)}까지 새 매수 멈춤`}>
+    <View style={[styles.rBase, { width }]} />
+    {Array.from({ length: 25 }, (_, h) => <View key={h} style={[styles.rTick, { left: Math.min(width - 1, (h / 24) * width), height: h % 6 === 0 ? 7 : 4, top: h % 6 === 0 ? 37 : 40 }]} />)}
+    <Animated.View style={[styles.rSeg, { left: 0, width: Math.max(1, xs), backgroundColor: calmColors.text, transformOrigin: "left", transform: [{ scaleX: grow }] }]} />
+    <Animated.View style={[styles.rSeg, { left: xs, width: Math.max(1, xn - xs), backgroundColor: calmColors.attention, transformOrigin: "left", transform: [{ scaleX: grow }] }]} />
+    {Array.from({ length: dashes }, (_, i) => <View key={i} style={[styles.rDash, { left: xn + 4 + i * 6 }]} />)}
+    <View style={[styles.rFlag, { left: xs }]} />
+    <Text style={[fieldFonts.mono, styles.rFlagText, { left: stopLabelLeft }]}>{`${hhmm(day.stop)} 한도`}</Text>
+    <View style={[styles.rNow, { left: xn - 5, top: nowBelow ? 50 : 26, transform: [{ rotate: nowBelow ? "225deg" : "45deg" }] }]} />
+    <Text style={[fieldFonts.mono, styles.rNowText, { left: Math.min(Math.max(0, xn - 30), width - 60), top: nowBelow ? 58 : 10 }]}>지금</Text>
+    {nowBelow ? null : [0, 6, 12, 18, 24].map((h) => <Text key={h} style={[fieldFonts.mono, styles.rHour, { left: Math.min(width - 16, Math.max(0, (h / 24) * width - 7)) }]}>{String(h).padStart(2, "0")}</Text>)}
   </View>;
 }
 
@@ -186,6 +226,15 @@ const styles = StyleSheet.create({
   fill: { height: 3 },
   rowNote: { color: calmColors.muted, fontSize: readableFont(13), lineHeight: 19, paddingBottom: 12 },
   note: { color: calmColors.muted, fontSize: readableFont(12), marginTop: 8 },
+  rBase: { position: "absolute", left: 0, top: 43, height: 1, backgroundColor: calmColors.line },
+  rTick: { position: "absolute", width: 1, backgroundColor: calmColors.line },
+  rSeg: { position: "absolute", top: 40, height: 7 },
+  rDash: { position: "absolute", top: 43, width: 2, height: 1.5, backgroundColor: calmColors.muted },
+  rFlag: { position: "absolute", top: 14, width: 1, height: 26, backgroundColor: calmColors.text },
+  rFlagText: { position: "absolute", top: 8, width: 86, color: calmColors.text, fontSize: readableFont(11) },
+  rNow: { position: "absolute", width: 8, height: 8, borderRightWidth: 2, borderBottomWidth: 2, borderColor: calmColors.attention },
+  rNowText: { position: "absolute", width: 60, textAlign: "center", color: calmColors.attention, fontSize: readableFont(11) },
+  rHour: { position: "absolute", top: 54, color: calmColors.muted, fontSize: readableFont(11) },
   cells: { flexDirection: "row", gap: 6 },
   cell: { flex: 1, height: 34, borderWidth: 1, borderColor: calmColors.attention },
   cellOn: { backgroundColor: calmColors.attention },

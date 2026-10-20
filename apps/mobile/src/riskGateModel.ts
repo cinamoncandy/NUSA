@@ -13,6 +13,10 @@ export interface RiskGateInput {
   /** From the server's lossLimit: today's consecutive losses and the limit, for the streak cells. */
   readonly consecutiveLossCount?: unknown;
   readonly maxConsecutiveLosses?: unknown;
+  /** From the server's lossLimit: start of the KST day and the fill time of the loss that reached the limit. */
+  readonly periodStartedAt?: unknown;
+  readonly lastLossAt?: unknown;
+  readonly now?: number;
 }
 
 export interface RiskGateModel {
@@ -25,6 +29,8 @@ export interface RiskGateModel {
   readonly decisions: number;
   /** Consecutive losses against the limit; null unless both are valid integers and the count reached the limit. */
   readonly streak: { readonly count: number; readonly max: number } | null;
+  /** Today's ruler: day start, the moment buys stopped (the limit-reaching loss) and now. Null unless the server sent both markers in order. */
+  readonly day: { readonly start: number; readonly stop: number; readonly now: number } | null;
 }
 
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null);
@@ -38,6 +44,8 @@ export function buildRiskGate(input: RiskGateInput): RiskGateModel | null {
   const lossCount = count(input.consecutiveLossCount);
   const lossMax = count(input.maxConsecutiveLosses);
   const streak = lossCount != null && lossMax != null && lossMax >= 1 && lossMax <= 20 && lossCount >= lossMax ? Object.freeze({ count: lossCount, max: lossMax }) : null;
+  const start = count(input.periodStartedAt), stop = count(input.lastLossAt), now = input.now;
+  const day = streak != null && start != null && stop != null && typeof now === "number" && Number.isFinite(now) && start <= stop && stop <= now && now - start <= 86_400_000 ? Object.freeze({ start, stop, now }) : null;
   const fmt = (n: number) => n.toLocaleString("en-US");
   return Object.freeze({
     headline: "판단은 돌고 있어요\n새 매수는 위험 단계에서 멈춤",
@@ -46,5 +54,6 @@ export function buildRiskGate(input: RiskGateInput): RiskGateModel | null {
     signals,
     decisions,
     streak,
+    day,
   });
 }

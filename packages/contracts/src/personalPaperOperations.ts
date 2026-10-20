@@ -36,6 +36,10 @@ export interface PersonalPaperLossLimit {
   readonly consecutiveLossCount: number;
   readonly maxConsecutiveLosses: number;
   readonly evaluatedAt: number;
+  /** Display only: start of the KST trading day the counts belong to. */
+  readonly periodStartedAt?: number;
+  /** Display only: fill time of the loss that last extended today's streak (absent at a streak of 0). */
+  readonly lastLossAt?: number;
 }
 
 export interface PersonalPaperTodayRealized {
@@ -402,7 +406,11 @@ function isValidTodayRealized(value: unknown): boolean {
 function isValidLossLimit(value: unknown): boolean {
   if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  return (v.consecutiveLossLimitEnabled === undefined || typeof v.consecutiveLossLimitEnabled === "boolean") && isCount(v.consecutiveLossCount) && isCount(v.maxConsecutiveLosses, 1) && isTimeMs(v.evaluatedAt);
+  if (!((v.consecutiveLossLimitEnabled === undefined || typeof v.consecutiveLossLimitEnabled === "boolean") && isCount(v.consecutiveLossCount) && isCount(v.maxConsecutiveLosses, 1) && isTimeMs(v.evaluatedAt))) return false;
+  // Optional day markers must be ordered: day start <= last loss <= evaluation, within one day.
+  if (v.periodStartedAt !== undefined && (!isTimeMs(v.periodStartedAt) || (v.periodStartedAt as number) > (v.evaluatedAt as number) || (v.evaluatedAt as number) - (v.periodStartedAt as number) > 86_400_000)) return false;
+  if (v.lastLossAt !== undefined && (!isTimeMs(v.lastLossAt) || (v.lastLossAt as number) > (v.evaluatedAt as number) || (v.periodStartedAt !== undefined && (v.lastLossAt as number) < (v.periodStartedAt as number)))) return false;
+  return true;
 }
 
 function isValidMarketList(value: unknown): boolean {
