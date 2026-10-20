@@ -1,6 +1,6 @@
 id: WO-FUTURES-20261014-RESEARCH-PREREG
 title: "Pre-register the futures regime long/short research before downloading any futures history"
-status: READY_FOR_REVIEW
+status: COMPLETED_FAIL
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -17,6 +17,7 @@ next:
   - "Data step: a dispatch-only read-only workflow on the PAPER host downloads the pre-registered public klines and funding history; per the 2026-10-19 addendum only the SHA-256 manifest is committed, and evaluation re-fetches and verifies every hash."
   - "Evaluation step (PR #2810): apps/cloud/src/futures/futuresRegimeStudy.ts (pure evaluator, independent review fixed on-the-hour funding being skipped) + scripts/run-futures-regime-study.js + .github/workflows/futures-regime-study.yml; refuses without a committed research/futures/futures-history-manifest.json or with a committed holdout result. Order: merge, deploy, run freeze, commit manifest, deploy, run study ONCE (operating rule: no second dispatch), commit the printed result immediately."
 history_frozen_2026_10_19: "Release 83bedc35a deployed (run 39231499161, DEPLOYED, health_only current_release matches). futures-history-freeze run 39233732866: 10 files, klines 8292 rows each (no gap), funding 4146 rows each, manifest digest a30cf0d3b9d7ea8444951557ada0426507d142e321eaf289c73e845a32764147, committed as research/futures/futures-history-manifest.json. Holdout not read."
+holdout_result_2026_10_20: "FAIL. futures-regime-study run 39352194710 on release fd278dc35, evaluated once after hash verification. Holdout N=50: 112 trips, mean net -0.22% (base) / -0.41% (doubled), 0/5 symbols profitable, SHORT in DOWN months -899 USDT, max drawdown 53.9%, 0 liquidations. Report committed as research/futures/futures-regime-holdout-result.json (also blocks any re-run). Futures stay research-only; no tuning on this holdout; owner decides next steps."
 not_changed: "No code, data, strategy, limit or runtime change; documentation only."
 safety:
   paper_only: true

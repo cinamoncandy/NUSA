@@ -1,0 +1,262 @@
+{
+  "evaluatedBy": "futures-regime-study run 39352194710 (job 118398706880) on release fd278dc3534281abfe3a14c0056e8b25dc5219ed, 2026-10-20T01:16:40Z",
+  "historyManifest": "research/futures/futures-history-manifest.json (verified by re-fetch before evaluation)",
+  "report": {
+    "prereg": "RESEARCH_PREREG_2026-10-14_FUTURES_REGIME_LONG_SHORT",
+    "splits": {
+      "development": {
+        "N50": {
+          "base": {
+            "roundTrips": 322,
+            "meanNetReturn": 0.007249631998806514,
+            "pnlBySymbol": {
+              "BTCUSDT": -1780.5982154732808,
+              "DOGEUSDT": 1283.3462697415641,
+              "ETHUSDT": 563.4428670463576,
+              "SOLUSDT": 1749.156556720415,
+              "XRPUSDT": 1545.4633544256421
+            },
+            "profitableSymbols": 4,
+            "shortPnlInDownMonths": -2066.805925668471,
+            "maxDrawdown": 0.5297075679471629,
+            "liquidations": 0,
+            "finalEquity": 13360.810832460686
+          },
+          "stressed": {
+            "roundTrips": 322,
+            "meanNetReturn": 0.005214933716676771,
+            "pnlBySymbol": {
+              "BTCUSDT": -1967.2076036630408,
+              "DOGEUSDT": 736.4644718341988,
+              "ETHUSDT": -216.5555738731709,
+              "SOLUSDT": 1013.5184187702732,
+              "XRPUSDT": 729.3074481718647
+            },
+            "profitableSymbols": 3,
+            "shortPnlInDownMonths": -2667.461942177511,
+            "maxDrawdown": 0.5621858387982902,
+            "liquidations": 0,
+            "finalEquity": 10295.527161240116
+          },
+          "rule": {
+            "pass": false,
+            "failed": [
+              "SHORT_DOWN",
+              "DRAWDOWN"
+            ]
+          }
+        },
+        "N20": {
+          "base": {
+            "roundTrips": 552,
+            "meanNetReturn": 0.008565681899670486,
+            "pnlBySymbol": {
+              "BTCUSDT": -488.80005667913395,
+              "DOGEUSDT": 8936.224852039864,
+              "ETHUSDT": 1032.7046642526627,
+              "SOLUSDT": -1213.0377540145128,
+              "XRPUSDT": 7723.951964398575
+            },
+            "profitableSymbols": 3,
+            "shortPnlInDownMonths": 6131.104295164852,
+            "maxDrawdown": 0.5602439867252559,
+            "liquidations": 0,
+            "finalEquity": 25991.043669997438
+          },
+          "stressed": {
+            "roundTrips": 552,
+            "meanNetReturn": 0.006547067899154252,
+            "pnlBySymbol": {
+              "BTCUSDT": -1169.493271419591,
+              "DOGEUSDT": 5847.536253404826,
+              "ETHUSDT": -774.5313308266425,
+              "SOLUSDT": -1767.5616449498712,
+              "XRPUSDT": 4559.582781426645
+            },
+            "profitableSymbols": 2,
+            "shortPnlInDownMonths": 3316.5140855710197,
+            "maxDrawdown": 0.6063291524630742,
+            "liquidations": 0,
+            "finalEquity": 16695.532787635388
+          },
+          "rule": {
+            "pass": false,
+            "failed": [
+              "DRAWDOWN"
+            ]
+          }
+        },
+        "N100": {
+          "base": {
+            "roundTrips": 186,
+            "meanNetReturn": 0.022878865823004937,
+            "pnlBySymbol": {
+              "BTCUSDT": -2426.589996621343,
+              "DOGEUSDT": 10035.404901593914,
+              "ETHUSDT": 2610.5323251370755,
+              "SOLUSDT": -4623.8321343057505,
+              "XRPUSDT": 963.3303297180539
+            },
+            "profitableSymbols": 3,
+            "shortPnlInDownMonths": -2232.1840590344173,
+            "maxDrawdown": 0.5916185149320096,
+            "liquidations": 0,
+            "finalEquity": 16558.84542552196
+          },
+          "stressed": {
+            "roundTrips": 185,
+            "meanNetReturn": 0.021324043246309987,
+            "pnlBySymbol": {
+              "BTCUSDT": -2822.4426663559257,
+              "DOGEUSDT": 9694.053204658005,
+              "ETHUSDT": 1947.4285116478652,
+              "SOLUSDT": -4679.53726670568,
+              "XRPUSDT": 597.4474572064636
+            },
+            "profitableSymbols": 3,
+            "shortPnlInDownMonths": -2810.485578612147,
+            "maxDrawdown": 0.6021263821546777,
+            "liquidations": 0,
+            "finalEquity": 14736.949240450705
+          },
+          "rule": {
+            "pass": false,
+            "failed": [
+              "SHORT_DOWN",
+              "DRAWDOWN"
+            ]
+          }
+        }
+      },
+      "holdout": {
+        "N50": {
+          "base": {
+            "roundTrips": 112,
+            "meanNetReturn": -0.002154965178730962,
+            "pnlBySymbol": {
+              "BTCUSDT": -196.76725785943128,
+              "DOGEUSDT": -960.1409696916603,
+              "ETHUSDT": -33.423174826399446,
+              "SOLUSDT": -308.56747942934084,
+              "XRPUSDT": -1004.3796008915791
+            },
+            "profitableSymbols": 0,
+            "shortPnlInDownMonths": -899.0248440161378,
+            "maxDrawdown": 0.5392541238934595,
+            "liquidations": 0,
+            "finalEquity": 7496.721517301588
+          },
+          "stressed": {
+            "roundTrips": 112,
+            "meanNetReturn": -0.004146962593339131,
+            "pnlBySymbol": {
+              "BTCUSDT": -356.9888649841265,
+              "DOGEUSDT": -1099.2183731528605,
+              "ETHUSDT": -178.75453115665758,
+              "SOLUSDT": -447.00491334529795,
+              "XRPUSDT": -1071.0487232330681
+            },
+            "profitableSymbols": 0,
+            "shortPnlInDownMonths": -1281.52810846148,
+            "maxDrawdown": 0.5616284163348175,
+            "liquidations": 0,
+            "finalEquity": 6846.984594127995
+          },
+          "rule": {
+            "pass": false,
+            "failed": [
+              "MEAN_NET_BASE",
+              "MEAN_NET_STRESS",
+              "SYMBOLS",
+              "SHORT_DOWN",
+              "DRAWDOWN"
+            ]
+          }
+        },
+        "N20": {
+          "base": {
+            "roundTrips": 209,
+            "meanNetReturn": 0.0010226339199829297,
+            "pnlBySymbol": {
+              "BTCUSDT": -291.15677585376864,
+              "DOGEUSDT": -834.869430682226,
+              "ETHUSDT": 1309.619910892085,
+              "SOLUSDT": 940.8546372227732,
+              "XRPUSDT": -2280.867045554122
+            },
+            "profitableSymbols": 2,
+            "shortPnlInDownMonths": 1298.6623474927153,
+            "maxDrawdown": 0.5377794272887855,
+            "liquidations": 0,
+            "finalEquity": 8843.581296024744
+          },
+          "stressed": {
+            "roundTrips": 209,
+            "meanNetReturn": -0.0009733062326197768,
+            "pnlBySymbol": {
+              "BTCUSDT": -598.0518533103151,
+              "DOGEUSDT": -1073.53721993763,
+              "ETHUSDT": 915.843277769873,
+              "SOLUSDT": 526.2689537202525,
+              "XRPUSDT": -2288.1437741376126
+            },
+            "profitableSymbols": 2,
+            "shortPnlInDownMonths": 543.4045043030457,
+            "maxDrawdown": 0.5642456391714371,
+            "liquidations": 0,
+            "finalEquity": 7482.379384104566
+          },
+          "rule": {
+            "pass": false,
+            "failed": [
+              "MEAN_NET_STRESS",
+              "SYMBOLS",
+              "DRAWDOWN"
+            ]
+          }
+        },
+        "N100": {
+          "base": {
+            "roundTrips": 60,
+            "meanNetReturn": 0.021032379000830825,
+            "pnlBySymbol": {
+              "BTCUSDT": 850.9446878399019,
+              "DOGEUSDT": 2032.5342717033404,
+              "ETHUSDT": 1342.297240508687,
+              "SOLUSDT": 1637.5671539312195,
+              "XRPUSDT": -1883.3534881155933
+            },
+            "profitableSymbols": 4,
+            "shortPnlInDownMonths": 6367.674787482094,
+            "maxDrawdown": 0.3964547854630593,
+            "liquidations": 0,
+            "finalEquity": 13979.98986586756
+          },
+          "stressed": {
+            "roundTrips": 60,
+            "meanNetReturn": 0.019076574201357045,
+            "pnlBySymbol": {
+              "BTCUSDT": 716.7157670516192,
+              "DOGEUSDT": 1918.7017516570224,
+              "ETHUSDT": 1175.9392590598363,
+              "SOLUSDT": 1486.659496120249,
+              "XRPUSDT": -1960.1122366515633
+            },
+            "profitableSymbols": 4,
+            "shortPnlInDownMonths": 6071.515873000029,
+            "maxDrawdown": 0.407662525898664,
+            "liquidations": 0,
+            "finalEquity": 13337.904037237162
+          },
+          "rule": {
+            "pass": false,
+            "failed": [
+              "DRAWDOWN"
+            ]
+          }
+        }
+      }
+    },
+    "verdict": "FAIL"
+  }
+}
