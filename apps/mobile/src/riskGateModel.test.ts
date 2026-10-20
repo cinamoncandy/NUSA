@@ -21,3 +21,13 @@ test("unknown or malformed counters are never shown as zero", () => {
   assert.equal(gate.signals, null);
   assert.equal(gate.detail, "판단 50번 · 새 주문 0건");
 });
+
+test("the streak cells use the server's own count and limit, and nothing else", () => {
+  const base = { lossLimitState: "STOPPED" as const, decisionCount: 3292, paperOrderCount: 0 };
+  assert.deepEqual(buildRiskGate({ ...base, consecutiveLossCount: 3, maxConsecutiveLosses: 3 })?.streak, { count: 3, max: 3 });
+  assert.equal(buildRiskGate({ ...base, consecutiveLossCount: 3, maxConsecutiveLosses: 3 })?.decisions, 3292);
+  assert.equal(buildRiskGate({ ...base })?.streak, null, "missing values draw no cells");
+  assert.equal(buildRiskGate({ ...base, consecutiveLossCount: "3", maxConsecutiveLosses: 3 })?.streak, null);
+  assert.equal(buildRiskGate({ ...base, consecutiveLossCount: 2, maxConsecutiveLosses: 3 })?.streak, null, "below the limit is not a stop");
+  assert.equal(buildRiskGate({ ...base, consecutiveLossCount: 99, maxConsecutiveLosses: 99 })?.streak, null, "implausible limit draws nothing");
+});

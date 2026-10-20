@@ -73,16 +73,17 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
     paperOrderCount: heartbeat?.paperOrderCount ?? null,
     fillCount: heartbeat?.paperFillCount ?? null,
   });
+  const rawLossLimit: { readonly consecutiveLossCount?: unknown; readonly maxConsecutiveLosses?: unknown } | null = heartbeat?.lossLimit ?? null;
   // Redesign 2026-10-19: when the loss limit holds new buys, say where the flow stopped (the risk gate), not just "no execution".
-  const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount });
+  const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount, consecutiveLossCount: rawLossLimit?.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit?.maxConsecutiveLosses });
   const ringsStatus = field.phase === "HALTED" ? { title: field.headline, detail: field.detail, tone: "halt" as const } : null;
   const heroMarket = Array.isArray(heartbeat?.tradedMarkets) && typeof heartbeat?.tradedMarkets[0] === "string" ? heartbeat.tradedMarkets[0] as string : null;
   const needsSetup = notConfigured != null || readOnlyError != null;
   return <View style={styles.shell} testID="now-screen">
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
       <Text style={styles.brand}>NUSA</Text>
-      <CalmHeadline tone={gate ? "ATTENTION" : model.tone} text={gate ? gate.headline : model.headline} sub={gate ? (lossLimit?.text ?? model.sub) : model.sub} />
-      {gate ? <RiskGateFlow gate={gate} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} /> : <View style={model.dim ? styles.dim : undefined} testID="now-hero">
+      {gate ? null : <CalmHeadline tone={model.tone} text={model.headline} sub={model.sub} />}
+      {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} /> : <View style={model.dim ? styles.dim : undefined} testID="now-hero">
         <DecisionRings status={ringsStatus} decisionCount={blocked ? null : dailyCounts.decisionCount} paperOrderCount={blocked ? null : dailyCounts.paperOrderCount} marketLabel={heroMarket} />
       </View>}
       <View style={styles.block}>
@@ -95,7 +96,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
       {model.why == null ? null : <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.why} testID="now-why">
         <Text style={styles.whyText}>{model.why} <Text style={styles.link}>왜요?</Text></Text>
       </Pressable>}
-      <View style={[styles.block, model.dim ? styles.dim : undefined]}><CalmStats items={model.stats} /></View>
+      {gate ? null : <View style={[styles.block, model.dim ? styles.dim : undefined]}><CalmStats items={model.stats} /></View>}
       <Text style={styles.footnote}>숫자는 서버가 시작된 뒤부터 센 값이에요</Text>
       {needsSetup ? <Pressable accessibilityRole="button" onPress={onGoSettings} style={styles.setup} testID="now-setup">
         <Text style={styles.setupText}>연결 설정 열기 →</Text>
