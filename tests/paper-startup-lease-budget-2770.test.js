@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync, StatementSync } = require("node:sqlite");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
-const { verifyAndIssueSqliteStartupIntegrity } = require("../dist/packages/storage/src/sqliteStartupIntegrity.js");
+const { verifyAndIssueSqliteStartupIntegrity, assertSqliteStartupIntegrity } = require("../dist/packages/storage/src/sqliteStartupIntegrity.js");
 const { SqliteAiCalibrationDurableStore } = require("../dist/packages/storage/src/aiCalibrationDurability.js");
 const { SqliteAiOutcomeAttributionMemory } = require("../dist/packages/storage/src/aiOutcomeAttributionMemory.js");
 const { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
@@ -180,25 +180,29 @@ test("the canonical database open still performs the full integrity scan", () =>
 
 
 
-test("shared production AI stores reuse one canonical full-file startup scan and keep store checks", () => {
+test("file-backed shared AI integrity checks do not trust the mutable application-realm prepare", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-integrity-"));
   const filename = path.join(dir, "state.sqlite");
+  const nativePrepare = DatabaseSync.prototype.prepare;
   let database;
   let calibration;
   let attribution;
   try {
-    const counts = countPreparedStatements(() => {
-      database = new SqliteDatabase(filename);
-      calibration = new SqliteAiCalibrationDurableStore(filename, database.startupIntegrityAttestation);
-      attribution = new SqliteAiOutcomeAttributionMemory(filename, database.startupIntegrityAttestation);
-    });
-    assert.equal(counts.fullQuickCheck, 1, `expected exactly one full-file startup scan, got ${JSON.stringify(counts.statements)}`);
-    assert.equal(counts.quickCheck, 5, `expected one full plus four store-scoped checks, got ${JSON.stringify(counts.statements)}`);
-    assert.ok(counts.statements.some((sql) => /quick_check\('ai_calibration_durability_events'\)/i.test(sql)), "calibration event b-tree must still be checked");
-    assert.ok(counts.statements.some((sql) => /quick_check\('ai_outcome_attribution_memory_events'\)/i.test(sql)), "attribution event b-tree must still be checked");
+    DatabaseSync.prototype.prepare = function guardedPrepare(sql) {
+      if (/quick_check|database_list/i.test(String(sql))) {
+        throw new Error("application-realm prepare must not own file-backed integrity attestation");
+      }
+      return nativePrepare.call(this, sql);
+    };
+    database = new SqliteDatabase(filename);
+    calibration = new SqliteAiCalibrationDurableStore(filename, database.startupIntegrityAttestation);
+    attribution = new SqliteAiOutcomeAttributionMemory(filename, database.startupIntegrityAttestation);
+    assert.match(startupIntegritySource, /spawnSync\(process\.execPath/);
+    assert.match(startupIntegritySource, /readOnly: true/);
     assert.match(aiCalibrationSource, /assertSqliteStartupIntegrity/);
     assert.match(aiAttributionSource, /assertSqliteStartupIntegrity/);
   } finally {
+    DatabaseSync.prototype.prepare = nativePrepare;
     attribution?.close();
     calibration?.close();
     database?.close();
@@ -211,14 +215,23 @@ test("a canonical integrity attestation never suppresses the full scan for a dif
   const canonicalPath = path.join(dir, "canonical.sqlite");
   const otherPath = path.join(dir, "other.sqlite");
   let database;
+  let other;
   try {
     database = new SqliteDatabase(canonicalPath);
-    const counts = countPreparedStatements(() => {
-      const store = new SqliteAiCalibrationDurableStore(otherPath, database.startupIntegrityAttestation);
-      store.close();
-    });
-    assert.equal(counts.fullQuickCheck, 1, "a different SQLite file must perform its own full-file quick_check");
+    other = new DatabaseSync(otherPath);
+    other.exec("CREATE TABLE unrelated_integrity_table(id INTEGER PRIMARY KEY)");
+    assert.doesNotThrow(
+      () => assertSqliteStartupIntegrity(
+        other,
+        otherPath,
+        database.startupIntegrityAttestation,
+        ["definitely_missing_attested_table"],
+        "sqlite quick_check failed",
+      ),
+      "a different inode must ignore the scoped table list and perform a full-file fallback",
+    );
   } finally {
+    other?.close();
     database?.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -227,52 +240,64 @@ test("a canonical integrity attestation never suppresses the full scan for a dif
 test("a forged structural attestation cannot suppress the full-file scan", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-forged-"));
   const filename = path.join(dir, "forged.sqlite");
+  const connection = new DatabaseSync(filename);
   try {
+    connection.exec("CREATE TABLE unrelated_integrity_table(id INTEGER PRIMARY KEY)");
     const forged = { hasVerifiedFullIntegrityFor: () => true };
-    const counts = countPreparedStatements(() => {
-      const store = new SqliteAiCalibrationDurableStore(filename, forged);
-      store.close();
-    });
-    assert.equal(counts.fullQuickCheck, 1, "a caller-forged structural object must fall back to a real full-file quick_check");
+    assert.doesNotThrow(
+      () => assertSqliteStartupIntegrity(
+        connection,
+        filename,
+        forged,
+        ["definitely_missing_attested_table"],
+        "sqlite quick_check failed",
+      ),
+      "an unregistered proof must take the full-file path, not trusted scoped checks",
+    );
+  } finally {
+    connection.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a forged structural SQLite connection cannot mint proof for an unverified file", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-forged-issuer-"));
+  const filename = path.join(dir, "not-sqlite.db");
+  fs.writeFileSync(filename, "not a sqlite database");
+  const fake = {
+    prepare() {
+      return {
+        get() { return { quick_check: "ok" }; },
+        all() { return [{ name: "main", file: filename }]; },
+      };
+    },
+  };
+  try {
+    assert.throws(
+      () => verifyAndIssueSqliteStartupIntegrity(fake, filename, "sqlite quick_check failed"),
+      /sqlite quick_check failed/,
+      "proof issuance must depend on the independently scanned file, not a structural connection",
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("a forged structural SQLite connection cannot mint an integrity attestation", () => {
-  const fake = {
-    prepare(sql) {
-      return {
-        get() { return { quick_check: "ok" }; },
-        all() { return [{ name: "main", file: "/tmp/unverified-state.sqlite" }]; },
-      };
-    },
-  };
-  assert.throws(
-    () => verifyAndIssueSqliteStartupIntegrity(fake, "sqlite quick_check failed"),
-    undefined,
-    "the SQLite native receiver check must reject a structural fake before issuing proof",
-  );
-});
-
-test("a replaced native prepare cannot mint an integrity attestation", () => {
-  // The issuer must not consult a mutable prototype slot while proving integrity. On Node the
-  // DatabaseSync prototype methods are writable and configurable, so consulting them per call lets
-  // a caller install a permissive method, mint a genuine proof for a database that was never
-  // scanned, and restore the original method afterwards.
+test("a replaced application-realm prepare cannot forge file-backed attestation", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-replaced-prepare-"));
-  const filename = path.join(dir, "replaced.sqlite");
+  const filename = path.join(dir, "not-sqlite.db");
+  fs.writeFileSync(filename, "not a sqlite database");
   const nativePrepare = DatabaseSync.prototype.prepare;
   try {
-    DatabaseSync.prototype.prepare = function prepare(sql) {
+    DatabaseSync.prototype.prepare = function permissive(sql) {
       return /database_list/i.test(String(sql))
         ? { all: () => [{ seq: 0, name: "main", file: filename }] }
         : { get: () => ({ quick_check: "ok" }) };
     };
     assert.throws(
-      () => verifyAndIssueSqliteStartupIntegrity({ prepare: () => ({}) }, "sqlite quick_check failed"),
-      undefined,
-      "issuance must keep using the captured native prepare, not a caller-replaced prototype method",
+      () => verifyAndIssueSqliteStartupIntegrity({ prepare: () => ({}) }, filename, "sqlite quick_check failed"),
+      /sqlite quick_check failed/,
+      "the application realm cannot forge the independent file-backed integrity scan",
     );
   } finally {
     DatabaseSync.prototype.prepare = nativePrepare;
@@ -280,65 +305,49 @@ test("a replaced native prepare cannot mint an integrity attestation", () => {
   }
 });
 
-test("a prepare replaced before module load cannot mint an integrity attestation", () => {
-  // Capturing the native method at module load only helps while that method is still native when
-  // the module loads. A caller that replaced it earlier would be captured permanently and could
-  // mint a proof for a database that was never scanned, so the module has to prove the method it
-  // captured is native and refuse to attest integrity when it is not.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-poisoned-load-"));
-  const filename = path.join(dir, "poisoned.sqlite");
+test("a conditional prepare replacement installed before module load cannot forge attestation", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-conditional-load-"));
+  const filename = path.join(dir, "not-sqlite.db");
+  fs.writeFileSync(filename, "not a sqlite database");
   const modulePath = require.resolve("../dist/packages/storage/src/sqliteStartupIntegrity.js");
-  const cached = require.cache[modulePath];
-  const nativePrepare = DatabaseSync.prototype.prepare;
+  const script = [
+    'const { DatabaseSync } = require("node:sqlite");',
+    'DatabaseSync.prototype.prepare = function conditional(sql) {',
+    '  if (Object.getPrototypeOf(this) === null) throw new TypeError("Illegal invocation");',
+    `  return /database_list/i.test(String(sql)) ? { all: () => [{ seq: 0, name: "main", file: ${JSON.stringify(filename)} }] } : { get: () => ({ quick_check: "ok" }) };`,
+    '};',
+    `const { verifyAndIssueSqliteStartupIntegrity } = require(${JSON.stringify(modulePath)});`,
+    'let rejected = false;',
+    `try { verifyAndIssueSqliteStartupIntegrity({}, ${JSON.stringify(filename)}, "sqlite quick_check failed"); } catch { rejected = true; }`,
+    'if (!rejected) process.exit(17);',
+  ].join("\n");
   try {
-    delete require.cache[modulePath];
-    DatabaseSync.prototype.prepare = function permissive() {
-      return {
-        get() { return { quick_check: "ok" }; },
-        all() { return [{ seq: 0, name: "main", file: filename }]; },
-      };
-    };
-    const poisoned = require(modulePath);
-    DatabaseSync.prototype.prepare = nativePrepare;
-    const realConnection = new DatabaseSync(filename);
-    try {
-      assert.throws(
-        () => poisoned.verifyAndIssueSqliteStartupIntegrity({ prepare: () => ({}) }, "sqlite quick_check failed"),
-        /replaced SQLite prepare/,
-        "a structural fake must not obtain a proof from a module loaded against a replaced prepare",
-      );
-      assert.throws(
-        () => poisoned.verifyAndIssueSqliteStartupIntegrity(realConnection, "sqlite quick_check failed"),
-        /replaced SQLite prepare/,
-        "a module that cannot prove its prepare is native must not attest integrity for any connection",
-      );
-    } finally {
-      realConnection.close();
-    }
+    const child = require("node:child_process").spawnSync(process.execPath, ["-e", script], {
+      encoding: "utf8",
+      env: { ...process.env, NODE_OPTIONS: "" },
+    });
+    assert.equal(child.status, 0, `conditional pre-load replacement forged an attestation: ${child.stderr || child.stdout}`);
   } finally {
-    DatabaseSync.prototype.prepare = nativePrepare;
-    if (cached) { require.cache[modulePath] = cached; } else { delete require.cache[modulePath]; }
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("standalone AI durability stores retain their fail-closed full-file scan", () => {
+test("standalone file-backed AI stores retain fail-closed full-file scans outside mutable prepare", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-standalone-"));
+  const nativePrepare = DatabaseSync.prototype.prepare;
   try {
-    const calibrationPath = path.join(dir, "calibration.sqlite");
-    const calibrationCounts = countPreparedStatements(() => {
-      const store = new SqliteAiCalibrationDurableStore(calibrationPath);
-      store.close();
-    });
-    assert.equal(calibrationCounts.fullQuickCheck, 1);
-
-    const attributionPath = path.join(dir, "attribution.sqlite");
-    const attributionCounts = countPreparedStatements(() => {
-      const store = new SqliteAiOutcomeAttributionMemory(attributionPath);
-      store.close();
-    });
-    assert.equal(attributionCounts.fullQuickCheck, 1);
+    DatabaseSync.prototype.prepare = function guardedPrepare(sql) {
+      if (/quick_check|database_list/i.test(String(sql))) {
+        throw new Error("application-realm prepare must not own file-backed full scan");
+      }
+      return nativePrepare.call(this, sql);
+    };
+    const calibration = new SqliteAiCalibrationDurableStore(path.join(dir, "calibration.sqlite"));
+    calibration.close();
+    const attribution = new SqliteAiOutcomeAttributionMemory(path.join(dir, "attribution.sqlite"));
+    attribution.close();
   } finally {
+    DatabaseSync.prototype.prepare = nativePrepare;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

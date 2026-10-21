@@ -1,100 +1,124 @@
+import { spawnSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 
 declare const sqliteStartupIntegrityBrand: unique symbol;
 
-/** Opaque proof issued only after a real connection completes a full-file startup quick_check. */
+/** Opaque proof issued only after a real full-file startup quick_check. */
 export interface SqliteStartupIntegrityAttestation {
   readonly [sqliteStartupIntegrityBrand]: true;
 }
 
 const verifiedDatabaseIdentity = new WeakMap<object, string>();
 
-// Captured once at module load, because resolving DatabaseSync.prototype.prepare per call would
-// consult a mutable slot: DatabaseSync supplies writable and configurable prototype methods, so a
-// caller could substitute a permissive method, mint a proof for a database that was never scanned,
-// and restore the original afterwards.
-//
-// Capturing at load is not sufficient by itself, because a caller that replaced the method before
-// this module loaded would be captured permanently. SQLite's implementation rejects any receiver
-// that is not a real connection, so the captured method is proven to be native before it is
-// trusted. A replacement that accepts a non-SQLite receiver leaves this module unable to attest
-// integrity at all: every path below then fails closed instead of issuing or reusing a proof.
-const capturedPrepare = DatabaseSync.prototype.prepare;
+const TRUSTED_INTEGRITY_PROBE = String.raw`
+const { statSync } = require("node:fs");
+const { DatabaseSync } = require("node:sqlite");
+const filename = process.argv[1];
+const tables = JSON.parse(process.argv[2]);
+const expectedIdentity = process.argv[3] || null;
+function identity() {
+  const stats = statSync(filename, { bigint: true });
+  return String(stats.dev) + ":" + String(stats.ino);
+}
+function check(connection, sql) {
+  const row = connection.prepare(sql).get();
+  if (row == null || !Object.values(row).includes("ok")) throw new Error("quick_check failed");
+}
+const before = identity();
+const connection = new DatabaseSync(filename, { readOnly: true });
+try {
+  const reuse = expectedIdentity != null && before === expectedIdentity;
+  if (!reuse) check(connection, "PRAGMA quick_check");
+  else for (const table of tables) check(connection, "PRAGMA quick_check('" + table + "')");
+  const after = identity();
+  if (before !== after) throw new Error("database identity changed during integrity check");
+  process.stdout.write(JSON.stringify({ identity: after, reuse }));
+} finally {
+  connection.close();
+}
+`;
 
-function acceptsNonSQLiteReceiver(candidate: (sql: string) => unknown): boolean {
+function shareableFilename(filename: string): boolean {
+  return filename !== ":memory:" && !filename.startsWith("file:");
+}
+
+function trustedFileIntegrityCheck(
+  filename: string,
+  tables: readonly string[],
+  errorMessage: string,
+  expectedIdentity?: string,
+): { identity: string; reused: boolean } {
+  for (const table of tables) {
+    if (!/^[a-z0-9_]+$/i.test(table)) throw new Error("invalid sqlite integrity table name");
+  }
+  const result = spawnSync(process.execPath, ["-e", TRUSTED_INTEGRITY_PROBE, filename, JSON.stringify(tables), expectedIdentity ?? ""], {
+    encoding: "utf8",
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", NODE_OPTIONS: "" },
+    maxBuffer: 1024 * 1024,
+    windowsHide: true,
+  });
+  if (result.error != null || result.status !== 0) throw new Error(errorMessage);
   try {
-    candidate.call(Object.create(null), "SELECT 1");
-    return true;
+    const parsed = JSON.parse(result.stdout) as { identity?: unknown; reuse?: unknown };
+    if (typeof parsed.identity !== "string" || parsed.identity.length === 0 || typeof parsed.reuse !== "boolean") {
+      throw new Error("invalid integrity result");
+    }
+    return { identity: parsed.identity, reused: parsed.reuse };
   } catch {
-    return false;
+    throw new Error(errorMessage);
   }
 }
 
-const nativePrepare = acceptsNonSQLiteReceiver(capturedPrepare) ? null : capturedPrepare;
-
-function prepareNative(connection: DatabaseSync, sql: string) {
-  // Calling the native prototype method validates SQLite's internal receiver brand. Calling
-  // connection.prepare directly would let a structural fake claim that quick_check passed.
-  if (nativePrepare == null) throw new Error("sqlite integrity cannot trust a replaced SQLite prepare");
-  return nativePrepare.call(connection, sql);
-}
-
-function quickCheckOk(connection: DatabaseSync, sql: string): boolean {
-  const check = prepareNative(connection, sql).get() as Record<string, unknown> | undefined;
+function localQuickCheckOk(connection: DatabaseSync, sql: string): boolean {
+  const check = connection.prepare(sql).get() as Record<string, unknown> | undefined;
   return check != null && Object.values(check).includes("ok");
 }
 
-function mainDatabaseIdentity(connection: DatabaseSync): string | null {
-  const rows = prepareNative(connection, "PRAGMA database_list").all() as Array<Record<string, unknown>>;
-  const main = rows.find((row) => row.name === "main");
-  const file = main?.file;
-  return typeof file === "string" && file.length > 0 ? file : null;
-}
-
 /**
- * Performs the canonical full-file startup integrity scan and returns an opaque proof bound to the
- * actual SQLite main database reported by this live connection. A caller cannot mint a reusable
- * proof merely by satisfying a structural TypeScript interface: issuance itself requires the real
- * full-file quick_check to pass. In-memory databases deliberately receive a non-shareable proof.
+ * Performs the canonical full-file startup integrity scan and returns an opaque proof. File-backed
+ * databases are checked in a fresh Node process so a caller that replaced DatabaseSync.prototype
+ * before this module loaded cannot forge the scan or its file identity. In-memory databases remain
+ * non-shareable and use the local connection only for their own startup check.
  */
 export function verifyAndIssueSqliteStartupIntegrity(
   connection: DatabaseSync,
+  filename: string,
   errorMessage: string,
 ): SqliteStartupIntegrityAttestation {
-  if (!quickCheckOk(connection, "PRAGMA quick_check")) throw new Error(errorMessage);
   const proof = Object.freeze({}) as SqliteStartupIntegrityAttestation;
-  const identity = mainDatabaseIdentity(connection);
-  if (identity != null) verifiedDatabaseIdentity.set(proof as object, identity);
+  if (shareableFilename(filename)) {
+    const result = trustedFileIntegrityCheck(filename, [], errorMessage);
+    verifiedDatabaseIdentity.set(proof as object, result.identity);
+    return proof;
+  }
+  if (!localQuickCheckOk(connection, "PRAGMA quick_check")) throw new Error(errorMessage);
   return proof;
-}
-
-function attestsToConnection(
-  connection: DatabaseSync,
-  attestation: SqliteStartupIntegrityAttestation | undefined,
-): boolean {
-  if (attestation == null || (typeof attestation !== "object" && typeof attestation !== "function")) return false;
-  const expected = verifiedDatabaseIdentity.get(attestation as object);
-  if (expected == null) return false;
-  return mainDatabaseIdentity(connection) === expected;
 }
 
 /**
  * Default callers retain a full-file quick_check. A production composition may reuse an opaque
- * proof from the exact canonical database's already-completed startup scan; the store then checks
- * each of its own b-trees and keeps any logical hash-chain replay performed by the store itself.
+ * proof from the exact canonical database's already-completed startup scan; file-backed checks run
+ * in a fresh process, outside the mutable DatabaseSync prototype of the application realm.
  */
 export function assertSqliteStartupIntegrity(
   connection: DatabaseSync,
+  filename: string,
   attestation: SqliteStartupIntegrityAttestation | undefined,
   storeTables: readonly string[],
   errorMessage: string,
 ): void {
-  if (attestsToConnection(connection, attestation)) {
-    for (const table of storeTables) {
-      if (!/^[a-z0-9_]+$/i.test(table)) throw new Error("invalid sqlite integrity table name");
-      if (!quickCheckOk(connection, `PRAGMA quick_check('${table}')`)) throw new Error(errorMessage);
-    }
+  if (shareableFilename(filename)) {
+    const expected = attestation != null && (typeof attestation === "object" || typeof attestation === "function")
+      ? verifiedDatabaseIdentity.get(attestation as object)
+      : undefined;
+    const result = trustedFileIntegrityCheck(filename, storeTables, errorMessage, expected);
+    if (expected != null && result.reused && result.identity === expected) return;
+    // No attestation or a different file: the trusted probe already performed the full scan.
     return;
   }
-  if (!quickCheckOk(connection, "PRAGMA quick_check")) throw new Error(errorMessage);
+
+  if (attestation != null) {
+    // In-memory / URI databases deliberately never register a reusable identity.
+  }
+  if (!localQuickCheckOk(connection, "PRAGMA quick_check")) throw new Error(errorMessage);
 }

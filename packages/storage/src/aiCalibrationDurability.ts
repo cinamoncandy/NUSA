@@ -188,6 +188,7 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
       this.ensureSchema();
       assertSqliteStartupIntegrity(
         this.connection,
+        filename,
         startupIntegrity,
         ["ai_calibration_durability_meta", "ai_calibration_durability_events"],
         "AI calibration sqlite quick_check failed",

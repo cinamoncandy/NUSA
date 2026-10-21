@@ -133,6 +133,7 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
       ).run(SCHEMA_VERSION, GENESIS_HASH);
       assertSqliteStartupIntegrity(
         this.connection,
+        filename,
         startupIntegrity,
         ["ai_outcome_attribution_memory_meta", "ai_outcome_attribution_memory_events"],
         "learning memory sqlite quick_check failed",

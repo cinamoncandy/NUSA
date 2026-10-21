@@ -134,7 +134,7 @@ export class SqliteDatabase implements TransactionRunner {
       if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
       this.connection.exec("PRAGMA synchronous = FULL");
       this.migrationResult = runMigrations(this.connection, migrations);
-      this.startupIntegrityAttestation = verifyAndIssueSqliteStartupIntegrity(this.connection, "sqlite quick_check failed");
+      this.startupIntegrityAttestation = verifyAndIssueSqliteStartupIntegrity(this.connection, filename, "sqlite quick_check failed");
     } catch (error) {
       this.connection.close();
       throw error;
