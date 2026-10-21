@@ -2796,7 +2796,7 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: AIPOS_DUPLICATE_KEY_REPAIRED_PENDING_FRESH_HEAD_CHECKS
+  status: AIPOS_RECOVERY_GUIDANCE_FIXED_PENDING_FRESH_HEAD_CHECKS
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
@@ -2824,17 +2824,25 @@ current_ops_release_downstream_dispatch_20261021:
     workflow_result: "All six exact-predecessor workflows completed success; this evidence is historical once AIPOS changes produce a successor head."
     codex_review: "Completed on exact predecessor 1e92ca2f430dbeb638d95747e501d3e84575ce45 with has_any_findings=false and has_unresolved_findings=false; receipt says no major issues, but does not supply formal P0/P1/P2 counts and is not a formal Validator receipt."
     focused_tests: "tests/autopilot-deterministic-audit-release.test.js: 14/14 PASS; git diff --check PASS."
-  latest_reviewed_head: f01215505a84cd61779663e1f7068ed5abbf5c55
-  latest_review_findings:
+  previous_latest_reviewed_head: f01215505a84cd61779663e1f7068ed5abbf5c55
+  previous_latest_review_findings:
     p0: 0
     p1: 1
     p2: 0
     details: "P1: the run query emits [id,status,event] but the shell read list did not bind those fields to candidate_event, causing an unbound variable under set -u for Cloudflare candidates."
-  repair_commit: 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf
-  repair_validation: "On exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. TSV run fields now emit and bind exactly [id,status,event]; pending expected jobs are active owners; active Cloudflare workflow_dispatch cannot suppress without proven input identity; completed Promote requires production lineage of MERGED_MAIN. Final AIPOS-only successor exact-head checks and fresh review are pending."
+  previous_repair_commit: 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf
+  previous_repair_validation: "On exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. TSV run fields now emit and bind exactly [id,status,event]; pending expected jobs are active owners; active Cloudflare workflow_dispatch cannot suppress without proven input identity; completed Promote requires production lineage of MERGED_MAIN. Final AIPOS-only successor exact-head checks and fresh review are pending."
   validation: "Source repair commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf passed focused tests 14/14 and diff check. Exact head 08451281261a31041aa9af5391bce6ccb9d3d4a6 CI run 39531860442 failed closed at AIPOS YAML preflight due duplicated latest_reviewed_head/repair_commit keys in the work order (parser line 78); CI did not reach full tests. Those historical duplicate keys are now renamed; no implementation regression is indicated. Protected main remains c8148d7e61dd3be0763577b1c736331ab27c56ec."
   formal_validator: PENDING
-  next: "Commit/push this duplicate-key correction and record it as AIPOS-only; verify the resulting exact head against protected main with all six workflows and fresh review. Keep Draft and require formal non-author Validator counts before Audit; no Audit/Release or Oracle overlap."
+  latest_reviewed_head: 03617c511fa2c5634b0f8a9979033861e76b94e9
+  latest_review_findings:
+    p0: 0
+    p1: 0
+    p2: 1
+    details: "P2: recovery instructions still tell the next agent to commit/push the duplicate-key correction even though exact head 03617c5 already contains it."
+  review_p2_repair: "Corrected in this successor: 03617c511fa2c5634b0f8a9979033861e76b94e9 is the already-pushed AIPOS-only duplicate-key repair; no redundant commit is requested."
+  latest_exact_head_checks: "For predecessor 03617c511fa2c5634b0f8a9979033861e76b94e9, PAPER Runtime and four safety companions completed success; canonical CI 39532164534 and review were still running when this update began. These predecessor results do not validate this successor."
+  next: "Verify the current successor against protected main, all six exact-head workflows, and fresh non-author review; then obtain formal non-author Validator P0/P1/P2 counts. Keep Draft; Audit/Release/merge and Oracle overlap remain prohibited."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:

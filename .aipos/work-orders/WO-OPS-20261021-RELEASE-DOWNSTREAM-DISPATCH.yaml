@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: AIPOS_DUPLICATE_KEY_REPAIRED_PENDING_FRESH_HEAD_CHECKS
+status: AIPOS_RECOVERY_GUIDANCE_FIXED_PENDING_FRESH_HEAD_CHECKS
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -75,17 +75,25 @@ validation_history:
     details: "P1: an active Cloudflare workflow_dispatch can have a new-main run SHA but stale head_sha input, so it cannot be accepted as owner without proving the requested input; active workflow_run job is bound to the exact head, while completed runs require production lineage. P2: AIPOS had contradictory focused-test status and must bind results to the exact source SHA."
   prior_repair_commit: 2a88f66d29e60b15949529d1523f7622035efa7d
   prior_repair_validation: "On exact source commit 2a88f66d29e60b15949529d1523f7622035efa7d, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Active Cloudflare workflow_dispatch candidates are not accepted without a provable exact input binding; completed candidates require cloudflare-production ancestry of MERGED_MAIN; pending expected jobs count as active owners."
-  latest_reviewed_head: f01215505a84cd61779663e1f7068ed5abbf5c55
-  latest_review_findings:
+  previous_latest_reviewed_head: f01215505a84cd61779663e1f7068ed5abbf5c55
+  previous_latest_review_findings:
     p0: 0
     p1: 1
     p2: 0
     details: "The run query emits [id,status,event] but the shell read list did not bind those fields to candidate_event, causing an unbound variable under set -u for Cloudflare candidates."
-  repair_commit: 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf
-  repair_validation: "On exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. TSV run fields now emit and bind exactly [id,status,event]; pending expected jobs are active owners; active Cloudflare workflow_dispatch cannot suppress without proven input identity; completed Promote requires production lineage of MERGED_MAIN. Final AIPOS-only successor exact-head checks and fresh review are pending."
+  previous_repair_commit: 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf
+  previous_repair_validation: "On exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. TSV run fields now emit and bind exactly [id,status,event]; pending expected jobs are active owners; active Cloudflare workflow_dispatch cannot suppress without proven input identity; completed Promote requires production lineage of MERGED_MAIN. Final AIPOS-only successor exact-head checks and fresh review are pending."
   focused_tests: "Exact source SHA 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf: 14/14 PASS; git diff --check PASS."
   previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
   oracle_main_release: "Run 39527382516 failed closed at pre-activation exact-main recheck: it requested e106bdbd62c92278d1835722f4ada1c31762ceb7 while protected main had advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec. No stale activation occurred."
   latest_validation_head: 08451281261a31041aa9af5391bce6ccb9d3d4a6
   latest_ci_failure: "CI run 39531860442 failed during preflight on a duplicated YAML mapping key at work-order line 78 (duplicate latest_reviewed_head/repair_commit entries); all jobs fail for this parsing issue before tests. The duplicate keys are now renamed as prior_review_*; no implementation regression is indicated."
-  next: "Commit/push this duplicate-key correction and record it as AIPOS-only; verify the resulting exact head against protected main with all six workflows and fresh review. Keep Draft and require formal non-author Validator counts before Audit; no Audit/Release or Oracle overlap."
+  latest_reviewed_head: 03617c511fa2c5634b0f8a9979033861e76b94e9
+  latest_review_findings:
+    p0: 0
+    p1: 0
+    p2: 1
+    details: "P2: recovery instructions still tell the next agent to commit/push the duplicate-key correction even though exact head 03617c5 already contains it."
+  review_p2_repair: "Corrected in this successor: 03617c511fa2c5634b0f8a9979033861e76b94e9 is the already-pushed AIPOS-only duplicate-key repair; no redundant commit is requested."
+  latest_exact_head_checks: "For predecessor 03617c511fa2c5634b0f8a9979033861e76b94e9, PAPER Runtime and four safety companions completed success; canonical CI 39532164534 and review were still running when this update began. These predecessor results do not validate this successor."
+  next: "Verify the current successor against protected main, all six exact-head workflows, and fresh non-author review; then obtain formal non-author Validator P0/P1/P2 counts. Keep Draft; Audit/Release/merge and Oracle overlap remain prohibited."
