@@ -130,12 +130,11 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
   researchExperiments?.prepareRecovery();
   try {
-  // Cloud AI durability opens the same canonical SQLite file. Reuse the canonical database's
-  // already-completed full-file startup integrity attestation so the same production-sized file is
-  // not scanned three times before the listener can bind. Each AI store still performs its own
-  // table-scoped quick_check and existing hash-chain replay. Keep this before the renewable PAPER
-  // writer lease so AI startup I/O cannot starve the lease heartbeat.
-  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { startupIntegrityAttestation: database.startupIntegrityAttestation });
+  // Cloud AI durability uses the exact canonical SQLite connection that already completed the
+  // full-file startup quick_check. This avoids reopening and rescanning the same production-sized
+  // file while preserving each AI store's table-scoped quick_check and hash-chain replay. Keep this
+  // before the renewable PAPER writer lease so AI startup I/O cannot starve the lease heartbeat.
+  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteConnection: database.connection });
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.

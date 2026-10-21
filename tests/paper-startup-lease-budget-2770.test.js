@@ -5,7 +5,6 @@ const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync, StatementSync } = require("node:sqlite");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
-const { verifyAndIssueSqliteStartupIntegrity, assertSqliteStartupIntegrity } = require("../dist/packages/storage/src/sqliteStartupIntegrity.js");
 const { SqliteAiCalibrationDurableStore } = require("../dist/packages/storage/src/aiCalibrationDurability.js");
 const { SqliteAiOutcomeAttributionMemory } = require("../dist/packages/storage/src/aiOutcomeAttributionMemory.js");
 const { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
@@ -21,7 +20,6 @@ const storageSource = fs.readFileSync(path.join(root, "packages", "storage", "sr
 const aiCalibrationSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "aiCalibrationDurability.ts"), "utf8");
 const aiAttributionSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "aiOutcomeAttributionMemory.ts"), "utf8");
 const riskGatewaySource = fs.readFileSync(path.join(root, "apps", "cloud", "src", "cloudPaperCanonicalRiskGateway.ts"), "utf8");
-const startupIntegritySource = fs.readFileSync(path.join(root, "packages", "storage", "src", "sqliteStartupIntegrity.ts"), "utf8");
 const readinessSource = fs.readFileSync(path.join(root, "scripts", "oracle-readiness-check.js"), "utf8");
 
 const NOW = Date.parse("2026-10-01T12:00:00Z");
@@ -172,182 +170,90 @@ test("the canonical database open still performs the full integrity scan", () =>
     database.close();
   });
   assert.ok(counts.quickCheck >= 1, "the once-per-open full PRAGMA quick_check is a safety property and must remain");
-  assert.match(storageSource, /verifyAndIssueSqliteStartupIntegrity/);
-  assert.match(startupIntegritySource, /PRAGMA quick_check/);
+  assert.match(storageSource, /prepare\("PRAGMA quick_check"\)/);
   assert.match(riskGatewaySource, /SELECT 1 AS ready/);
   assert.ok(!/prepare\("PRAGMA quick_check"\)/.test(riskGatewaySource.split("function databaseHealthy")[1] ?? ""), "databaseHealthy must not reintroduce a full scan");
 });
 
 
 
-test("file-backed shared AI integrity checks do not trust the mutable application-realm prepare", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-integrity-"));
+test("production AI stores share the one canonical full-scan connection and keep four scoped checks", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-shared-"));
   const filename = path.join(dir, "state.sqlite");
-  const nativePrepare = DatabaseSync.prototype.prepare;
   let database;
   let calibration;
   let attribution;
   try {
-    DatabaseSync.prototype.prepare = function guardedPrepare(sql) {
-      if (/quick_check|database_list/i.test(String(sql))) {
-        throw new Error("application-realm prepare must not own file-backed integrity attestation");
-      }
-      return nativePrepare.call(this, sql);
-    };
-    database = new SqliteDatabase(filename);
-    calibration = new SqliteAiCalibrationDurableStore(filename, database.startupIntegrityAttestation);
-    attribution = new SqliteAiOutcomeAttributionMemory(filename, database.startupIntegrityAttestation);
-    assert.match(startupIntegritySource, /spawnSync\(process\.execPath/);
-    assert.match(startupIntegritySource, /readOnly: true/);
-    assert.match(aiCalibrationSource, /assertSqliteStartupIntegrity/);
-    assert.match(aiAttributionSource, /assertSqliteStartupIntegrity/);
+    const counts = countPreparedStatements(() => {
+      database = new SqliteDatabase(filename);
+      calibration = new SqliteAiCalibrationDurableStore(filename, database.connection);
+      attribution = new SqliteAiOutcomeAttributionMemory(filename, database.connection);
+    });
+    assert.equal(counts.fullQuickCheck, 1, `expected exactly one canonical full scan, got ${JSON.stringify(counts.statements)}`);
+    assert.equal(counts.quickCheck, 5, `expected one full plus four store-scoped checks, got ${JSON.stringify(counts.statements)}`);
+    assert.ok(counts.statements.some((sql) => /quick_check\('ai_calibration_durability_meta'\)/i.test(sql)));
+    assert.ok(counts.statements.some((sql) => /quick_check\('ai_calibration_durability_events'\)/i.test(sql)));
+    assert.ok(counts.statements.some((sql) => /quick_check\('ai_outcome_attribution_memory_meta'\)/i.test(sql)));
+    assert.ok(counts.statements.some((sql) => /quick_check\('ai_outcome_attribution_memory_events'\)/i.test(sql)));
+    assert.match(runtimeSource, /verifiedSharedSqliteConnection:\s*database\.connection/);
+    assert.doesNotMatch(runtimeSource, /startupIntegrityAttestation/);
   } finally {
-    DatabaseSync.prototype.prepare = nativePrepare;
     attribution?.close();
     calibration?.close();
-    database?.close();
+    // Shared-store close must not close the canonical connection.
+    if (database != null) {
+      assert.equal(database.connection.prepare("SELECT 1 AS ready").get()?.ready, 1);
+      database.close();
+    }
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("a canonical integrity attestation never suppresses the full scan for a different file", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-mismatch-"));
-  const canonicalPath = path.join(dir, "canonical.sqlite");
-  const otherPath = path.join(dir, "other.sqlite");
+test("pathname replacement cannot redirect a shared AI store away from the verified canonical connection", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-path-replace-"));
+  const filename = path.join(dir, "state.sqlite");
+  const moved = path.join(dir, "verified.sqlite");
   let database;
-  let other;
+  let replacement;
+  let calibration;
   try {
-    database = new SqliteDatabase(canonicalPath);
-    other = new DatabaseSync(otherPath);
-    other.exec("CREATE TABLE unrelated_integrity_table(id INTEGER PRIMARY KEY)");
-    assert.doesNotThrow(
-      () => assertSqliteStartupIntegrity(
-        other,
-        otherPath,
-        database.startupIntegrityAttestation,
-        ["definitely_missing_attested_table"],
-        "sqlite quick_check failed",
-      ),
-      "a different inode must ignore the scoped table list and perform a full-file fallback",
-    );
+    database = new SqliteDatabase(filename);
+    fs.renameSync(filename, moved);
+    replacement = new DatabaseSync(filename);
+    replacement.exec("CREATE TABLE replacement_only(id INTEGER PRIMARY KEY)");
+    calibration = new SqliteAiCalibrationDurableStore(filename, database.connection);
+
+    const verifiedHasAiTable = database.connection.prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='ai_calibration_durability_events'"
+    ).get();
+    const replacementHasAiTable = replacement.prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='ai_calibration_durability_events'"
+    ).get();
+    assert.equal(verifiedHasAiTable?.present, 1, "shared store must initialize on the already-verified canonical connection");
+    assert.equal(replacementHasAiTable, undefined, "a new file at the old pathname must not receive shared-store writes or scoped integrity trust");
   } finally {
-    other?.close();
+    calibration?.close();
+    replacement?.close();
     database?.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("a forged structural attestation cannot suppress the full-file scan", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-forged-"));
-  const filename = path.join(dir, "forged.sqlite");
-  const connection = new DatabaseSync(filename);
-  try {
-    connection.exec("CREATE TABLE unrelated_integrity_table(id INTEGER PRIMARY KEY)");
-    const forged = { hasVerifiedFullIntegrityFor: () => true };
-    assert.doesNotThrow(
-      () => assertSqliteStartupIntegrity(
-        connection,
-        filename,
-        forged,
-        ["definitely_missing_attested_table"],
-        "sqlite quick_check failed",
-      ),
-      "an unregistered proof must take the full-file path, not trusted scoped checks",
-    );
-  } finally {
-    connection.close();
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("a forged structural SQLite connection cannot mint proof for an unverified file", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-forged-issuer-"));
-  const filename = path.join(dir, "not-sqlite.db");
-  fs.writeFileSync(filename, "not a sqlite database");
-  const fake = {
-    prepare() {
-      return {
-        get() { return { quick_check: "ok" }; },
-        all() { return [{ name: "main", file: filename }]; },
-      };
-    },
-  };
-  try {
-    assert.throws(
-      () => verifyAndIssueSqliteStartupIntegrity(fake, filename, "sqlite quick_check failed"),
-      /sqlite quick_check failed/,
-      "proof issuance must depend on the independently scanned file, not a structural connection",
-    );
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("a replaced application-realm prepare cannot forge file-backed attestation", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-replaced-prepare-"));
-  const filename = path.join(dir, "not-sqlite.db");
-  fs.writeFileSync(filename, "not a sqlite database");
-  const nativePrepare = DatabaseSync.prototype.prepare;
-  try {
-    DatabaseSync.prototype.prepare = function permissive(sql) {
-      return /database_list/i.test(String(sql))
-        ? { all: () => [{ seq: 0, name: "main", file: filename }] }
-        : { get: () => ({ quick_check: "ok" }) };
-    };
-    assert.throws(
-      () => verifyAndIssueSqliteStartupIntegrity({ prepare: () => ({}) }, filename, "sqlite quick_check failed"),
-      /sqlite quick_check failed/,
-      "the application realm cannot forge the independent file-backed integrity scan",
-    );
-  } finally {
-    DatabaseSync.prototype.prepare = nativePrepare;
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("a conditional prepare replacement installed before module load cannot forge attestation", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-conditional-load-"));
-  const filename = path.join(dir, "not-sqlite.db");
-  fs.writeFileSync(filename, "not a sqlite database");
-  const modulePath = require.resolve("../dist/packages/storage/src/sqliteStartupIntegrity.js");
-  const script = [
-    'const { DatabaseSync } = require("node:sqlite");',
-    'DatabaseSync.prototype.prepare = function conditional(sql) {',
-    '  if (Object.getPrototypeOf(this) === null) throw new TypeError("Illegal invocation");',
-    `  return /database_list/i.test(String(sql)) ? { all: () => [{ seq: 0, name: "main", file: ${JSON.stringify(filename)} }] } : { get: () => ({ quick_check: "ok" }) };`,
-    '};',
-    `const { verifyAndIssueSqliteStartupIntegrity } = require(${JSON.stringify(modulePath)});`,
-    'let rejected = false;',
-    `try { verifyAndIssueSqliteStartupIntegrity({}, ${JSON.stringify(filename)}, "sqlite quick_check failed"); } catch { rejected = true; }`,
-    'if (!rejected) process.exit(17);',
-  ].join("\n");
-  try {
-    const child = require("node:child_process").spawnSync(process.execPath, ["-e", script], {
-      encoding: "utf8",
-      env: { ...process.env, NODE_OPTIONS: "" },
-    });
-    assert.equal(child.status, 0, `conditional pre-load replacement forged an attestation: ${child.stderr || child.stdout}`);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("standalone file-backed AI stores retain fail-closed full-file scans outside mutable prepare", () => {
+test("standalone AI durability stores retain their fail-closed full-file scans", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-standalone-"));
-  const nativePrepare = DatabaseSync.prototype.prepare;
   try {
-    DatabaseSync.prototype.prepare = function guardedPrepare(sql) {
-      if (/quick_check|database_list/i.test(String(sql))) {
-        throw new Error("application-realm prepare must not own file-backed full scan");
-      }
-      return nativePrepare.call(this, sql);
-    };
-    const calibration = new SqliteAiCalibrationDurableStore(path.join(dir, "calibration.sqlite"));
-    calibration.close();
-    const attribution = new SqliteAiOutcomeAttributionMemory(path.join(dir, "attribution.sqlite"));
-    attribution.close();
+    const calibrationCounts = countPreparedStatements(() => {
+      const store = new SqliteAiCalibrationDurableStore(path.join(dir, "calibration.sqlite"));
+      store.close();
+    });
+    assert.equal(calibrationCounts.fullQuickCheck, 1);
+
+    const attributionCounts = countPreparedStatements(() => {
+      const store = new SqliteAiOutcomeAttributionMemory(path.join(dir, "attribution.sqlite"));
+      store.close();
+    });
+    assert.equal(attributionCounts.fullQuickCheck, 1);
   } finally {
-    DatabaseSync.prototype.prepare = nativePrepare;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

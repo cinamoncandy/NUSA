@@ -6,7 +6,6 @@ import {
   emptyStrategyPositionSnapshot, emptyWalletPositionSnapshot
 } from "../../contracts/src/index";
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
-import { verifyAndIssueSqliteStartupIntegrity, type SqliteStartupIntegrityAttestation } from "./sqliteStartupIntegrity";
 import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
 import { cloudPaperFillLedgerMigration } from "./cloudPaperFillLedgerMigration";
 import { cloudPaperLegacyReconciliationMigration } from "./cloudPaperLegacyReconciliationMigration";
@@ -124,7 +123,6 @@ export function applyLedgerEntryToSnapshot(snapshot: PositionSnapshot, entry: Po
 export class SqliteDatabase implements TransactionRunner {
   public readonly connection: DatabaseSync;
   public readonly migrationResult: MigrationResult;
-  public readonly startupIntegrityAttestation: SqliteStartupIntegrityAttestation;
   private inTransaction = false;
   public constructor(filename = ":memory:") {
     this.connection = new DatabaseSync(filename);
@@ -134,7 +132,8 @@ export class SqliteDatabase implements TransactionRunner {
       if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
       this.connection.exec("PRAGMA synchronous = FULL");
       this.migrationResult = runMigrations(this.connection, migrations);
-      this.startupIntegrityAttestation = verifyAndIssueSqliteStartupIntegrity(this.connection, filename, "sqlite quick_check failed");
+      const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+      if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
     } catch (error) {
       this.connection.close();
       throw error;

@@ -6,7 +6,6 @@ import type {
   AiLearningMemoryStore,
   AiLessonProjection
 } from "../../contracts/src/aiOutcomeAttribution";
-import { assertSqliteStartupIntegrity, type SqliteStartupIntegrityAttestation } from "./sqliteStartupIntegrity";
 
 const SCHEMA_VERSION = 1 as const;
 const GENESIS_HASH = "0".repeat(64);
@@ -106,6 +105,7 @@ function eventIdentity(sequence: number, episode: AiAttributionEpisode, previous
 
 export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
   private readonly connection: DatabaseSync;
+  private readonly ownsConnection: boolean;
   private closed = false;
   /**
    * In-memory mirror of the verified chain, keyed by episodeId, refreshed by replay() (which
@@ -120,27 +120,32 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
    */
   private cachedEpisodes = new Map<string, AiAttributionEpisode>();
 
-  public constructor(filename = ":memory:", startupIntegrity?: SqliteStartupIntegrityAttestation) {
-    this.connection = new DatabaseSync(filename);
+  public constructor(filename = ":memory:", verifiedSharedConnection?: DatabaseSync) {
+    this.connection = verifiedSharedConnection ?? new DatabaseSync(filename);
+    this.ownsConnection = verifiedSharedConnection == null;
     try {
-      this.connection.exec("PRAGMA foreign_keys = ON");
-      this.connection.exec("PRAGMA busy_timeout = 5000");
-      if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
-      this.connection.exec("PRAGMA synchronous = FULL");
+      if (this.ownsConnection) {
+        this.connection.exec("PRAGMA foreign_keys = ON");
+        this.connection.exec("PRAGMA busy_timeout = 5000");
+        if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
+        this.connection.exec("PRAGMA synchronous = FULL");
+      }
       this.connection.exec(SCHEMA_SQL);
       this.connection.prepare(
         "INSERT OR IGNORE INTO ai_outcome_attribution_memory_meta (id, schema_version, event_count, ledger_hash) VALUES (1, ?, 0, ?)"
       ).run(SCHEMA_VERSION, GENESIS_HASH);
-      assertSqliteStartupIntegrity(
-        this.connection,
-        filename,
-        startupIntegrity,
-        ["ai_outcome_attribution_memory_meta", "ai_outcome_attribution_memory_events"],
-        "learning memory sqlite quick_check failed",
-      );
+      if (this.ownsConnection) {
+        const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+        if (check == null || !Object.values(check).includes("ok")) throw new Error("learning memory sqlite quick_check failed");
+      } else {
+        for (const table of ["ai_outcome_attribution_memory_meta", "ai_outcome_attribution_memory_events"] as const) {
+          const check = this.connection.prepare(`PRAGMA quick_check('${table}')`).get() as Record<string, unknown> | undefined;
+          if (check == null || !Object.values(check).includes("ok")) throw new Error("learning memory sqlite quick_check failed");
+        }
+      }
       this.replay();
     } catch (error) {
-      this.connection.close();
+      if (this.ownsConnection) this.connection.close();
       this.closed = true;
       throw error;
     }
@@ -238,7 +243,7 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
 
   public close(): void {
     if (this.closed) return;
-    this.connection.close();
+    if (this.ownsConnection) this.connection.close();
     this.closed = true;
   }
 

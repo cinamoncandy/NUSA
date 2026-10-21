@@ -6,7 +6,7 @@ import type { AiAttributionPolicy, AiLessonProjection, AiObservedEvidenceIdentit
 import type { AiScenarioBaseline, AiScenarioDefinition, AiScenarioPolicy, AiScenarioReasoningResult } from "../../../../packages/contracts/src/aiScenarioReasoning";
 import { SqliteAiCalibrationDurableStore } from "../../../../packages/storage/src/aiCalibrationDurability";
 import { SqliteAiOutcomeAttributionMemory } from "../../../../packages/storage/src/aiOutcomeAttributionMemory";
-import type { SqliteStartupIntegrityAttestation } from "../../../../packages/storage/src/sqliteStartupIntegrity";
+import type { DatabaseSync } from "node:sqlite";
 import { DEFAULT_CLOUD_STATE_DB_PATH } from "../cloudRuntimeConfig";
 import { createModelProviderFromEnvironment, createNVersionProviderPoolFromEnvironment, type NVersionProviderEnvironmentPool } from "./modelProvider";
 import { MultiAgentOrchestrator, type AiOrchestrationInput, type AiOrchestrationResult } from "./multiAgentOrchestrator";
@@ -118,8 +118,8 @@ export interface CloudAiRuntimeOptions {
   readonly calibration?: CloudAiCalibrationOptions;
   /** Explicit test/composition injection. Production Cloud auto-composes SQLite from its state DB path. */
   readonly durableCalibrationStore?: AiCalibrationDurableStore;
-  /** Canonical shared-DB startup integrity already proved by the production composition root. */
-  readonly startupIntegrityAttestation?: SqliteStartupIntegrityAttestation;
+  /** Exact canonical SQLite connection after the production composition root completed its full-file integrity scan. */
+  readonly verifiedSharedSqliteConnection?: DatabaseSync;
   /** Undefined auto-composes explicit environment N-version config; null explicitly disables it. */
   readonly nVersionEvaluator?: Pick<NVersionStrategyEvaluator, "run"> | null;
   /** Undefined auto-composes a CloudAiScenarioRunner gated by NUSA_AI_SCENARIO_ENABLED; null explicitly disables it. */
@@ -308,17 +308,17 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   const pendingPredictions = new Map<string, PendingPrediction>();
   let durableStore = options.durableCalibrationStore;
   let durabilityOpenFailure = false;
+  const durabilityPathname = implicitDurabilityPath(env);
   if (durableStore == null) {
-    const pathname = implicitDurabilityPath(env);
-    if (pathname != null) {
-      try { durableStore = new SqliteAiCalibrationDurableStore(pathname, options.startupIntegrityAttestation); }
+    if (durabilityPathname != null) {
+      try { durableStore = new SqliteAiCalibrationDurableStore(durabilityPathname, options.verifiedSharedSqliteConnection); }
       catch { durabilityOpenFailure = true; }
     }
   }
   const durability = new CalibrationDurabilityRuntime(calibrationLedger, durableStore, now(), AI_CALIBRATION_RESOLUTION_GRACE_MS, durabilityOpenFailure);
   for (const prediction of durability.recovered().pendingPredictions) pendingPredictions.set(prediction.predictionId, Object.freeze({ prediction, predictionEvidence: null, providerComparisonSnapshot: null, scenarioSnapshot: null }));
   let attributionMemory: SqliteAiOutcomeAttributionMemory | null = null;
-  try { attributionMemory = new SqliteAiOutcomeAttributionMemory(implicitDurabilityPath(env) ?? ":memory:", options.startupIntegrityAttestation); }
+  try { attributionMemory = new SqliteAiOutcomeAttributionMemory(durabilityPathname ?? ":memory:", durabilityPathname == null ? undefined : options.verifiedSharedSqliteConnection); }
   catch { attributionMemory = null; } // Learning memory is diagnostic-only and can never block AI scheduling.
   const attributionEngine = new GovernedOutcomeAttributionEngine(AI_ATTRIBUTION_POLICY);
   let inFlight = false;
