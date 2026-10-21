@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: AIPOS_DUPLICATE_KEY_PREFLIGHT_FAILURE_REPAIR_REQUIRED
+status: EXACT_HEAD_CHECKS_PASS_FORMAL_VALIDATOR_PENDING
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -138,8 +138,8 @@ validation_history:
   successor_local_validation: "On exact source tree d58ec8d9, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Fresh review of 996cee96 found P0=0/P1=0/P2=1 for unrelated backup base drift; restored here. New exact-head workflows and review are required after this AIPOS successor."
   previous_main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
   legacy_549_exact_head_checks: "Predecessor 549ffd685e87c745c87de94897da7370d7e15785 against base 345539210a96f9dd4292b848318043fe23afc7f4 passed all six workflows: CI 39560202430; PAPER 39560202557; Capability 39560202463; Activation 39560202453; Transport 39560202505; Read-only Broker 39560202451. Fresh Codex review was still running on that predecessor when protected main advanced to 55d723aada9dfcdb78293bbef30c3af2a6ac26f2. This main-sync successor therefore requires fresh exact-head workflows and review."
-  next: "CI 39566051528 found a duplicate historical formal_validator key after the next-key repair. The older value is preserved as previous_formal_validator, retaining the unique current formal_validator field. Focused Release tests 14/14 and git diff --check pass; strict YAML parsing runs in exact-head CI because js-yaml/Python are unavailable locally. Commit/push this minimal correction, rerun all six workflows and fresh review on the new head, then obtain formal Validator P0/P1/P2 counts. Keep Draft; no Audit/Release/merge or Oracle overlap until separately authorized."
-current_successor_validation:
+  next: "All six workflows passed on exact head 39195745bc94cc840e1b30dba70f917afc311c2a. The review receipt says no major issues, but the Codex summary flags has_any_findings=true and has_unresolved_findings=true while the unresolved-thread query returned none; do not infer formal acceptance. Resolve the review-state discrepancy or obtain a clear formal exact-head P0/P1/P2 Validator receipt. This AIPOS update creates another successor, which needs six exact-head workflows and fresh review. Keep Draft; no Audit/Release/merge or Oracle overlap until separately authorized."
+previous_successor_validation:
   exact_head: c76ceb78ade5f51baa4f2f577ab2d9421e8d1d78
   protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
   workflows:
@@ -161,3 +161,17 @@ latest_successor_preflight_failure:
   exact_head: dad8667070191263abe23561691d9f65e84cfb79
   ci_run: 39566051528
   failure: "After removing duplicate `next`, strict AIPOS YAML preflight found a duplicate `formal_validator` key in the same state mapping. The older historical field is preserved as previous_formal_validator. No tests ran past preflight."
+latest_successor_validation:
+  exact_head: 39195745bc94cc840e1b30dba70f917afc311c2a
+  protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
+  workflows:
+    ci: 39566703831
+    actual_paper_runtime: 39566703877
+    capability_surface_guard: 39566703859
+    activation_rehearsal: 39566703885
+    transport_readiness: 39566703860
+    readonly_broker: 39566703933
+  workflow_result: "All six exact-head workflows completed success. Strict AIPOS preflight, security gate, typecheck, build, regression/coverage passed."
+  review_receipt: "Exact-head review receipt says no major issues; summary flags has_any_findings=true and has_unresolved_findings=true. Current unresolved-thread query returned zero. Formal severity-count Validator acceptance remains pending until this inconsistency is resolved or a clear receipt is produced."
+  formal_validator: PENDING
+  oracle_current_main_runtime: UNVERIFIED

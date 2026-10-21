@@ -2807,21 +2807,24 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: AIPOS_DUPLICATE_KEY_PREFLIGHT_FAILURE_REPAIR_REQUIRED
+  status: EXACT_HEAD_CHECKS_PASS_FORMAL_VALIDATOR_PENDING
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
   previous_base_sha: 345539210a96f9dd4292b848318043fe23afc7f4
   base_sha: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
-  latest_validated_head: c76ceb78ade5f51baa4f2f577ab2d9421e8d1d78
-  latest_validated_workflows: "CI 39564585718 PASS; Actual PAPER 39564585731 PASS; Capability 39564585747 PASS; Activation 39564585710 PASS; Transport 39564585671 PASS; Read-only Broker 39564585554 PASS."
-  latest_review: "Exact c76ceb78 review completed: has_any_findings=false, has_unresolved_findings=false; generic review only, formal severity-count Validator still pending."
+  latest_validated_head: 39195745bc94cc840e1b30dba70f917afc311c2a
+  latest_validated_workflows: "CI 39566703831 PASS; Actual PAPER 39566703877 PASS; Capability 39566703859 PASS; Activation 39566703885 PASS; Transport 39566703860 PASS; Read-only Broker 39566703933 PASS."
+  latest_review: "Exact 39195745 review receipt says no major issues; review summary reports has_any_findings=true and has_unresolved_findings=true, while inline unresolved review threads query returned none. Treat formal acceptance as pending; reconcile receipt state rather than infer counts."
   formal_validator: PENDING
   oracle_current_main_runtime: UNVERIFIED
-  failed_successor_head: 8862b6fc5e2e8b897bce90ae2518efe0d4a23727
-  failed_successor_ci_run: 39565514865
-  failed_successor_ci_reason: "CI 39565514865 found duplicate `next` keys; repaired by retaining the old instruction under previous_next_instruction."
-  next: "Run all six workflows and a fresh non-author review on the AIPOS successor head, then obtain explicit formal Validator P0/P1/P2 receipt. Keep PR #2844 Draft. Oracle exact-current-main deployment, genuine new PAPER fill, and restart/replay continuity remain separately UNVERIFIED; no full learning-loop claim."
+  earlier_failed_successor_head: 8862b6fc5e2e8b897bce90ae2518efe0d4a23727
+  earlier_failed_successor_ci_run: 39565514865
+  earlier_failed_successor_ci_reason: "CI found duplicate `next` keys; repaired by retaining the old instruction under previous_next_instruction."
+  latest_failed_successor_head: dad8667070191263abe23561691d9f65e84cfb79
+  latest_failed_successor_ci_run: 39566051528
+  latest_failed_successor_ci_reason: "After removing duplicate `next`, strict AIPOS YAML preflight found duplicate historical formal_validator; preserved as previous_formal_validator."
+  next: "Run all six workflows and fresh review on the AIPOS successor head. Formal Validator receipt is not accepted because review summary flags are inconsistent with its no-major-issues receipt and there is no explicit P0/P1/P2 verdict; resolve/obtain a clear exact-head receipt. Keep Draft. Oracle current-main deployment, new PAPER fill, and restart/replay remain UNVERIFIED; no full-loop claim."
   previously_validated_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
   previous_successor_head: dd355eebd02c6e90d9549e89adb93531359a22f0
   latest_main_sync: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
