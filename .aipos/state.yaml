@@ -2711,18 +2711,18 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: LOCAL_PROTOTYPE_POISONING_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI_REVIEW
+  status: PRELOAD_PROTOTYPE_POISONING_REPAIRED_PENDING_EXACT_HEAD_CI_REVIEW
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
-  protected_main_sha: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
+  protected_main_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
   pr_reported_base_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
-  previous_exact_head: 09bd6051f09bb3ad0230c1900445d3648d858754
-  source_repair_head: 17c0a3120123711c8955301e957c4d8a116cff6d
-  finding: Fresh non-author review on 09bd6051 replaced DatabaseSync.prototype.prepare after the storage module loaded; a fake quick_check ok registered trust and both genuine AI stores admitted the shared connection. Reproduced locally in isolation.
-  repair: Capture native DatabaseSync.prototype.prepare and Reflect.apply before project module imports; route all integrity PRAGMA statements through the private captured method. Added a regression proving prototype poisoning cannot bypass the one full scan plus four scoped checks. Existing CommonJS barrel/internal-cache attack regressions remain.
-  validation: "34/34 startup/lease/recovery tests; 22/22 AI calibration/attribution durability tests; pnpm typecheck/build, preflight, validate:full, security:gate, and diff-check PASS. Exact-head CI/companions on 09bd6051 are stale after source repair."
-  next: "Push source, bind AIPOS evidence to the resulting exact head, run fresh exact-head CI and five companions, obtain fresh non-author review and separate formal NUSA Validator ACCEPTED before Audit/Release."
+  previous_exact_head: 53f834eeaedc8e73848814a8a5407463a970747a
+  source_repair_head: 831896bac6de87fe32ce5c4c12d566ad3d9482bc
+  finding: A fresh isolated reproduction before storage-module load replaced DatabaseSync.prototype.prepare with a fake quick_check=ok method; the module captured it as native, registered the unchecked connection, and accepted both AI stores with forgedFull=1, genuineFull=0, scoped=4. This pre-load replacement path was not covered by the prior post-load prototype test.
+  repair: Capture pristine Function.prototype.toString and Reflect.apply from a fresh node:vm realm, then require the captured node:sqlite prepare to have the exact native function source before use. Noncanonical or proxied prepare fails closed before integrity trust is registered. Added child-process regressions for JavaScript and Proxy replacements installed before storage-module load. Existing post-load poisoning, CommonJS barrel/internal-cache replacement, corrupt-file scan, and startup-ordering regressions remain.
+  validation: "Candidate tree at source repair 831896ba: pnpm build PASS; startup/lease/research-recovery 36/36 PASS; pnpm preflight, validate:full, security:gate, and git diff --check PASS. Exact-head CI and companion workflows on predecessor 53f834ee are historical after this source repair."
+  next: "Commit durable AIPOS successor, push existing branch normally, require fresh exact-head CI and five companions, fresh non-author review with current P0/P1=0, and separate formal NUSA Validator ACCEPTED before Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
