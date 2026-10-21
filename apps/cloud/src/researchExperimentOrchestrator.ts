@@ -96,6 +96,7 @@ export interface TickReport {
 }
 
 const empty = (status: TickReport["status"]): TickReport => Object.freeze({ status, started: 0, resumed: 0, stopped: 0, experiments: Object.freeze([]) });
+const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 /** Upper bound on challenger variants per bar length (SMA 4 + RSI 3 + Donchian 3 today); each runs at most its daily budget of experiments. */
 export const MAX_VARIANTS = 12;
@@ -187,8 +188,7 @@ export class ResearchExperimentOrchestrator {
 
   private tickSummary: ResearchExperimentTickSummary | null = null;
 
-  public tick(): TickReport {
-    const report = this.tickInner();
+  private recordTick(report: TickReport): TickReport {
     const counts: Record<string, number> = { ...(this.tickSummary?.counts ?? {}) };
     const add = (key: string): void => addOutcomeCount(counts, key);
     for (const item of report.experiments) {
@@ -220,11 +220,44 @@ export class ResearchExperimentOrchestrator {
     return report;
   }
 
+  public tick(): TickReport {
+    return this.recordTick(this.tickInner());
+  }
+
+  /**
+   * Production-safe equivalent of tick(). It preserves the same deterministic experiment order and durable stores,
+   * but yields after each bounded variant/market step so HTTP readiness and the PAPER writer lease stay serviceable.
+   */
+  public async tickAsync(yieldControl: () => Promise<void> = yieldToEventLoop): Promise<TickReport> {
+    try { return this.recordTick(await this.tickInnerAsync(yieldControl)); }
+    catch { return this.recordTick(empty("ERROR")); }
+  }
+
   private tickInner(): TickReport {
+    const steps = this.tickSteps();
+    let next = steps.next();
+    while (!next.done) next = steps.next();
+    return next.value;
+  }
+
+  private async tickInnerAsync(yieldControl: () => Promise<void>): Promise<TickReport> {
+    const steps = this.tickSteps();
+    let next = steps.next();
+    while (!next.done) {
+      await yieldControl();
+      next = steps.next();
+    }
+    return next.value;
+  }
+
+  /** One canonical implementation feeds both synchronous/manual and cooperative production execution. */
+  private *tickSteps(): Generator<void, TickReport, void> {
     if (!this.recoveryReady) return empty("RECOVERY_NOT_READY");
     try {
       const nowMs = this.options.now();
       this.options.collect(nowMs);
+      // Collection may touch a bounded amount of durable data. Give HTTP one turn before the experiment grid starts.
+      yield;
       let started = 0; let resumed = 0; let stopped = 0;
       const experiments: Array<TickReport["experiments"][number]> = [];
 
@@ -252,14 +285,14 @@ export class ResearchExperimentOrchestrator {
         }
         let session = this.options.sessions.load(sessionId);
         if (session?.state === "PAUSED") { session = variant.runtime.resume(sessionId); resumed += 1; }
-        if (session == null || session.state !== "RUNNING") continue;
+        if (session == null || session.state !== "RUNNING") { yield; continue; }
 
         for (const market of this.options.markets) {
           const endCloseMs = this.options.candles.latestCloseTime(market, this.options.intervalMs);
-          if (endCloseMs == null) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); continue; }
+          if (endCloseMs == null) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); yield; continue; }
           const validationEnd = endCloseMs - this.options.windows.holdoutMs;
           const last = session.lastEvidenceAt;
-          if (last != null && validationEnd < last + this.options.windows.validationMs) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); continue; }
+          if (last != null && validationEnd < last + this.options.windows.validationMs) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); yield; continue; }
           const learningParent = this.options.causedByLearning?.();
           const outcome = runResearchExperiment(this.portsFor(variant), {
             sessionId, market, intervalMs: this.options.intervalMs, endCloseMs, windows: this.options.windows,
@@ -278,6 +311,7 @@ export class ResearchExperimentOrchestrator {
           });
           experiments.push({ variantId: variant.variantId, market, outcome });
           session = this.options.sessions.load(sessionId) ?? session;
+          yield;
           if (session.state !== "RUNNING") break;
         }
       }

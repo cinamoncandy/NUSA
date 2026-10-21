@@ -75,7 +75,7 @@ function dotBuckets() {
 }
 
 // ---- Android vector drawables ---------------------------------------------------------------------------------------------------
-const COMMENT = "NUSA N monogram mark, flow edition (2026-10-07): the N drawn as nine hairline data streams funnelling from a small cluster into a glowing decision-point cluster, lime on near-black";
+const COMMENT = "NUSA N monogram mark, instrument edition (2026-10-20): a white hairline N with panel corner ticks and one lime decision dot, on near-black";
 const TILE = "M18,10h72a8,8 0,0 1,8 8v72a8,8 0,0 1,-8 8h-72a8,8 0,0 1,-8 -8v-72a8,8 0,0 1,8 -8z";
 
 /** Maps an adaptive-frame coordinate into the tile frame the logo and legacy fallbacks use (scale 1.15, offset -8.1). */
@@ -94,29 +94,29 @@ function dotsAsTile(buckets) {
   return [...byBucket.entries()].sort((a, b) => Number(a[0]) - Number(b[0])).map(([alpha, dots]) => ({ alpha, d: dots.map((d) => ringPath(tileScale(d.x), tileScale(d.y), d.r * 1.15)).join(" ") }));
 }
 
+const INK = "#FFFFFF";
+const N_PATH = "M34,78 L34,32 L74,76 L74,30";
+const TICKS = ["M22,34 L22,22 L34,22", "M86,74 L86,86 L74,86"]; // panel corner ticks (top-left, bottom-right)
+const mapPath = (d, tile) => (tile ? d.replace(/([ML])([\d.]+),([\d.]+)/g, (_, c, x, y) => `${c}${f2(tileScale(Number(x)))},${f2(tileScale(Number(y)))}`) : d);
+
 function markElements({ color, tile, mono }) {
   const k = tile ? 1.15 : 1;
-  const lines = [];
-  for (const s of strandPaths()) {
-    const d = tile ? s.d.replace(/([ML])([\d.]+),([\d.]+)/g, (_, c, x, y) => `${c}${f2(tileScale(Number(x)))},${f2(tileScale(Number(y)))}`) : s.d;
-    lines.push(`    <path android:strokeColor="${color}" android:strokeAlpha="${s.alpha}" android:strokeWidth="${f2(s.width * k)}" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="${d}" />`);
-  }
-  for (const b of tile ? dotsAsTile() : dotBuckets()) lines.push(`    <path android:fillColor="${color}" android:fillAlpha="${b.alpha}" android:pathData="${b.d}" />`);
+  const ink = mono ? color : INK;
+  const stroke = (d, width, c, alpha) => `    <path android:strokeColor="${c}" android:strokeAlpha="${alpha}" android:strokeWidth="${f2(width * k)}" android:strokeLineCap="square" android:strokeLineJoin="miter" android:fillColor="#00000000" android:pathData="${mapPath(d, tile)}" />`;
+  const lines = [stroke(N_PATH, 3.4, ink, 1), ...TICKS.map((t) => stroke(t, 1.6, ink, 0.7))];
   const cx = tile ? tileScale(END[0]) : END[0], cy = tile ? tileScale(END[1]) : END[1];
-  lines.push(`    <path android:strokeColor="${color}" android:strokeAlpha="0.4" android:strokeWidth="${f2(0.7 * k)}" android:fillColor="#00000000" android:pathData="${ringPath(cx, cy, 5.2 * k)}" />`);
-  lines.push(`    <path android:fillColor="${color}" android:pathData="${ringPath(cx, cy, 1.9 * k)}" />`);
-  void mono;
+  lines.push(`    <path android:fillColor="${color}" android:pathData="${ringPath(cx, cy, 4.2 * k)}" />`);
   return lines.join("\n");
 }
 
-function vector({ color, tile, withTile }) {
+function vector({ color, tile, withTile, mono = false }) {
   return `<vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <!-- ${COMMENT}.${color === "#FFFFFFFF" ? " Monochrome." : ""} -->
-${withTile ? `    <path android:fillColor="${GROUND}" android:pathData="${TILE}" />\n` : ""}${markElements({ color, tile })}
+${withTile ? `    <path android:fillColor="${GROUND}" android:pathData="${TILE}" />\n` : ""}${markElements({ color, tile, mono })}
 </vector>
 `;
 }
@@ -125,26 +125,15 @@ ${withTile ? `    <path android:fillColor="${GROUND}" android:pathData="${TILE}"
 /** Full-bleed SVG (256 px): the OS applies its own mask. A soft glow sits behind the decision cluster. */
 function svgMaster(shape) {
   const k = 256 / 108;
-  const strands = strandPaths().map((s) => `<path d="${s.d}" fill="none" stroke="${LIME}" stroke-opacity="${s.alpha}" stroke-width="${f2(s.width)}" stroke-linecap="round" stroke-linejoin="round"/>`).join("\n    ");
-  const dots = DOTS.map((d) => `<circle cx="${f2(d.x)}" cy="${f2(d.y)}" r="${d.r}" fill="${LIME}" fill-opacity="${d.alpha}"/>`).join("\n    ");
   const bg = shape === "round" ? `<clipPath id="c"><circle cx="128" cy="128" r="128"/></clipPath><g clip-path="url(#c)"><rect width="256" height="256" fill="${GROUND}"/>` : shape === "square-rounded" ? `<clipPath id="c"><rect width="256" height="256" rx="46"/></clipPath><g clip-path="url(#c)"><rect width="256" height="256" fill="${GROUND}"/>` : `<g><rect width="256" height="256" fill="${GROUND}"/>`;
+  const ticks = TICKS.map((t) => `<path d="${t}" fill="none" stroke="${INK}" stroke-opacity="0.7" stroke-width="1.6"/>`).join("\n    ");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <title>NUSA app icon: the N monogram as hairline data streams funnelling into a glowing decision cluster (full-bleed unless noted; let the OS apply its own mask)</title>
-  <defs>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.6"/></filter>
-    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${LIME}" stop-opacity="0.55"/><stop offset="1" stop-color="${LIME}" stop-opacity="0"/></radialGradient>
-  </defs>
+  <title>NUSA app icon: a white hairline N with panel corner ticks and one lime decision dot (full-bleed unless noted; let the OS apply its own mask)</title>
   ${bg}
-  <g transform="scale(${f2(k)}) translate(0,0)">
-    <circle cx="${END[0]}" cy="${END[1]}" r="15" fill="url(#halo)"/>
-    <circle cx="${START[0]}" cy="${START[1]}" r="7" fill="url(#halo)" opacity="0.5"/>
-    <g filter="url(#glow)" opacity="0.5">
-    ${strands}
-    </g>
-    ${strands}
-    ${dots}
-    <circle cx="${END[0]}" cy="${END[1]}" r="5.2" fill="none" stroke="${LIME}" stroke-opacity="0.4" stroke-width="0.7"/>
-    <circle cx="${END[0]}" cy="${END[1]}" r="1.9" fill="${LIME}"/>
+  <g transform="scale(${f2(k)})">
+    <path d="${N_PATH}" fill="none" stroke="${INK}" stroke-width="3.4" stroke-linecap="square" stroke-linejoin="miter"/>
+    ${ticks}
+    <circle cx="${END[0]}" cy="${END[1]}" r="4.2" fill="${LIME}"/>
   </g>
   </g>
 </svg>
@@ -172,7 +161,7 @@ async function main() {
   // Android vectors
   const drawable = (name) => `apps/mobile/android/app/src/main/res/drawable/${name}.xml`;
   write(drawable("ic_nusa_logo_foreground"), vector({ color: LIME, tile: false, withTile: false }));
-  write(drawable("ic_nusa_logo_monochrome"), vector({ color: "#FFFFFFFF", tile: false, withTile: false }));
+  write(drawable("ic_nusa_logo_monochrome"), vector({ color: "#FFFFFFFF", tile: false, withTile: false, mono: true }));
   write(drawable("ic_nusa_splash"), vector({ color: LIME, tile: false, withTile: false }));
   write(drawable("ic_nusa_logo"), vector({ color: LIME, tile: true, withTile: true }));
   for (const name of ["ic_launcher", "ic_launcher_round"]) write(`apps/mobile/android/app/src/main/res/mipmap-anydpi-v24/${name}.xml`, vector({ color: LIME, tile: true, withTile: true }));

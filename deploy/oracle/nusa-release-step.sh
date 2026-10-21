@@ -23,6 +23,8 @@ readonly RESEARCH_SERVICE=nusa-research.service
 readonly RESEARCH_TIMER=nusa-research.timer
 readonly AUTOPILOT_SERVICE=nusa-autopilot.service
 readonly SERVICE_USER=nusa
+readonly ACTIVATION_LOCK_DIR=/run/nusa-paper-activation
+readonly ACTIVATION_LOCK_FILE="${ACTIVATION_LOCK_DIR}/activation.lock"
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
 readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
@@ -31,11 +33,27 @@ readonly ROOT_DISK_GUARD_PERCENT=92
 readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912
 readonly POST_ACTIVATION_SOAK_SECONDS=180
 readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10
-readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=15000
+readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=30000
+readonly POST_ACTIVATION_READY_WINDOW_MS=30000
 readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000
 readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
+
+# Serialize every canonical operation that can change the active release or PAPER service.
+# flock is released by the kernel when this process exits, including abnormal termination.
+acquire_paper_activation_lock() {
+  command -v flock >/dev/null 2>&1 || die "flock is required for safe PAPER activation serialization"
+  install -d -o root -g root -m 0700 "$ACTIVATION_LOCK_DIR" || die "cannot create protected PAPER activation lock directory"
+  [[ -d "$ACTIVATION_LOCK_DIR" && ! -L "$ACTIVATION_LOCK_DIR" ]] || die "PAPER activation lock directory is not a real directory"
+  [[ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_DIR")" == "0:0:700" ]] || die "PAPER activation lock directory ownership/mode is unsafe"
+  [[ ! -L "$ACTIVATION_LOCK_FILE" ]] || die "PAPER activation lock must not be a symlink"
+  umask 077
+  exec 9>>"$ACTIVATION_LOCK_FILE" || die "cannot open PAPER activation lock"
+  [[ -f "$ACTIVATION_LOCK_FILE" && ! -L "$ACTIVATION_LOCK_FILE" ]] || die "PAPER activation lock is not a regular file"
+  [[ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_FILE")" == "0:0:600" ]] || die "PAPER activation lock ownership/mode is unsafe"
+  flock 9 || die "cannot acquire PAPER activation lock"
+}
 
 # The SHA is the only caller-supplied value that reaches a path, so it is validated here rather
 # than trusted from the workflow. Anything but a full lowercase commit SHA is refused outright.
@@ -184,15 +202,19 @@ rollback_schema_compatible() {
 }
 
 rollback_and_restore() {
-  local rollback_release
+  local rollback_release rollback_legacy_ok=true
   rollback_release="$(previous_release)"
   [ -n "$rollback_release" ] || die "rollback release is unavailable"
   assert_segmented_replay_compatible "$rollback_release"
+  # Legacy rollback releases may predate Autopilot. When the rollback release does contain the
+  # canonical Autopilot unit, converge that process too; otherwise a symlink rollback can leave
+  # Autopilot executing the rejected candidate from its already-resolved cwd.
+  [ -f "${rollback_release}/deploy/oracle/nusa-autopilot.service" ] && rollback_legacy_ok=false
   NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
   bind_runtime_source_identity "$(active_release_sha)"
-  install_units_from_release "$(active_release)" true
-  enable_units true
-  restart_units true
+  install_units_from_release "$(active_release)" "$rollback_legacy_ok"
+  enable_units "$rollback_legacy_ok"
+  restart_units "$rollback_legacy_ok"
 }
 
 previous_release() {
@@ -303,11 +325,12 @@ prove_post_activation_stability() {
     systemctl is-active --quiet "$SERVICE" || return 1
     systemctl is-active --quiet "$AUTOPILOT_SERVICE" || return 1
 
-    # The initial activation readiness owns the long cold-start budget.  Soak /ready checks stay
-    # deliberately short so a real listener/lease loss fails closed quickly.  The two non-mutating
-    # mobile-owner route probes get a separate bounded proof window so one transient event-loop stall
-    # cannot consume the entire /ready budget and trigger a false rollback after readiness passed.
-    NUSA_READY_STARTUP_WAIT_MS=5000 \
+    # The initial activation readiness owns the long cold-start budget. During the bounded soak,
+    # keep each request short but allow a 30s retry window: the 1 GB Oracle host has observed
+    # startup event-loop stalls longer than 5s even after /ready first passed. A truly lost listener
+    # still fails closed within this bounded window, well inside the 180s soak. The two non-mutating
+    # mobile-owner route probes keep their separate bounded proof window.
+    NUSA_READY_STARTUP_WAIT_MS="$POST_ACTIVATION_READY_WINDOW_MS" \
       NUSA_READY_ROUTE_PROOF_WAIT_MS="$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS" \
       NUSA_READY_TIMEOUT_MS="$POST_ACTIVATION_READY_TIMEOUT_MS" \
       NUSA_READY_RETRY_DELAY_MS="$POST_ACTIVATION_READY_RETRY_DELAY_MS" \
@@ -348,6 +371,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     install_units_from_release "$dir"
     enable_units
     ;;
@@ -388,11 +412,13 @@ case "$verb" in
     validate_sha "${1:-}"
     dir="$(release_dir "$1")"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
     bind_runtime_source_identity "$1"
     ;;
 
   rollback)
+    acquire_paper_activation_lock
     rollback_release="$(previous_release)"
     [ -n "$rollback_release" ] || die "rollback release is unavailable"
     assert_segmented_replay_compatible "$rollback_release"
@@ -401,6 +427,7 @@ case "$verb" in
     ;;
 
   restart)
+    acquire_paper_activation_lock
     systemctl daemon-reload
     enable_units
     restart_units
@@ -411,6 +438,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
     activation_started="$(date --iso-8601=seconds)"
     paper_ready=false

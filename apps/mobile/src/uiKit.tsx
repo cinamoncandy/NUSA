@@ -15,13 +15,6 @@ export function CalmHeadline({ tone, text, sub }: Readonly<{ tone: CalmTone; tex
   </View>;
 }
 
-export function CalmBigNumber({ value, caption, captionTone = "MUTED", dim = false }: Readonly<{ value: string; caption?: string; captionTone?: CalmTone; dim?: boolean }>) {
-  return <View style={dim ? styles.dim : undefined}>
-    <Text style={[styles.big, fieldFonts.monoMedium]}>{value}</Text>
-    {caption ? <Text style={[styles.caption, { color: calmToneColor(captionTone) }]}>{caption}</Text> : null}
-  </View>;
-}
-
 /** Hairline-separated stats; no boxes. */
 export function CalmStats({ items }: Readonly<{ items: readonly { label: string; value: string; tone?: CalmTone }[] }>) {
   return <View style={styles.stats}>
@@ -53,8 +46,6 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   headText: { color: calmColors.text, fontSize: 24, lineHeight: 32 },
   sub: { color: calmColors.muted, fontSize: readableFont(13), lineHeight: 19 },
-  big: { color: calmColors.text, fontSize: 40, lineHeight: 46 },
-  caption: { fontSize: readableFont(14), marginTop: 2 },
   dim: { opacity: 0.55 },
   stats: { flexDirection: "row", paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   stat: { flex: 1, paddingHorizontal: 12, gap: 2 },

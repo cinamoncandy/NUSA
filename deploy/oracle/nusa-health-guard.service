@@ -1,0 +1,8 @@
+[Unit]
+Description=NUSA bounded health watchdog
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+TimeoutStartSec=15min
+ExecStart=/usr/local/sbin/nusa-health-guard

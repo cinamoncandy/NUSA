@@ -1,3 +1,4 @@
+import type { PersistedPaperPendingDisposition } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import type { ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 import type { ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
@@ -68,6 +69,7 @@ export type ClosedLearningMetaLearningStatus = Readonly<{
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
   realizedPeriods: number;
+  ineligiblePeriods: number; latestIneligiblePeriodId: string; latestIneligibleFingerprint: string; latestIneligibleReason: string; latestIneligibleRuntimeSha: string;
   /** Realized owner-baseline periods: durable self-observations without Research lineage, never counted as learning cycles. */
   baselineObservations: number;
   realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
@@ -118,9 +120,12 @@ export class ClosedLearningLoopStatusTracker {
   private learning: import("./learningLoopStatus").LearningLoopStatus | undefined;
 
   /** Reads the identities of the current open period and the latest realized period. */
-  public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
+  public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[], dispositions?: readonly PersistedPaperPendingDisposition[]): void {
     const latest = [...realized].sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0];
+    const terminal = dispositions == null ? undefined : [...dispositions].sort((a, b) => b.original.periodIndex - a.original.periodIndex)[0];
     this.periods = Object.freeze({
+      ...(dispositions == null ? {} : { ineligiblePeriods: dispositions.length }),
+      ...(terminal == null ? {} : { latestIneligiblePeriodId: terminal.original.periodId, latestIneligibleFingerprint: terminal.evidenceFingerprintSha256, latestIneligibleReason: terminal.reason.code, ...(terminal.reason.sourceRuntimeSha == null ? {} : { latestIneligibleRuntimeSha: terminal.reason.sourceRuntimeSha }) }),
       ...(open == null ? {} : {
         openPeriodId: open.periodId,
         ...(open.market == null ? {} : { openMarket: open.market }),
