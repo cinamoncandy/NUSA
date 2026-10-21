@@ -21,14 +21,15 @@ repair_head: 992e0e090cba3e5cad5a271854dc78af309a3e19
 authority_impact: none
 objective: 'Close #2770''s pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed.'
 root_cause:
-  transition: untrusted node:vm.runInNewContext or mutable Object.values replacement -> forged SQLite integrity boundary/result -> shared-store trust registration
-  evidence: Earlier adversarial reviews reproduced pre-load DatabaseSync.prototype.prepare and post-load StatementSync.get forgery. Fresh exact-head review of e70e8e25 found replacing node:vm.runInNewContext before storage import admitted corrupt storage without genuine scans, and replacing Object.values after module load accepted a corrupt full-check result. Both reproduced locally against corrupt SQLite files.
-  classification: mutable runtime globals could replace the clean-realm factory before capture or forge interpretation of a real integrity result
+  transition: untrusted NODE_OPTIONS preload in nusa.service parent -> replaced node:child_process.spawn -> attacker preload before SQLite integrity bootstrap -> forged integrity result
+  evidence: On exact head 6520bbd9, fresh Codex review found that /etc/nusa/cloud-runtime.env is loaded by deploy/oracle/nusa.service before start-cloud-runtime.js can strip NODE_OPTIONS from its child. Node executes NODE_OPTIONS preloads before the CLI --require helper, so a parent preload can replace the captured spawn function and place a hostile preload before sqliteIntegrityBootstrap. Earlier e70e8e25 VM factory and Object.values corruption attacks were independently reproduced and repaired in source commit 992e0e09.
+  classification: process-level preload crossed the application bootstrap trust boundary before the database-owning child was launched
 repair:
   - Canonical SqliteDatabase full-scan registration and both existing AI-store admission checks now share the index.ts lexical scope. The WeakMap and resolver are not exported, there is no imported registration/verifier capability, and sqliteVerifiedSharedConnection.ts is deleted. Existing AI-store paths re-export the same genuine constructors; their implementations were relocated without changing their schemas, scoped checks, hash-chain replay, ownership, or standalone full scans. Startup ordering remains unchanged.
   - Keep canonical quick_check before Cloud AI initialization, Research prepareRecovery and writer-lease acquisition.
   - Move clean-realm/native-method capture into a dedicated SQLite integrity bootstrap and preload it before application code in the supervised PAPER runtime and canonical Oracle Research systemd unit. The supervised database-owning child strips inherited NODE_OPTIONS so arbitrary preloads cannot run before the boundary. Capture clean-realm Reflect.apply, Function.prototype.toString and Object.values; use only those captures for native method checks, integrity reads and result interpretation. Make bootstrap exports/cache binding immutable after initialization. Standalone developer execution is explicit via cloud:runtime:bare preload. Full-file scans, scoped AI-store checks, hash-chain replay and startup ordering remain unchanged.
-  - Add corrupt-database child-process regressions proving late VM/SQLite prototype replacement and late Object.values replacement cannot forge an integrity pass. Add launcher and Oracle-unit contract checks for the preload and for stripping inherited NODE_OPTIONS from the database-owning child. Retain all prior poisoning, cache replacement, full-scan and recovery-order regressions.
+  - Strip NODE_OPTIONS at the Oracle PAPER systemd parent boundary with `/usr/bin/env -u NODE_OPTIONS` before launching the Node supervisor; retain the Research unit's explicit bounded heap setting, which contains no preload. Make Oracle validation fail closed if the PAPER unit stops scrubbing NODE_OPTIONS.
+  - Add corrupt-database child-process regressions proving late VM/SQLite prototype replacement and late Object.values replacement cannot forge an integrity pass. Add launcher and Oracle-unit contract checks for parent and child NODE_OPTIONS scrubbing and preload ordering. Retain all prior poisoning, cache replacement, full-scan and recovery-order regressions.
   - Preserve Storybook 8.6.19 security patch; no security gate waiver.
 prohibited:
   - bypassing_or_weakening_canonical_full_file_quick_check
@@ -52,6 +53,7 @@ acceptance:
   - pre-bootstrap replacement of the former internal verifier cache cannot admit raw, forged or replaced connections into either genuine store
   - pre-load and post-load replacement of DatabaseSync.prepare or StatementSync.get cannot mint full-file trust or forge its result; JavaScript and Proxy replacements fail closed, and corrupted files remain rejected
   - production PAPER and Research entrypoints load the integrity bootstrap before application code
+  - Oracle PAPER systemd removes NODE_OPTIONS before the supervisor process starts, and child execution cannot prepend a preload before the integrity bootstrap
   - replacing node:vm.runInNewContext or Object.values after bootstrap cannot bypass full-file integrity rejection
 safety:
   paper_only: true
@@ -60,9 +62,9 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 rollback: Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation.
 test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-validation_head: 992e0e090cba3e5cad5a271854dc78af309a3e19
-validation: 'Source repair commit 992e0e090cba3e5cad5a271854dc78af309a3e19: pnpm run build PASS; focused storage/startup/recovery/launcher/Oracle tests 67/67 PASS, including the reproduced VM factory and Object.values corrupt-database attacks; pnpm preflight, validate:full, security:gate, AIPOS YAML/drift/conformance/provenance, and git diff --check PASS. Fresh review found and this successor corrects stale recovery next-action text. Exact-head CI/companions and fresh review for the resulting head, formal Validator, and Audit remain pending. No product tests or thresholds were weakened.'
-next: On the latest pushed #2855 head, obtain terminal exact-head CI and five companion workflow results, then fresh non-author review with current P0/P1=0. Obtain separate formal NUSA Validator ACCEPTED with exact SHA and P0/P1/P2 counts before Audit/Release. Keep Draft; no merge or Oracle mutation before acceptance.
+validation_head: candidate-tree-based-on-6520bbd9bbab419bcf0e07b47c70f35cdf310eb4
+validation: 'Source repair commit 992e0e090cba3e5cad5a271854dc78af309a3e19: build and focused SQLite/startup suite 67/67 PASS; preflight, validate:full, security:gate, AIPOS YAML/drift/conformance/provenance PASS. On the 6520bbd9 candidate, fresh review found that the Oracle PAPER parent could process NODE_OPTIONS before child sanitization. Added /usr/bin/env -u NODE_OPTIONS to the systemd parent entrypoint and a fail-closed Oracle contract test; focused Oracle validator, launcher and supervisor tests 29/29 PASS; preflight and AIPOS YAML/drift/conformance/provenance PASS; git diff --check PASS. The parent-boundary correction is not yet pushed; fresh exact-head CI/companions/review, formal Validator and Audit remain pending. No product tests or thresholds were weakened.'
+next: After pushing the parent-boundary correction on the existing #2855 branch, obtain terminal exact-head CI and five companion workflow results, then fresh non-author review with current P0/P1=0. Obtain separate formal NUSA Validator ACCEPTED with exact SHA and P0/P1/P2 counts before Audit/Release. Keep Draft; no merge or Oracle mutation before acceptance.
 prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
 
 latest_prototype_poisoning_finding_head: 09bd6051f09bb3ad0230c1900445d3648d858754

@@ -73,7 +73,7 @@ if (fs.existsSync(currentPath)) {
 }
 
 const unit = fs.readFileSync(servicePath, "utf8");
-for (const required of ["User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "Restart=on-failure", "WorkingDirectory=/opt/nusa/current", "EnvironmentFile=/etc/nusa/cloud-runtime.env", "ExecStart=/usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js", "ReadWritePaths=/var/lib/nusa /var/backups/nusa"]) {
+for (const required of ["User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "Restart=on-failure", "WorkingDirectory=/opt/nusa/current", "EnvironmentFile=/etc/nusa/cloud-runtime.env", "ExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js", "ReadWritePaths=/var/lib/nusa /var/backups/nusa"]) {
   if (!unit.includes(required)) fail(`unit missing ${required}`);
 }
 if (/ExecStart=.*dist\/apps\/cloud\/src\/runtime\.js/.test(unit)) fail("systemd must not bypass the supervised PAPER launcher");

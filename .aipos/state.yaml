@@ -2711,18 +2711,18 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: AIPOS_RECOVERY_RECORD_P1_CORRECTED_PENDING_SUCCESSOR_EXACT_HEAD_GATES
+  status: PAPER_PARENT_NODE_OPTIONS_BOUNDARY_REPAIR_LOCALLY_VALIDATED_PENDING_EXACT_HEAD_GATES
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
   protected_main_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
   pr_reported_base_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
-  previous_exact_head: e70e8e25a10d7d5bd19c1f3594fb2c08c0a1a709
+  previous_exact_head: 6520bbd9bbab419bcf0e07b47c70f35cdf310eb4
   source_repair_commit: 992e0e090cba3e5cad5a271854dc78af309a3e19
-  finding: "Fresh exact-head review of e70e8e25 reproduced two P1s against corrupt SQLite files: replacing node:vm.runInNewContext before storage import could forge the clean realm and fake integrity result; replacing Object.values after storage import could convert corrupt quick_check output into acceptance."
-  repair: "Created a dedicated SQLite integrity bootstrap, preloaded before application code by the supervised PAPER runtime and Oracle Research unit; the PAPER DB child strips inherited NODE_OPTIONS. It captures clean-realm Reflect.apply, Function.prototype.toString and Object.values, pins native prepare/get, and makes the boundary/cache binding immutable. Full-file and scoped checks remain intact. Added corruption regressions for both attack paths plus runtime-launcher and Oracle-unit preload contracts."
-  validation: "Committed source repair 992e0e090cba3e5cad5a271854dc78af309a3e19: build PASS; focused storage/startup/recovery/launcher/Oracle tests 67/67 PASS; preflight and validate:full PASS; security:gate PASS; AIPOS YAML/drift/conformance and provenance PASS after recovery-record correction; git diff --check PASS. Fresh review found a P1 on the stale next-action text; this successor corrects it. Exact-head CI/review for this successor, formal Validator and Audit remain pending."
-  next: "On the latest pushed #2855 head, obtain terminal exact-head CI and five companion workflow results, then a fresh non-author review with current P0/P1=0. Obtain separate formal NUSA Validator ACCEPTED with exact SHA and P0/P1/P2 counts before Audit/Release. Keep Draft and do not deploy Oracle before acceptance."
+  finding: "Fresh review on exact head 6520bbd9 reproduced a parent-process preload gap: nusa.service starts Node with NODE_OPTIONS from cloud-runtime.env before the launcher can strip it, so a preload may replace child_process.spawn and run before the integrity helper."
+  repair: "Source commit 992e0e090cba3e5cad5a271854dc78af309a3e19 preloads a frozen SQLite boundary in PAPER/Research and strips child NODE_OPTIONS. The candidate systemd change removes NODE_OPTIONS in deploy/oracle/nusa.service itself with /usr/bin/env -u before the parent Node process begins; Oracle validation rejects a unit without that scrub."
+  validation: "Source commit 992e0e09 build PASS; focused storage/startup/recovery/launcher/Oracle tests 67/67 PASS; preflight, validate:full, security:gate and AIPOS gates PASS. Exact-head CI 39690104022 and required companions passed on 6520bbd9; Mobile Native was still building when a new review P1 invalidated that head. Current systemd parent-boundary candidate: focused Oracle validator/launcher/supervisor tests 29/29 PASS; preflight and AIPOS YAML/drift/conformance/provenance PASS; diff-check PASS."
+  next: "Commit/push the locally validated parent-boundary fix on the existing PR, then require fresh exact-head CI and five companions, fresh non-author review with current P0/P1=0, and separate formal NUSA Validator ACCEPTED before Audit/Release. Keep Draft and do not deploy Oracle before acceptance."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
