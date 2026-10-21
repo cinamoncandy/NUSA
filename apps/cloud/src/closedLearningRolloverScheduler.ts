@@ -11,6 +11,7 @@ export type ClosedLearningRolloverStatus =
   | "STALLED_PERIOD_REOPENED"
   | "UNSTREAMED_MARKET_PERIOD_RETIRED"
   | "MIXED_BINDING_PERIOD_RETIRED"
+  | "INCOMPLETE_PERIOD_INELIGIBLE"
   | "WAITING_FOR_CANONICAL_BOUNDARY"
   | "WAITING_FOR_KST_DAY_ROLLOVER"
   | "WAITING_FOR_EVALUATION_WINDOW"
@@ -38,6 +39,7 @@ export interface ClosedLearningEvidenceWindow {
 }
 
 export interface ClosedLearningRolloverPort {
+  readonly disposeIncompletePeriodFromCanonicalAccount?: (input: { readonly periodId: string; readonly periodEndAt: number }) => import("./paperRealizedPeriodProducer").PaperIncompletePeriodDispositionResult;
   readonly listOpenPeriods: () => readonly PersistedPaperRealizedPeriodPlan[];
   readonly listRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
   /** Canonical allocator owned by the persisted PAPER period store; terminal indexes remain reserved. */
@@ -364,6 +366,12 @@ export class ClosedLearningRolloverScheduler {
       // retired unscored so the loop is not blocked on it forever, and the next tick continues in a fresh period.
       if ((error as { readonly code?: unknown } | null)?.code === "CANDIDATE_BINDING_MIXED" && this.port.retireOpenPeriodForMixedBinding != null) {
         return this.retireMixedAndReplace(plan, account);
+      }
+      if ((error as { readonly code?: unknown } | null)?.code === "INCOMPLETE_EXECUTION_COST_EVIDENCE" && this.port.disposeIncompletePeriodFromCanonicalAccount != null) {
+        const result = this.port.disposeIncompletePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
+        return Object.freeze({ status: "INCOMPLETE_PERIOD_INELIGIBLE", periodId: plan.periodId,
+          reason: result.disposition.reason.code, retirementEvidenceFingerprintSha256: result.disposition.evidenceFingerprintSha256,
+          replacementPeriodId: result.successor.periodId });
       }
       throw error;
     }
