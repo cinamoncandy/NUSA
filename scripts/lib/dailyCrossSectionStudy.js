@@ -10,7 +10,7 @@
  *   lastBidBetween(market, from, to): number | undefined    // the last best bid in [from, to]
  * }
  */
-const { minimumCount, tradeNet, percentileRanks, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, oneSidedTests } = require("./preregisteredStudyStats.js");
+const { minimumCount, tradeNet, doubledAverageRanks, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, oneSidedTests } = require("./preregisteredStudyStats.js");
 
 const M = 60_000, H = 60 * M, DAY = 24 * H;
 const TRAIN_START = Date.parse("2026-10-15T00:00:00Z");
@@ -24,6 +24,11 @@ const STRESS_BP = 20;
 const MAX_SPREAD_BP = 20;
 const MIN_MARKETS = 60;
 
+const validBook = (r) => r != null && Number.isFinite(r.b) && Number.isFinite(r.a) && r.b > 0 && r.a >= r.b;
+/** Wraps a provider so a zero, negative, crossed or non-finite book is never a book (it would put NaN or Infinity into returns and ranks). */
+function guardProvider(provider) {
+  return { ...provider, bookAt: (m, t) => { const b = provider.bookAt(m, t); return validBook(b) ? b : undefined; }, lastBidBetween: (m, f, t) => { const v = provider.lastBidBetween(m, f, t); return Number.isFinite(v) && v > 0 ? v : undefined; } };
+}
 const mid = (r) => (r.a + r.b) / 2;
 const spreadBp = (r) => ((r.a - r.b) / mid(r)) * 10_000;
 const imb5 = (r) => (r.b5 + r.a5 > 0 ? (r.b5 - r.a5) / (r.b5 + r.a5) : 0);
@@ -70,8 +75,8 @@ function pickS2(provider, universe, t) {
     const ret = Math.log(mid(now) / mid(prev)), imb = mean(imbs);
     if (ret > 0 && imb > 0) kept.push({ market, ret, imb });
   }
-  const r1 = percentileRanks(kept.map((k) => k.ret)), r2 = percentileRanks(kept.map((k) => k.imb));
-  kept.forEach((k, i) => { k.score = r1[i] + r2[i]; });
+  const r1 = doubledAverageRanks(kept.map((k) => k.ret)), r2 = doubledAverageRanks(kept.map((k) => k.imb));
+  kept.forEach((k, i) => { k.score = r1[i] + r2[i]; }); // integer: the sum of percentile ranks is this over 2(n - 1), a monotone transform of it
   return kept.sort((a, b) => b.score - a.score || compareCodes(a.market, b.market)).slice(0, 3).map((k) => k.market);
 }
 
@@ -120,8 +125,9 @@ function buildCohorts(provider, universe, study) {
   return { cohorts, decisions: decisions.length, marked, gaps, picksTotal, picksWithExitBook, timesWithCoverage };
 }
 
-function runDailyStudy({ provider, study, now, options = {} }) {
+function runDailyStudy({ provider: rawProvider, study, now, options = {} }) {
   if (now < PRINT_AT) return { status: "WAITING_DATA" };
+  const provider = guardProvider(rawProvider);
   if (!PICKERS[study]) throw new Error(`unknown study ${study}`);
   if (!trainingCoverageOk(provider)) return { status: "INSUFFICIENT_DATA", reasonCode: "DATA_TRAINING_COVERAGE" };
   const universe = eligibleMarkets(provider);
@@ -151,9 +157,11 @@ function runDailyStudy({ provider, study, now, options = {} }) {
   return {
     ...base, status: pass ? "HOLDOUT_PASS" : "HOLDOUT_FAIL", checks,
     meanExcessBp: baseTest.mean * 10_000, sdBp: baseTest.sd * 10_000, t: baseTest.t, tP: baseTest.tP, permP: baseTest.permP,
-    stressExcessBp: stressMean * 10_000, downDays: down.length, downMeanExcessBp: downStats.mean * 10_000, downP,
+    stressExcessBp: stressMean * 10_000, absoluteNetPerPickBp: mean(allBase) * 10_000, absoluteNetPerPickT: cohortStats(allBase).t, absoluteStressPerPickBp: mean(allStress) * 10_000,
+    excessUpDaysBp: mean(counted.filter((x) => x.benchmarkBase >= 0).map((x) => x.baseExcess)) * 10_000, upDays: counted.length - down.length,
+    downDays: down.length, downMeanExcessBp: downStats.mean * 10_000, downP,
     minimumDetectableExcessBp: mde == null ? null : mde * 10_000,
   };
 }
 
-module.exports = { runDailyStudy, eligibleMarkets, trainingCoverageOk, buildCohorts, pickS2, pickS4, exitValue, constants: { TRAIN_START, TRAIN_END, HOLD_START, HOLD_END, PRINT_AT, ALPHA, DAY, H, M } };
+module.exports = { guardProvider, runDailyStudy, eligibleMarkets, trainingCoverageOk, buildCohorts, pickS2, pickS4, exitValue, constants: { TRAIN_START, TRAIN_END, HOLD_START, HOLD_END, PRINT_AT, ALPHA, DAY, H, M } };

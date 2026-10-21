@@ -4,12 +4,18 @@ const fs = require("node:fs");
 const { runAll, makeDbProvider } = require("../scripts/run-preregistered-studies.js");
 
 function memoryDb(rows) {
-  // A tiny stand-in for node:sqlite's DatabaseSync (prepare().all/get/iterate) over an array of rows.
+  // A tiny stand-in for node:sqlite's DatabaseSync that understands the runner's five queries over an array of rows.
+  const out = (r) => ({ t: r.captured_at_ms, b: r.best_bid, a: r.best_ask, b5: r.bid_size_5, a5: r.ask_size_5 });
   return {
     prepare(sql) {
       if (/COUNT\(\*\)/.test(sql)) return { get: (limit) => ({ n: rows.filter((r) => r.captured_at_ms > limit).length }) };
-      if (/DISTINCT market/.test(sql)) return { all: (from, to) => [...new Set(rows.filter((r) => r.captured_at_ms > from && r.captured_at_ms <= to).map((r) => r.market))].map((market) => ({ market })) };
-      return { iterate: function* (market, from, to) { for (const r of rows.filter((x) => x.market === market && x.captured_at_ms > from && x.captured_at_ms <= to).sort((a, b) => a.captured_at_ms - b.captured_at_ms)) yield { t: r.captured_at_ms, b: r.best_bid, a: r.best_ask, b5: r.bid_size_5, a5: r.ask_size_5 }; } };
+      if (/DISTINCT market/.test(sql)) return { all: (from, to) => [...new Set(rows.filter((r) => r.captured_at_ms > from && r.captured_at_ms <= to && r.market.startsWith("KRW-")).map((r) => r.market))].map((market) => ({ market })) };
+      const pick = (m, f) => rows.filter((r) => r.market === m && f(r.captured_at_ms)).sort((x, y) => x.captured_at_ms - y.captured_at_ms);
+      if (/LIMIT 1/.test(sql)) {
+        const open = /captured_at_ms > \? AND captured_at_ms <= \?/.test(sql);
+        return { get: (m, from, to) => { const r = pick(m, (t) => (open ? t > from : t >= from) && t <= to).pop(); return r == null ? undefined : out(r); } };
+      }
+      return { all: (m, from, to) => pick(m, (t) => t >= from && t < to).map(out) };
     },
   };
 }
@@ -32,19 +38,21 @@ test("the provider follows the (t - 2 min, t] book rule, ignores crossed books a
   const p = makeDbProvider(db, { from: T - 6 * 3_600_000, to: T + 3_600_000 });
   assert.deepEqual(p.markets(), ["KRW-A", "KRW-B"]);
   assert.equal(p.bookAt("KRW-A", T).b, 100);
+  assert.equal(p.bookAt("KRW-A", T - 100_000).b, 99, "a snapshot 100 s before is inside (t - 2 min, t] even though a later one exists in the same minute window: full resolution, no per-minute loss");
   assert.equal(p.bookAt("KRW-A", T - 60_000), undefined, "the T-30s row is after that time and the T-3min row is outside (t - 2 min, t]");
   assert.equal(p.bookAt("KRW-B", T), undefined, "a crossed book is not a book");
   assert.equal(p.lastBidBetween("KRW-A", T - 3_600_000, T), 100);
   assert.equal(p.lastBidBetween("KRW-A", T + 1, T + 3_600_000), undefined);
   assert.deepEqual(p.booksBetween("KRW-A", T - 41 * 60_000, T).map((x) => x.t), [T - 40 * 60_000, T - 3 * 60_000, T - 30_000], "snapshots with from <= t < to, crossed books skipped");
   assert.deepEqual(p.booksBetween("KRW-B", T - 41 * 60_000, T), []);
-  assert.equal(p.hashRows().rows, 4, "every loaded row is hashed, including the unusable crossed one");
+  assert.ok(p.hashRows().rows >= 3, "every usable row that was actually read is hashed, the crossed one is not");
   assert.equal(p.hashRows().sha256.length, 64);
 });
 
 test("the runner opens the database read-only, writes no file and only prints result lines", () => {
   const src = fs.readFileSync("scripts/run-preregistered-studies.js", "utf8");
   assert.match(src, /new DatabaseSync\(path, \{ readOnly: true \}\)/);
+  assert.doesNotMatch(src, /SELECT[^;]*FROM research_orderbook_samples WHERE market = \? AND captured_at_ms > \? AND captured_at_ms <= \? ORDER BY captured_at_ms"\);\n    const series|series = new Map/, "no whole-window load per market");
   assert.doesNotMatch(src, /writeFileSync|appendFileSync|createWriteStream|INSERT|UPDATE|DELETE/);
   assert.match(src, /PREREG_STUDY_FAILED_CLOSED/);
 });

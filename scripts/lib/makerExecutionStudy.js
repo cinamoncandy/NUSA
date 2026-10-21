@@ -13,7 +13,7 @@
  * misses intra-minute crossings, so the model under-fills (conservative). Fills are all-or-nothing; partial fills are not modelled.
  */
 const { minimumCount, tradeNet, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, oneSidedTests } = require("./preregisteredStudyStats.js");
-const { pickS2, constants } = require("./dailyCrossSectionStudy.js");
+const { pickS2, guardProvider, constants } = require("./dailyCrossSectionStudy.js");
 
 const { TRAIN_START, TRAIN_END, HOLD_START, HOLD_END, PRINT_AT, ALPHA, H, M } = constants;
 const HOLD = 4 * H;
@@ -125,9 +125,9 @@ function buildDays(provider, universe) {
       const gr = grossReturn(provider, m, t);
       picksTotal += 1;
       cohort.gross.push(gr.gap ? -1 : gr.r ?? 0);
-      if (mp.gap || tk.gap) { gaps += 1; cohort.maker.push(-1); cohort.makerStress.push(-1); cohort.taker.push(-1); cohort.takerStress.push(-1); cohort.fills.push(1); continue; }
+      if (mp.gap || tk.gap) { gaps += 1; cohort.maker.push(-1); cohort.makerStress.push(-1); cohort.taker.push(-1); cohort.takerStress.push(-1); continue; }
       if (tk.kind === "BOOK") picksWithExit += 1;
-      cohort.maker.push(mp.f * mp.r); cohort.makerStress.push(ms.f * ms.r); cohort.fills.push(mp.f);
+      cohort.maker.push(mp.f * mp.r); cohort.makerStress.push(ms.f * ms.r); cohort.fills.push(mp.f); // gap picks are left out of the fill rate
       cohort.taker.push(tk.r); cohort.takerStress.push(ts.r);
     }
     for (const m of withBook) {
@@ -140,8 +140,15 @@ function buildDays(provider, universe) {
   return { days, decisions: decisions.length, picksTotal, picksWithExit, gaps, coverageTimes };
 }
 
-function runMakerStudy({ provider, now, options = {} }) {
+function lag1to6(values) {
+  const n = values.length, m = mean(values);
+  const denom = values.reduce((s, v) => s + (v - m) ** 2, 0);
+  return [1, 2, 3, 4, 5, 6].map((lag) => (denom === 0 || n <= lag ? 0 : values.slice(lag).reduce((s, v, i) => s + (v - m) * (values[i] - m), 0) / denom));
+}
+
+function runMakerStudy({ provider: rawProvider, now, options = {} }) {
   if (now < PRINT_AT) return { study: "S3", status: "WAITING_DATA" };
+  const provider = guardProvider(rawProvider);
   if (!trainingCoverageOk(provider)) return { study: "S3", status: "INSUFFICIENT_DATA", reasonCode: "DATA_TRAINING_COVERAGE" };
   const universe = eligibleMarkets(provider);
   const d = buildDays(provider, universe);
@@ -156,22 +163,26 @@ function runMakerStudy({ provider, now, options = {} }) {
     const makerDay = mean(day.cohorts.map((c) => cohortValue(c, "maker"))), makerStressDay = mean(day.cohorts.map((c) => cohortValue(c, "makerStress")));
     const takerDay = mean(day.cohorts.map((c) => cohortValue(c, "taker"))), takerStressDay = mean(day.cohorts.map((c) => cohortValue(c, "takerStress")));
     const selected = day.cohorts.reduce((s, c) => s + c.selected, 0);
-    const fillDay = selected === 0 ? 0 : day.cohorts.reduce((s, c) => s + c.fills.reduce((a, v) => a + v, 0), 0) / selected;
+    const fillN = day.cohorts.reduce((s, c) => s + c.fills.length, 0);
+    const fillDay = fillN === 0 ? 0 : day.cohorts.reduce((s, c) => s + c.fills.reduce((a, v) => a + v, 0), 0) / fillN;
     const benchDay = mean(day.cohorts.map((c) => mean(c.bench))), benchStressDay = mean(day.cohorts.map((c) => mean(c.benchStress)));
     const grossDay = mean(day.cohorts.map((c) => (c.selected === 0 ? 0 : mean(c.gross)) - mean(c.benchGross)));
-    counted.push({ grossExcess: grossDay, excess: makerDay - fillDay * benchDay, excessStress: makerStressDay - fillDay * benchStressDay, improvement: makerDay - takerDay, benchDay, selected, fillSum: selected * fillDay, makerDay, makerStressDay, takerStressDay });
+    counted.push({ pickMaker: day.cohorts.flatMap((c) => c.maker), pickMakerStress: day.cohorts.flatMap((c) => c.makerStress), fillN, grossExcess: grossDay, excess: makerDay - fillDay * benchDay, excessStress: makerStressDay - fillDay * benchStressDay, improvement: makerDay - takerDay, benchDay, selected, fillSum: fillN * fillDay, makerDay, makerStressDay, takerStressDay });
   }
   if (counted.length < minimumCount(d.days.size)) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_COHORTS", days: counted.length };
   const down = counted.filter((x) => x.benchDay < 0);
   if (down.length < 8) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_DOWN_DAYS", downDays: down.length, days: counted.length };
   const excessTest = oneSidedTests(counted.map((x) => x.excess), ALPHA, options);
   const improvement = oneSidedTests(counted.map((x) => x.improvement), 0.05, options);
-  const totalSelected = counted.reduce((s, x) => s + x.selected, 0);
-  const fillRate = totalSelected === 0 ? 0 : counted.reduce((s, x) => s + x.fillSum, 0) / totalSelected;
+  const totalFillN = counted.reduce((s, x) => s + x.fillN, 0);
+  const fillRate = totalFillN === 0 ? 0 : counted.reduce((s, x) => s + x.fillSum, 0) / totalFillN;
   const signalEdge = oneSidedTests(counted.map((x) => x.grossExcess), 0.05, options);
   const downStats = cohortStats(down.map((x) => x.excess));
   const downP = downStats.sd > 0 ? studentTUpperP(downStats.t, downStats.df) : 1;
-  const perPickBase = mean(counted.map((x) => x.makerDay)), perPickStress = mean(counted.map((x) => x.makerStressDay));
+  const allPickBase = counted.flatMap((x) => x.pickMaker), allPickStress = counted.flatMap((x) => x.pickMakerStress);
+  const perPickBase = mean(allPickBase), perPickStress = mean(allPickStress);
+  const absStats = cohortStats(allPickBase);
+  const upDays = counted.filter((x) => x.benchDay >= 0);
   const checks = {
     signalEdgeGrossBothTests: signalEdge.pass, excessBothTests: excessTest.pass, executionImprovementBothTests: improvement.pass, fillRateAtLeast30: fillRate >= 0.30,
     stressExcessPositive: mean(counted.map((x) => x.excessStress)) > 0, absoluteBasePositive: perPickBase > 0, absoluteStressPositive: perPickStress > 0,
@@ -183,6 +194,9 @@ function runMakerStudy({ provider, now, options = {} }) {
     meanExcessBp: excessTest.mean * 10_000, sdBp: excessTest.sd * 10_000, t: excessTest.t, tP: excessTest.tP, permP: excessTest.permP,
     grossSignalEdgeBp: signalEdge.mean * 10_000, grossSignalEdgeTP: signalEdge.tP, grossSignalEdgePermP: signalEdge.permP,
     improvementBp: improvement.mean * 10_000, improvementTP: improvement.tP, improvementPermP: improvement.permP,
+    absoluteNetPerPickBp: perPickBase * 10_000, absoluteNetPerPickT: absStats.t, absoluteStressPerPickBp: perPickStress * 10_000,
+    excessUpDaysBp: mean(upDays.map((x) => x.excess)) * 10_000, excessDownDaysBp: downStats.mean * 10_000, upDays: upDays.length,
+    autocorrLag1to6: lag1to6(counted.map((x) => x.excess)),
     downDays: down.length, downP, minimumDetectableExcessBp: excessTest.sd > 0 ? studentTCritical(ALPHA, excessTest.df) * excessTest.sd / Math.sqrt(excessTest.n) * 10_000 : null,
   };
 }

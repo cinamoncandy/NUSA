@@ -11,58 +11,40 @@ const { runDailyStudy, constants } = require("./lib/dailyCrossSectionStudy.js");
 const { runMakerStudy } = require("./lib/makerExecutionStudy.js");
 const M = constants.M;
 
-/** Provider over the sample table. Rows of one market are loaded once, down-sampled to one per minute, and held for the run. */
+/**
+ * Provider over the sample table that asks the database for exactly the window each rule needs (the table is indexed by market and time),
+ * so memory stays small even with ~300 markets x 53 days. Every row actually returned is remembered and hashed at the end, so the dataset
+ * identity is the data the study really consumed. Rows are coerced to numbers and anything crossed or non-positive is not a book.
+ */
 function makeDbProvider(db, { from, to }) {
-  const marketList = db.prepare("SELECT DISTINCT market FROM research_orderbook_samples WHERE captured_at_ms > ? AND captured_at_ms <= ?").all(from, to).map((r) => r.market).sort();
-  const cache = new Map();
-  const load = (market) => {
-    let series = cache.get(market);
-    if (series == null) {
-      series = new Map();
-      const stmt = db.prepare("SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM research_orderbook_samples WHERE market = ? AND captured_at_ms > ? AND captured_at_ms <= ? ORDER BY captured_at_ms");
-      for (const r of stmt.iterate(market, from, to)) series.set(Math.floor(r.t / M), r);
-      cache.set(market, series);
-    }
-    return series;
+  const marketList = db.prepare("SELECT DISTINCT market FROM research_orderbook_samples WHERE captured_at_ms > ? AND captured_at_ms <= ? AND market LIKE 'KRW-%'").all(from, to).map((r) => String(r.market)).sort();
+  const latest = db.prepare("SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM research_orderbook_samples WHERE market = ? AND captured_at_ms > ? AND captured_at_ms <= ? ORDER BY captured_at_ms DESC LIMIT 1");
+  const lastBid = db.prepare("SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM research_orderbook_samples WHERE market = ? AND captured_at_ms >= ? AND captured_at_ms <= ? ORDER BY captured_at_ms DESC LIMIT 1");
+  const between = db.prepare("SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM research_orderbook_samples WHERE market = ? AND captured_at_ms >= ? AND captured_at_ms < ? ORDER BY captured_at_ms");
+  const consumed = new Map(); // "market,stamp" -> canonical line
+  const clean = (market, raw) => {
+    if (raw == null) return undefined;
+    const r = { t: Number(raw.t), b: Number(raw.b), a: Number(raw.a), b5: Number(raw.b5), a5: Number(raw.a5) };
+    if (![r.t, r.b, r.a, r.b5, r.a5].every(Number.isFinite) || !(r.b > 0) || !(r.a >= r.b)) return undefined;
+    consumed.set(`${market},${r.t}`, `${market},${r.t},${r.b},${r.a},${r.b5},${r.a5}`);
+    return r;
   };
+  const bookCache = new Map();
   const bookAt = (market, t) => {
-    const series = load(market);
-    for (const minute of [Math.floor(t / M), Math.floor(t / M) - 1]) {
-      const r = series.get(minute);
-      if (r != null && r.t <= t && r.t > t - 2 * M && Number.isFinite(r.b) && Number.isFinite(r.a) && r.b > 0 && r.a >= r.b) return r;
-    }
-    return undefined;
+    const key = `${market}|${t}`;
+    if (bookCache.has(key)) return bookCache.get(key);
+    const r = clean(market, latest.get(market, t - 2 * M, t));
+    bookCache.set(key, r);
+    return r;
   };
-  const lastBidBetween = (market, fromMs, toMs) => {
-    const series = load(market);
-    for (let minute = Math.floor(toMs / M); minute >= Math.floor(fromMs / M); minute -= 1) {
-      const r = series.get(minute);
-      if (r != null && r.t >= fromMs && r.t <= toMs && r.b > 0) return r.b;
-    }
-    return undefined;
+  const lastBidBetween = (market, fromMs, toMs) => clean(market, lastBid.get(market, fromMs, toMs))?.b;
+  const booksBetween = (market, fromMs, toMs) => between.all(market, fromMs, toMs).map((raw) => clean(market, raw)).filter((r) => r != null).map((r) => ({ t: r.t, b: r.b, a: r.a }));
+  const hashRows = () => {
+    const hash = crypto.createHash("sha256");
+    for (const key of [...consumed.keys()].sort()) hash.update(`${consumed.get(key)}\n`);
+    return { sha256: hash.digest("hex"), rows: consumed.size };
   };
-  const booksBetween = (market, fromMs, toMs) => {
-    const series = load(market), out = [];
-    for (let minute = Math.floor(fromMs / M); minute <= Math.floor(toMs / M); minute += 1) {
-      const r = series.get(minute);
-      if (r != null && r.t >= fromMs && r.t < toMs && r.b > 0 && r.a >= r.b) out.push({ t: r.t, b: r.b, a: r.a });
-    }
-    return out;
-  };
-  return { markets: () => marketList, bookAt, lastBidBetween, booksBetween, hashRows: () => hashOf(cache) };
-}
-
-/** sha256 of the rows actually loaded, canonical lines sorted by (market, stamp). */
-function hashOf(cache) {
-  const hash = crypto.createHash("sha256");
-  let rows = 0;
-  for (const market of [...cache.keys()].sort()) {
-    for (const minute of [...cache.get(market).keys()].sort((x, y) => x - y)) {
-      const r = cache.get(market).get(minute);
-      hash.update(`${market},${r.t},${r.b},${r.a},${r.b5},${r.a5}\n`); rows += 1;
-    }
-  }
-  return { sha256: hash.digest("hex"), rows };
+  return { markets: () => marketList, bookAt, lastBidBetween, booksBetween, hashRows };
 }
 
 function runAll({ db, now = Date.now() }) {

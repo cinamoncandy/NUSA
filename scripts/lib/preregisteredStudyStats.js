@@ -28,6 +28,19 @@ function percentileRanks(values) {
   return out;
 }
 
+/** Twice the average 1-based rank of each value (an integer), so rank sums compare exactly with no float tie errors. */
+function doubledAverageRanks(values) {
+  const n = values.length;
+  const order = values.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const out = new Array(n);
+  for (let i = 0; i < n;) {
+    let j = i; while (j + 1 < n && order[j + 1][0] === order[i][0]) j += 1;
+    for (let k = i; k <= j; k += 1) out[order[k][1]] = i + j + 2; // 2 * ((i + j) / 2 + 1)
+    i = j + 1;
+  }
+  return out;
+}
+
 /** Bytewise-ascending comparison of two market codes (the design's tie-break). */
 function compareCodes(a, b) { return a < b ? -1 : a > b ? 1 : 0; }
 
@@ -117,4 +130,4 @@ function oneSidedTests(values, alpha, options) {
   return { ...s, tP, permP, pass: s.mean > 0 && tP < alpha && permP < alpha };
 }
 
-module.exports = { minimumCount, tradeNet, percentileRanks, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, mulberry32, signFlipP, oneSidedTests };
+module.exports = { minimumCount, tradeNet, percentileRanks, doubledAverageRanks, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, mulberry32, signFlipP, oneSidedTests };
