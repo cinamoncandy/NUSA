@@ -13,12 +13,32 @@ const weekly = path.join(destination, `weekly-cloud-state-${stamp}.db`);
 const sqlString = (value) => `'${value.replaceAll("'", "''")}'`;
 const DAILY_RETENTION = 7;
 const WEEKLY_RETENTION = 4;
-const BACKUP_STAMP_RE = /^(\d{4})-(\d{2})-(\d{2})T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
+const BACKUP_STAMP_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/;
+const SHA256_SIDECAR_RE = /^([a-f0-9]{64})  ([^\n]+)\n$/;
 
 function backupStamp(name, prefix) {
   if (!name.startsWith(prefix) || !name.endsWith(".db")) return null;
   const stamp = name.slice(prefix.length, -3);
-  return BACKUP_STAMP_RE.test(stamp) ? stamp : null;
+  const match = BACKUP_STAMP_RE.exec(stamp);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second, millisecond] = match;
+  const iso = `${year}-${month}-${day}T${hour}:${minute}:${second}.${millisecond}Z`;
+  const parsed = new Date(iso);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== iso) return null;
+  return stamp;
+}
+
+function hasVerifiedSidecar(name) {
+  const sidecar = path.join(destination, `${name}.sha256`);
+  let manifest;
+  try {
+    manifest = fs.readFileSync(sidecar, "utf8");
+  } catch (error) {
+    if (error && error.code === "ENOENT") return false;
+    throw error;
+  }
+  const match = SHA256_SIDECAR_RE.exec(manifest);
+  return Boolean(match && match[2] === name);
 }
 
 function dailyBucket(name, prefix) {
@@ -43,9 +63,11 @@ function prune(prefix, keepBuckets, bucketForName) {
   const keptBuckets = new Set();
   for (const name of files) {
     const bucket = bucketForName(name, prefix);
-    // Preserve unfamiliar names fail-closed rather than deleting an artifact
-    // that does not match the canonical timestamp format.
-    if (!bucket) continue;
+    // Only a canonical timestamp plus a verification sidecar may compete for a
+    // retention bucket. Preserve malformed or interrupted snapshots fail-closed:
+    // they cannot displace a known-good recovery point, and this routine will
+    // not delete an artifact whose verification state is uncertain.
+    if (!bucket || !hasVerifiedSidecar(name)) continue;
     if (!keptBuckets.has(bucket) && keptBuckets.size < keepBuckets) {
       keptBuckets.add(bucket);
       continue;

@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
 title: "Bound Oracle SQLite backups to real daily/weekly calendar buckets"
-status: RECONVERGED_PENDING_FRESH_EXACT_HEAD_CI
+status: VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_CI
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 1949
@@ -28,3 +28,5 @@ acceptance:
   - "AIPOS validation and git diff --check pass."
   - "Fresh exact-head CI/Validator/Audit/Release govern merge."
   - "After reviewed deployment, one canonical backup run reduces duplicate backup usage without changing DB/Evidence."
+
+validator_repair: "P1 findings on 337db03 repaired: strict UTC timestamp round-trip validation and verified-sidecar eligibility prevent malformed or interrupted snapshots from displacing known-good recovery points; uncertain artifacts remain preserved fail-closed."

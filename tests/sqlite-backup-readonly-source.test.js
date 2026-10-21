@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -37,6 +38,14 @@ function makeSource(root) {
     setup.close();
   }
   return source;
+}
+
+
+function writeVerifiedFixture(destination, name, contents = "fixture") {
+  const output = path.join(destination, name);
+  fs.writeFileSync(output, contents);
+  const digest = crypto.createHash("sha256").update(contents).digest("hex");
+  fs.writeFileSync(`${output}.sha256`, `${digest}  ${name}\n`);
 }
 
 function runBackup(source, destination, hook) {
@@ -99,8 +108,7 @@ test("sqlite backup retention keeps one snapshot per UTC day/week bucket", () =>
   startOfUtcDay.setUTCHours(0, 0, 0, 0);
   const writePair = (prefix, date, hour) => {
     const name = `${prefix}${stamp(date, hour)}.db`;
-    fs.writeFileSync(path.join(destination, name), "fixture");
-    fs.writeFileSync(path.join(destination, `${name}.sha256`), "fixture\n");
+    writeVerifiedFixture(destination, name);
     return name;
   };
 
@@ -145,6 +153,52 @@ test("sqlite backup retention keeps one snapshot per UTC day/week bucket", () =>
   for (const sidecar of names.filter((name) => name.endsWith(".db.sha256"))) {
     assert.ok(fs.existsSync(path.join(destination, sidecar.slice(0, -".sha256".length))), `orphan sidecar: ${sidecar}`);
   }
+
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+
+test("malformed timestamp cannot displace a verified backup", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-sqlite-backup-malformed-"));
+  const source = makeSource(root);
+  const destination = path.join(root, "backups");
+  fs.mkdirSync(destination, { recursive: true });
+
+  const malformed = "daily-cloud-state-9999-12-31T99-99-99-999Z.db";
+  writeVerifiedFixture(destination, malformed, "malformed-fixture");
+
+  const result = runBackup(source, destination, null);
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.ok(fs.existsSync(payload.output), "new verified backup must survive malformed prefixed filenames");
+  assert.ok(fs.existsSync(`${payload.output}.sha256`), "new verified backup sidecar must survive");
+  assert.ok(fs.existsSync(path.join(destination, malformed)), "malformed backup is preserved fail-closed");
+
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("unverified newer snapshot cannot displace a verified recovery point", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-sqlite-backup-unverified-"));
+  const source = makeSource(root);
+  const destination = path.join(root, "backups");
+  fs.mkdirSync(destination, { recursive: true });
+
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  yesterday.setUTCHours(1, 0, 0, 0);
+  const verifiedStamp = yesterday.toISOString().replaceAll(/[:.]/g, "-");
+  yesterday.setUTCHours(23, 0, 0, 0);
+  const interruptedStamp = yesterday.toISOString().replaceAll(/[:.]/g, "-");
+  const verified = `daily-cloud-state-${verifiedStamp}.db`;
+  const interrupted = `daily-cloud-state-${interruptedStamp}.db`;
+  writeVerifiedFixture(destination, verified, "verified-fixture");
+  fs.writeFileSync(path.join(destination, interrupted), "interrupted-fixture");
+
+  const result = runBackup(source, destination, null);
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(fs.existsSync(path.join(destination, verified)), "verified prior recovery point must remain");
+  assert.ok(fs.existsSync(path.join(destination, `${verified}.sha256`)), "verified sidecar must remain");
+  assert.ok(fs.existsSync(path.join(destination, interrupted)), "unverified artifact is preserved but cannot compete for retention");
 
   fs.rmSync(root, { recursive: true, force: true });
 });
