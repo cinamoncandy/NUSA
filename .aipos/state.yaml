@@ -2717,15 +2717,16 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
   pull_request: 2855
   base_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
   latest_main_sync_commit: 075010c852c645c86373243a54118f63958b8dd8
-  previous_exact_head: 9528f70703326a942fa81d5b36f05a0d1f211e68
-  superseded_head: 3ff16bac4d7da87426316a16b5d81fbe3844c222
-  finding: "Fresh Codex review on 9528f707 found a new P1: the CommonJS export sharedConnectionFromCheckedSqliteDatabase remained writable/configurable, and the transpiled AI store constructors dynamically consulted that namespace property, allowing an export replacement to return an unregistered raw DatabaseSync and forge shared-store integrity provenance."
-  repair: "Code repair 175ec9ff locks the resolver export non-writable/non-configurable and both AI store modules capture the genuine resolver once at initialization; the prior canonical full-file scan, WeakMap instance/connection binding, startup ordering, scoped checks, and hash-chain replay remain unchanged."
-  regressions: "Exact export-mutation exploit now fails closed; raw/forged/replaced database rejection remains; genuine checked shared stores remain usable; startup/recovery ordering regressions remain in the existing suite."
+  previous_exact_head: 3fa87132b09965c5274eb9b944d8f15d41f97479
+  superseded_export_lock_head: 175ec9ff6f5cf6ef6138f67a925df414341f2429
+  repair_head: f933bb231823f0d7bb100142a457255747a3581f
+  finding: "Fresh non-author Codex review on 3fa87132 found a new P1 beyond the named-export lock: application code could replace require.cache[indexPath].exports wholesale after loading the public storage barrel but before either AI store loaded. The descriptor stayed on the abandoned exports object, so both stores could capture a forged resolver returning an unregistered raw DatabaseSync and bypass the canonical full-file scan."
+  repair: "Code repair f933bb23 moves the WeakMap registry/resolver out of the public storage barrel, removes the public resolver export, and eagerly initializes both genuine AI-store consumers before that barrel returns to application code. Each store captures the private resolver directly; later wholesale barrel-export replacement cannot rebind trust. The canonical full-file scan, exact database/connection binding, startup ordering, four scoped checks, hash-chain replay, pathname non-reopen behavior, and shared-connection non-ownership are unchanged."
+  regressions: "A clean child process reproduces the exact require.cache[indexPath].exports replacement and proves both genuine stores reject a forged wrapper while a genuine checked SqliteDatabase still works. Raw/forged/replaced database rejection, pathname replacement, standalone full scans, startup budget, writer-lease ordering, and research recovery regressions remain green."
   test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-  validation_head: 175ec9ff6f5cf6ef6138f67a925df414341f2429
-  validation: "Previous exact head 9528f707 passed CI 39610126162 and all five required companions, then fresh review found the export-mutation P1, so those receipts are stale for acceptance after repair. Local 175ec9ff validation: changed-module transpile PASS; preflight PASS; focused CommonJS runtime exploit regression PASS; git diff --check PASS. Full local build is not claimed because this Oracle validation host hit its existing ~258 MiB Node heap ceiling (exit 134); fresh GitHub CI is authoritative."
-  next: "Commit and push the AIPOS successor to existing Draft PR #2855, then require fresh exact-head CI plus five companions and fresh non-author P0/P1=0 review. Formal NUSA Validator must still be a separate fresh Claude session and explicitly ACCEPT before Audit/Release."
+  validation_head: f933bb231823f0d7bb100142a457255747a3581f
+  validation: "Local f933bb23 validation: changed-module transpile PASS; startup 11/11 PASS; writer-lease 2/2 PASS; research startup recovery 19/19 PASS; architecture runtimeCycles=0/findings=0; preflight PASS; validate:full PASS including AIPOS drift/conformance and safety invariants; security:gate PASS with zero unmitigated advisories and zero secret findings; git diff --check PASS. Full local build is not claimed because the Oracle validation host retains its known ~258 MiB Node heap ceiling (earlier exit 134); fresh GitHub exact-head CI is authoritative."
+  next: "Commit and push this durable AIPOS successor to Draft PR #2855, then require fresh final-head CI plus five companions and fresh non-author P0/P1=0 review. Formal NUSA Validator must still be a separate fresh Claude session and explicitly ACCEPT before Audit/Release."
   safety:
     PAPER_ONLY: true
     liveAuthority: NONE
