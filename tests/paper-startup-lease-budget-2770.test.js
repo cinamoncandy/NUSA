@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const { DatabaseSync, StatementSync } = require("node:sqlite");
 const storage = require("../dist/packages/storage/src/index.js");
 const { SqliteDatabase } = storage;
@@ -297,32 +298,56 @@ test("shared AI stores reject caller-supplied SQLite connections without canonic
   }
 });
 
-test("shared verification resolver cannot be replaced through the CommonJS export", () => {
-  const originalResolver = storage.sharedConnectionFromCheckedSqliteDatabase;
-  const descriptor = Object.getOwnPropertyDescriptor(storage, "sharedConnectionFromCheckedSqliteDatabase");
-  assert.equal(descriptor?.writable, false);
-  assert.equal(descriptor?.configurable, false);
+test("shared verification trust survives wholesale CommonJS barrel export replacement", () => {
+  // Reproduce the exact fresh-review attack in a clean process: load the public storage barrel,
+  // replace require.cache[indexPath].exports wholesale, then require both AI-store module paths.
+  // The barrel must have already initialized the genuine consumers, so neither can capture the
+  // forged replacement resolver.
+  const script = `
+    const assert = require("node:assert/strict");
+    const path = require("node:path");
+    const { DatabaseSync } = require("node:sqlite");
+    const root = ${JSON.stringify(root)};
+    const indexPath = require.resolve(path.join(root, "dist", "packages", "storage", "src", "index.js"));
+    const calibrationPath = require.resolve(path.join(root, "dist", "packages", "storage", "src", "aiCalibrationDurability.js"));
+    const attributionPath = require.resolve(path.join(root, "dist", "packages", "storage", "src", "aiOutcomeAttributionMemory.js"));
+    const genuineStorage = require(indexPath);
+    assert.ok(require.cache[calibrationPath], "storage barrel must preload calibration durability before returning");
+    assert.ok(require.cache[attributionPath], "storage barrel must preload attribution memory before returning");
 
-  const rawConnection = new DatabaseSync(":memory:");
-  const forgedDatabase = {};
-  try {
-    assert.equal(
-      Reflect.set(storage, "sharedConnectionFromCheckedSqliteDatabase", () => rawConnection),
-      false,
-      "the integrity resolver export must reject runtime replacement",
-    );
-    assert.equal(storage.sharedConnectionFromCheckedSqliteDatabase, originalResolver);
-    assert.throws(
-      () => new SqliteAiCalibrationDurableStore(":memory:", forgedDatabase),
-      /shared AI calibration database has not passed canonical full-file quick_check/,
-    );
-    assert.throws(
-      () => new SqliteAiOutcomeAttributionMemory(":memory:", forgedDatabase),
-      /shared AI attribution database has not passed canonical full-file quick_check/,
-    );
-  } finally {
-    rawConnection.close();
-  }
+    const rawConnection = new DatabaseSync(":memory:");
+    const checkedDatabase = new genuineStorage.SqliteDatabase(":memory:");
+    const originalExports = require.cache[indexPath].exports;
+    require.cache[indexPath].exports = {
+      ...originalExports,
+      sharedConnectionFromCheckedSqliteDatabase: () => rawConnection,
+    };
+
+    const { SqliteAiCalibrationDurableStore } = require(calibrationPath);
+    const { SqliteAiOutcomeAttributionMemory } = require(attributionPath);
+    let calibration;
+    let attribution;
+    try {
+      assert.throws(
+        () => new SqliteAiCalibrationDurableStore(":memory:", {}),
+        /shared AI calibration database has not passed canonical full-file quick_check/,
+      );
+      assert.throws(
+        () => new SqliteAiOutcomeAttributionMemory(":memory:", {}),
+        /shared AI attribution database has not passed canonical full-file quick_check/,
+      );
+      calibration = new SqliteAiCalibrationDurableStore(":memory:", checkedDatabase);
+      attribution = new SqliteAiOutcomeAttributionMemory(":memory:", checkedDatabase);
+    } finally {
+      calibration?.close();
+      attribution?.close();
+      checkedDatabase.close();
+      rawConnection.close();
+      require.cache[indexPath].exports = originalExports;
+    }
+  `;
+  const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `CommonJS barrel replacement exploit must fail closed:\n${result.stdout}\n${result.stderr}`);
 });
 
 test("standalone AI durability stores retain their fail-closed full-file scans", () => {

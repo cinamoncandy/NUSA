@@ -1,5 +1,11 @@
 export * from "./researchMemorySemantics";
 import { DatabaseSync } from "node:sqlite";
+import { registerFullyCheckedSqliteDatabaseConnection } from "./sqliteVerifiedSharedConnection";
+// Initialize the genuine shared-store consumers before this public CommonJS barrel returns to
+// application code. They capture the private registry resolver directly, so replacing this
+// barrel's require.cache exports afterward cannot rebind the integrity trust boundary.
+import "./aiCalibrationDurability";
+import "./aiOutcomeAttributionMemory";
 import {
   LedgerSide, PositionScopeType, PositionStatus, type PositionLedgerEntry, type PositionSnapshot,
   type StrategyPositionSnapshot, type WalletPositionSnapshot,
@@ -80,29 +86,6 @@ export interface AppliedLedgerMarkerRepository {
 
 export interface TransactionRunner { transaction<T>(fn: () => T): T; }
 
-// Only SqliteDatabase construction can register a connection, and only after its canonical
-// full-file quick_check succeeds. Shared stores query this identity binding rather than trusting
-// a caller-provided claim that an arbitrary DatabaseSync has already been checked.
-const fullyCheckedSqliteDatabaseConnections = new WeakMap<object, DatabaseSync>();
-
-export function sharedConnectionFromCheckedSqliteDatabase(database: unknown): DatabaseSync | null {
-  if (database == null || (typeof database !== "object" && typeof database !== "function")) return null;
-  const checkedConnection = fullyCheckedSqliteDatabaseConnections.get(database as object);
-  if (checkedConnection == null || (database as { connection?: unknown }).connection !== checkedConnection) return null;
-  return checkedConnection;
-}
-
-// This resolver is part of the integrity trust boundary. TypeScript's CommonJS output normally
-// leaves named exports writable/configurable, which would let application code replace this
-// function after module load and make shared AI stores accept an arbitrary DatabaseSync. Lock the
-// runtime export to the exact module-local function before any caller can receive the module.
-Object.defineProperty(exports, "sharedConnectionFromCheckedSqliteDatabase", {
-  value: sharedConnectionFromCheckedSqliteDatabase,
-  enumerable: true,
-  writable: false,
-  configurable: false
-});
-
 export function ledgerKey(entry: PositionLedgerEntry): string { return `${entry.ts}|${entry.createdAt}|${entry.id}`; }
 const walletScopeId = (walletId: string, symbol: string): string => `${walletId}|${symbol}`;
 const strategyScopeId = (walletId: string, strategyId: string, symbol: string): string => `${walletId}|${strategyId}|${symbol}`;
@@ -157,7 +140,7 @@ export class SqliteDatabase implements TransactionRunner {
       this.migrationResult = runMigrations(this.connection, migrations);
       const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
       if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
-      fullyCheckedSqliteDatabaseConnections.set(this, this.connection);
+      registerFullyCheckedSqliteDatabaseConnection(this, this.connection);
     } catch (error) {
       this.connection.close();
       throw error;

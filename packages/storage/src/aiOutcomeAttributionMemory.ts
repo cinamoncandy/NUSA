@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
-import { sharedConnectionFromCheckedSqliteDatabase, type SqliteDatabase } from "./index";
+import type { SqliteDatabase } from "./index";
+import { sharedConnectionFromCheckedSqliteDatabase } from "./sqliteVerifiedSharedConnection";
 import { aiSha256, canonicalAiJson, isAiSha256 } from "../../contracts/src/aiInference";
 import type {
   AiAttributionEpisode,
@@ -8,8 +9,8 @@ import type {
   AiLessonProjection
 } from "../../contracts/src/aiOutcomeAttribution";
 
-// Capture the locked verifier once at module initialization. Constructors must not consult a
-// caller-mutable CommonJS namespace property at the moment shared integrity trust is granted.
+// Capture the private registry resolver once at module initialization. The public storage barrel
+// eagerly loads this consumer before returning, so later barrel cache replacement cannot rebind trust.
 const resolveCheckedSharedConnection = sharedConnectionFromCheckedSqliteDatabase;
 
 const SCHEMA_VERSION = 1 as const;
