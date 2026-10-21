@@ -583,9 +583,17 @@ jobs:
               jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate_run/jobs?per_page=100")"
               applicable_job="$(jq -r --arg name "$expected_job" '
                 [.jobs[] | select(.name == $name) | select(
-                  .status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "requested"
+                  .status == "queued" or .status == "pending" or .status == "in_progress" or .status == "waiting" or .status == "requested"
                   or (.status == "completed" and .conclusion == "success")
                 )] | length > 0' <<<"$jobs")"
+              if [ "$applicable_job" = "true" ] && [ "$workflow" = "autopilot-cloudflare-promote.yml" ] && [ "$candidate_status" = "completed" ]; then
+                production_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/cloudflare-production" --jq '.commit.sha')"
+                production_relation="$(gh api "repos/$GITHUB_REPOSITORY/compare/$MERGED_MAIN...$production_sha" --jq '.status')"
+                if [ "$production_relation" != "ahead" ] && [ "$production_relation" != "identical" ]; then
+                  echo "Cloudflare run $candidate_run completed without proving exact-main promotion: main=$MERGED_MAIN production=$production_sha relation=$production_relation; it does not own convergence."
+                  applicable_job="false"
+                fi
+              fi
               if [ "$applicable_job" = "true" ]; then
                 owner="$candidate_run"
                 break

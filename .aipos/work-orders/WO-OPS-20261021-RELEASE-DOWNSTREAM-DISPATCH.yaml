@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: P1_REPAIRED_SYNCED_AWAITING_POST_AIPOS_HEAD_VALIDATION
+status: REPAIRING_FRESH_VALIDATOR_P1_P2_FINDINGS
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -67,7 +67,13 @@ validation_history:
   previous_exact_head: 45ef8302f693edcd0eb9ef14e4a6797b371eff0e
   previous_review_finding: "P1: wrapper-level success could hide skipped guarded jobs after failed CI and suppress required direct convergence."
   repair: "Dedupe now queries exact-main run jobs and requires the workflow-specific applicable job to be active or completed success; skipped job conclusions do not qualify."
-  focused_tests: "14/14 PASS after repair; git diff --check PASS."
+  latest_reviewed_head: 278646fbd9f17b7ecd0f0d5c6e839895060132fa
+  latest_review_findings:
+    p0: 0
+    p1: 1
+    p2: 1
+    details: "P1: a successful Cloudflare Promote job can be a no-op when main advances between the release check and workflow_dispatch, so job success alone does not prove exact-main promotion. P2: include pending expected-job status among active duplicate owners."
+  focused_tests: "14/14 PASS after prior repair; latest P1/P2 repairs are pending focused retest."
   previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
   oracle_main_release: "Run 39527382516 failed closed at pre-activation exact-main recheck: it requested e106bdbd62c92278d1835722f4ada1c31762ceb7 while protected main had advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec. No stale activation occurred."
-next: "Commit/push this AIPOS evidence synchronization to the existing PR branch. Then verify the resulting exact head against current protected main, require all six exact-head workflows and a fresh review plus explicit non-author P0/P1/P2 Validator receipt. Keep Draft. No Audit/Release, workflow re-enable, or overlapping Oracle release before the exact-main release path is clear."
+next: "Repair the latest exact-head P1/P2 findings: include pending in active-job dedupe, and require Cloudflare production branch ancestry to prove completed exact-main promotion. Add regression assertions, rerun focused tests, update AIPOS, then push one successor and restart exact-head CI/companions/review. Keep Draft; no Audit/Release or Oracle overlap."

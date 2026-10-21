@@ -132,8 +132,14 @@ test("Release dispatches only active unowned exact-main downstream workflows aft
   assert.match(downstream, /actions\/workflows\/\$workflow\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
   assert.match(downstream, /actions\/runs\/\$candidate_run\/jobs\?per_page=100/);
   assert.match(downstream, /\.name == \$name/);
+  assert.match(downstream, /\.status == "pending"/);
   assert.match(downstream, /\.status == "completed" and \.conclusion == "success"/);
   assert.match(downstream, /applicable_job/);
+  assert.match(downstream, /workflow.*autopilot-cloudflare-promote\.yml.*candidate_status.*completed/s);
+  assert.match(downstream, /branches\/cloudflare-production/);
+  assert.match(downstream, /compare\/\$MERGED_MAIN\.\.\.\$production_sha/);
+  assert.match(downstream, /production_relation.*ahead.*identical/s);
+  assert.match(downstream, /completed without proving exact-main promotion/);
   assert.doesNotMatch(downstream, /\.conclusion == "skipped"/);
   assert.doesNotMatch(downstream, /\.conclusion == "success"\)\]\s*\|/);
   assert.doesNotMatch(downstream, /\.conclusion == "skipped"/);
