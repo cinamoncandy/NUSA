@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: PENDING_SUCCESSOR_EXACT_HEAD_VALIDATION
+status: RELEASE_GATE_PENDING
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -64,6 +64,15 @@ previous_validation_evidence:
   independent_review: "Fresh Codex review on exact head 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e: no major issues; historical after main advance and not a formal severity-count Validator receipt."
   formal_validator: PENDING
 validation_history:
+  latest_pre_aipos_sync_head: 4833472ed9ec9dd7c4126d62302865ca2ec97f70
+  latest_pre_aipos_sync_workflows:
+    ci: 39571746221
+    actual_paper_runtime: 39571746193
+    capability_surface_guard: 39571746202
+    activation_rehearsal: 39571746178
+    transport_readiness: 39571746194
+    readonly_broker: 39571746197
+  latest_pre_aipos_sync_result: "All six exact-head workflows completed success; focused deterministic release tests 14/14 and git diff --check passed; fresh exact-head Codex review has_any_findings=false and has_unresolved_findings=false. Formal P0/P1/P2 Validator remains pending. This record is historical after the AIPOS successor commit."
   previous_exact_head: 45ef8302f693edcd0eb9ef14e4a6797b371eff0e
   previous_review_finding: "P1: wrapper-level success could hide skipped guarded jobs after failed CI and suppress required direct convergence."
   repair: "Dedupe now queries exact-main run jobs and requires the workflow-specific applicable job to be active or completed success; skipped job conclusions do not qualify."
