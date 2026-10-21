@@ -148,7 +148,7 @@ test("canonical index allocation reserves active and immutable terminal history"
   store.markPendingIneligible(input);
   assert.equal(store.nextPeriodIndex(), 23, "terminal original plus active successor reserve both indexes");
   store.retirePending(input.successor.periodId, input.successor.checksum);
-  assert.equal(store.nextPeriodIndex(), 22, "retiring the successor never makes terminal index 21 reusable");
+  assert.equal(store.nextPeriodIndex(), 23, "retiring the successor preserves both terminal indexes");
 }));
 
 test("unknown pending schema fails closed during canonical index allocation", () => memory((db, store) => {
@@ -170,4 +170,12 @@ test("realized append cannot reuse a quarantined interval under a different iden
   };
   assert.throws(() => store.append(envelope), /cannot become realized performance/);
   assert.equal(store.list().length, 0); assert.equal(store.listPendingDispositions().length, 1);
+}));
+
+
+test("retired successor index remains reserved by immutable disposition history", () => memory((_db, store) => {
+  const input = request(); store.putPending(input.original); store.markPendingIneligible(input);
+  store.retirePending(input.successor.periodId, input.successor.checksum);
+  assert.throws(() => store.putPending(pending(22, 300, "different-successor")), /reserved by immutable disposition/);
+  assert.equal(store.listPendingDispositions().length, 1);
 }));

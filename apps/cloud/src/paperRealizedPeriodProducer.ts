@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { validatePaperRuntimeExecutionCostEvidence } from "./paperRuntimeExecutionCostEvidence";
 import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import { isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 import {
@@ -9,6 +10,7 @@ import {
   type PersistedPaperPeriodRetentionResult,
   type PersistedPaperPendingPeriod,
   type RealizedPeriodRetentionGuard,
+  type PersistedPaperPendingDisposition,
 } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
 import { PaperCanonicalOutcomeReconciliationError, reconcileCanonicalPaperOutcomeWindow } from "./paperCanonicalOutcomeReconciliation";
@@ -92,7 +94,13 @@ export interface PaperPeriodMixedBindingReceipt {
   readonly evidenceFingerprintSha256: string;
 }
 
+export interface PaperIncompletePeriodDispositionResult {
+  readonly disposition: PersistedPaperPendingDisposition;
+  readonly successor: PersistedPaperRealizedPeriodPlan;
+}
+
 export interface PaperRealizedPeriodProducerOptions {
+  readonly sourceRuntimeSha?: string;
   readonly onLifecycleEvent?: (event: PaperRealizedPeriodLifecycleEvent) => void;
   readonly now?: () => number;
   readonly maximumPeriods?: number;
@@ -456,6 +464,58 @@ export class PaperRealizedPeriodProducer {
       };
       return this.finalizeEnvelope(envelope);
     } catch (error) { throw this.reject(error, periodId); }
+  }
+
+  /** Preserve a proven incomplete window without manufacturing realized returns or costs. */
+  public disposeIncompletePeriodFromCanonicalAccount(input: PaperRealizedPeriodCanonicalCloseInput): PaperIncompletePeriodDispositionResult {
+    const replay = this.repository.listPendingDispositions().find((item) => item.original.periodId === input.periodId);
+    if (replay != null) {
+      if (replay.reason.boundaryAt !== input.periodEndAt) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "disposition boundary changed", input.periodId);
+      return Object.freeze({ disposition: replay, successor: decodePlan(replay.successor) });
+    }
+    const current = this.openPeriods.get(input.periodId);
+    if (current == null || current.accountBoundary == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "canonical pending period is unavailable", input.periodId);
+    const endState = this.readCanonicalAccountState(input.periodEndAt, input.periodId);
+    if (endState.initialCapital !== current.accountBoundary.initialCapital) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_BOUNDARY_CONFLICT", "account identity changed", input.periodId);
+    if (endState.positions.some((position) => position.quantity !== 0) || (endState.workingOrders?.length ?? 0) !== 0) {
+      throw new PaperRealizedPeriodProducerError("INCOMPLETE_PERIOD_WAITING_FOR_FLAT_BOUNDARY", "incomplete period must retain exposure until a canonical flat boundary", input.periodId);
+    }
+    const canonicalFills = this.readCanonicalPaperFills(input.periodId);
+    if (canonicalFills == null) throw new PaperRealizedPeriodProducerError("CANONICAL_FILL_LEDGER_UNAVAILABLE", "full fill truth is required for disposition", input.periodId);
+    // Re-derive the failure from canonical account/ledger evidence; a caller's error code is insufficient.
+    try {
+      reconcileCanonicalPaperOutcomeWindow({ periodStartAt: current.periodStartAt, periodEndAt: input.periodEndAt,
+        startState: boundaryAsAccountState(current.accountBoundary), endState, canonicalFills });
+      throw new PaperRealizedPeriodProducerError("PERIOD_NOT_INCOMPLETE", "canonical evidence does not prove incomplete execution costs", input.periodId);
+    } catch (error) {
+      if (!(error instanceof PaperCanonicalOutcomeReconciliationError) || error.code !== "INCOMPLETE_EXECUTION_COST_EVIDENCE") throw error;
+    }
+    const window = [...canonicalFills].filter((fill) => fill.filledAt > current.periodStartAt && fill.filledAt <= input.periodEndAt)
+      .sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id));
+    const incomplete = window.filter((fill) => fill.executionCostAttribution == null && fill.runtimeExecutionCostEvidence != null);
+    if (incomplete.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_INCOMPLETE", "incomplete cost receipt is unavailable", input.periodId);
+    for (const fill of incomplete) validatePaperRuntimeExecutionCostEvidence(fill, fill.runtimeExecutionCostEvidence!);
+    const original = this.repository.getPending(input.periodId);
+    if (original == null || canonical(decodePlan(original)) !== canonical(current)) throw new PaperRealizedPeriodProducerError("PENDING_IDENTITY_CONFLICT", "pending evidence changed", input.periodId);
+    const periodIndex = this.repository.nextPeriodIndex();
+    const successor = validatePlan({ ...current, periodId: `closed-learning-rollover:${periodIndex}:${input.periodEndAt}`, periodIndex,
+      periodStartAt: input.periodEndAt, observationIds: [], observations: [], lastObservedAt: undefined,
+      accountBoundary: boundaryFromCanonicalAccount(endState, input.periodEndAt, input.periodId) });
+    // Optional fields must be absent, never encoded as undefined in canonical persistence.
+    const { lastObservedAt: _last, ...cleanSuccessor } = successor;
+    const next = validatePlan(cleanSuccessor);
+    const pending = { periodId: next.periodId, periodIndex: next.periodIndex, periodStartAt: next.periodStartAt, payloadJson: canonical(next), checksum: digest(next) };
+    const disposition = this.repository.markPendingIneligible({ original, successor: pending,
+      reason: { stage: "PERIOD_CLOSE", code: "INCOMPLETE_EXECUTION_COST_EVIDENCE", boundaryAt: input.periodEndAt,
+        sourceRuntimeSha: this.options.sourceRuntimeSha ?? null,
+        blockedEvidenceFingerprintSha256: digest({ window: window.map((fill) => digest(fill)), incomplete: incomplete.map((fill) => fill.runtimeExecutionCostEvidence!.evidenceFingerprintSha256) }) } });
+    // In-memory ownership changes only after both durable records commit.
+    this.openPeriods.delete(input.periodId);
+    this.openPeriods.set(next.periodId, next);
+    this.emit({ type: "PERIOD_REJECTED", periodId: input.periodId, occurredAt: input.periodEndAt,
+      reasonCode: "INCOMPLETE_EXECUTION_COST_EVIDENCE", retirementEvidenceFingerprintSha256: disposition.evidenceFingerprintSha256 });
+    this.emit({ type: "PERIOD_OPEN", periodId: next.periodId, occurredAt: next.periodStartAt });
+    return Object.freeze({ disposition, successor: next });
   }
 
   private finalizeEnvelope(envelope: PersistedPaperPeriodEnvelope): PersistedPaperPeriodEnvelope {

@@ -331,6 +331,7 @@ export function startCloudRuntime(
       maximumPeriods: 1_000,
       // Retention may never delete a realized period a surviving ledger record cites (v2 M1/A7).
       retentionGuard: evolutionLedgerRetentionGuard(new SqliteEvolutionLearningLedger(durableRepository.database())),
+      sourceRuntimeSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim() || undefined,
       onLifecycleEvent: (event) => paperLearningRecorder.record({
         cycleId: `paper-period:${event.periodId}`,
         stage: event.type,
