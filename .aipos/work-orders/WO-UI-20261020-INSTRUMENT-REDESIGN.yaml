@@ -33,3 +33,8 @@ addendum_2026_10_20_ridgeline:
 # Addendum (gate dots): the 실거래 tab's readiness gates are one row of dots (filled = passed, hollow = checking, amber
 # breathing = blocked) that fill in left to right; a tap shows that gate's reason. Display only, no action; reduce-motion
 # shows one settled frame. Gate data and the "통과해도 실거래는 켜지지 않아요" note are unchanged. Not seen on a real device.
+
+# Addendum (futures snapshot): heartbeat gets an optional display-only `futures` field (positions, dayLossRatio,
+# consecutiveLosses) with a validator that drops a malformed value on its own. The server does not emit it: the futures
+# engine has not traded, so nothing is invented and the 선물 tab keeps showing "시작 전". The app reads it from the fresh
+# heartbeat only. No limit, threshold or authority changed.
