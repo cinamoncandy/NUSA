@@ -92,17 +92,43 @@ test("missing exit books are marked, and too many gaps make the study INSUFFICIE
   void allGone;
 });
 
-test("S2 with no qualifying market on a day still counts the cohort as 0 minus the benchmark", () => {
-  const badDay = Date.parse("2026-11-10T00:00:00Z");
+test("S2 with no qualifying market on a day: the cohort still counts toward n but has excess exactly 0 (never minus the benchmark) and is not a down day", () => {
+  const baseline = makeProvider({ reversal: 0, factorDrift: -0.01 });
+  const badDay = D.buildCohorts(baseline, D.eligibleMarkets(baseline), "S2").cohorts.find((x) => x && x.benchmarkBase < 0).t; // a day the market fell
   const imbalance = (m, t) => (t > badDay - 5 * H && t <= badDay ? [1, 1.5] : [1.2, 1]);
-  const provider = makeProvider({ imbalance, reversal: 0 });
+  const provider = makeProvider({ imbalance, reversal: 0, factorDrift: -0.01 });
   const universe = D.eligibleMarkets(provider);
   assert.deepEqual(D.pickS2(provider, universe, badDay), []);
   const c = D.buildCohorts(provider, universe, "S2");
   const cohort = c.cohorts.find((x) => x && x.t === badDay);
-  assert.ok(cohort && cohort.picks === 0);
-  assert.ok(Math.abs(cohort.baseExcess + cohort.benchmarkBase) < 1e-12, "excess is exactly minus the benchmark");
+  assert.ok(cohort && cohort.picks === 0 && cohort.empty === true);
+  assert.equal(cohort.baseExcess, 0, "abstaining on a falling market must not earn the benchmark's loss");
+  assert.equal(cohort.stressExcess, 0);
+  assert.ok(cohort.benchmarkBase < 0, "the benchmark really fell that day");
   assert.equal(c.cohorts.filter((x) => x != null).length, 30);
+});
+
+test("S2 needs at least 20 of its 30 cohorts to have a pick; abstaining almost always is INSUFFICIENT_DATA, not a pass", () => {
+  const ask = (m, t) => (t >= HOLD_START ? [1, 1.5] : [1.2, 1]); // ask-heavy books in the whole holdout: no S2 pick ever
+  const r = D.runDailyStudy({ provider: makeProvider({ imbalance: ask, factorDrift: -0.005 }), study: "S2", now: NOW, options: { flips: 500 } });
+  assert.equal(r.status, "INSUFFICIENT_DATA");
+  assert.equal(r.reasonCode, "DATA_PICK_DAYS");
+});
+
+test("a benchmark market with a data gap is excluded from the benchmark, not valued at -100%; too many gaps are INSUFFICIENT_DATA", () => {
+  const provider = makeProvider({ reversal: 1 });
+  const universe = D.eligibleMarkets(provider);
+  const t = HOLD_START + 5 * DAY;
+  const missing = new Set(universe.slice(0, 3));
+  const holey = { ...provider, bookAt: (m, at) => (missing.has(m) && at === t + DAY ? undefined : provider.bookAt(m, at)), lastBidBetween: (m, f, to) => (missing.has(m) && to === t + DAY ? undefined : provider.lastBidBetween(m, f, to)) };
+  const full = D.buildCohorts(provider, universe, "S4"), gapped = D.buildCohorts(holey, universe, "S4");
+  assert.equal(gapped.benchGaps, 3);
+  assert.ok(full.benchEntries - gapped.benchEntries <= 3, "only the next decision's entry books of those 3 markets are missing too");
+  const a = full.cohorts.find((x) => x && x.t === t).benchmarkBase, b = gapped.cohorts.find((x) => x && x.t === t).benchmarkBase;
+  assert.ok(Math.abs(a - b) < 0.01, "dropping 3 of 70 markets moves the benchmark slightly, nothing like three -100% entries (which would shift it by about 4%)");
+  const many = { ...provider, bookAt: (m, at) => (at >= HOLD_START + DAY && at % DAY === 0 && Number(m.slice(5)) % 4 === 0 && at - HOLD_START > DAY ? undefined : provider.bookAt(m, at)), lastBidBetween: () => undefined };
+  const r = D.runDailyStudy({ provider: many, study: "S4", now: NOW, options: { flips: 200 } });
+  assert.equal(r.status, "INSUFFICIENT_DATA");
 });
 
 test("S2 ranks the surviving markets by the sum of their percentile ranks and breaks ties by code", () => {

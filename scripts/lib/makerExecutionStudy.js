@@ -111,13 +111,13 @@ function trainingCoverageOk(provider) {
 function buildDays(provider, universe) {
   const decisions = range(HOLD_START, HOLD_END, HOLD).filter((t) => t + HOLD <= HOLD_END);
   const days = new Map();
-  let picksTotal = 0, picksWithExit = 0, gaps = 0, coverageTimes = 0;
+  let picksTotal = 0, picksWithExit = 0, gaps = 0, coverageTimes = 0, benchEntries = 0, benchGaps = 0;
   for (const t of decisions) {
     const withBook = universe.filter((m) => provider.bookAt(m, t) != null);
     if (withBook.length >= MIN_MARKETS) coverageTimes += 1;
     const dayKey = Math.floor(t / (24 * H));
     if (!days.has(dayKey)) days.set(dayKey, { cohorts: [] });
-    if (withBook.length === 0) continue;
+    if (withBook.length < MIN_MARKETS) continue; // not a counted cohort (fewer than 60 eligible markets with an entry book)
     const picks = pickS2(provider, universe, t);
     const cohort = { t, selected: picks.length, maker: [], makerStress: [], taker: [], takerStress: [], fills: [], bench: [], benchStress: [], gross: [], benchGross: [] };
     for (const m of picks) {
@@ -131,13 +131,15 @@ function buildDays(provider, universe) {
       cohort.taker.push(tk.r); cohort.takerStress.push(ts.r);
     }
     for (const m of withBook) {
-      const b = takerPick(provider, m, t, false), bs = takerPick(provider, m, t, true);
-      cohort.bench.push(b.gap ? -1 : b.r); cohort.benchStress.push(bs.gap ? -1 : bs.r);
-      const bg = grossReturn(provider, m, t); cohort.benchGross.push(bg.gap ? -1 : bg.r ?? 0);
+      const b = takerPick(provider, m, t, false), bs = takerPick(provider, m, t, true), bg = grossReturn(provider, m, t);
+      benchEntries += 1;
+      // A benchmark market with a data gap is excluded (it could not have been bought for lack of an exit value) and counted.
+      if (b.gap || bs.gap || bg.gap) { benchGaps += 1; continue; }
+      cohort.bench.push(b.r); cohort.benchStress.push(bs.r); cohort.benchGross.push(bg.r);
     }
     days.get(dayKey).cohorts.push(cohort);
   }
-  return { days, decisions: decisions.length, picksTotal, picksWithExit, gaps, coverageTimes };
+  return { days, decisions: decisions.length, picksTotal, picksWithExit, gaps, coverageTimes, benchEntries, benchGaps };
 }
 
 function lag1to6(values) {
@@ -155,35 +157,41 @@ function runMakerStudy({ provider: rawProvider, now, options = {} }) {
   const base = { study: "S3", eligibleMarkets: universe.length, scheduledDecisions: d.decisions, picks: d.picksTotal, dataGaps: d.gaps };
   if (d.coverageTimes < minimumCount(d.decisions) || (d.picksTotal > 0 && d.picksWithExit < minimumCount(d.picksTotal))) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_HOLDOUT_COVERAGE" };
   if (d.picksTotal > 0 && d.gaps > 0.05 * d.picksTotal) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_GAPS" };
+  if (d.benchEntries > 0 && d.benchGaps > 0.05 * d.benchEntries) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_BENCHMARK_GAPS" };
   // One value per UTC day: counts when at least 5 of its 6 cohorts exist.
   const counted = [];
   for (const day of d.days.values()) {
     if (day.cohorts.length < 5) continue;
     const cohortValue = (c, key) => (c.selected === 0 ? 0 : c[key].reduce((s, v) => s + v, 0) / c.selected);
+    const fillOf = (c) => (c.fills.length === 0 ? 0 : c.fills.reduce((a, v) => a + v, 0) / c.fills.length);
+    // Per cohort: maker value minus the taker benchmark scaled by THAT cohort's fill fraction; a cohort with no pick contributes 0.
+    const perCohort = (key, benchKey) => mean(day.cohorts.map((c) => (c.selected === 0 ? 0 : cohortValue(c, key) - fillOf(c) * mean(c[benchKey]))));
     const makerDay = mean(day.cohorts.map((c) => cohortValue(c, "maker"))), makerStressDay = mean(day.cohorts.map((c) => cohortValue(c, "makerStress")));
-    const takerDay = mean(day.cohorts.map((c) => cohortValue(c, "taker"))), takerStressDay = mean(day.cohorts.map((c) => cohortValue(c, "takerStress")));
+    const takerStressDay = mean(day.cohorts.map((c) => cohortValue(c, "takerStress")));
+    const improvementDay = mean(day.cohorts.map((c) => (c.selected === 0 ? 0 : cohortValue(c, "maker") - cohortValue(c, "taker"))));
     const selected = day.cohorts.reduce((s, c) => s + c.selected, 0);
     const fillN = day.cohorts.reduce((s, c) => s + c.fills.length, 0);
-    const fillDay = fillN === 0 ? 0 : day.cohorts.reduce((s, c) => s + c.fills.reduce((a, v) => a + v, 0), 0) / fillN;
-    const benchDay = mean(day.cohorts.map((c) => mean(c.bench))), benchStressDay = mean(day.cohorts.map((c) => mean(c.benchStress)));
+    const fillSum = day.cohorts.reduce((s, c) => s + c.fills.reduce((a, v) => a + v, 0), 0);
+    const benchDay = mean(day.cohorts.map((c) => mean(c.bench)));
     // A cohort with no pick adds 0 (never minus the benchmark): abstaining on a falling day must not create a positive gross edge.
     const grossDay = mean(day.cohorts.map((c) => (c.selected === 0 ? 0 : mean(c.gross) - mean(c.benchGross))));
-    counted.push({ pickMaker: day.cohorts.flatMap((c) => c.maker), pickMakerStress: day.cohorts.flatMap((c) => c.makerStress), fillN, grossExcess: grossDay, excess: makerDay - fillDay * benchDay, excessStress: makerStressDay - fillDay * benchStressDay, improvement: makerDay - takerDay, benchDay, selected, fillSum: fillN * fillDay, makerDay, makerStressDay, takerStressDay });
+    counted.push({ pickMaker: day.cohorts.flatMap((c) => c.maker), pickMakerStress: day.cohorts.flatMap((c) => c.makerStress), fillN, grossExcess: grossDay, excess: perCohort("maker", "bench"), excessStress: perCohort("makerStress", "benchStress"), improvement: improvementDay, benchDay, selected, fillSum, makerDay, makerStressDay, takerStressDay });
   }
   if (counted.length < minimumCount(d.days.size)) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_COHORTS", days: counted.length };
-  const down = counted.filter((x) => x.benchDay < 0);
+  if (counted.filter((x) => x.selected > 0).length < 20) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_PICK_DAYS", days: counted.length };
+  const down = counted.filter((x) => x.selected > 0 && x.benchDay < 0);
   if (down.length < 8) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_DOWN_DAYS", downDays: down.length, days: counted.length };
   const excessTest = oneSidedTests(counted.map((x) => x.excess), ALPHA, options);
   const improvement = oneSidedTests(counted.map((x) => x.improvement), 0.05, options);
   const totalFillN = counted.reduce((s, x) => s + x.fillN, 0);
   const fillRate = totalFillN === 0 ? 0 : counted.reduce((s, x) => s + x.fillSum, 0) / totalFillN;
-  const signalEdge = oneSidedTests(counted.map((x) => x.grossExcess), 0.05, options);
+  const signalEdge = oneSidedTests(counted.map((x) => x.grossExcess), ALPHA, options);
   const downStats = cohortStats(down.map((x) => x.excess));
   const downP = downStats.sd > 0 ? studentTUpperP(downStats.t, downStats.df) : 1;
   const allPickBase = counted.flatMap((x) => x.pickMaker), allPickStress = counted.flatMap((x) => x.pickMakerStress);
   const perPickBase = mean(allPickBase), perPickStress = mean(allPickStress);
   const absStats = cohortStats(allPickBase);
-  const upDays = counted.filter((x) => x.benchDay >= 0);
+  const upDays = counted.filter((x) => x.selected > 0 && x.benchDay >= 0);
   const checks = {
     signalEdgeGrossBothTests: signalEdge.pass, excessBothTests: excessTest.pass, executionImprovementBothTests: improvement.pass, fillRateAtLeast30: fillRate >= 0.30,
     stressExcessPositive: mean(counted.map((x) => x.excessStress)) > 0, absoluteBasePositive: perPickBase > 0, absoluteStressPositive: perPickStress > 0,

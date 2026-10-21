@@ -49,7 +49,15 @@ function makeDbProvider(db, { from, to }) {
     return r;
   };
   const lastBidBetween = (market, fromMs, toMs) => clean(market, lastBid.get(market, fromMs, toMs))?.b;
-  const booksBetween = (market, fromMs, toMs) => between.all(market, fromMs, toMs).map((raw) => clean(market, raw)).filter((r) => r != null).map((r) => ({ t: r.t, b: r.b, a: r.a }));
+  // UNION ALL can in principle return the same (market, stamp) from both tables; one snapshot counts once toward the 5-snapshot rule.
+  const booksBetween = (market, fromMs, toMs) => {
+    const seen = new Set(), out = [];
+    for (const raw of between.all(market, fromMs, toMs)) {
+      const r = clean(market, raw);
+      if (r != null && !seen.has(r.t)) { seen.add(r.t); out.push({ t: r.t, b: r.b, a: r.a }); }
+    }
+    return out;
+  };
   const hashRows = () => {
     const hash = crypto.createHash("sha256");
     for (const key of [...consumed.keys()].sort()) hash.update(`${consumed.get(key)}\n`);

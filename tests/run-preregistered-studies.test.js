@@ -84,3 +84,14 @@ test("with the real node:sqlite engine the provider reads the live table and the
   bare.exec(`CREATE TABLE research_orderbook_samples (${cols});`);
   assert.equal(bookSource(bare), "research_orderbook_samples", "before migration 032 only the live table exists");
 });
+
+test("a snapshot present in both the live table and the archive counts once toward a window", () => {
+  const { DatabaseSync } = require("node:sqlite");
+  const db = new DatabaseSync(":memory:");
+  const cols = "market TEXT NOT NULL, captured_at_ms INTEGER NOT NULL, best_bid REAL NOT NULL, best_ask REAL NOT NULL, bid_size_5 REAL NOT NULL, ask_size_5 REAL NOT NULL, total_bid_size REAL NOT NULL, total_ask_size REAL NOT NULL, PRIMARY KEY (market, captured_at_ms)";
+  db.exec(`CREATE TABLE research_orderbook_samples (${cols}); CREATE TABLE research_orderbook_study_rows (${cols}) WITHOUT ROWID;`);
+  const T = Date.parse("2026-11-10T04:00:00Z");
+  for (const table of ["research_orderbook_samples", "research_orderbook_study_rows"]) for (let i = 1; i <= 3; i += 1) db.prepare(`INSERT INTO ${table} VALUES ('KRW-A', ?, 100, 101, 1, 1, 1, 1)`).run(T + i * 60_000);
+  const p = makeDbProvider(db, { from: T - 3_600_000, to: T + 3_600_000 });
+  assert.equal(p.booksBetween("KRW-A", T, T + 10 * 60_000).length, 3, "3 distinct snapshots, not 6 (so the 5-snapshot rule cannot be met by duplicates)");
+});

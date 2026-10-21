@@ -95,7 +95,7 @@ const PICKERS = { S2: pickS2, S4: pickS4 };
 /** The holdout cohorts: one entry per scheduled decision (null where the decision had no data to pick from). */
 function buildCohorts(provider, universe, study) {
   const cohorts = [];
-  let marked = 0, gaps = 0, picksTotal = 0, picksWithExitBook = 0, timesWithCoverage = 0;
+  let marked = 0, gaps = 0, picksTotal = 0, picksWithExitBook = 0, timesWithCoverage = 0, benchEntries = 0, benchGaps = 0;
   const decisions = range(HOLD_START, HOLD_END, DAY).filter((t) => t + DAY <= HOLD_END);
   for (const t of decisions) {
     const exitAt = t + DAY;
@@ -106,23 +106,27 @@ function buildCohorts(provider, universe, study) {
       if (ex.kind === "GAP") return { net: -1, kind: "GAP" };
       return { net: tradeNet({ askEntry: entry.a, bidExit: ex.bid, entryBp: bp, exitBp: bp }), kind: ex.kind };
     };
-    const benchmark = (bp) => mean(withBook.map((m) => value(m, bp).net));
+    // A benchmark market with a data gap is excluded (it could not have been bought for lack of an exit value) and counted.
+    const benchValues = (bp) => withBook.map((m) => value(m, bp)).filter((v) => v.kind !== "GAP").map((v) => v.net);
+    const benchmark = (bp) => mean(benchValues(bp));
+    for (const m of withBook) { benchEntries += 1; if (value(m, BASE_BP).kind === "GAP") benchGaps += 1; }
     const picks = PICKERS[study](provider, universe, t);
     for (const m of picks) {
       const v = value(m, BASE_BP);
       picksTotal += 1; if (v.kind === "BOOK") picksWithExitBook += 1; else if (v.kind === "MARKED") marked += 1; else gaps += 1;
     }
-    if (withBook.length === 0) { cohorts.push(null); continue; }
+    if (withBook.length < MIN_MARKETS) { cohorts.push(null); continue; }
     const pickNets = (bp) => picks.map((m) => value(m, bp).net);
     cohorts.push({
-      t, picks: picks.length,
-      baseExcess: (picks.length === 0 ? 0 : mean(pickNets(BASE_BP))) - benchmark(BASE_BP),
-      stressExcess: (picks.length === 0 ? 0 : mean(pickNets(STRESS_BP))) - benchmark(STRESS_BP),
+      t, picks: picks.length, empty: picks.length === 0,
+      // A cohort with no pick has excess 0, never minus the benchmark (abstaining on a falling day must not create excess).
+      baseExcess: picks.length === 0 ? 0 : mean(pickNets(BASE_BP)) - benchmark(BASE_BP),
+      stressExcess: picks.length === 0 ? 0 : mean(pickNets(STRESS_BP)) - benchmark(STRESS_BP),
       benchmarkBase: benchmark(BASE_BP),
       pickBase: pickNets(BASE_BP), pickStress: pickNets(STRESS_BP),
     });
   }
-  return { cohorts, decisions: decisions.length, marked, gaps, picksTotal, picksWithExitBook, timesWithCoverage };
+  return { cohorts, decisions: decisions.length, marked, gaps, picksTotal, picksWithExitBook, timesWithCoverage, benchEntries, benchGaps };
 }
 
 function runDailyStudy({ provider: rawProvider, study, now, options = {} }) {
@@ -137,8 +141,10 @@ function runDailyStudy({ provider: rawProvider, study, now, options = {} }) {
   const base = { study, eligibleMarkets: universe.length, scheduledDecisions: c.decisions, cohorts: counted.length, picks: c.picksTotal, marked: c.marked, dataGaps: c.gaps };
   if (c.timesWithCoverage < minimumCount(c.decisions) || (c.picksTotal > 0 && c.picksWithExitBook < minimumCount(c.picksTotal))) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_HOLDOUT_COVERAGE" };
   if (c.picksTotal > 0 && c.gaps > 0.05 * c.picksTotal) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_GAPS" };
+  if (c.benchEntries > 0 && c.benchGaps > 0.05 * c.benchEntries) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_BENCHMARK_GAPS" };
   if (counted.length < need) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_COHORTS" };
-  const down = counted.filter((x) => x.benchmarkBase < 0);
+  if (study === "S2" && counted.filter((x) => !x.empty).length < 20) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_PICK_DAYS" };
+  const down = counted.filter((x) => !x.empty && x.benchmarkBase < 0);
   if (down.length < 8) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_DOWN_DAYS", downDays: down.length };
   const baseTest = oneSidedTests(counted.map((x) => x.baseExcess), ALPHA, options);
   const stressMean = mean(counted.map((x) => x.stressExcess));
@@ -158,7 +164,7 @@ function runDailyStudy({ provider: rawProvider, study, now, options = {} }) {
     ...base, status: pass ? "HOLDOUT_PASS" : "HOLDOUT_FAIL", checks,
     meanExcessBp: baseTest.mean * 10_000, sdBp: baseTest.sd * 10_000, t: baseTest.t, tP: baseTest.tP, permP: baseTest.permP,
     stressExcessBp: stressMean * 10_000, absoluteNetPerPickBp: mean(allBase) * 10_000, absoluteNetPerPickT: cohortStats(allBase).t, absoluteStressPerPickBp: mean(allStress) * 10_000,
-    excessUpDaysBp: mean(counted.filter((x) => x.benchmarkBase >= 0).map((x) => x.baseExcess)) * 10_000, upDays: counted.length - down.length,
+    excessUpDaysBp: mean(counted.filter((x) => !x.empty && x.benchmarkBase >= 0).map((x) => x.baseExcess)) * 10_000, upDays: counted.filter((x) => !x.empty && x.benchmarkBase >= 0).length,
     downDays: down.length, downMeanExcessBp: downStats.mean * 10_000, downP,
     minimumDetectableExcessBp: mde == null ? null : mde * 10_000,
   };
