@@ -2711,27 +2711,19 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: LOCAL_P1_REPAIR_VALIDATED_PENDING_FRESH_EXACT_HEAD_CI_REVIEW
+  status: LOCAL_PROTOTYPE_POISONING_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI_REVIEW
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
-  base_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
-  latest_main_sync_commit: 075010c852c645c86373243a54118f63958b8dd8
-  previous_exact_head: 378099d0d1d234b375af1699424faac5e718a519
-  superseded_export_lock_head: 175ec9ff6f5cf6ef6138f67a925df414341f2429
-  superseded_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
-  repair_head: 9888a4b3ef1a2c965831bfd1098d94bc2e185501
-  finding: Fresh non-author Codex review on 378099d0 reproduced preloading sqliteVerifiedSharedConnection.js, replacing its require.cache exports before the barrel loaded, then constructing both genuine stores with a forged wrapper and a raw unscanned DatabaseSync. Moving the resolver to another module and eager consumer loading only moved the replaceable trust boundary.
-  repair: Canonical SqliteDatabase full-scan registration and both existing AI-store admission checks now share the index.ts lexical scope. The WeakMap and resolver are not exported, there is no imported registration/verifier capability, and sqliteVerifiedSharedConnection.ts is deleted. Existing AI-store paths re-export the same genuine constructors; their implementations were relocated without changing their schemas, scoped checks, hash-chain replay, ownership, or standalone full scans. Startup ordering remains unchanged.
-  validation_head: 9888a4b3ef1a2c965831bfd1098d94bc2e185501
-  validation: 'On source repair 9888a4b3ef1a2c965831bfd1098d94bc2e185501 in the /workspace development container (not Oracle): TypeScript compiler, pnpm typecheck and pnpm build PASS; focused startup/lease/research-recovery 33/33 PASS (12+2+19); AI durability/attribution/migrations 41/41 PASS; architecture runtimeCycles=0/findings=0; validate:full PASS; security:gate PASS (zero unmitigated high/critical, zero secrets); Storybook build PASS; git diff --check PASS. Before repair the new internal-cache exploit test failed with Missing expected exception on 378099d0. Security initially failed on GHSA-f2ph-cmg5-wxc8; the official Storybook patch 8.6.18 -> 8.6.19 closes it with no gate waiver. Electron binary download failed during dependency installation; an install-only retry omitted lifecycle downloads and explicitly ran the repository security backports. No product test was skipped or weakened. GitHub exact-head CI remains required.'
-  next: Require fresh CI and all five companion workflows on the final pushed successor, then fresh non-author review with no current unresolved P0/P1 and a separate fresh Claude/NUSA Validator with exact SHA, counts and explicit ACCEPTED. Keep Draft until canonical readiness gates. No author approval, Audit, Release, merge or Oracle mutation before acceptance. Source validation binds 9888a4b3ef1a2c965831bfd1098d94bc2e185501; documentation successor is resolved from the current remote PR head, not a self-referential SHA.
-  safety:
-    PAPER_ONLY: true
-    liveAuthority: NONE
-    productionMutationAllowed: false
-    aiAuthority: ZERO_AUTHORITY
-
+  protected_main_sha: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
+  pr_reported_base_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
+  previous_exact_head: 09bd6051f09bb3ad0230c1900445d3648d858754
+  source_repair_head: 17c0a3120123711c8955301e957c4d8a116cff6d
+  finding: Fresh non-author review on 09bd6051 replaced DatabaseSync.prototype.prepare after the storage module loaded; a fake quick_check ok registered trust and both genuine AI stores admitted the shared connection. Reproduced locally in isolation.
+  repair: Capture native DatabaseSync.prototype.prepare and Reflect.apply before project module imports; route all integrity PRAGMA statements through the private captured method. Added a regression proving prototype poisoning cannot bypass the one full scan plus four scoped checks. Existing CommonJS barrel/internal-cache attack regressions remain.
+  validation: "34/34 startup/lease/recovery tests; 22/22 AI calibration/attribution durability tests; pnpm typecheck/build, preflight, validate:full, security:gate, and diff-check PASS. Exact-head CI/companions on 09bd6051 are stale after source repair."
+  next: "Push source, bind AIPOS evidence to the resulting exact head, run fresh exact-head CI and five companions, obtain fresh non-author review and separate formal NUSA Validator ACCEPTED before Audit/Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
   status: READY_FOR_REVIEW

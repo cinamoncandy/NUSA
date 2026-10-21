@@ -1,17 +1,23 @@
 # SQLite shared integrity closure repair
 
-PR #2855; base 8174e6241c3558362ab333c0b092337ce4d52bf4.
-Reviewed broken head: 378099d0d1d234b375af1699424faac5e718a519.
-Source repair and local validation target: 9888a4b3ef1a2c965831bfd1098d94bc2e185501.
+PR #2855, branch fix/sqlite-integrity-attestation-2770.
+Fresh protected main: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d.
+PR base API snapshot: 8174e6241c3558362ab333c0b092337ce4d52bf4.
+Current source repair before AIPOS evidence successor: 17c0a3120123711c8955301e957c4d8a116cff6d.
 
-Fresh non-author Codex review on 378099d0 reproduced preloading sqliteVerifiedSharedConnection.js, replacing its require.cache exports before the barrel loaded, then constructing both genuine stores with a forged wrapper and a raw unscanned DatabaseSync. Moving the resolver to another module and eager consumer loading only moved the replaceable trust boundary.
+The previous current-head Codex finding on 09bd6051f09bb3ad0230c1900445d3648d858754 reproduced replacement of DatabaseSync.prototype.prepare after the storage module loaded and before canonical database construction. The fake method returned quick_check=ok; the raw trust registry then admitted both genuine AI stores with only four scoped checks. This was reproduced in a separate local process.
 
-Canonical SqliteDatabase full-scan registration and both existing AI-store admission checks now share the index.ts lexical scope. The WeakMap and resolver are not exported, there is no imported registration/verifier capability, and sqliteVerifiedSharedConnection.ts is deleted. Existing AI-store paths re-export the same genuine constructors; their implementations were relocated without changing their schemas, scoped checks, hash-chain replay, ownership, or standalone full scans. Startup ordering remains unchanged.
+The source repair captures the built-in DatabaseSync.prototype.prepare and Reflect.apply immediately after importing node:sqlite, before any project module imports. Canonical full-file and AI-store scoped integrity PRAGMAs use this private captured method. New regression on the compiled source proves a post-load prototype replacement cannot forge the full scan: forged full calls 0, genuine full checks 1, scoped checks 4. Existing wholesale CommonJS barrel replacement and pre-bootstrap internal cache replacement tests remain.
 
-On source repair 9888a4b3ef1a2c965831bfd1098d94bc2e185501 in the /workspace development container (not Oracle): TypeScript compiler, pnpm typecheck and pnpm build PASS; focused startup/lease/research-recovery 33/33 PASS (12+2+19); AI durability/attribution/migrations 41/41 PASS; architecture runtimeCycles=0/findings=0; validate:full PASS; security:gate PASS (zero unmitigated high/critical, zero secrets); Storybook build PASS; git diff --check PASS. Before repair the new internal-cache exploit test failed with Missing expected exception on 378099d0. Security initially failed on GHSA-f2ph-cmg5-wxc8; the official Storybook patch 8.6.18 -> 8.6.19 closes it with no gate waiver. Electron binary download failed during dependency installation; an install-only retry omitted lifecycle downloads and explicitly ran the repository security backports. No product test was skipped or weakened. GitHub exact-head CI remains required.
+Local evidence on source repair 17c0a3120123711c8955301e957c4d8a116cff6d:
+- pnpm typecheck, pnpm build, pnpm preflight, pnpm run validate:full, pnpm run security:gate, and git diff --check: PASS.
+- focused startup/lease/recovery: 34/34 PASS.
+- AI calibration/attribution durability: 22/22 PASS.
+- AIPOS YAML and architecture drift validators: PASS.
+- The security gate generated an SBOM file diff during validation; that generated-only diff was restored.
 
-Require fresh CI and all five companion workflows on the final pushed successor, then fresh non-author review with no current unresolved P0/P1 and a separate fresh Claude/NUSA Validator with exact SHA, counts and explicit ACCEPTED. Keep Draft until canonical readiness gates. No author approval, Audit, Release, merge or Oracle mutation before acceptance. Source validation binds 9888a4b3ef1a2c965831bfd1098d94bc2e185501; documentation successor is resolved from the current remote PR head, not a self-referential SHA.
+The earlier exact-head CI and companion workflow receipts on 09bd6051 are historical after this source repair. No formal NUSA Validator, Audit, Release, merge, or Oracle mutation has occurred. Keep the PR Draft. Oracle was not accessed or mutated.
 
-All earlier CI/review receipts, including 3fa87132 and 378099d0, are historical for acceptance after this repair. No independent Validator/Audit/Release acceptance is claimed. Oracle was not accessed or mutated in this repair session.
+Next: commit the AIPOS/handoff evidence successor, push the existing branch normally, refresh PR metadata without a source-only status commit, then require exact-head CI and all five companions, fresh non-author review, and a separate formal NUSA Validator receipt with exact SHA, P0/P1/P2 counts and explicit ACCEPTED. Only after acceptance may Audit/Release proceed.
 
-PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; realOrderAuthority=false; realTransferAuthority=false; aiAuthority=ZERO_AUTHORITY; VERIFIED=false.
+Safety remains: PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; realOrderAuthority=false; realTransferAuthority=false; aiAuthority=ZERO_AUTHORITY; VERIFIED=false.
