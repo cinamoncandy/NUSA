@@ -237,6 +237,45 @@ test("a canonical integrity attestation never suppresses the full scan for a dif
   }
 });
 
+test("a canonical integrity attestation never suppresses the full scan for a file swapped in at the same path", () => {
+  // A pathname is not file identity. On POSIX the canonical database can be renamed away after the
+  // startup scan and a different file placed at the original path before a store opens, and both
+  // connections would then report the same database_list path while reading different files. The
+  // proof has to follow the file that was actually scanned, not the address it was scanned through.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-swapped-"));
+  const canonicalPath = path.join(dir, "canonical.sqlite");
+  let database;
+  let replacement;
+  try {
+    const seed = new DatabaseSync(canonicalPath);
+    seed.exec("CREATE TABLE unrelated_integrity_table(id INTEGER PRIMARY KEY)");
+    seed.close();
+
+    database = new SqliteDatabase(canonicalPath);
+    const attestation = database.startupIntegrityAttestation;
+    database.close();
+    database = undefined;
+
+    fs.renameSync(canonicalPath, path.join(dir, "canonical.sqlite.scanned"));
+    replacement = new DatabaseSync(canonicalPath);
+    replacement.exec("CREATE TABLE unrelated_integrity_table(id INTEGER PRIMARY KEY)");
+    assert.doesNotThrow(
+      () => assertSqliteStartupIntegrity(
+        replacement,
+        canonicalPath,
+        attestation,
+        ["definitely_missing_attested_table"],
+        "sqlite quick_check failed",
+      ),
+      "a file swapped in at the same path must ignore the scoped table list and run a full-file scan",
+    );
+  } finally {
+    replacement?.close();
+    database?.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a forged structural attestation cannot suppress the full-file scan", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-forged-"));
   const filename = path.join(dir, "forged.sqlite");
