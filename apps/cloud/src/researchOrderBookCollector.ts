@@ -34,6 +34,17 @@ export const ORDERBOOK_COLLECTOR_INTERVAL_MS = 60_000;
  */
 export const ORDERBOOK_MAX_FUTURE_MS = 5_000;
 export const ORDERBOOK_COLLECTOR_RETENTION_MS = 14 * 24 * 3_600_000;
+/**
+ * Retention for the stored books. The default stays 14 days. NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS may raise it (whole days, 14..90)
+ * so a pre-registered study can still read its training data when its verdict is due; anything else is ignored and the default applies.
+ * Raising it grows the state database (and every backup copy of it), so the owner sets it deliberately after checking disk headroom.
+ */
+export function researchOrderBookRetentionMs(env: NodeJS.ProcessEnv): number {
+  const raw = env.NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS;
+  if (raw == null || !/^\d{2}$/.test(raw.trim())) return ORDERBOOK_COLLECTOR_RETENTION_MS;
+  const days = Number(raw.trim());
+  return days >= 14 && days <= 90 ? days * 24 * 3_600_000 : ORDERBOOK_COLLECTOR_RETENTION_MS;
+}
 const CHUNK = 20;
 const MARKET_LIST_TTL_MS = 6 * 3_600_000;
 const PRUNE_EVERY_MS = 3_600_000;
@@ -65,6 +76,8 @@ export class ResearchOrderBookCollector {
       readonly now?: () => number;
       readonly skipMarkets?: () => ReadonlySet<string>;
       readonly sleep?: (ms: number) => Promise<void>;
+      /** How long books are kept; defaults to ORDERBOOK_COLLECTOR_RETENTION_MS. */
+      readonly retentionMs?: number;
     } = {},
   ) {}
 
@@ -133,7 +146,7 @@ export class ResearchOrderBookCollector {
       }
       if (this.now - this.lastPruneAt >= PRUNE_EVERY_MS) {
         this.lastPruneAt = this.now;
-        try { this.sink.pruneOrderBookSamplesBefore(targets, this.now - ORDERBOOK_COLLECTOR_RETENTION_MS); } catch { this.failures += 1; }
+        try { this.sink.pruneOrderBookSamplesBefore(targets, this.now - (this.options.retentionMs ?? ORDERBOOK_COLLECTOR_RETENTION_MS)); } catch { this.failures += 1; }
       }
       this.rounds += 1;
       this.samplesStored += stored;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ORDERBOOK_COLLECTOR_RETENTION_MS, ResearchOrderBookCollector, researchOrderBookCollectorEnabled } from "./researchOrderBookCollector";
+import { ORDERBOOK_COLLECTOR_RETENTION_MS, ResearchOrderBookCollector, researchOrderBookCollectorEnabled, researchOrderBookRetentionMs } from "./researchOrderBookCollector";
 
 const NOW = 1_000_000_000_000;
 const book = (market: string, timestamp: number) => ({ market, timestamp, total_ask_size: 10, total_bid_size: 12, orderbook_units: [{ ask_price: 101, bid_price: 100, ask_size: 1, bid_size: 2 }, { ask_price: 102, bid_price: 99, ask_size: 3, bid_size: 4 }] });
@@ -30,6 +30,21 @@ describe("research all-KRW order-book collector", () => {
     assert.equal(rounds[0]![0]!.sample.bidSize5, 6);
     assert.equal(pruned[0]!.cutoff, 1_000_000_000_000 - ORDERBOOK_COLLECTOR_RETENTION_MS);
     assert.deepEqual({ ...collector.status() }, { rounds: 1, markets: 46, samplesStored: 45, failures: 0, rejected: 0, lastRoundAt: NOW });
+  });
+
+  it("retention is 14 days unless the owner sets 14..90 whole days; a custom value reaches the prune cutoff", async () => {
+    const DAY = 24 * 3_600_000;
+    assert.equal(researchOrderBookRetentionMs({}), 14 * DAY);
+    assert.equal(researchOrderBookRetentionMs({ NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS: "60" }), 60 * DAY);
+    assert.equal(researchOrderBookRetentionMs({ NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS: "90" }), 90 * DAY);
+    for (const bad of ["13", "91", "7", "abc", "60.5", "-60", "", "060", "1e2", " "]) assert.equal(researchOrderBookRetentionMs({ NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS: bad }), 14 * DAY, `ignores ${JSON.stringify(bad)}`);
+    const pruned: number[] = [];
+    const collector = new ResearchOrderBookCollector({
+      appendOrderBookRound: (rows) => ({ stored: rows.length, rejected: 0 }),
+      pruneOrderBookSamplesBefore: (_m, cutoff) => { pruned.push(cutoff); return 0; },
+    }, { fetchImpl: fakeFetch(["KRW-A"]), now: () => NOW, sleep: async () => undefined, retentionMs: 60 * DAY });
+    await collector.collectOnce();
+    assert.equal(pruned[0], NOW - 60 * DAY);
   });
 
   it("keeps an unchanged (old-timestamp) book at the observation time, and rejects future and wrong-market books", async () => {
