@@ -2796,7 +2796,7 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: REPAIRING_FRESH_VALIDATOR_FINDING
+  status: P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
@@ -2830,11 +2830,11 @@ current_ops_release_downstream_dispatch_20261021:
     p1: 1
     p2: 0
     details: "P1: the run query emits [id,status,event] but the shell read list did not bind those fields to candidate_event, causing an unbound variable under set -u for Cloudflare candidates."
-  prior_repair_commit: 2a88f66d29e60b15949529d1523f7622035efa7d
-  prior_repair_test_note: "The prior 14/14 focused tests apply to source commit 2a88f66d29e60b15949529d1523f7622035efa7d; the run-event field binding repair is not yet tested or committed."
-  validation: "Fresh review on PR head f01215505a84cd61779663e1f7068ed5abbf5c55 returned P0=0/P1=1/P2=0. Exact-head CI was still running; current code has a field-binding defect in the new event parsing. Repair and focused retest are pending. Protected main c8148d7e61dd3be0763577b1c736331ab27c56ec remains merged via 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3."
+  repair_commit: 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf
+  repair_validation: "On exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. TSV run fields now emit and bind exactly [id,status,event]; pending expected jobs are active owners; active Cloudflare workflow_dispatch cannot suppress without proven input identity; completed Promote requires production lineage of MERGED_MAIN. Final AIPOS-only successor exact-head checks and fresh review are pending."
+  validation: "Fresh review on predecessor f01215505a84cd61779663e1f7068ed5abbf5c55 returned P0=0/P1=1/P2=0 for a TSV run-event binding mismatch. Fixed on exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf; focused tests 14/14 and diff check pass on that SHA. Prior f012 exact-head checks are historical after this repair. Protected main c8148d7e61dd3be0763577b1c736331ab27c56ec remains merged via 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3."
   formal_validator: PENDING
-  next: "Fix the TSV read contract to bind candidate_event, add regression coverage, run focused tests on the committed source SHA, update AIPOS, then re-run exact-head CI/companions/review. Keep Draft; formal Validator, Audit, Release, and Oracle changes remain blocked."
+  next: "Commit/push this AIPOS evidence synchronization to the existing PR branch. Then verify the resulting exact head against protected main with all six workflows and fresh review; obtain a separate explicit non-author P0/P1/P2 Validator receipt before Audit. Keep Draft; no Audit/Release or Oracle overlap."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:
