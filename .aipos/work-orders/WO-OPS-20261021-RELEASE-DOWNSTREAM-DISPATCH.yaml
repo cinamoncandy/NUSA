@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_VALIDATOR
+status: EXACT_HEAD_CI_PASS_PENDING_FORMAL_VALIDATOR
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -31,4 +31,18 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next: "Protected main 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28 was merged locally as 3ece7ed8123a12db76b85d914cadb60a80e5035b; focused Release tests pass 14/14, AIPOS state key order/uniqueness and git diff --check pass. Local YAML/AIPOS validators remain unrun because dependencies are absent. Review the four-file net diff, commit and fast-forward the existing PR branch, then require fresh exact-head CI/companions and non-author Validator; keep Draft and do not re-enable Android workflow."
+validation_evidence:
+  exact_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
+  protected_main: 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28
+  workflows:
+    ci: 39525275016
+    actual_paper_runtime: 39525275029
+    capability_surface_guard: 39525275059
+    activation_rehearsal: 39525275089
+    transport_readiness: 39525275046
+    readonly_broker: 39525275053
+  workflow_result: "All six exact-head workflows completed success; CI validation, typecheck, build, coverage, and regression jobs passed."
+  focused_tests: "tests/autopilot-deterministic-audit-release.test.js: 14/14 PASS"
+  independent_review: "Fresh Codex review on exact head 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e: no major issues; this is not a formal severity-count Validator receipt."
+  formal_validator: PENDING
+next: "Obtain new exact-head CI and an explicit non-author P0/P1/P2 Validator receipt. Keep Draft, do not self-approve, and do not start Audit/Release or re-enable Android workflow until accepted."
