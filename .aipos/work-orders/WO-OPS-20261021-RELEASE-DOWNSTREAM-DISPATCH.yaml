@@ -138,7 +138,7 @@ validation_history:
   successor_local_validation: "On exact source tree d58ec8d9, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Fresh review of 996cee96 found P0=0/P1=0/P2=1 for unrelated backup base drift; restored here. New exact-head workflows and review are required after this AIPOS successor."
   previous_main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
   legacy_549_exact_head_checks: "Predecessor 549ffd685e87c745c87de94897da7370d7e15785 against base 345539210a96f9dd4292b848318043fe23afc7f4 passed all six workflows: CI 39560202430; PAPER 39560202557; Capability 39560202463; Activation 39560202453; Transport 39560202505; Read-only Broker 39560202451. Fresh Codex review was still running on that predecessor when protected main advanced to 55d723aada9dfcdb78293bbef30c3af2a6ac26f2. This main-sync successor therefore requires fresh exact-head workflows and review."
-  next: "All six workflows and fresh review passed on exact head 366ecbc0dc835ae16373b10fd5f75301e34c25c2. Formal non-author Validator with explicit P0/P1/P2 counts remains the next gate. This AIPOS receipt creates a successor; obtain exact-head checks and review on that successor, then request the formal Validator. Keep Draft; no Audit/Release/merge or Oracle overlap until separately authorized."
+  next: "Read PR #2844 head/base fresh from GitHub; on that exact head require all six workflows plus fresh non-author review, then formal Validator with explicit P0/P1/P2 counts and verdict. Do not insert another status-only commit between exact-head checks and Validator; if AIPOS changes create a new SHA, re-run checks on that SHA first. Keep Draft; no Audit/Release/merge or Oracle overlap until separately authorized."
 previous_successor_validation:
   exact_head: c76ceb78ade5f51baa4f2f577ab2d9421e8d1d78
   protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
@@ -192,6 +192,20 @@ predecessor_exact_head_validation_366ecbc0:
     readonly_broker: 39568437184
   workflow_result: "All six exact-head workflows completed success; strict AIPOS preflight, security, typecheck, build, regression and coverage passed."
   fresh_review: "Completed on exact 366ecbc0 with has_any_findings=false and has_unresolved_findings=false."
+  formal_validator: PENDING
+  oracle_current_main_runtime: UNVERIFIED
+predecessor_exact_head_validation_4c8a054:
+  exact_head: 4c8a054148d451ba7aa523b0163d04755606fd87
+  protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
+  workflows:
+    ci: 39570064871
+    actual_paper_runtime: 39570064762
+    capability_surface_guard: 39570064814
+    activation_rehearsal: 39570064811
+    transport_readiness: 39570064777
+    readonly_broker: 39570064733
+  workflow_result: "All six exact-head workflows completed success; CI strict AIPOS preflight, security, typecheck, build, tests, and coverage passed."
+  fresh_review: "Completed on exact 4c8a054 with has_any_findings=false and has_unresolved_findings=false."
   formal_validator: PENDING
   oracle_current_main_runtime: UNVERIFIED
 review_finding_d2cd97f5:
