@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: HANDOFF_P2_REPAIRED_PENDING_SUCCESSOR_EXACT_HEAD_VALIDATION
+status: CROSS_WORKORDER_AIPOS_BASE_REPAIRED_PENDING_SUCCESSOR_VALIDATION
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -102,13 +102,13 @@ validation_history:
     details: "P2: successful no-change Cloudflare Promote can be redispatched because production ancestry stays behind; AIPOS state base_sha was also stale (345539... instead of current main 55d723...)."
   previous_review_p2_repair: "Added exact apps/autopilot subtree equality as a successful no-change ownership proof and corrected current base_sha while preserving the historical base."
   earlier_review_p2_repair: "Corrected in successor 03617c511fa2c5634b0f8a9979033861e76b94e9: this already-pushed AIPOS-only duplicate-key repair must not be recommitted."
-  latest_reviewed_head: d58ec8d9b98220a0d2b6fcd2994f7efe295a3f80
+  latest_reviewed_head: 996cee961561ba4bd40ca0edbe14e0e49f1fb5d0
   latest_review_findings:
     p0: 0
     p1: 0
     p2: 1
-    details: "P2: this work order still told the recovering agent to commit/push the two P2 repairs already present in exact head d58ec8d9; proceed directly to validation."
-  review_p2_repair: "Removed the stale commit/push instruction; the two implementation repairs already exist in the branch. This AIPOS successor proceeds directly to exact-head validation without redundant branch churn."
+    details: "P2: unrelated current_ops_backup_retention_buckets_20261021.base_sha was changed to 55d723a while its active backup-retention work order still names base_commit 34553921. Restore the state pointer without changing that separate work order."
+  review_p2_repair: "Restored the unrelated backup-retention state base to 345539210a96f9dd4292b848318043fe23afc7f4, matching WO-OPS-20261021-BACKUP-RETENTION-BUCKETS. #2844's own base remains 55d723a."
   predecessor_473a7aaf_status: "AIPOS recovery guidance correction was committed and pushed as 473a7aaf5fd5a3f4acb946cbd98f943dcd8d83a5. Its fresh workflow/review status was not retrieved before protected main advanced; treat it as unverified and superseded by this main sync."
   latest_main_sync: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
   older_exact_head_checks:
@@ -135,7 +135,7 @@ validation_history:
       readonly_broker: 39562587911
     result: "All six exact-head workflows completed success, including strict AIPOS YAML preflight; historical after this handoff correction."
     review: "Fresh review on d58ec8d9 found P0=0 / P1=0 / P2=1, caused by this stale next instruction requesting redundant commits."
-  successor_local_validation: "On exact source tree d58ec8d9, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. New exact-head workflows and review are required after this AIPOS successor."
+  successor_local_validation: "On exact source tree d58ec8d9, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Fresh review of 996cee96 found P0=0/P1=0/P2=1 for unrelated backup base drift; restored here. New exact-head workflows and review are required after this AIPOS successor."
   previous_main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
   legacy_549_exact_head_checks: "Predecessor 549ffd685e87c745c87de94897da7370d7e15785 against base 345539210a96f9dd4292b848318043fe23afc7f4 passed all six workflows: CI 39560202430; PAPER 39560202557; Capability 39560202463; Activation 39560202453; Transport 39560202505; Read-only Broker 39560202451. Fresh Codex review was still running on that predecessor when protected main advanced to 55d723aada9dfcdb78293bbef30c3af2a6ac26f2. This main-sync successor therefore requires fresh exact-head workflows and review."
   next: "The two implementation P2 repairs are already present; do not recommit them. Verify the current successor against protected main, all six exact-head workflows, fresh non-author review and formal Validator P0/P1/P2 counts. Keep Draft; do not start Oracle overlap or Audit/Release/merge until all canonical gates and separate authorization are satisfied."
