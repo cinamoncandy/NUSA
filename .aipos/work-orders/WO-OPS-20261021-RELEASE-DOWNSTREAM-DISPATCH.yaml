@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: FORMAL_VALIDATOR_PENDING
+status: PENDING_SUCCESSOR_EXACT_HEAD_VALIDATION
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -213,3 +213,8 @@ review_finding_d2cd97f5:
   p1: 0
   p2: 1
   details: "P2: current_exact_head_validation contained predecessor 366ecbc0 evidence although next said the receipt commit produced an unvalidated successor. Renamed as predecessor validation; the 39195745 record is also explicitly historical."
+review_finding_4811dc6c:
+  p0: 0
+  p1: 0
+  p2: 1
+  details: "P2: both status fields said FORMAL_VALIDATOR_PENDING while the only recorded checks were for predecessor 4c8a054 and next required fresh exact-head gates. Set both to PENDING_SUCCESSOR_EXACT_HEAD_VALIDATION until this successor passes."
