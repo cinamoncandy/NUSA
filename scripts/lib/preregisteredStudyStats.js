@@ -80,6 +80,13 @@ function studentTUpperP(t, df) {
   return t >= 0 ? tail : 1 - tail;
 }
 
+/** The t value whose one-sided upper tail equals alpha (bisection): used to print the smallest mean excess that would have passed. */
+function studentTCritical(alpha, df) {
+  let lo = 0, hi = 1000;
+  for (let i = 0; i < 200; i += 1) { const m = (lo + hi) / 2; if (studentTUpperP(m, df) > alpha) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+
 /** mulberry32 generator, fixed 32-bit integer seed. */
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -110,4 +117,4 @@ function oneSidedTests(values, alpha, options) {
   return { ...s, tP, permP, pass: s.mean > 0 && tP < alpha && permP < alpha };
 }
 
-module.exports = { minimumCount, tradeNet, percentileRanks, compareCodes, upperMedian, cohortStats, studentTUpperP, mulberry32, signFlipP, oneSidedTests };
+module.exports = { minimumCount, tradeNet, percentileRanks, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, mulberry32, signFlipP, oneSidedTests };

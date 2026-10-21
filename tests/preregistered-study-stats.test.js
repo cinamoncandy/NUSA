@@ -56,3 +56,9 @@ test("both tests must pass; a zero sd or too few cohorts fails", () => {
   const weak = Array.from({ length: 30 }, (_, i) => 0.002 + (i % 2 ? 0.03 : -0.03));
   assert.equal(S.oneSidedTests(weak, 0.05 / 3, { flips: 20_000 }).pass, false);
 });
+
+test("the critical t inverts the tail and matches the design's ~2.2 at 29 df and alpha 0.0167", () => {
+  const c = S.studentTCritical(0.05 / 3, 29);
+  assert.ok(c > 2.1 && c < 2.3, String(c));
+  assert.ok(Math.abs(S.studentTUpperP(c, 29) - 0.05 / 3) < 1e-9);
+});
