@@ -12,13 +12,15 @@
 
 Exact-head CI run `39598885589` failed `tests/research-startup-recovery.test.js` at the production composition boundary: `competing=false` returned `FAIL_CLOSED` where `READY` is required; `competing=true` retained owner-preservation behavior. The cause was Cloud AI durability schema initialization mutating the shared SQLite schema after Research `prepareRecovery()` had captured schema-bound evidence.
 
-The local repair now initializes Cloud AI durability on the canonical `DatabaseSync` connection before Research composition and recovery preparation. The full-file `PRAGMA quick_check` remains in `SqliteDatabase` construction; research recovery remains before PAPER writer-lease acquisition. The regression asserts both AI durability schema tables exist when recovery evidence is prepared.
+The local repair initializes Cloud AI durability before Research composition and recovery preparation. The full-file `PRAGMA quick_check` remains in `SqliteDatabase` construction; research recovery remains before PAPER writer-lease acquisition. The regression asserts both AI durability schema tables exist when recovery evidence is prepared.
+
+A fresh adversarial review of head `602656747...` also found that a raw unscanned `DatabaseSync` could be passed as a caller-asserted verified shared connection. The local follow-up now records the canonical `SqliteDatabase` instance and exact connection in a private `WeakMap` only after the full-file check succeeds. Shared AI stores accept that database wrapper, resolve the unchanged registered connection through a read-only lookup, and reject raw, forged, or replaced connection inputs. The regression covers all three rejection paths.
 
 ## Validation on the uncommitted working tree
 
 - `pnpm build`: PASS
 - `tests/research-startup-recovery.test.js`: 19/19 PASS
-- `tests/paper-startup-lease-budget-2770.test.js`: 9/9 PASS
+- `tests/paper-startup-lease-budget-2770.test.js`: 10/10 PASS
 - `tests/paper-writer-lease-liveness.test.js`: 2/2 PASS
 - `pnpm run validate:full`: PASS
 - `pnpm run security:gate`: PASS

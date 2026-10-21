@@ -177,7 +177,7 @@ test("the canonical database open still performs the full integrity scan", () =>
 
 
 
-test("production AI stores share the one canonical full-scan connection and keep four scoped checks", () => {
+test("production AI stores share the one checked canonical connection and keep four scoped checks", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-shared-"));
   const filename = path.join(dir, "state.sqlite");
   let database;
@@ -186,8 +186,8 @@ test("production AI stores share the one canonical full-scan connection and keep
   try {
     const counts = countPreparedStatements(() => {
       database = new SqliteDatabase(filename);
-      calibration = new SqliteAiCalibrationDurableStore(filename, database.connection);
-      attribution = new SqliteAiOutcomeAttributionMemory(filename, database.connection);
+      calibration = new SqliteAiCalibrationDurableStore(filename, database);
+      attribution = new SqliteAiOutcomeAttributionMemory(filename, database);
     });
     assert.equal(counts.fullQuickCheck, 1, `expected exactly one canonical full scan, got ${JSON.stringify(counts.statements)}`);
     assert.equal(counts.quickCheck, 5, `expected one full plus four store-scoped checks, got ${JSON.stringify(counts.statements)}`);
@@ -195,7 +195,7 @@ test("production AI stores share the one canonical full-scan connection and keep
     assert.ok(counts.statements.some((sql) => /quick_check\('ai_calibration_durability_events'\)/i.test(sql)));
     assert.ok(counts.statements.some((sql) => /quick_check\('ai_outcome_attribution_memory_meta'\)/i.test(sql)));
     assert.ok(counts.statements.some((sql) => /quick_check\('ai_outcome_attribution_memory_events'\)/i.test(sql)));
-    assert.match(runtimeSource, /verifiedSharedSqliteConnection:\s*database\.connection/);
+    assert.match(runtimeSource, /verifiedSharedSqliteDatabase:\s*database/);
     assert.doesNotMatch(runtimeSource, /startupIntegrityAttestation/);
   } finally {
     attribution?.close();
@@ -220,9 +220,9 @@ test("pathname input cannot redirect a shared AI store away from the verified ca
   try {
     database = new SqliteDatabase(filename);
 
-    // A caller-controlled filename is ignored when the exact verified connection is supplied.
+    // A caller-controlled filename is ignored when the checked SqliteDatabase is supplied.
     // This is platform-independent and directly pins the production composition contract.
-    calibration = new SqliteAiCalibrationDurableStore(decoyPath, database.connection);
+    calibration = new SqliteAiCalibrationDurableStore(decoyPath, database);
     assert.equal(fs.existsSync(decoyPath), false, "shared mode must not open or create the supplied pathname");
     assert.equal(
       database.connection.prepare(
@@ -251,7 +251,7 @@ test("pathname input cannot redirect a shared AI store away from the verified ca
     fs.renameSync(filename, moved);
     replacement = new DatabaseSync(filename);
     replacement.exec("CREATE TABLE replacement_only(id INTEGER PRIMARY KEY)");
-    calibration = new SqliteAiCalibrationDurableStore(filename, database.connection);
+    calibration = new SqliteAiCalibrationDurableStore(filename, database);
 
     const replacementHasAiTable = replacement.prepare(
       "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='ai_calibration_durability_events'"
@@ -262,6 +262,37 @@ test("pathname input cannot redirect a shared AI store away from the verified ca
     replacement?.close();
     database?.close();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("shared AI stores reject caller-supplied SQLite connections without canonical full-file verification", () => {
+  const rawConnection = new DatabaseSync(":memory:");
+  const verifiedDatabase = new SqliteDatabase(":memory:");
+  const originalConnection = verifiedDatabase.connection;
+  const replacedDatabase = Object.create(Object.getPrototypeOf(verifiedDatabase));
+  Object.defineProperty(replacedDatabase, "connection", { value: rawConnection });
+  Object.defineProperty(verifiedDatabase, "connection", { value: rawConnection });
+  try {
+    assert.throws(
+      () => new SqliteAiCalibrationDurableStore(":memory:", rawConnection),
+      /shared AI calibration database has not passed canonical full-file quick_check/,
+    );
+    assert.throws(
+      () => new SqliteAiOutcomeAttributionMemory(":memory:", rawConnection),
+      /shared AI attribution database has not passed canonical full-file quick_check/,
+    );
+    assert.throws(
+      () => new SqliteAiCalibrationDurableStore(":memory:", replacedDatabase),
+      /shared AI calibration database has not passed canonical full-file quick_check/,
+    );
+    assert.throws(
+      () => new SqliteAiOutcomeAttributionMemory(":memory:", verifiedDatabase),
+      /shared AI attribution database has not passed canonical full-file quick_check/,
+      "replacing the connection after canonical verification must not retain shared-store trust",
+    );
+  } finally {
+    rawConnection.close();
+    originalConnection.close();
   }
 });
 

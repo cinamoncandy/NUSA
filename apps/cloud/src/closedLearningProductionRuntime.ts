@@ -134,7 +134,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // before research recovery preparation and the renewable PAPER writer lease: its schema
   // initialization must not invalidate prepared SQLite change-tracking evidence, and its startup
   // I/O must not starve the lease heartbeat.
-  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteConnection: database.connection });
+  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteDatabase: database });
 
   let longBarTickEvery = 1;
   researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });

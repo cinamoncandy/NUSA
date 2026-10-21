@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { sharedConnectionFromCheckedSqliteDatabase, type SqliteDatabase } from "./index";
 import { aiSha256, canonicalAiJson, isAiSha256 } from "../../contracts/src/aiInference";
 import type {
   AiAttributionEpisode,
@@ -120,9 +121,11 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
    */
   private cachedEpisodes = new Map<string, AiAttributionEpisode>();
 
-  public constructor(filename = ":memory:", verifiedSharedConnection?: DatabaseSync) {
-    this.connection = verifiedSharedConnection ?? new DatabaseSync(filename);
-    this.ownsConnection = verifiedSharedConnection == null;
+  public constructor(filename = ":memory:", verifiedSharedDatabase?: SqliteDatabase) {
+    const sharedConnection = verifiedSharedDatabase == null ? null : sharedConnectionFromCheckedSqliteDatabase(verifiedSharedDatabase);
+    if (verifiedSharedDatabase != null && sharedConnection == null) throw new Error("shared AI attribution database has not passed canonical full-file quick_check");
+    this.connection = sharedConnection ?? new DatabaseSync(filename);
+    this.ownsConnection = sharedConnection == null;
     try {
       if (this.ownsConnection) {
         this.connection.exec("PRAGMA foreign_keys = ON");

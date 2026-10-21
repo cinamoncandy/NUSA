@@ -80,6 +80,18 @@ export interface AppliedLedgerMarkerRepository {
 
 export interface TransactionRunner { transaction<T>(fn: () => T): T; }
 
+// Only SqliteDatabase construction can register a connection, and only after its canonical
+// full-file quick_check succeeds. Shared stores query this identity binding rather than trusting
+// a caller-provided claim that an arbitrary DatabaseSync has already been checked.
+const fullyCheckedSqliteDatabaseConnections = new WeakMap<object, DatabaseSync>();
+
+export function sharedConnectionFromCheckedSqliteDatabase(database: unknown): DatabaseSync | null {
+  if (database == null || (typeof database !== "object" && typeof database !== "function")) return null;
+  const checkedConnection = fullyCheckedSqliteDatabaseConnections.get(database as object);
+  if (checkedConnection == null || (database as { connection?: unknown }).connection !== checkedConnection) return null;
+  return checkedConnection;
+}
+
 export function ledgerKey(entry: PositionLedgerEntry): string { return `${entry.ts}|${entry.createdAt}|${entry.id}`; }
 const walletScopeId = (walletId: string, symbol: string): string => `${walletId}|${symbol}`;
 const strategyScopeId = (walletId: string, strategyId: string, symbol: string): string => `${walletId}|${strategyId}|${symbol}`;
@@ -134,6 +146,7 @@ export class SqliteDatabase implements TransactionRunner {
       this.migrationResult = runMigrations(this.connection, migrations);
       const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
       if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
+      fullyCheckedSqliteDatabaseConnections.set(this, this.connection);
     } catch (error) {
       this.connection.close();
       throw error;

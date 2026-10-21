@@ -2717,14 +2717,14 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
   pull_request: 2855
   base_sha: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
   latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
-  previous_exact_head: 602656747aa76c35372b50a41fc5b5fae6fee1d9
+  previous_exact_head: 07a364f710c011b152aff2239d79455c1356e262
   superseded_head: 2a5c7fdc417747ee42c7369881023aa021343667
-  finding: "Exact-head CI 39598885589 failed production startup recovery: competing=false expected READY but returned FAIL_CLOSED after Cloud AI durability schema initialization occurred on the shared canonical SQLite connection after prepareRecovery(). The competing=true case preserved fail-closed owner semantics."
-  repair: "Initialize Cloud AI durability stores on the canonical connection before composing Research and preparing recovery evidence. Keep prepareRecovery before PAPER lease acquisition; no recovery safety or readiness budget changes."
-  recovery_order_regression: "The production-path test asserts both AI durability schema tables exist before ResearchRecoveryCoordinator.recover() prepares evidence, and preserves competing=false READY plus competing=true owner preservation."
+  finding: "Fresh review on 602656747aa76c35372b50a41fc5b5fae6fee1d9 found raw unscanned DatabaseSync accepted by the public shared-store API. CI 39598885589 also found recovery evidence invalidated by Cloud AI schema initialization after prepareRecovery()."
+  repair: "Initialize Cloud AI before Research recovery preparation; shared stores accept only the unchanged connection resolved from a SqliteDatabase instance registered after canonical full-file quick_check."
+  regressions: "Recovery boundary observes both AI schema tables and preserves competing=false READY/competing=true owner semantics; shared store constructors reject raw, forged, and replaced database connections."
   test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
   validation_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-  validation: "After repair: pnpm build PASS; research-startup-recovery 19/19; paper-startup-lease-budget-2770 9/9; paper-writer-lease-liveness 2/2; validate:full PASS; security:gate PASS; git diff --check PASS. Exact-head CI run 39598885589 at the previous source failed 18/19 in the Research startup recovery test; all five companions passed there but are stale after this repair."
+  validation: "After local repairs: pnpm build PASS; research-startup-recovery 19/19; paper-startup-lease-budget-2770 10/10; paper-writer-lease-liveness 2/2; validate:full PASS; security:gate PASS; git diff --check PASS. Exact-head CI 39598885589 failed recovery ordering on 60265674; CI on 07a364f7 is stale for this local trust-boundary repair."
   next: "Commit and push to existing PR #2855. Require fresh exact-head CI and five companions, fresh review with unresolved P0/P1=0, and separate structured NUSA Validator ACCEPTED before Audit/Release. Keep Draft."
   safety:
     PAPER_ONLY: true

@@ -13,7 +13,7 @@ test("PAPER startup completes Cloud AI durability integrity work before writer-l
   const runtime = source.indexOf("const baseHandle = startCloudRuntime(");
 
   assert.ok(ai >= 0, "prebuilt Cloud AI runtime must be explicit");
-  assert.match(source.slice(ai, ai + 350), /verifiedSharedSqliteConnection:\s*database\.connection/, "the prebuilt Cloud AI runtime must reuse the exact canonical SQLite connection after its full integrity scan");
+  assert.match(source.slice(ai, ai + 350), /verifiedSharedSqliteDatabase:\s*database/, "the prebuilt Cloud AI runtime must reuse only the SqliteDatabase whose constructor completed the canonical full-file integrity scan");
   assert.ok(lease > ai, "Cloud AI durability must open/verify before the PAPER repository acquires its renewable lease");
   assert.ok(runtime > lease, "the canonical PAPER repository still owns the lease before runtime composition");
   assert.match(source.slice(runtime, runtime + 1000), /researchExperiments\?\.orchestrator,\s*cloudAiRuntime,/);

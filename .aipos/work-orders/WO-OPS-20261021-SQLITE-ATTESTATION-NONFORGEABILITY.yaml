@@ -10,17 +10,20 @@ base_branch: main
 base_commit: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
 latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
 implementation_branch: fix/sqlite-integrity-attestation-2770
-repair_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
+prior_storage_repair_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
+prior_recovery_order_head: 07a364f710c011b152aff2239d79455c1356e262
 authority_impact: none
 objective: "Close #2770's pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed."
 root_cause:
-  transition: "Cloud AI durability schema initialization -> prepared Research recovery evidence"
-  evidence: "Exact-head CI run 39598885589 failed tests/research-startup-recovery.test.js: competing=false expected READY but received FAIL_CLOSED; competing=true preserved existing fail-closed owner behavior. Local reproduction on 602656747aa76c35372b50a41fc5b5fae6fee1d9 reproduced 18/19. Cloud AI initialized two tables on the shared canonical connection after prepareRecovery(), invalidating the schema-bound evidence."
-  classification: "startup lifecycle ordering invalidated prepared recovery evidence"
+  transition: "unverified caller-supplied DatabaseSync -> scoped-only shared AI store integrity checks"
+  evidence: "Fresh exact-head review of 602656747aa76c35372b50a41fc5b5fae6fee1d9 showed that either AI store accepted a newly opened, never-full-scanned DatabaseSync as verified shared state. The same path was reachable through CloudAiRuntimeOptions. Separately, exact-head CI 39598885589 found Cloud AI schema initialization after Research prepareRecovery(); that startup-order failure is repaired locally and covered by a READY regression."
+  classification: "caller-asserted integrity provenance was not bound to canonical database verification"
 repair:
-  - "Create Cloud AI durability stores on the canonical SqliteDatabase connection before composing Research and preparing recovery evidence."
+  - "Keep the full-file quick_check in SqliteDatabase and register only that exact database instance/connection after success in a module-private WeakMap."
+  - "AI shared stores accept a SqliteDatabase wrapper, resolve only the registered unchanged connection through a read-only lookup, and reject raw, forged, or replaced connections."
+  - "Create Cloud AI durability stores before composing Research and preparing recovery evidence."
   - "Keep Research prepareRecovery() before PAPER writer lease acquisition; recovery pause/halt semantics remain after exclusive ownership."
-  - "Add a production-path regression that observes both AI durability schema tables before Research recovery evidence is prepared."
+  - "Add regressions that observe AI schema initialization before Research recovery preparation and reject unverified/raw/forged/replaced shared connections."
 prohibited:
   - bypassing_or_weakening_canonical_full_file_quick_check
   - weakening_store_scoped_checks_or_hash_chain_replay
@@ -29,7 +32,8 @@ prohibited:
   - live_or_real_authority_expansion
 acceptance:
   - "production startup prepares exactly one full-file quick_check plus four AI store-scoped quick_check statements"
-  - "production composition passes the exact canonical database.connection rather than a filename-derived proof"
+  - "production composition passes its canonical SqliteDatabase, whose connection identity was registered only after full-file quick_check"
+  - "raw, forged, and replaced shared-connection inputs cannot skip the canonical full-file quick_check"
   - "atomic rename/replacement of the original pathname cannot redirect a shared AI store"
   - "closing a shared AI store does not close the canonical connection"
   - "standalone AI stores still perform one full-file quick_check each"
@@ -47,5 +51,5 @@ safety:
 rollback: "Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation."
 test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
 validation_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-validation: "After repair on synchronized source 602656747aa76c35372b50a41fc5b5fae6fee1d9: pnpm build PASS; research-startup-recovery 19/19; paper-startup-lease-budget-2770 9/9; paper-writer-lease-liveness 2/2; validate:full PASS; security:gate PASS; git diff --check PASS."
-next: "Commit and push the minimal startup ordering repair to existing PR #2855. Prior exact-head CI/review is stale; require terminal exact-head CI, all five companions, fresh non-author review with P0/P1=0, and structured NUSA Validator ACCEPTED. Keep Draft."
+validation: "On uncommitted repair: pnpm build PASS; research-startup-recovery 19/19; paper-startup-lease-budget-2770 10/10 including raw/forged/replaced shared-DB rejection; paper-writer-lease-liveness 2/2; validate:full PASS; security:gate PASS; git diff --check PASS."
+next: "Commit and push the trust-boundary repair to existing PR #2855. CI/review on 07a364f7... is stale for this source; require fresh exact-head CI, all five companions, fresh non-author review with P0/P1=0, and structured NUSA Validator ACCEPTED. Keep Draft."
