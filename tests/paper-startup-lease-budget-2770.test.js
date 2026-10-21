@@ -301,8 +301,8 @@ test("shared AI stores reject caller-supplied SQLite connections without canonic
 test("shared verification trust survives wholesale CommonJS barrel export replacement", () => {
   // Reproduce the exact fresh-review attack in a clean process: load the public storage barrel,
   // replace require.cache[indexPath].exports wholesale, then require both AI-store module paths.
-  // The barrel must have already initialized the genuine consumers, so neither can capture the
-  // forged replacement resolver.
+  // Genuine constructors resolve trust in their shared lexical scope, so neither can capture
+  // the forged replacement resolver.
   const script = `
     const assert = require("node:assert/strict");
     const path = require("node:path");
@@ -312,8 +312,6 @@ test("shared verification trust survives wholesale CommonJS barrel export replac
     const calibrationPath = require.resolve(path.join(root, "dist", "packages", "storage", "src", "aiCalibrationDurability.js"));
     const attributionPath = require.resolve(path.join(root, "dist", "packages", "storage", "src", "aiOutcomeAttributionMemory.js"));
     const genuineStorage = require(indexPath);
-    assert.ok(require.cache[calibrationPath], "storage barrel must preload calibration durability before returning");
-    assert.ok(require.cache[attributionPath], "storage barrel must preload attribution memory before returning");
 
     const rawConnection = new DatabaseSync(":memory:");
     const checkedDatabase = new genuineStorage.SqliteDatabase(":memory:");
@@ -348,6 +346,46 @@ test("shared verification trust survives wholesale CommonJS barrel export replac
   `;
   const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
   assert.equal(result.status, 0, `CommonJS barrel replacement exploit must fail closed:\n${result.stdout}\n${result.stderr}`);
+});
+
+test("internal verifier cache replacement before bootstrap cannot admit unchecked shared connections", () => {
+  const script = `
+    const assert = require("node:assert/strict");
+    const path = require("node:path");
+    const { DatabaseSync } = require("node:sqlite");
+    const base = path.join(${JSON.stringify(root)}, "dist", "packages", "storage", "src");
+    const internalPath = path.join(base, "sqliteVerifiedSharedConnection.js");
+    const raw = new DatabaseSync(":memory:");
+    // Reproduce preloading/replacing the former internal boundary, even on a clean
+    // build where it no longer exists. Genuine constructors must ignore this entry.
+    let previous;
+    try { require(internalPath); previous = require.cache[internalPath]; }
+    catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
+    require.cache[internalPath] = { id: internalPath, filename: internalPath, loaded: true, exports: {
+      registerFullyCheckedSqliteDatabaseConnection: () => {},
+      sharedConnectionFromCheckedSqliteDatabase: () => raw,
+    }};
+    const { SqliteDatabase } = require(path.join(base, "index.js"));
+    const { SqliteAiCalibrationDurableStore } = require(path.join(base, "aiCalibrationDurability.js"));
+    const { SqliteAiOutcomeAttributionMemory } = require(path.join(base, "aiOutcomeAttributionMemory.js"));
+    const genuine = new SqliteDatabase(":memory:");
+    try {
+      for (const Store of [SqliteAiCalibrationDurableStore, SqliteAiOutcomeAttributionMemory]) {
+        for (const forged of [{}, raw, { connection: raw }]) {
+          assert.throws(() => new Store(":memory:", forged), /has not passed canonical full-file quick_check/);
+        }
+        const store = new Store(":memory:", genuine);
+        store.close();
+        assert.equal(genuine.connection.prepare("SELECT 1 AS ok").get().ok, 1);
+      }
+    } finally {
+      genuine.close(); raw.close();
+      if (previous) require.cache[internalPath] = previous;
+      else delete require.cache[internalPath];
+    }
+  `;
+  const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `internal module replacement must fail closed:\n${result.stdout}\n${result.stderr}`);
 });
 
 test("standalone AI durability stores retain their fail-closed full-file scans", () => {
