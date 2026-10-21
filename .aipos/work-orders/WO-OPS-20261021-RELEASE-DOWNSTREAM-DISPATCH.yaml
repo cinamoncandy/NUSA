@@ -1,12 +1,15 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+status: P1_REPAIRED_MAIN_ADVANCED_SYNCED_PENDING_FRESH_EXACT_HEAD_VALIDATION
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
 base_branch: main
-base_commit: e106bdbd62c92278d1835722f4ada1c31762ceb7
-main_sync_commit: 246265c05b45af709de11274476100a54201671a
+base_commit: c8148d7e61dd3be0763577b1c736331ab27c56ec
+main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
+previous_main_sync_commits:
+  - 246265c05b45af709de11274476100a54201671a
+  - 3ece7ed8123a12db76b85d914cadb60a80e5035b
 implementation_branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 authority_impact: deployment-control
 finding: "Deterministic Audit/Release run 39469748838 canonically merged PR #2818 and recovered exact-main CI, then failed only because its post-merge downstream step unconditionally workflow_dispatch'ed android-stable-release-trigger.yml while that workflow was intentionally disabled_manually; GitHub returned HTTP 422."
@@ -53,5 +56,5 @@ validation_history:
   repair: "Dedupe now queries exact-main run jobs and requires the workflow-specific applicable job to be active or completed success; skipped job conclusions do not qualify."
   focused_tests: "14/14 PASS after repair; git diff --check PASS."
   previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
-  oracle_main_release: "Run 39527382516 is the single existing canonical Oracle deployment for exact main e106bdbd62c92278d1835722f4ada1c31762ceb7; it was still running at the time of this AIPOS update."
-next: "Push this P1 repair and synchronized AIPOS, then require fresh exact-head CI and companions plus an explicit non-author P0/P1/P2 Validator. Keep Draft. Do not begin Audit/Release or re-enable Android workflow before acceptance; do not overlap Oracle deployment 39527382516."
+  oracle_main_release: "Run 39527382516 failed closed at pre-activation exact-main recheck: it requested e106bdbd62c92278d1835722f4ada1c31762ceb7 while protected main had advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec. No stale activation occurred."
+next: "Protected main c8148d7e61dd3be0763577b1c736331ab27c56ec is merged into the existing branch as 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3. Push the latest-main sync with the P1 repair and AIPOS, then require fresh exact-head CI/companions and an explicit non-author P0/P1/P2 Validator. Keep Draft. No Audit/Release, workflow re-enable, or overlapping Oracle release before the exact-main release path is clear."

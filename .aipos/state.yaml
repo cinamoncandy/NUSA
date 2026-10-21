@@ -2796,22 +2796,23 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+  status: P1_REPAIRED_MAIN_ADVANCED_SYNCED_PENDING_FRESH_EXACT_HEAD_VALIDATION
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  base_sha: e106bdbd62c92278d1835722f4ada1c31762ceb7
+  base_sha: c8148d7e61dd3be0763577b1c736331ab27c56ec
   previously_validated_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
   previous_successor_head: dd355eebd02c6e90d9549e89adb93531359a22f0
-  latest_main_sync: e106bdbd62c92278d1835722f4ada1c31762ceb7
-  previous_main_sync_commit: 3ece7ed8123a12db76b85d914cadb60a80e5035b
-  main_sync_commit: 246265c05b45af709de11274476100a54201671a
+  latest_main_sync: c8148d7e61dd3be0763577b1c736331ab27c56ec
+  earlier_main_sync_commit: 3ece7ed8123a12db76b85d914cadb60a80e5035b
+  previous_main_sync_commit: 246265c05b45af709de11274476100a54201671a
+  main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
   finding: "Audit/Release 39469748838 merged #2818 and recovered post-merge CI, then failed because Android Stable Release Trigger was disabled_manually while the Release step unconditionally workflow_dispatch'ed it."
   repair: "Preserved one deterministic Release engine; optional disabled Android trigger is skipped without enabling it, required downstreams remain fail-closed, and active exact-main owners suppress duplicate dispatch."
   validator_finding: "Fresh exact-head Codex review on 45ef8302f693edcd0eb9ef14e4a6797b371eff0e identified P1: completed successful workflow_run wrappers may have all guarded jobs skipped after failed CI and must not suppress direct downstream dispatch."
   repair_detail: "Downstream dedup now fetches each exact-main run's jobs and suppresses dispatch only when the explicitly named applicable job is queued/in-progress/waiting/requested or completed success; skipped jobs and wrapper-level success alone are not owners."
-  validation: "Implementation on this branch has 14/14 focused deterministic Audit/Release tests and git diff --check PASS. Prior exact-head evidence on 5bd0bcb is historical; current-head CI/companions and fresh review are pending. Oracle exact-main PAPER release run 39527382516 for e106bdbd62c92278d1835722f4ada1c31762ceb7 is independently in progress. Formal P0/P1/P2 Validator receipt remains pending."
-  next: "Push the skipped-job dedupe repair with synchronized AIPOS evidence; require fresh exact-head CI/companions and non-author Validator on the new SHA. Keep Draft and do not start Audit/Release until accepted. Continue observing the existing single Oracle run; do not start another deployment."
+  validation: "P1 implementation is present and focused deterministic Audit/Release tests pass 14/14 with git diff --check PASS. Protected main advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec and is merged via 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3; earlier exact-head evidence is historical. Oracle run 39527382516 for e106bdbd was stopped before activation by its exact-main recheck after main advanced to c8148d7e; no stale deployment occurred. Fresh current-head CI/companions/review and formal Validator are pending."
+  next: "Push this latest-main sync with the skipped-job dedupe repair and AIPOS; require fresh exact-head CI/companions and non-author Validator. Keep Draft and do not start Audit/Release until accepted. Do not overlap Oracle releases."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:
