@@ -7,7 +7,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("product v5 keeps the four primary jobs literal and glanceable", () => {
   const contract = read("src/navigationContract.ts");
-  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "Futures", "More"\]/);
   const app = read("App.tsx");
   assert.match(app, /<PrimaryNavigation/);
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);

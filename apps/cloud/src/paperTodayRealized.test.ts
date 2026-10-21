@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PaperAccountPosition, PaperFillRecord } from "./paperTradingExecutionLoop";
-import { computeTodayRealizedPnlKrw } from "./paperTodayRealized";
+import { computeLimitReachedAt, computeTodayRealizedPnlKrw } from "./paperTodayRealized";
 
 const NOW = Date.UTC(2026, 9, 14, 6, 0, 0); // 15:00 KST
 const fill = (id: string, side: "BUY" | "SELL", quantity: number, price: number, fee: number, filledAt: number): PaperFillRecord =>
@@ -39,5 +39,26 @@ describe("today's realized PAPER P&L (display only)", () => {
     assert.equal(computeTodayRealizedPnlKrw([fill("s", "SELL", 1, 110, 0, NOW - 1_000)], held(0), NOW), null);
     assert.equal(computeTodayRealizedPnlKrw([fill("b", "BUY", 1, Number.NaN, 0, NOW - 1_000)], held(1), NOW), null);
     assert.equal(computeTodayRealizedPnlKrw([], [], Number.NaN), null);
+  });
+});
+
+describe("when today's loss streak reached the limit (display only)", () => {
+  // n losing round trips, one minute apart, newest ending a minute before NOW; then optionally one winning trip before them.
+  const losses = (n: number, start = NOW - 60_000 * (n + 1)) => Array.from({ length: n }, (_, i) => [
+    fill(`b${i}`, "BUY", 1, 100, 0, start + i * 60_000), fill(`s${i}`, "SELL", 1, 99, 0, start + i * 60_000 + 1_000),
+  ]).flat();
+  it("returns the fill of the loss that reached the limit, not a later loss of the same streak", () => {
+    const fills = losses(4);
+    const third = fills[5]!.filledAt;
+    assert.equal(computeLimitReachedAt(fills, NOW, 4, 3), third);
+    assert.equal(computeLimitReachedAt(losses(3), NOW, 3, 3), losses(3)[5]!.filledAt);
+  });
+  it("answers only when the fills agree with the gateway's streak count", () => {
+    assert.equal(computeLimitReachedAt(losses(3), NOW, 2, 3), null, "below the limit");
+    assert.equal(computeLimitReachedAt(losses(2), NOW, 3, 3), null, "fewer sells than the streak");
+    assert.equal(computeLimitReachedAt(losses(4), NOW, 3, 3), null, "a fourth loss the gateway did not count");
+    const winLast = [...losses(3), fill("bw", "BUY", 1, 100, 0, NOW - 30_000), fill("sw", "SELL", 1, 120, 0, NOW - 20_000)];
+    assert.equal(computeLimitReachedAt(winLast, NOW, 3, 3), null, "the newest sell is a win");
+    assert.equal(computeLimitReachedAt([fill("s", "SELL", 1, 99, 0, NOW - 1_000)], NOW, 3, 3), null, "inconsistent ledger");
   });
 });

@@ -13,6 +13,7 @@ export function legacySurfaceForPrimary(destination: PrimaryDestination): Legacy
       return "Home";
     case "Paper":
     case "Live":
+    case "Futures":
     case "More":
       return null;
   }

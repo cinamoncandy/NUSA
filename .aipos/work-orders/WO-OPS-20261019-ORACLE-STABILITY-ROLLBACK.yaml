@@ -1,0 +1,76 @@
+id: WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK
+title: "Prevent false Oracle stability rollback and converge Autopilot identity on rollback"
+status: IN_PROGRESS
+priority: P0
+owner: nusa-server-automation
+repository: cinamoncandy/NUSA
+issue: 2770
+base_branch: main
+base_commit: 4027b2c82c79a24543fe1f739d7f0e9b0e2d6a0b
+implementation_branch: fix/oracle-readiness-route-proof-2770
+authority_impact: none
+objective: "Keep the existing 180-second fail-closed Oracle post-activation soak while tolerating bounded startup event-loop stalls after initial readiness, and make rollback converge the existing Autopilot service to the rollback release when that release supports it."
+incident:
+  release_run: 39242644208
+  source_sha: 91db289a392f08aaf367cc15bec16f852d2b4edb
+  observed_at_utc: "2026-10-19T11:24:39Z"
+  evidence: "Initial authenticated PAPER readiness PASS after 210 attempts, Autopilot readiness PASS, then the first soak readiness probe failed after 3 attempts with phase SUPERVISOR_ACTIVE_LISTENER_BOUND and `readiness request timed out`. Journal showed /ready 200 immediately before/after the failed client window. Canonical rollback restored 83bedc35, but nusa-autopilot.service retained cwd under rejected 91db289a until an explicit bounded restart converged it."
+root_cause:
+  transition: "initial PAPER+Autopilot readiness -> post-activation stability proof -> rollback convergence"
+  cause: "The soak gave authenticated /ready only a 5-second total retry window while retaining a 2-second per-request timeout. The small Oracle host can remain listener-bound but event-loop-stalled longer than that during startup. Rollback then passed legacy_ok=true unconditionally, so a rollback release that already has the canonical Autopilot unit did not restart Autopilot and could leave candidate code resident after current moved back."
+  bounded_fix: "Keep 2-second individual probes and the 180-second soak, but give soak /ready a 30-second retry window. Derive rollback legacy mode from whether the rollback release actually contains the canonical Autopilot unit, restarting it for modern releases and preserving legacy compatibility otherwise."
+scope:
+  - deploy/oracle/nusa-release-step.sh
+  - tests/oracle-paper-release-workflow.test.js
+  - .aipos/work-orders/WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK.yaml
+prohibited:
+  - removing_or_short_circuiting_post_activation_stability_soak
+  - weakening_authenticated_readiness_or_mobile_route_contract
+  - changing_writer_lease_ttl_ownership_or_takeover
+  - direct_database_mutation_or_historical_rewrite
+  - adding_duplicate_runtime_scheduler_watchdog_or_control_plane
+  - live_or_real_authority_expansion
+acceptance:
+  - initial and post-activation readiness remain authenticated and fail-closed
+  - post-activation /ready retry window is exactly 30 seconds and remains inside the 180-second stability soak
+  - individual readiness request timeout remains 2 seconds
+  - modern rollback release with nusa-autopilot.service restarts Autopilot from the rollback release
+  - legacy rollback release without that unit preserves existing disable/remove compatibility
+  - exact-head CI and fresh non-author validation pass before Audit/Release
+  - after governed merge and reviewed root-helper installation, exact-main Oracle release completes the full 180-second soak without identity drift
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+rollback: "Revert the helper/test commit and reinstall only a reviewed helper. Do not directly edit runtime state or database evidence."
+validation: "Natural Oracle PAPER release run 39242644208 reproduced the failure and rollback. Focused helper validation is required before commit; exact-head CI and independent review remain required."
+next: "The bounded route-proof change and focused tests are complete. Revalidate this successor exact head and obtain a fresh non-author review; after zero actionable findings, proceed to deterministic Audit/Release. After merge, install the exact reviewed root helper before another canonical Oracle release."
+follow_up_incident:
+  release_run: 39471191806
+  source_sha: 4027b2c82c79a24543fe1f739d7f0e9b0e2d6a0b
+  observed_at_utc: "2026-10-20T18:19:53Z"
+  result: "Candidate authenticated /ready returned 200 and the first mobile owner route returned 405. The second route /v1/mobile/session/password/change exhausted the shared 15-second route-proof deadline with a transport timeout, triggering the canonical rollback. Previous release rollback then passed authenticated readiness and Autopilot readiness."
+follow_up_root_cause:
+  transition: "authenticated /ready PASS plus first owner-route 405 -> second owner-route proof -> activation acceptance"
+  cause: "The initial readiness route proof had only 15 seconds total across both required routes, and the candidate host event loop stalled while recovering the large persisted state. The second route did not complete its 405 proof before the shared deadline, despite later journal evidence of 405 responses."
+  bounded_fix: "Give the initial and post-activation mobile owner route proofs the existing maximum bounded 30-second window. Preserve per-request timeout, exact expected 405 statuses, the 180-second soak, fail-closed rollback, and all authority boundaries."
+follow_up_scope:
+  - scripts/oracle-readiness-check.js
+  - deploy/oracle/nusa-release-step.sh
+  - tests/oracle-readiness-check.test.js
+  - tests/oracle-paper-release-workflow.test.js
+  - .aipos/work-orders/WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK.yaml
+  - .aipos/state.yaml
+  - pnpm-workspace.yaml
+  - pnpm-lock.yaml
+  - docs/operations/oracle-p1-008-runbook.md
+  - tests/oracle-paper-release-workflow.test.js
+follow_up_acceptance:
+  - initial and post-activation shared owner-route proof windows are exactly 30 seconds and remain bounded
+  - each required owner route still must return HTTP 405; wrong status and timeout fail closed
+  - authenticated readiness, per-request timeout, 180-second soak, release identity and rollback semantics remain unchanged
+  - patched vite and launch-editor versions clear current high advisories without security-gate exceptions
+  - exact-head CI and fresh non-author validation pass before Audit/Release
+  - exact-main deployment keeps protected main SHA, PAPER ledger identity, writer ownership, and Autopilot identity continuous
+follow_up_validation: "Release 39471191806 failed at the initial mobile_owner_route stage after 15 seconds; exact-source CI, backup, stage, preflight, and exact-main recheck passed. Candidate reached /ready and owner-route checks, then canonical rollback restored 1b4a2429. The prior release passed rollback readiness and Autopilot readiness. Route-proof patch on 0dddbad6 completed focused tests 42/42 and exact-head CI/companions PASS; fresh Codex review identified and this branch corrected an AIPOS next-action mismatch. Exact-head CI on 39514441549 then exposed current high advisories in existing vite 7.3.6 and launch-editor 2.14.1 dependencies; this successor pins patched 7.3.7 and 2.14.2. Local security gate, typecheck, validate:full, AIPOS validators, and focused tests 42/42 PASS. Fresh Codex review of 453ca5a found a P2 because this runbook still documented a 15-second route window; this successor documents initial and soak request/retry settings separately and adds a runbook contract regression. Fresh exact-head CI and review are required."
