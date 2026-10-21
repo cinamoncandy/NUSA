@@ -39,3 +39,7 @@ addendum_2026_10_20_ridgeline:
 # across it, a real new PAPER order throws lime sparks, and it cools to amber when buying is held. It draws only the counts the
 # screen already has and invents nothing. The risk-gate (limit) state and 기록 keep the ridgeline, which shows where the day stopped.
 # Display only; no limit, threshold or authority changed. Not seen on a real device (Skia rendering is unverified here).
+# Addendum (futures snapshot): heartbeat gets an optional display-only `futures` field (positions, dayLossRatio,
+# consecutiveLosses) with a validator that drops a malformed value on its own. The server does not emit it: the futures
+# engine has not traded, so nothing is invented and the 선물 tab keeps showing "시작 전". The app reads it from the fresh
+# heartbeat only. No limit, threshold or authority changed.
