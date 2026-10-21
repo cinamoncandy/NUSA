@@ -1,11 +1,11 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_VALIDATOR
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
 base_branch: main
-base_commit: 4027b2c82c79a24543fe1f739d7f0e9b0e2d6a0b
+base_commit: 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28
 implementation_branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 authority_impact: deployment-control
 finding: "Deterministic Audit/Release run 39469748838 canonically merged PR #2818 and recovered exact-main CI, then failed only because its post-merge downstream step unconditionally workflow_dispatch'ed android-stable-release-trigger.yml while that workflow was intentionally disabled_manually; GitHub returned HTTP 422."
@@ -31,4 +31,4 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next: "Commit exact implementation -> fresh exact-head CI/companions -> fresh non-author Validator -> deterministic Audit/Release. Do not re-enable the Android workflow as part of this repair."
+next: "Protected main 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28 was merged locally as 3ece7ed8123a12db76b85d914cadb60a80e5035b; focused Release tests pass 14/14, AIPOS state key order/uniqueness and git diff --check pass. Local YAML/AIPOS validators remain unrun because dependencies are absent. Review the four-file net diff, commit and fast-forward the existing PR branch, then require fresh exact-head CI/companions and non-author Validator; keep Draft and do not re-enable Android workflow."
