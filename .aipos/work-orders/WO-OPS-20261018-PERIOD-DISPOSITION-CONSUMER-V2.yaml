@@ -170,4 +170,31 @@ latest_main_sync_20261020:
   release: PENDING
   runtime_activation: PROHIBITED
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-next: "Finish full local validation of the 269d28c7a71390715c869864c968f658684db5bd + #2808 + AIPOS candidate tree; compare its exact Git tree to a GitHub tree rooted at current protected main; update only the existing PR branch with expected old head 1c2214328b657342ce0273d74c77a3efe86080cb if both main and PR refs remain unchanged. Then require six fresh exact-head workflows, zero unresolved threads, and formal non-author P0/P1/P2 Validator. Keep Draft and do not activate markPendingIneligible in production."
+latest_main_sync_20261021:
+  previous_pr_head: 68226b2df7090485d3d79377e67f2f4aba8b4ed7
+  protected_main: 5084744b4b5b6f2b02e558b867281528584c8098
+  merge_base: 269d28c7a71390715c869864c968f658684db5bd
+  main_ahead_commits: 74
+  overlap_paths: [.aipos/state.yaml, apps/cloud/src/runtime.ts]
+  candidate_tree_pre_metadata_refresh: c95efb425eff0738b44ba9f602204cbed0226ec1
+  assessment: "Three-way merge of current protected main into the existing PR head completed without conflicts. runtime.ts preserves current-main display/read-only additions and the PR sourceRuntimeSha provenance binding; no production markPendingIneligible caller is present. AIPOS current-state metadata is refreshed before the one final validation/CI cycle to avoid known stale-evidence P2 churn."
+  validation: LOCAL_GATES_PASS_COMPILE_RESOURCE_LIMIT
+  frozen_lockfile_install: PASS
+  diff_check: PASS
+  aipos_yaml_provenance_drift_conformance: PASS
+  safety_tier: PASS_9_OF_9
+  validate_full: PASS
+  architecture_source_validators: PASS
+  desktop_runtime_validator: NOT_RUN_NO_DIST
+  root_typecheck: TIMEOUT_RESOURCE_601S_NO_DIAGNOSTICS
+  narrowed_changed_surface_typecheck: TIMEOUT_RESOURCE_300S_NO_DIAGNOSTICS
+  build_and_full_isolated_suite: DEFER_TO_FRESH_EXACT_HEAD_CI_DUE_LOCAL_954MIB_HOST_COMPILER_BOTTLENECK
+  validation_note: "No TypeScript diagnostic, source failure, assertion weakening, dependency relaxation, or safety-gate bypass was observed. Exact-head CI remains mandatory and is the canonical full compile/test result for this synchronized tree."
+  exact_head_ci: PENDING_POST_SYNC
+  exact_head_companion_workflows: PENDING_POST_SYNC
+  formal_validator: PENDING_POST_SYNC
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next: "Complete fresh local validation of the 5084744b4b5b6f2b02e558b867281528584c8098 + 68226b2df7090485d3d79377e67f2f4aba8b4ed7 candidate; if protected main and PR head remain unchanged, create one exact-parent merge commit and update only the existing PR branch. Then require six fresh exact-head workflows, zero unresolved threads, and a formal non-author P0/P1/P2 Validator. Keep Draft until Validator ACCEPTED and do not activate markPendingIneligible in production."

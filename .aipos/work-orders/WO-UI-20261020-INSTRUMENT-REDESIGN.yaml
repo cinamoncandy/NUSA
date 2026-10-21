@@ -17,3 +17,19 @@ next:
   - "After #2822-#2824 merge and main CI is green: deploy main, verify with oracle-host-diagnose health_only."
   - "Then run futures-regime-study once (manifest committed in #2816) and commit the printed result."
 not_changed: "No limit, threshold, capital or server value. PAPER only, liveAuthority=NONE, aiAuthority=ZERO_AUTHORITY."
+addendum_2026_10_20_always_on_and_icon:
+  - "PR #2831: the instrument design now renders in every Now state (InstrumentNow) and on Learning with or without funnel data; before, it showed only with the risk gate or funnel data."
+  - "App icon redrawn in the instrument language (white hairline N, panel corner ticks, one lime decision dot) via build/generate-nusa-appicon.js; Android vectors, launcher PNGs, desktop icons regenerated. Owner asked 2026-10-20 in chat. Not yet seen on a real device."
+addendum_2026_10_20_decision_terrain:
+  - "Owner reviewed four main motion graphic prototypes (scope, dial, ridgeline, 3D terrain; artifacts 125xoYybb4KLpFip21ww3e, A4b2zKhk3eCmDYXzt8hEyY, 8tTvnUZJh6y3F9UX29pAbD, CKeEP8jfSMmBAq7cU93awT) and chose the 3D decision terrain: '이걸로 하자'."
+  - "PR #2833: server display-only decisionTrace (decisions and PAPER orders per 5 minutes of the 09:00 KST window, 288 buckets, since for mid-day restarts). Not read by strategy, RISK or execution; pinned risk gateway untouched."
+  - "Follow-up PR: app DecisionTerrain (Skia, rAF loop at ~30 fps, reduce-motion still frame) replaces the heartbeat on Now and in the loss-limit gate view; heights only from the server trace, unobserved buckets drawn as ground, never as zero activity. Not yet seen on a real device."
+addendum_2026_10_20_ridgeline:
+  - "Owner replaced the 3D decision terrain with the ridgeline prototype (artifact 8tTvnUZJh6y3F9UX29pAbD): '능선으로 하고 다른 시안 보여줘'. The app's main motion graphic on Now is now DecisionRidge (stacked hairline hour lines, live scan, lime order points, amber lines after the loss-limit stop); the 3D terrain component, camera and projection were removed. The model (decisionTerrainModel) and the server decision trace (#2833) are unchanged."
+
+# Addendum (futures tab): a display-only "선물" primary tab (Home/Paper/Live/Futures/More). No futures state exists on the
+# server yet, so the app passes null and the screen honestly shows "시작 전" (nothing invented). Limits come from
+# PAPER_FUTURES_OWNER_LIMITS; no limit, threshold or authority changed. Not seen on a real device.
+# Addendum (gate dots): the 실거래 tab's readiness gates are one row of dots (filled = passed, hollow = checking, amber
+# breathing = blocked) that fill in left to right; a tap shows that gate's reason. Display only, no action; reduce-motion
+# shows one settled frame. Gate data and the "통과해도 실거래는 켜지지 않아요" note are unchanged. Not seen on a real device.

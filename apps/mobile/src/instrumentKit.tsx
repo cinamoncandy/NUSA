@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Canvas, Path, Skia } from "@shopify/react-native-skia";
 import { calmColors } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
@@ -22,18 +22,111 @@ export function useReducedMotion(): boolean | null {
   return reduced;
 }
 
-export function SectionLabel({ left, right = null }: { readonly left: string; readonly right?: string | null }) {
-  return <View style={styles.label}>
-    <Text style={[fieldFonts.mono, styles.labelLeft]}>{left}</Text>
-    {right == null ? null : <Text style={[fieldFonts.mono, styles.labelRight]}>{right}</Text>}
+/** Mono section heading. The hairline under it draws in from the left; `live` puts a pulsing dot before the right-hand text. */
+export function SectionLabel({ left, right = null, live = false }: { readonly left: string; readonly right?: string | null; readonly live?: boolean }) {
+  const reduced = useReducedMotion();
+  const [width, setWidth] = useState(0);
+  const draw = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced === null) return undefined;
+    if (reduced) { draw.setValue(1); return undefined; }
+    const anim = Animated.timing(draw, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [reduced, draw]);
+  // Scale about the left edge: scaleX around the centre plus a translateX that pins the left side.
+  const lineStyle = { transform: [{ translateX: draw.interpolate({ inputRange: [0, 1], outputRange: [-width / 2, 0] }) }, { scaleX: draw }] };
+  return <View style={styles.labelWrap} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
+    <View style={styles.label}>
+      <Text style={[fieldFonts.mono, styles.labelLeft]}>{left}</Text>
+      <View style={styles.labelRightRow}>
+        {live ? <LivePulse reducedMotion={reduced} /> : null}
+        {right == null ? null : <Text style={[fieldFonts.mono, styles.labelRight]}>{right}</Text>}
+      </View>
+    </View>
+    {width > 0 ? <Animated.View pointerEvents="none" style={[styles.labelLine, lineStyle]} /> : null}
   </View>;
 }
 
-export function Panel({ children, style }: { readonly children: React.ReactNode; readonly style?: StyleProp<ViewStyle> }) {
-  return <View style={[styles.panel, style]}>
+/** A small dot that breathes while the runtime is live. Still under reduce-motion. */
+export function LivePulse({ reducedMotion }: { readonly reducedMotion: boolean | null }) {
+  const v = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (reducedMotion !== false) { v.setValue(1); return undefined; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(v, { toValue: 0.25, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(v, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [reducedMotion, v]);
+  return <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.pulse, { opacity: v }]} />;
+}
+
+/** A Pressable that dips to 97% when pressed and springs back. Everything else (testID, role, label, style) passes through. */
+export function PressScale({ children, style, onPressIn, onPressOut, ...rest }: PressableProps) {
+  const reduced = useReducedMotion();
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (value: number) => { if (reduced === false) Animated.spring(scale, { toValue: value, speed: 40, bounciness: value === 1 ? 10 : 0, useNativeDriver: true }).start(); };
+  return <Animated.View style={{ transform: [{ scale }] }}>
+    <Pressable {...rest} style={style} onPressIn={(e) => { to(0.97); onPressIn?.(e); }} onPressOut={(e) => { to(1); onPressOut?.(e); }}>{children}</Pressable>
+  </Animated.View>;
+}
+
+export function Panel({ children, style, scan = false }: { readonly children: React.ReactNode; readonly style?: StyleProp<ViewStyle>; /** One bright scan line sweeps across the panel on entry (not under reduce-motion). */ readonly scan?: boolean }) {
+  const reduced = useReducedMotion();
+  const [panelWidth, setPanelWidth] = useState(0);
+  const sweep = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!scan || reduced !== false || panelWidth <= 0) return undefined;
+    sweep.setValue(0);
+    const anim = Animated.timing(sweep, { toValue: 1, duration: 700, delay: 250, easing: Easing.inOut(Easing.cubic), useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [scan, reduced, panelWidth, sweep]);
+  const k = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced === null) return undefined;
+    if (reduced) { k.setValue(1); return undefined; }
+    const anim = Animated.spring(k, { toValue: 1, speed: 24, bounciness: 14, delay: 120, useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [reduced, k]);
+  const grow = { opacity: k, transform: [{ scale: k.interpolate({ inputRange: [0, 1], outputRange: [3, 1] }) }] };
+  return <View style={[styles.panel, style]} onLayout={scan ? (e) => setPanelWidth(Math.round(e.nativeEvent.layout.width)) : undefined}>
     {children}
-    <View pointerEvents="none" style={[styles.tick, styles.tickTopLeft]} />
-    <View pointerEvents="none" style={[styles.tick, styles.tickBottomRight]} />
+    {scan && reduced === false && panelWidth > 0 ? <Animated.View pointerEvents="none" style={[styles.scan, { opacity: sweep.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 0] }), transform: [{ translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, panelWidth] }) }] }]} /> : null}
+    <Animated.View pointerEvents="none" style={[styles.tick, styles.tickTopLeft, grow]} />
+    <Animated.View pointerEvents="none" style={[styles.tick, styles.tickBottomRight, grow]} />
+  </View>;
+}
+
+const DECODE_GLYPHS = "▮▯░▒▓01/\\<>+=";
+/** Decodes a statement left to right in about 0.6 s: unresolved characters flicker through mono glyphs, then lock. Settled text under reduce-motion. */
+function useDecoded(text: string, reduced: boolean | null): string {
+  const [shown, setShown] = useState(text);
+  useEffect(() => {
+    if (reduced !== false) { setShown(text); return undefined; }
+    const total = text.length;
+    const started = Date.now();
+    const tick = () => {
+      const locked = Math.min(total, Math.floor(((Date.now() - started) / 600) * total));
+      setShown(text.split("").map((ch, i) => (i < locked || /\s/.test(ch) ? ch : DECODE_GLYPHS[Math.floor(Math.random() * DECODE_GLYPHS.length)])).join(""));
+      if (locked >= total) clearInterval(timer);
+    };
+    const timer = setInterval(tick, 40);
+    tick();
+    return () => clearInterval(timer);
+  }, [text, reduced]);
+  return shown;
+}
+
+function HeroLine({ text, style, reduced }: { readonly text: string; readonly style: StyleProp<TextStyle>; readonly reduced: boolean | null }) {
+  const shown = useDecoded(text, reduced);
+  // The real text reserves the layout (no rewrap while glyphs flicker); the decoded copy is drawn over it and stays hidden until the OS answers.
+  return <View>
+    <Text style={[style, { opacity: 0 }]}>{text}</Text>
+    <Text style={[style, StyleSheet.absoluteFill, reduced === null ? { opacity: 0 } : null]}>{shown}</Text>
   </View>;
 }
 
@@ -94,6 +187,19 @@ export function Heartbeat({ width, reducedMotion }: { readonly width: number; re
   </View>;
 }
 
+/** Fast entrance: fades up 10 px in 260 ms on the native driver, staggered by `index`. A reduce-motion user gets it settled at once. */
+export function Reveal({ index = 0, reducedMotion, children, style }: { readonly index?: number; readonly reducedMotion: boolean | null; readonly children: React.ReactNode; readonly style?: StyleProp<ViewStyle> }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reducedMotion === null) return undefined;
+    if (reducedMotion) { v.setValue(1); return undefined; }
+    const anim = Animated.timing(v, { toValue: 1, duration: 260, delay: index * 55, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [index, reducedMotion, v]);
+  return <Animated.View style={[style, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>{children}</Animated.View>;
+}
+
 export const instrumentType = StyleSheet.create({
   index: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 2 },
   heroLine: { color: calmColors.text, fontSize: 54, lineHeight: 58, fontWeight: "700", letterSpacing: -2 },
@@ -101,10 +207,15 @@ export const instrumentType = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  label: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 },
+  labelWrap: { marginBottom: 10 },
+  label: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 4 },
+  labelRightRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  labelLine: { height: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
+  pulse: { width: 6, height: 6, borderRadius: 3, backgroundColor: calmColors.order },
   labelLeft: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 1.2 },
   labelRight: { color: calmColors.text, fontSize: readableFont(11), letterSpacing: 1.2 },
   panel: { borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, padding: 14 },
+  scan: { position: "absolute", left: 0, top: 0, bottom: 0, width: 2, backgroundColor: calmColors.text, opacity: 0.9 },
   tick: { position: "absolute", width: 8, height: 8, borderColor: calmColors.text, opacity: 0.7 },
   tickTopLeft: { left: -1, top: -1, borderLeftWidth: 1, borderTopWidth: 1 },
   tickBottomRight: { right: -1, bottom: -1, borderRightWidth: 1, borderBottomWidth: 1 },
@@ -113,11 +224,12 @@ const styles = StyleSheet.create({
 });
 
 /** Screen opener of the instrument design: a mono index ("03 / 안전") over a large two-line statement. */
-export function InstrumentHero({ index, lines, label }: { readonly index: string; readonly lines: readonly { readonly text: string; readonly amber?: boolean }[]; readonly label?: string }) {
+export function InstrumentHero({ index, lines, label }: { readonly index: string; readonly lines: readonly { readonly text: string; readonly amber?: boolean; readonly color?: string }[]; readonly label?: string }) {
+  const reduced = useReducedMotion();
   return <View style={heroStyles.wrap}>
     <Text style={[fieldFonts.mono, instrumentType.index]}>{index}</Text>
     <View style={heroStyles.lines} accessible accessibilityRole="header" accessibilityLabel={label ?? lines.map((l) => l.text).join(" ")}>
-      {lines.map((l) => <Text key={l.text} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : null]}>{l.text}</Text>)}
+      {lines.map((l) => <HeroLine key={l.text} text={l.text} reduced={reduced} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]} />)}
     </View>
   </View>;
 }

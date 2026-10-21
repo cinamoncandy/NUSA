@@ -13,7 +13,7 @@ test("App shell routes the canonical four-destination PAPER/LIVE flow", () => {
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   assert.match(app, /activeTab === "More" \? <MoreMenuView/);
-  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "Futures", "More"\]/);
   assert.match(contract, /"Strategies"/);
   assert.doesNotMatch(contract, /PRIMARY_DESTINATIONS = \[[^\]]*"Market"/);
   assert.doesNotMatch(contract, /PRIMARY_DESTINATIONS = \[[^\]]*"Signals"/);
