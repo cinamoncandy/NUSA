@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: P1_REPAIRED_MAIN_ADVANCED_SYNCED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+status: P1_REPAIRED_SYNCED_AWAITING_POST_AIPOS_HEAD_VALIDATION
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -36,6 +36,19 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
+pre_aipos_successor_head_evidence:
+  exact_head: 1e92ca2f430dbeb638d95747e501d3e84575ce45
+  protected_main: c8148d7e61dd3be0763577b1c736331ab27c56ec
+  workflows:
+    ci: 39528843246
+    actual_paper_runtime: 39528843216
+    capability_surface_guard: 39528843247
+    activation_rehearsal: 39528843250
+    transport_readiness: 39528843256
+    readonly_broker: 39528843205
+  workflow_result: "All six exact-predecessor workflows completed success; historical after the AIPOS successor commit."
+  focused_tests: "tests/autopilot-deterministic-audit-release.test.js: 14/14 PASS; git diff --check PASS."
+  codex_review: "Exact-head review completed with no major issues and no findings in the review summary; no explicit P0/P1/P2 count receipt, so formal Validator remains pending."
 previous_validation_evidence:
   exact_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
   protected_main_at_that_validation: 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28
@@ -57,4 +70,4 @@ validation_history:
   focused_tests: "14/14 PASS after repair; git diff --check PASS."
   previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
   oracle_main_release: "Run 39527382516 failed closed at pre-activation exact-main recheck: it requested e106bdbd62c92278d1835722f4ada1c31762ceb7 while protected main had advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec. No stale activation occurred."
-next: "Protected main c8148d7e61dd3be0763577b1c736331ab27c56ec is merged into the existing branch as 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3. Push the latest-main sync with the P1 repair and AIPOS, then require fresh exact-head CI/companions and an explicit non-author P0/P1/P2 Validator. Keep Draft. No Audit/Release, workflow re-enable, or overlapping Oracle release before the exact-main release path is clear."
+next: "Commit/push this AIPOS evidence synchronization to the existing PR branch. Then verify the resulting exact head against current protected main, require all six exact-head workflows and a fresh review plus explicit non-author P0/P1/P2 Validator receipt. Keep Draft. No Audit/Release, workflow re-enable, or overlapping Oracle release before the exact-main release path is clear."
