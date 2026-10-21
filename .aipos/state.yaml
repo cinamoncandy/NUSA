@@ -2716,11 +2716,17 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
   issue: 2770
   pull_request: 2855
   base_sha: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
-  prior_head: 2e4597f58f685f7ae4b2009a7bca88d38bc68c43
-  finding: "The unresolved exact-head P1 allowed a structurally forged DatabaseSync-like object to mint a registered startup-integrity proof despite the separate forged-proof-object test."
-  repair: "Proof scans and database identity reads now call the native DatabaseSync prototype prepare method, which validates the real SQLite receiver; a focused regression covers forged issuer input."
-  validation: "pnpm build PASS; focused startup and writer-lease suites 13/13 PASS; validate:full PASS; security:gate PASS after the declared postinstall backport; direct source test rejects forged receiver and accepts a real in-memory DatabaseSync."
-  next: "Push to PR #2855, then require fresh exact-head CI and non-author validation; retain Draft/HOLD until acceptance, Audit, and Release."
+  repair_head: df02db557200c119cf2f2323b3d684d9579a2327
+  superseded_heads:
+    - 2e4597f58f685f7ae4b2009a7bca88d38bc68c43
+    - 4d8febb0b7faaf19797f1706024a30a00c0e255c
+    - 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4
+  finding: "Three successive non-author findings, one per exact head: a structurally forged DatabaseSync-like object minted a registered startup-integrity proof; DatabaseSync.prototype.prepare is writable and configurable, so replacing it around a single issuer call minted one too; and capturing that method at module load still trusted a method that had been replaced before the module loaded."
+  repair: "Issuance and identity reads call a native DatabaseSync.prototype.prepare captured once at module load, and that capture is proven native before it is trusted, by requiring SQLite to reject a non-SQLite receiver. When any layer fails the module cannot attest integrity, so issuance throws and consumers fall back to the full-file quick_check."
+  evidence_binding: "Every record below names the exact SHA its evidence belongs to and is never evidence for a later head. Audit and Release must re-bind exact-head CI and a fresh non-author receipt to their own merge-candidate SHA."
+  validation_head: df02db557200c119cf2f2323b3d684d9579a2327
+  validation: "Against df02db557200c119cf2f2323b3d684d9579a2327: tsc exit 0; focused startup and writer-lease suites 15/15 PASS including the forged-issuer, replaced-prepare and poisoned-load regressions; preflight exit 0; lint 0 errors; validate:full exit 0 with failures []; security:gate exit 0 with unmitigated [] and secrets 0; git diff --check clean. Against 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4: exact-head CI 15 success and 1 skipped, 0 failure."
+  next: "Push to PR #2855, then require fresh exact-head CI and a fresh non-author receipt bound to the exact head; retain Draft/HOLD until acceptance, Audit, and Release."
   safety:
     PAPER_ONLY: true
     liveAuthority: NONE

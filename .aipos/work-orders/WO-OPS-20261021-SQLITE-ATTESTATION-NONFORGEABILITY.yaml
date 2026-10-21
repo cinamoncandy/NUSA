@@ -13,8 +13,12 @@ authority_impact: none
 objective: "Keep the #2770 bounded startup scan optimization while ensuring only a genuine native SQLite connection can issue a reusable full-file integrity attestation."
 root_cause:
   transition: "untrusted structurally-shaped connection -> integrity attestation issuance"
-  evidence: "On exact head 2e4597f58f685f7ae4b2009a7bca88d38bc68c43, a fake prepare() implementation returning quick_check=ok and a forged database_list file path successfully received a module-registry proof."
+  evidence: "Three successive non-author findings, one per exact head. On 2e4597f58f685f7ae4b2009a7bca88d38bc68c43 a fake prepare() returning quick_check=ok and a forged database_list file path received a module-registry proof. On 4d8febb0b7faaf19797f1706024a30a00c0e255c DatabaseSync.prototype.prepare was shown to be writable and configurable, so replacing it around a single issuer call minted a proof for an unscanned path and restored cleanly. On 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4 a method replaced before the module loaded was captured permanently and attested without any native prepare running."
   classification: "trust-boundary validation missing at proof issuer"
+  superseded_heads:
+    - 2e4597f58f685f7ae4b2009a7bca88d38bc68c43
+    - 4d8febb0b7faaf19797f1706024a30a00c0e255c
+    - 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4
 scope:
   - packages/storage/src/sqliteStartupIntegrity.ts
   - tests/paper-startup-lease-budget-2770.test.js
@@ -26,10 +30,13 @@ prohibited:
   - live_or_real_authority_expansion
 acceptance:
   - native SQLite receiver branding rejects structural fake connections before proof issuance
+  - a replaced prototype method cannot mint a proof, including when it is restored before the issuer returns
+  - a prepare replaced before this module loads cannot mint a proof for any connection, structural or genuine
   - genuine SQLite connections still complete canonical full-file quick_check and may issue proof
   - same-database identity binding and per-store checks remain enforced
   - forged issuer regression test fails before fix and passes after fix
   - focused startup and writer-lease regressions pass
+  - every recorded validation names the exact SHA it was run against, and no record is reused for a later head
   - exact-head CI and fresh non-author validation pass before Audit/Release
 safety:
   paper_only: true
@@ -37,5 +44,6 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
 rollback: "Revert the issuer receiver-brand check and its regression test together; retain the preexisting full-scan fail-closed behavior."
-validation: "Current exact head exposed the forged-issuer gap and the test reproduces it. Patched local build, focused tests, validate:full, and security:gate passed after the repository postinstall security backport."
-next: "Commit and push this bounded fix to PR #2855, then require new exact-head CI and a fresh non-author validator; leave Draft until independent validation, Audit, and Release are complete."
+validation_head: df02db557200c119cf2f2323b3d684d9579a2327
+validation: "Against df02db557200c119cf2f2323b3d684d9579a2327: tsc exit 0; focused startup and writer-lease suites 15/15 PASS, including the forged-issuer, replaced-prepare and poisoned-load regressions, each confirmed to fail against its own pre-fix head; preflight exit 0; lint 0 errors; validate:full exit 0 with failures []; security:gate exit 0 with unmitigated [] and secrets 0; git diff --check clean. Against 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4: exact-head CI 15 success and 1 skipped, 0 failure. This record is evidence for that SHA only and must not be read as validation of any later head."
+next: "Push to PR #2855 and require fresh exact-head CI plus a fresh non-author receipt bound to the exact head; leave Draft until independent validation, Audit, and Release are complete."
