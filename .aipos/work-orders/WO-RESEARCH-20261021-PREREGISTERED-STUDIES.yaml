@@ -7,9 +7,9 @@ repository: cinamoncandy/NUSA
 base_branch: main
 branch: claude/preregistered-studies
 owner_decision: "2026-10-21 in chat: after the root-cause read, 'learning/intelligence' was named as the limit; owner replied '다 해' to the proposed directions (longer horizon, cheaper execution, cross-sectional, longer validation)."
-design: "docs/research-ledger/PREREGISTERED_STUDIES_2026-10-21.md (v2 after independent review). One primary configuration per study; 30-day holdout 2026-11-05..12-05 (the existing study's 10-25..10-28 holdout is never reused); non-overlapping cohorts, paired excess over a same-universe benchmark, one-sided t-test, family of three, p < 0.05/3; results printed from 2026-12-05T02:00Z."
+design: "docs/research-ledger/PREREGISTERED_STUDIES_2026-10-21.md (v3 after two independent reviews). One primary configuration per study; 30-day holdout 2026-11-05..12-05 (the existing study's 10-25..10-28 holdout is never reused); non-overlapping cohorts, paired excess over a same-universe benchmark, one-sided t-test, family of three, p < 0.05/3; results printed from 2026-12-05T02:00Z."
 execution: "Not yet implemented. A separate reviewed PR adds one deterministic read-only script per study, same shape as scripts/run-orderbook-study.js, and must match the design file exactly."
-next: "Fresh non-author re-review of v2, then freeze (embed the design sha256), implement and merge each script before 2026-11-05T00:00Z; results are printed only on or after 2026-12-05T02:00Z."
+next: "Fresh non-author re-review of v3; freeze at 2026-10-28T00:00Z; each script embeds the design sha256, is merged before 2026-11-05T00:00Z (else VOID); results are printed only on or after 2026-12-05T02:00Z."
 note_on_longer_validation: "The longer-evidence direction is built into every study (30-day holdout, 30/180/30 independent cohorts) rather than a separate study."
 safety:
   paper_only: true
