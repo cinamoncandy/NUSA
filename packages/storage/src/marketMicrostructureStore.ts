@@ -108,14 +108,23 @@ export class SqliteMarketMicrostructureStore {
     return Object.freeze({ stored, rejected: rows.length - valid.length });
   }
 
-  /** Deletes the given markets' samples captured before cutoffMs (time-based retention for appendOrderBookRound rows). */
+  /**
+   * Deletes the given markets' samples captured before cutoffMs (time-based retention for appendOrderBookRound rows). Before a row is
+   * deleted, the rows the pre-registered studies read are copied to research_orderbook_study_rows in the SAME transaction: the minutes
+   * 58..59 and 0..10 of every hour (the (t - 2 min, t] book at an hour mark and the 10-minute order windows after it) and 43..45 (the
+   * 15-minutes-earlier book). Everything else is dropped as before. If the copy fails nothing is deleted, so data is never lost; the
+   * returned count is the number of live rows deleted.
+   */
   public pruneOrderBookSamplesBefore(markets: readonly string[], cutoffMs: number): number {
     if (!Number.isSafeInteger(cutoffMs) || cutoffMs <= 0) throw new MarketMicrostructureStoreError("INVALID_CUTOFF", "microstructure cutoff is invalid");
     for (const market of markets) checkMarket(market);
     return this.db.transaction(() => {
       let count = 0;
+      const archive = this.db.connection.prepare(`INSERT OR IGNORE INTO research_orderbook_study_rows (market, captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5, total_bid_size, total_ask_size)
+        SELECT market, captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5, total_bid_size, total_ask_size FROM research_orderbook_samples
+        WHERE market = ? AND captured_at_ms < ? AND ((captured_at_ms % 3600000) / 60000 >= 58 OR (captured_at_ms % 3600000) / 60000 <= 10 OR ((captured_at_ms % 3600000) / 60000 BETWEEN 43 AND 45))`);
       const remove = this.db.connection.prepare("DELETE FROM research_orderbook_samples WHERE market = ? AND captured_at_ms < ?");
-      for (const market of markets) count += Number(remove.run(market, cutoffMs).changes ?? 0);
+      for (const market of markets) { archive.run(market, cutoffMs); count += Number(remove.run(market, cutoffMs).changes ?? 0); }
       return count;
     });
   }

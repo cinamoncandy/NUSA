@@ -22,6 +22,20 @@ describe("market microstructure store", () => {
     assert.deepEqual(store.readOrderBookSamples("KRW-B", 0, 99).map((s) => s.capturedAtMs), [10], "other markets are untouched");
   }));
 
+  it("prune archives the minutes the studies read (58..59, 0..10 and 43..45 of each hour) before deleting, and only those", () => withStore((store) => {
+    const H = 3_600_000, M = 60_000;
+    const base = 1_000 * H; // an hour mark
+    const at = (minute: number, ms = 0) => base + minute * M + ms;
+    const minutes = [0, 5, 10, 11, 30, 43, 44, 45, 46, 57, 58, 59];
+    store.appendOrderBookRound(minutes.map((m) => ({ market: "KRW-A", sample: sample(at(m, 7)) })));
+    const cutoff = base + 2 * H;
+    assert.equal(store.pruneOrderBookSamplesBefore(["KRW-A"], cutoff), minutes.length, "every live row is deleted as before");
+    assert.deepEqual(store.readOrderBookSamples("KRW-A", 0, base + 99 * H), [], "the live table is empty");
+    const archived = (store as unknown as { db: { connection: { prepare: (sql: string) => { all: () => Array<{ captured_at_ms: number }> } } } }).db.connection.prepare("SELECT captured_at_ms FROM research_orderbook_study_rows ORDER BY captured_at_ms").all().map((r) => r.captured_at_ms);
+    assert.deepEqual(archived, [0, 5, 10, 43, 44, 45, 58, 59].map((m) => at(m, 7)), "11, 30, 46 and 57 are not archived");
+    assert.equal(store.pruneOrderBookSamplesBefore(["KRW-A"], cutoff), 0, "pruning twice is harmless");
+  }));
+
   it("stores samples and ticks idempotently and reads them back in time order", () => withStore((store) => {
     assert.deepEqual(store.appendOrderBookSamples("KRW-BTC", [sample(2), sample(1)]), { stored: 2, rejected: 0 });
     assert.deepEqual(store.appendOrderBookSamples("KRW-BTC", [sample(2)]), { stored: 0, rejected: 0 });

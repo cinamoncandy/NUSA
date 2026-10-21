@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261021-ORDERBOOK-RETENTION
 title: "Order-book retention is 14 days: the pre-registered studies lose their training data before their verdict (owner decision needed)"
-status: BLOCKED
+status: IN_PROGRESS
 priority: P0
 authority_impact: none
 repository: cinamoncandy/NUSA
@@ -11,13 +11,13 @@ consequence:
   - "Existing study WO-RESEARCH-20261014-ORDERBOOK-STUDY (train 10-15..10-23, prints from 2026-10-29T02:00Z; the first Research run after that is about 2026-10-30T00:19Z): by then books older than about 10-16T00:19Z are gone, so the 10-15 training day is missing. The study requires hourly rows for at least 90% of its 192 training hours (173); 168 or fewer remain, so every market is ineligible and the study cannot produce a verdict. Its holdout 10-25..10-28 survives, but eligibility needs training."
   - "S2-S4 (docs/research-ledger/PREREGISTERED_STUDIES_2026-10-21.md): training 10-15.., holdout 11-05..12-05, verdict from 2026-12-05T02:00Z; with 14 days kept only 11-21 onward exists, so they would end in INSUFFICIENT_DATA."
   - "Deletion is irreversible and hourly: for the existing study the data must stop being deleted before about 2026-10-29T00:00Z."
-change_in_this_pr: "Retention becomes configurable: NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS (whole days 14..90, default 14 when unset or invalid). Nothing changes until the owner sets it in /etc/nusa/cloud-runtime.env and restarts."
+change_in_this_pr: "(1) Retention becomes configurable: NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS (whole days 14..90, default 14 when unset or invalid); nothing changes until the owner sets it in /etc/nusa/cloud-runtime.env and restarts. (2) Option B is built in: migration 032 adds research_orderbook_study_rows and pruneOrderBookSamplesBefore now copies, in the same transaction and before deleting, the rows the studies read (minutes 58-59, 0-10 and 43-45 of every hour, about 17 of 60 minutes) so only the other rows are dropped. If the copy fails nothing is deleted. Nothing has been pruned yet (the collector started 2026-10-14T01:22Z; the first rows turn 14 days old on 2026-10-28), so deploying before then loses nothing. Estimated cost, labelled an estimate: roughly 28 percent of the rows are kept (about 12 MB per day, WITHOUT ROWID table) instead of 100 percent for the same span; the studies read the live table and the archive together."
 disk_risk: "NOT verified, and the reason this is the owner's call. The host disk is 91% full with about 4.5 GB free. The table holds about 2.5 M rows for 7 days (about 0.36 M rows per day; at roughly 100 bytes per row about 40 MB per day, an estimate). 21 days would add about 0.3 GB, 60 days about 1.9 GB more. The state database is also copied into daily and weekly backups (up to 11 copies per the host backup step, unverified), which multiplies any growth, and /var/lib/nusa and /var/backups/nusa are unreadable to the runner so the real sizes are unknown."
 owner_options:
   - "A: free or add disk, then set NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS=21 before 2026-10-28 (saves the existing study) or 60 (also covers S2-S4 to 12-05). Check sudo du -sh /var/lib/nusa /var/backups/nusa and df first."
   - "B: a reviewed extractor that copies only the rows the studies read into a small side table before pruning (about a quarter of the rows). More code and a deploy; safer for disk."
   - "C: accept that the existing study will not produce a verdict and pre-register S2-S4 on data that will exist (shorter span)."
-recommendation: "Check disk headroom now. If headroom allows, A with 21 days this week; decide A (60) versus B for S2-S4 afterwards. Do nothing destructive."
+recommendation: "Deploy the archive-on-prune change (this PR) before 2026-10-28T01:22Z: it needs no disk decision and saves the existing study and S2-S4 data for roughly a quarter of the space. Check disk headroom anyway (the archive adds about 12 MB per day, and every backup copy of the state DB grows with it). Setting retention days is optional and is the larger disk risk. Do nothing destructive."
 safety:
   paper_only: true
   liveAuthority: NONE
