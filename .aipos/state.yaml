@@ -2820,7 +2820,7 @@ current_ops_release_downstream_dispatch_20261021:
   oracle_current_main_runtime: UNVERIFIED
   failed_successor_head: 8862b6fc5e2e8b897bce90ae2518efe0d4a23727
   failed_successor_ci_run: 39565514865
-  failed_successor_ci_reason: "Strict AIPOS YAML preflight found duplicate `next` keys in this mapping; superseded prior instruction is retained as previous_next_instruction, leaving one canonical next key."
+  failed_successor_ci_reason: "CI 39565514865 found duplicate `next` keys; repaired by retaining the old instruction under previous_next_instruction."
   next: "Run all six workflows and a fresh non-author review on the AIPOS successor head, then obtain explicit formal Validator P0/P1/P2 receipt. Keep PR #2844 Draft. Oracle exact-current-main deployment, genuine new PAPER fill, and restart/replay continuity remain separately UNVERIFIED; no full learning-loop claim."
   previously_validated_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
   previous_successor_head: dd355eebd02c6e90d9549e89adb93531359a22f0
@@ -2856,7 +2856,7 @@ current_ops_release_downstream_dispatch_20261021:
   previous_repair_commit: 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf
   previous_repair_validation: "On exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. TSV run fields now emit and bind exactly [id,status,event]; pending expected jobs are active owners; active Cloudflare workflow_dispatch cannot suppress without proven input identity; completed Promote requires production lineage of MERGED_MAIN. Final AIPOS-only successor exact-head checks and fresh review are pending."
   validation: "Source repair commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf passed focused tests 14/14 and diff check. Exact head 08451281261a31041aa9af5391bce6ccb9d3d4a6 CI run 39531860442 failed closed at AIPOS YAML preflight due duplicated latest_reviewed_head/repair_commit keys in the work order (parser line 78); CI did not reach full tests. Those historical duplicate keys are now renamed; no implementation regression is indicated. Protected main remains c8148d7e61dd3be0763577b1c736331ab27c56ec."
-  formal_validator: PENDING
+  previous_formal_validator: PENDING
   earlier_latest_reviewed_head: 03617c511fa2c5634b0f8a9979033861e76b94e9
   earlier_latest_review_findings:
     p0: 0
