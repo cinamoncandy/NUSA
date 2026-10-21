@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { FUTURES_SCREEN_LIMITS } from "./futuresLimits";
-import { FUTURES_SAMPLE_SNAPSHOT } from "./futuresSample";
+import { FUTURES_SAMPLE_NOW, FUTURES_SAMPLE_SNAPSHOT } from "./futuresSample";
 import { buildFuturesScreen } from "./futuresScreenModel";
 import { futuresSafetyRows } from "./futuresSafetyRows";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
@@ -17,7 +17,7 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
   // The preview shows the finished layout with made-up numbers. It is off by default and always labelled.
   const [preview, setPreview] = useState(false);
   const source = preview ? FUTURES_SAMPLE_SNAPSHOT : futures;
-  const model = buildFuturesScreen(source, FUTURES_SCREEN_LIMITS);
+  const model = buildFuturesScreen(source, FUTURES_SCREEN_LIMITS, preview ? FUTURES_SAMPLE_NOW : Date.now());
   const sections = [
     { title: "상태", rows: model.status },
     { title: "포지션 · 손익", rows: model.positions },
@@ -35,17 +35,17 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
         {s.bars && "bar" in row && row.bar ? <UsageBar bar={row.bar} tone={row.tone} /> : null}
       </View>)}
     </Reveal>)}
-    <Reveal index={sections.length} reducedMotion={reduced} style={styles.group} >
+    <Reveal index={sections.length} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left="왜 샀나요" right={`${model.reasons.length}`} />
       {model.reasons.length === 0
         ? <Text style={styles.none} testID="futures-reasons-empty">이유 기록이 없어요. 서버가 남긴 이유만 보여주고, 짐작해서 채우지 않아요.</Text>
-        : model.reasons.map((r) => <View key={`${r.title}-${r.time}`} style={styles.why} testID="futures-reason" accessible accessibilityLabel={`${r.time} ${r.title}. 전략 ${r.strategy}. ${r.signal ?? ""} 통과 ${r.checks.filter((c) => c.passed).length}개, 실패 ${r.checks.filter((c) => !c.passed).length}개`}>
+        : model.reasons.map((r, i) => <View key={`${i}-${r.title}-${r.time}`} style={styles.why} testID="futures-reason" accessible accessibilityLabel={`${r.time} ${r.title}. 전략 ${r.strategy}. ${r.signal ?? ""} 통과 ${r.checks.filter((c) => c.passed).length}개${r.checks.some((c) => !c.passed) ? `, 실패: ${r.checks.filter((c) => !c.passed).map((c) => c.label).join(", ")}` : ""}`}>
           <Text style={[fieldFonts.mono, styles.whyTime]}>{r.time} · {r.title}</Text>
           <Text style={styles.whyLine}>전략 {r.strategy}{r.signal ? ` · ${r.signal}` : ""}</Text>
-          <View style={styles.chips}>{r.checks.map((c) => <Text key={c.label} style={[fieldFonts.mono, styles.chip, c.passed ? styles.chipPass : styles.chipFail]}>{c.label} {c.passed ? "통과" : "실패"}</Text>)}</View>
+          <View style={styles.chips}>{r.checks.map((c, ci) => <Text key={`${ci}-${c.label}`} style={[fieldFonts.mono, styles.chip, c.passed ? styles.chipPass : styles.chipFail]}>{c.label} {c.passed ? "통과" : "실패"}</Text>)}</View>
         </View>)}
     </Reveal>
-    <PressScale accessibilityRole="button" accessibilityState={{ selected: preview }} onPress={() => setPreview((v) => !v)} style={styles.previewBtn} testID="futures-preview-toggle">
+    <PressScale accessibilityRole="button" accessibilityLabel={preview ? "실제 화면으로 돌아가기" : "예시 화면 보기"} onPress={() => setPreview((v) => !v)} style={styles.previewBtn} testID="futures-preview-toggle">
       <Text style={[fieldFonts.mono, styles.previewText]}>{preview ? "실제 화면으로 돌아가기" : "예시 화면 보기"}</Text>
     </PressScale>
   </ScrollView>;
@@ -53,7 +53,7 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
 
 /** A thin track with the fill and the limit line; colour follows the row's tone (amber near the limit, red past it). */
 function UsageBar({ bar, tone }: { readonly bar: FuturesBar; readonly tone: CalmTone }) {
-  const color = calmToneColor(tone === "NORMAL" ? "NORMAL" : tone);
+  const color = tone === "NORMAL" ? calmColors.muted : calmToneColor(tone);
   return <View style={styles.track} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
     <View style={[styles.fill, { width: `${Math.round(bar.fill * 100)}%`, backgroundColor: color }]} />
     <View style={[styles.limitLine, { left: `${Math.round(bar.marker * 100)}%` }]} />

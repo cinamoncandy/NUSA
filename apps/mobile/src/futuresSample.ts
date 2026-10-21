@@ -3,6 +3,8 @@
  * real values. It is never passed off as real: the view labels it "예시" and the default view never uses it.
  */
 const NOW = Date.UTC(2026, 9, 21, 1, 42); // 10:42 KST on the day this was designed
+/** The preview reads the sample as if it were that moment, so its times never look like another day. */
+export const FUTURES_SAMPLE_NOW = NOW + 60_000;
 export const FUTURES_SAMPLE_SNAPSHOT: unknown = Object.freeze({
   positions: [
     { symbol: "BTCUSDT", side: "LONG", quantity: 0.01, entryPrice: 96200, markPrice: 95640, unrealizedPnl: -18400, liquidationDistanceRatio: 0.41 },
