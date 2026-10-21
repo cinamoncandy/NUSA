@@ -172,7 +172,8 @@ test("the canonical database open still performs the full integrity scan", () =>
     database.close();
   });
   assert.ok(counts.quickCheck >= 1, "the once-per-open full PRAGMA quick_check is a safety property and must remain");
-  assert.match(storageSource, /prepare\("PRAGMA quick_check"\)/);
+  assert.match(storageSource, /prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)/);
+  assert.match(storageSource, /const nativeDatabasePrepare = DatabaseSync\.prototype\.prepare/);
   assert.match(riskGatewaySource, /SELECT 1 AS ready/);
   assert.ok(!/prepare\("PRAGMA quick_check"\)/.test(riskGatewaySource.split("function databaseHealthy")[1] ?? ""), "databaseHealthy must not reintroduce a full scan");
 });
@@ -346,6 +347,46 @@ test("shared verification trust survives wholesale CommonJS barrel export replac
   `;
   const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
   assert.equal(result.status, 0, `CommonJS barrel replacement exploit must fail closed:\n${result.stdout}\n${result.stderr}`);
+});
+
+test("canonical shared admission uses the captured native prepare after prototype replacement", () => {
+  // Load the genuine storage module first, then poison the writable node:sqlite prototype
+  // before SqliteDatabase construction. The registered shared trust must come from the native
+  // full-file check captured at module initialization, never from this forged "ok" result.
+  const script = `
+    const assert = require("node:assert/strict");
+    const { DatabaseSync, StatementSync } = require("node:sqlite");
+    const root = ${JSON.stringify(root)};
+    const storage = require(root + "/dist/packages/storage/src/index.js");
+    const nativePrepare = DatabaseSync.prototype.prepare;
+    const nativeGet = StatementSync.prototype.get;
+    const counts = { forgedFull: 0, full: 0, scoped: 0 };
+    StatementSync.prototype.get = function(...args) {
+      const sql = String(this.sourceSQL ?? "");
+      if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(sql)) counts.full++;
+      else if (/quick_check/i.test(sql)) counts.scoped++;
+      return nativeGet.apply(this, args);
+    };
+    DatabaseSync.prototype.prepare = function(sql, ...args) {
+      if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(sql))) {
+        counts.forgedFull++;
+        return { get() { return { quick_check: "ok" }; } };
+      }
+      return nativePrepare.call(this, sql, ...args);
+    };
+    const database = new storage.SqliteDatabase(":memory:");
+    const calibration = new storage.SqliteAiCalibrationDurableStore(":memory:", database);
+    const attribution = new storage.SqliteAiOutcomeAttributionMemory(":memory:", database);
+    try {
+      assert.deepEqual(counts, { forgedFull: 0, full: 1, scoped: 4 });
+    } finally {
+      attribution.close(); calibration.close(); database.close();
+      DatabaseSync.prototype.prepare = nativePrepare;
+      StatementSync.prototype.get = nativeGet;
+    }
+  `;
+  const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `prototype replacement must not forge canonical integrity trust:\n${result.stdout}\n${result.stderr}`);
 });
 
 test("internal verifier cache replacement before bootstrap cannot admit unchecked shared connections", () => {

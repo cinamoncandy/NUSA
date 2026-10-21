@@ -24,7 +24,7 @@ test("full SQLite integrity remains fail-closed at canonical database open, not 
   const storage = fs.readFileSync(canonicalStorage, "utf8");
   const risk = fs.readFileSync(riskGateway, "utf8");
 
-  assert.match(storage, /prepare\("PRAGMA quick_check"\)/, "canonical SqliteDatabase startup must retain the full-file quick_check");
+  assert.match(storage, /prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)/, "canonical SqliteDatabase startup must retain the full-file quick_check through its captured native prepare");
   assert.doesNotMatch(risk, /PRAGMA quick_check/, "a PAPER risk evaluation must never rescan the full database");
   assert.match(risk, /SELECT 1 AS ready/, "the hot path must still prove the canonical connection is responsive");
   for (const table of ["risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state"]) {

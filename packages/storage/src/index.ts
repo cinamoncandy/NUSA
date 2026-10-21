@@ -1,5 +1,14 @@
-export * from "./researchMemorySemantics";
 import { DatabaseSync } from "node:sqlite";
+// Capture the native SQLite method before importing any project modules. Startup integrity
+// checks must not dispatch through the writable prototype slot after application initialization.
+const nativeDatabasePrepare = DatabaseSync.prototype.prepare;
+const nativeReflectApply = Reflect.apply;
+
+function prepareSqliteIntegrityStatement(connection: DatabaseSync, sql: string) {
+  return nativeReflectApply(nativeDatabasePrepare, connection, [sql]);
+}
+
+export * from "./researchMemorySemantics";
 import {
   aiSha256,
   canonicalAiJson,
@@ -162,7 +171,7 @@ export class SqliteDatabase implements TransactionRunner {
       if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
       this.connection.exec("PRAGMA synchronous = FULL");
       this.migrationResult = runMigrations(this.connection, migrations);
-      const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+      const check = prepareSqliteIntegrityStatement(this.connection, "PRAGMA quick_check").get() as Record<string, unknown> | undefined;
       if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
       fullyCheckedSqliteDatabaseConnections.set(this, this.connection);
     } catch (error) {
@@ -829,11 +838,11 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
       }
       this.ensureSchema();
       if (this.ownsConnection) {
-        const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+        const check = prepareSqliteIntegrityStatement(this.connection, "PRAGMA quick_check").get() as Record<string, unknown> | undefined;
         if (check == null || !Object.values(check).includes("ok")) throw new Error("AI calibration sqlite quick_check failed");
       } else {
         for (const table of ["ai_calibration_durability_meta", "ai_calibration_durability_events"] as const) {
-          const check = this.connection.prepare(`PRAGMA quick_check('${table}')`).get() as Record<string, unknown> | undefined;
+          const check = prepareSqliteIntegrityStatement(this.connection, `PRAGMA quick_check('${table}')`).get() as Record<string, unknown> | undefined;
           if (check == null || !Object.values(check).includes("ok")) throw new Error("AI calibration sqlite quick_check failed");
         }
       }
@@ -1167,11 +1176,11 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
         "INSERT OR IGNORE INTO ai_outcome_attribution_memory_meta (id, schema_version, event_count, ledger_hash) VALUES (1, ?, 0, ?)"
       ).run(SCHEMA_VERSION, GENESIS_HASH);
       if (this.ownsConnection) {
-        const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+        const check = prepareSqliteIntegrityStatement(this.connection, "PRAGMA quick_check").get() as Record<string, unknown> | undefined;
         if (check == null || !Object.values(check).includes("ok")) throw new Error("learning memory sqlite quick_check failed");
       } else {
         for (const table of ["ai_outcome_attribution_memory_meta", "ai_outcome_attribution_memory_events"] as const) {
-          const check = this.connection.prepare(`PRAGMA quick_check('${table}')`).get() as Record<string, unknown> | undefined;
+          const check = prepareSqliteIntegrityStatement(this.connection, `PRAGMA quick_check('${table}')`).get() as Record<string, unknown> | undefined;
           if (check == null || !Object.values(check).includes("ok")) throw new Error("learning memory sqlite quick_check failed");
         }
       }
