@@ -2711,24 +2711,20 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: CONDITIONAL_PRELOAD_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_CI_AND_NON_AUTHOR_REVIEW
+  status: SHARED_VERIFIED_CONNECTION_REPAIR_LOCAL_VALIDATED_PENDING_FRESH_EXACT_HEAD_CI_AND_NON_AUTHOR_REVIEW
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
   base_sha: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
   latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
-  repair_head: e45839c586697ad530904f2eb23bb0477b0f488d
-  superseded_heads:
-    - 2e4597f58f685f7ae4b2009a7bca88d38bc68c43
-    - 4d8febb0b7faaf19797f1706024a30a00c0e255c
-    - 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4
-    - 30a8ed89dc5c418a55978682cd497dc14daf116b
-  finding: "Four successive non-author P1 findings showed that a reusable startup-integrity proof could not safely trust application-realm DatabaseSync.prototype.prepare: structural fake issuer, per-call prototype replacement, pre-module-load replacement, and finally a conditional replacement that rejected the single sentinel probe while forging quick_check/database_list for other receivers on exact head 30a8ed89dc5c418a55978682cd497dc14daf116b."
-  repair: "File-backed integrity attestation no longer tries to infer whether the mutable application-realm prepare method is native. Full-file and attested table-scoped quick_check operations run in a fresh Node process with NODE_OPTIONS cleared, a read-only SQLite connection, and pre/post device+inode identity. The opaque proof is bound to that independently observed file identity. Same-identity proofs receive only scoped checks; absent/forged/different-file proofs cause the fresh process to perform the full-file scan. In-memory/URI stores remain non-shareable."
-  evidence_binding: "Every recorded validation names the exact SHA it belongs to. Previous CI/review receipts remain historical after any head change; Audit and Release must bind to their exact merge candidate."
-  validation_head: e45839c586697ad530904f2eb23bb0477b0f488d
-  validation: "Against e45839c586697ad530904f2eb23bb0477b0f488d source tree: exact conditional pre-load prepare poisoning regression PASS using Node 24 type stripping; same-file proof reuse plus different-file full-scan fallback source regression PASS; TypeScript transpile diagnostics PASS for all four changed TS modules; git diff --check PASS. A local pnpm build attempt was NOT accepted as PASS because the 954 MiB Oracle validation host hit the existing Node heap limit (~258 MiB) and exited 134 before diagnostics; no source assertion/test/gate was weakened and no service/runtime/DB mutation occurred. Fresh GitHub exact-head CI owns canonical typecheck/build/full regression evidence."
-  next: "Update durable evidence, push the existing #2855 branch without force, require fresh exact-head CI plus fresh non-author review with zero unresolved P0/P1, then obtain the separate structured NUSA Validator ACCEPTED receipt before Audit/Release. Keep Draft."
+  repair_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
+  superseded_head: 2a5c7fdc417747ee42c7369881023aa021343667
+  finding: "Successive non-author P1 findings showed that reusable integrity attestation was the wrong trust primitive: structural proof forgery, mutable/preload/conditional DatabaseSync.prototype.prepare replacement, and pathname reuse after atomic file replacement could each decouple proof from the actual canonical opened database."
+  repair: "Remove the reusable startup-integrity attestation helper entirely. SqliteDatabase retains its original full-file PRAGMA quick_check. Production Cloud AI calibration and attribution stores receive the exact already-verified canonical database.connection object, do not reopen the pathname, and run only their own two table-scoped quick_check operations plus existing hash-chain replay. Standalone AI stores still open their own connection and retain the original full-file quick_check. Shared stores never own or close the canonical connection."
+  p1_closure_argument: "There is no proof issuer, proof registry, pathname identity comparison, receiver-brand probe, or attestation reuse left to forge. Atomic rename/replacement of the old pathname cannot redirect a shared store because the store uses the existing canonical DatabaseSync object."
+  validation_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
+  validation: "Against 0e7cdc1a6516e399b8ac84dffd3200d553bb6781: paper-writer startup/source contract 2/2 PASS; TypeScript transpile diagnostics PASS for index, both AI stores, Cloud AI runtime, and closed-learning production runtime; narrowed real tsc emit for both changed AI store classes PASS; focused execution using those compiled classes PASS with exactly 1 full quick_check + 4 scoped checks, shared-store close preserving the canonical connection, and atomic pathname replacement not receiving AI tables; AIPOS YAML/provenance PASS; git diff --check PASS. A bounded full-project tsc attempt on the 954 MiB Oracle validation host exceeded the 49.76s connector execution bound and is NOT claimed as PASS. Fresh exact-head GitHub CI owns canonical full typecheck/build/test evidence."
+  next: "Commit this exact-SHA evidence, fresh-check remote branch and protected main, push existing #2855 branch without force, then require new exact-head CI + five companions and fresh non-author review. Only after zero unresolved P0/P1 obtain the separate structured NUSA Validator ACCEPTED receipt before Audit/Release. Keep Draft."
   safety:
     PAPER_ONLY: true
     liveAuthority: NONE

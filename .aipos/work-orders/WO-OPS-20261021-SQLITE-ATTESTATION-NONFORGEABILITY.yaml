@@ -1,5 +1,5 @@
 id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-title: "Prevent application-realm SQLite method replacement from minting startup integrity proof"
+title: "Eliminate reusable SQLite integrity proof trust boundary"
 status: IN_PROGRESS
 priority: P0
 owner: nusa-server-runtime
@@ -10,46 +10,42 @@ base_branch: main
 base_commit: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
 latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
 implementation_branch: fix/sqlite-integrity-attestation-2770
-repair_head: e45839c586697ad530904f2eb23bb0477b0f488d
+repair_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
 authority_impact: none
-objective: "Keep the #2770 bounded startup-scan optimization while ensuring a reusable proof can be issued only from independently verified file-backed SQLite integrity evidence."
+objective: "Close #2770 pre-listener duplicate full scans without creating a reusable integrity proof whose issuer or file binding can be forged."
 root_cause:
-  transition: "mutable application-realm SQLite method -> reusable integrity attestation issuance"
-  evidence: "Successive P1 findings on 2e4597f58, 4d8febb0b, 00a5ec0ee, and 30a8ed89d proved that structural validation or finite fake-receiver probes cannot establish that DatabaseSync.prototype.prepare is native. The latest exact-head reproduction used a conditional replacement that throws only for the null-prototype sentinel but forges quick_check/database_list for other receivers, minting a reusable WeakMap proof."
-  classification: "spoofable trust anchor at integrity proof issuer"
-  superseded_heads:
-    - 2e4597f58f685f7ae4b2009a7bca88d38bc68c43
-    - 4d8febb0b7faaf19797f1706024a30a00c0e255c
-    - 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4
-    - 30a8ed89dc5c418a55978682cd497dc14daf116b
-scope:
-  - packages/storage/src/sqliteStartupIntegrity.ts
-  - packages/storage/src/index.ts
-  - packages/storage/src/aiCalibrationDurability.ts
-  - packages/storage/src/aiOutcomeAttributionMemory.ts
-  - tests/paper-startup-lease-budget-2770.test.js
+  transition: "verified canonical SQLite open -> redundant AI durability full-file scans before listener bind"
+  evidence: "The first optimization introduced a reusable attestation. Fresh non-author reviews then falsified every attempted application-realm identity check: structural issuer forgery, mutable prepare replacement, pre-module-load replacement, conditional replacement that spoofed the finite probe, and atomic pathname replacement while the verified connection stayed open."
+  classification: "unnecessary reusable trust token created a larger trust boundary than the startup optimization requires"
+repair:
+  - "Delete packages/storage/src/sqliteStartupIntegrity.ts and all attestation APIs."
+  - "Keep SqliteDatabase's original fail-closed full PRAGMA quick_check unchanged."
+  - "Pass database.connection itself to production Cloud AI durability after that full scan completes."
+  - "On a verified shared connection, calibration checks only ai_calibration_durability_meta/events and attribution checks only ai_outcome_attribution_memory_meta/events, then retain existing hash-chain replay."
+  - "Standalone AI stores retain their own full PRAGMA quick_check."
+  - "Shared AI store close/failure paths do not close the canonical connection they do not own."
 prohibited:
-  - bypassing_or_weakening_full_file_quick_check
+  - bypassing_or_weakening_canonical_full_file_quick_check
   - weakening_store_scoped_checks_or_hash_chain_replay
   - changing_startup_readiness_budget_or_writer_lease_semantics
   - direct_database_mutation_or_historical_rewrite
   - live_or_real_authority_expansion
 acceptance:
-  - "file-backed full-file integrity is checked outside the mutable application DatabaseSync prototype realm"
-  - "conditional prepare replacement installed before module load cannot forge proof issuance"
-  - "proof identity is bound to independently observed device+inode and rejects file replacement/different-file reuse"
-  - "same-file attestation retains store-scoped quick_check and existing hash-chain replay"
-  - "absent, forged, or different-file attestation retains a full-file quick_check"
-  - "in-memory/URI databases do not receive reusable file identity"
-  - "focused startup/writer-lease regressions and exact-head CI pass before promotion"
+  - "production startup prepares exactly one full-file quick_check plus four AI store-scoped quick_check statements"
+  - "production composition passes the exact canonical database.connection rather than a filename-derived proof"
+  - "atomic rename/replacement of the original pathname cannot redirect a shared AI store"
+  - "closing a shared AI store does not close the canonical connection"
+  - "standalone AI stores still perform one full-file quick_check each"
+  - "canonical full-file quick_check remains before Cloud AI and before PAPER writer-lease acquisition"
+  - "fresh exact-head CI and five required companions pass"
   - "fresh non-author review has zero unresolved P0/P1 findings"
-  - "structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit"
+  - "separate structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit"
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-rollback: "Revert the fresh-process integrity verifier and filename callsite changes together; fall back to the original independent full-file scans rather than trusting any application-realm prepare attestation."
-validation_head: e45839c586697ad530904f2eb23bb0477b0f488d
-validation: "Source-level exact P1 regression PASS under Node 24 type stripping; same-file reuse/different-file full-scan fallback source regression PASS; changed TypeScript modules transpile without diagnostics; git diff --check PASS. Local pnpm build is explicitly NOT PASS evidence: it terminated exit 134 from the validation host's existing ~258 MiB Node heap limit. Canonical typecheck/build/full tests remain delegated to fresh exact-head GitHub CI."
-next: "Commit this exact-SHA evidence, push #2855 without force, then require fresh exact-head CI and non-author review. Keep Draft and do not enter Audit/Release until a separate structured NUSA Validator ACCEPTED receipt exists."
+rollback: "Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation."
+validation_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
+validation: "Against 0e7cdc1a6516e399b8ac84dffd3200d553bb6781: startup/lease source contract 2/2 PASS; changed TypeScript transpile diagnostics PASS; narrowed real tsc emit for both AI stores PASS; focused compiled-store execution proves exactly 1 full + 4 scoped quick_check statements, shared close ownership safety, and pathname replacement isolation; AIPOS YAML/provenance and git diff checks PASS. A bounded full-project tsc exceeded the connector execution bound and is not PASS evidence. Fresh exact-head GitHub CI owns canonical full compile/test evidence."
+next: "Commit exact-SHA evidence, fresh-check remote/main, and push #2855 without force; then require fresh exact-head CI/review and separate structured Validator ACCEPTED. Keep Draft."
