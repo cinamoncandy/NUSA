@@ -82,3 +82,69 @@ test("sqlite backup still succeeds without injected faults", () => {
   assert.equal(JSON.parse(result.stdout).status, "PASS");
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+
+test("sqlite backup retention keeps one snapshot per UTC day/week bucket", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-sqlite-backup-retention-"));
+  const source = makeSource(root);
+  const destination = path.join(root, "backups");
+  fs.mkdirSync(destination, { recursive: true });
+
+  const stamp = (date, hour) => {
+    const copy = new Date(date);
+    copy.setUTCHours(hour, 0, 0, 0);
+    return copy.toISOString().replaceAll(/[:.]/g, "-");
+  };
+  const startOfUtcDay = new Date();
+  startOfUtcDay.setUTCHours(0, 0, 0, 0);
+  const writePair = (prefix, date, hour) => {
+    const name = `${prefix}${stamp(date, hour)}.db`;
+    fs.writeFileSync(path.join(destination, name), "fixture");
+    fs.writeFileSync(path.join(destination, `${name}.sha256`), "fixture\n");
+    return name;
+  };
+
+  // Nine distinct days, with two snapshots in one historical day. Final retention must
+  // contain the latest snapshot from at most seven distinct UTC days, not seven releases.
+  for (let daysAgo = 1; daysAgo <= 9; daysAgo += 1) {
+    const d = new Date(startOfUtcDay);
+    d.setUTCDate(d.getUTCDate() - daysAgo);
+    writePair("daily-cloud-state-", d, 1);
+    if (daysAgo === 2) writePair("daily-cloud-state-", d, 20);
+  }
+
+  // Five distinct UTC weeks, each with two Sunday snapshots. Only the latest snapshot per
+  // week may survive, and only four distinct weeks are retained.
+  const mostRecentSunday = new Date(startOfUtcDay);
+  mostRecentSunday.setUTCDate(mostRecentSunday.getUTCDate() - mostRecentSunday.getUTCDay());
+  for (let weeksAgo = 0; weeksAgo < 5; weeksAgo += 1) {
+    const d = new Date(mostRecentSunday);
+    d.setUTCDate(d.getUTCDate() - (weeksAgo * 7));
+    writePair("weekly-cloud-state-", d, 1);
+    writePair("weekly-cloud-state-", d, 20);
+  }
+
+  const result = runBackup(source, destination, null);
+  assert.equal(result.status, 0, result.stderr);
+
+  const names = fs.readdirSync(destination);
+  const dailyFiles = names.filter((name) => name.startsWith("daily-cloud-state-") && name.endsWith(".db"));
+  const weeklyFiles = names.filter((name) => name.startsWith("weekly-cloud-state-") && name.endsWith(".db"));
+  const dailyKeys = dailyFiles.map((name) => name.slice("daily-cloud-state-".length, "daily-cloud-state-YYYY-MM-DD".length));
+  const weeklyKey = (name) => {
+    const day = name.slice("weekly-cloud-state-".length, "weekly-cloud-state-YYYY-MM-DD".length);
+    const d = new Date(`${day}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  };
+
+  assert.equal(dailyFiles.length, 7);
+  assert.equal(new Set(dailyKeys).size, dailyFiles.length, "daily retention must deduplicate same-day releases");
+  assert.equal(weeklyFiles.length, 4);
+  assert.equal(new Set(weeklyFiles.map(weeklyKey)).size, weeklyFiles.length, "weekly retention must deduplicate same-week releases");
+  for (const sidecar of names.filter((name) => name.endsWith(".db.sha256"))) {
+    assert.ok(fs.existsSync(path.join(destination, sidecar.slice(0, -".sha256".length))), `orphan sidecar: ${sidecar}`);
+  }
+
+  fs.rmSync(root, { recursive: true, force: true });
+});

@@ -11,15 +11,53 @@ const stamp = now.toISOString().replaceAll(/[:.]/g, "-");
 const daily = path.join(destination, `daily-cloud-state-${stamp}.db`);
 const weekly = path.join(destination, `weekly-cloud-state-${stamp}.db`);
 const sqlString = (value) => `'${value.replaceAll("'", "''")}'`;
+const DAILY_RETENTION = 7;
+const WEEKLY_RETENTION = 4;
+const BACKUP_STAMP_RE = /^(\d{4})-(\d{2})-(\d{2})T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
 
-function prune(prefix, keep) {
+function backupStamp(name, prefix) {
+  if (!name.startsWith(prefix) || !name.endsWith(".db")) return null;
+  const stamp = name.slice(prefix.length, -3);
+  return BACKUP_STAMP_RE.test(stamp) ? stamp : null;
+}
+
+function dailyBucket(name, prefix) {
+  const stamp = backupStamp(name, prefix);
+  return stamp ? stamp.slice(0, 10) : null;
+}
+
+function weeklyBucket(name, prefix) {
+  const day = dailyBucket(name, prefix);
+  if (!day) return null;
+  const date = new Date(`${day}T00:00:00.000Z`);
+  if (!Number.isFinite(date.getTime())) return null;
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  return date.toISOString().slice(0, 10);
+}
+
+function prune(prefix, keepBuckets, bucketForName) {
   const files = fs.readdirSync(destination)
     .filter((name) => name.startsWith(prefix) && name.endsWith(".db"))
     .sort().reverse();
-  for (const name of files.slice(keep)) {
+  const keptBuckets = new Set();
+  for (const name of files) {
+    const bucket = bucketForName(name, prefix);
+    // Preserve unfamiliar names fail-closed rather than deleting an artifact
+    // that does not match the canonical timestamp format.
+    if (!bucket) continue;
+    if (!keptBuckets.has(bucket) && keptBuckets.size < keepBuckets) {
+      keptBuckets.add(bucket);
+      continue;
+    }
     fs.rmSync(path.join(destination, name), { force: true });
     fs.rmSync(path.join(destination, `${name}.sha256`), { force: true });
   }
+}
+
+function pruneRetention() {
+  prune("daily-cloud-state-", DAILY_RETENTION, dailyBucket);
+  prune("weekly-cloud-state-", WEEKLY_RETENTION, weeklyBucket);
 }
 
 function verifyAndManifest(output) {
@@ -36,11 +74,15 @@ function verifyAndManifest(output) {
 }
 
 if (process.env.NUSA_DRY_RUN === "1") {
-  console.log(JSON.stringify({ status: "DRY_RUN", source, destination, dailyRetention: 7, weeklyRetention: 4 }));
+  console.log(JSON.stringify({ status: "DRY_RUN", source, destination, dailyRetention: DAILY_RETENTION, weeklyRetention: WEEKLY_RETENTION }));
   process.exit(0);
 }
 if (!fs.existsSync(source)) throw new Error(`database does not exist: ${source}`);
 fs.mkdirSync(destination, { recursive: true, mode: 0o750 });
+// Collapse duplicate release-time snapshots into their intended calendar buckets before
+// creating the next snapshot. This preserves one verified recovery point per retained
+// UTC day/week while reclaiming same-period duplicates before VACUUM INTO needs space.
+pruneRetention();
 
 const db = new DatabaseSync(source, { readOnly: true });
 let dailyDigest;
@@ -58,9 +100,8 @@ try {
     fs.copyFileSync(daily, weekly, fs.constants.COPYFILE_EXCL);
     verifyAndManifest(weekly);
   }
-  prune("daily-cloud-state-", 7);
-  prune("weekly-cloud-state-", 4);
+  pruneRetention();
 } finally {
   db.close();
 }
-console.log(JSON.stringify({ status: "PASS", output: daily, sha256: dailyDigest, dailyRetention: 7, weeklyRetention: 4 }));
+console.log(JSON.stringify({ status: "PASS", output: daily, sha256: dailyDigest, dailyRetention: DAILY_RETENTION, weeklyRetention: WEEKLY_RETENTION }));

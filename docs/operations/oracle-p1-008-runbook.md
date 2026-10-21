@@ -75,7 +75,7 @@ Before a release switch:
 sudo -u nusa node scripts/sqlite-backup.js
 ```
 
-The backup uses SQLite `VACUUM INTO`, runs `PRAGMA integrity_check`, writes a SHA-256 sidecar, retains the most recent 7 daily snapshots and 4 weekly snapshots, and never changes application Evidence or trading state.
+The backup uses SQLite `VACUUM INTO`, runs `PRAGMA integrity_check`, writes a SHA-256 sidecar, retains one verified snapshot per UTC calendar bucket for the most recent 7 daily buckets and 4 weekly buckets (same-day/same-week release duplicates are pruned), and never changes application Evidence or trading state.
 
 Verify that the command reports `status=PASS` before continuing.
 

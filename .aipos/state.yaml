@@ -2556,6 +2556,17 @@ current_mobile_home_simplify:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 
+
+current_ops_backup_retention_buckets_20261021:
+  work_order: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  issue: 1949
+  branch: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
+  base_sha: 1f74688c5e949b6585dd00768353db32bb30cbd2
+  finding: "Oracle root hit 91% during backup because daily/weekly retention counted release snapshots instead of distinct UTC day/week buckets; current backups contain multiple same-day and same-week copies."
+  next: "Validate calendar-bucket retention -> exact-head CI/Validator -> governed merge -> reviewed backup run -> disk guard evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
   status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
@@ -3809,7 +3820,7 @@ current_autopilot_2595_decision_diagnostics:
   current_main_build_typecheck_validation_head: c1f59727db893d9c5aaa40653e986dcf02f7c1d4
   published_head_binding: REQUIRE_FRESH_EXACT_HEAD_CI_AUDIT_RELEASE_IN_CANONICAL_PR_RECEIPT
   prior_increment_head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
-  status: LOCAL_VALIDATION_PASS_EXACT_HEAD_GATES_PENDING
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_PASS_EXACT_HEAD_GATES_PENDING
   first_broken_transition: "locally validated diagnostics increment -> fresh exact-head CI and independent Audit"
   validation: "Current-main be703b22: dispatcher/consumer and canonical Autopilot suite 143/143 PASS; full build, typecheck and preflight PASS. Prior unchanged diagnostics paths: validate:full and changed-file lint PASS. YAML/provenance PASS. PR2619 first CI 38129284192 failed on a non-secret test credential fixture; explicit example-key placeholder repair passed dispatcher/consumer 50/50, lint and security gate (zero findings). Independent review repair: effective terminal recovery STOP retained separately from rejected diagnostics; valid provider retry/exhaustion retains transport and upstream HTTP status. Dispatcher/consumer 52/52 PASS; focused changed-file lint and preflight PASS. Fresh exact-head CI remains required."
   next_permitted_action: "Publish the locally validated diagnostics residual on the existing diagnostics branch; independent Audit, canonical Release and naturally eligible canary remain required."
