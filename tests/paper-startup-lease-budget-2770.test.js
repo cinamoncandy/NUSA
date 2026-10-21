@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+const { verifyAndIssueSqliteStartupIntegrity } = require("../dist/packages/storage/src/sqliteStartupIntegrity.js");
 const { SqliteAiCalibrationDurableStore } = require("../dist/packages/storage/src/aiCalibrationDurability.js");
 const { SqliteAiOutcomeAttributionMemory } = require("../dist/packages/storage/src/aiOutcomeAttributionMemory.js");
 const { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
@@ -221,6 +222,22 @@ test("a forged structural attestation cannot suppress the full-file scan", () =>
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a forged structural SQLite connection cannot mint an integrity attestation", () => {
+  const fake = {
+    prepare(sql) {
+      return {
+        get() { return { quick_check: "ok" }; },
+        all() { return [{ name: "main", file: "/tmp/unverified-state.sqlite" }]; },
+      };
+    },
+  };
+  assert.throws(
+    () => verifyAndIssueSqliteStartupIntegrity(fake, "sqlite quick_check failed"),
+    undefined,
+    "the SQLite native receiver check must reject a structural fake before issuing proof",
+  );
 });
 
 test("standalone AI durability stores retain their fail-closed full-file scan", () => {

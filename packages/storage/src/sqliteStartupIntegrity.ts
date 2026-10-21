@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 
 declare const sqliteStartupIntegrityBrand: unique symbol;
 
@@ -9,13 +9,19 @@ export interface SqliteStartupIntegrityAttestation {
 
 const verifiedDatabaseIdentity = new WeakMap<object, string>();
 
+function prepareNative(connection: DatabaseSync, sql: string) {
+  // Calling the native prototype method validates SQLite's internal receiver brand. Calling
+  // connection.prepare directly would let a structural fake claim that quick_check passed.
+  return DatabaseSync.prototype.prepare.call(connection, sql);
+}
+
 function quickCheckOk(connection: DatabaseSync, sql: string): boolean {
-  const check = connection.prepare(sql).get() as Record<string, unknown> | undefined;
+  const check = prepareNative(connection, sql).get() as Record<string, unknown> | undefined;
   return check != null && Object.values(check).includes("ok");
 }
 
 function mainDatabaseIdentity(connection: DatabaseSync): string | null {
-  const rows = connection.prepare("PRAGMA database_list").all() as Array<Record<string, unknown>>;
+  const rows = prepareNative(connection, "PRAGMA database_list").all() as Array<Record<string, unknown>>;
   const main = rows.find((row) => row.name === "main");
   const file = main?.file;
   return typeof file === "string" && file.length > 0 ? file : null;

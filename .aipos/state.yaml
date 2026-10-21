@@ -2708,6 +2708,25 @@ current_research_continuous_experiments:
   branch: claude/nusa-repository-j93sd8-research-scheduler
   authority_impact: research-evidence-only
   remaining: stage_2_composition_then_stage_3_tests_then_owner_approved_deploy
+
+current_ops_sqlite_attestation_nonforgeability_20261021:
+  work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_FRESH_NON_AUTHOR_REVIEW
+  branch: fix/sqlite-integrity-attestation-2770
+  issue: 2770
+  pull_request: 2855
+  base_sha: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
+  prior_head: 2e4597f58f685f7ae4b2009a7bca88d38bc68c43
+  finding: "The unresolved exact-head P1 allowed a structurally forged DatabaseSync-like object to mint a registered startup-integrity proof despite the separate forged-proof-object test."
+  repair: "Proof scans and database identity reads now call the native DatabaseSync prototype prepare method, which validates the real SQLite receiver; a focused regression covers forged issuer input."
+  validation: "pnpm build PASS; focused startup and writer-lease suites 13/13 PASS; validate:full PASS; security:gate PASS after the declared postinstall backport; direct source test rejects forged receiver and accepts a real in-memory DatabaseSync."
+  next: "Push to PR #2855, then require fresh exact-head CI and non-author validation; retain Draft/HOLD until acceptance, Audit, and Release."
+  safety:
+    PAPER_ONLY: true
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
   status: READY_FOR_REVIEW
