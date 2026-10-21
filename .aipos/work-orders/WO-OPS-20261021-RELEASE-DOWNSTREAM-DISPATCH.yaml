@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: REPAIRING_FRESH_VALIDATOR_P1_P2_FINDINGS
+status: P1_P2_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -73,7 +73,9 @@ validation_history:
     p1: 1
     p2: 1
     details: "P1: a successful Cloudflare Promote job can be a no-op when main advances between the release check and workflow_dispatch, so job success alone does not prove exact-main promotion. P2: include pending expected-job status among active duplicate owners."
+  repair_commit: a831b8817b91eba26b38732530dcbc6c8850287f
+  repair_validation: "Both findings repaired: pending counts as an active expected-job owner; completed Cloudflare Promote only owns convergence if cloudflare-production contains exact MERGED_MAIN (compare status ahead/identical). Focused test file 14/14 PASS and git diff --check PASS; successor exact-head workflows and review remain pending."
   focused_tests: "14/14 PASS after prior repair; latest P1/P2 repairs are pending focused retest."
   previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
   oracle_main_release: "Run 39527382516 failed closed at pre-activation exact-main recheck: it requested e106bdbd62c92278d1835722f4ada1c31762ceb7 while protected main had advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec. No stale activation occurred."
-next: "Repair the latest exact-head P1/P2 findings: include pending in active-job dedupe, and require Cloudflare production branch ancestry to prove completed exact-main promotion. Add regression assertions, rerun focused tests, update AIPOS, then push one successor and restart exact-head CI/companions/review. Keep Draft; no Audit/Release or Oracle overlap."
+next: "Push this AIPOS status synchronization to the existing PR branch, then verify the resulting exact head against protected main with all six workflows and a fresh review. Obtain a separate explicit non-author P0/P1/P2 Validator receipt before Audit. Keep Draft; no Audit/Release or Oracle overlap."

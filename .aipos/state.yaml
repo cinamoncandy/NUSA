@@ -2796,7 +2796,7 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: REPAIRING_FRESH_VALIDATOR_P1_P2_FINDINGS
+  status: P1_P2_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
@@ -2830,9 +2830,11 @@ current_ops_release_downstream_dispatch_20261021:
     p1: 1
     p2: 1
     details: "P1: Cloudflare workflow_dispatch may run on a newer main SHA with an older head_sha input, so a successful no-op Promote job cannot prove promotion for the run SHA; verify Cloudflare production lineage before treating a completed Promote as owner. P2: pending expected-job state must count as an active owner to avoid duplicate dispatch."
+  repair_commit: a831b8817b91eba26b38732530dcbc6c8850287f
+  repair_validation: "Both findings repaired: pending is included in active expected-job states; completed Cloudflare Promote only owns convergence when the cloudflare-production branch contains exact MERGED_MAIN (compare status ahead/identical). Added focused regressions; tests/autopilot-deterministic-audit-release.test.js 14/14 PASS and git diff --check PASS. Successor exact-head workflows and fresh review are pending."
   validation: "Predecessor 1e92ca2f430dbeb638d95747e501d3e84575ce45 passed all six exact-head workflows and focused tests 14/14; those results are historical. Exact head 278646fbd9f17b7ecd0f0d5c6e839895060132fa has current Codex review P0=0/P1=1/P2=1; canonical CI was still running when findings arrived. Both findings are being repaired; no current-head PASS is claimed. Protected main c8148d7e61dd3be0763577b1c736331ab27c56ec remains merged via 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3. Oracle run 39527382516 stopped before activation after main advanced; no stale deployment occurred."
   formal_validator: PENDING
-  next: "Repair the latest exact-head P1/P2 findings: include pending in active-job dedupe, and require Cloudflare production branch ancestry to prove completed exact-main promotion. Add regression assertions, rerun focused tests, update AIPOS, then push one successor and restart exact-head CI/companions/review. Keep Draft; no Audit/Release or Oracle overlap."
+  next: "Push this AIPOS status synchronization to the existing PR branch, then verify the resulting exact head against protected main with all six workflows and a fresh review. Obtain a separate explicit non-author P0/P1/P2 Validator receipt before Audit. Keep Draft; no Audit/Release or Oracle overlap."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:
