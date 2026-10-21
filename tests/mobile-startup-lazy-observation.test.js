@@ -31,7 +31,9 @@ test("secondary observation is navigation-driven and PAPER-only unavailable surf
   assert.match(supplemental, /loadLiveReadinessOperations/);
   assert.match(supplemental, /lastSupplementalRefreshKeyRef\.current === key/);
 
-  const polling = between("useEffect(() => {\n    refreshGenerationRef.current += 1;", "useEffect(() => {\n    publicRefreshGenerationRef.current += 1;");
+  const pollingMatch = app.match(/useEffect\(\(\) => \{\r?\n\s+refreshGenerationRef\.current \+= 1;[\s\S]*?useEffect\(\(\) => \{\r?\n\s+publicRefreshGenerationRef\.current \+= 1;/);
+  assert.ok(pollingMatch, "missing canonical PAPER polling effect");
+  const polling = pollingMatch[0];
   assert.match(polling, /PAPER_REFRESH_INTERVAL_MS/);
   assert.match(polling, /void refresh\(\)/);
   assert.doesNotMatch(polling, /refreshSupplemental/);
