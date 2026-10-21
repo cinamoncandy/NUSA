@@ -38,6 +38,11 @@ addendum_2026_10_20_ridgeline:
 # reason cards (only recorded reasons; empty state says so), and an explicit "예시 화면 보기" preview with made-up numbers, off by
 # default and labelled "예시 데이터 · 실제 거래가 아니에요". The real screen still shows "시작 전" until the server sends values. No server
 # change, no limit/threshold/authority change. Not seen on a real device.
+# Addendum (decision core): the owner chose the "판단 코어" prototype (2026-10-21) as the main motion graphic of "지금", replacing the
+# ridgeline there (slowed about 1.5x at the owner's request). A turning point-mesh sphere: a real new decision sends a wave of light
+# across it, a real new PAPER order throws lime sparks, and it cools to amber when buying is held. It draws only the counts the
+# screen already has and invents nothing. The risk-gate (limit) state and 기록 keep the ridgeline, which shows where the day stopped.
+# Display only; no limit, threshold or authority changed. Not seen on a real device (Skia rendering is unverified here).
 # Addendum (futures snapshot): heartbeat gets an optional display-only `futures` field (positions, dayLossRatio,
 # consecutiveLosses) with a validator that drops a malformed value on its own. The server does not emit it: the futures
 # engine has not traded, so nothing is invented and the 선물 tab keeps showing "시작 전". The app reads it from the fresh
