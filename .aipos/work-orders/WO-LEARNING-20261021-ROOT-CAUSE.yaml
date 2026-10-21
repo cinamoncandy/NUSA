@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261021-ROOT-CAUSE
 title: "Closed learning loop: root-cause read of why no candidate-bound cycle has run (read-only; no code or runtime change)"
-status: ANALYSIS_RECORDED
+status: READY_FOR_REVIEW
 priority: P0
 owner_request: "2026-10-21: 학습 폐루프 완성이 최우선. 근본적인 원인을 먼저 찾아서 해결."
 evidence_source: "oracle-host-diagnose run 39397128803 (read-only, 2026-10-20T08:57Z, release 9b6c99cee), #2589/#1605 latest notes, WO-OPS-20261020-RESEARCH-CANDLE-STALL, WO-RESEARCH-20261014-ORDERBOOK-STUDY. The host state is about 17 h old at the time of writing; re-read it before acting."
