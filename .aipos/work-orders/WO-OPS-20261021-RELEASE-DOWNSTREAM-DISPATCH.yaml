@@ -1,12 +1,12 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: AIPOS_RECOVERY_GUIDANCE_FIXED_PENDING_FRESH_HEAD_CHECKS
+status: MAIN_SYNCED_PENDING_FRESH_EXACT_HEAD_CHECKS
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
 base_branch: main
-base_commit: c8148d7e61dd3be0763577b1c736331ab27c56ec
-main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
+base_commit: 345539210a96f9dd4292b848318043fe23afc7f4
+main_sync_commit: 5436f98ac5ad93518e5cf9386d79927875ca2c84
 previous_main_sync_commits:
   - 246265c05b45af709de11274476100a54201671a
   - 3ece7ed8123a12db76b85d914cadb60a80e5035b
@@ -95,5 +95,8 @@ validation_history:
     p2: 1
     details: "P2: recovery instructions still tell the next agent to commit/push the duplicate-key correction even though exact head 03617c5 already contains it."
   review_p2_repair: "Corrected in this successor: 03617c511fa2c5634b0f8a9979033861e76b94e9 is the already-pushed AIPOS-only duplicate-key repair; no redundant commit is requested."
-  latest_exact_head_checks: "For predecessor 03617c511fa2c5634b0f8a9979033861e76b94e9, PAPER Runtime and four safety companions completed success; canonical CI 39532164534 and review were still running when this update began. These predecessor results do not validate this successor."
-  next: "Verify the current successor against protected main, all six exact-head workflows, and fresh non-author review; then obtain formal non-author Validator P0/P1/P2 counts. Keep Draft; Audit/Release/merge and Oracle overlap remain prohibited."
+  predecessor_473a7aaf_status: "AIPOS recovery guidance correction was committed and pushed as 473a7aaf5fd5a3f4acb946cbd98f943dcd8d83a5. Its fresh workflow/review status was not retrieved before protected main advanced; treat it as unverified and superseded by this main sync."
+  latest_main_sync: 345539210a96f9dd4292b848318043fe23afc7f4
+  previous_main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
+  latest_exact_head_checks: "The previous exact head 03617c511fa2c5634b0f8a9979033861e76b94e9 had all six workflows completed success (CI 39532164534; PAPER 39532164284; Capability 39532164250; Activation 39532164222; Transport 39532164277; Read-only Broker 39532164288), but its fresh review found a P2. The P2 recovery-guidance correction is present in predecessor 473a7aaf; that SHA's workflow result was not retrieved before current-main synchronization. All prior evidence is historical to this sync."
+  next: "Verify this main-synchronized successor against protected main, all six exact-head workflows, and fresh non-author review; then obtain formal non-author Validator P0/P1/P2 counts. Keep Draft; Audit/Release/merge and Oracle overlap remain prohibited."
