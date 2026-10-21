@@ -593,9 +593,21 @@ jobs:
                 elif [ "$candidate_status" = "completed" ]; then
                   production_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/cloudflare-production" --jq '.commit.sha')"
                   production_relation="$(gh api "repos/$GITHUB_REPOSITORY/compare/$MERGED_MAIN...$production_sha" --jq '.status')"
-                  if [ "$production_relation" != "ahead" ] && [ "$production_relation" != "identical" ]; then
-                    echo "Cloudflare run $candidate_run completed without proving exact-main promotion: main=$MERGED_MAIN production=$production_sha relation=$production_relation; it does not own convergence."
-                    applicable_job="false"
+                  if [ "$production_relation" = "ahead" ] || [ "$production_relation" = "identical" ]; then
+                    echo "Cloudflare run $candidate_run completed successfully and production contains exact main $MERGED_MAIN."
+                  else
+                    verified_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$MERGED_MAIN" --jq '.tree.sha')"
+                    production_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$production_sha" --jq '.tree.sha')"
+                    verified_apps_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/trees/$verified_tree" --jq '.tree[] | select(.path == "apps" and .type == "tree") | .sha')"
+                    production_apps_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/trees/$production_tree" --jq '.tree[] | select(.path == "apps" and .type == "tree") | .sha')"
+                    verified_autopilot_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/trees/$verified_apps_tree" --jq '.tree[] | select(.path == "autopilot" and .type == "tree") | .sha')"
+                    production_autopilot_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/trees/$production_apps_tree" --jq '.tree[] | select(.path == "autopilot" and .type == "tree") | .sha')"
+                    if [ -n "$verified_autopilot_tree" ] && [ "$verified_autopilot_tree" = "$production_autopilot_tree" ]; then
+                      echo "Cloudflare run $candidate_run completed successfully and apps/autopilot tree matches exact main $MERGED_MAIN; no deployment-relevant change remains."
+                    else
+                      echo "Cloudflare run $candidate_run completed without proving exact-main promotion: main=$MERGED_MAIN production=$production_sha relation=$production_relation; it does not own convergence."
+                      applicable_job="false"
+                    fi
                   fi
                 fi
               fi

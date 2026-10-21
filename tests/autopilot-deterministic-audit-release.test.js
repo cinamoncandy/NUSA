@@ -142,6 +142,11 @@ test("Release dispatches only active unowned exact-main downstream workflows aft
   assert.match(downstream, /Active Cloudflare workflow_dispatch run.*cannot prove/);
   assert.match(downstream, /candidate_status.*completed.*branches\/cloudflare-production/s);
   assert.match(downstream, /branches\/cloudflare-production/);
+  assert.match(downstream, /git\/commits\/\$MERGED_MAIN.*\.tree\.sha/s);
+  assert.match(downstream, /git\/trees\/\$verified_apps_tree.*path == "autopilot"/s);
+  assert.match(downstream, /git\/trees\/\$production_apps_tree.*path == "autopilot"/s);
+  assert.match(downstream, /verified_autopilot_tree.*production_autopilot_tree/s);
+  assert.match(downstream, /no deployment-relevant change remains/);
   assert.match(downstream, /compare\/\$MERGED_MAIN\.\.\.\$production_sha/);
   assert.match(downstream, /production_relation.*ahead.*identical/s);
   assert.match(downstream, /completed without proving exact-main promotion/);
