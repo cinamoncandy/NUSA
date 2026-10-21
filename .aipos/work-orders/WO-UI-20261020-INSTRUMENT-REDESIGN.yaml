@@ -34,6 +34,10 @@ addendum_2026_10_20_ridgeline:
 # breathing = blocked) that fill in left to right; a tap shows that gate's reason. Display only, no action; reduce-motion
 # shows one settled frame. Gate data and the "통과해도 실거래는 켜지지 않아요" note are unchanged. Not seen on a real device.
 
+# Addendum (futures UIUX): the 선물 tab gets its finished layout ahead of any server data: usage bars with the limit line, "왜 샀나요"
+# reason cards (only recorded reasons; empty state says so), and an explicit "예시 화면 보기" preview with made-up numbers, off by
+# default and labelled "예시 데이터 · 실제 거래가 아니에요". The real screen still shows "시작 전" until the server sends values. No server
+# change, no limit/threshold/authority change. Not seen on a real device.
 # Addendum (decision core): the owner chose the "판단 코어" prototype (2026-10-21) as the main motion graphic of "지금", replacing the
 # ridgeline there (slowed about 1.5x at the owner's request). A turning point-mesh sphere: a real new decision sends a wave of light
 # across it, a real new PAPER order throws lime sparks, and it cools to amber when buying is held. It draws only the counts the
