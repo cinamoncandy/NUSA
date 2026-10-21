@@ -6,6 +6,7 @@ repository: cinamoncandy/NUSA
 issue: 2843
 base_branch: main
 base_commit: e106bdbd62c92278d1835722f4ada1c31762ceb7
+main_sync_commit: 246265c05b45af709de11274476100a54201671a
 implementation_branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 authority_impact: deployment-control
 finding: "Deterministic Audit/Release run 39469748838 canonically merged PR #2818 and recovered exact-main CI, then failed only because its post-merge downstream step unconditionally workflow_dispatch'ed android-stable-release-trigger.yml while that workflow was intentionally disabled_manually; GitHub returned HTTP 422."
