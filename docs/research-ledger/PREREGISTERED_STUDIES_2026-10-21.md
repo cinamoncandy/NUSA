@@ -1,4 +1,4 @@
-# Pre-registered studies S2-S4 (design v5: v4 plus the S3 gross-edge gate found by simulation; design only)
+# Pre-registered studies S2-S4 (design v6: v5 plus the S3 book-based fill model and review clean-ups; design only)
 
 Status: DESIGN. Freeze point: 2026-10-28T00:00Z (before the existing order-book study prints on 2026-10-29 and before validation data
 exists). Owner request 2026-10-21: "다 해" after the root-cause read in WO-LEARNING-20261021-ROOT-CAUSE (no strategy has an edge after
@@ -10,19 +10,18 @@ What "before any data" means: the design uses no data from its holdout period, w
 candle-rule results on the same venue. The training window (10-15..11-01) contains the existing study's holdout 10-25..10-28; that is
 acceptable because here training defines eligibility only and nothing is fitted.
 
-v5 adds one rule to S3 (test d): while building the S3 core, a simulation showed that a signal with NO information still passed S3 through the maker execution's own saving (excess vs a taker benchmark, execution improvement and a positive absolute return are all produced by cheaper execution alone), so S3 now also requires a gross (cost-free) signal edge. v4 closes the third review: exact formulas, empty-cohort and data-gap valuation, S3 cohort counting, the beta clause on all studies, byte-immutability after the freeze, and a single allowed re-run. v1 -> v2 -> v3: a 7-day holdout could not reach the bar; overlapping holds broke the test; then v2 left book lookups, p-value method,
+v6 changes S3's fill model and tidies the review's findings: the collector stores trade ticks only for the few WebSocket markets, not the ~300 order-book markets, so a trade-tick fill model could never run; fills are now judged from the minute order-book snapshots (conservative, all-or-nothing, see S3). An S2 empty cohort is one rule only (value 0 minus the benchmark, counts toward n). The integrity check compares stored stamps with the run clock (the table has no ingest-time column). The validation sanity line is dropped. v5 adds one rule to S3 (test d): while building the S3 core, a simulation showed that a signal with NO information still passed S3 through the maker execution's own saving (excess vs a taker benchmark, execution improvement and a positive absolute return are all produced by cheaper execution alone), so S3 now also requires a gross (cost-free) signal edge. v4 closes the third review: exact formulas, empty-cohort and data-gap valuation, S3 cohort counting, the beta clause on all studies, byte-immutability after the freeze, and a single allowed re-run. v1 -> v2 -> v3: a 7-day holdout could not reach the bar; overlapping holds broke the test; then v2 left book lookups, p-value method,
 cohort counts, S3 exit/benchmark handling, the freeze mechanics and the stress test under-specified. v3 fixes those.
 
 ## Common rules (all times UTC; every split end is exclusive; the existing order-book study is unchanged, keeps its own alpha 0.05/195 and its holdout 10-25..10-28 is never reused)
 
-- Data: all-KRW order-book snapshots and trade ticks from the PAPER host (read-only, bounded, inside the existing nusa-research
-  service, same shape as `scripts/run-orderbook-study.js`). The result carries the sha256 of the books AND trade ticks actually
-  consumed (canonical JSON lines sorted by (market, stamp)) and fails closed with DATA_INTEGRITY_FAIL if any row is stamped more than 5 s after its ingest time.
+- Data: all-KRW order-book snapshots from the PAPER host (read-only, bounded, inside the existing nusa-research
+  service, same shape as `scripts/run-orderbook-study.js`). The result carries the sha256 of the book rows actually
+  read (canonical lines sorted by (market, stamp)) and fails closed with DATA_INTEGRITY_FAIL if any stored row is stamped more than 5 s after the run clock (the table has no ingest-time column).
 - Book at time t: the last snapshot in (t - 2 min, t], for every study (as in the existing script). Spread in bp = (ask - bid) / mid x 1e4
   from the best bid and ask. Mid = (bid + ask) / 2. Top-5 imbalance = (bid5 - ask5) / (bid5 + ask5) over the top five levels' sizes, 0 if
   the denominator is 0. Percentile rank of x among n values = (rank - 1) / (n - 1) with average ranks for ties, 0.5 if n = 1.
-- Splits: train 2026-10-15T00:00Z .. 2026-11-01T00:00Z (eligibility only); validation 11-01T00:00Z .. 11-05T00:00Z (printed as a
-  sanity line, never used to choose anything, and not computed before the freeze); holdout 2026-11-05T00:00Z .. 2026-12-05T00:00Z.
+- Splits: train 2026-10-15T00:00Z .. 2026-11-01T00:00Z (eligibility only); validation 11-01T00:00Z .. 11-05T00:00Z (reserved, not computed, never used to choose anything); holdout 2026-11-05T00:00Z .. 2026-12-05T00:00Z.
   A decision is dropped if its SCHEDULED exit time (decision + hold) is later than the split end; an exit exactly at the split end is allowed.
   For S3 the scheduled exit is decision + 4 h, never the realised exit. Printed only on or after 2026-12-05T02:00Z (WAITING_DATA before).
 - Eligible market (per study, from training data only): over the study's training decision times (S2/S4: 17 daily 00:00Z; S3: 102 at
@@ -47,7 +46,7 @@ cohort counts, S3 exit/benchmark handling, the freeze mechanics and the stress t
   as zero return, per pick not per cohort) > 0 under STRESS costs as well as base costs (printed with its own t statistic, not a decider beyond sign);
   coverage met. A cohort shortfall is INSUFFICIENT_DATA, not FAIL. Counts use integer arithmetic (ceil(9n/10)).
 - Coverage, evaluated before any outcome is computed: at least 90% of scheduled holdout decision times have a book for 60 or more eligible
-  markets and at least 90% of picks have an exit book; for S3 trade ticks must be exported and sha256-hashed daily (the host's retention pruning must not delete them before the print) and a tick gap above 10 minutes for a picked market inside a trading window makes that pick a data gap; otherwise INSUFFICIENT_DATA. Likewise
+  markets and at least 90% of picks have an exit book; for S3 every 10-minute order window must contain at least 5 book snapshots, else that pick is a data gap; otherwise INSUFFICIENT_DATA. Likewise
   INSUFFICIENT_DATA if fewer than 12 of 17 training days have 60 or more markets with a 00:00Z book that day. INSUFFICIENT_DATA is neither pass nor fail; it may be re-run ONCE with the same design hash and code, only after a documented data repair, and the first run's outcome is recorded.
 - Planned minimum detectable excess (disclosed now, estimated from training-period spreads and an assumed daily cohort sd of 2-4%): with 30
   cohorts and p < 0.0167 a mean daily excess of about 0.4 sd, i.e. roughly 80-160 bp per day net, is needed. That is a very large edge. A
@@ -77,7 +76,7 @@ Hypothesis: a daily move is large relative to the ~20 bp cost plus the spread, s
 - Primary: among eligible markets with a book at t and at t-24 h, keep those with 24 h mid return > 0 AND the mean top-5 imbalance of the
   snapshots at t, t-1 h, t-2 h, t-3 h and t-4 h (each by the (t-2 min, t] rule; fewer than 3 available excludes the market) > 0;
   rank the kept markets by the sum of their percentile ranks (computed within the kept set) of the two signals; buy the top 3 (fewer if
-  fewer qualify; no cohort if none, which then counts against the cohort minimum), equal weight; tie-break lowest market code.
+  fewer qualify; if none qualify the cohort has value 0 minus the benchmark and still counts toward n), equal weight; tie-break lowest market code.
 - SENSITIVITY: holds 4 h, 12 h; look-back 48 h; reversal sign.
 
 ## S3 - Cheaper execution, 4 h hold
@@ -90,11 +89,7 @@ and adverse selection does not eat the saving.
   cancelled after 10 minutes. Primary exit: a sell limit at the best ask of the book at t+4 h by the same rule, cancelled after 10 minutes; if it
   is unfilled, or the book is missing, the position is closed as a taker at the best bid of the last snapshot in (t+4 h+10 min-2 min, t+4 h+10 min]
   with base slippage; if no such book exists the pick is a data gap. Unfilled entries are missed trades (zero return, counted).
-- Fill model, conservative: a limit fills only for the part of its size covered by cumulative traded volume strictly through its price (below a
-  buy limit, above a sell limit), counting only trades with placement + 1 s <= stamp < placement + 10 min, with no queue credit.
-  Partial fills are allowed; an entry's fill fraction f scales that pick's size (it exits f of the quantity, and the unfilled remainder of a partially filled exit is closed as a taker under the same fallback); cohort return = sum(f_i x r_i) / (number of picks selected), missed picks have f = 0; the entry fill
-  rate printed is the size-weighted fill fraction, and a pick with fraction below 0.05 counts as a missed trade. The hold is measured from
-  the decision time t, not the fill time.
+- Fill model (book-based, conservative, all-or-nothing): a resting limit is judged from the minute book snapshots with placement + 1 s <= stamp < placement + 10 min. A buy limit fills only if some snapshot's best ask is strictly below the limit price (an ask that low means sellers traded through it); a sell limit fills only if some snapshot's best bid is strictly above it. The window needs at least 5 snapshots, else the pick is a data gap. Minute sampling misses intra-minute crossings, so the model under-fills. There is no queue credit and no partial fill: a pick is filled or missed. A filled entry exits one unit; an unfilled exit is closed as a taker (taker fee plus slippage, base 10 bp, stress 20 bp per side). Cohort return = sum(f_i x r_i) / (number of picks selected) with f = 1 for filled and 0 for missed picks; data-gap picks are valued -100% and left out of the fill rate; the printed entry fill rate is filled picks over non-gap picks. The hold is measured from the decision time t, not the fill time.
 - Tests: (a) execution test: the paired per-day improvement of the maker execution over a taker execution of the SAME signal and picks
   (taker entry at the ask at t, taker exit at the bid at t+4 h, base costs), missed trades counted as zero in the maker value, both tests at
   one-sided alpha 0.05; (b) the excess-vs-benchmark test is computed against the TAKER benchmark (same eligible basket, taker execution) scaled by that day's size-weighted fill fraction, so that being out of the market on a falling day cannot produce excess, and
