@@ -128,7 +128,9 @@ export function evaluateMetaLearning(entries: readonly ResearchLedgerEntry[]): M
  * (a challenger beat the champion on validation: one evaluated configuration and a discovery pass, because FAIL_ is only derived for
  * challengers that lost) and HOLDOUT_CHALLENGER_BETTER (it also won the single-use holdout: a holdout pass). Counting them keeps a
  * genuine win visible to the meta ledger; they only appear once a challenger really wins, so today's figures do not change.
- * Counters are per process, so these entries cover the current process only.
+ * Counters are per process, so these entries cover the current process only. Known limit: FAIL_/REPEAT_ are derived all-time from the
+ * durable ledger while the win keys are per process, so after a restart an earlier win drops out (this can bias overfitRatePercent up and re-exhaust
+ * a dimension a holdout win had un-exhausted; steering only orders ticks). Deriving wins from the ledger as well is a separate change.
  */
 export function runtimeResearchEntries(byInterval: Readonly<Record<string, { readonly counts: Readonly<Record<string, number>> } | null>> | null | undefined, markets: number): readonly ResearchLedgerEntry[] {
   if (byInterval == null) return Object.freeze([]);

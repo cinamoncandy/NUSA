@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { evaluateMetaLearning, runtimeResearchEntries, type ResearchLedgerEntry } from "./researchMetaLearning";
+import { META_EXHAUSTED_CONFIGS, evaluateMetaLearning, metaLearningSteering, runtimeResearchEntries, type ResearchLedgerEntry } from "./researchMetaLearning";
 
 const entry = (id: string, patch: Partial<ResearchLedgerEntry>): ResearchLedgerEntry => ({ id, dataType: "CLOSE", timeframe: "60m", universe: 5, methodClass: "RULE", configs: 10, discoveryPass: 0, holdoutPass: 0, ...patch });
 
@@ -57,5 +57,20 @@ describe("research meta-learning policy", () => {
   it("a holdout pass can never exceed the discoveries that earned it", () => {
     const odd = { "1m": { counts: { HOLDOUT_CHALLENGER_BETTER: 5, FAIL_NO_EDGE: 3 } } };
     assert.deepEqual(runtimeResearchEntries(odd, 5).map((e) => [e.discoveryPass, e.holdoutPass]), [[0, 0]]);
+  });
+
+  it("a validation win alone keeps the dimensions exhausted; only a holdout win un-exhausts them and returns steering to NORMAL", () => {
+    const fails = META_EXHAUSTED_CONFIGS + 10;
+    const base = { COMPLETED: fails, FAIL_NO_EDGE: fails };
+    const exhausted = (counts: Record<string, number>) => evaluateMetaLearning([...runtimeResearchEntries({ "1m": { counts } }, 5)]);
+    const none = exhausted(base);
+    assert.ok(none.exhausted.includes("dataType=CLOSE") && none.exhausted.includes("methodClass=RULE"));
+    assert.equal(metaLearningSteering(none, 5).mode, none.recommended === undefined ? "NORMAL" : "DEPRIORITIZE_EXHAUSTED");
+    const validationOnly = exhausted({ ...base, VALIDATION_CHALLENGER_BETTER: 1 });
+    assert.ok(validationOnly.exhausted.includes("dataType=CLOSE"), "a discovery without a holdout pass does not un-exhaust");
+    assert.equal(validationOnly.holdoutPasses, 0);
+    const holdoutWin = exhausted({ ...base, VALIDATION_CHALLENGER_BETTER: 1, HOLDOUT_CHALLENGER_BETTER: 1 });
+    assert.ok(!holdoutWin.exhausted.includes("dataType=CLOSE") && !holdoutWin.exhausted.includes("methodClass=RULE"));
+    assert.equal(metaLearningSteering(holdoutWin, 5).mode, "NORMAL");
   });
 });
