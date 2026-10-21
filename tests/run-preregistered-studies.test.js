@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const { runBoth, makeDbProvider } = require("../scripts/run-daily-cross-section-study.js");
+const { runAll, makeDbProvider } = require("../scripts/run-preregistered-studies.js");
 
 function memoryDb(rows) {
   // A tiny stand-in for node:sqlite's DatabaseSync (prepare().all/get/iterate) over an array of rows.
@@ -16,13 +16,13 @@ function memoryDb(rows) {
 const row = (market, t, bid, ask) => ({ market, captured_at_ms: t, best_bid: bid, best_ask: ask, bid_size_5: 1.2, ask_size_5: 1 });
 
 test("before the print time both studies report WAITING_DATA and read nothing", () => {
-  const out = runBoth({ db: memoryDb([]), now: Date.parse("2026-12-01T00:00:00Z") });
-  assert.deepEqual(out.map((r) => [r.study, r.status]), [["S2", "WAITING_DATA"], ["S4", "WAITING_DATA"]]);
+  const out = runAll({ db: memoryDb([]), now: Date.parse("2026-12-01T00:00:00Z") });
+  assert.deepEqual(out.map((r) => [r.study, r.status]), [["S2", "WAITING_DATA"], ["S3", "WAITING_DATA"], ["S4", "WAITING_DATA"]]);
 });
 
 test("a row stamped after the run time fails closed as DATA_FUTURE", () => {
   const now = Date.parse("2026-12-06T00:00:00Z");
-  const out = runBoth({ db: memoryDb([row("KRW-A", now + 60_000, 100, 101)]), now });
+  const out = runAll({ db: memoryDb([row("KRW-A", now + 60_000, 100, 101)]), now });
   assert.ok(out.every((r) => r.status === "DATA_INTEGRITY_FAIL" && r.reasonCode === "DATA_FUTURE"));
 });
 
@@ -36,13 +36,15 @@ test("the provider follows the (t - 2 min, t] book rule, ignores crossed books a
   assert.equal(p.bookAt("KRW-B", T), undefined, "a crossed book is not a book");
   assert.equal(p.lastBidBetween("KRW-A", T - 3_600_000, T), 100);
   assert.equal(p.lastBidBetween("KRW-A", T + 1, T + 3_600_000), undefined);
+  assert.deepEqual(p.booksBetween("KRW-A", T - 41 * 60_000, T).map((x) => x.t), [T - 40 * 60_000, T - 3 * 60_000, T - 30_000], "snapshots with from <= t < to, crossed books skipped");
+  assert.deepEqual(p.booksBetween("KRW-B", T - 41 * 60_000, T), []);
   assert.equal(p.hashRows().rows, 4, "every loaded row is hashed, including the unusable crossed one");
   assert.equal(p.hashRows().sha256.length, 64);
 });
 
 test("the runner opens the database read-only, writes no file and only prints result lines", () => {
-  const src = fs.readFileSync("scripts/run-daily-cross-section-study.js", "utf8");
+  const src = fs.readFileSync("scripts/run-preregistered-studies.js", "utf8");
   assert.match(src, /new DatabaseSync\(path, \{ readOnly: true \}\)/);
   assert.doesNotMatch(src, /writeFileSync|appendFileSync|createWriteStream|INSERT|UPDATE|DELETE/);
-  assert.match(src, /DAILY_STUDY_FAILED_CLOSED/);
+  assert.match(src, /PREREG_STUDY_FAILED_CLOSED/);
 });

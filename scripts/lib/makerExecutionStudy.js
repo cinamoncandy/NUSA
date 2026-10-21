@@ -5,9 +5,12 @@
  *
  * provider: {
  *   markets(), bookAt(market, t), lastBidBetween(market, from, to)         // as in dailyCrossSectionStudy
- *   tradesBetween(market, from, to): { t, price, volume }[]               // executed trades, collector receive time
- *   tickCoverageOk(market, from, to): boolean                              // no tick gap above 10 minutes in the window
+ *   booksBetween(market, from, to): { t, b, a }[]                         // the per-minute book snapshots with from <= t < to
  * }
+ * Fill model (design v6): trade ticks exist only for the few markets of the live WebSocket, not for the ~300 order-book markets, so a
+ * resting limit is judged from the minute book snapshots: a buy limit fills only if a later snapshot's best ask is strictly below the limit
+ * (an ask that low means sellers traded through it), a sell limit only if a later best bid is strictly above it. The minute sampling
+ * misses intra-minute crossings, so the model under-fills (conservative). Fills are all-or-nothing; partial fills are not modelled.
  */
 const { minimumCount, tradeNet, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, oneSidedTests } = require("./preregisteredStudyStats.js");
 const { pickS2, constants } = require("./dailyCrossSectionStudy.js");
@@ -16,8 +19,6 @@ const { TRAIN_START, TRAIN_END, HOLD_START, HOLD_END, PRINT_AT, ALPHA, H, M } = 
 const HOLD = 4 * H;
 const CANCEL = 10 * M;
 const LATENCY = 1_000;
-const NOTIONAL_KRW = 1_000_000;
-const MIN_FILL = 0.05;
 const MAKER_BASE_BP = 5, MAKER_STRESS_BP = 10, TAKER_BASE_BP = 10, TAKER_STRESS_BP = 20;
 const MAX_SPREAD_BP = 20, MIN_MARKETS = 60;
 
@@ -26,15 +27,16 @@ const spreadBp = (r) => ((r.a - r.b) / mid(r)) * 10_000;
 const mean = (a) => (a.length === 0 ? 0 : a.reduce((s, v) => s + v, 0) / a.length);
 const range = (start, endExclusive, step) => { const out = []; for (let t = start; t < endExclusive; t += step) out.push(t); return out; };
 
-/** Fill fraction of a resting limit: volume strictly through its price in [placement + 1 s, placement + 10 min), over its size. */
-function fillFraction({ side, limit, quantity, placedAt, trades }) {
-  if (!(quantity > 0)) return 0;
-  let volume = 0;
-  for (const tr of trades) {
-    if (tr.t < placedAt + LATENCY || tr.t >= placedAt + CANCEL) continue;
-    if (side === "BUY" ? tr.price < limit : tr.price > limit) volume += tr.volume;
-  }
-  return Math.min(1, volume / quantity);
+const MIN_WINDOW_SNAPSHOTS = 5; // of the ~9 minute snapshots in a 10-minute window
+
+/**
+ * Judges one resting limit from the book snapshots in [placedAt + 1 s, placedAt + 10 min). Returns 1 (filled), 0 (not filled) or null when
+ * the window has fewer than 5 snapshots (a data gap: the order cannot be judged either way).
+ */
+function bookFill({ side, limit, placedAt, books }) {
+  const window = books.filter((x) => x.t >= placedAt + LATENCY && x.t < placedAt + CANCEL);
+  if (window.length < MIN_WINDOW_SNAPSHOTS) return null;
+  return window.some((x) => (side === "BUY" ? x.a < limit : x.b > limit)) ? 1 : 0;
 }
 
 /**
@@ -45,17 +47,19 @@ function makerPick(provider, market, t, stress) {
   const makerBp = stress ? MAKER_STRESS_BP : MAKER_BASE_BP, takerBp = stress ? TAKER_STRESS_BP : TAKER_BASE_BP;
   const entry = provider.bookAt(market, t);
   if (entry == null) return { missing: true };
-  const limitBuy = entry.b, quantity = NOTIONAL_KRW / limitBuy;
-  if (!provider.tickCoverageOk(market, t, t + HOLD + CANCEL)) return { gap: true };
-  const entryFill = fillFraction({ side: "BUY", limit: limitBuy, quantity, placedAt: t, trades: provider.tradesBetween(market, t, t + CANCEL) });
-  if (entryFill < MIN_FILL) return { f: 0, r: 0 };
+  const limitBuy = entry.b;
+  const entryFill = bookFill({ side: "BUY", limit: limitBuy, placedAt: t, books: provider.booksBetween(market, t, t + CANCEL) });
+  if (entryFill == null) return { gap: true };
+  if (entryFill === 0) return { f: 0, r: 0 };
   const exitAt = t + HOLD;
   const exitBook = provider.bookAt(market, exitAt);
   const buyCost = limitBuy * (1 + makerBp / 10_000);
   let soldFraction = 0, sellPrice = 0;
   if (exitBook != null) {
     sellPrice = exitBook.a;
-    soldFraction = fillFraction({ side: "SELL", limit: sellPrice, quantity: entryFill * quantity, placedAt: exitAt, trades: provider.tradesBetween(market, exitAt, exitAt + CANCEL) });
+    const sold = bookFill({ side: "SELL", limit: sellPrice, placedAt: exitAt, books: provider.booksBetween(market, exitAt, exitAt + CANCEL) });
+    if (sold == null) return { gap: true };
+    soldFraction = sold;
   }
   const fallbackAt = exitAt + CANCEL;
   let remainder = 0;
@@ -183,4 +187,4 @@ function runMakerStudy({ provider, now, options = {} }) {
   };
 }
 
-module.exports = { runMakerStudy, fillFraction, makerPick, takerPick, eligibleMarkets, buildDays };
+module.exports = { runMakerStudy, bookFill, makerPick, takerPick, eligibleMarkets, buildDays };

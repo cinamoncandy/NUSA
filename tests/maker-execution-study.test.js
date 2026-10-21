@@ -5,37 +5,35 @@ const D = require("../scripts/lib/dailyCrossSectionStudy.js");
 const S3 = require("../scripts/lib/makerExecutionStudy.js");
 const { HOLD_START, PRINT_AT, DAY, H, M } = D.constants;
 
-test("a limit fills only for volume strictly through its price, after 1 s of latency and before the 10-minute cancel", () => {
+test("a limit is judged from minute books: filled only by a snapshot strictly through its price, between 1 s and 10 minutes, with enough snapshots", () => {
   const t0 = 1_000_000_000_000;
-  const base = { side: "BUY", limit: 100, quantity: 10, placedAt: t0 };
-  const tr = (dt, price, volume) => ({ t: t0 + dt, price, volume });
-  assert.equal(S3.fillFraction({ ...base, trades: [tr(5_000, 100, 50)] }), 0, "a print AT the limit is not through it");
-  assert.equal(S3.fillFraction({ ...base, trades: [tr(5_000, 99.9, 4)] }), 0.4, "partial fill is volume over size");
-  assert.equal(S3.fillFraction({ ...base, trades: [tr(5_000, 99.9, 4), tr(9_000, 99, 20)] }), 1, "capped at 1");
-  assert.equal(S3.fillFraction({ ...base, trades: [tr(500, 99, 50)] }), 0, "within the 1 s latency");
-  assert.equal(S3.fillFraction({ ...base, trades: [tr(1_000, 99, 50)] }), 1, "exactly 1 s after placement counts");
-  assert.equal(S3.fillFraction({ ...base, trades: [tr(10 * M, 99, 50)] }), 0, "the cancel instant is exclusive");
-  assert.equal(S3.fillFraction({ ...base, side: "SELL", trades: [tr(5_000, 100.1, 5)] }), 0.5, "a sell needs prices strictly above");
-  assert.equal(S3.fillFraction({ ...base, side: "SELL", trades: [tr(5_000, 100, 5)] }), 0);
-  assert.equal(S3.fillFraction({ ...base, quantity: 0, trades: [] }), 0);
+  const mk = (n, f) => Array.from({ length: n }, (_, i) => ({ t: t0 + 60_000 * (i + 1), b: 100, a: 100.2, ...f(i) }));
+  const base = { side: "BUY", limit: 100, placedAt: t0 };
+  assert.equal(S3.bookFill({ ...base, books: mk(9, () => ({})) }), 0, "an ask above the limit never fills a buy");
+  assert.equal(S3.bookFill({ ...base, books: mk(9, () => ({ a: 100 })) }), 0, "an ask AT the limit is not through it");
+  assert.equal(S3.bookFill({ ...base, books: mk(9, (i) => (i === 4 ? { a: 99.9 } : {})) }), 1, "one snapshot with the ask strictly below fills");
+  assert.equal(S3.bookFill({ ...base, side: "SELL", books: mk(9, (i) => (i === 2 ? { b: 100.3 } : {})), limit: 100.2 }), 1, "a sell needs a bid strictly above");
+  assert.equal(S3.bookFill({ ...base, side: "SELL", books: mk(9, () => ({ b: 100.2 })), limit: 100.2 }), 0);
+  assert.equal(S3.bookFill({ ...base, books: mk(4, () => ({ a: 99 })) }), null, "fewer than 5 snapshots in the window is a data gap");
+  const outside = [{ t: t0 + 500, b: 100, a: 90 }, { t: t0 + 10 * 60_000, b: 100, a: 90 }, ...mk(5, () => ({}))];
+  assert.equal(S3.bookFill({ ...base, books: outside }), 0, "a snapshot within the 1 s latency or at the cancel instant does not count");
 });
 
-function fakeProvider({ entryBook, exitBook, fallbackBook, trades, tickOk = true }) {
+function fakeProvider({ entryBook, exitBook, fallbackBook, crossEntry = false, crossExit = false, sparse = false }) {
   const T = HOLD_START;
+  const snaps = (from, cross, crossAt) => Array.from({ length: sparse ? 3 : 9 }, (_, i) => ({ t: from + 60_000 * (i + 1), b: crossAt === "sell" && cross ? 200 : 100, a: crossAt === "buy" && cross ? 50 : 1000 }));
   return {
     markets: () => ["KRW-A"],
     bookAt: (m, t) => (t === T ? entryBook : t === T + 4 * H ? exitBook : t === T + 4 * H + 10 * M ? fallbackBook : undefined),
     lastBidBetween: () => undefined,
-    tradesBetween: (m, from, to) => trades.filter((x) => x.t >= from && x.t < to),
-    tickCoverageOk: () => tickOk,
+    booksBetween: (m, from) => (from === T ? snaps(from, crossEntry, "buy") : snaps(from, crossExit, "sell")),
   };
 }
 const book = (b, a) => ({ t: 0, b, a, b5: 1, a5: 1 });
 
-test("a maker pick: full entry and exit fills pay only the maker fee and capture the spread", () => {
+test("a maker pick: filled entry and exit pay only the maker fee and capture the spread", () => {
   const T = HOLD_START;
-  const trades = [{ t: T + 5_000, price: 99.9, volume: 1e9 }, { t: T + 4 * H + 5_000, price: 101.3, volume: 1e9 }];
-  const p = fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2), trades });
+  const p = fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2), crossEntry: true, crossExit: true });
   const r = S3.makerPick(p, "KRW-A", T, false);
   assert.equal(r.f, 1);
   const expected = (101.2 * (1 - 0.0005)) / (100 * (1 + 0.0005)) - 1;
@@ -43,27 +41,15 @@ test("a maker pick: full entry and exit fills pay only the maker fee and capture
   assert.ok(r.r > S3.takerPick(p, "KRW-A", T, false).r, "the maker round trip beats crossing both spreads");
 });
 
-test("an unfilled entry is a missed trade (zero), and an unfilled exit is closed as a taker at the fallback book", () => {
+test("an unfilled entry is a missed trade, an unfilled exit is closed as a taker at the fallback book, and thin windows are gaps", () => {
   const T = HOLD_START;
-  const missed = S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2), trades: [] }), "KRW-A", T, false);
-  assert.deepEqual(missed, { f: 0, r: 0 });
-  const trades = [{ t: T + 5_000, price: 99.9, volume: 1e9 }];
-  const fallback = S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2), fallbackBook: book(100.5, 100.7), trades }), "KRW-A", T, false);
+  assert.deepEqual(S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2) }), "KRW-A", T, false), { f: 0, r: 0 });
+  const fallback = S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2), fallbackBook: book(100.5, 100.7), crossEntry: true }), "KRW-A", T, false);
   const expected = (100.5 * (1 - 0.0010)) / (100 * (1 + 0.0005)) - 1;
   assert.ok(Math.abs(fallback.r - expected) < 1e-12);
-  const gap = S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2), trades }), "KRW-A", T, false);
-  assert.deepEqual(gap, { gap: true }, "no exit fill and no fallback book is a data gap");
-  assert.deepEqual(S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), trades, tickOk: false }), "KRW-A", T, false), { gap: true }, "a tick-coverage gap is a data gap");
-  assert.deepEqual(S3.makerPick(fakeProvider({ entryBook: undefined, trades }), "KRW-A", T, false), { missing: true });
-});
-
-test("a partial exit fill sells that part at the limit and closes the remainder as a taker", () => {
-  const T = HOLD_START;
-  const qty = 1_000_000 / 100;
-  const trades = [{ t: T + 5_000, price: 99.9, volume: qty }, { t: T + 4 * H + 5_000, price: 101.3, volume: qty / 2 }];
-  const r = S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2), fallbackBook: book(100.5, 100.7), trades }), "KRW-A", T, false);
-  const expected = (0.5 * 101.2 * (1 - 0.0005) + 0.5 * 100.5 * (1 - 0.0010)) / (100 * (1 + 0.0005)) - 1;
-  assert.ok(Math.abs(r.r - expected) < 1e-12);
+  assert.deepEqual(S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), exitBook: book(101, 101.2), crossEntry: true }), "KRW-A", T, false), { gap: true }, "no exit fill and no fallback book is a data gap");
+  assert.deepEqual(S3.makerPick(fakeProvider({ entryBook: book(100, 100.2), sparse: true }), "KRW-A", T, false), { gap: true }, "a window with too few snapshots cannot be judged");
+  assert.deepEqual(S3.makerPick(fakeProvider({ entryBook: undefined }), "KRW-A", T, false), { missing: true });
 });
 
 // ---- end to end on a synthetic market ----
@@ -78,13 +64,12 @@ function synthetic({ seed = 7, markets = 70, drift = 0, halfBp = 2.5, wobbleAmp 
   const paths = new Map();
   for (const m of codes) { const p = [Math.log(1000)]; for (let k = 0; k < NSTEP; k += 1) p.push(p[k] + factor[k] + (0.01 / Math.sqrt(6)) * normal()); paths.set(m, p); }
   const price = (m, t) => { const x = (t - DAYS0) / (4 * H), k = Math.floor(x), f = x - k, p = paths.get(m); return Math.exp(p[k] + (p[k + 1] - p[k]) * f); };
-  const book = (m, t) => { const p = price(m, t); return { t, b: p * (1 - halfBp / 10_000), a: p * (1 + halfBp / 10_000), b5: 1.2, a5: 1 }; };
   const wobble = (m, t) => { const x = Math.sin(Number(m.slice(5)) * 12.9898 + Math.floor(t / M) * 78.233) * 43758.5453; return x - Math.floor(x); };
+  const book = (m, t) => { const p = price(m, t) * (1 + (wobble(m, t) - 0.5) * wobbleAmp); return { t, b: p * (1 - halfBp / 10_000), a: p * (1 + halfBp / 10_000), b5: 1.2, a5: 1 }; };
   return {
     markets: () => codes, bookAt: book,
     lastBidBetween: (m, from, to) => book(m, to).b,
-    tradesBetween: (m, from, to) => { const out = []; for (let t = Math.ceil(from / M) * M; t < to; t += M) { const px = price(m, t) * (1 + (wobble(m, t) - 0.5) * wobbleAmp); out.push({ t, price: px, volume: 400 }); } return out; },
-    tickCoverageOk: () => true,
+    booksBetween: (m, from, to) => { const out = []; for (let t = Math.ceil(from / M) * M; t < to; t += M) out.push(book(m, t)); return out; },
   };
 }
 const NOW = PRINT_AT + 1;
