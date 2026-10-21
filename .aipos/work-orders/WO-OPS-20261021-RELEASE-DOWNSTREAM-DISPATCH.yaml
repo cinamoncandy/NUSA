@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: EXACT_HEAD_CHECKS_PASS_AIPOS_SUCCESSOR_VALIDATION_REQUIRED
+status: AIPOS_DUPLICATE_KEY_PREFLIGHT_FAILURE_REPAIR_REQUIRED
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -138,7 +138,7 @@ validation_history:
   successor_local_validation: "On exact source tree d58ec8d9, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Fresh review of 996cee96 found P0=0/P1=0/P2=1 for unrelated backup base drift; restored here. New exact-head workflows and review are required after this AIPOS successor."
   previous_main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
   legacy_549_exact_head_checks: "Predecessor 549ffd685e87c745c87de94897da7370d7e15785 against base 345539210a96f9dd4292b848318043fe23afc7f4 passed all six workflows: CI 39560202430; PAPER 39560202557; Capability 39560202463; Activation 39560202453; Transport 39560202505; Read-only Broker 39560202451. Fresh Codex review was still running on that predecessor when protected main advanced to 55d723aada9dfcdb78293bbef30c3af2a6ac26f2. This main-sync successor therefore requires fresh exact-head workflows and review."
-  next: "The two implementation P2 repairs are already present; do not recommit them. c76ceb78 exact-head checks and review passed, but this AIPOS receipt creates a successor. On the resulting new exact head, verify protected-main alignment, all six workflows, and fresh review; obtain formal Validator P0/P1/P2 counts. Keep Draft; do not start Oracle overlap or Audit/Release/merge until all canonical gates and separate authorization are satisfied."
+  next: "The duplicate `next` mapping key reported by CI 39565514865 is repaired in the current AIPOS working tree by preserving the superseded instruction as `previous_next_instruction`; focused Release tests 14/14 and git diff --check pass. The strict YAML validator cannot run locally because js-yaml/Python are unavailable. Run the strict validator if available, then commit/push this minimal correction; rerun all six exact-head workflows and fresh review on its successor, then obtain explicit formal Validator P0/P1/P2 counts. Keep Draft; no Audit/Release/merge or Oracle overlap until separately authorized."
 current_successor_validation:
   exact_head: c76ceb78ade5f51baa4f2f577ab2d9421e8d1d78
   protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
@@ -153,3 +153,7 @@ current_successor_validation:
   fresh_review: "Codex review completed on exact head c76ceb78ade5f51baa4f2f577ab2d9421e8d1d78 with has_any_findings=false and has_unresolved_findings=false. This is a generic no-findings review, not a formal severity-count Validator receipt."
   formal_validator: PENDING
   oracle_current_main_runtime: UNVERIFIED
+successor_preflight_failure:
+  exact_head: 8862b6fc5e2e8b897bce90ae2518efe0d4a23727
+  ci_run: 39565514865
+  failure: "Strict AIPOS YAML preflight rejected duplicate `next` mapping keys in current_ops_release_downstream_dispatch_20261021 after the latest receipt was inserted. No tests ran past preflight. Rename the superseded prior next instruction and retain exactly one canonical next field."

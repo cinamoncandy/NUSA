@@ -2807,7 +2807,7 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: EXACT_HEAD_CHECKS_PASS_AIPOS_SUCCESSOR_VALIDATION_REQUIRED
+  status: AIPOS_DUPLICATE_KEY_PREFLIGHT_FAILURE_REPAIR_REQUIRED
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
@@ -2818,6 +2818,9 @@ current_ops_release_downstream_dispatch_20261021:
   latest_review: "Exact c76ceb78 review completed: has_any_findings=false, has_unresolved_findings=false; generic review only, formal severity-count Validator still pending."
   formal_validator: PENDING
   oracle_current_main_runtime: UNVERIFIED
+  failed_successor_head: 8862b6fc5e2e8b897bce90ae2518efe0d4a23727
+  failed_successor_ci_run: 39565514865
+  failed_successor_ci_reason: "Strict AIPOS YAML preflight found duplicate `next` keys in this mapping; superseded prior instruction is retained as previous_next_instruction, leaving one canonical next key."
   next: "Run all six workflows and a fresh non-author review on the AIPOS successor head, then obtain explicit formal Validator P0/P1/P2 receipt. Keep PR #2844 Draft. Oracle exact-current-main deployment, genuine new PAPER fill, and restart/replay continuity remain separately UNVERIFIED; no full learning-loop claim."
   previously_validated_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
   previous_successor_head: dd355eebd02c6e90d9549e89adb93531359a22f0
@@ -2902,7 +2905,7 @@ current_ops_release_downstream_dispatch_20261021:
   successor_local_validation: "On exact source tree d58ec8d9, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Fresh review of 996cee96 found P0=0/P1=0/P2=1 for the unrelated backup base drift; restored here. Exact-head checks for this AIPOS successor remain required."
   predecessor_473a7aaf_status: "AIPOS recovery guidance correction was committed and pushed as 473a7aaf5fd5a3f4acb946cbd98f943dcd8d83a5. Its fresh workflow/review status was not retrieved before protected main advanced; treat it as unverified and superseded by this main sync."
   legacy_549_exact_head_checks: "Predecessor 549ffd685e87c745c87de94897da7370d7e15785 against base 345539210a96f9dd4292b848318043fe23afc7f4 passed all six workflows: CI 39560202430; PAPER 39560202557; Capability 39560202463; Activation 39560202453; Transport 39560202505; Read-only Broker 39560202451. Fresh Codex review was still running on that predecessor when protected main advanced to 55d723aada9dfcdb78293bbef30c3af2a6ac26f2. This main-sync successor therefore requires fresh exact-head workflows and review."
-  next: "The two implementation P2 repairs are already present; do not recommit them. Verify the current successor against protected main and all six exact-head workflows, obtain fresh non-author review and formal Validator P0/P1/P2 counts, then follow canonical Audit/Release authorization only if accepted. Keep Draft; Oracle overlap and Audit/Release/merge remain prohibited pending their gates."
+  previous_next_instruction: "The two implementation P2 repairs are already present; do not recommit them. Verify the current successor against protected main and all six exact-head workflows, obtain fresh non-author review and formal Validator P0/P1/P2 counts, then follow canonical Audit/Release authorization only if accepted. Keep Draft; Oracle overlap and Audit/Release/merge remain prohibited pending their gates."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:
