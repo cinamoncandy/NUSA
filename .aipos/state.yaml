@@ -2813,9 +2813,9 @@ current_ops_release_downstream_dispatch_20261021:
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
   previous_base_sha: 345539210a96f9dd4292b848318043fe23afc7f4
   base_sha: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
-  latest_validated_head: 366ecbc0dc835ae16373b10fd5f75301e34c25c2
-  latest_validated_workflows: "CI 39568437386 PASS; Actual PAPER 39568437230 PASS; Capability 39568437199 PASS; Activation 39568437350 PASS; Transport 39568437403 PASS; Read-only Broker 39568437184 PASS."
-  latest_review: "Exact 366ecbc0 review completed with has_any_findings=false and has_unresolved_findings=false. Formal severity-count Validator receipt is still pending."
+  predecessor_validated_head: 366ecbc0dc835ae16373b10fd5f75301e34c25c2
+  predecessor_validated_workflows: "CI 39568437386 PASS; Actual PAPER 39568437230 PASS; Capability 39568437199 PASS; Activation 39568437350 PASS; Transport 39568437403 PASS; Read-only Broker 39568437184 PASS."
+  predecessor_review: "Exact 366ecbc0 review completed with has_any_findings=false and has_unresolved_findings=false. Formal severity-count Validator receipt is still pending."
   formal_validator: PENDING
   oracle_current_main_runtime: UNVERIFIED
   earlier_failed_successor_head: 8862b6fc5e2e8b897bce90ae2518efe0d4a23727

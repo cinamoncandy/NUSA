@@ -161,7 +161,7 @@ latest_successor_preflight_failure:
   exact_head: dad8667070191263abe23561691d9f65e84cfb79
   ci_run: 39566051528
   failure: "After removing duplicate `next`, strict AIPOS YAML preflight found a duplicate `formal_validator` key in the same state mapping. The older historical field is preserved as previous_formal_validator. No tests ran past preflight."
-latest_successor_validation:
+previous_successor_validation_39195745:
   exact_head: 39195745bc94cc840e1b30dba70f917afc311c2a
   protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
   workflows:
@@ -180,7 +180,7 @@ review_finding_757b7614:
   p1: 0
   p2: 1
   details: "P2: status claimed exact-head checks passed although latest_validated_head and all six workflows bound to predecessor 39195745, while next said current successor still needed validation. Both AIPOS status fields are pending until this successor is validated."
-current_exact_head_validation:
+predecessor_exact_head_validation_366ecbc0:
   exact_head: 366ecbc0dc835ae16373b10fd5f75301e34c25c2
   protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
   workflows:
@@ -194,3 +194,8 @@ current_exact_head_validation:
   fresh_review: "Completed on exact 366ecbc0 with has_any_findings=false and has_unresolved_findings=false."
   formal_validator: PENDING
   oracle_current_main_runtime: UNVERIFIED
+review_finding_d2cd97f5:
+  p0: 0
+  p1: 0
+  p2: 1
+  details: "P2: current_exact_head_validation contained predecessor 366ecbc0 evidence although next said the receipt commit produced an unvalidated successor. Renamed as predecessor validation; the 39195745 record is also explicitly historical."
