@@ -209,27 +209,53 @@ test("production AI stores share the one canonical full-scan connection and keep
   }
 });
 
-test("pathname replacement cannot redirect a shared AI store away from the verified canonical connection", () => {
+test("pathname input cannot redirect a shared AI store away from the verified canonical connection", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-path-replace-"));
   const filename = path.join(dir, "state.sqlite");
+  const decoyPath = path.join(dir, "decoy.sqlite");
   const moved = path.join(dir, "verified.sqlite");
   let database;
   let replacement;
   let calibration;
   try {
     database = new SqliteDatabase(filename);
+
+    // A caller-controlled filename is ignored when the exact verified connection is supplied.
+    // This is platform-independent and directly pins the production composition contract.
+    calibration = new SqliteAiCalibrationDurableStore(decoyPath, database.connection);
+    assert.equal(fs.existsSync(decoyPath), false, "shared mode must not open or create the supplied pathname");
+    assert.equal(
+      database.connection.prepare(
+        "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='ai_calibration_durability_events'"
+      ).get()?.present,
+      1,
+      "shared store must initialize on the already-verified canonical connection",
+    );
+    calibration.close();
+    calibration = undefined;
+
+    if (process.platform === "win32") {
+      // Windows does not permit renaming an open SQLite file. Prove the OS rejects the exact race
+      // rather than treating that platform difference as a test failure. The decoy assertion above
+      // still proves shared mode ignores caller-supplied paths on every platform.
+      assert.throws(
+        () => fs.renameSync(filename, moved),
+        (error) => error != null && typeof error === "object" && ["EBUSY", "EPERM", "EACCES"].includes(error.code),
+        "Windows must keep the opened canonical file from being replaced underneath the connection",
+      );
+      return;
+    }
+
+    // POSIX permits rename of an open file. Replace the old pathname and prove the shared store
+    // still writes only through the already-open, already-verified canonical connection.
     fs.renameSync(filename, moved);
     replacement = new DatabaseSync(filename);
     replacement.exec("CREATE TABLE replacement_only(id INTEGER PRIMARY KEY)");
     calibration = new SqliteAiCalibrationDurableStore(filename, database.connection);
 
-    const verifiedHasAiTable = database.connection.prepare(
-      "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='ai_calibration_durability_events'"
-    ).get();
     const replacementHasAiTable = replacement.prepare(
       "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='ai_calibration_durability_events'"
     ).get();
-    assert.equal(verifiedHasAiTable?.present, 1, "shared store must initialize on the already-verified canonical connection");
     assert.equal(replacementHasAiTable, undefined, "a new file at the old pathname must not receive shared-store writes or scoped integrity trust");
   } finally {
     calibration?.close();
