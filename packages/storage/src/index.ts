@@ -602,4 +602,16 @@ CREATE TABLE IF NOT EXISTS research_futures_klines (
 );
 ` }, { id: "031_research_closed_candles_volume", sql: `
 ALTER TABLE research_closed_candles ADD COLUMN volume REAL CHECK (volume IS NULL OR volume >= 0);
+` }, { id: "032_research_orderbook_study_rows", sql: `
+CREATE TABLE IF NOT EXISTS research_orderbook_study_rows (
+  market TEXT NOT NULL,
+  captured_at_ms INTEGER NOT NULL CHECK (captured_at_ms > 0),
+  best_bid REAL NOT NULL CHECK (best_bid > 0),
+  best_ask REAL NOT NULL CHECK (best_ask > 0),
+  bid_size_5 REAL NOT NULL CHECK (bid_size_5 >= 0),
+  ask_size_5 REAL NOT NULL CHECK (ask_size_5 >= 0),
+  total_bid_size REAL NOT NULL CHECK (total_bid_size >= 0),
+  total_ask_size REAL NOT NULL CHECK (total_ask_size >= 0),
+  PRIMARY KEY (market, captured_at_ms)
+) WITHOUT ROWID;
 ` }];

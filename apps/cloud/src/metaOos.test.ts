@@ -432,3 +432,36 @@ describe("A3 durable identity", () => {
     }
   });
 });
+
+describe("A3 holdout claim preconditions", () => {
+  it("checks ledger capacity before consuming a holdout", () => {
+    let claims = 0;
+    const ledger = new MetaOosLedger({
+      list: () => Array.from({ length: 10_000 }, (_, index) => ({ opportunityId: `other:${index}` })) as never,
+      append: () => { throw new Error("must not append at capacity"); },
+    } as never);
+
+    assert.throws(
+      () => ledger.assign(assignment({ partition: "meta-holdout", holdoutKey: HOLDOUT, holdoutEvaluationId: "eval-1" }), {
+        claim: () => { claims += 1; return "CLAIMED"; },
+        isUsed: () => false,
+      }),
+      { code: "CAPACITY_EXCEEDED" },
+    );
+    assert.equal(claims, 0);
+  });
+
+  it("checks the durable clock before consuming a holdout", () => {
+    let claims = 0;
+    const ledger = new MetaOosLedger({ list: () => [], append: () => { throw new Error("must not append with an invalid clock"); } } as never, () => -1);
+
+    assert.throws(
+      () => ledger.assign(assignment({ partition: "meta-holdout", holdoutKey: HOLDOUT, holdoutEvaluationId: "eval-1" }), {
+        claim: () => { claims += 1; return "CLAIMED"; },
+        isUsed: () => false,
+      }),
+      { code: "INVALID_CLOCK" },
+    );
+    assert.equal(claims, 0);
+  });
+});
