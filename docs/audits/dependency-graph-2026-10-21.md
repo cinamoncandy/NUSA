@@ -353,6 +353,7 @@ Audited: 2026-10-21
 | runtime | apps/cloud/src/closedLearningLineageReplayInputSource.ts | apps/cloud/src/paperResearchLineage.ts |
 | type | apps/cloud/src/closedLearningLineageReplayInputSource.ts | apps/cloud/src/paperTradingExecutionLoop.ts |
 | runtime | apps/cloud/src/closedLearningLineageReplayInputSource.ts | apps/desktop/src/cloud/paperForwardEvidenceAdmission.ts |
+| type | apps/cloud/src/closedLearningLoopStatus.ts | packages/storage/src/persistedPaperPeriodStore.ts |
 | type | apps/cloud/src/closedLearningLoopStatus.ts | apps/cloud/src/closedLearningInitialPaperBootstrap.ts |
 | type | apps/cloud/src/closedLearningLoopStatus.ts | apps/cloud/src/closedLearningRolloverScheduler.ts |
 | type | apps/cloud/src/closedLearningLoopStatus.ts | packages/contracts/src/persistedPaperPeriod.ts |
@@ -434,6 +435,7 @@ Audited: 2026-10-21
 | type | apps/cloud/src/closedLearningRolloverScheduler.ts | apps/cloud/src/paperRealizedPeriodProducer.ts |
 | type | apps/cloud/src/closedLearningRolloverScheduler.ts | apps/cloud/src/closedLearningLoopCoordinator.ts |
 | runtime | apps/cloud/src/closedLearningRolloverScheduler.ts | apps/cloud/src/ownerBaselinePaperStrategy.ts |
+| type | apps/cloud/src/closedLearningRolloverScheduler.ts | apps/cloud/src/paperRealizedPeriodProducer.ts |
 | type | apps/cloud/src/cloudDashboardSnapshotRepository.ts | packages/storage/src/index.ts |
 | type | apps/cloud/src/cloudDashboardSnapshotRepository.ts | apps/cloud/src/mobileDashboardApi.ts |
 | type | apps/cloud/src/cloudDashboardStateProvider.ts | apps/cloud/src/mobileDashboardHttp.ts |
@@ -756,6 +758,7 @@ Audited: 2026-10-21
 | type | apps/cloud/src/paperPortfolioAdvisory.ts | apps/cloud/src/capitalAllocationEngine.ts |
 | runtime | apps/cloud/src/paperPortfolioAdvisory.ts | apps/cloud/src/paperPortfolioRiskEvidence.ts |
 | type | apps/cloud/src/paperPortfolioRiskEvidence.ts | apps/cloud/src/paperChaosEvidenceProvenance.ts |
+| runtime | apps/cloud/src/paperRealizedPeriodProducer.ts | apps/cloud/src/paperRuntimeExecutionCostEvidence.ts |
 | runtime | apps/cloud/src/paperRealizedPeriodProducer.ts | apps/cloud/src/paperLedgerFingerprint.ts |
 | runtime | apps/cloud/src/paperRealizedPeriodProducer.ts | apps/cloud/src/ownerBaselinePaperPeriod.ts |
 | runtime | apps/cloud/src/paperRealizedPeriodProducer.ts | packages/storage/src/persistedPaperPeriodStore.ts |
@@ -1816,6 +1819,10 @@ Audited: 2026-10-21
 | runtime | apps/mobile/src/dashboardCredentialSession.ts | apps/mobile/src/mobileApprovedSession.ts |
 | type | apps/mobile/src/dashboardScreenState.ts | packages/contracts/src/mobileDashboard.ts |
 | runtime | apps/mobile/src/dashboardScreenState.ts | apps/mobile/src/mobileDashboardSync.ts |
+| runtime | apps/mobile/src/decisionCore.tsx | apps/mobile/src/decisionCoreModel.ts |
+| runtime | apps/mobile/src/decisionCore.tsx | apps/mobile/src/uiKitModel.ts |
+| runtime | apps/mobile/src/decisionCore.tsx | apps/mobile/src/fieldFonts.tsx |
+| runtime | apps/mobile/src/decisionCore.tsx | apps/mobile/src/designSystem.ts |
 | type | apps/mobile/src/decisionRidge.tsx | apps/mobile/src/decisionTerrainModel.ts |
 | runtime | apps/mobile/src/decisionRidge.tsx | apps/mobile/src/decisionTerrainGeometry.ts |
 | runtime | apps/mobile/src/decisionRidge.tsx | apps/mobile/src/uiKitModel.ts |
@@ -1851,11 +1858,15 @@ Audited: 2026-10-21
 | runtime | apps/mobile/src/futuresSafetyRows.ts | apps/mobile/src/safetyScreenModel.ts |
 | type | apps/mobile/src/futuresScreenModel.ts | apps/mobile/src/uiKitModel.ts |
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/futuresLimits.ts |
+| runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/futuresSample.ts |
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/futuresScreenModel.ts |
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/futuresSafetyRows.ts |
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/instrumentKit.tsx |
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/uiKit.tsx |
 | runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/uiKitModel.ts |
+| runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/designSystem.ts |
+| runtime | apps/mobile/src/futuresView.tsx | apps/mobile/src/fieldFonts.tsx |
+| type | apps/mobile/src/futuresView.tsx | apps/mobile/src/futuresScreenModel.ts |
 | type | apps/mobile/src/gateDots.tsx | apps/mobile/src/liveGateModel.ts |
 | runtime | apps/mobile/src/gateDots.tsx | apps/mobile/src/gateDotsModel.ts |
 | runtime | apps/mobile/src/gateDots.tsx | apps/mobile/src/fieldFonts.tsx |
@@ -1909,8 +1920,7 @@ Audited: 2026-10-21
 | runtime | apps/mobile/src/instrumentKit.tsx | apps/mobile/src/fieldFonts.tsx |
 | runtime | apps/mobile/src/instrumentKit.tsx | apps/mobile/src/designSystem.ts |
 | runtime | apps/mobile/src/instrumentNow.tsx | apps/mobile/src/instrumentKit.tsx |
-| runtime | apps/mobile/src/instrumentNow.tsx | apps/mobile/src/decisionRidge.tsx |
-| type | apps/mobile/src/instrumentNow.tsx | apps/mobile/src/decisionTerrainModel.ts |
+| runtime | apps/mobile/src/instrumentNow.tsx | apps/mobile/src/decisionCore.tsx |
 | runtime | apps/mobile/src/instrumentNow.tsx | apps/mobile/src/uiKitModel.ts |
 | runtime | apps/mobile/src/instrumentNow.tsx | apps/mobile/src/fieldFonts.tsx |
 | runtime | apps/mobile/src/instrumentNow.tsx | apps/mobile/src/designSystem.ts |
