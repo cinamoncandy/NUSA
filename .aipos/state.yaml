@@ -2807,7 +2807,7 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: P2_REPAIRED_PENDING_SUCCESSOR_EXACT_HEAD_CHECKS
+  status: HANDOFF_P2_REPAIRED_PENDING_SUCCESSOR_EXACT_HEAD_VALIDATION
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
@@ -2848,21 +2848,28 @@ current_ops_release_downstream_dispatch_20261021:
   previous_repair_validation: "On exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. TSV run fields now emit and bind exactly [id,status,event]; pending expected jobs are active owners; active Cloudflare workflow_dispatch cannot suppress without proven input identity; completed Promote requires production lineage of MERGED_MAIN. Final AIPOS-only successor exact-head checks and fresh review are pending."
   validation: "Source repair commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf passed focused tests 14/14 and diff check. Exact head 08451281261a31041aa9af5391bce6ccb9d3d4a6 CI run 39531860442 failed closed at AIPOS YAML preflight due duplicated latest_reviewed_head/repair_commit keys in the work order (parser line 78); CI did not reach full tests. Those historical duplicate keys are now renamed; no implementation regression is indicated. Protected main remains c8148d7e61dd3be0763577b1c736331ab27c56ec."
   formal_validator: PENDING
-  previous_latest_reviewed_head: 03617c511fa2c5634b0f8a9979033861e76b94e9
-  previous_latest_review_findings:
+  earlier_latest_reviewed_head: 03617c511fa2c5634b0f8a9979033861e76b94e9
+  earlier_latest_review_findings:
     p0: 0
     p1: 0
     p2: 1
     details: "P2: recovery instructions still tell the next agent to commit/push the duplicate-key correction even though exact head 03617c5 already contains it."
-  latest_reviewed_head: 4f69c388c7c3208a01982e8b029ab236c14ce71b
-  latest_review_findings:
+  previous_latest_reviewed_head: 4f69c388c7c3208a01982e8b029ab236c14ce71b
+  previous_latest_review_findings:
     p0: 0
     p1: 0
     p2: 2
     details: "P2: (1) a successful exact-head Promote with deploy=false leaves cloudflare-production's commit ancestry behind, so ancestry-only dedupe redispatches despite no apps/autopilot tree delta; accept only after proving exact deployment-relevant subtree identity. (2) this state entry's base_sha was stale; current protected main is 55d723aada9dfcdb78293bbef30c3af2a6ac26f2."
-  review_p2_repair: "Implemented exact apps/autopilot subtree equality as an additional completed-Promote ownership proof; state base_sha corrected to current protected main, with prior base preserved. Fresh workflows and review are required on the successor head."
-  previous_review_p2_repair: "Corrected in this successor: 03617c511fa2c5634b0f8a9979033861e76b94e9 is the already-pushed AIPOS-only duplicate-key repair; no redundant commit is requested."
-  previous_exact_head_checks:
+  previous_review_p2_repair: "Implemented exact apps/autopilot subtree equality as an additional completed-Promote ownership proof; state base_sha corrected to current protected main, with prior base preserved."
+  earlier_review_p2_repair: "Corrected in successor 03617c511fa2c5634b0f8a9979033861e76b94e9: this already-pushed AIPOS-only duplicate-key repair must not be recommitted."
+  latest_reviewed_head: d58ec8d9b98220a0d2b6fcd2994f7efe295a3f80
+  latest_review_findings:
+    p0: 0
+    p1: 0
+    p2: 1
+    details: "P2: the active work-order next value still instructed commit/push of the two P2 repairs even though exact head d58ec8d9 already contains them; handoff should proceed directly to fresh validation."
+  review_p2_repair: "Corrected the active next instructions in this AIPOS successor: no redundant implementation commit is requested; proceed to validation of the resulting exact head."
+  older_exact_head_checks:
     exact_head: 4f69c388c7c3208a01982e8b029ab236c14ce71b
     protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
     workflows:
@@ -2874,10 +2881,22 @@ current_ops_release_downstream_dispatch_20261021:
       readonly_broker: 39561349206
     result: "All six exact-head workflows completed success. Historical after the no-change Promote dedupe and AIPOS pointer repair; cannot validate successor."
     review: "Fresh review on this exact head found P0=0, P1=0, P2=2: no-change Promote needs deployment-tree identity proof; current state base_sha was stale."
-  successor_local_validation: "Before successor commit, tests/autopilot-deterministic-audit-release.test.js passed 14/14; git diff --check passed. Strict AIPOS YAML validation remains required in exact-head CI."
+  previous_exact_head_checks:
+    exact_head: d58ec8d9b98220a0d2b6fcd2994f7efe295a3f80
+    protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
+    workflows:
+      ci: 39562587854
+      actual_paper_runtime: 39562587919
+      capability_surface_guard: 39562587916
+      activation_rehearsal: 39562587968
+      transport_readiness: 39562587904
+      readonly_broker: 39562587911
+    result: "All six exact-head workflows completed success, including strict AIPOS YAML preflight; historical after this work-order handoff correction."
+    review: "Fresh review completed on exact d58ec8d9 with P0=0, P1=0, P2=1. It identified a stale next instruction asking for a redundant commit of already-present P2 repairs."
+  successor_local_validation: "On exact source tree d58ec8d9, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. The handoff P2 is corrected in this AIPOS successor; all exact-head checks must rerun."
   predecessor_473a7aaf_status: "AIPOS recovery guidance correction was committed and pushed as 473a7aaf5fd5a3f4acb946cbd98f943dcd8d83a5. Its fresh workflow/review status was not retrieved before protected main advanced; treat it as unverified and superseded by this main sync."
-  latest_exact_head_checks: "Predecessor 549ffd685e87c745c87de94897da7370d7e15785 against base 345539210a96f9dd4292b848318043fe23afc7f4 passed all six workflows: CI 39560202430; PAPER 39560202557; Capability 39560202463; Activation 39560202453; Transport 39560202505; Read-only Broker 39560202451. Fresh Codex review was still running on that predecessor when protected main advanced to 55d723aada9dfcdb78293bbef30c3af2a6ac26f2. This main-sync successor therefore requires fresh exact-head workflows and review."
-  next: "Verify this main-synchronized successor against protected main, all six exact-head workflows, and fresh non-author review; then obtain formal non-author Validator P0/P1/P2 counts. Keep Draft; Audit/Release/merge and Oracle overlap remain prohibited."
+  legacy_549_exact_head_checks: "Predecessor 549ffd685e87c745c87de94897da7370d7e15785 against base 345539210a96f9dd4292b848318043fe23afc7f4 passed all six workflows: CI 39560202430; PAPER 39560202557; Capability 39560202463; Activation 39560202453; Transport 39560202505; Read-only Broker 39560202451. Fresh Codex review was still running on that predecessor when protected main advanced to 55d723aada9dfcdb78293bbef30c3af2a6ac26f2. This main-sync successor therefore requires fresh exact-head workflows and review."
+  next: "The two implementation P2 repairs are already present; do not recommit them. Verify the current successor against protected main and all six exact-head workflows, obtain fresh non-author review and formal Validator P0/P1/P2 counts, then follow canonical Audit/Release authorization only if accepted. Keep Draft; Oracle overlap and Audit/Release/merge remain prohibited pending their gates."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:
