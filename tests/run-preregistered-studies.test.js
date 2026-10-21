@@ -23,13 +23,13 @@ function memoryDb(rows) {
 const row = (market, t, bid, ask) => ({ market, captured_at_ms: t, best_bid: bid, best_ask: ask, bid_size_5: 1.2, ask_size_5: 1 });
 
 test("before the print time both studies report WAITING_DATA and read nothing", () => {
-  const out = runAll({ db: memoryDb([]), now: Date.parse("2026-12-01T00:00:00Z") });
+  const out = runAll({ frozen: () => ({}), db: memoryDb([]), now: Date.parse("2026-12-01T00:00:00Z") });
   assert.deepEqual(out.map((r) => [r.study, r.status]), [["S2", "WAITING_DATA"], ["S3", "WAITING_DATA"], ["S4", "WAITING_DATA"]]);
 });
 
 test("a row stamped after the run time fails closed as DATA_FUTURE", () => {
   const now = Date.parse("2026-12-06T00:00:00Z");
-  const out = runAll({ db: memoryDb([row("KRW-A", now + 60_000, 100, 101)]), now });
+  const out = runAll({ frozen: () => ({}), db: memoryDb([row("KRW-A", now + 60_000, 100, 101)]), now });
   assert.ok(out.every((r) => r.status === "DATA_INTEGRITY_FAIL" && r.reasonCode === "DATA_FUTURE"));
 });
 
@@ -94,4 +94,8 @@ test("a snapshot present in both the live table and the archive counts once towa
   for (const table of ["research_orderbook_samples", "research_orderbook_study_rows"]) for (let i = 1; i <= 3; i += 1) db.prepare(`INSERT INTO ${table} VALUES ('KRW-A', ?, 100, 101, 1, 1, 1, 1)`).run(T + i * 60_000);
   const p = makeDbProvider(db, { from: T - 3_600_000, to: T + 3_600_000 });
   assert.equal(p.booksBetween("KRW-A", T, T + 10 * 60_000).length, 3, "3 distinct snapshots, not 6 (so the 5-snapshot rule cannot be met by duplicates)");
+});
+
+test('runAll refuses to run while the design is not frozen', () => {
+  assert.throws(() => runAll({ db: memoryDb([]), now: Date.parse("2026-12-01T00:00:00Z") }), /DESIGN_NOT_FROZEN/);
 });

@@ -9,6 +9,7 @@
 const crypto = require("node:crypto");
 const { runDailyStudy, constants } = require("./lib/dailyCrossSectionStudy.js");
 const { runMakerStudy } = require("./lib/makerExecutionStudy.js");
+const { assertDesignFrozen } = require("./lib/preregisteredDesign.js");
 const M = constants.M;
 
 /**
@@ -66,7 +67,8 @@ function makeDbProvider(db, { from, to }) {
   return { markets: () => marketList, bookAt, lastBidBetween, booksBetween, hashRows };
 }
 
-function runAll({ db, now = Date.now() }) {
+function runAll({ db, now = Date.now(), frozen = assertDesignFrozen }) {
+  frozen(); // refuses to run while the design hash is PENDING or the design/addenda bytes changed
   const { TRAIN_START, HOLD_END, PRINT_AT } = constants;
   if (now < PRINT_AT) return ["S2", "S3", "S4"].map((study) => ({ study, status: "WAITING_DATA" }));
   // Any stored row stamped after the run time (beyond 5 s) means the clock or the source cannot be trusted.
