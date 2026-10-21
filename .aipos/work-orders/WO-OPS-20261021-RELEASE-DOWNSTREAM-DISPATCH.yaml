@@ -1,11 +1,11 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: EXACT_HEAD_CI_PASS_PENDING_FORMAL_VALIDATOR
+status: MAIN_ADVANCED_SYNCED_PENDING_FRESH_EXACT_HEAD_VALIDATION
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
 base_branch: main
-base_commit: 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28
+base_commit: e106bdbd62c92278d1835722f4ada1c31762ceb7
 implementation_branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 authority_impact: deployment-control
 finding: "Deterministic Audit/Release run 39469748838 canonically merged PR #2818 and recovered exact-main CI, then failed only because its post-merge downstream step unconditionally workflow_dispatch'ed android-stable-release-trigger.yml while that workflow was intentionally disabled_manually; GitHub returned HTTP 422."
@@ -31,9 +31,9 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-validation_evidence:
+previous_validation_evidence:
   exact_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
-  protected_main: 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28
+  protected_main_at_that_validation: 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28
   workflows:
     ci: 39525275016
     actual_paper_runtime: 39525275029
@@ -41,8 +41,8 @@ validation_evidence:
     activation_rehearsal: 39525275089
     transport_readiness: 39525275046
     readonly_broker: 39525275053
-  workflow_result: "All six exact-head workflows completed success; CI validation, typecheck, build, coverage, and regression jobs passed."
+  workflow_result: "Historical predecessor evidence only: all six exact-head workflows completed success; CI validation, typecheck, build, coverage, and regression jobs passed. Main advanced afterward, so this does not validate the current PR head."
   focused_tests: "tests/autopilot-deterministic-audit-release.test.js: 14/14 PASS"
-  independent_review: "Fresh Codex review on exact head 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e: no major issues; this is not a formal severity-count Validator receipt."
+  independent_review: "Fresh Codex review on exact head 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e: no major issues; historical after main advance and not a formal severity-count Validator receipt."
   formal_validator: PENDING
-next: "Obtain new exact-head CI and an explicit non-author P0/P1/P2 Validator receipt. Keep Draft, do not self-approve, and do not start Audit/Release or re-enable Android workflow until accepted."
+next: "Protected main advanced to e106bdbd62c92278d1835722f4ada1c31762ceb7 and has been merged into the existing PR branch. Push this synchronization, require fresh exact-head CI and an explicit non-author P0/P1/P2 Validator receipt. Keep Draft; no self-approval, Audit/Release, merge, or workflow re-enable before acceptance."

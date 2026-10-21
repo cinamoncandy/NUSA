@@ -2796,17 +2796,19 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: EXACT_HEAD_CI_PASS_PENDING_FORMAL_VALIDATOR
+  status: MAIN_ADVANCED_SYNCED_PENDING_FRESH_EXACT_HEAD_VALIDATION
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  base_sha: 4df3aea6253df5ab07ba3f6ffe6898e73a69bd28
-  validated_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
+  base_sha: e106bdbd62c92278d1835722f4ada1c31762ceb7
+  previously_validated_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
+  previous_successor_head: dd355eebd02c6e90d9549e89adb93531359a22f0
+  latest_main_sync: e106bdbd62c92278d1835722f4ada1c31762ceb7
   main_sync_commit: 3ece7ed8123a12db76b85d914cadb60a80e5035b
   finding: "Audit/Release 39469748838 merged #2818 and recovered post-merge CI, then failed because Android Stable Release Trigger was disabled_manually while the Release step unconditionally workflow_dispatch'ed it."
   repair: "Preserved one deterministic Release engine; optional disabled Android trigger is skipped without enabling it, required downstreams remain fail-closed, and active exact-main owners suppress duplicate dispatch."
   validation: "On exact head 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e, CI 39525275016, Actual PAPER 39525275029, Capability Guard 39525275059, Activation 39525275089, Transport 39525275046, and Read-only Broker 39525275053 all completed success. Focused Release tests 14/14, state order/uniqueness, and git diff --check pass; CI also ran repository AIPOS/security/typecheck/build/regression gates. Fresh Codex review says no major issues on this SHA; formal P0/P1/P2 non-author Validator receipt is not present."
-  next: "Synchronize this evidence with the active work order, then obtain a fresh exact-head CI and explicit non-author P0/P1/P2 Validator; keep Draft. Only after explicit Validator acceptance may canonical Independent Audit/Release be considered."
+  next: "Protected main advanced to e106bdbd62c92278d1835722f4ada1c31762ceb7 and is merged into the existing PR branch. All dd355eeb exact-head checks/review are historical now. Push the main-sync successor, obtain fresh exact-head CI/companions and explicit non-author P0/P1/P2 Validator; keep Draft and do not start Audit/Release until accepted."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:
