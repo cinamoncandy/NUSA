@@ -8,11 +8,12 @@ const canonicalStorage = "packages/storage/src/index.ts";
 
 test("PAPER startup completes Cloud AI durability integrity work before writer-lease acquisition", () => {
   const source = fs.readFileSync(productionRoot, "utf8");
-  const ai = source.indexOf("const cloudAiRuntime = createCloudAiRuntime(env);");
+  const ai = source.indexOf("const cloudAiRuntime = createCloudAiRuntime(env");
   const lease = source.indexOf("new SqliteCloudPaperAccountRepository(database");
   const runtime = source.indexOf("const baseHandle = startCloudRuntime(");
 
   assert.ok(ai >= 0, "prebuilt Cloud AI runtime must be explicit");
+  assert.match(source.slice(ai, ai + 300), /startupIntegrityAttestation:\s*database/, "the prebuilt Cloud AI runtime must reuse only the live canonical DB integrity attestation");
   assert.ok(lease > ai, "Cloud AI durability must open/verify before the PAPER repository acquires its renewable lease");
   assert.ok(runtime > lease, "the canonical PAPER repository still owns the lease before runtime composition");
   assert.match(source.slice(runtime, runtime + 1000), /researchExperiments\?\.orchestrator,\s*cloudAiRuntime,/);
