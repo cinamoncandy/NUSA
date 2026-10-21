@@ -446,6 +446,50 @@ test("canonical shared admission uses the captured native prepare after prototyp
   assert.equal(result.status, 0, `prototype replacement must not forge canonical integrity trust:\n${result.stdout}\n${result.stderr}`);
 });
 
+test("prepare replacement before storage module load cannot forge canonical integrity trust", () => {
+  for (const replacement of ["javascript", "proxy"]) {
+    const script = `
+    const assert = require("node:assert/strict");
+    const { DatabaseSync, StatementSync } = require("node:sqlite");
+    const nativePrepare = DatabaseSync.prototype.prepare;
+    const nativeGet = StatementSync.prototype.get;
+    const counts = { forgedFull: 0, genuineFull: 0 };
+    const replacement = ${JSON.stringify(replacement)};
+    DatabaseSync.prototype.prepare = replacement === "proxy"
+      ? new Proxy(nativePrepare, { apply(target, receiver, args) {
+          if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(args[0]))) {
+            counts.forgedFull++;
+            return { get() { return { quick_check: "ok" }; } };
+          }
+          return Reflect.apply(target, receiver, args);
+        }})
+      : function prepare(sql, ...args) {
+          if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(sql))) {
+            counts.forgedFull++;
+            return { get() { return { quick_check: "ok" }; } };
+          }
+          return nativePrepare.call(this, sql, ...args);
+        };
+    StatementSync.prototype.get = function(...args) {
+      if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(this.sourceSQL ?? ""))) counts.genuineFull++;
+      return nativeGet.apply(this, args);
+    };
+    const root = ${JSON.stringify(root)};
+    const { SqliteDatabase } = require(root + "/dist/packages/storage/src/index.js");
+    assert.throws(
+      () => new SqliteDatabase(":memory:"),
+      /native SQLite DatabaseSync\\.prepare is unavailable; refusing integrity check/,
+      "a pre-load JavaScript replacement must not attest an unchecked database",
+    );
+    assert.deepEqual(counts, { forgedFull: 0, genuineFull: 0 });
+    DatabaseSync.prototype.prepare = nativePrepare;
+    StatementSync.prototype.get = nativeGet;
+    `;
+    const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 0, `${replacement} pre-load replacement must fail closed:\n${result.stdout}\n${result.stderr}`);
+  }
+});
+
 test("internal verifier cache replacement before bootstrap cannot admit unchecked shared connections", () => {
   const script = `
     const assert = require("node:assert/strict");

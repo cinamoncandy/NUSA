@@ -1,11 +1,21 @@
 import { DatabaseSync } from "node:sqlite";
-// Capture the native SQLite method before importing any project modules. Startup integrity
-// checks must not dispatch through the writable prototype slot after application initialization.
+import { runInNewContext } from "node:vm";
+// Capture clean-realm intrinsics before project modules load. DatabaseSync.prototype.prepare is
+// writable, including before this module is imported, so capture alone is not an integrity proof.
+const cleanIntrinsics = runInNewContext("({ apply: Reflect.apply, functionToString: Function.prototype.toString })") as {
+  readonly apply: typeof Reflect.apply;
+  readonly functionToString: (value: Function) => string;
+};
 const nativeDatabasePrepare = DatabaseSync.prototype.prepare;
-const nativeReflectApply = Reflect.apply;
+const nativePrepareIsCanonical = cleanIntrinsics.apply(
+  cleanIntrinsics.functionToString,
+  nativeDatabasePrepare,
+  [],
+) === "function prepare() { [native code] }";
 
 function prepareSqliteIntegrityStatement(connection: DatabaseSync, sql: string) {
-  return nativeReflectApply(nativeDatabasePrepare, connection, [sql]);
+  if (!nativePrepareIsCanonical) throw new Error("native SQLite DatabaseSync.prepare is unavailable; refusing integrity check");
+  return cleanIntrinsics.apply(nativeDatabasePrepare, connection, [sql]);
 }
 
 export * from "./researchMemorySemantics";
