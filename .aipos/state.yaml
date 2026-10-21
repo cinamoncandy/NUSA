@@ -2796,7 +2796,7 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+  status: AIPOS_DUPLICATE_KEY_REPAIRED_PENDING_FRESH_HEAD_CHECKS
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
@@ -2832,9 +2832,9 @@ current_ops_release_downstream_dispatch_20261021:
     details: "P1: the run query emits [id,status,event] but the shell read list did not bind those fields to candidate_event, causing an unbound variable under set -u for Cloudflare candidates."
   repair_commit: 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf
   repair_validation: "On exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. TSV run fields now emit and bind exactly [id,status,event]; pending expected jobs are active owners; active Cloudflare workflow_dispatch cannot suppress without proven input identity; completed Promote requires production lineage of MERGED_MAIN. Final AIPOS-only successor exact-head checks and fresh review are pending."
-  validation: "Fresh review on predecessor f01215505a84cd61779663e1f7068ed5abbf5c55 returned P0=0/P1=1/P2=0 for a TSV run-event binding mismatch. Fixed on exact source commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf; focused tests 14/14 and diff check pass on that SHA. Prior f012 exact-head checks are historical after this repair. Protected main c8148d7e61dd3be0763577b1c736331ab27c56ec remains merged via 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3."
+  validation: "Source repair commit 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf passed focused tests 14/14 and diff check. Exact head 08451281261a31041aa9af5391bce6ccb9d3d4a6 CI run 39531860442 failed closed at AIPOS YAML preflight due duplicated latest_reviewed_head/repair_commit keys in the work order (parser line 78); CI did not reach full tests. Those historical duplicate keys are now renamed; no implementation regression is indicated. Protected main remains c8148d7e61dd3be0763577b1c736331ab27c56ec."
   formal_validator: PENDING
-  next: "Commit/push this AIPOS evidence synchronization to the existing PR branch. Then verify the resulting exact head against protected main with all six workflows and fresh review; obtain a separate explicit non-author P0/P1/P2 Validator receipt before Audit. Keep Draft; no Audit/Release or Oracle overlap."
+  next: "Commit/push this duplicate-key correction and record it as AIPOS-only; verify the resulting exact head against protected main with all six workflows and fresh review. Keep Draft and require formal non-author Validator counts before Audit; no Audit/Release or Oracle overlap."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:

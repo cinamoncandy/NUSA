@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+status: AIPOS_DUPLICATE_KEY_REPAIRED_PENDING_FRESH_HEAD_CHECKS
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -67,14 +67,14 @@ validation_history:
   previous_exact_head: 45ef8302f693edcd0eb9ef14e4a6797b371eff0e
   previous_review_finding: "P1: wrapper-level success could hide skipped guarded jobs after failed CI and suppress required direct convergence."
   repair: "Dedupe now queries exact-main run jobs and requires the workflow-specific applicable job to be active or completed success; skipped job conclusions do not qualify."
-  latest_reviewed_head: 87485e21e158a4a7d493ccafb4b04da2476dba8f
-  latest_review_findings:
+  prior_reviewed_head: 87485e21e158a4a7d493ccafb4b04da2476dba8f
+  prior_review_findings:
     p0: 0
     p1: 1
     p2: 1
     details: "P1: an active Cloudflare workflow_dispatch can have a new-main run SHA but stale head_sha input, so it cannot be accepted as owner without proving the requested input; active workflow_run job is bound to the exact head, while completed runs require production lineage. P2: AIPOS had contradictory focused-test status and must bind results to the exact source SHA."
-  repair_commit: 2a88f66d29e60b15949529d1523f7622035efa7d
-  repair_validation: "On exact source commit 2a88f66d29e60b15949529d1523f7622035efa7d, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Active Cloudflare workflow_dispatch candidates are not accepted without a provable exact input binding; completed candidates require cloudflare-production ancestry of MERGED_MAIN; pending expected jobs count as active owners. Successor exact-head CI/companions and fresh review are pending."
+  prior_repair_commit: 2a88f66d29e60b15949529d1523f7622035efa7d
+  prior_repair_validation: "On exact source commit 2a88f66d29e60b15949529d1523f7622035efa7d, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Active Cloudflare workflow_dispatch candidates are not accepted without a provable exact input binding; completed candidates require cloudflare-production ancestry of MERGED_MAIN; pending expected jobs count as active owners."
   latest_reviewed_head: f01215505a84cd61779663e1f7068ed5abbf5c55
   latest_review_findings:
     p0: 0
@@ -86,4 +86,6 @@ validation_history:
   focused_tests: "Exact source SHA 82d2b22bf32ea2f55eb6ed7cb0961d21294febbf: 14/14 PASS; git diff --check PASS."
   previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
   oracle_main_release: "Run 39527382516 failed closed at pre-activation exact-main recheck: it requested e106bdbd62c92278d1835722f4ada1c31762ceb7 while protected main had advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec. No stale activation occurred."
-next: "Commit/push this AIPOS evidence synchronization to the existing PR branch. Then verify the resulting exact head against protected main with all six workflows and fresh review; obtain a separate explicit non-author P0/P1/P2 Validator receipt before Audit. Keep Draft; no Audit/Release or Oracle overlap."
+  latest_validation_head: 08451281261a31041aa9af5391bce6ccb9d3d4a6
+  latest_ci_failure: "CI run 39531860442 failed during preflight on a duplicated YAML mapping key at work-order line 78 (duplicate latest_reviewed_head/repair_commit entries); all jobs fail for this parsing issue before tests. The duplicate keys are now renamed as prior_review_*; no implementation regression is indicated."
+  next: "Commit/push this duplicate-key correction and record it as AIPOS-only; verify the resulting exact head against protected main with all six workflows and fresh review. Keep Draft and require formal non-author Validator counts before Audit; no Audit/Release or Oracle overlap."
