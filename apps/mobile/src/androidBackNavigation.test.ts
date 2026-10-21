@@ -24,7 +24,7 @@ describe("Android back navigation containment", () => {
   });
 
   it("returns any non-root tab or detail route to HOME", () => {
-    for (const activeTab of ["Paper", "Live", "More"] as const) {
+    for (const activeTab of ["Paper", "Live", "Futures", "More"] as const) {
       assert.equal(resolveAndroidBackNavigation(state({ activeTab })), "GO_HOME");
     }
   });
