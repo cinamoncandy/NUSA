@@ -36,15 +36,26 @@ export const ORDERBOOK_MAX_FUTURE_MS = 5_000;
 export const ORDERBOOK_COLLECTOR_RETENTION_MS = 14 * 24 * 3_600_000;
 /**
  * Retention for the stored books. The default stays 14 days. NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS may raise it (whole days, 14..90)
- * so a pre-registered study can still read its training data when its verdict is due; anything else is ignored and the default applies.
+ * so a pre-registered study can still read its training data when its verdict is due. A value below 14 or not a whole number keeps 14, above 90 uses 90,
+ * and researchOrderBookRetention returns a warning for the log in each of those cases. The collector never keeps less than 14 days.
  * Raising it grows the state database (and every backup copy of it), so the owner sets it deliberately after checking disk headroom.
  */
 export function researchOrderBookRetentionMs(env: NodeJS.ProcessEnv): number {
-  const raw = env.NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS;
-  if (raw == null || !/^\d{2}$/.test(raw.trim())) return ORDERBOOK_COLLECTOR_RETENTION_MS;
-  const days = Number(raw.trim());
-  return days >= 14 && days <= 90 ? days * 24 * 3_600_000 : ORDERBOOK_COLLECTOR_RETENTION_MS;
+  return researchOrderBookRetention(env).retentionMs;
 }
+
+/** The effective retention and, when NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS was set but unusable or clamped, a warning sentence for the log. */
+export function researchOrderBookRetention(env: NodeJS.ProcessEnv): { readonly retentionMs: number; readonly warning?: string } {
+  const raw = env.NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS;
+  if (raw == null || raw.trim() === "") return { retentionMs: ORDERBOOK_COLLECTOR_RETENTION_MS };
+  const text = raw.trim();
+  if (!/^\d{1,3}$/.test(text) || Number(text) === 0 || text.length > 1 && text.startsWith("0")) return { retentionMs: ORDERBOOK_COLLECTOR_RETENTION_MS, warning: `NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS=${JSON.stringify(text.slice(0, 20))} is not a whole number of days; keeping 14 days.` };
+  const days = Number(text);
+  if (days < 14) return { retentionMs: ORDERBOOK_COLLECTOR_RETENTION_MS, warning: `NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS=${days} is below the 14-day minimum; keeping 14 days.` };
+  if (days > 90) return { retentionMs: 90 * 24 * 3_600_000, warning: `NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS=${days} is above the 90-day maximum; using 90 days.` };
+  return { retentionMs: days * 24 * 3_600_000 };
+}
+
 const CHUNK = 20;
 const MARKET_LIST_TTL_MS = 6 * 3_600_000;
 const PRUNE_EVERY_MS = 3_600_000;
@@ -146,7 +157,7 @@ export class ResearchOrderBookCollector {
       }
       if (this.now - this.lastPruneAt >= PRUNE_EVERY_MS) {
         this.lastPruneAt = this.now;
-        try { this.sink.pruneOrderBookSamplesBefore(targets, this.now - (this.options.retentionMs ?? ORDERBOOK_COLLECTOR_RETENTION_MS)); } catch { this.failures += 1; }
+        try { this.sink.pruneOrderBookSamplesBefore(targets, this.now - Math.max(this.options.retentionMs ?? ORDERBOOK_COLLECTOR_RETENTION_MS, ORDERBOOK_COLLECTOR_RETENTION_MS)); } catch { this.failures += 1; }
       }
       this.rounds += 1;
       this.samplesStored += stored;

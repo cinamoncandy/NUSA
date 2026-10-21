@@ -1,5 +1,9 @@
 import type { SqliteDatabase } from "./index";
 
+/** At most this much time per market is archived and deleted by one prune call (see pruneOrderBookSamplesBefore). */
+const PRUNE_SLICE_MS = 24 * 3_600_000;
+/** The study archive keeps rows for this long beyond the live retention. */
+const ARCHIVE_EXTRA_RETENTION_MS = 106 * 24 * 3_600_000;
 const MARKET = /^KRW-[A-Z0-9-]+$/;
 
 /**
@@ -112,21 +116,40 @@ export class SqliteMarketMicrostructureStore {
    * Deletes the given markets' samples captured before cutoffMs (time-based retention for appendOrderBookRound rows). Before a row is
    * deleted, the rows the pre-registered studies read are copied to research_orderbook_study_rows in the SAME transaction: the minutes
    * 58..59 and 0..10 of every hour (the (t - 2 min, t] book at an hour mark and the 10-minute order windows after it) and 43..45 (the
-   * 15-minutes-earlier book). Everything else is dropped as before. If the copy fails nothing is deleted, so data is never lost; the
-   * returned count is the number of live rows deleted.
+   * book 15 minutes earlier), 16 of 60 minutes. Everything else is dropped as before. If the copy fails nothing is deleted, so data is
+   * never lost. Each call handles at most PRUNE_SLICE_MS of rows per market (the oldest first) so a long backlog (for example after the
+   * retention was lowered) is worked off over several hourly calls instead of one long synchronous transaction; the steady state is one
+   * hour of rows per call. The archive itself is bounded: rows older than cutoffMs - ARCHIVE_EXTRA_RETENTION_MS are deleted too.
+   * Returns the number of live rows deleted.
    */
   public pruneOrderBookSamplesBefore(markets: readonly string[], cutoffMs: number): number {
     if (!Number.isSafeInteger(cutoffMs) || cutoffMs <= 0) throw new MarketMicrostructureStoreError("INVALID_CUTOFF", "microstructure cutoff is invalid");
     for (const market of markets) checkMarket(market);
     return this.db.transaction(() => {
       let count = 0;
-      const archive = this.db.connection.prepare(`INSERT OR IGNORE INTO research_orderbook_study_rows (market, captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5, total_bid_size, total_ask_size)
+      const oldest = this.db.connection.prepare("SELECT MIN(captured_at_ms) AS first FROM research_orderbook_samples WHERE market = ?");
+      const archive = this.db.connection.prepare(`INSERT INTO research_orderbook_study_rows (market, captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5, total_bid_size, total_ask_size)
         SELECT market, captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5, total_bid_size, total_ask_size FROM research_orderbook_samples
-        WHERE market = ? AND captured_at_ms < ? AND ((captured_at_ms % 3600000) / 60000 >= 58 OR (captured_at_ms % 3600000) / 60000 <= 10 OR ((captured_at_ms % 3600000) / 60000 BETWEEN 43 AND 45))`);
+        WHERE market = ? AND captured_at_ms < ? AND ((captured_at_ms % 3600000) / 60000 >= 58 OR (captured_at_ms % 3600000) / 60000 <= 10 OR ((captured_at_ms % 3600000) / 60000 BETWEEN 43 AND 45))
+        ON CONFLICT (market, captured_at_ms) DO NOTHING`);
       const remove = this.db.connection.prepare("DELETE FROM research_orderbook_samples WHERE market = ? AND captured_at_ms < ?");
-      for (const market of markets) { archive.run(market, cutoffMs); count += Number(remove.run(market, cutoffMs).changes ?? 0); }
+      for (const market of markets) {
+        const first = (oldest.get(market) as { first: number | null } | undefined)?.first;
+        if (first == null || first >= cutoffMs) continue;
+        const upTo = Math.min(cutoffMs, first + PRUNE_SLICE_MS);
+        archive.run(market, upTo);
+        count += Number(remove.run(market, upTo).changes ?? 0);
+      }
+      this.db.connection.prepare("DELETE FROM research_orderbook_study_rows WHERE captured_at_ms < ?").run(cutoffMs - ARCHIVE_EXTRA_RETENTION_MS);
       return count;
     });
+  }
+
+  /** The archived study rows of one market in a time range (the rows pruneOrderBookSamplesBefore keeps). */
+  public readStudyRows(market: string, fromMs: number, toMs: number): readonly StoredOrderBookSample[] {
+    checkMarket(market);
+    const rows = this.db.connection.prepare("SELECT captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5, total_bid_size, total_ask_size FROM research_orderbook_study_rows WHERE market = ? AND captured_at_ms >= ? AND captured_at_ms <= ? ORDER BY captured_at_ms ASC").all(market, fromMs, toMs) as Array<Record<string, number>>;
+    return Object.freeze(rows.map((r) => Object.freeze({ capturedAtMs: Number(r.captured_at_ms), bestBid: Number(r.best_bid), bestAsk: Number(r.best_ask), bidSize5: Number(r.bid_size_5), askSize5: Number(r.ask_size_5), totalBidSize: Number(r.total_bid_size), totalAskSize: Number(r.total_ask_size) })));
   }
 
   public readOrderBookSamples(market: string, fromMs: number, toMs: number): readonly StoredOrderBookSample[] {
