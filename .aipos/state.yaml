@@ -2559,10 +2559,10 @@ current_mobile_home_simplify:
 
 current_ops_backup_retention_buckets_20261021:
   work_order: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: RECONVERGED_PENDING_FRESH_EXACT_HEAD_CI
   issue: 1949
   branch: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
-  base_sha: 1f74688c5e949b6585dd00768353db32bb30cbd2
+  base_sha: 345539210a96f9dd4292b848318043fe23afc7f4
   finding: "Oracle root hit 91% during backup because daily/weekly retention counted release snapshots instead of distinct UTC day/week buckets; current backups contain multiple same-day and same-week copies."
   next: "Validate calendar-bucket retention -> exact-head CI/Validator -> governed merge -> reviewed backup run -> disk guard evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

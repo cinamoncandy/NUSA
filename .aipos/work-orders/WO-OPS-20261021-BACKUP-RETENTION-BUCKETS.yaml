@@ -1,11 +1,11 @@
 id: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
 title: "Bound Oracle SQLite backups to real daily/weekly calendar buckets"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: RECONVERGED_PENDING_FRESH_EXACT_HEAD_CI
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 1949
 base_branch: main
-base_commit: 1f74688c5e949b6585dd00768353db32bb30cbd2
+base_commit: 345539210a96f9dd4292b848318043fe23afc7f4
 implementation_branch: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
 authority_impact: none
 finding: "Oracle root reached 91% during release backup. /var/backups/nusa used 5.9 GiB: daily 3.83 GiB and weekly 1.50 GiB. The current script retains releases, not calendar periods; four weekly backups were all from the same Sunday and several daily backups were from the same UTC date."
