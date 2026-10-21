@@ -97,5 +97,7 @@ test("a snapshot present in both the live table and the archive counts once towa
 });
 
 test('runAll refuses to run while the design is not frozen', () => {
-  assert.throws(() => runAll({ db: memoryDb([]), now: Date.parse("2026-12-01T00:00:00Z") }), /DESIGN_NOT_FROZEN/);
+  const { assertDesignFrozen } = require("../scripts/lib/preregisteredDesign.js");
+  assert.throws(() => runAll({ frozen: () => assertDesignFrozen({ expected: "PENDING" }), db: memoryDb([]), now: Date.parse("2026-12-01T00:00:00Z") }), /DESIGN_NOT_FROZEN/);
+  assert.throws(() => assertDesignFrozen({ expected: "0".repeat(64) }), /DESIGN_CHANGED/);
 });
