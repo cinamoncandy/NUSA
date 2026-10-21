@@ -22,3 +22,5 @@ overrides:
   source-map-js@1.2.1: 1.2.2
   compression@1.8.1: 1.8.2
   shell-quote@1.10.0: 1.11.0
+  launch-editor: 2.14.2
+  vite: 7.3.7

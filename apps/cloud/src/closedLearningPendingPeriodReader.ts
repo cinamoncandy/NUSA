@@ -57,6 +57,9 @@ export class ClosedLearningPendingPeriodReader {
     this.repository = new SqlitePaperRealizedPeriodRepository(database);
   }
 
+  /** Immutable non-performance history is projected separately from active plans. */
+  public dispositions() { return this.repository.listPendingDispositions(); }
+
   public list(): readonly PersistedPaperRealizedPeriodPlan[] {
     const rows = this.repository.listPending();
     return Object.freeze(rows.map((row) => {

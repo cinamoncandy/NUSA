@@ -5,7 +5,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 // Screen presenters come only from the presentation boundary (docs/UI_ARCHITECTURE.md).
 import {
-  HomeView, LiveReadinessMonitorView, MoreDetailView, MoreMenuView, NotificationView, NusaButton, NusaCard, OrderHistoryView,
+  FuturesView, HomeView, LiveReadinessMonitorView, MoreDetailView, MoreMenuView, NotificationView, NusaButton, NusaCard, OrderHistoryView,
   EventBanner, PaperShadowMonitorView, PerformanceView, PortfolioView, PrimaryNavigation, SafetyLine, SettingsView, StatusChip, StrategiesView, TabTransition, ThemeProvider, useTheme, WaveMark,
   type HomeDestination, type ThemePreference, type TruthfulMoreDetail,
 } from "./src/presentation";
@@ -539,6 +539,7 @@ function AuthenticatedApp() {
       : detailSurface === "Performance" ? <PerformanceView screen={buildPerformanceScreen(paperLearningState.performance, paperLearningState.dataSource === "SERVER_STREAM")} onClose={() => setDetailSurface(null)} />
       : detailSurface === "Risk" || detailSurface === "SystemStatus" || detailSurface === "Help" ? <MoreDetailView destination={detailSurface} onClose={() => setDetailSurface(null)} />
       : activeTab === "Paper" ? <PaperShadowMonitorView paper={paperLearningState} learningFunnel={snapshot?.operations.heartbeat?.learningFunnel ?? null} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setActiveTab("Home")} />
+      : activeTab === "Futures" ? <FuturesView futures={stale ? null : (snapshot?.operations.heartbeat as { readonly futures?: unknown } | null | undefined)?.futures ?? null} />
       : activeTab === "Live" ? <LiveReadinessMonitorView snapshot={liveReadinessOperations.status === "READY" ? liveReadinessOperations.snapshot : null} unavailableReason={liveReadinessOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : liveReadinessOperations.reason} unavailableKind={paperProjectionPending ? "PENDING" : liveReadinessOperations.status === "NOT_CONFIGURED" ? "SETUP" : "FAILED"} refreshing={refreshing} onRefresh={onRefresh} />
       : activeTab === "More" ? <MoreMenuView heartbeat={stale ? null : snapshot?.operations.heartbeat ?? null} onOpen={(destination: MoreDestination) => {
           if (destination === "Strategies") setDetailSurface("Strategies");

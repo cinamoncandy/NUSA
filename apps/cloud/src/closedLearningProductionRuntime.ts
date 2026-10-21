@@ -5,7 +5,7 @@ import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
 import { readOrderBookStudyResult } from "./researchStudyResult";
 import { MarketMicrostructureRecorder, microstructureRecorderEnabled } from "./marketMicrostructureRecorder";
 import { SqliteMarketMicrostructureStore } from "../../../packages/storage/src/marketMicrostructureStore";
-import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled } from "./researchOrderBookCollector";
+import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled, researchOrderBookRetention } from "./researchOrderBookCollector";
 import { ResearchFuturesCollector, researchFuturesCollectorEnabled } from "./researchFuturesCollector";
 import { SqliteFuturesPublicStore } from "../../../packages/storage/src/futuresPublicStore";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
@@ -157,8 +157,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // Research-only recording of the public order book and trades already streamed (Upbit keeps no history of either).
   const microstructureRecorder = microstructureRecorderEnabled(env) ? new MarketMicrostructureRecorder(new SqliteMarketMicrostructureStore(database)) : undefined;
   // Research-only all-KRW order book, once a minute; markets the WebSocket recorder samples are left to it.
+  const orderBookRetention = researchOrderBookRetention(env);
+  if (orderBookRetention.warning != null) console.warn(orderBookRetention.warning);
   const orderBookCollector = researchOrderBookCollectorEnabled(env)
-    ? new ResearchOrderBookCollector(new SqliteMarketMicrostructureStore(database), { skipMarkets: () => microstructureRecorder?.recordedMarkets() ?? new Set<string>() })
+    ? new ResearchOrderBookCollector(new SqliteMarketMicrostructureStore(database), { skipMarkets: () => microstructureRecorder?.recordedMarkets() ?? new Set<string>(), retentionMs: orderBookRetention.retentionMs })
     : undefined;
   // Research-only public Binance futures data (BTCUSDT, ETHUSDT); never an order path.
   const futuresCollector = researchFuturesCollectorEnabled(env) ? new ResearchFuturesCollector(new SqliteFuturesPublicStore(database)) : undefined;
@@ -467,7 +469,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         if (persistable != null && !writeBaselineShadowRecord(config.cloudStateDbPath, persistable)) baselineShadow.markUnpersisted();
       }
       refreshDurableCycles();
-      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
+      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods(), pendingPeriods.dispositions()); } catch { /* display only */ }
       try { loopStatus.observeRuleReplay(latestBaselineRuleReplay(periods.listRealizedPeriods())); } catch { loopStatus.observeRuleReplay(undefined); }
     })().catch((error: unknown) => { loopStatus.observeError(Date.now(), tickErrorClass(error)); persistLastBlocked(); throw error; });
     closedLearningTick = task;
