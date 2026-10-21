@@ -2796,7 +2796,7 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: REPAIRING_FRESH_VALIDATOR_FINDINGS
+  status: P1_P2_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
@@ -2830,11 +2830,11 @@ current_ops_release_downstream_dispatch_20261021:
     p1: 1
     p2: 1
     details: "P1: an active Cloudflare workflow_dispatch can have a new-main run SHA but stale head_sha input, so it cannot be accepted as owner without proving the requested input; active workflow_run job is bound to the exact head, while completed runs require production lineage. P2: AIPOS had contradictory focused-test status and must bind results to the exact source SHA."
-  prior_repair_commit: a831b8817b91eba26b38732530dcbc6c8850287f
-  prior_repair_test_note: "The 14/14 focused test output was produced on the working tree before commit a831b881; it is not treated as a formally SHA-bound test receipt. Retest after the current source repair commit and record that exact SHA."
-  validation: "PR head 87485e21e158a4a7d493ccafb4b04da2476dba8f review returned P0=0/P1=1/P2=1. Its exact-head CI and companions had not all completed when the review arrived. The P1/P2 repairs are being refined; focused tests for the refined repair are pending. Protected main c8148d7e61dd3be0763577b1c736331ab27c56ec remains merged via 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3. Oracle run 39527382516 stopped before activation after main advanced; no stale deployment occurred."
+  repair_commit: 2a88f66d29e60b15949529d1523f7622035efa7d
+  repair_validation: "On exact source commit 2a88f66d29e60b15949529d1523f7622035efa7d, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Active Cloudflare workflow_dispatch candidates are not accepted without a provable exact input binding; completed candidates require cloudflare-production ancestry of MERGED_MAIN; pending expected jobs count as active owners. Successor exact-head CI/companions and fresh review are pending."
+  validation: "Fresh review on predecessor 87485e21e158a4a7d493ccafb4b04da2476dba8f returned P0=0/P1=1/P2=1. Both findings were repaired on 2a88f66d29e60b15949529d1523f7622035efa7d; focused tests 14/14 and diff check pass on that exact source commit. The 87485 exact-head CI was not treated as current after source change. Protected main c8148d7e61dd3be0763577b1c736331ab27c56ec remains merged via 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3. Oracle run 39527382516 stopped before activation after main advanced; no stale deployment occurred."
   formal_validator: PENDING
-  next: "Reject active Cloudflare workflow_dispatch candidates unless their run identity proves the requested head; continue requiring production ancestry for completed candidates. Reconcile AIPOS test-status fields, run focused tests on a committed source SHA, then update AIPOS and revalidate the final exact head. Keep Draft; no Audit/Release or Oracle overlap."
+  next: "Commit/push this AIPOS evidence synchronization to the existing PR branch. Then verify the resulting exact head against protected main with all six workflows and fresh review; obtain a separate explicit non-author P0/P1/P2 Validator receipt before Audit. Keep Draft; no Audit/Release or Oracle overlap."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_release_prune:
