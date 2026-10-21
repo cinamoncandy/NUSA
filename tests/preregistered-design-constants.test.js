@@ -11,3 +11,8 @@ test('design document states the constants the code relies on', () => {
     assert.ok(doc.includes(needle), `design doc is missing ${needle}`);
   }
 });
+
+test('registered design hash matches the design file bytes (freeze)', () => {
+  const { assertDesignFrozen } = require('../scripts/lib/preregisteredDesign.js');
+  assert.doesNotThrow(() => assertDesignFrozen());
+});
