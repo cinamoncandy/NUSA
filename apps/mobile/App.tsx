@@ -311,7 +311,8 @@ function AuthenticatedApp() {
     const generation = publicRefreshGenerationRef.current;
     const previous = publicMarketsRef.current;
     setPublicRefreshing(true);
-    setPublicMarkets({ ...previous, status: previous.markets === null ? "LOADING" : "STALE", error: null });
+    // A refresh in flight is not a stale feed: keep READY until a request actually fails (STALE is set in the failure branch below).
+    setPublicMarkets({ ...previous, status: previous.markets === null ? "LOADING" : previous.status, error: null });
     const request = (async () => {
       const [tickerResult, candleResult] = await Promise.allSettled([
         loadUpbitPublicMarkets(),
