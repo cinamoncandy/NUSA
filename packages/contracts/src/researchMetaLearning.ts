@@ -124,21 +124,28 @@ export function evaluateMetaLearning(entries: readonly ResearchLedgerEntry[]): M
 /**
  * Turns the runtime Research experiment counters (per bar length, e.g. {"1m": {FAIL_NO_EDGE: 19, ...}}) into ledger entries:
  * every FAIL_/REPEAT_/PASS_ outcome is one evaluated configuration of the runtime grid (close-derived bars, five or fewer
- * markets, rule families). A PASS_ outcome is a discovery pass; the runtime gate reports no holdout pass here, so holdout is 0.
- * Counters are per process, so these entries cover the current process only.
+ * markets, rule families). A PASS_ outcome is a discovery pass. The orchestrator itself names its wins VALIDATION_CHALLENGER_BETTER
+ * (a challenger beat the champion on validation: one evaluated configuration and a discovery pass, because FAIL_ is only derived for
+ * challengers that lost) and HOLDOUT_CHALLENGER_BETTER (it also won the single-use holdout: a holdout pass). Counting them keeps a
+ * genuine win visible to the meta ledger; they only appear once a challenger really wins, so today's figures do not change.
+ * Counters are per process, so these entries cover the current process only. Known limit: FAIL_/REPEAT_ are derived all-time from the
+ * durable ledger while the win keys are per process, so after a restart an earlier win drops out (this can bias overfitRatePercent up and re-exhaust
+ * a dimension a holdout win had un-exhausted; steering only orders ticks). Deriving wins from the ledger as well is a separate change.
  */
 export function runtimeResearchEntries(byInterval: Readonly<Record<string, { readonly counts: Readonly<Record<string, number>> } | null>> | null | undefined, markets: number): readonly ResearchLedgerEntry[] {
   if (byInterval == null) return Object.freeze([]);
   const entries: ResearchLedgerEntry[] = [];
   for (const [interval, value] of Object.entries(byInterval)) {
     if (value == null || !/^\d+m$/.test(interval)) continue;
-    let configs = 0; let discovery = 0;
+    let configs = 0; let discovery = 0; let holdout = 0;
     for (const [code, count] of Object.entries(value.counts)) {
       if (!Number.isSafeInteger(count) || count < 0) continue;
       if (/^(FAIL|REPEAT)_/.test(code)) configs += count;
-      else if (/^PASS/.test(code)) { configs += count; discovery += count; }
+      else if (/^PASS/.test(code) || code === "VALIDATION_CHALLENGER_BETTER") { configs += count; discovery += count; }
+      else if (code === "HOLDOUT_CHALLENGER_BETTER") holdout += count;
     }
-    if (configs > 0) entries.push(Object.freeze({ id: `RUNTIME_RESEARCH_${interval}`, source: "RUNTIME_RESEARCH" as const, dataType: "CLOSE" as const, timeframe: interval, universe: Math.max(1, markets), methodClass: "RULE" as const, configs, discoveryPass: discovery, holdoutPass: 0 }));
+    // A holdout is only ever run for a validation winner, so it can never exceed the discoveries.
+    if (configs > 0) entries.push(Object.freeze({ id: `RUNTIME_RESEARCH_${interval}`, source: "RUNTIME_RESEARCH" as const, dataType: "CLOSE" as const, timeframe: interval, universe: Math.max(1, markets), methodClass: "RULE" as const, configs, discoveryPass: discovery, holdoutPass: Math.min(holdout, discovery) }));
   }
   return Object.freeze(entries);
 }

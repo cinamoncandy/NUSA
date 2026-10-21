@@ -95,12 +95,13 @@ export class MetaOosLedger {
       return Object.freeze({ assignment: existing, fingerprint: existing.assignmentFingerprint, recordedAt: record?.recordedAt ?? new Date(this.now()).toISOString(), replayed: true });
     }
 
-    const assignment = assignMetaPartition(input, holdouts);
-
     const recorded = this.ledger.list().length;
     if (recorded >= MAX_RECORDS) throw new MetaOosLedgerError("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted");
     const timestamp = this.now();
     if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new MetaOosLedgerError("INVALID_CLOCK", "durable clock is invalid");
+
+    // Validate every fallible persistence precondition before consuming a single-use holdout.
+    const assignment = assignMetaPartition(input, holdouts);
 
     const record = this.ledger.append({
       opportunityId: `meta-oos:${assignment.assignmentFingerprint}`,

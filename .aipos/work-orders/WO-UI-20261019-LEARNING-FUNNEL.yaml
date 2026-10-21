@@ -1,0 +1,27 @@
+id: WO-UI-20261019-LEARNING-FUNNEL
+title: "Learning screen redesign step 2: Research funnel (tested -> discovery -> holdout)"
+status: IN_PROGRESS
+priority: P2
+owner: ui
+repository: cinamoncandy/NUSA
+base_branch: main
+design: "https://claude.ai/artifact/9HDnUa8kLe8h58M4oEvMuV (owner: 'pick the best and proceed', 2026-10-19)"
+objective: "Show the owner why the learning loop has not completed: of the strategies tested, how many passed the first screen and how many passed the independent holdout (currently 418 -> 15 -> 0), as a funnel the candidates visibly fall through."
+first_broken_transition: "the app never received the Research funnel; the Learning tab could not say that 0 candidates passed"
+scope:
+  - contract PersonalPaperLearningFunnel and heartbeat.learningFunnel (display only, integers from the closed-learning status' metaLearning and cyclesEvaluated)
+  - learningFunnelModel.ts (pure, tested), learningFunnel.tsx (Animated, reduce-motion aware), learningView.tsx and App.tsx wiring (live snapshot only)
+prohibited:
+  - any threshold, candidate or authority change; inventing or defaulting a count
+acceptance:
+  - missing, malformed or inconsistent counts show nothing
+  - motion stops with the OS reduce-motion setting
+validation:
+  local: "learningFunnelModel 2, mobile-learning-funnel 2, mobile-product-v5 4, cloud-runtime-liveness-health 35 pass; mobile tsc no error in changed files. Device run NOT RUN."
+review_2026_10_19: "Independent review PASS_WITH_NOTES, no P0/P1. Fixed: holdout above discovery is not drawn (server and app), cycle count labelled as this run, accessible summary, funnel on both Learning entries, more tests."
+remaining: "Safety (lock rings) and Records (timeline) screens; deploy so the server sends learningFunnel."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

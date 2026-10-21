@@ -155,3 +155,31 @@ jobs:
           } 2>&1 | redact)"
           printf '%s\n' "$out"
           emit "diag-disk-consumers" "$out"
+      # Runs after the whole-tree walk, which times out at 40 s and then lists only the directories it reached (the runner work area, where
+      # each release bundle is extracted, was missing from diagnosis 39357215278). Candidates are measured one at a time with their own
+      # hard limit, lowest I/O priority, read-only; an unreadable or timed-out directory is named, never guessed.
+      - name: Disk consumers by directory (read-only, one at a time)
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          out="$({
+            echo "== disk by directory (du -s, 25 s each; TIMEOUT = still unknown)"
+            for dir in /opt/actions-runner-nusa-paper /opt/actions-runner-nusa-paper/_work /opt/actions-runner-nusa-paper/_work/_temp /opt/actions-runner-nusa-paper/_work/_tool /opt/actions-runner-nusa-paper/_work/_actions /opt/actions-runner-nusa-paper/_diag /opt/nusa/releases /opt/nusa/shared /var/lib/snapd /var/cache /var/log /home /root /tmp /var/tmp /swapfile /swapfile2; do
+              if [ -e "$dir" ]; then
+                size="$(ionice -c3 nice -n19 timeout 25 du -xsh "$dir" 2>/dev/null | cut -f1)"; status=$?
+                echo "$dir ${size:-TIMEOUT_OR_UNREADABLE}"
+              else
+                echo "$dir (absent)"
+              fi
+            done
+            echo "== top-level listing of the runner work area (names and sizes of entries, no content)"
+            ls -la /opt/actions-runner-nusa-paper/_work 2>&1 | head -12
+            ls -la /opt/actions-runner-nusa-paper/_work/_temp 2>&1 | head -12
+            echo "== release directories"
+            ls -la /opt/nusa/releases 2>&1 | head -8
+          } 2>&1 | redact)"
+          printf '%s\n' "$out"
+          emit "diag-disk-by-dir" "$out"
