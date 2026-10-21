@@ -449,7 +449,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         if (persistable != null && !writeBaselineShadowRecord(config.cloudStateDbPath, persistable)) baselineShadow.markUnpersisted();
       }
       refreshDurableCycles();
-      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
+      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods(), pendingPeriods.dispositions()); } catch { /* display only */ }
       try { loopStatus.observeRuleReplay(latestBaselineRuleReplay(periods.listRealizedPeriods())); } catch { loopStatus.observeRuleReplay(undefined); }
     })().catch((error: unknown) => { loopStatus.observeError(Date.now(), tickErrorClass(error)); persistLastBlocked(); throw error; });
     closedLearningTick = task;
