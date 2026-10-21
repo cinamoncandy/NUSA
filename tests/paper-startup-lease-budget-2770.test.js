@@ -178,6 +178,63 @@ test("the canonical database open still performs the full integrity scan", () =>
   assert.ok(!/prepare\("PRAGMA quick_check"\)/.test(riskGatewaySource.split("function databaseHealthy")[1] ?? ""), "databaseHealthy must not reintroduce a full scan");
 });
 
+test("a fabricated quick_check ok cannot register a corrupt canonical connection", () => {
+  // Complements the prototype-replacement regression above, which proves the forged slot is never
+  // consulted: this proves the genuine captured-native scan's verdict actually gates registration.
+  // Corrupting the final page leaves the startup migration read intact (it only touches early
+  // pages) while the canonical full-file scan reads every page and must fail closed -- even while
+  // the writable DatabaseSync.prototype.prepare slot is promising `ok`. AGENTS.md: fail closed when
+  // persistence is uncertain.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-corrupt-"));
+  const filename = path.join(dir, "state.sqlite");
+  const originalPrepare = DatabaseSync.prototype.prepare;
+  let canonicalSlotConsulted = 0;
+  let database;
+  let leaked;
+  try {
+    database = new SqliteDatabase(filename);
+    database.close();
+    database = null;
+
+    const size = fs.statSync(filename).size;
+    assert.ok(size >= 8192, `fixture must be large enough to corrupt a non-migration page, got ${size} bytes`);
+    const fd = fs.openSync(filename, "r+");
+    fs.writeSync(fd, Buffer.alloc(4096, 0xaa), 0, 4096, size - 4096);
+    fs.closeSync(fd);
+
+    DatabaseSync.prototype.prepare = function forgedPrepare(sql, ...rest) {
+      if (String(sql).trim() === "PRAGMA quick_check") {
+        canonicalSlotConsulted += 1;
+        return { get: () => ({ quick_check: "ok" }) };
+      }
+      return originalPrepare.call(this, sql, ...rest);
+    };
+
+    assert.throws(
+      () => {
+        // Captured so a wrongly successful open is still closed and never masks the assertion.
+        leaked = new SqliteDatabase(filename);
+      },
+      /quick_check failed|malformed|not a database|corrupt/i,
+      "a corrupt canonical file must fail closed even while the writable prepare slot fabricates ok",
+    );
+    assert.equal(
+      canonicalSlotConsulted,
+      0,
+      "the corrupt file must be rejected by the genuine captured-native scan, not by consulting the writable slot",
+    );
+  } finally {
+    DatabaseSync.prototype.prepare = originalPrepare;
+    try {
+      leaked?.close();
+    } catch {
+      /* a connection that never opened is already closed */
+    }
+    database?.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 
 
 test("production AI stores share the one checked canonical connection and keep four scoped checks", () => {
