@@ -43,9 +43,9 @@ export function DecisionCore({ tone, decisionCount, orderCount, width, reducedMo
   const born = useRef(Date.now());
   const paints = useMemo(() => {
     const mk = (style: PaintStyle) => { const p = Skia.Paint(); p.setAntiAlias(true); p.setStyle(style); p.setBlendMode(BlendMode.Plus); return p; };
-    const line = mk(PaintStyle.Stroke), dot = mk(PaintStyle.Stroke), fill = mk(PaintStyle.Fill);
+    const line = mk(PaintStyle.Stroke), dot = mk(PaintStyle.Stroke), fill = mk(PaintStyle.Fill), glow = mk(PaintStyle.Fill);
     dot.setStrokeCap(StrokeCap.Round);
-    return { line, dot, fill };
+    return { line, dot, fill, glow };
   }, []);
   const colors = useMemo(() => ({ ink: calmColors.text, lime: calmColors.order, amber: calmColors.attention }), []);
 
@@ -58,7 +58,7 @@ export function DecisionCore({ tone, decisionCount, orderCount, width, reducedMo
     lastDecisions.current = decisionCount;
   }, [decisionCount, reducedMotion]);
   useEffect(() => {
-    if (reducedMotion === false) bursts.current = [...bursts.current, ...burstsForOrders(lastOrders.current, orderCount, Date.now(), pickPoint, Math.random)].slice(-3);
+    if (reducedMotion === false) bursts.current = [...bursts.current, ...burstsForOrders(lastOrders.current, orderCount, Date.now(), pickPoint, Math.random)].slice(-2);
     lastOrders.current = orderCount;
   }, [orderCount, reducedMotion]);
 
@@ -68,7 +68,6 @@ export function DecisionCore({ tone, decisionCount, orderCount, width, reducedMo
     const draw = (nowMs: number) => setPicture(createPicture((canvas) => renderCore(canvas, { tone: toneRef.current, width, height, t: still ? 2 : (nowMs - born.current) / 1000, nowMs, still, waves: waves.current, bursts: bursts.current, heat: heat.current, paints, colors })));
     if (reducedMotion == null) return undefined; // nothing moves until the OS has answered
     if (still) { draw(Date.now()); return undefined; }
-    born.current = Date.now();
     let alive = true, last = 0, frame = 0;
     const loop = (ts: number) => {
       if (!alive) return;
@@ -84,7 +83,7 @@ export function DecisionCore({ tone, decisionCount, orderCount, width, reducedMo
     };
     frame = requestAnimationFrame(loop);
     return () => { alive = false; cancelAnimationFrame(frame); };
-  }, [width, height, reducedMotion, tone, paints, colors]);
+  }, [width, height, reducedMotion, paints, colors]);
 
   const chip = tone === "limit" ? "HOLD" : tone === "live" ? "LIVE" : "—";
   const label = `판단 코어. ${decisionCount == null ? "판단 수를 받지 못했어요" : `오늘 판단 ${decisionCount.toLocaleString("en-US")}번`}${orderCount == null ? "" : `, 모의 주문 ${orderCount.toLocaleString("en-US")}번`}${tone === "limit" ? ". 새 매수는 멈춰 있어요" : ""}`;
@@ -97,12 +96,12 @@ export function DecisionCore({ tone, decisionCount, orderCount, width, reducedMo
 interface RenderInput {
   readonly tone: CoreTone; readonly width: number; readonly height: number; readonly t: number; readonly nowMs: number; readonly still: boolean;
   readonly waves: readonly CoreWave[]; readonly bursts: readonly CoreBurst[]; readonly heat: number;
-  readonly paints: { readonly line: SkPaint; readonly dot: SkPaint; readonly fill: SkPaint };
+  readonly paints: { readonly line: SkPaint; readonly dot: SkPaint; readonly fill: SkPaint; readonly glow: SkPaint };
   readonly colors: { readonly ink: string; readonly lime: string; readonly amber: string };
 }
 
 function renderCore(canvas: SkCanvas, { tone, width, height, t, nowMs, still, waves, bursts, heat, paints, colors }: RenderInput): void {
-  const { line, dot, fill } = paints;
+  const { line, dot, fill, glow } = paints;
   const cx = width / 2, cy = height / 2, radius = Math.min(width, height) * 0.33;
   const motion = coreMotion(tone);
   const accent = tone === "limit" ? colors.amber : colors.lime;
@@ -111,9 +110,9 @@ function renderCore(canvas: SkCanvas, { tone, width, height, t, nowMs, still, wa
   const set = (p: SkPaint, hex: string, alpha: number) => { const c = Skia.Color(hex); p.setColor(c); p.setAlphaf(Math.max(0, Math.min(1, alpha))); };
 
   // Aura: a soft pool of the tone colour behind the sphere.
-  const glow = Skia.Paint(); glow.setBlendMode(BlendMode.Plus);
-  const rg = (r: number, a0: number) => Skia.Shader.MakeRadialGradient({ x: cx, y: cy }, r, [withAlpha(accent, a0), withAlpha(accent, a0 * 0.3), withAlpha(accent, 0)], [0, 0.45, 1], TileMode.Clamp);
-  glow.setShader(rg(radius * 1.7, 0.16 + heat * 0.12)); canvas.drawCircle(cx, cy, radius * 1.7, glow);
+  // Each gradient is made, used for one draw and disposed at once, so nothing native piles up at 30 fps.
+  const drawGlow = (r: number, a0: number) => { const sh = Skia.Shader.MakeRadialGradient({ x: cx, y: cy }, r, [withAlpha(accent, a0), withAlpha(accent, a0 * 0.3), withAlpha(accent, 0)], [0, 0.45, 1], TileMode.Clamp); glow.setShader(sh); canvas.drawCircle(cx, cy, r, glow); glow.setShader(null); sh.dispose(); };
+  drawGlow(radius * 1.7, 0.16 + heat * 0.12);
 
   // Orbit ring with one slow point (the hours going round).
   line.setStrokeWidth(1); set(line, colors.ink, 0.07);
@@ -151,7 +150,7 @@ function renderCore(canvas: SkCanvas, { tone, width, height, t, nowMs, still, wa
   });
 
   // Core glow, stronger right after a decision.
-  glow.setShader(rg(radius * 0.55, 0.35 + heat * 0.35)); canvas.drawCircle(cx, cy, radius * 0.55, glow);
+  drawGlow(radius * 0.55, 0.35 + heat * 0.35);
 
   // Sparks for a new PAPER order: short lime strokes flying out of the sphere.
   for (const b of bursts) {
