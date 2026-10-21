@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: PENDING_SUCCESSOR_EXACT_HEAD_VALIDATION
+status: FORMAL_VALIDATOR_PENDING
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -138,7 +138,7 @@ validation_history:
   successor_local_validation: "On exact source tree d58ec8d9, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Fresh review of 996cee96 found P0=0/P1=0/P2=1 for unrelated backup base drift; restored here. New exact-head workflows and review are required after this AIPOS successor."
   previous_main_sync_commit: 785de0ae93fd637e9fb4d92fd06f8fd45f5905a3
   legacy_549_exact_head_checks: "Predecessor 549ffd685e87c745c87de94897da7370d7e15785 against base 345539210a96f9dd4292b848318043fe23afc7f4 passed all six workflows: CI 39560202430; PAPER 39560202557; Capability 39560202463; Activation 39560202453; Transport 39560202505; Read-only Broker 39560202451. Fresh Codex review was still running on that predecessor when protected main advanced to 55d723aada9dfcdb78293bbef30c3af2a6ac26f2. This main-sync successor therefore requires fresh exact-head workflows and review."
-  next: "All six workflows passed on exact head 39195745bc94cc840e1b30dba70f917afc311c2a. The review receipt says no major issues, but the Codex summary flags has_any_findings=true and has_unresolved_findings=true while the unresolved-thread query returned none; do not infer formal acceptance. Resolve the review-state discrepancy or obtain a clear formal exact-head P0/P1/P2 Validator receipt. This AIPOS update creates another successor, which needs six exact-head workflows and fresh review. Keep Draft; no Audit/Release/merge or Oracle overlap until separately authorized."
+  next: "All six workflows and fresh review passed on exact head 366ecbc0dc835ae16373b10fd5f75301e34c25c2. Formal non-author Validator with explicit P0/P1/P2 counts remains the next gate. This AIPOS receipt creates a successor; obtain exact-head checks and review on that successor, then request the formal Validator. Keep Draft; no Audit/Release/merge or Oracle overlap until separately authorized."
 previous_successor_validation:
   exact_head: c76ceb78ade5f51baa4f2f577ab2d9421e8d1d78
   protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
@@ -180,3 +180,17 @@ review_finding_757b7614:
   p1: 0
   p2: 1
   details: "P2: status claimed exact-head checks passed although latest_validated_head and all six workflows bound to predecessor 39195745, while next said current successor still needed validation. Both AIPOS status fields are pending until this successor is validated."
+current_exact_head_validation:
+  exact_head: 366ecbc0dc835ae16373b10fd5f75301e34c25c2
+  protected_main: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
+  workflows:
+    ci: 39568437386
+    actual_paper_runtime: 39568437230
+    capability_surface_guard: 39568437199
+    activation_rehearsal: 39568437350
+    transport_readiness: 39568437403
+    readonly_broker: 39568437184
+  workflow_result: "All six exact-head workflows completed success; strict AIPOS preflight, security, typecheck, build, regression and coverage passed."
+  fresh_review: "Completed on exact 366ecbc0 with has_any_findings=false and has_unresolved_findings=false."
+  formal_validator: PENDING
+  oracle_current_main_runtime: UNVERIFIED
