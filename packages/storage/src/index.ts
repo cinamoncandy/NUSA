@@ -1,32 +1,5 @@
-import { DatabaseSync, StatementSync } from "node:sqlite";
-import { runInNewContext } from "node:vm";
-// Capture clean-realm intrinsics before project modules load. DatabaseSync.prototype.prepare is
-// writable, including before this module is imported, so capture alone is not an integrity proof.
-const cleanIntrinsics = runInNewContext("({ apply: Reflect.apply, functionToString: Function.prototype.toString })") as {
-  readonly apply: typeof Reflect.apply;
-  readonly functionToString: (value: Function) => string;
-};
-const nativeDatabasePrepare = DatabaseSync.prototype.prepare;
-const nativeStatementGet = StatementSync.prototype.get;
-const nativeMethodsAreCanonical = cleanIntrinsics.apply(
-  cleanIntrinsics.functionToString,
-  nativeDatabasePrepare,
-  [],
-) === "function prepare() { [native code] }" && cleanIntrinsics.apply(
-  cleanIntrinsics.functionToString,
-  nativeStatementGet,
-  [],
-) === "function get() { [native code] }";
-
-function prepareSqliteIntegrityStatement(connection: DatabaseSync, sql: string) {
-  if (!nativeMethodsAreCanonical) throw new Error("native SQLite integrity methods are unavailable; refusing integrity check");
-  return cleanIntrinsics.apply(nativeDatabasePrepare, connection, [sql]);
-}
-
-function getSqliteIntegrityResult(statement: StatementSync) {
-  if (!nativeMethodsAreCanonical) throw new Error("native SQLite integrity methods are unavailable; refusing integrity check");
-  return cleanIntrinsics.apply(nativeStatementGet, statement, []);
-}
+import { DatabaseSync } from "node:sqlite";
+import { sqliteIntegrityBoundary } from "./sqliteIntegrityBootstrap";
 
 export * from "./researchMemorySemantics";
 import {
@@ -191,8 +164,8 @@ export class SqliteDatabase implements TransactionRunner {
       if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
       this.connection.exec("PRAGMA synchronous = FULL");
       this.migrationResult = runMigrations(this.connection, migrations);
-      const check = getSqliteIntegrityResult(prepareSqliteIntegrityStatement(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
-      if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
+      const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
+      if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("sqlite quick_check failed");
       fullyCheckedSqliteDatabaseConnections.set(this, this.connection);
     } catch (error) {
       this.connection.close();
@@ -858,12 +831,12 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
       }
       this.ensureSchema();
       if (this.ownsConnection) {
-        const check = getSqliteIntegrityResult(prepareSqliteIntegrityStatement(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
-        if (check == null || !Object.values(check).includes("ok")) throw new Error("AI calibration sqlite quick_check failed");
+        const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
+        if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("AI calibration sqlite quick_check failed");
       } else {
         for (const table of ["ai_calibration_durability_meta", "ai_calibration_durability_events"] as const) {
-          const check = getSqliteIntegrityResult(prepareSqliteIntegrityStatement(this.connection, `PRAGMA quick_check('${table}')`)) as Record<string, unknown> | undefined;
-          if (check == null || !Object.values(check).includes("ok")) throw new Error("AI calibration sqlite quick_check failed");
+          const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, `PRAGMA quick_check('${table}')`)) as Record<string, unknown> | undefined;
+          if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("AI calibration sqlite quick_check failed");
         }
       }
     } catch (error) {
@@ -1196,12 +1169,12 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
         "INSERT OR IGNORE INTO ai_outcome_attribution_memory_meta (id, schema_version, event_count, ledger_hash) VALUES (1, ?, 0, ?)"
       ).run(SCHEMA_VERSION, GENESIS_HASH);
       if (this.ownsConnection) {
-        const check = getSqliteIntegrityResult(prepareSqliteIntegrityStatement(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
-        if (check == null || !Object.values(check).includes("ok")) throw new Error("learning memory sqlite quick_check failed");
+        const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
+        if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("learning memory sqlite quick_check failed");
       } else {
         for (const table of ["ai_outcome_attribution_memory_meta", "ai_outcome_attribution_memory_events"] as const) {
-          const check = getSqliteIntegrityResult(prepareSqliteIntegrityStatement(this.connection, `PRAGMA quick_check('${table}')`)) as Record<string, unknown> | undefined;
-          if (check == null || !Object.values(check).includes("ok")) throw new Error("learning memory sqlite quick_check failed");
+          const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, `PRAGMA quick_check('${table}')`)) as Record<string, unknown> | undefined;
+          if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("learning memory sqlite quick_check failed");
         }
       }
       this.replay();

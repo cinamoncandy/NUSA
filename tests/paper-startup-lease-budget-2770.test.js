@@ -19,6 +19,7 @@ const { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS } = require("../
 const root = path.resolve(__dirname, "..");
 const runtimeSource = fs.readFileSync(path.join(root, "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "index.ts"), "utf8");
+const integrityBootstrapSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "sqliteIntegrityBootstrap.ts"), "utf8");
 const aiCalibrationSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "aiCalibrationDurability.ts"), "utf8");
 const aiAttributionSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "aiOutcomeAttributionMemory.ts"), "utf8");
 const riskGatewaySource = fs.readFileSync(path.join(root, "apps", "cloud", "src", "cloudPaperCanonicalRiskGateway.ts"), "utf8");
@@ -148,9 +149,10 @@ test("the risk hot path fails closed when the canonical connection is unusable",
 });
 
 test("the canonical database open still performs the full integrity scan", () => {
-  assert.match(storageSource, /getSqliteIntegrityResult\(prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)\)/);
-  assert.match(storageSource, /const nativeDatabasePrepare = DatabaseSync\.prototype\.prepare/);
-  assert.match(storageSource, /const nativeStatementGet = StatementSync\.prototype\.get/);
+  assert.match(storageSource, /sqliteIntegrityBoundary\.read\(sqliteIntegrityBoundary\.prepare\(this\.connection, "PRAGMA quick_check"\)\)/);
+  assert.match(integrityBootstrapSource, /const nativeDatabasePrepare = DatabaseSync\.prototype\.prepare/);
+  assert.match(integrityBootstrapSource, /const nativeStatementGet = StatementSync\.prototype\.get/);
+  assert.match(integrityBootstrapSource, /Object\.defineProperty\(bootstrapCache, __filename, \{ configurable: false/);
   assert.match(riskGatewaySource, /SELECT 1 AS ready/);
   assert.ok(!/prepare\("PRAGMA quick_check"\)/.test(riskGatewaySource.split("function databaseHealthy")[1] ?? ""), "databaseHealthy must not reintroduce a full scan");
 });
@@ -231,7 +233,7 @@ test("production AI stores share the one checked canonical connection and keep f
     assert.ok(quickChecks.includes("ai_calibration_durability_events"));
     assert.ok(quickChecks.includes("ai_outcome_attribution_memory_meta"));
     assert.ok(quickChecks.includes("ai_outcome_attribution_memory_events"));
-    assert.equal((storageSource.match(/getSqliteIntegrityResult\(prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)\)/g) ?? []).length, 3, "canonical and each standalone store constructor retain one full-file check path");
+    assert.equal((storageSource.match(/sqliteIntegrityBoundary\.read\(sqliteIntegrityBoundary\.prepare\(this\.connection, "PRAGMA quick_check"\)\)/g) ?? []).length, 3, "canonical and each standalone store constructor retain one full-file check path");
     assert.match(runtimeSource, /verifiedSharedSqliteDatabase:\s*database/);
     assert.doesNotMatch(runtimeSource, /startupIntegrityAttestation/);
   } finally {
@@ -526,6 +528,82 @@ test("prepare replacement before storage module load cannot forge canonical inte
   }
 });
 
+test("the process-preloaded SQLite boundary survives later VM and SQLite prototype replacement", () => {
+  const bootstrapPath = path.join(root, "dist", "packages", "storage", "src", "sqliteIntegrityBootstrap.js");
+  const script = `
+    const assert = require("node:assert/strict");
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path = require("node:path");
+    const vm = require("node:vm");
+    const { DatabaseSync } = require("node:sqlite");
+    const bootstrapPath = ${JSON.stringify(bootstrapPath)};
+    const trustedModule = require.cache[bootstrapPath];
+    assert.ok(trustedModule, "the trusted SQLite bootstrap must load before application code");
+    assert.equal(Reflect.deleteProperty(require.cache, bootstrapPath), false, "application code cannot remove the trusted bootstrap cache entry");
+    assert.throws(() => Object.defineProperty(trustedModule, "exports", { value: {} }), /Cannot redefine property|Cannot redefine property: exports/);
+    const nativePrepare = DatabaseSync.prototype.prepare;
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-vm-bootstrap-"));
+    const filename = path.join(directory, "state.sqlite");
+    const initial = new DatabaseSync(filename);
+    initial.exec("CREATE TABLE untouched(value TEXT)");
+    initial.close();
+    const size = fs.statSync(filename).size;
+    const fd = fs.openSync(filename, "r+");
+    fs.writeSync(fd, Buffer.alloc(4096, 0xaa), 0, 4096, size - 4096);
+    fs.closeSync(fd);
+    let forgedChecks = 0;
+    vm.runInNewContext = () => { throw new Error("late VM replacement must not be used"); };
+    DatabaseSync.prototype.prepare = function(sql, ...args) {
+      if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(sql))) {
+        forgedChecks++;
+        return { get() { return { quick_check: "ok" }; } };
+      }
+      return nativePrepare.call(this, sql, ...args);
+    };
+    try {
+      const { SqliteDatabase } = require(${JSON.stringify(path.join(root, "dist", "packages", "storage", "src", "index.js"))});
+      assert.throws(() => new SqliteDatabase(filename), /quick_check failed|malformed|not a database|corrupt/i);
+      assert.equal(forgedChecks, 0, "the preloaded immutable native prepare must perform the scan");
+    } finally {
+      DatabaseSync.prototype.prepare = nativePrepare;
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  `;
+  const result = spawnSync(process.execPath, ["--require", bootstrapPath, "-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `preloaded SQLite boundary must survive VM and prototype replacement:\n${result.stdout}\n${result.stderr}`);
+});
+
+test("replacing application Object.values cannot turn a corrupt quick_check result into ok", () => {
+  const script = `
+    const assert = require("node:assert/strict");
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path = require("node:path");
+    const { SqliteDatabase } = require(${JSON.stringify(path.join(root, "dist", "packages", "storage", "src", "index.js"))});
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-values-poison-"));
+    const filename = path.join(directory, "state.sqlite");
+    const initial = new SqliteDatabase(filename);
+    initial.close();
+    const size = fs.statSync(filename).size;
+    const fd = fs.openSync(filename, "r+");
+    fs.writeSync(fd, Buffer.alloc(4096, 0xaa), 0, 4096, size - 4096);
+    fs.closeSync(fd);
+    const nativeValues = Object.values;
+    let forgedPredicateCalls = 0;
+    Object.values = () => { forgedPredicateCalls++; return ["ok"]; };
+    try {
+      assert.throws(() => new SqliteDatabase(filename), /quick_check failed|malformed|not a database|corrupt/i);
+      assert.equal(forgedPredicateCalls, 0, "integrity result validation must not consult mutable application Object.values");
+    } finally {
+      Object.values = nativeValues;
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  `;
+  const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `application Object.values poisoning must fail closed:\n${result.stdout}\n${result.stderr}`);
+});
+
 test("internal verifier cache replacement before bootstrap cannot admit unchecked shared connections", () => {
   const script = `
     const assert = require("node:assert/strict");
@@ -573,7 +651,7 @@ test("standalone AI durability stores retain their fail-closed full-file scans",
     const attribution = new SqliteAiOutcomeAttributionMemory(path.join(dir, "attribution.sqlite"));
     calibration.close();
     attribution.close();
-    assert.equal((storageSource.match(/getSqliteIntegrityResult\(prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)\)/g) ?? []).length, 3);
+    assert.equal((storageSource.match(/sqliteIntegrityBoundary\.read\(sqliteIntegrityBoundary\.prepare\(this\.connection, "PRAGMA quick_check"\)\)/g) ?? []).length, 3);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
