@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "source": "binance-usdm-public",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT"
+  ],
+  "interval": "4h",
+  "startMs": 1672531200000,
+  "endMs": 1791936000000,
+  "files": {
+    "funding_BTCUSDT.csv": {
+      "sha256": "9c1dcd78c36bbcf60046ad05122535a3af420d8bb03cc32fc05c73771ce414b1",
+      "rows": 4146
+    },
+    "funding_DOGEUSDT.csv": {
+      "sha256": "8ad9c8873d8932ce7bac6452385a2450141e7fa0a1a3e284e04f5465338d4565",
+      "rows": 4146
+    },
+    "funding_ETHUSDT.csv": {
+      "sha256": "17b01bcd6449939597fc1b9744088c09fb1faddc2cb3e9dde36f909d9fb17e72",
+      "rows": 4146
+    },
+    "funding_SOLUSDT.csv": {
+      "sha256": "753959f5f4d637e6034830f53d450bb7bdeac986085404e3762778443acce21f",
+      "rows": 4146
+    },
+    "funding_XRPUSDT.csv": {
+      "sha256": "2962287f5d44e7d01b7b6e28807904a8d22b8125f55cd585651a600f5c4c97bf",
+      "rows": 4146
+    },
+    "klines_BTCUSDT_4h.csv": {
+      "sha256": "06b29589b8f0623d251ca84a96df1b75b530e1023bef54a7e1c2646cd619a27e",
+      "rows": 8292
+    },
+    "klines_DOGEUSDT_4h.csv": {
+      "sha256": "7fcb488b7b8a4e9ec0e16512c4980013016fc6648b0cdc2ab52fb1204ab476f6",
+      "rows": 8292
+    },
+    "klines_ETHUSDT_4h.csv": {
+      "sha256": "6ad474c33a14f4c8938eac08c3ccaf2f049a2ff2de6e6a1b6046280472b482d6",
+      "rows": 8292
+    },
+    "klines_SOLUSDT_4h.csv": {
+      "sha256": "d57fb4a1d86331af8133eb165c278ad0c913347f632387760b21ea16fc19b526",
+      "rows": 8292
+    },
+    "klines_XRPUSDT_4h.csv": {
+      "sha256": "29213229f3661d49826bc95672f65a1013cca230d97a647c1b071c879795c30c",
+      "rows": 8292
+    }
+  }
+}

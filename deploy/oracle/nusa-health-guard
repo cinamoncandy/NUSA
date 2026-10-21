@@ -1,0 +1,134 @@
+#!/bin/sh
+set -eu
+PAPER_HEALTH_URL=${PAPER_HEALTH_URL:-http://127.0.0.1:41731/health}
+UPBIT_PUBLIC_URL=${UPBIT_PUBLIC_URL:-https://api.upbit.com/v1/ticker?markets=KRW-XRP}
+MARKER_DIR=/var/lib/nusa-health-guard
+MARKER=${MARKER_DIR}/public-market-restart
+ACTIVATION_LOCK_DIR=/run/nusa-paper-activation
+ACTIVATION_LOCK_FILE=${ACTIVATION_LOCK_DIR}/activation.lock
+COOLDOWN_MS=900000
+probe() {
+  curl -fsS --max-time 3 "$1" >/dev/null 2>&1
+}
+acquire_recovery_lock() {
+  command -v flock >/dev/null 2>&1 || return 1
+  install -d -o root -g root -m 0700 "$ACTIVATION_LOCK_DIR" || return 1
+  [ -d "$ACTIVATION_LOCK_DIR" ] && [ ! -L "$ACTIVATION_LOCK_DIR" ] || return 1
+  [ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_DIR" 2>/dev/null)" = "0:0:700" ] || return 1
+  [ ! -L "$ACTIVATION_LOCK_FILE" ] || return 1
+  umask 077
+  exec 9>>"$ACTIVATION_LOCK_FILE" || return 1
+  [ -f "$ACTIVATION_LOCK_FILE" ] && [ ! -L "$ACTIVATION_LOCK_FILE" ] || return 1
+  [ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_FILE" 2>/dev/null)" = "0:0:600" ] || return 1
+  flock -n 9 >/dev/null 2>&1
+}
+restart_once() {
+  name=$1; unit=$2; url=$3
+  logger -p daemon.warning -t nusa-health-guard "$name health failed; one bounded restart"
+  systemctl restart "$unit"
+  sleep 2
+  if ! probe "$url"; then
+    logger -p daemon.err -t nusa-health-guard "$name remains unhealthy after restart"
+    return 1
+  fi
+}
+paper_workload_failure() {
+  curl -fsS --max-time 3 "$PAPER_HEALTH_URL" 2>/dev/null | python3 -c '
+import json,sys,time
+try: d=json.load(sys.stdin)
+except Exception: raise SystemExit(2)
+r=d.get("runtime") or {}; h=d.get("runtimeHealth") or {}; w=h.get("workload") or {}
+last=r.get("lastMarketEventAt")
+if w.get("state") == "STALE" and r.get("lastError") == "PUBLIC_MARKET_FAILED" and isinstance(last,int) and last>0:
+ print(f"{last} {int(time.time()*1000)}")
+' 2>/dev/null || true
+}
+wait_paper_workload_healthy() {
+  i=0
+  while [ "$i" -lt 105 ]; do
+    state=$(curl -fsS --max-time 3 "$PAPER_HEALTH_URL" 2>/dev/null | python3 -c '
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: raise SystemExit(2)
+r=d.get("runtime") or {}; w=(d.get("runtimeHealth") or {}).get("workload") or {}
+print("HEALTHY" if w.get("state")=="HEALTHY" and not r.get("lastError") else "NOT_READY")
+' 2>/dev/null || true)
+    [ "$state" = "HEALTHY" ] && return 0
+    i=$((i+1))
+    sleep 2
+  done
+  return 1
+}
+maybe_recover_public_market() {
+  failure=$(paper_workload_failure)
+  [ -n "$failure" ] || return 0
+  if ! acquire_recovery_lock; then
+    logger -p daemon.warning -t nusa-health-guard "canonical release activation or lock failure; suppressing watchdog recovery without marker mutation"
+    return 1
+  fi
+  # The pre-lock health sample only decides whether to contend for the lock. It never
+  # authorizes mutation: refresh the workload identity and marker/cooldown under exclusion.
+  failure=$(paper_workload_failure)
+  if [ -z "$failure" ]; then
+    logger -p daemon.info -t nusa-health-guard "PAPER workload recovered before exclusion; no watchdog mutation"
+    return 0
+  fi
+  last_market=$(printf '%s' "$failure" | awk '{print $1}')
+  now_ms=$(printf '%s' "$failure" | awk '{print $2}')
+  prev_market=0; prev_restart=0
+  if [ -r "$MARKER" ]; then read prev_market prev_restart < "$MARKER" || true; fi
+  if [ "$last_market" = "$prev_market" ]; then
+    logger -p daemon.err -t nusa-health-guard "paper public-market workload remains stale after its bounded recovery attempt; no repeat restart"
+    return 1
+  fi
+  if [ "$prev_restart" -gt 0 ] 2>/dev/null && [ $((now_ms-prev_restart)) -lt "$COOLDOWN_MS" ]; then
+    logger -p daemon.err -t nusa-health-guard "paper public-market workload stale during restart cooldown; no restart"
+    return 1
+  fi
+  if ! probe "$UPBIT_PUBLIC_URL"; then
+    logger -p daemon.err -t nusa-health-guard "paper public-market workload stale and Upbit public REST unreachable; no restart"
+    return 1
+  fi
+  install -d -o root -g root -m 0700 "$MARKER_DIR"
+  tmp=$(mktemp "${MARKER_DIR}/.public-market-restart.XXXXXX")
+  printf '%s %s\n' "$last_market" "$now_ms" > "$tmp"
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$MARKER"
+  logger -p daemon.warning -t nusa-health-guard "paper public-market reconnect exhausted while upstream is reachable; one bounded PAPER restart"
+  systemctl restart nusa.service
+  if wait_paper_workload_healthy; then
+    logger -p daemon.info -t nusa-health-guard "paper public-market workload recovered after bounded restart"
+    return 0
+  fi
+  logger -p daemon.err -t nusa-health-guard "paper public-market workload remains unhealthy after bounded restart"
+  return 1
+}
+rc=0
+paper_supervisor_active=true
+if ! systemctl is-active --quiet nusa.service; then
+  paper_supervisor_active=false
+  logger -p daemon.err -t nusa-health-guard "paper supervisor inactive; no watchdog restart"
+  rc=1
+fi
+if [ "$paper_supervisor_active" = true ] && probe "$PAPER_HEALTH_URL"; then
+  paper_healthy=true
+  if ! maybe_recover_public_market; then paper_healthy=false; rc=1; fi
+else
+  paper_healthy=false
+  if [ "$paper_supervisor_active" = true ]; then
+    logger -p daemon.err -t nusa-health-guard "paper endpoint unhealthy; no blind restart"
+  fi
+  rc=1
+fi
+if ! probe http://127.0.0.1:3001/health; then
+  restart_once upbit nusa-upbit-readonly.service http://127.0.0.1:3001/health || rc=1
+fi
+if ! probe http://127.0.0.1:8787/health; then
+  if [ "$paper_healthy" = false ]; then
+    logger -p daemon.warning -t nusa-health-guard "mcp health degraded while PAPER upstream is unavailable; suppressing dependent-service restart"
+    rc=1
+  else
+    restart_once mcp nusa-mcp.service http://127.0.0.1:8787/health || rc=1
+  fi
+fi
+exit "$rc"
