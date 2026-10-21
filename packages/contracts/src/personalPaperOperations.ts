@@ -68,6 +68,26 @@ export interface PersonalPaperDecisionTrace {
   readonly orders: readonly number[];
 }
 
+/** Display only: one open PAPER futures position as the app's futures tab shows it. */
+export interface PersonalPaperFuturesPosition {
+  readonly symbol: string;
+  readonly side: "LONG" | "SHORT";
+  readonly quantity: number;
+  readonly entryPrice: number;
+  readonly markPrice: number;
+  readonly unrealizedPnl: number;
+  /** Distance from the mark price to the liquidation price as a 0..1 ratio of the mark price. */
+  readonly liquidationDistanceRatio: number;
+}
+
+/** Display only: the PAPER futures state for the app's futures tab. Absent until the futures engine actually trades; never invented. */
+export interface PersonalPaperFuturesSnapshot {
+  readonly positions: readonly PersonalPaperFuturesPosition[];
+  /** Today's realized loss as a 0..1 ratio of futures capital. */
+  readonly dayLossRatio: number;
+  readonly consecutiveLosses: number;
+}
+
 export interface PersonalPaperRuntimeHeartbeat {
   readonly startedAt: number;
   readonly lastHeartbeatAt: number;
@@ -106,6 +126,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly learningFunnel?: PersonalPaperLearningFunnel;
   /** Display only: the same window's decisions and orders per 5 minutes, for the app's decision terrain. Absent without a canonical PAPER boundary. */
   readonly decisionTrace?: PersonalPaperDecisionTrace;
+  /** Display only: PAPER futures positions and limit usage. Absent while the futures engine has not traded; a malformed value is dropped on its own. */
+  readonly futures?: PersonalPaperFuturesSnapshot;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -407,6 +429,7 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   if (record.lossLimit !== undefined) dropBadLossMarkers(record.lossLimit as Record<string, unknown>);
   if (record.todayRealized !== undefined && !isValidTodayRealized(record.todayRealized)) delete record.todayRealized;
   if (record.decisionTrace !== undefined && !isValidDecisionTrace(record.decisionTrace)) delete record.decisionTrace;
+  if (record.futures !== undefined && !isValidFuturesSnapshot(record.futures)) delete record.futures;
 }
 
 function isValidDecisionTrace(value: unknown): boolean {
@@ -414,6 +437,20 @@ function isValidDecisionTrace(value: unknown): boolean {
   const v = value as Record<string, unknown>;
   const buckets = (a: unknown): boolean => Array.isArray(a) && a.length === 288 && a.every((n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0 && n <= 10_000_000);
   return isTimeMs(v.since) && v.bucketMs === 300_000 && buckets(v.decisions) && buckets(v.orders);
+}
+
+function isValidFuturesSnapshot(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const ratio = (n: unknown): boolean => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1;
+  const price = (n: unknown): boolean => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 1_000_000_000;
+  if (!Array.isArray(v.positions) || v.positions.length > 50 || !ratio(v.dayLossRatio) || !isCount(v.consecutiveLosses)) return false;
+  return v.positions.every((p: unknown) => {
+    if (p == null || typeof p !== "object" || Array.isArray(p)) return false;
+    const q = p as Record<string, unknown>;
+    return typeof q.symbol === "string" && /^[A-Z0-9_-]{2,20}$/.test(q.symbol) && (q.side === "LONG" || q.side === "SHORT") && price(q.quantity) && price(q.entryPrice) && price(q.markPrice)
+      && typeof q.unrealizedPnl === "number" && Number.isFinite(q.unrealizedPnl) && Math.abs(q.unrealizedPnl) <= 1_000_000_000_000 && ratio(q.liquidationDistanceRatio);
+  });
 }
 
 function isValidTodayRealized(value: unknown): boolean {
