@@ -166,7 +166,8 @@ function runMakerStudy({ provider: rawProvider, now, options = {} }) {
     const fillN = day.cohorts.reduce((s, c) => s + c.fills.length, 0);
     const fillDay = fillN === 0 ? 0 : day.cohorts.reduce((s, c) => s + c.fills.reduce((a, v) => a + v, 0), 0) / fillN;
     const benchDay = mean(day.cohorts.map((c) => mean(c.bench))), benchStressDay = mean(day.cohorts.map((c) => mean(c.benchStress)));
-    const grossDay = mean(day.cohorts.map((c) => (c.selected === 0 ? 0 : mean(c.gross)) - mean(c.benchGross)));
+    // A cohort with no pick adds 0 (never minus the benchmark): abstaining on a falling day must not create a positive gross edge.
+    const grossDay = mean(day.cohorts.map((c) => (c.selected === 0 ? 0 : mean(c.gross) - mean(c.benchGross))));
     counted.push({ pickMaker: day.cohorts.flatMap((c) => c.maker), pickMakerStress: day.cohorts.flatMap((c) => c.makerStress), fillN, grossExcess: grossDay, excess: makerDay - fillDay * benchDay, excessStress: makerStressDay - fillDay * benchStressDay, improvement: makerDay - takerDay, benchDay, selected, fillSum: fillN * fillDay, makerDay, makerStressDay, takerStressDay });
   }
   if (counted.length < minimumCount(d.days.size)) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_COHORTS", days: counted.length };

@@ -103,3 +103,14 @@ test("cheaper execution alone can never pass: in a wide-spread world the maker s
   }
   assert.ok(savingShown >= 1, "the scenario really did show an execution saving");
 });
+
+test("abstaining (no pick) on falling days adds nothing to the gross signal edge and cannot pass", () => {
+  // Every book is ask-heavy, so the S2 signal (requires positive book imbalance) never selects anything; the market falls.
+  const base = synthetic({ seed: 3, drift: -0.004 });
+  const abstain = { ...base, bookAt: (m, t) => { const b = base.bookAt(m, t); return b && { ...b, b5: 1, a5: 1.5 }; } };
+  const r = S3.runMakerStudy({ provider: abstain, now: NOW, options: { flips: 500 } });
+  assert.equal(r.status, "HOLDOUT_FAIL", JSON.stringify(r));
+  assert.equal(r.picks, 0);
+  assert.equal(r.grossSignalEdgeBp, 0, "empty cohorts contribute exactly 0, not minus the benchmark");
+  assert.equal(r.checks.signalEdgeGrossBothTests, false);
+});
