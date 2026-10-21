@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: P1_P2_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+status: REPAIRING_FRESH_VALIDATOR_FINDINGS
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -67,15 +67,15 @@ validation_history:
   previous_exact_head: 45ef8302f693edcd0eb9ef14e4a6797b371eff0e
   previous_review_finding: "P1: wrapper-level success could hide skipped guarded jobs after failed CI and suppress required direct convergence."
   repair: "Dedupe now queries exact-main run jobs and requires the workflow-specific applicable job to be active or completed success; skipped job conclusions do not qualify."
-  latest_reviewed_head: 278646fbd9f17b7ecd0f0d5c6e839895060132fa
+  latest_reviewed_head: 87485e21e158a4a7d493ccafb4b04da2476dba8f
   latest_review_findings:
     p0: 0
     p1: 1
     p2: 1
-    details: "P1: a successful Cloudflare Promote job can be a no-op when main advances between the release check and workflow_dispatch, so job success alone does not prove exact-main promotion. P2: include pending expected-job status among active duplicate owners."
-  repair_commit: a831b8817b91eba26b38732530dcbc6c8850287f
-  repair_validation: "Both findings repaired: pending counts as an active expected-job owner; completed Cloudflare Promote only owns convergence if cloudflare-production contains exact MERGED_MAIN (compare status ahead/identical). Focused test file 14/14 PASS and git diff --check PASS; successor exact-head workflows and review remain pending."
-  focused_tests: "14/14 PASS after prior repair; latest P1/P2 repairs are pending focused retest."
+    details: "P1: an active Cloudflare workflow_dispatch can have a new-main run SHA but stale head_sha input, so it cannot be accepted as owner without proving the requested input; active workflow_run job is bound to the exact head, while completed runs require production lineage. P2: AIPOS had contradictory focused-test status and must bind results to the exact source SHA."
+  prior_repair_commit: a831b8817b91eba26b38732530dcbc6c8850287f
+  prior_repair_test_note: "The 14/14 focused test output was produced on the working tree before commit a831b881; it is not treated as a formally SHA-bound test receipt. Retest after the current source repair commit and record that exact SHA."
+  focused_tests: "Pending on the refined source repair; prior output is not claimed as SHA-bound evidence."
   previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
   oracle_main_release: "Run 39527382516 failed closed at pre-activation exact-main recheck: it requested e106bdbd62c92278d1835722f4ada1c31762ceb7 while protected main had advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec. No stale activation occurred."
-next: "Push this AIPOS status synchronization to the existing PR branch, then verify the resulting exact head against protected main with all six workflows and a fresh review. Obtain a separate explicit non-author P0/P1/P2 Validator receipt before Audit. Keep Draft; no Audit/Release or Oracle overlap."
+next: "Reject active Cloudflare workflow_dispatch candidates unless their run identity proves the requested head; continue requiring production ancestry for completed candidates. Reconcile AIPOS test-status fields, run focused tests on a committed source SHA, then update AIPOS and revalidate the final exact head. Keep Draft; no Audit/Release or Oracle overlap."

@@ -135,7 +135,10 @@ test("Release dispatches only active unowned exact-main downstream workflows aft
   assert.match(downstream, /\.status == "pending"/);
   assert.match(downstream, /\.status == "completed" and \.conclusion == "success"/);
   assert.match(downstream, /applicable_job/);
-  assert.match(downstream, /workflow.*autopilot-cloudflare-promote\.yml.*candidate_status.*completed/s);
+  assert.match(downstream, /\.event\] \| @tsv/);
+  assert.match(downstream, /candidate_event.*workflow_run/s);
+  assert.match(downstream, /Active Cloudflare workflow_dispatch run.*cannot prove/);
+  assert.match(downstream, /candidate_status.*completed.*branches\/cloudflare-production/s);
   assert.match(downstream, /branches\/cloudflare-production/);
   assert.match(downstream, /compare\/\$MERGED_MAIN\.\.\.\$production_sha/);
   assert.match(downstream, /production_relation.*ahead.*identical/s);
