@@ -46,6 +46,7 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
 rollback: "Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation."
-validation_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
-validation: "Against 0e7cdc1a6516e399b8ac84dffd3200d553bb6781: startup/lease source contract 2/2 PASS; changed TypeScript transpile diagnostics PASS; narrowed real tsc emit for both AI stores PASS; focused compiled-store execution proves exactly 1 full + 4 scoped quick_check statements, shared close ownership safety, and pathname replacement isolation; AIPOS YAML/provenance and git diff checks PASS. A bounded full-project tsc exceeded the connector execution bound and is not PASS evidence. Fresh exact-head GitHub CI owns canonical full compile/test evidence."
-next: "Commit exact-SHA evidence, fresh-check remote/main, and push #2855 without force; then require fresh exact-head CI/review and separate structured Validator ACCEPTED. Keep Draft."
+test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
+validation_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
+validation: "Code repair 0e7cdc1a6516e399b8ac84dffd3200d553bb6781 retained. Exact head 4338121c3768c46a7ef7dfa617d552420f45d8b4 CI run 39597978266 passed typecheck and failed build only because the POSIX rename regression hit Windows EBUSY on an open SQLite file; all five required companions passed. Portability repair 806bde966b25a38bbc0edafd83610d3e88e1e625 keeps the semantic assertion: all platforms prove shared mode ignores supplied pathnames; POSIX performs rename/replacement; Windows proves the OS blocks that replacement race. Platform-independent-test validator, source contract 2/2, and diff checks PASS. Fresh exact-head GitHub CI remains authoritative."
+next: "Commit exact-SHA portability evidence, fresh-check remote/main, and push #2855 without force; then require fresh exact-head CI/review and separate structured Validator ACCEPTED. Keep Draft."
