@@ -17,7 +17,7 @@ prior_export_lock_head: 175ec9ff6f5cf6ef6138f67a925df414341f2429
 reviewed_broken_head: 378099d0d1d234b375af1699424faac5e718a519
 prior_repair_head: 9888a4b3ef1a2c965831bfd1098d94bc2e185501
 reviewed_prototype_poisoning_head: 09bd6051f09bb3ad0230c1900445d3648d858754
-repair_head: 09628c057e6867dde98404b18e97e150186219b9
+repair_head: 992e0e090cba3e5cad5a271854dc78af309a3e19
 authority_impact: none
 objective: 'Close #2770''s pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed.'
 root_cause:
@@ -60,9 +60,9 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 rollback: Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation.
 test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-validation_head: candidate-tree-based-on-e70e8e25a10d7d5bd19c1f3594fb2c08c0a1a709
-validation: 'Candidate tree based on e70e8e25: pnpm run build PASS; focused storage/startup/recovery/launcher/Oracle validation tests 67/67 PASS, including reproduced VM factory and Object.values corrupt-database attacks; pnpm preflight PASS; pnpm run validate:full PASS; pnpm run security:gate PASS; AIPOS YAML/drift/conformance PASS; git diff --check PASS. Exact-head CI, fresh review, formal Validator and Audit remain pending for the new commit. No product tests or thresholds were weakened.'
-next: Complete full local and AIPOS gates, then commit/push the repair on the existing #2855 branch. Bind fresh exact-head CI and five companions to the new SHA, obtain fresh non-author review with current P0/P1=0, then separate formal NUSA Validator ACCEPTED with exact SHA/counts before Audit/Release. Keep Draft; no merge or Oracle mutation before acceptance.
+validation_head: 992e0e090cba3e5cad5a271854dc78af309a3e19
+validation: 'Source repair commit 992e0e090cba3e5cad5a271854dc78af309a3e19: pnpm run build PASS; focused storage/startup/recovery/launcher/Oracle tests 67/67 PASS, including the reproduced VM factory and Object.values corrupt-database attacks; pnpm preflight, validate:full, security:gate, AIPOS YAML/drift/conformance/provenance, and git diff --check PASS. Fresh review found and this successor corrects stale recovery next-action text. Exact-head CI/companions and fresh review for the resulting head, formal Validator, and Audit remain pending. No product tests or thresholds were weakened.'
+next: On the latest pushed #2855 head, obtain terminal exact-head CI and five companion workflow results, then fresh non-author review with current P0/P1=0. Obtain separate formal NUSA Validator ACCEPTED with exact SHA and P0/P1/P2 counts before Audit/Release. Keep Draft; no merge or Oracle mutation before acceptance.
 prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
 
 latest_prototype_poisoning_finding_head: 09bd6051f09bb3ad0230c1900445d3648d858754
