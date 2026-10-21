@@ -6,6 +6,7 @@ import type {
   AiLearningMemoryStore,
   AiLessonProjection
 } from "../../contracts/src/aiOutcomeAttribution";
+import { assertSqliteStartupIntegrity, type SqliteStartupIntegrityAttestation } from "./sqliteStartupIntegrity";
 
 const SCHEMA_VERSION = 1 as const;
 const GENESIS_HASH = "0".repeat(64);
@@ -119,7 +120,7 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
    */
   private cachedEpisodes = new Map<string, AiAttributionEpisode>();
 
-  public constructor(filename = ":memory:") {
+  public constructor(filename = ":memory:", startupIntegrity?: SqliteStartupIntegrityAttestation) {
     this.connection = new DatabaseSync(filename);
     try {
       this.connection.exec("PRAGMA foreign_keys = ON");
@@ -130,8 +131,13 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
       this.connection.prepare(
         "INSERT OR IGNORE INTO ai_outcome_attribution_memory_meta (id, schema_version, event_count, ledger_hash) VALUES (1, ?, 0, ?)"
       ).run(SCHEMA_VERSION, GENESIS_HASH);
-      const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-      if (check == null || !Object.values(check).includes("ok")) throw new Error("learning memory sqlite quick_check failed");
+      assertSqliteStartupIntegrity(
+        this.connection,
+        filename,
+        startupIntegrity,
+        ["ai_outcome_attribution_memory_meta", "ai_outcome_attribution_memory_events"],
+        "learning memory sqlite quick_check failed",
+      );
       this.replay();
     } catch (error) {
       this.connection.close();

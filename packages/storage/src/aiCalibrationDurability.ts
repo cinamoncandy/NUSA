@@ -11,6 +11,7 @@ import type {
   AiCalibrationDurableStore,
   AiCalibrationPendingExpiry
 } from "../../contracts/src/aiCalibrationDurability";
+import { assertSqliteStartupIntegrity, type SqliteStartupIntegrityAttestation } from "./sqliteStartupIntegrity";
 
 const SCHEMA_VERSION = 1 as const;
 const GENESIS_HASH = "0".repeat(64);
@@ -177,7 +178,7 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
   private cachedOutcomes = new Map<string, AiCalibrationOutcome>();
   private cachedExpired = new Map<string, AiCalibrationPendingExpiry>();
 
-  public constructor(filename = ":memory:") {
+  public constructor(filename = ":memory:", startupIntegrity?: SqliteStartupIntegrityAttestation) {
     this.connection = new DatabaseSync(filename);
     try {
       this.connection.exec("PRAGMA foreign_keys = ON");
@@ -185,8 +186,13 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
       if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
       this.connection.exec("PRAGMA synchronous = FULL");
       this.ensureSchema();
-      const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-      if (check == null || !Object.values(check).includes("ok")) throw new Error("AI calibration sqlite quick_check failed");
+      assertSqliteStartupIntegrity(
+        this.connection,
+        filename,
+        startupIntegrity,
+        ["ai_calibration_durability_meta", "ai_calibration_durability_events"],
+        "AI calibration sqlite quick_check failed",
+      );
     } catch (error) {
       this.connection.close();
       this.closed = true;

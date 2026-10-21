@@ -1,9 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+const { SqliteAiCalibrationDurableStore } = require("../dist/packages/storage/src/aiCalibrationDurability.js");
+const { SqliteAiOutcomeAttributionMemory } = require("../dist/packages/storage/src/aiOutcomeAttributionMemory.js");
 const { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
 
 // #2770 startup lease budget. Two defects shared one mechanism: work that re-reads the whole
@@ -14,6 +17,8 @@ const { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS } = require("../
 const root = path.resolve(__dirname, "..");
 const runtimeSource = fs.readFileSync(path.join(root, "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "index.ts"), "utf8");
+const aiCalibrationSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "aiCalibrationDurability.ts"), "utf8");
+const aiAttributionSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "aiOutcomeAttributionMemory.ts"), "utf8");
 const riskGatewaySource = fs.readFileSync(path.join(root, "apps", "cloud", "src", "cloudPaperCanonicalRiskGateway.ts"), "utf8");
 const readinessSource = fs.readFileSync(path.join(root, "scripts", "oracle-readiness-check.js"), "utf8");
 
@@ -23,11 +28,12 @@ const REQUIRED_RISK_TABLES = ["risk_paper_approvals", "risk_daily_loss_state", "
 
 /** Counts every statement the module prepares while `body` runs, without changing any behaviour. */
 function countPreparedStatements(body) {
-  const counts = { quickCheck: 0, statements: [] };
+  const counts = { quickCheck: 0, fullQuickCheck: 0, statements: [] };
   const originalPrepare = DatabaseSync.prototype.prepare;
   DatabaseSync.prototype.prepare = function countedPrepare(sql) {
     counts.statements.push(String(sql));
     if (/quick_check/i.test(String(sql))) counts.quickCheck += 1;
+    if (/^\s*PRAGMA\s+quick_check\s*$/i.test(String(sql))) counts.fullQuickCheck += 1;
     return originalPrepare.call(this, sql);
   };
   try {
@@ -152,6 +158,73 @@ test("the canonical database open still performs the full integrity scan", () =>
   assert.match(storageSource, /PRAGMA quick_check/);
   assert.match(riskGatewaySource, /SELECT 1 AS ready/);
   assert.ok(!/prepare\("PRAGMA quick_check"\)/.test(riskGatewaySource.split("function databaseHealthy")[1] ?? ""), "databaseHealthy must not reintroduce a full scan");
+});
+
+
+
+test("shared production AI stores reuse one canonical full-file startup scan and keep store checks", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-integrity-"));
+  const filename = path.join(dir, "state.sqlite");
+  let database;
+  let calibration;
+  let attribution;
+  try {
+    const counts = countPreparedStatements(() => {
+      database = new SqliteDatabase(filename);
+      calibration = new SqliteAiCalibrationDurableStore(filename, database);
+      attribution = new SqliteAiOutcomeAttributionMemory(filename, database);
+    });
+    assert.equal(counts.fullQuickCheck, 1, `expected exactly one full-file startup scan, got ${JSON.stringify(counts.statements)}`);
+    assert.equal(counts.quickCheck, 5, `expected one full plus four store-scoped checks, got ${JSON.stringify(counts.statements)}`);
+    assert.ok(counts.statements.some((sql) => /quick_check\('ai_calibration_durability_events'\)/i.test(sql)), "calibration event b-tree must still be checked");
+    assert.ok(counts.statements.some((sql) => /quick_check\('ai_outcome_attribution_memory_events'\)/i.test(sql)), "attribution event b-tree must still be checked");
+    assert.match(aiCalibrationSource, /assertSqliteStartupIntegrity/);
+    assert.match(aiAttributionSource, /assertSqliteStartupIntegrity/);
+  } finally {
+    attribution?.close();
+    calibration?.close();
+    database?.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a canonical integrity attestation never suppresses the full scan for a different file", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-mismatch-"));
+  const canonicalPath = path.join(dir, "canonical.sqlite");
+  const otherPath = path.join(dir, "other.sqlite");
+  let database;
+  try {
+    database = new SqliteDatabase(canonicalPath);
+    const counts = countPreparedStatements(() => {
+      const store = new SqliteAiCalibrationDurableStore(otherPath, database);
+      store.close();
+    });
+    assert.equal(counts.fullQuickCheck, 1, "a different SQLite file must perform its own full-file quick_check");
+  } finally {
+    database?.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("standalone AI durability stores retain their fail-closed full-file scan", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-standalone-"));
+  try {
+    const calibrationPath = path.join(dir, "calibration.sqlite");
+    const calibrationCounts = countPreparedStatements(() => {
+      const store = new SqliteAiCalibrationDurableStore(calibrationPath);
+      store.close();
+    });
+    assert.equal(calibrationCounts.fullQuickCheck, 1);
+
+    const attributionPath = path.join(dir, "attribution.sqlite");
+    const attributionCounts = countPreparedStatements(() => {
+      const store = new SqliteAiOutcomeAttributionMemory(attributionPath);
+      store.close();
+    });
+    assert.equal(attributionCounts.fullQuickCheck, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the readiness probe the release gate depends on stays bounded", () => {

@@ -123,8 +123,10 @@ export function applyLedgerEntryToSnapshot(snapshot: PositionSnapshot, entry: Po
 export class SqliteDatabase implements TransactionRunner {
   public readonly connection: DatabaseSync;
   public readonly migrationResult: MigrationResult;
+  public readonly filename: string;
   private inTransaction = false;
   public constructor(filename = ":memory:") {
+    this.filename = filename;
     this.connection = new DatabaseSync(filename);
     try {
       this.connection.exec("PRAGMA foreign_keys = ON");
@@ -138,6 +140,17 @@ export class SqliteDatabase implements TransactionRunner {
       this.connection.close();
       throw error;
     }
+  }
+  /**
+   * Confirms that this still-open canonical connection already performed the startup full-file
+   * quick_check for the exact same on-disk database. Separate stores may reuse that expensive
+   * startup attestation only when they also retain their own table/schema/hash-chain checks.
+   * :memory: connections are never shareable because each open is a distinct database.
+   */
+  public hasVerifiedFullIntegrityFor(filename: string): boolean {
+    if (filename === ":memory:" || filename !== this.filename) return false;
+    this.connection.prepare("SELECT 1 AS ready").get();
+    return true;
   }
   public transaction<T>(fn: () => T): T {
     if (this.inTransaction) return fn();
