@@ -30,6 +30,7 @@
  * more than 5 s after the run time.
  */
 const crypto = require("node:crypto");
+const { orderBookSource } = require("./lib/orderBookSource.js");
 const M = 60_000;
 const H = 60 * M;
 const START = Date.parse("2026-10-15T00:00:00Z");
@@ -42,9 +43,11 @@ const STRESS_SLIP = 0.0005;
 const PICKS = 3;
 
 function bookSeries(db, market) {
+  // Data-access addendum 2026-10-21 (WO-RESEARCH-20261021-ORDERBOOK-RETENTION): the books come from the live table AND the study archive,
+  // so the collector's 14-day prune cannot remove the training days. No rule below changes.
   // One row per minute (the last sample of each minute), so a 5-second WebSocket market costs the same as a collector market.
   const byMinute = new Map();
-  const stmt = db.prepare("SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5, total_bid_size AS tb, total_ask_size AS ta FROM research_orderbook_samples WHERE market = ? AND captured_at_ms > ? AND captured_at_ms <= ? ORDER BY captured_at_ms");
+  const stmt = db.prepare(`SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5, total_bid_size AS tb, total_ask_size AS ta FROM ${orderBookSource(db)} WHERE market = ? AND captured_at_ms > ? AND captured_at_ms <= ? ORDER BY captured_at_ms`);
   for (const r of stmt.iterate(market, START - 5 * H, END + 2 * H)) byMinute.set(Math.floor(r.t / M), r);
   return byMinute;
 }
@@ -110,8 +113,8 @@ function evaluate(rows, score) {
 function runStudy({ db, now = Date.now() }) {
   if (now < END + 2 * H) return { status: "WAITING_DATA", daysCollected: Math.max(0, Math.floor((Math.min(now, END) - START) / (24 * H))) };
   // Any stored row stamped after the run time (beyond 5 s clock skew) means the clock or the source cannot be trusted.
-  if (Number(db.prepare("SELECT COUNT(*) AS n FROM research_orderbook_samples WHERE captured_at_ms > ?").get(now + 5_000).n) > 0) return { status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" };
-  const markets = db.prepare("SELECT DISTINCT market FROM research_orderbook_samples WHERE captured_at_ms > ? AND captured_at_ms <= ?").all(START, END).map((r) => r.market);
+  if (Number(db.prepare(`SELECT COUNT(*) AS n FROM ${orderBookSource(db)} WHERE captured_at_ms > ?`).get(now + 5_000).n) > 0) return { status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" };
+  const markets = db.prepare(`SELECT DISTINCT market FROM ${orderBookSource(db)} WHERE captured_at_ms > ? AND captured_at_ms <= ?`).all(START, END).map((r) => r.market);
   const rows = [];
   let eligible = 0;
   const hash = crypto.createHash("sha256");

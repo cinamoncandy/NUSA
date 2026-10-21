@@ -244,7 +244,8 @@ export async function fillRecentGaps(input: {
   const latest = store.latestCloseTime(market, MINUTE_MS);
   const anchor = Math.floor(input.nowMs / MINUTE_MS) * MINUTE_MS;
   if (latest === undefined) return Object.freeze({ market, status: "NO_GAPS", missing: 0, recorded: 0, rejected: 0, pages: 0 });
-  const top = Math.min(latest, anchor);
+  // Up to the newest closed minute, not only up to the last stored close: REST candles are the only writer of the series head.
+  const top = anchor;
   const bottom = Math.max(top - input.windowMs + MINUTE_MS, store.earliestCloseTime(market, MINUTE_MS) ?? top);
   const present = new Set(store.read(market, MINUTE_MS, bottom, top).map((candle) => candle.closeTimeMs));
   const missingCloses: number[] = [];

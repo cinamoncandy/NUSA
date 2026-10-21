@@ -87,7 +87,7 @@ test("the disk-consumer listing is time-boxed, lowest I/O priority, bounded, ski
 
 test("the disk-consumer walk runs after the health probe and the annotations, so it cannot starve them", () => {
   const names = [...text.matchAll(/^      - name: (.+)$/gm)].map((m) => m[1]);
-  assert.equal(names[names.length - 1], "Disk consumers (read-only, after the health probe)");
+  assert.deepEqual(names.slice(-2), ["Disk consumers (read-only, after the health probe)", "Disk consumers by directory (read-only, one at a time)"], "both walks run last");
   assert.ok(names.indexOf("Runtime liveness (local /health only)") < names.length - 1);
   const first = text.split("      - name: Service state and redacted recent errors")[0];
   assert.doesNotMatch(first, /\bdu -xh\b/, "no long du in the first step");
@@ -96,7 +96,7 @@ test("the disk-consumer walk runs after the health probe and the annotations, so
 test("health_only skips the heavy steps and keeps the health probe and the annotations", () => {
   const steps = text.split(/^      - name: /m).slice(1);
   const byName = (n) => steps.find((s) => s.startsWith(n));
-  for (const heavy of ["Disk, memory and state files", "Service state and redacted recent errors", "Disk consumers (read-only, after the health probe)"]) {
+  for (const heavy of ["Disk, memory and state files", "Service state and redacted recent errors", "Disk consumers (read-only, after the health probe)", "Disk consumers by directory (read-only, one at a time)"]) {
     assert.match(byName(heavy), /\n        if: \$\{\{ inputs\.health_only != true && inputs\.health_only != 'true' \}\}\n/, heavy);
   }
   for (const light of ["Runtime liveness (local /health only)", "Publish the same read-only findings as job annotations"]) {
@@ -108,4 +108,12 @@ test("the disk-consumer result is published as an annotation, because the job lo
   const last = text.split("      - name: Disk consumers (read-only, after the health probe)")[1];
   assert.match(last, /emit "diag-disk-consumers" "\$out"/);
   assert.match(last, /\| redact\)"/, "redacted like the other annotations");
+});
+
+test("the per-directory disk step is read-only, bounded per directory and published as an annotation", () => {
+  const step = text.split("      - name: Disk consumers by directory (read-only, one at a time)")[1];
+  assert.match(step, /timeout 25 du -xsh "\$dir"/, "one directory at a time with its own hard limit");
+  assert.match(step, /ionice -c3 nice -n19/);
+  assert.match(step, /TIMEOUT_OR_UNREADABLE/, "an unmeasured directory is named, never guessed");
+  assert.match(step, /emit "diag-disk-by-dir" "\$out"/);
 });

@@ -93,7 +93,7 @@ test("a database holding the deployed 026 schema still opens and gains volume th
 
     // Must not throw "database migration checksum mismatch".
     db = new SqliteDatabase(file);
-    assert.equal(db.migrationResult.currentVersion, "031_research_closed_candles_volume");
+    assert.equal(db.migrationResult.currentVersion, "032_research_orderbook_study_rows");
 
     const columns = db.connection.prepare("PRAGMA table_info(research_closed_candles)").all();
     assert.ok(

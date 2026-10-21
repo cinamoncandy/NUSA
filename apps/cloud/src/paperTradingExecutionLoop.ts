@@ -208,6 +208,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   private readonly heartbeat?: ReturnType<typeof setInterval>;
   private closed = false;
   private leaseLost = false;
+  private leaseFailure: unknown;
   private lastObservedNowMs = 0;
   private readonly accountId: string;
   public constructor(private readonly db: SqliteDatabase, options: PaperWriterLeaseOptions = {}) {
@@ -642,16 +643,30 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   }
   private heartbeatLease(): void {
     if (this.closed || this.leaseLost) return;
-    try { this.db.transaction(() => this.assertLeaseHeld()); } catch { this.leaseLost = true; }
+    try { this.db.transaction(() => this.assertLeaseHeld()); } catch (error) {
+      this.leaseFailure ??= error;
+      this.leaseLost = true;
+    }
   }
   private assertLeaseHeld(): void {
-    if (this.closed || this.leaseLost) throw new Error("PAPER_WRITER_LEASE_LOST");
+    if (this.closed || this.leaseLost) throw new Error("PAPER_WRITER_LEASE_LOST", { cause: this.leaseFailure });
     const now = this.now();
-    if (!Number.isSafeInteger(now) || now < 0) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_INVALID"); }
-    if (now < this.lastObservedNowMs) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_REGRESSION"); }
-    if (now - this.lastObservedNowMs > this.maxClockAdvanceMs) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_ANOMALY"); }
+    if (!Number.isSafeInteger(now) || now < 0) { this.leaseLost = true; const error = new Error("PAPER_WRITER_CLOCK_INVALID"); this.leaseFailure ??= error; throw error; }
+    if (now < this.lastObservedNowMs) { this.leaseLost = true; const error = new Error("PAPER_WRITER_CLOCK_REGRESSION"); this.leaseFailure ??= error; throw error; }
+    if (now - this.lastObservedNowMs > this.maxClockAdvanceMs) { this.leaseLost = true; const error = new Error("PAPER_WRITER_CLOCK_ANOMALY"); this.leaseFailure ??= error; throw error; }
     const result = this.db.connection.prepare(`UPDATE cloud_paper_writer_leases SET lease_until_ms = ?, heartbeat_at_ms = ? WHERE account_id = ? AND owner_id = ? AND lease_until_ms > ?`).run(now + this.leaseDurationMs, now, this.accountId, this.ownerId, now);
-    if (Number(result.changes) !== 1) { this.leaseLost = true; throw new Error("PAPER_WRITER_LEASE_LOST"); }
+    if (Number(result.changes) !== 1) {
+      this.leaseLost = true;
+      let code = "PAPER_WRITER_LEASE_RENEWAL_REJECTED";
+      try {
+        const row = this.db.connection.prepare("SELECT owner_id, lease_until_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(this.accountId) as { owner_id: string; lease_until_ms: number } | undefined;
+        if (row == null) code = "PAPER_WRITER_LEASE_ROW_MISSING";
+        else if (row.owner_id !== this.ownerId) code = "PAPER_WRITER_LEASE_OWNER_MISMATCH";
+        else if (Number.isSafeInteger(row.lease_until_ms) && row.lease_until_ms <= now) code = "PAPER_WRITER_LEASE_EXPIRED";
+      } catch { /* Diagnosis must not mask the rejected renewal or recover authority. */ }
+      this.leaseFailure ??= new Error(code);
+      throw new Error("PAPER_WRITER_LEASE_LOST", { cause: this.leaseFailure });
+    }
     this.lastObservedNowMs = now;
   }
 }

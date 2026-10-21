@@ -12,7 +12,7 @@ test("product navigation promotes PAPER learning supervision and AI through the 
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   const home = read("src/homeView.tsx");
   const contract = read("src/navigationContract.ts");
-  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "Futures", "More"\]/);
   assert.match(app, /<PrimaryNavigation/);
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
