@@ -6,6 +6,7 @@ import {
   emptyStrategyPositionSnapshot, emptyWalletPositionSnapshot
 } from "../../contracts/src/index";
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
+import { verifyAndIssueSqliteStartupIntegrity, type SqliteStartupIntegrityAttestation } from "./sqliteStartupIntegrity";
 import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
 import { cloudPaperFillLedgerMigration } from "./cloudPaperFillLedgerMigration";
 import { cloudPaperLegacyReconciliationMigration } from "./cloudPaperLegacyReconciliationMigration";
@@ -123,10 +124,9 @@ export function applyLedgerEntryToSnapshot(snapshot: PositionSnapshot, entry: Po
 export class SqliteDatabase implements TransactionRunner {
   public readonly connection: DatabaseSync;
   public readonly migrationResult: MigrationResult;
-  public readonly filename: string;
+  public readonly startupIntegrityAttestation: SqliteStartupIntegrityAttestation;
   private inTransaction = false;
   public constructor(filename = ":memory:") {
-    this.filename = filename;
     this.connection = new DatabaseSync(filename);
     try {
       this.connection.exec("PRAGMA foreign_keys = ON");
@@ -134,23 +134,11 @@ export class SqliteDatabase implements TransactionRunner {
       if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
       this.connection.exec("PRAGMA synchronous = FULL");
       this.migrationResult = runMigrations(this.connection, migrations);
-      const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-      if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
+      this.startupIntegrityAttestation = verifyAndIssueSqliteStartupIntegrity(this.connection, "sqlite quick_check failed");
     } catch (error) {
       this.connection.close();
       throw error;
     }
-  }
-  /**
-   * Confirms that this still-open canonical connection already performed the startup full-file
-   * quick_check for the exact same on-disk database. Separate stores may reuse that expensive
-   * startup attestation only when they also retain their own table/schema/hash-chain checks.
-   * :memory: connections are never shareable because each open is a distinct database.
-   */
-  public hasVerifiedFullIntegrityFor(filename: string): boolean {
-    if (filename === ":memory:" || filename !== this.filename) return false;
-    this.connection.prepare("SELECT 1 AS ready").get();
-    return true;
   }
   public transaction<T>(fn: () => T): T {
     if (this.inTransaction) return fn();

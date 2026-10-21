@@ -20,6 +20,7 @@ const storageSource = fs.readFileSync(path.join(root, "packages", "storage", "sr
 const aiCalibrationSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "aiCalibrationDurability.ts"), "utf8");
 const aiAttributionSource = fs.readFileSync(path.join(root, "packages", "storage", "src", "aiOutcomeAttributionMemory.ts"), "utf8");
 const riskGatewaySource = fs.readFileSync(path.join(root, "apps", "cloud", "src", "cloudPaperCanonicalRiskGateway.ts"), "utf8");
+const startupIntegritySource = fs.readFileSync(path.join(root, "packages", "storage", "src", "sqliteStartupIntegrity.ts"), "utf8");
 const readinessSource = fs.readFileSync(path.join(root, "scripts", "oracle-readiness-check.js"), "utf8");
 
 const NOW = Date.parse("2026-10-01T12:00:00Z");
@@ -155,7 +156,8 @@ test("the canonical database open still performs the full integrity scan", () =>
     database.close();
   });
   assert.ok(counts.quickCheck >= 1, "the once-per-open full PRAGMA quick_check is a safety property and must remain");
-  assert.match(storageSource, /PRAGMA quick_check/);
+  assert.match(storageSource, /verifyAndIssueSqliteStartupIntegrity/);
+  assert.match(startupIntegritySource, /PRAGMA quick_check/);
   assert.match(riskGatewaySource, /SELECT 1 AS ready/);
   assert.ok(!/prepare\("PRAGMA quick_check"\)/.test(riskGatewaySource.split("function databaseHealthy")[1] ?? ""), "databaseHealthy must not reintroduce a full scan");
 });
@@ -171,8 +173,8 @@ test("shared production AI stores reuse one canonical full-file startup scan and
   try {
     const counts = countPreparedStatements(() => {
       database = new SqliteDatabase(filename);
-      calibration = new SqliteAiCalibrationDurableStore(filename, database);
-      attribution = new SqliteAiOutcomeAttributionMemory(filename, database);
+      calibration = new SqliteAiCalibrationDurableStore(filename, database.startupIntegrityAttestation);
+      attribution = new SqliteAiOutcomeAttributionMemory(filename, database.startupIntegrityAttestation);
     });
     assert.equal(counts.fullQuickCheck, 1, `expected exactly one full-file startup scan, got ${JSON.stringify(counts.statements)}`);
     assert.equal(counts.quickCheck, 5, `expected one full plus four store-scoped checks, got ${JSON.stringify(counts.statements)}`);
@@ -196,12 +198,27 @@ test("a canonical integrity attestation never suppresses the full scan for a dif
   try {
     database = new SqliteDatabase(canonicalPath);
     const counts = countPreparedStatements(() => {
-      const store = new SqliteAiCalibrationDurableStore(otherPath, database);
+      const store = new SqliteAiCalibrationDurableStore(otherPath, database.startupIntegrityAttestation);
       store.close();
     });
     assert.equal(counts.fullQuickCheck, 1, "a different SQLite file must perform its own full-file quick_check");
   } finally {
     database?.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a forged structural attestation cannot suppress the full-file scan", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-forged-"));
+  const filename = path.join(dir, "forged.sqlite");
+  try {
+    const forged = { hasVerifiedFullIntegrityFor: () => true };
+    const counts = countPreparedStatements(() => {
+      const store = new SqliteAiCalibrationDurableStore(filename, forged);
+      store.close();
+    });
+    assert.equal(counts.fullQuickCheck, 1, "a caller-forged structural object must fall back to a real full-file quick_check");
+  } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

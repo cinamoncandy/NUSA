@@ -135,7 +135,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // not scanned three times before the listener can bind. Each AI store still performs its own
   // table-scoped quick_check and existing hash-chain replay. Keep this before the renewable PAPER
   // writer lease so AI startup I/O cannot starve the lease heartbeat.
-  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { startupIntegrityAttestation: database });
+  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { startupIntegrityAttestation: database.startupIntegrityAttestation });
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
