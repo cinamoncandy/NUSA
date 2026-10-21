@@ -2711,21 +2711,21 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_FRESH_NON_AUTHOR_REVIEW
+  status: RECONVERGED_WITH_CURRENT_MAIN_PENDING_FRESH_EXACT_HEAD_CI_AND_VALIDATOR
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
-  base_sha: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
-  latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
-  previous_exact_head: 07a364f710c011b152aff2239d79455c1356e262
-  superseded_head: 2a5c7fdc417747ee42c7369881023aa021343667
+  base_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
+  latest_main_sync_commit: 075010c852c645c86373243a54118f63958b8dd8
+  previous_exact_head: 3ff16bac4d7da87426316a16b5d81fbe3844c222
+  superseded_head: 602656747aa76c35372b50a41fc5b5fae6fee1d9
   finding: "Fresh review on 602656747aa76c35372b50a41fc5b5fae6fee1d9 found raw unscanned DatabaseSync accepted by the public shared-store API. CI 39598885589 also found recovery evidence invalidated by Cloud AI schema initialization after prepareRecovery()."
   repair: "Initialize Cloud AI before Research recovery preparation; shared stores accept only the unchanged connection resolved from a SqliteDatabase instance registered after canonical full-file quick_check."
   regressions: "Recovery boundary observes both AI schema tables and preserves competing=false READY/competing=true owner semantics; shared store constructors reject raw, forged, and replaced database connections."
   test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
   validation_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-  validation: "After local repairs: pnpm build PASS; research-startup-recovery 19/19; paper-startup-lease-budget-2770 10/10; paper-writer-lease-liveness 2/2; validate:full PASS; security:gate PASS; git diff --check PASS. Exact-head CI 39598885589 failed recovery ordering on 60265674; CI on 07a364f7 is stale for this local trust-boundary repair."
-  next: "Commit and push to existing PR #2855. Require fresh exact-head CI and five companions, fresh review with unresolved P0/P1=0, and separate structured NUSA Validator ACCEPTED before Audit/Release. Keep Draft."
+  validation: "Exact-head 3ff16bac CI 39602064064 and all five required companion workflows PASS. Protected main then advanced to 8174e624 via #2858, making those exact-head receipts stale for merge/release purposes. The branch was cleanly reconverged with current main at merge commit 075010c8; fresh exact-head validation is required and no prior receipt is reused."
+  next: "Validate and push the current-main reconvergence to existing PR #2855. Require fresh exact-head CI and five companions, fresh non-author review with unresolved P0/P1=0, and separate structured NUSA Validator ACCEPTED before Audit/Release. Keep Draft."
   safety:
     PAPER_ONLY: true
     liveAuthority: NONE
