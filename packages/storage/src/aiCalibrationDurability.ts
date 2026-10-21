@@ -13,6 +13,10 @@ import type {
   AiCalibrationPendingExpiry
 } from "../../contracts/src/aiCalibrationDurability";
 
+// Capture the locked verifier once at module initialization. Constructors must not consult a
+// caller-mutable CommonJS namespace property at the moment shared integrity trust is granted.
+const resolveCheckedSharedConnection = sharedConnectionFromCheckedSqliteDatabase;
+
 const SCHEMA_VERSION = 1 as const;
 const GENESIS_HASH = "0".repeat(64);
 type EventType = "PREDICTION" | "OUTCOME_RESOLVED" | "PENDING_EXPIRED";
@@ -180,7 +184,7 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
   private cachedExpired = new Map<string, AiCalibrationPendingExpiry>();
 
   public constructor(filename = ":memory:", verifiedSharedDatabase?: SqliteDatabase) {
-    const sharedConnection = verifiedSharedDatabase == null ? null : sharedConnectionFromCheckedSqliteDatabase(verifiedSharedDatabase);
+    const sharedConnection = verifiedSharedDatabase == null ? null : resolveCheckedSharedConnection(verifiedSharedDatabase);
     if (verifiedSharedDatabase != null && sharedConnection == null) throw new Error("shared AI calibration database has not passed canonical full-file quick_check");
     this.connection = sharedConnection ?? new DatabaseSync(filename);
     this.ownsConnection = sharedConnection == null;

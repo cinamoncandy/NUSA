@@ -92,6 +92,17 @@ export function sharedConnectionFromCheckedSqliteDatabase(database: unknown): Da
   return checkedConnection;
 }
 
+// This resolver is part of the integrity trust boundary. TypeScript's CommonJS output normally
+// leaves named exports writable/configurable, which would let application code replace this
+// function after module load and make shared AI stores accept an arbitrary DatabaseSync. Lock the
+// runtime export to the exact module-local function before any caller can receive the module.
+Object.defineProperty(exports, "sharedConnectionFromCheckedSqliteDatabase", {
+  value: sharedConnectionFromCheckedSqliteDatabase,
+  enumerable: true,
+  writable: false,
+  configurable: false
+});
+
 export function ledgerKey(entry: PositionLedgerEntry): string { return `${entry.ts}|${entry.createdAt}|${entry.id}`; }
 const walletScopeId = (walletId: string, symbol: string): string => `${walletId}|${symbol}`;
 const strategyScopeId = (walletId: string, strategyId: string, symbol: string): string => `${walletId}|${strategyId}|${symbol}`;

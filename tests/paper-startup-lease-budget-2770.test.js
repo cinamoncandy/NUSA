@@ -4,7 +4,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync, StatementSync } = require("node:sqlite");
-const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+const storage = require("../dist/packages/storage/src/index.js");
+const { SqliteDatabase } = storage;
 const { SqliteAiCalibrationDurableStore } = require("../dist/packages/storage/src/aiCalibrationDurability.js");
 const { SqliteAiOutcomeAttributionMemory } = require("../dist/packages/storage/src/aiOutcomeAttributionMemory.js");
 const { CloudPaperCanonicalRiskGateway, CLOUD_PAPER_RISK_LIMITS } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
@@ -293,6 +294,34 @@ test("shared AI stores reject caller-supplied SQLite connections without canonic
   } finally {
     rawConnection.close();
     originalConnection.close();
+  }
+});
+
+test("shared verification resolver cannot be replaced through the CommonJS export", () => {
+  const originalResolver = storage.sharedConnectionFromCheckedSqliteDatabase;
+  const descriptor = Object.getOwnPropertyDescriptor(storage, "sharedConnectionFromCheckedSqliteDatabase");
+  assert.equal(descriptor?.writable, false);
+  assert.equal(descriptor?.configurable, false);
+
+  const rawConnection = new DatabaseSync(":memory:");
+  const forgedDatabase = {};
+  try {
+    assert.equal(
+      Reflect.set(storage, "sharedConnectionFromCheckedSqliteDatabase", () => rawConnection),
+      false,
+      "the integrity resolver export must reject runtime replacement",
+    );
+    assert.equal(storage.sharedConnectionFromCheckedSqliteDatabase, originalResolver);
+    assert.throws(
+      () => new SqliteAiCalibrationDurableStore(":memory:", forgedDatabase),
+      /shared AI calibration database has not passed canonical full-file quick_check/,
+    );
+    assert.throws(
+      () => new SqliteAiOutcomeAttributionMemory(":memory:", forgedDatabase),
+      /shared AI attribution database has not passed canonical full-file quick_check/,
+    );
+  } finally {
+    rawConnection.close();
   }
 });
 
