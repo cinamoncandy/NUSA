@@ -17,17 +17,17 @@ prior_export_lock_head: 175ec9ff6f5cf6ef6138f67a925df414341f2429
 reviewed_broken_head: 378099d0d1d234b375af1699424faac5e718a519
 prior_repair_head: 9888a4b3ef1a2c965831bfd1098d94bc2e185501
 reviewed_prototype_poisoning_head: 09bd6051f09bb3ad0230c1900445d3648d858754
-repair_head: 831896bac6de87fe32ce5c4c12d566ad3d9482bc
+repair_head: 09628c057e6867dde98404b18e97e150186219b9
 authority_impact: none
 objective: 'Close #2770''s pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed.'
 root_cause:
   transition: writable DatabaseSync.prototype.prepare -> fabricated PRAGMA quick_check result -> shared-store trust registration
-  evidence: On predecessor 53f834eeaedc8e73848814a8a5407463a970747a, an isolated process replaced DatabaseSync.prototype.prepare before loading storage with a fake quick_check=ok implementation. The module captured the fake, registered the unchecked connection, and both AI stores were accepted; observed forgedFull=1, genuineFull=0, scoped=4. This pre-load variant was uncovered after the prior post-load fix.
-  classification: captured mutable prototype method was accepted as native without authenticating its origin when mutation preceded module initialization
+  evidence: On predecessor 53f834eeaedc8e73848814a8a5407463a970747a, pre-load DatabaseSync.prototype.prepare replacement forged quick_check=ok and admitted unchecked storage (forged prepare=1, real full check=0, scoped=4). Fresh review of 10500dd also found StatementSync.prototype.get replacement could forge a real statement result. This second exploit reproduced on 6af8f71db6917afd9dbd044487d5f2a186eb25cd against a corrupt database (forged get=1, native result read=0, scoped=4).
+  classification: mutable native method and result slots were trusted without proving their canonical origin at module initialization and result read
 repair:
   - Canonical SqliteDatabase full-scan registration and both existing AI-store admission checks now share the index.ts lexical scope. The WeakMap and resolver are not exported, there is no imported registration/verifier capability, and sqliteVerifiedSharedConnection.ts is deleted. Existing AI-store paths re-export the same genuine constructors; their implementations were relocated without changing their schemas, scoped checks, hash-chain replay, ownership, or standalone full scans. Startup ordering remains unchanged.
   - Keep canonical quick_check before Cloud AI initialization, Research prepareRecovery and writer-lease acquisition.
-  - Capture pristine Function.prototype.toString and Reflect.apply from a fresh node:vm realm. Require the captured node:sqlite DatabaseSync.prepare to match its native function source before dispatch; noncanonical and proxied replacements fail closed before trust can be registered. Add child-process regressions for JavaScript and Proxy replacement installed before storage-module load. Retain post-load poisoning, CommonJS module-cache replacement, corrupt-file full-scan, and startup-ordering regressions.
+  - Capture pristine Function.prototype.toString and Reflect.apply from a fresh node:vm realm. Require captured node:sqlite DatabaseSync.prepare and StatementSync.get to match their exact native function sources; use the captured native get for every integrity result. Pre-load Reflect.apply poisoning is bypassed by the fresh-realm intrinsic; noncanonical or proxied prepare/get replacements fail closed. Add child-process regressions for pre-load JavaScript/Proxy replacement of both methods and Reflect.apply, and post-load forged get returning ok for a corrupt database. Retain post-load prepare poisoning, CommonJS module-cache replacement, corrupt-file full-scan, and startup-ordering regressions.
   - Preserve Storybook 8.6.19 security patch; no security gate waiver.
 prohibited:
   - bypassing_or_weakening_canonical_full_file_quick_check
@@ -49,7 +49,7 @@ acceptance:
   - fresh non-author review has zero unresolved current P0/P1 findings
   - separate structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit
   - pre-bootstrap replacement of the former internal verifier cache cannot admit raw, forged or replaced connections into either genuine store
-  - pre-load and post-load DatabaseSync.prototype.prepare replacement cannot mint full-file scan trust; pre-load JavaScript and Proxy replacements fail closed, and the post-load regression proves zero forged scans, one actual full quick_check, and four scoped checks
+  - pre-load and post-load replacement of DatabaseSync.prepare or StatementSync.get cannot mint full-file trust or forge its result; JavaScript and Proxy replacements fail closed, and corrupted files remain rejected
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -57,14 +57,18 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 rollback: Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation.
 test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-validation_head: 831896bac6de87fe32ce5c4c12d566ad3d9482bc
-validation: 'Candidate tree at 831896ba in /workspace: pnpm build PASS; focused startup/lease/research-recovery tests 36/36 PASS; pnpm preflight, validate:full, security:gate, and git diff --check PASS. Pre-load JavaScript and Proxy exploit regressions now fail closed; predecessor 53f834ee exact-head CI/review/companion receipts are historical after this repair. No product tests or thresholds were weakened.'
-next: Push the validated source repair on the existing PR branch, bind updated AIPOS to its source SHA, run fresh exact-head CI and all five companion workflows, request fresh non-author review, then obtain separate fresh formal NUSA Validator receipt with exact SHA/counts/explicit ACCEPTED. Keep Draft and do not run Audit, Release, merge or Oracle mutation before formal acceptance.
+validation_head: 09628c057e6867dde98404b18e97e150186219b9
+validation: 'Candidate tree at 09628c05 in /workspace: pnpm build PASS; focused startup/lease/recovery tests 37/37 PASS; pnpm preflight, validate:full, security:gate, AIPOS YAML/drift/conformance, and git diff --check PASS. Pre-load prepare/get JavaScript and Proxy regressions fail closed; post-load forged get cannot admit a corrupt database. Predecessor 6af8f71 exact-head CI/review/companion receipts are historical after this repair. No product tests or thresholds were weakened.'
+next: Push the validated source repair and durable AIPOS successor on the existing PR branch normally. Bind fresh exact-head CI and five companions to the resulting SHA, obtain fresh non-author review with P0/P1=0, then separate formal NUSA Validator ACCEPTED with exact SHA/counts before Audit/Release. Keep Draft; no merge or Oracle mutation before acceptance.
 prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
 
 latest_prototype_poisoning_finding_head: 09bd6051f09bb3ad0230c1900445d3648d858754
 protected_main_at_latest_repair: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
 
 preload_prepare_finding_head: 53f834eeaedc8e73848814a8a5407463a970747a
-source_repair_commit: 831896bac6de87fe32ce5c4c12d566ad3d9482bc
+preload_prepare_source_repair_commit: 831896bac6de87fe32ce5c4c12d566ad3d9482bc
 protected_main_verified: 8174e6241c3558362ab333c0b092337ce4d52bf4
+
+statement_get_finding_head: 10500dd5027fadc3b36cf4d3deea42ba6443f877
+statement_get_reproduction_head: 6af8f71db6917afd9dbd044487d5f2a186eb25cd
+source_repair_commit: 09628c057e6867dde98404b18e97e150186219b9

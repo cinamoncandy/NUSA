@@ -458,13 +458,14 @@ test("a forged StatementSync.get result cannot attest a corrupt canonical databa
 });
 
 test("prepare replacement before storage module load cannot forge canonical integrity trust", () => {
-  for (const replacement of ["prepare-javascript", "prepare-proxy", "get-javascript", "get-proxy"]) {
+  for (const replacement of ["prepare-javascript", "prepare-proxy", "get-javascript", "get-proxy", "reflect-apply"]) {
     const script = `
     const assert = require("node:assert/strict");
     const { DatabaseSync, StatementSync } = require("node:sqlite");
     const nativePrepare = DatabaseSync.prototype.prepare;
     const nativeGet = StatementSync.prototype.get;
-    const counts = { forgedPrepare: 0, forgedGet: 0 };
+    const nativeReflectApply = Reflect.apply;
+    const counts = { forgedPrepare: 0, forgedGet: 0, forgedReflectApply: 0 };
     const replacement = ${JSON.stringify(replacement)};
     if (replacement.startsWith("prepare-")) DatabaseSync.prototype.prepare = replacement === "prepare-proxy"
       ? new Proxy(nativePrepare, { apply(target, receiver, args) {
@@ -496,14 +497,27 @@ test("prepare replacement before storage module load cannot forge canonical inte
           }
           return nativeGet.apply(this, args);
         };
+    if (replacement === "reflect-apply") Reflect.apply = function(target, receiver, args) {
+      if (target === nativePrepare && /^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(args?.[0] ?? ""))) {
+        counts.forgedReflectApply++;
+        return { get() { return { quick_check: "ok" }; } };
+      }
+      return nativeReflectApply(target, receiver, args);
+    };
     const root = ${JSON.stringify(root)};
     const { SqliteDatabase } = require(root + "/dist/packages/storage/src/index.js");
-    assert.throws(
-      () => new SqliteDatabase(":memory:"),
-      /native SQLite integrity methods are unavailable; refusing integrity check/,
-      "a pre-load JavaScript replacement must not attest an unchecked database",
-    );
-    assert.deepEqual(counts, { forgedPrepare: 0, forgedGet: 0 });
+    Reflect.apply = nativeReflectApply;
+    if (replacement === "reflect-apply") {
+      const database = new SqliteDatabase(":memory:");
+      database.close();
+    } else {
+      assert.throws(
+        () => new SqliteDatabase(":memory:"),
+        /native SQLite integrity methods are unavailable; refusing integrity check/,
+        "a pre-load JavaScript replacement must not attest an unchecked database",
+      );
+    }
+    assert.deepEqual(counts, { forgedPrepare: 0, forgedGet: 0, forgedReflectApply: 0 });
     DatabaseSync.prototype.prepare = nativePrepare;
     StatementSync.prototype.get = nativeGet;
     `;
