@@ -2711,11 +2711,12 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_FRESH_NON_AUTHOR_REVIEW
+  status: CURRENT_MAIN_SYNC_PENDING_FRESH_EXACT_HEAD_CI_AND_NON_AUTHOR_REVIEW
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
-  base_sha: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
+  base_sha: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
+  latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
   repair_head: df02db557200c119cf2f2323b3d684d9579a2327
   superseded_heads:
     - 2e4597f58f685f7ae4b2009a7bca88d38bc68c43

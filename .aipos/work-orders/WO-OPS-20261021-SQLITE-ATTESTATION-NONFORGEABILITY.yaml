@@ -7,7 +7,8 @@ repository: cinamoncandy/NUSA
 issue: 2770
 pull_request: 2855
 base_branch: main
-base_commit: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
+base_commit: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
+latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
 implementation_branch: fix/sqlite-integrity-attestation-2770
 authority_impact: none
 objective: "Keep the #2770 bounded startup scan optimization while ensuring only a genuine native SQLite connection can issue a reusable full-file integrity attestation."
@@ -46,4 +47,4 @@ safety:
 rollback: "Revert the issuer receiver-brand check and its regression test together; retain the preexisting full-scan fail-closed behavior."
 validation_head: df02db557200c119cf2f2323b3d684d9579a2327
 validation: "Against df02db557200c119cf2f2323b3d684d9579a2327: tsc exit 0; focused startup and writer-lease suites 15/15 PASS, including the forged-issuer, replaced-prepare and poisoned-load regressions, each confirmed to fail against its own pre-fix head; preflight exit 0; lint 0 errors; validate:full exit 0 with failures []; security:gate exit 0 with unmitigated [] and secrets 0; git diff --check clean. Against 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4: exact-head CI 15 success and 1 skipped, 0 failure. This record is evidence for that SHA only and must not be read as validation of any later head."
-next: "Push to PR #2855 and require fresh exact-head CI plus a fresh non-author receipt bound to the exact head; leave Draft until independent validation, Audit, and Release are complete."
+next: "Current-main sync is complete at merge commit 458d53689; commit this metadata-only receipt, push PR #2855, then require fresh exact-head CI plus fresh non-author review and structured NUSA Validator ACCEPTED before Audit/Release. Keep Draft."
