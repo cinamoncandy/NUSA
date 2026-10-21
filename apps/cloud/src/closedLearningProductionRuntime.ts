@@ -126,15 +126,19 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Evidence validation is read-only and can be expensive. Do it before owning the renewable
   // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
-  let longBarTickEvery = 1;
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
-  researchExperiments?.prepareRecovery();
+  let researchExperiments: ReturnType<typeof composeResearchExperiments>;
   try {
   // Cloud AI durability uses the exact canonical SQLite connection that already completed the
   // full-file startup quick_check. This avoids reopening and rescanning the same production-sized
   // file while preserving each AI store's table-scoped quick_check and hash-chain replay. Keep this
-  // before the renewable PAPER writer lease so AI startup I/O cannot starve the lease heartbeat.
+  // before research recovery preparation and the renewable PAPER writer lease: its schema
+  // initialization must not invalidate prepared SQLite change-tracking evidence, and its startup
+  // I/O must not starve the lease heartbeat.
   const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteConnection: database.connection });
+
+  let longBarTickEvery = 1;
+  researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
+  researchExperiments?.prepareRecovery();
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.

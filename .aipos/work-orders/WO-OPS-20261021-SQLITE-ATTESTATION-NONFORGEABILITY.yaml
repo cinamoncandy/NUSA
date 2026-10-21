@@ -1,5 +1,5 @@
 id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-title: "Eliminate reusable SQLite integrity proof trust boundary"
+title: "Prepare Research recovery after shared SQLite startup initialization"
 status: IN_PROGRESS
 priority: P0
 owner: nusa-server-runtime
@@ -12,18 +12,15 @@ latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
 implementation_branch: fix/sqlite-integrity-attestation-2770
 repair_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
 authority_impact: none
-objective: "Close #2770 pre-listener duplicate full scans without creating a reusable integrity proof whose issuer or file binding can be forged."
+objective: "Close #2770's pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed."
 root_cause:
-  transition: "verified canonical SQLite open -> redundant AI durability full-file scans before listener bind"
-  evidence: "The first optimization introduced a reusable attestation. Fresh non-author reviews then falsified every attempted application-realm identity check: structural issuer forgery, mutable prepare replacement, pre-module-load replacement, conditional replacement that spoofed the finite probe, and atomic pathname replacement while the verified connection stayed open."
-  classification: "unnecessary reusable trust token created a larger trust boundary than the startup optimization requires"
+  transition: "Cloud AI durability schema initialization -> prepared Research recovery evidence"
+  evidence: "Exact-head CI run 39598885589 failed tests/research-startup-recovery.test.js: competing=false expected READY but received FAIL_CLOSED; competing=true preserved existing fail-closed owner behavior. Local reproduction on 602656747aa76c35372b50a41fc5b5fae6fee1d9 reproduced 18/19. Cloud AI initialized two tables on the shared canonical connection after prepareRecovery(), invalidating the schema-bound evidence."
+  classification: "startup lifecycle ordering invalidated prepared recovery evidence"
 repair:
-  - "Delete packages/storage/src/sqliteStartupIntegrity.ts and all attestation APIs."
-  - "Keep SqliteDatabase's original fail-closed full PRAGMA quick_check unchanged."
-  - "Pass database.connection itself to production Cloud AI durability after that full scan completes."
-  - "On a verified shared connection, calibration checks only ai_calibration_durability_meta/events and attribution checks only ai_outcome_attribution_memory_meta/events, then retain existing hash-chain replay."
-  - "Standalone AI stores retain their own full PRAGMA quick_check."
-  - "Shared AI store close/failure paths do not close the canonical connection they do not own."
+  - "Create Cloud AI durability stores on the canonical SqliteDatabase connection before composing Research and preparing recovery evidence."
+  - "Keep Research prepareRecovery() before PAPER writer lease acquisition; recovery pause/halt semantics remain after exclusive ownership."
+  - "Add a production-path regression that observes both AI durability schema tables before Research recovery evidence is prepared."
 prohibited:
   - bypassing_or_weakening_canonical_full_file_quick_check
   - weakening_store_scoped_checks_or_hash_chain_replay
@@ -37,6 +34,8 @@ acceptance:
   - "closing a shared AI store does not close the canonical connection"
   - "standalone AI stores still perform one full-file quick_check each"
   - "canonical full-file quick_check remains before Cloud AI and before PAPER writer-lease acquisition"
+  - "Cloud AI schema initialization completes before Research recovery evidence preparation"
+  - "Research recovery preparation remains before PAPER writer-lease acquisition and does not disturb an existing competing owner"
   - "fresh exact-head CI and five required companions pass"
   - "fresh non-author review has zero unresolved P0/P1 findings"
   - "separate structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit"
@@ -48,5 +47,5 @@ safety:
 rollback: "Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation."
 test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
 validation_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-validation: "Code repair 0e7cdc1a6516e399b8ac84dffd3200d553bb6781 retained. Exact head 4338121c3768c46a7ef7dfa617d552420f45d8b4 CI run 39597978266 passed typecheck and failed build only because the POSIX rename regression hit Windows EBUSY on an open SQLite file; all five required companions passed. Portability repair 806bde966b25a38bbc0edafd83610d3e88e1e625 keeps the semantic assertion: all platforms prove shared mode ignores supplied pathnames; POSIX performs rename/replacement; Windows proves the OS blocks that replacement race. Platform-independent-test validator, source contract 2/2, and diff checks PASS. Fresh exact-head GitHub CI remains authoritative."
-next: "Commit exact-SHA portability evidence, fresh-check remote/main, and push #2855 without force; then require fresh exact-head CI/review and separate structured Validator ACCEPTED. Keep Draft."
+validation: "After repair on synchronized source 602656747aa76c35372b50a41fc5b5fae6fee1d9: pnpm build PASS; research-startup-recovery 19/19; paper-startup-lease-budget-2770 9/9; paper-writer-lease-liveness 2/2; validate:full PASS; security:gate PASS; git diff --check PASS."
+next: "Commit and push the minimal startup ordering repair to existing PR #2855. Prior exact-head CI/review is stale; require terminal exact-head CI, all five companions, fresh non-author review with P0/P1=0, and structured NUSA Validator ACCEPTED. Keep Draft."
