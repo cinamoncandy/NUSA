@@ -2807,12 +2807,18 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: CROSS_WORKORDER_AIPOS_BASE_REPAIRED_PENDING_SUCCESSOR_VALIDATION
+  status: EXACT_HEAD_CHECKS_PASS_AIPOS_SUCCESSOR_VALIDATION_REQUIRED
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
   previous_base_sha: 345539210a96f9dd4292b848318043fe23afc7f4
   base_sha: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
+  latest_validated_head: c76ceb78ade5f51baa4f2f577ab2d9421e8d1d78
+  latest_validated_workflows: "CI 39564585718 PASS; Actual PAPER 39564585731 PASS; Capability 39564585747 PASS; Activation 39564585710 PASS; Transport 39564585671 PASS; Read-only Broker 39564585554 PASS."
+  latest_review: "Exact c76ceb78 review completed: has_any_findings=false, has_unresolved_findings=false; generic review only, formal severity-count Validator still pending."
+  formal_validator: PENDING
+  oracle_current_main_runtime: UNVERIFIED
+  next: "Run all six workflows and a fresh non-author review on the AIPOS successor head, then obtain explicit formal Validator P0/P1/P2 receipt. Keep PR #2844 Draft. Oracle exact-current-main deployment, genuine new PAPER fill, and restart/replay continuity remain separately UNVERIFIED; no full learning-loop claim."
   previously_validated_head: 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e
   previous_successor_head: dd355eebd02c6e90d9549e89adb93531359a22f0
   latest_main_sync: 55d723aada9dfcdb78293bbef30c3af2a6ac26f2
