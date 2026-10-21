@@ -28,37 +28,19 @@ const NOW = Date.parse("2026-10-01T12:00:00Z");
 
 const REQUIRED_RISK_TABLES = ["risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state"];
 
-/** Counts every statement the module prepares while `body` runs, without changing any behaviour. */
-function countPreparedStatements(body) {
-  const counts = { quickCheck: 0, fullQuickCheck: 0, statements: [] };
-  // Observe executed statements, not DatabaseSync.prototype.prepare. The startup integrity issuer
-  // deliberately keeps calling the native prepare it captured at module load, so a prepare-level
-  // counter would sit on the mutable slot that security fix stopped consulting and report zero
-  // scans for exactly the paths this file must prove. StatementSync exposes the original SQL, so
-  // every count below still attributes to the real PRAGMA SQLite ran.
-  const record = (statement) => {
-    const sql = String(statement.sourceSQL ?? "");
-    counts.statements.push(sql);
-    if (/quick_check/i.test(sql)) counts.quickCheck += 1;
-    if (/^\s*PRAGMA\s+quick_check\s*$/i.test(sql)) counts.fullQuickCheck += 1;
-  };
-  const originalGet = StatementSync.prototype.get;
-  const originalAll = StatementSync.prototype.all;
-  StatementSync.prototype.get = function countedGet(...args) {
-    record(this);
-    return originalGet.apply(this, args);
-  };
-  StatementSync.prototype.all = function countedAll(...args) {
-    record(this);
-    return originalAll.apply(this, args);
-  };
+/** Observe SQLite's authorizer PRAGMA events without changing the protected statement methods. */
+function countQuickChecks(database, body) {
+  const quickChecks = [];
+  database.connection.setAuthorizer((action, first, second) => {
+    if (action === 19 && String(first).toLowerCase() === "quick_check") quickChecks.push(String(second ?? ""));
+    return 0;
+  });
   try {
     body();
   } finally {
-    StatementSync.prototype.get = originalGet;
-    StatementSync.prototype.all = originalAll;
+    database.connection.setAuthorizer(null);
   }
-  return counts;
+  return quickChecks;
 }
 
 function baseState() {
@@ -129,11 +111,10 @@ test("a PAPER risk evaluation prepares no full-file integrity scan", () => {
     // The gateway is constructed outside the counter: only the per-evaluation path is under test.
     const gateway = gatewayFor(database);
     gateway.evaluate(request(baseState()));
-    const counts = countPreparedStatements(() => {
+    const quickChecks = countQuickChecks(database, () => {
       gateway.evaluate(request(baseState()));
     });
-    assert.equal(counts.quickCheck, 0, "PRAGMA quick_check must not run on the per-evaluation hot path");
-    assert.ok(counts.statements.length > 0, "the evaluation must still probe the connection and required tables");
+    assert.deepEqual(quickChecks, [], "PRAGMA quick_check must not run on the per-evaluation hot path");
   } finally {
     database.close();
   }
@@ -167,13 +148,9 @@ test("the risk hot path fails closed when the canonical connection is unusable",
 });
 
 test("the canonical database open still performs the full integrity scan", () => {
-  const counts = countPreparedStatements(() => {
-    const database = new SqliteDatabase(":memory:");
-    database.close();
-  });
-  assert.ok(counts.quickCheck >= 1, "the once-per-open full PRAGMA quick_check is a safety property and must remain");
-  assert.match(storageSource, /prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)/);
+  assert.match(storageSource, /getSqliteIntegrityResult\(prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)\)/);
   assert.match(storageSource, /const nativeDatabasePrepare = DatabaseSync\.prototype\.prepare/);
+  assert.match(storageSource, /const nativeStatementGet = StatementSync\.prototype\.get/);
   assert.match(riskGatewaySource, /SELECT 1 AS ready/);
   assert.ok(!/prepare\("PRAGMA quick_check"\)/.test(riskGatewaySource.split("function databaseHealthy")[1] ?? ""), "databaseHealthy must not reintroduce a full scan");
 });
@@ -244,17 +221,17 @@ test("production AI stores share the one checked canonical connection and keep f
   let calibration;
   let attribution;
   try {
-    const counts = countPreparedStatements(() => {
-      database = new SqliteDatabase(filename);
+    database = new SqliteDatabase(filename);
+    const quickChecks = countQuickChecks(database, () => {
       calibration = new SqliteAiCalibrationDurableStore(filename, database);
       attribution = new SqliteAiOutcomeAttributionMemory(filename, database);
     });
-    assert.equal(counts.fullQuickCheck, 1, `expected exactly one canonical full scan, got ${JSON.stringify(counts.statements)}`);
-    assert.equal(counts.quickCheck, 5, `expected one full plus four store-scoped checks, got ${JSON.stringify(counts.statements)}`);
-    assert.ok(counts.statements.some((sql) => /quick_check\('ai_calibration_durability_meta'\)/i.test(sql)));
-    assert.ok(counts.statements.some((sql) => /quick_check\('ai_calibration_durability_events'\)/i.test(sql)));
-    assert.ok(counts.statements.some((sql) => /quick_check\('ai_outcome_attribution_memory_meta'\)/i.test(sql)));
-    assert.ok(counts.statements.some((sql) => /quick_check\('ai_outcome_attribution_memory_events'\)/i.test(sql)));
+    assert.equal(quickChecks.length, 4, `expected four store-scoped checks, got ${JSON.stringify(quickChecks)}`);
+    assert.ok(quickChecks.includes("ai_calibration_durability_meta"));
+    assert.ok(quickChecks.includes("ai_calibration_durability_events"));
+    assert.ok(quickChecks.includes("ai_outcome_attribution_memory_meta"));
+    assert.ok(quickChecks.includes("ai_outcome_attribution_memory_events"));
+    assert.equal((storageSource.match(/getSqliteIntegrityResult\(prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)\)/g) ?? []).length, 3, "canonical and each standalone store constructor retain one full-file check path");
     assert.match(runtimeSource, /verifiedSharedSqliteDatabase:\s*database/);
     assert.doesNotMatch(runtimeSource, /startupIntegrityAttestation/);
   } finally {
@@ -412,18 +389,11 @@ test("canonical shared admission uses the captured native prepare after prototyp
   // full-file check captured at module initialization, never from this forged "ok" result.
   const script = `
     const assert = require("node:assert/strict");
-    const { DatabaseSync, StatementSync } = require("node:sqlite");
+    const { DatabaseSync } = require("node:sqlite");
     const root = ${JSON.stringify(root)};
     const storage = require(root + "/dist/packages/storage/src/index.js");
     const nativePrepare = DatabaseSync.prototype.prepare;
-    const nativeGet = StatementSync.prototype.get;
-    const counts = { forgedFull: 0, full: 0, scoped: 0 };
-    StatementSync.prototype.get = function(...args) {
-      const sql = String(this.sourceSQL ?? "");
-      if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(sql)) counts.full++;
-      else if (/quick_check/i.test(sql)) counts.scoped++;
-      return nativeGet.apply(this, args);
-    };
+    const counts = { forgedFull: 0 };
     DatabaseSync.prototype.prepare = function(sql, ...args) {
       if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(sql))) {
         counts.forgedFull++;
@@ -435,53 +405,105 @@ test("canonical shared admission uses the captured native prepare after prototyp
     const calibration = new storage.SqliteAiCalibrationDurableStore(":memory:", database);
     const attribution = new storage.SqliteAiOutcomeAttributionMemory(":memory:", database);
     try {
-      assert.deepEqual(counts, { forgedFull: 0, full: 1, scoped: 4 });
+      assert.deepEqual(counts, { forgedFull: 0 });
     } finally {
       attribution.close(); calibration.close(); database.close();
       DatabaseSync.prototype.prepare = nativePrepare;
-      StatementSync.prototype.get = nativeGet;
     }
   `;
   const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
   assert.equal(result.status, 0, `prototype replacement must not forge canonical integrity trust:\n${result.stdout}\n${result.stderr}`);
 });
 
+test("a forged StatementSync.get result cannot attest a corrupt canonical database", () => {
+  const script = `
+    const assert = require("node:assert/strict");
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path = require("node:path");
+    const { StatementSync } = require("node:sqlite");
+    const root = ${JSON.stringify(root)};
+    const { SqliteDatabase } = require(root + "/dist/packages/storage/src/index.js");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-get-poison-"));
+    const filename = path.join(dir, "state.sqlite");
+    const valid = new SqliteDatabase(filename);
+    valid.close();
+    const size = fs.statSync(filename).size;
+    const fd = fs.openSync(filename, "r+");
+    fs.writeSync(fd, Buffer.alloc(4096, 0xaa), 0, 4096, size - 4096);
+    fs.closeSync(fd);
+    const nativeGet = StatementSync.prototype.get;
+    let forgedFull = 0;
+    StatementSync.prototype.get = function(...args) {
+      if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(this.sourceSQL ?? ""))) {
+        forgedFull++;
+        return { quick_check: "ok" };
+      }
+      return nativeGet.apply(this, args);
+    };
+    try {
+      assert.throws(
+        () => new SqliteDatabase(filename),
+        /quick_check failed|malformed|not a database|corrupt/i,
+        "a forged result method must not admit the corrupt file",
+      );
+      assert.equal(forgedFull, 0, "the writable StatementSync.prototype.get slot must not be consulted");
+    } finally {
+      StatementSync.prototype.get = nativeGet;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  `;
+  const result = spawnSync(process.execPath, ["-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `StatementSync.get replacement must not forge integrity trust:\n${result.stdout}\n${result.stderr}`);
+});
+
 test("prepare replacement before storage module load cannot forge canonical integrity trust", () => {
-  for (const replacement of ["javascript", "proxy"]) {
+  for (const replacement of ["prepare-javascript", "prepare-proxy", "get-javascript", "get-proxy"]) {
     const script = `
     const assert = require("node:assert/strict");
     const { DatabaseSync, StatementSync } = require("node:sqlite");
     const nativePrepare = DatabaseSync.prototype.prepare;
     const nativeGet = StatementSync.prototype.get;
-    const counts = { forgedFull: 0, genuineFull: 0 };
+    const counts = { forgedPrepare: 0, forgedGet: 0 };
     const replacement = ${JSON.stringify(replacement)};
-    DatabaseSync.prototype.prepare = replacement === "proxy"
+    if (replacement.startsWith("prepare-")) DatabaseSync.prototype.prepare = replacement === "prepare-proxy"
       ? new Proxy(nativePrepare, { apply(target, receiver, args) {
           if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(args[0]))) {
-            counts.forgedFull++;
+            counts.forgedPrepare++;
             return { get() { return { quick_check: "ok" }; } };
           }
           return Reflect.apply(target, receiver, args);
         }})
       : function prepare(sql, ...args) {
           if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(sql))) {
-            counts.forgedFull++;
+            counts.forgedPrepare++;
             return { get() { return { quick_check: "ok" }; } };
           }
           return nativePrepare.call(this, sql, ...args);
         };
-    StatementSync.prototype.get = function(...args) {
-      if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(this.sourceSQL ?? ""))) counts.genuineFull++;
-      return nativeGet.apply(this, args);
-    };
+    if (replacement.startsWith("get-")) StatementSync.prototype.get = replacement === "get-proxy"
+      ? new Proxy(nativeGet, { apply(target, receiver, args) {
+          if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(receiver.sourceSQL ?? ""))) {
+            counts.forgedGet++;
+            return { quick_check: "ok" };
+          }
+          return Reflect.apply(target, receiver, args);
+        }})
+      : function get(...args) {
+          if (/^\\s*PRAGMA\\s+quick_check\\s*$/i.test(String(this.sourceSQL ?? ""))) {
+            counts.forgedGet++;
+            return { quick_check: "ok" };
+          }
+          return nativeGet.apply(this, args);
+        };
     const root = ${JSON.stringify(root)};
     const { SqliteDatabase } = require(root + "/dist/packages/storage/src/index.js");
     assert.throws(
       () => new SqliteDatabase(":memory:"),
-      /native SQLite DatabaseSync\\.prepare is unavailable; refusing integrity check/,
+      /native SQLite integrity methods are unavailable; refusing integrity check/,
       "a pre-load JavaScript replacement must not attest an unchecked database",
     );
-    assert.deepEqual(counts, { forgedFull: 0, genuineFull: 0 });
+    assert.deepEqual(counts, { forgedPrepare: 0, forgedGet: 0 });
     DatabaseSync.prototype.prepare = nativePrepare;
     StatementSync.prototype.get = nativeGet;
     `;
@@ -533,17 +555,11 @@ test("internal verifier cache replacement before bootstrap cannot admit unchecke
 test("standalone AI durability stores retain their fail-closed full-file scans", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-standalone-"));
   try {
-    const calibrationCounts = countPreparedStatements(() => {
-      const store = new SqliteAiCalibrationDurableStore(path.join(dir, "calibration.sqlite"));
-      store.close();
-    });
-    assert.equal(calibrationCounts.fullQuickCheck, 1);
-
-    const attributionCounts = countPreparedStatements(() => {
-      const store = new SqliteAiOutcomeAttributionMemory(path.join(dir, "attribution.sqlite"));
-      store.close();
-    });
-    assert.equal(attributionCounts.fullQuickCheck, 1);
+    const calibration = new SqliteAiCalibrationDurableStore(path.join(dir, "calibration.sqlite"));
+    const attribution = new SqliteAiOutcomeAttributionMemory(path.join(dir, "attribution.sqlite"));
+    calibration.close();
+    attribution.close();
+    assert.equal((storageSource.match(/getSqliteIntegrityResult\(prepareSqliteIntegrityStatement\(this\.connection, "PRAGMA quick_check"\)\)/g) ?? []).length, 3);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
