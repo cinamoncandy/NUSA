@@ -42,4 +42,20 @@ describe("research meta-learning policy", () => {
     const entries = runtimeResearchEntries({ "1m": { counts: { NOT_DUE: 160, FAIL_NO_EDGE: 19, REPEAT_NO_EDGE: 3, PASS_CANDIDATE_GATE: 2 } }, "15m": null, weird: { counts: { FAIL_X: 1 } } }, 5);
     assert.deepEqual(entries.map((e) => [e.id, e.configs, e.discoveryPass, e.holdoutPass, e.timeframe]), [["RUNTIME_RESEARCH_1m", 24, 2, 0, "1m"]]);
   });
+
+  it("a real validation win and holdout win in the runtime counters are visible, and today's counters are unchanged", () => {
+    const today = { "1m": { counts: { COMPLETED: 10, VALIDATION_NOT_FAVOURABLE: 10, FAIL_NO_EDGE: 9, REPEAT_NO_EDGE: 1 } } };
+    assert.deepEqual(runtimeResearchEntries(today, 5).map((e) => [e.configs, e.discoveryPass, e.holdoutPass]), [[10, 0, 0]], "no win, nothing changes");
+    const win = { "1m": { counts: { COMPLETED: 12, VALIDATION_CHALLENGER_BETTER: 2, VALIDATION_NOT_FAVOURABLE: 10, HOLDOUT_CHALLENGER_BETTER: 1, HOLDOUT_CHAMPION_BETTER: 1, FAIL_NO_EDGE: 8 } } };
+    assert.deepEqual(runtimeResearchEntries(win, 5).map((e) => [e.configs, e.discoveryPass, e.holdoutPass]), [[10, 2, 1]]);
+    const report = evaluateMetaLearning([...runtimeResearchEntries(win, 5)]);
+    assert.equal(report.discoveryPasses, 2);
+    assert.equal(report.holdoutPasses, 1);
+    assert.equal(report.overfitRatePercent, 50, "one of two discoveries survived its holdout");
+  });
+
+  it("a holdout pass can never exceed the discoveries that earned it", () => {
+    const odd = { "1m": { counts: { HOLDOUT_CHALLENGER_BETTER: 5, FAIL_NO_EDGE: 3 } } };
+    assert.deepEqual(runtimeResearchEntries(odd, 5).map((e) => [e.discoveryPass, e.holdoutPass]), [[0, 0]]);
+  });
 });
