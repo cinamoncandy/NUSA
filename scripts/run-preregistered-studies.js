@@ -16,11 +16,22 @@ const M = constants.M;
  * so memory stays small even with ~300 markets x 53 days. Every row actually returned is remembered and hashed at the end, so the dataset
  * identity is the data the study really consumed. Rows are coerced to numbers and anything crossed or non-positive is not a book.
  */
+/**
+ * The book rows live in research_orderbook_samples (about 14 days) and, after the collector prunes them, only the rows the studies read
+ * live on in research_orderbook_study_rows (migration 032). Read both as one source; before that migration only the live table exists.
+ */
+function bookSource(db) {
+  const cols = "market, captured_at_ms, best_bid, best_ask, bid_size_5, ask_size_5";
+  const hasArchive = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'research_orderbook_study_rows'").get() != null;
+  return hasArchive ? `(SELECT ${cols} FROM research_orderbook_samples UNION ALL SELECT ${cols} FROM research_orderbook_study_rows)` : "research_orderbook_samples";
+}
+
 function makeDbProvider(db, { from, to }) {
-  const marketList = db.prepare("SELECT DISTINCT market FROM research_orderbook_samples WHERE captured_at_ms > ? AND captured_at_ms <= ? AND market LIKE 'KRW-%'").all(from, to).map((r) => String(r.market)).sort();
-  const latest = db.prepare("SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM research_orderbook_samples WHERE market = ? AND captured_at_ms > ? AND captured_at_ms <= ? ORDER BY captured_at_ms DESC LIMIT 1");
-  const lastBid = db.prepare("SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM research_orderbook_samples WHERE market = ? AND captured_at_ms >= ? AND captured_at_ms <= ? ORDER BY captured_at_ms DESC LIMIT 1");
-  const between = db.prepare("SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM research_orderbook_samples WHERE market = ? AND captured_at_ms >= ? AND captured_at_ms < ? ORDER BY captured_at_ms");
+  const source = bookSource(db);
+  const marketList = db.prepare(`SELECT DISTINCT market FROM ${source} WHERE captured_at_ms > ? AND captured_at_ms <= ? AND market LIKE 'KRW-%'`).all(from, to).map((r) => String(r.market)).sort();
+  const latest = db.prepare(`SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM ${source} WHERE market = ? AND captured_at_ms > ? AND captured_at_ms <= ? ORDER BY captured_at_ms DESC LIMIT 1`);
+  const lastBid = db.prepare(`SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM ${source} WHERE market = ? AND captured_at_ms >= ? AND captured_at_ms <= ? ORDER BY captured_at_ms DESC LIMIT 1`);
+  const between = db.prepare(`SELECT captured_at_ms AS t, best_bid AS b, best_ask AS a, bid_size_5 AS b5, ask_size_5 AS a5 FROM ${source} WHERE market = ? AND captured_at_ms >= ? AND captured_at_ms < ? ORDER BY captured_at_ms`);
   const consumed = new Map(); // "market,stamp" -> canonical line
   const clean = (market, raw) => {
     if (raw == null) return undefined;
@@ -51,7 +62,7 @@ function runAll({ db, now = Date.now() }) {
   const { TRAIN_START, HOLD_END, PRINT_AT } = constants;
   if (now < PRINT_AT) return ["S2", "S3", "S4"].map((study) => ({ study, status: "WAITING_DATA" }));
   // Any stored row stamped after the run time (beyond 5 s) means the clock or the source cannot be trusted.
-  if (Number(db.prepare("SELECT COUNT(*) AS n FROM research_orderbook_samples WHERE captured_at_ms > ?").get(now + 5_000).n) > 0) return ["S2", "S3", "S4"].map((study) => ({ study, status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" }));
+  if (Number(db.prepare(`SELECT COUNT(*) AS n FROM ${bookSource(db)} WHERE captured_at_ms > ?`).get(now + 5_000).n) > 0) return ["S2", "S3", "S4"].map((study) => ({ study, status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" }));
   const provider = makeDbProvider(db, { from: TRAIN_START - 5 * 3_600_000, to: HOLD_END + 2 * 3_600_000 });
   const results = [runDailyStudy({ provider, study: "S2", now }), runMakerStudy({ provider, now }), runDailyStudy({ provider, study: "S4", now })];
   const identity = provider.hashRows();
@@ -68,4 +79,4 @@ if (require.main === module) {
   } catch { console.error("PREREG_STUDY_FAILED_CLOSED"); process.exitCode = 1; }
 }
 
-module.exports = { makeDbProvider, runAll };
+module.exports = { makeDbProvider, runAll, bookSource };
