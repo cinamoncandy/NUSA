@@ -2711,18 +2711,18 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: PAPER_PARENT_NODE_OPTIONS_BOUNDARY_REPAIR_COMMITTED_PENDING_EXACT_HEAD_CI_REVIEW
+  status: PAPER_PARENT_NODE_OPTIONS_TEST_CONTRACT_REPAIRED_PENDING_NEW_EXACT_HEAD_GATES
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
   protected_main_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
   pr_reported_base_sha: 8174e6241c3558362ab333c0b092337ce4d52bf4
-  previous_exact_head: 6520bbd9bbab419bcf0e07b47c70f35cdf310eb4
+  previous_exact_head: 4182f9c2ed735f6348079016d484ac18b503f7b2
   source_repair_commit: f14fba8a007f217295bdbc5cd994b2e1f0c9a225
-  finding: "Fresh review on exact head 6520bbd9 reproduced a parent-process preload gap: nusa.service starts Node with NODE_OPTIONS from cloud-runtime.env before the launcher can strip it, so a preload may replace child_process.spawn and run before the integrity helper."
+  finding: "Fresh review on exact head 6520bbd9 reproduced a parent-process preload gap: nusa.service starts Node with NODE_OPTIONS from cloud-runtime.env before the launcher can strip it, so a preload may replace child_process.spawn and run before the integrity helper. On exact head 4182f9c2, coverage-core-1 failed because the systemd contract test still expected the pre-repair ExecStart and rejected the required /usr/bin/env -u NODE_OPTIONS wrapper; local reproduction isolated this stale assertion."
   repair: "Source commit 992e0e090cba3e5cad5a271854dc78af309a3e19 preloads a frozen SQLite boundary in PAPER/Research and strips child NODE_OPTIONS. Source commit f14fba8a007f217295bdbc5cd994b2e1f0c9a225 removes NODE_OPTIONS in deploy/oracle/nusa.service with /usr/bin/env -u before the parent Node process begins; Oracle validation rejects a unit without that scrub."
-  validation: "Source commit 992e0e09 build PASS; focused storage/startup/recovery/launcher/Oracle tests 67/67 PASS; preflight, validate:full, security:gate and AIPOS gates PASS. Exact-head CI 39690104022 and five companions passed on 6520bbd9; Mobile Native was still in progress when the parent-preload P1 invalidated that head. The f14fba8a source tree passed focused Oracle validator/launcher/supervisor tests 29/29, preflight, AIPOS YAML/drift/conformance/provenance and diff-check before commit. Exact-head CI and companions are running on the latest pushed head; fresh review and formal Validator remain pending."
-  next: "Complete fresh exact-head CI and five companion workflows on the latest pushed #2855 head, then obtain fresh non-author review with current P0/P1=0 and separate formal NUSA Validator ACCEPTED before Audit/Release. Keep Draft and do not deploy Oracle before acceptance."
+  validation: "Source commit 992e0e09 build PASS; focused storage/startup/recovery/launcher/Oracle tests 67/67 PASS; preflight, validate:full, security:gate and AIPOS gates PASS. Exact-head CI 39690104022 and five companions passed on 6520bbd9; Mobile Native was still in progress when the parent-preload P1 invalidated that head. The f14fba8a source tree passed focused Oracle validator/launcher/supervisor tests 29/29, preflight, AIPOS YAML/drift/conformance/provenance and diff-check before commit. On 4182f9c2, exact-head CI 39691113017 failed only coverage-core-1 because the test expectation had not followed the systemd repair; other coverage shards, validation and five companion workflows passed. The updated focused contract tests pass 12/12 and the corresponding isolated shard passes all 317 test files. A new exact-head CI is required; fresh review and formal Validator remain pending."
+  next: "Commit the test-contract correction and AIPOS evidence, then complete exact-head CI and five companion workflows on the latest pushed #2855 head. Obtain fresh non-author review with current P0/P1=0 and separate formal NUSA Validator ACCEPTED before Audit/Release. Keep Draft and do not deploy Oracle before acceptance."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
