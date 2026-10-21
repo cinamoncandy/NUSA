@@ -133,10 +133,14 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(wrapper, /readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912/);
   assert.match(wrapper, /readonly POST_ACTIVATION_SOAK_SECONDS=180/);
   assert.match(wrapper, /readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10/);
-  assert.match(wrapper, /readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=15000/);
+  assert.match(wrapper, /readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=30000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_WINDOW_MS=30000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000/);
   assert.match(wrapper, /readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500/);
+  assert.match(runbook, /Initial authenticated `\/ready` keeps the 300-second cold-start budget, with each request capped at 5 seconds and 1-second retry delay\./);
+  assert.match(runbook, /initial activation uses each route request cap of 5 seconds and a 1-second retry delay\./);
+  assert.match(runbook, /During soak, authenticated `\/ready` uses a bounded 30-second retry window, with each request capped at 2 seconds and 500 ms retry delay/);
+  assert.match(runbook, /post-activation checks, with route requests capped at 2 seconds and a 500 ms retry delay/);
 
   const routeProofWindow = Number(wrapper.match(/readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=(\d+)/)?.[1]);
   const readyWindow = Number(wrapper.match(/readonly POST_ACTIVATION_READY_WINDOW_MS=(\d+)/)?.[1]);
@@ -187,6 +191,7 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
   assert.match(soak, /sleep "\$POST_ACTIVATION_CHECK_INTERVAL_SECONDS"/);
   assert.match(soak, /NUSA_READY_STARTUP_WAIT_MS="\$POST_ACTIVATION_READY_WINDOW_MS"/);
   assert.match(soak, /NUSA_READY_ROUTE_PROOF_WAIT_MS="\$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS"/);
+  assert.match(wrapper, /POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=30000/);
   assert.match(soak, /NUSA_READY_TIMEOUT_MS="\$POST_ACTIVATION_READY_TIMEOUT_MS"/);
   assert.match(soak, /NUSA_READY_RETRY_DELAY_MS="\$POST_ACTIVATION_READY_RETRY_DELAY_MS"/);
 
