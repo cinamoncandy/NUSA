@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: P1_P2_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+status: REPAIRING_FRESH_VALIDATOR_FINDING
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -75,7 +75,15 @@ validation_history:
     details: "P1: an active Cloudflare workflow_dispatch can have a new-main run SHA but stale head_sha input, so it cannot be accepted as owner without proving the requested input; active workflow_run job is bound to the exact head, while completed runs require production lineage. P2: AIPOS had contradictory focused-test status and must bind results to the exact source SHA."
   repair_commit: 2a88f66d29e60b15949529d1523f7622035efa7d
   repair_validation: "On exact source commit 2a88f66d29e60b15949529d1523f7622035efa7d, tests/autopilot-deterministic-audit-release.test.js passed 14/14 and git diff --check passed. Active Cloudflare workflow_dispatch candidates are not accepted without a provable exact input binding; completed candidates require cloudflare-production ancestry of MERGED_MAIN; pending expected jobs count as active owners. Successor exact-head CI/companions and fresh review are pending."
-  focused_tests: "Exact source SHA 2a88f66d29e60b15949529d1523f7622035efa7d: 14/14 PASS; git diff --check PASS."
+  latest_reviewed_head: f01215505a84cd61779663e1f7068ed5abbf5c55
+  latest_review_findings:
+    p0: 0
+    p1: 1
+    p2: 0
+    details: "The run query emits [id,status,event] but the shell read list did not bind those fields to candidate_event, causing an unbound variable under set -u for Cloudflare candidates."
+  prior_repair_commit: 2a88f66d29e60b15949529d1523f7622035efa7d
+  prior_repair_test_note: "The prior 14/14 focused tests apply to source commit 2a88f66d29e60b15949529d1523f7622035efa7d; the run-event field binding repair is not yet tested or committed."
+  focused_tests: "Pending for the run-event field binding repair."
   previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
   oracle_main_release: "Run 39527382516 failed closed at pre-activation exact-main recheck: it requested e106bdbd62c92278d1835722f4ada1c31762ceb7 while protected main had advanced to c8148d7e61dd3be0763577b1c736331ab27c56ec. No stale activation occurred."
-next: "Commit/push this AIPOS evidence synchronization to the existing PR branch. Then verify the resulting exact head against protected main with all six workflows and fresh review; obtain a separate explicit non-author P0/P1/P2 Validator receipt before Audit. Keep Draft; no Audit/Release or Oracle overlap."
+next: "Fix the TSV read contract to bind candidate_event, add regression coverage, run focused tests on the committed source SHA, update AIPOS, then re-run exact-head CI/companions/review. Keep Draft; formal Validator, Audit, Release, and Oracle changes remain blocked."

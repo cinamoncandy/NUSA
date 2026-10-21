@@ -136,6 +136,8 @@ test("Release dispatches only active unowned exact-main downstream workflows aft
   assert.match(downstream, /\.status == "completed" and \.conclusion == "success"/);
   assert.match(downstream, /applicable_job/);
   assert.match(downstream, /\.event\] \| @tsv/);
+  assert.match(downstream, /while IFS=.*read -r candidate_run candidate_status candidate_event/s);
+  assert.doesNotMatch(downstream, /candidate_conclusion/);
   assert.match(downstream, /candidate_event.*workflow_run/s);
   assert.match(downstream, /Active Cloudflare workflow_dispatch run.*cannot prove/);
   assert.match(downstream, /candidate_status.*completed.*branches\/cloudflare-production/s);

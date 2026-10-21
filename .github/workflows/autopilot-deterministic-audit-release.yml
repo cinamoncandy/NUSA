@@ -566,7 +566,7 @@ jobs:
             local allow_manual_disable="$2"
             local expected_job="$3"
             shift 3
-            local state runs owner candidate_run candidate_status candidate_conclusion candidate_event jobs applicable_job
+            local state runs owner candidate_run candidate_status candidate_event jobs applicable_job
             state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq '.state')"
             if [ "$state" = "disabled_manually" ] && [ "$allow_manual_disable" = "true" ]; then
               echo "::notice::Skipping intentionally disabled optional downstream workflow $workflow for $MERGED_MAIN."
@@ -578,7 +578,7 @@ jobs:
             fi
             runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$MERGED_MAIN&per_page=100")"
             owner=""
-            while IFS=$'\t' read -r candidate_run candidate_status candidate_conclusion; do
+            while IFS=$'\t' read -r candidate_run candidate_status candidate_event; do
               [ -n "$candidate_run" ] || continue
               jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate_run/jobs?per_page=100")"
               applicable_job="$(jq -r --arg name "$expected_job" '
@@ -609,7 +609,7 @@ jobs:
                   or .status == "waiting" or .status == "requested"
                   or (.status == "completed" and .conclusion == "success")
                 ))]
-              | sort_by(.created_at) | reverse[] | [.id, .status, (.conclusion // ""), .event] | @tsv' <<<"$runs")
+              | sort_by(.created_at) | reverse[] | [.id, .status, .event] | @tsv' <<<"$runs")
             if [ -n "$owner" ]; then
               echo "Exact-main downstream $workflow applicable job '$expected_job' owns convergence for $MERGED_MAIN via run $owner; suppressing duplicate dispatch."
               return 0
