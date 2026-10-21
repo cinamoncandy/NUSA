@@ -1,0 +1,186 @@
+"use strict";
+/**
+ * Core of the pre-registered study S3 "cheaper execution, 4 h hold" (docs/research-ledger/PREREGISTERED_STUDIES_2026-10-21.md). Pure over a
+ * provider; no I/O and no clock. The signal is the S2 signal with its fixed 24 h look-back.
+ *
+ * provider: {
+ *   markets(), bookAt(market, t), lastBidBetween(market, from, to)         // as in dailyCrossSectionStudy
+ *   tradesBetween(market, from, to): { t, price, volume }[]               // executed trades, collector receive time
+ *   tickCoverageOk(market, from, to): boolean                              // no tick gap above 10 minutes in the window
+ * }
+ */
+const { minimumCount, tradeNet, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, oneSidedTests } = require("./preregisteredStudyStats.js");
+const { pickS2, constants } = require("./dailyCrossSectionStudy.js");
+
+const { TRAIN_START, TRAIN_END, HOLD_START, HOLD_END, PRINT_AT, ALPHA, H, M } = constants;
+const HOLD = 4 * H;
+const CANCEL = 10 * M;
+const LATENCY = 1_000;
+const NOTIONAL_KRW = 1_000_000;
+const MIN_FILL = 0.05;
+const MAKER_BASE_BP = 5, MAKER_STRESS_BP = 10, TAKER_BASE_BP = 10, TAKER_STRESS_BP = 20;
+const MAX_SPREAD_BP = 20, MIN_MARKETS = 60;
+
+const mid = (r) => (r.a + r.b) / 2;
+const spreadBp = (r) => ((r.a - r.b) / mid(r)) * 10_000;
+const mean = (a) => (a.length === 0 ? 0 : a.reduce((s, v) => s + v, 0) / a.length);
+const range = (start, endExclusive, step) => { const out = []; for (let t = start; t < endExclusive; t += step) out.push(t); return out; };
+
+/** Fill fraction of a resting limit: volume strictly through its price in [placement + 1 s, placement + 10 min), over its size. */
+function fillFraction({ side, limit, quantity, placedAt, trades }) {
+  if (!(quantity > 0)) return 0;
+  let volume = 0;
+  for (const tr of trades) {
+    if (tr.t < placedAt + LATENCY || tr.t >= placedAt + CANCEL) continue;
+    if (side === "BUY" ? tr.price < limit : tr.price > limit) volume += tr.volume;
+  }
+  return Math.min(1, volume / quantity);
+}
+
+/**
+ * One pick under maker execution. Returns { f, r } where f is the entry fill fraction (0 = missed trade) and r the net return of the filled
+ * part, or { gap: true } when a needed value does not exist. `bp` selects base or stress costs.
+ */
+function makerPick(provider, market, t, stress) {
+  const makerBp = stress ? MAKER_STRESS_BP : MAKER_BASE_BP, takerBp = stress ? TAKER_STRESS_BP : TAKER_BASE_BP;
+  const entry = provider.bookAt(market, t);
+  if (entry == null) return { missing: true };
+  const limitBuy = entry.b, quantity = NOTIONAL_KRW / limitBuy;
+  if (!provider.tickCoverageOk(market, t, t + HOLD + CANCEL)) return { gap: true };
+  const entryFill = fillFraction({ side: "BUY", limit: limitBuy, quantity, placedAt: t, trades: provider.tradesBetween(market, t, t + CANCEL) });
+  if (entryFill < MIN_FILL) return { f: 0, r: 0 };
+  const exitAt = t + HOLD;
+  const exitBook = provider.bookAt(market, exitAt);
+  const buyCost = limitBuy * (1 + makerBp / 10_000);
+  let soldFraction = 0, sellPrice = 0;
+  if (exitBook != null) {
+    sellPrice = exitBook.a;
+    soldFraction = fillFraction({ side: "SELL", limit: sellPrice, quantity: entryFill * quantity, placedAt: exitAt, trades: provider.tradesBetween(market, exitAt, exitAt + CANCEL) });
+  }
+  const fallbackAt = exitAt + CANCEL;
+  let remainder = 0;
+  if (soldFraction < 1) {
+    const last = provider.bookAt(market, fallbackAt);
+    if (last == null) return { gap: true };
+    remainder = (1 - soldFraction) * (last.b * (1 - takerBp / 10_000));
+  }
+  const proceeds = soldFraction * sellPrice * (1 - makerBp / 10_000) + remainder;
+  return { f: entryFill, r: proceeds / buyCost - 1 };
+}
+
+/** The same pick under taker execution (entry at the ask at t, exit at the bid at t + 4 h; marked or a gap when the exit book is missing). */
+function takerPick(provider, market, t, stress) {
+  const bp = stress ? TAKER_STRESS_BP : TAKER_BASE_BP;
+  const entry = provider.bookAt(market, t);
+  if (entry == null) return { missing: true };
+  const exitAt = t + HOLD, exitBook = provider.bookAt(market, exitAt);
+  const bid = exitBook != null ? exitBook.b : provider.lastBidBetween(market, exitAt - H, exitAt);
+  if (bid == null) return { gap: true };
+  return { r: tradeNet({ askEntry: entry.a, bidExit: bid, entryBp: bp, exitBp: bp }), kind: exitBook != null ? "BOOK" : "MARKED" };
+}
+
+/** Gross (cost-free, mid to mid) return of one market over the hold: the signal's information content, independent of how it is executed. */
+function grossReturn(provider, market, t) {
+  const entry = provider.bookAt(market, t);
+  if (entry == null) return { missing: true };
+  const exitAt = t + HOLD, exitBook = provider.bookAt(market, exitAt);
+  const exitPrice = exitBook != null ? mid(exitBook) : provider.lastBidBetween(market, exitAt - H, exitAt);
+  if (exitPrice == null) return { gap: true };
+  return { r: exitPrice / mid(entry) - 1 };
+}
+
+function eligibleMarkets(provider) {
+  const times = range(TRAIN_START, TRAIN_END, HOLD);
+  const need = minimumCount(times.length);
+  return provider.markets().filter((market) => {
+    const spreads = [];
+    for (const t of times) { const b = provider.bookAt(market, t), e = provider.bookAt(market, t + HOLD); if (b != null && e != null) spreads.push(spreadBp(b)); }
+    return spreads.length >= need && upperMedian(spreads) <= MAX_SPREAD_BP;
+  }).sort(compareCodes);
+}
+
+function trainingCoverageOk(provider) {
+  const days = range(TRAIN_START, TRAIN_END, 24 * H);
+  return days.filter((t) => provider.markets().filter((m) => provider.bookAt(m, t) != null).length >= MIN_MARKETS).length >= 12;
+}
+
+function buildDays(provider, universe) {
+  const decisions = range(HOLD_START, HOLD_END, HOLD).filter((t) => t + HOLD <= HOLD_END);
+  const days = new Map();
+  let picksTotal = 0, picksWithExit = 0, gaps = 0, coverageTimes = 0;
+  for (const t of decisions) {
+    const withBook = universe.filter((m) => provider.bookAt(m, t) != null);
+    if (withBook.length >= MIN_MARKETS) coverageTimes += 1;
+    const dayKey = Math.floor(t / (24 * H));
+    if (!days.has(dayKey)) days.set(dayKey, { cohorts: [] });
+    if (withBook.length === 0) continue;
+    const picks = pickS2(provider, universe, t);
+    const cohort = { t, selected: picks.length, maker: [], makerStress: [], taker: [], takerStress: [], fills: [], bench: [], benchStress: [], gross: [], benchGross: [] };
+    for (const m of picks) {
+      const mp = makerPick(provider, m, t, false), ms = makerPick(provider, m, t, true), tk = takerPick(provider, m, t, false), ts = takerPick(provider, m, t, true);
+      const gr = grossReturn(provider, m, t);
+      picksTotal += 1;
+      cohort.gross.push(gr.gap ? -1 : gr.r ?? 0);
+      if (mp.gap || tk.gap) { gaps += 1; cohort.maker.push(-1); cohort.makerStress.push(-1); cohort.taker.push(-1); cohort.takerStress.push(-1); cohort.fills.push(1); continue; }
+      if (tk.kind === "BOOK") picksWithExit += 1;
+      cohort.maker.push(mp.f * mp.r); cohort.makerStress.push(ms.f * ms.r); cohort.fills.push(mp.f);
+      cohort.taker.push(tk.r); cohort.takerStress.push(ts.r);
+    }
+    for (const m of withBook) {
+      const b = takerPick(provider, m, t, false), bs = takerPick(provider, m, t, true);
+      cohort.bench.push(b.gap ? -1 : b.r); cohort.benchStress.push(bs.gap ? -1 : bs.r);
+      const bg = grossReturn(provider, m, t); cohort.benchGross.push(bg.gap ? -1 : bg.r ?? 0);
+    }
+    days.get(dayKey).cohorts.push(cohort);
+  }
+  return { days, decisions: decisions.length, picksTotal, picksWithExit, gaps, coverageTimes };
+}
+
+function runMakerStudy({ provider, now, options = {} }) {
+  if (now < PRINT_AT) return { study: "S3", status: "WAITING_DATA" };
+  if (!trainingCoverageOk(provider)) return { study: "S3", status: "INSUFFICIENT_DATA", reasonCode: "DATA_TRAINING_COVERAGE" };
+  const universe = eligibleMarkets(provider);
+  const d = buildDays(provider, universe);
+  const base = { study: "S3", eligibleMarkets: universe.length, scheduledDecisions: d.decisions, picks: d.picksTotal, dataGaps: d.gaps };
+  if (d.coverageTimes < minimumCount(d.decisions) || (d.picksTotal > 0 && d.picksWithExit < minimumCount(d.picksTotal))) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_HOLDOUT_COVERAGE" };
+  if (d.picksTotal > 0 && d.gaps > 0.05 * d.picksTotal) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_GAPS" };
+  // One value per UTC day: counts when at least 5 of its 6 cohorts exist.
+  const counted = [];
+  for (const day of d.days.values()) {
+    if (day.cohorts.length < 5) continue;
+    const cohortValue = (c, key) => (c.selected === 0 ? 0 : c[key].reduce((s, v) => s + v, 0) / c.selected);
+    const makerDay = mean(day.cohorts.map((c) => cohortValue(c, "maker"))), makerStressDay = mean(day.cohorts.map((c) => cohortValue(c, "makerStress")));
+    const takerDay = mean(day.cohorts.map((c) => cohortValue(c, "taker"))), takerStressDay = mean(day.cohorts.map((c) => cohortValue(c, "takerStress")));
+    const selected = day.cohorts.reduce((s, c) => s + c.selected, 0);
+    const fillDay = selected === 0 ? 0 : day.cohorts.reduce((s, c) => s + c.fills.reduce((a, v) => a + v, 0), 0) / selected;
+    const benchDay = mean(day.cohorts.map((c) => mean(c.bench))), benchStressDay = mean(day.cohorts.map((c) => mean(c.benchStress)));
+    const grossDay = mean(day.cohorts.map((c) => (c.selected === 0 ? 0 : mean(c.gross)) - mean(c.benchGross)));
+    counted.push({ grossExcess: grossDay, excess: makerDay - fillDay * benchDay, excessStress: makerStressDay - fillDay * benchStressDay, improvement: makerDay - takerDay, benchDay, selected, fillSum: selected * fillDay, makerDay, makerStressDay, takerStressDay });
+  }
+  if (counted.length < minimumCount(d.days.size)) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_COHORTS", days: counted.length };
+  const down = counted.filter((x) => x.benchDay < 0);
+  if (down.length < 8) return { ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_DOWN_DAYS", downDays: down.length, days: counted.length };
+  const excessTest = oneSidedTests(counted.map((x) => x.excess), ALPHA, options);
+  const improvement = oneSidedTests(counted.map((x) => x.improvement), 0.05, options);
+  const totalSelected = counted.reduce((s, x) => s + x.selected, 0);
+  const fillRate = totalSelected === 0 ? 0 : counted.reduce((s, x) => s + x.fillSum, 0) / totalSelected;
+  const signalEdge = oneSidedTests(counted.map((x) => x.grossExcess), 0.05, options);
+  const downStats = cohortStats(down.map((x) => x.excess));
+  const downP = downStats.sd > 0 ? studentTUpperP(downStats.t, downStats.df) : 1;
+  const perPickBase = mean(counted.map((x) => x.makerDay)), perPickStress = mean(counted.map((x) => x.makerStressDay));
+  const checks = {
+    signalEdgeGrossBothTests: signalEdge.pass, excessBothTests: excessTest.pass, executionImprovementBothTests: improvement.pass, fillRateAtLeast30: fillRate >= 0.30,
+    stressExcessPositive: mean(counted.map((x) => x.excessStress)) > 0, absoluteBasePositive: perPickBase > 0, absoluteStressPositive: perPickStress > 0,
+    downDaysPositive: downStats.mean > 0 && downP < 0.10,
+  };
+  const pass = Object.values(checks).every(Boolean);
+  return {
+    ...base, days: counted.length, status: pass ? "HOLDOUT_PASS" : "HOLDOUT_FAIL", checks, fillRate,
+    meanExcessBp: excessTest.mean * 10_000, sdBp: excessTest.sd * 10_000, t: excessTest.t, tP: excessTest.tP, permP: excessTest.permP,
+    grossSignalEdgeBp: signalEdge.mean * 10_000, grossSignalEdgeTP: signalEdge.tP, grossSignalEdgePermP: signalEdge.permP,
+    improvementBp: improvement.mean * 10_000, improvementTP: improvement.tP, improvementPermP: improvement.permP,
+    downDays: down.length, downP, minimumDetectableExcessBp: excessTest.sd > 0 ? studentTCritical(ALPHA, excessTest.df) * excessTest.sd / Math.sqrt(excessTest.n) * 10_000 : null,
+  };
+}
+
+module.exports = { runMakerStudy, fillFraction, makerPick, takerPick, eligibleMarkets, buildDays };
