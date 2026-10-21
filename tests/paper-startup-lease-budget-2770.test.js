@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { DatabaseSync } = require("node:sqlite");
+const { DatabaseSync, StatementSync } = require("node:sqlite");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { verifyAndIssueSqliteStartupIntegrity } = require("../dist/packages/storage/src/sqliteStartupIntegrity.js");
 const { SqliteAiCalibrationDurableStore } = require("../dist/packages/storage/src/aiCalibrationDurability.js");
@@ -31,17 +31,32 @@ const REQUIRED_RISK_TABLES = ["risk_paper_approvals", "risk_daily_loss_state", "
 /** Counts every statement the module prepares while `body` runs, without changing any behaviour. */
 function countPreparedStatements(body) {
   const counts = { quickCheck: 0, fullQuickCheck: 0, statements: [] };
-  const originalPrepare = DatabaseSync.prototype.prepare;
-  DatabaseSync.prototype.prepare = function countedPrepare(sql) {
-    counts.statements.push(String(sql));
-    if (/quick_check/i.test(String(sql))) counts.quickCheck += 1;
-    if (/^\s*PRAGMA\s+quick_check\s*$/i.test(String(sql))) counts.fullQuickCheck += 1;
-    return originalPrepare.call(this, sql);
+  // Observe executed statements, not DatabaseSync.prototype.prepare. The startup integrity issuer
+  // deliberately keeps calling the native prepare it captured at module load, so a prepare-level
+  // counter would sit on the mutable slot that security fix stopped consulting and report zero
+  // scans for exactly the paths this file must prove. StatementSync exposes the original SQL, so
+  // every count below still attributes to the real PRAGMA SQLite ran.
+  const record = (statement) => {
+    const sql = String(statement.sourceSQL ?? "");
+    counts.statements.push(sql);
+    if (/quick_check/i.test(sql)) counts.quickCheck += 1;
+    if (/^\s*PRAGMA\s+quick_check\s*$/i.test(sql)) counts.fullQuickCheck += 1;
+  };
+  const originalGet = StatementSync.prototype.get;
+  const originalAll = StatementSync.prototype.all;
+  StatementSync.prototype.get = function countedGet(...args) {
+    record(this);
+    return originalGet.apply(this, args);
+  };
+  StatementSync.prototype.all = function countedAll(...args) {
+    record(this);
+    return originalAll.apply(this, args);
   };
   try {
     body();
   } finally {
-    DatabaseSync.prototype.prepare = originalPrepare;
+    StatementSync.prototype.get = originalGet;
+    StatementSync.prototype.all = originalAll;
   }
   return counts;
 }
@@ -238,6 +253,31 @@ test("a forged structural SQLite connection cannot mint an integrity attestation
     undefined,
     "the SQLite native receiver check must reject a structural fake before issuing proof",
   );
+});
+
+test("a replaced native prepare cannot mint an integrity attestation", () => {
+  // The issuer must not consult a mutable prototype slot while proving integrity. On Node the
+  // DatabaseSync prototype methods are writable and configurable, so consulting them per call lets
+  // a caller install a permissive method, mint a genuine proof for a database that was never
+  // scanned, and restore the original method afterwards.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-replaced-prepare-"));
+  const filename = path.join(dir, "replaced.sqlite");
+  const nativePrepare = DatabaseSync.prototype.prepare;
+  try {
+    DatabaseSync.prototype.prepare = function prepare(sql) {
+      return /database_list/i.test(String(sql))
+        ? { all: () => [{ seq: 0, name: "main", file: filename }] }
+        : { get: () => ({ quick_check: "ok" }) };
+    };
+    assert.throws(
+      () => verifyAndIssueSqliteStartupIntegrity({ prepare: () => ({}) }, "sqlite quick_check failed"),
+      undefined,
+      "issuance must keep using the captured native prepare, not a caller-replaced prototype method",
+    );
+  } finally {
+    DatabaseSync.prototype.prepare = nativePrepare;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("standalone AI durability stores retain their fail-closed full-file scan", () => {

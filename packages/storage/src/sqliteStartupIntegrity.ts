@@ -9,10 +9,16 @@ export interface SqliteStartupIntegrityAttestation {
 
 const verifiedDatabaseIdentity = new WeakMap<object, string>();
 
+// Captured once at module load, before any caller can replace the prototype method. Resolving
+// DatabaseSync.prototype.prepare on each call would still consult a mutable slot: DatabaseSync
+// supplies writable and configurable prototype methods, so a caller could substitute a permissive
+// method, mint a proof for a database that was never scanned, and restore the original afterwards.
+const nativePrepare = DatabaseSync.prototype.prepare;
+
 function prepareNative(connection: DatabaseSync, sql: string) {
   // Calling the native prototype method validates SQLite's internal receiver brand. Calling
   // connection.prepare directly would let a structural fake claim that quick_check passed.
-  return DatabaseSync.prototype.prepare.call(connection, sql);
+  return nativePrepare.call(connection, sql);
 }
 
 function quickCheckOk(connection: DatabaseSync, sql: string): boolean {
