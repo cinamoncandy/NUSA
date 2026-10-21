@@ -1,5 +1,5 @@
 id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-title: "Prepare Research recovery after shared SQLite startup initialization"
+title: Prepare Research recovery after shared SQLite startup initialization
 status: IN_PROGRESS
 priority: P0
 owner: nusa-server-runtime
@@ -14,21 +14,18 @@ prior_storage_repair_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
 prior_recovery_order_head: 07a364f710c011b152aff2239d79455c1356e262
 prior_shared_database_repair_head: 3ff16bac4d7da87426316a16b5d81fbe3844c222
 prior_export_lock_head: 175ec9ff6f5cf6ef6138f67a925df414341f2429
-reviewed_broken_head: 3fa87132b09965c5274eb9b944d8f15d41f97479
-repair_head: f933bb231823f0d7bb100142a457255747a3581f
+reviewed_broken_head: 378099d0d1d234b375af1699424faac5e718a519
+repair_head: 9888a4b3ef1a2c965831bfd1098d94bc2e185501
 authority_impact: none
-objective: "Close #2770's pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed."
+objective: 'Close #2770''s pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed.'
 root_cause:
-  transition: "replaceable public CommonJS module exports -> forged shared-verification resolver captured by later-loaded AI stores"
-  evidence: "Exact head 3fa87132b09965c5274eb9b944d8f15d41f97479 passed CI and all five required companions, but fresh non-author Codex review reproduced loading the storage barrel, replacing require.cache[indexPath].exports wholesale, then loading either AI store. The old non-writable named-export descriptor remained attached only to the abandoned exports object, so both stores could capture a forged resolver returning an unregistered raw DatabaseSync and bypass the canonical full-file scan."
-  classification: "integrity verification still crossed a caller-replaceable public CommonJS cache boundary before consumer capture"
+  transition: replaceable internal CommonJS verifier cache before bootstrap -> unchecked shared-store admission
+  evidence: Fresh non-author Codex review on 378099d0 reproduced preloading sqliteVerifiedSharedConnection.js, replacing its require.cache exports before the barrel loaded, then constructing both genuine stores with a forged wrapper and a raw unscanned DatabaseSync. Moving the resolver to another module and eager consumer loading only moved the replaceable trust boundary.
+  classification: cross-module integrity capability remained caller-replaceable
 repair:
-  - "Keep the canonical full-file quick_check in SqliteDatabase and register only that exact database instance/connection after success in a module-private WeakMap."
-  - "Move the registry and resolver out of the public storage barrel into sqliteVerifiedSharedConnection.ts; the public barrel no longer exports the shared-verification resolver."
-  - "Eagerly initialize both genuine shared-store consumer modules before the public storage barrel returns to application code; each consumer captures the private registry resolver directly, so later wholesale replacement of the barrel exports cannot rebind shared integrity trust."
-  - "AI shared stores still accept only a canonical SqliteDatabase wrapper whose exact unchanged connection is present in the private registry; raw, forged, and replaced inputs fail closed."
-  - "Create Cloud AI durability stores before composing Research and preparing recovery evidence, while keeping Research prepareRecovery() before PAPER writer-lease acquisition."
-  - "Retain table-scoped integrity checks, hash-chain replay, standalone full-file scans, pathname non-reopen semantics, and shared-connection non-ownership."
+  - Canonical SqliteDatabase full-scan registration and both existing AI-store admission checks now share the index.ts lexical scope. The WeakMap and resolver are not exported, there is no imported registration/verifier capability, and sqliteVerifiedSharedConnection.ts is deleted. Existing AI-store paths re-export the same genuine constructors; their implementations were relocated without changing their schemas, scoped checks, hash-chain replay, ownership, or standalone full scans. Startup ordering remains unchanged.
+  - Keep canonical quick_check before Cloud AI initialization, Research prepareRecovery and writer-lease acquisition.
+  - Patch Storybook packages to official 8.6.19 solely to close the critical advisory detected by the required security gate.
 prohibited:
   - bypassing_or_weakening_canonical_full_file_quick_check
   - weakening_store_scoped_checks_or_hash_chain_replay
@@ -36,26 +33,27 @@ prohibited:
   - direct_database_mutation_or_historical_rewrite
   - live_or_real_authority_expansion
 acceptance:
-  - "production startup prepares exactly one full-file quick_check plus four AI store-scoped quick_check statements"
-  - "production composition passes its canonical SqliteDatabase, whose exact connection is registered only after full-file quick_check"
-  - "raw, forged, and replaced shared-connection inputs cannot skip the canonical full-file quick_check"
-  - "wholesale replacement of the public storage CommonJS cache exports after barrel load cannot rebind the resolver captured by either genuine AI store"
-  - "atomic rename/replacement of the original pathname cannot redirect a shared AI store"
-  - "closing a shared AI store does not close the canonical connection"
-  - "standalone AI stores still perform one full-file quick_check each"
-  - "canonical full-file quick_check remains before Cloud AI and before PAPER writer-lease acquisition"
-  - "Cloud AI schema initialization completes before Research recovery evidence preparation"
-  - "Research recovery preparation remains before PAPER writer-lease acquisition and does not disturb an existing competing owner"
-  - "fresh exact-head CI and five required companions pass"
-  - "fresh non-author review has zero unresolved current P0/P1 findings"
-  - "separate structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit"
+  - production startup prepares exactly one full-file quick_check plus four AI store-scoped quick_check statements
+  - production composition passes its canonical SqliteDatabase, whose exact connection is registered only after full-file quick_check
+  - raw, forged, and replaced shared-connection inputs cannot skip the canonical full-file quick_check
+  - atomic rename/replacement of the original pathname cannot redirect a shared AI store
+  - closing a shared AI store does not close the canonical connection
+  - standalone AI stores still perform one full-file quick_check each
+  - canonical full-file quick_check remains before Cloud AI and before PAPER writer-lease acquisition
+  - Cloud AI schema initialization completes before Research recovery evidence preparation
+  - Research recovery preparation remains before PAPER writer-lease acquisition and does not disturb an existing competing owner
+  - fresh exact-head CI and five required companions pass
+  - fresh non-author review has zero unresolved current P0/P1 findings
+  - separate structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit
+  - pre-bootstrap replacement of the former internal verifier cache cannot admit raw, forged or replaced connections into either genuine store; the exact attack regression fails before repair and passes after
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-rollback: "Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation."
+rollback: Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation.
 test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-validation_head: f933bb231823f0d7bb100142a457255747a3581f
-validation: "Local repair validation on the f933bb23 source tree: changed storage TypeScript transpile diagnostics PASS; focused #2770 startup suite 11/11 PASS including the exact wholesale CommonJS barrel-export replacement exploit; writer-lease ordering 2/2 PASS; research startup recovery 19/19 PASS; architecture check PASS with runtimeCycles=0 and findings=0; preflight PASS; validate:full PASS including AIPOS drift/conformance and safety invariants; security:gate PASS with zero unmitigated advisories and zero secret findings; git diff --check PASS. Full local pnpm build is not claimed because this Oracle validation host retains the known ~258 MiB Node heap ceiling and the earlier attempt exited 134 before emit; fresh exact-head GitHub CI remains authoritative for full typecheck/build/full-suite evidence."
-next: "Commit this durable AIPOS successor and push once to existing Draft PR #2855. All 3fa87132 CI/companion receipts and its P1 review are historical for acceptance after f933bb23. Require fresh final-head CI plus five companions, fresh non-author review with unresolved current P0/P1=0, and a separate structured NUSA Validator ACCEPTED before Audit/Release."
+validation_head: 9888a4b3ef1a2c965831bfd1098d94bc2e185501
+validation: 'On source repair 9888a4b3ef1a2c965831bfd1098d94bc2e185501 in the /workspace development container (not Oracle): TypeScript compiler, pnpm typecheck and pnpm build PASS; focused startup/lease/research-recovery 33/33 PASS (12+2+19); AI durability/attribution/migrations 41/41 PASS; architecture runtimeCycles=0/findings=0; validate:full PASS; security:gate PASS (zero unmitigated high/critical, zero secrets); Storybook build PASS; git diff --check PASS. Before repair the new internal-cache exploit test failed with Missing expected exception on 378099d0. Security initially failed on GHSA-f2ph-cmg5-wxc8; the official Storybook patch 8.6.18 -> 8.6.19 closes it with no gate waiver. Electron binary download failed during dependency installation; an install-only retry omitted lifecycle downloads and explicitly ran the repository security backports. No product test was skipped or weakened. GitHub exact-head CI remains required.'
+next: Require fresh CI and all five companion workflows on the final pushed successor, then fresh non-author review with no current unresolved P0/P1 and a separate fresh Claude/NUSA Validator with exact SHA, counts and explicit ACCEPTED. Keep Draft until canonical readiness gates. No author approval, Audit, Release, merge or Oracle mutation before acceptance. Source validation binds 9888a4b3ef1a2c965831bfd1098d94bc2e185501; documentation successor is resolved from the current remote PR head, not a self-referential SHA.
+prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
