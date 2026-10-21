@@ -33,3 +33,9 @@ addendum_2026_10_20_ridgeline:
 # Addendum (gate dots): the 실거래 tab's readiness gates are one row of dots (filled = passed, hollow = checking, amber
 # breathing = blocked) that fill in left to right; a tap shows that gate's reason. Display only, no action; reduce-motion
 # shows one settled frame. Gate data and the "통과해도 실거래는 켜지지 않아요" note are unchanged. Not seen on a real device.
+
+# Addendum (decision core): the owner chose the "판단 코어" prototype (2026-10-21) as the main motion graphic of "지금", replacing the
+# ridgeline there (slowed about 1.5x at the owner's request). A turning point-mesh sphere: a real new decision sends a wave of light
+# across it, a real new PAPER order throws lime sparks, and it cools to amber when buying is held. It draws only the counts the
+# screen already has and invents nothing. The risk-gate (limit) state and 기록 keep the ridgeline, which shows where the day stopped.
+# Display only; no limit, threshold or authority changed. Not seen on a real device (Skia rendering is unverified here).
