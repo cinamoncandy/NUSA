@@ -202,3 +202,37 @@ test("unverified newer snapshot cannot displace a verified recovery point", () =
 
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+
+test("post-prune preserves the just-created backup across same-day clock rollback", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-sqlite-backup-clock-rollback-"));
+  const source = makeSource(root);
+  const destination = path.join(root, "backups");
+  const hook = path.join(root, "fixed-clock.cjs");
+  fs.mkdirSync(destination, { recursive: true });
+  fs.writeFileSync(hook, `
+const RealDate = Date;
+const fixed = "2026-10-21T12:00:00.000Z";
+global.Date = class FixedDate extends RealDate {
+  constructor(...args) {
+    if (args.length === 0) super(fixed);
+    else super(...args);
+  }
+  static now() { return new RealDate(fixed).getTime(); }
+};
+`);
+
+  const laterLooking = "daily-cloud-state-2026-10-21T23-00-00-000Z.db";
+  writeVerifiedFixture(destination, laterLooking, "later-looking-same-day-fixture");
+
+  const result = runBackup(source, destination, hook);
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(path.basename(payload.output), "daily-cloud-state-2026-10-21T12-00-00-000Z.db");
+  assert.ok(fs.existsSync(payload.output), "the backup created by this invocation must survive post-prune");
+  assert.ok(fs.existsSync(`${payload.output}.sha256`), "the current verification receipt must survive post-prune");
+  assert.equal(fs.existsSync(path.join(destination, laterLooking)), false, "same-bucket older recovery intent must yield to the current invocation");
+  assert.equal(fs.existsSync(path.join(destination, `${laterLooking}.sha256`)), false, "pruned duplicate sidecar must be removed with its DB");
+
+  fs.rmSync(root, { recursive: true, force: true });
+});

@@ -29,4 +29,4 @@ acceptance:
   - "Fresh exact-head CI/Validator/Audit/Release govern merge."
   - "After reviewed deployment, one canonical backup run reduces duplicate backup usage without changing DB/Evidence."
 
-validator_repair: "P1 findings on 337db03 repaired: strict UTC timestamp round-trip validation and verified-sidecar eligibility prevent malformed or interrupted snapshots from displacing known-good recovery points; uncertain artifacts remain preserved fail-closed."
+validator_repair: "P1 findings on 337db03 repaired: strict UTC timestamp round-trip validation and verified-sidecar eligibility prevent malformed or interrupted snapshots from displacing known-good recovery points. Fresh P1 on 33415af repaired locally: post-prune explicitly protects the just-created verified daily/weekly outputs so a later-looking same-bucket artifact after wall-clock rollback cannot delete the recovery point promised by this invocation; uncertain artifacts remain preserved fail-closed. Fresh exact-head CI and non-author review remain required."

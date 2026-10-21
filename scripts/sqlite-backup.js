@@ -56,11 +56,18 @@ function weeklyBucket(name, prefix) {
   return date.toISOString().slice(0, 10);
 }
 
-function prune(prefix, keepBuckets, bucketForName) {
+function prune(prefix, keepBuckets, bucketForName, protectedName = null) {
   const files = fs.readdirSync(destination)
     .filter((name) => name.startsWith(prefix) && name.endsWith(".db"))
     .sort().reverse();
-  const keptBuckets = new Set();
+  const protectedBucket = protectedName ? bucketForName(protectedName, prefix) : null;
+  if (protectedName && (!protectedBucket || !hasVerifiedSidecar(protectedName))) {
+    throw new Error(`protected backup is not a verified canonical snapshot: ${protectedName}`);
+  }
+  // A just-created, verified backup is the recovery point promised by this invocation.
+  // Reserve its bucket before examining older filenames so a same-bucket artifact with a
+  // later-looking timestamp (for example after wall-clock rollback) can never displace it.
+  const keptBuckets = new Set(protectedBucket ? [protectedBucket] : []);
   for (const name of files) {
     const bucket = bucketForName(name, prefix);
     // Only a canonical timestamp plus a verification sidecar may compete for a
@@ -68,6 +75,12 @@ function prune(prefix, keepBuckets, bucketForName) {
     // they cannot displace a known-good recovery point, and this routine will
     // not delete an artifact whose verification state is uncertain.
     if (!bucket || !hasVerifiedSidecar(name)) continue;
+    if (protectedBucket && bucket === protectedBucket) {
+      if (name === protectedName) continue;
+      fs.rmSync(path.join(destination, name), { force: true });
+      fs.rmSync(path.join(destination, `${name}.sha256`), { force: true });
+      continue;
+    }
     if (!keptBuckets.has(bucket) && keptBuckets.size < keepBuckets) {
       keptBuckets.add(bucket);
       continue;
@@ -77,9 +90,9 @@ function prune(prefix, keepBuckets, bucketForName) {
   }
 }
 
-function pruneRetention() {
-  prune("daily-cloud-state-", DAILY_RETENTION, dailyBucket);
-  prune("weekly-cloud-state-", WEEKLY_RETENTION, weeklyBucket);
+function pruneRetention(protectedDaily = null, protectedWeekly = null) {
+  prune("daily-cloud-state-", DAILY_RETENTION, dailyBucket, protectedDaily);
+  prune("weekly-cloud-state-", WEEKLY_RETENTION, weeklyBucket, protectedWeekly);
 }
 
 function verifyAndManifest(output) {
@@ -118,11 +131,18 @@ try {
   }
   db.exec(`VACUUM INTO ${sqlString(daily)}`);
   dailyDigest = verifyAndManifest(daily);
-  if (now.getUTCDay() === 0) {
+  const weeklyCreated = now.getUTCDay() === 0;
+  if (weeklyCreated) {
     fs.copyFileSync(daily, weekly, fs.constants.COPYFILE_EXCL);
     verifyAndManifest(weekly);
   }
-  pruneRetention();
+  pruneRetention(path.basename(daily), weeklyCreated ? path.basename(weekly) : null);
+  if (!fs.existsSync(daily) || !fs.existsSync(`${daily}.sha256`)) {
+    throw new Error("current daily backup missing after retention prune");
+  }
+  if (weeklyCreated && (!fs.existsSync(weekly) || !fs.existsSync(`${weekly}.sha256`))) {
+    throw new Error("current weekly backup missing after retention prune");
+  }
 } finally {
   db.close();
 }
