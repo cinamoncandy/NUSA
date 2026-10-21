@@ -1,0 +1,32 @@
+id: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
+title: "Bound Oracle SQLite backups to real daily/weekly calendar buckets"
+status: VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_CI
+owner: nusa-server-automation
+repository: cinamoncandy/NUSA
+issue: 1949
+base_branch: main
+base_commit: 345539210a96f9dd4292b848318043fe23afc7f4
+implementation_branch: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
+authority_impact: none
+finding: "Oracle root reached 91% during release backup. /var/backups/nusa used 5.9 GiB: daily 3.83 GiB and weekly 1.50 GiB. The current script retains releases, not calendar periods; four weekly backups were all from the same Sunday and several daily backups were from the same UTC date."
+root_cause: "sqlite-backup.js prunes the newest 7/4 filenames globally, while a release creates a daily snapshot every run and a weekly snapshot on every Sunday run. Same-day and same-week releases therefore consume multiple retention slots and duplicate root-disk recovery points."
+scope:
+  - "Preserve retention policy: 7 daily UTC buckets and 4 weekly UTC buckets."
+  - "Keep only the latest canonical snapshot inside each retained day/week bucket."
+  - "Apply bucket pruning before and after a backup so stale duplicate periods are reclaimed before VACUUM INTO needs peak space."
+  - "Preserve unfamiliar backup names fail-closed; do not delete legacy/Evidence artifacts."
+  - "Keep backup integrity_check and sha256 behavior unchanged."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  direct_db_mutation: false
+acceptance:
+  - "Focused backup tests prove one snapshot per retained UTC day/week bucket."
+  - "Read-only-source backup behavior remains green."
+  - "AIPOS validation and git diff --check pass."
+  - "Fresh exact-head CI/Validator/Audit/Release govern merge."
+  - "After reviewed deployment, one canonical backup run reduces duplicate backup usage without changing DB/Evidence."
+
+validator_repair: "P1 findings on 337db03 repaired: strict UTC timestamp round-trip validation and verified-sidecar eligibility prevent malformed or interrupted snapshots from displacing known-good recovery points. Fresh P1 on 33415af repaired locally: post-prune explicitly protects the just-created verified daily/weekly outputs so a later-looking same-bucket artifact after wall-clock rollback cannot delete the recovery point promised by this invocation; uncertain artifacts remain preserved fail-closed. Fresh exact-head CI and non-author review remain required."
