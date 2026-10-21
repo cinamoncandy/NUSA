@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: EXACT_HEAD_CHECKS_PASS_FORMAL_VALIDATOR_PENDING
+status: PENDING_SUCCESSOR_EXACT_HEAD_VALIDATION
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -175,3 +175,8 @@ latest_successor_validation:
   review_receipt: "Exact-head review receipt says no major issues; summary flags has_any_findings=true and has_unresolved_findings=true. Current unresolved-thread query returned zero. Formal severity-count Validator acceptance remains pending until this inconsistency is resolved or a clear receipt is produced."
   formal_validator: PENDING
   oracle_current_main_runtime: UNVERIFIED
+review_finding_757b7614:
+  p0: 0
+  p1: 0
+  p2: 1
+  details: "P2: status claimed exact-head checks passed although latest_validated_head and all six workflows bound to predecessor 39195745, while next said current successor still needed validation. Both AIPOS status fields are pending until this successor is validated."

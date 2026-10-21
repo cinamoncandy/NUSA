@@ -2807,7 +2807,7 @@ current_research_orchestrator_composition:
 
 current_ops_release_downstream_dispatch_20261021:
   work_order: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
-  status: EXACT_HEAD_CHECKS_PASS_FORMAL_VALIDATOR_PENDING
+  status: PENDING_SUCCESSOR_EXACT_HEAD_VALIDATION
   issue: 2843
   pull_request: 2844
   branch: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
