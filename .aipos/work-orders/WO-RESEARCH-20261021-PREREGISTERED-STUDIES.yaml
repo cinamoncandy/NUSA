@@ -1,0 +1,18 @@
+id: WO-RESEARCH-20261021-PREREGISTERED-STUDIES
+title: "Pre-register studies S2 (longer holds), S3 (cheaper execution), S4 (cross-sectional daily) before any data is examined"
+status: PRE_REGISTERED
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/preregistered-studies
+owner_decision: "2026-10-21 in chat: after the root-cause read, 'learning/intelligence' was named as the limit; owner replied '다 해' to the proposed directions (longer horizon, cheaper execution, cross-sectional, longer validation)."
+design: "docs/research-ledger/PREREGISTERED_STUDIES_2026-10-21.md, committed before any row was examined. Later holdout 2026-11-05..11-11 for all (the existing study's 10-25..10-28 holdout is never reused). Family-wide bar p < 0.05/247."
+execution: "Not yet implemented. A separate reviewed PR adds one deterministic read-only script per study, same shape as scripts/run-orderbook-study.js, and must match the design file exactly."
+next: "Independent non-author review of the design; then implement; results are printed only on or after 2026-11-12T02:00Z."
+note_on_longer_validation: "The 'longer validation window' direction is built into every study (4-day validation, 7-day holdout, 17-day train) rather than a separate study."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
