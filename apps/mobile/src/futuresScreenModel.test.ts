@@ -57,3 +57,28 @@ test("malformed snapshots are rejected as a whole, never half-read", () => {
     { ...good, positions: [{ ...position, markPrice: -1 }] }, { ...good, positions: [{ ...position, liquidationDistanceRatio: 2 }] }, { ...good, positions: [null] },
   ]) assert.equal(parseFuturesSnapshot(bad), null);
 });
+
+test("usage rows carry a bar with the limit line, and an empty snapshot has no bars or reasons", () => {
+  const limits = { maxDailyLossRatio: 0.05, minLiquidationDistanceRatio: 0.25, maxConsecutiveLosses: 3 };
+  const pos = { symbol: "BTCUSDT", side: "LONG", quantity: 0.01, entryPrice: 96200, markPrice: 95640, unrealizedPnl: -5.6, liquidationDistanceRatio: 0.41 };
+  const m = buildFuturesScreen({ positions: [pos], dayLossRatio: 0.039, consecutiveLosses: 1 }, limits);
+  assert.ok(Math.abs(m.usage[0]!.bar!.fill - 0.78) < 1e-9 && m.usage[0]!.bar!.marker === 1);
+  assert.deepEqual(m.usage[1]!.bar, { fill: 1 / 3, marker: 1 });
+  assert.deepEqual(m.usage[2]!.bar, { fill: 0.41, marker: 0.25 });
+  assert.equal(buildFuturesScreen({ positions: [pos], dayLossRatio: 0.2, consecutiveLosses: 0 }, limits).usage[0]!.bar!.fill, 1, "past the limit the bar is capped at the end");
+  const empty = buildFuturesScreen(null, limits);
+  assert.ok(empty.usage.every((r) => r.bar === undefined));
+  assert.deepEqual(empty.reasons, []);
+});
+
+test("reason cards come only from recorded reasons, newest first; bad entries are skipped", () => {
+  const limits = { maxDailyLossRatio: 0.05, minLiquidationDistanceRatio: 0.25, maxConsecutiveLosses: 3 };
+  const base = { positions: [], dayLossRatio: 0, consecutiveLosses: 0 };
+  const ok = (at: number) => ({ symbol: "BTCUSDT", side: "LONG", at, strategy: "추세 추종 v2", signal: 0.62, threshold: 0.55, checks: [{ label: "손실 한도", passed: true }, { label: "청산 거리", passed: false }] });
+  const m = buildFuturesScreen({ ...base, reasons: [ok(Date.UTC(2026, 9, 21, 0, 0)), ok(Date.UTC(2026, 9, 21, 1, 42)), { symbol: "x", side: "LONG", at: 1, strategy: "s", checks: [] }, { ...ok(5), side: "FLAT" }, 7] }, limits);
+  assert.equal(m.reasons.length, 2);
+  assert.equal(m.reasons[0]!.time, "10:42");
+  assert.equal(m.reasons[0]!.signal, "신호 값 0.62 (기준 0.55 이상)");
+  assert.deepEqual(m.reasons[0]!.checks.map((c) => c.passed), [true, false]);
+  assert.deepEqual(buildFuturesScreen(base, limits).reasons, [], "no recorded reasons means none shown");
+});

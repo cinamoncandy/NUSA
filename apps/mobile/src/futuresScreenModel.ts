@@ -25,7 +25,51 @@ export interface FuturesSnapshotInput {
 }
 export interface FuturesLimits { readonly maxDailyLossRatio: number; readonly minLiquidationDistanceRatio: number; readonly maxConsecutiveLosses: number }
 
-export interface FuturesRow { readonly label: string; readonly value: string; readonly tone: CalmTone; readonly hint?: string }
+/** A usage bar: `fill` and `marker` are 0..1 positions on the track; the marker is the limit line. */
+export interface FuturesBar { readonly fill: number; readonly marker: number }
+export interface FuturesRow { readonly label: string; readonly value: string; readonly tone: CalmTone; readonly hint?: string; readonly bar?: FuturesBar }
+
+/** Why one PAPER futures order was placed, exactly as the server recorded it. Nothing here is ever guessed. */
+export interface FuturesReasonInput {
+  readonly symbol: string;
+  readonly side: "LONG" | "SHORT";
+  /** Epoch ms of the order. */
+  readonly at: number;
+  readonly strategy: string;
+  /** Signal value and the threshold it had to reach, when the server recorded them. */
+  readonly signal?: number;
+  readonly threshold?: number;
+  readonly checks: readonly { readonly label: string; readonly passed: boolean }[];
+}
+export interface FuturesReasonCard { readonly title: string; readonly time: string; readonly strategy: string; readonly signal: string | null; readonly checks: readonly { readonly label: string; readonly passed: boolean }[] }
+
+export function parseFuturesReasons(raw: unknown): FuturesReasonInput[] {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const list = (raw as Record<string, unknown>).reasons;
+  if (!Array.isArray(list)) return [];
+  const out: FuturesReasonInput[] = [];
+  for (const r of list.slice(0, 20) as unknown[]) {
+    if (r == null || typeof r !== "object") continue;
+    const q = r as Record<string, unknown>;
+    if (typeof q.symbol !== "string" || !/^[A-Z0-9_-]{2,20}$/.test(q.symbol) || (q.side !== "LONG" && q.side !== "SHORT") || !finite(q.at) || q.at <= 0 || typeof q.strategy !== "string" || q.strategy.length === 0 || q.strategy.length > 40 || !Array.isArray(q.checks)) continue;
+    const checks = (q.checks as unknown[]).filter((c): c is { label: string; passed: boolean } => c != null && typeof c === "object" && typeof (c as Record<string, unknown>).label === "string" && (c as { label: string }).label.length <= 20 && typeof (c as Record<string, unknown>).passed === "boolean").slice(0, 8);
+    out.push({ symbol: q.symbol, side: q.side, at: q.at, strategy: q.strategy, signal: finite(q.signal) ? q.signal : undefined, threshold: finite(q.threshold) ? q.threshold : undefined, checks });
+  }
+  return out;
+}
+
+const kst = (ms: number) => { const d = new Date(ms + 9 * 3_600_000); return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
+
+/** Reason cards, newest first. A snapshot without recorded reasons yields none, and the screen says so instead of guessing. */
+export function buildFuturesReasons(raw: unknown): readonly FuturesReasonCard[] {
+  return Object.freeze(parseFuturesReasons(raw).sort((a, b) => b.at - a.at).map((r) => Object.freeze({
+    title: `${r.symbol} ${r.side === "LONG" ? "롱" : "숏"}`,
+    time: kst(r.at),
+    strategy: r.strategy,
+    signal: r.signal == null ? null : r.threshold == null ? `신호 값 ${r.signal}` : `신호 값 ${r.signal} (기준 ${r.threshold} 이상)`,
+    checks: Object.freeze(r.checks.map((c) => Object.freeze({ ...c }))),
+  })));
+}
 export interface FuturesScreenModel {
   readonly started: boolean;
   readonly headline: readonly [string, string];
@@ -33,6 +77,7 @@ export interface FuturesScreenModel {
   readonly status: readonly FuturesRow[];
   readonly positions: readonly FuturesRow[];
   readonly usage: readonly FuturesRow[];
+  readonly reasons: readonly FuturesReasonCard[];
 }
 
 const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
@@ -75,6 +120,7 @@ export function buildFuturesScreen(raw: unknown, limits: FuturesLimits): Futures
         { label: "연속 손실", value: "—", tone: "MUTED" as CalmTone, hint: `한도 ${limits.maxConsecutiveLosses}번` },
         { label: "청산까지 거리", value: "—", tone: "MUTED" as CalmTone, hint: `최소 ${pct(limits.minLiquidationDistanceRatio)}` },
       ]),
+      reasons: Object.freeze([]),
     });
   }
   const total = snap.positions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
@@ -89,9 +135,10 @@ export function buildFuturesScreen(raw: unknown, limits: FuturesLimits): Futures
       ? [{ label: "열린 포지션", value: "없음", tone: "NORMAL" as CalmTone }, { label: "평가 손익", value: money(0), tone: "NORMAL" as CalmTone }]
       : [...snap.positions.map((p) => ({ label: `${p.symbol} ${p.side === "LONG" ? "롱" : "숏"}`, value: money(p.unrealizedPnl), tone: (p.unrealizedPnl < 0 ? "LOSS" : "NORMAL") as CalmTone, hint: `진입 ${p.entryPrice.toLocaleString("en-US")} · 현재 ${p.markPrice.toLocaleString("en-US")}` })), { label: "평가 손익 합계", value: money(total), tone: (total < 0 ? "LOSS" : "NORMAL") as CalmTone }]),
     usage: Object.freeze([
-      { label: "오늘 손실", value: pct(snap.dayLossRatio), tone: (snap.dayLossRatio >= limits.maxDailyLossRatio ? "LOSS" : snap.dayLossRatio >= limits.maxDailyLossRatio * 0.7 ? "ATTENTION" : "NORMAL") as CalmTone, hint: `한도 ${pct(limits.maxDailyLossRatio)}` },
-      { label: "연속 손실", value: `${snap.consecutiveLosses} / ${limits.maxConsecutiveLosses}`, tone: (stopped ? "ATTENTION" : "NORMAL") as CalmTone },
-      { label: "청산까지 거리", value: nearest == null ? "—" : pct(nearest), tone: (nearest != null && nearest < limits.minLiquidationDistanceRatio ? "LOSS" : "NORMAL") as CalmTone, hint: `최소 ${pct(limits.minLiquidationDistanceRatio)}` },
+      { label: "오늘 손실", value: pct(snap.dayLossRatio), tone: (snap.dayLossRatio >= limits.maxDailyLossRatio ? "LOSS" : snap.dayLossRatio >= limits.maxDailyLossRatio * 0.7 ? "ATTENTION" : "NORMAL") as CalmTone, hint: `한도 ${pct(limits.maxDailyLossRatio)}`, bar: { fill: Math.min(1, snap.dayLossRatio / limits.maxDailyLossRatio), marker: 1 } },
+      { label: "연속 손실", value: `${snap.consecutiveLosses} / ${limits.maxConsecutiveLosses}`, tone: (stopped ? "ATTENTION" : "NORMAL") as CalmTone, bar: { fill: Math.min(1, snap.consecutiveLosses / limits.maxConsecutiveLosses), marker: 1 } },
+      { label: "청산까지 거리", value: nearest == null ? "—" : pct(nearest), tone: (nearest != null && nearest < limits.minLiquidationDistanceRatio ? "LOSS" : "NORMAL") as CalmTone, hint: `최소 ${pct(limits.minLiquidationDistanceRatio)}`, bar: nearest == null ? undefined : { fill: Math.min(1, nearest), marker: Math.min(1, limits.minLiquidationDistanceRatio) } },
     ]),
+    reasons: buildFuturesReasons(raw),
   });
 }
