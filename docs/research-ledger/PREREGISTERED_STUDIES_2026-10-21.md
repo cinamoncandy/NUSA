@@ -1,4 +1,4 @@
-# Pre-registered studies S2-S4 (design v4, after three independent reviews; design only)
+# Pre-registered studies S2-S4 (design v5: v4 plus the S3 gross-edge gate found by simulation; design only)
 
 Status: DESIGN. Freeze point: 2026-10-28T00:00Z (before the existing order-book study prints on 2026-10-29 and before validation data
 exists). Owner request 2026-10-21: "다 해" after the root-cause read in WO-LEARNING-20261021-ROOT-CAUSE (no strategy has an edge after
@@ -10,7 +10,7 @@ What "before any data" means: the design uses no data from its holdout period, w
 candle-rule results on the same venue. The training window (10-15..11-01) contains the existing study's holdout 10-25..10-28; that is
 acceptable because here training defines eligibility only and nothing is fitted.
 
-v4 closes the third review: exact formulas, empty-cohort and data-gap valuation, S3 cohort counting, the beta clause on all studies, byte-immutability after the freeze, and a single allowed re-run. v1 -> v2 -> v3: a 7-day holdout could not reach the bar; overlapping holds broke the test; then v2 left book lookups, p-value method,
+v5 adds one rule to S3 (test d): while building the S3 core, a simulation showed that a signal with NO information still passed S3 through the maker execution's own saving (excess vs a taker benchmark, execution improvement and a positive absolute return are all produced by cheaper execution alone), so S3 now also requires a gross (cost-free) signal edge. v4 closes the third review: exact formulas, empty-cohort and data-gap valuation, S3 cohort counting, the beta clause on all studies, byte-immutability after the freeze, and a single allowed re-run. v1 -> v2 -> v3: a 7-day holdout could not reach the bar; overlapping holds broke the test; then v2 left book lookups, p-value method,
 cohort counts, S3 exit/benchmark handling, the freeze mechanics and the stress test under-specified. v3 fixes those.
 
 ## Common rules (all times UTC; every split end is exclusive; the existing order-book study is unchanged, keeps its own alpha 0.05/195 and its holdout 10-25..10-28 is never reused)
@@ -98,7 +98,7 @@ and adverse selection does not eat the saving.
 - Tests: (a) execution test: the paired per-day improvement of the maker execution over a taker execution of the SAME signal and picks
   (taker entry at the ask at t, taker exit at the bid at t+4 h, base costs), missed trades counted as zero in the maker value, both tests at
   one-sided alpha 0.05; (b) the excess-vs-benchmark test is computed against the TAKER benchmark (same eligible basket, taker execution) scaled by that day's size-weighted fill fraction, so that being out of the market on a falling day cannot produce excess, and
-  needs p < 0.0167; (c) size-weighted entry fill rate at least 30%. PASS needs all three plus the common conditions. Missed trades are
+  needs p < 0.0167; (c) size-weighted entry fill rate at least 30%. (d) the signal itself must carry information, independent of how it is executed: the per-day gross excess (mid-to-mid return of the picks minus the mid-to-mid return of the same-universe benchmark, no costs; a missing exit mid is marked to the last bid, a gap is -100%) must be > 0 with both tests at one-sided alpha 0.05. PASS needs all four plus the common conditions. Missed trades are
   never dropped.
 - SENSITIVITY: cancel 5 / 15 minutes; top-k 1, 2, 5; maker fee at an assumed lower tier (labelled).
 
