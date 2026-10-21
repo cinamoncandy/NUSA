@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-RELEASE-DOWNSTREAM-DISPATCH
 title: "Keep deterministic Release green when an optional downstream workflow is intentionally disabled"
-status: MAIN_ADVANCED_SYNCED_PENDING_FRESH_EXACT_HEAD_VALIDATION
+status: P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2843
@@ -17,6 +17,7 @@ scope:
   - "Read each downstream workflow's GitHub Actions state before workflow_dispatch."
   - "Treat disabled_manually as an explicit skip only for the allowlisted optional Android stable trigger; required downstreams remain fail-closed, and no workflow is enabled automatically."
   - "For active workflows, suppress duplicate dispatch when an exact-main queued/in-progress/success run already owns convergence."
+  - "A successful workflow_run wrapper with its guarded applicable job skipped is not an owner; require the named workflow job itself to be active or completed successfully."
   - "Fail closed on unexpected workflow states or API-read failure."
   - "Add focused regression coverage for disabled-manually and duplicate-suppression behavior."
 acceptance:
@@ -46,4 +47,11 @@ previous_validation_evidence:
   focused_tests: "tests/autopilot-deterministic-audit-release.test.js: 14/14 PASS"
   independent_review: "Fresh Codex review on exact head 5bd0bcb8743fea83e323509ed98a0340ce8e4a0e: no major issues; historical after main advance and not a formal severity-count Validator receipt."
   formal_validator: PENDING
-next: "Protected main advanced to e106bdbd62c92278d1835722f4ada1c31762ceb7 and has been merged into the existing PR branch. Push this synchronization, require fresh exact-head CI and an explicit non-author P0/P1/P2 Validator receipt. Keep Draft; no self-approval, Audit/Release, merge, or workflow re-enable before acceptance."
+validation_history:
+  previous_exact_head: 45ef8302f693edcd0eb9ef14e4a6797b371eff0e
+  previous_review_finding: "P1: wrapper-level success could hide skipped guarded jobs after failed CI and suppress required direct convergence."
+  repair: "Dedupe now queries exact-main run jobs and requires the workflow-specific applicable job to be active or completed success; skipped job conclusions do not qualify."
+  focused_tests: "14/14 PASS after repair; git diff --check PASS."
+  previous_transport_retry: "Run 39528031422 failed only while Corepack fetched pnpm 11.7.0 from npm registry before any readiness tests; the same job was rerun and passed. Both results are historical after this source change."
+  oracle_main_release: "Run 39527382516 is the single existing canonical Oracle deployment for exact main e106bdbd62c92278d1835722f4ada1c31762ceb7; it was still running at the time of this AIPOS update."
+next: "Push this P1 repair and synchronized AIPOS, then require fresh exact-head CI and companions plus an explicit non-author P0/P1/P2 Validator. Keep Draft. Do not begin Audit/Release or re-enable Android workflow before acceptance; do not overlap Oracle deployment 39527382516."

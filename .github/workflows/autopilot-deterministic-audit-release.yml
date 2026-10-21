@@ -564,8 +564,9 @@ jobs:
           dispatch_exact_main_downstream() {
             local workflow="$1"
             local allow_manual_disable="$2"
-            shift 2
-            local state runs owner
+            local expected_job="$3"
+            shift 3
+            local state runs owner candidate_run candidate_status candidate_conclusion jobs applicable_job
             state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq '.state')"
             if [ "$state" = "disabled_manually" ] && [ "$allow_manual_disable" = "true" ]; then
               echo "::notice::Skipping intentionally disabled optional downstream workflow $workflow for $MERGED_MAIN."
@@ -576,22 +577,35 @@ jobs:
               return 1
             fi
             runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$MERGED_MAIN&per_page=100")"
-            owner="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[]
+            owner=""
+            while IFS=$'\t' read -r candidate_run candidate_status candidate_conclusion; do
+              [ -n "$candidate_run" ] || continue
+              jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate_run/jobs?per_page=100")"
+              applicable_job="$(jq -r --arg name "$expected_job" '
+                [.jobs[] | select(.name == $name) | select(
+                  .status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "requested"
+                  or (.status == "completed" and .conclusion == "success")
+                )] | length > 0' <<<"$jobs")"
+              if [ "$applicable_job" = "true" ]; then
+                owner="$candidate_run"
+                break
+              fi
+            done < <(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[]
               | select(.head_sha == $sha and (
                   .status == "queued" or .status == "in_progress" or .status == "pending"
                   or .status == "waiting" or .status == "requested"
                   or (.status == "completed" and .conclusion == "success")
                 ))]
-              | sort_by(.created_at) | reverse | .[0].id // empty' <<<"$runs")"
+              | sort_by(.created_at) | reverse[] | [.id, .status, (.conclusion // "")] | @tsv' <<<"$runs")
             if [ -n "$owner" ]; then
-              echo "Exact-main downstream $workflow already owns convergence for $MERGED_MAIN via run $owner; suppressing duplicate dispatch."
+              echo "Exact-main downstream $workflow applicable job '$expected_job' owns convergence for $MERGED_MAIN via run $owner; suppressing duplicate dispatch."
               return 0
             fi
             gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/dispatches" -f ref=main "$@"
             echo "Dispatched exact-main downstream $workflow for $MERGED_MAIN."
           }
 
-          dispatch_exact_main_downstream wo-0059-actual-paper-runtime.yml false
-          dispatch_exact_main_downstream autopilot-cloudflare-promote.yml false -f "inputs[head_sha]=$MERGED_MAIN"
-          dispatch_exact_main_downstream android-stable-release-trigger.yml true
-          dispatch_exact_main_downstream windows-desktop-stable-release.yml false
+          dispatch_exact_main_downstream wo-0059-actual-paper-runtime.yml false actual-paper-runtime
+          dispatch_exact_main_downstream autopilot-cloudflare-promote.yml false "Promote exact CI-verified Worker revision" -f "inputs[head_sha]=$MERGED_MAIN"
+          dispatch_exact_main_downstream android-stable-release-trigger.yml true dispatch
+          dispatch_exact_main_downstream windows-desktop-stable-release.yml false "Build and publish exact-main Windows installer"

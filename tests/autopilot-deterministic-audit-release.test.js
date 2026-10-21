@@ -130,14 +130,22 @@ test("Release dispatches only active unowned exact-main downstream workflows aft
   assert.match(downstream, /state.*active/);
   assert.match(downstream, /Unexpected downstream workflow state/);
   assert.match(downstream, /actions\/workflows\/\$workflow\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
-  assert.match(downstream, /suppressing duplicate dispatch/);
+  assert.match(downstream, /actions\/runs\/\$candidate_run\/jobs\?per_page=100/);
+  assert.match(downstream, /\.name == \$name/);
+  assert.match(downstream, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(downstream, /applicable_job/);
+  assert.doesNotMatch(downstream, /\.conclusion == "skipped"/);
+  assert.doesNotMatch(downstream, /\.conclusion == "success"\)\]\s*\|/);
+  assert.doesNotMatch(downstream, /\.conclusion == "skipped"/);
+  assert.doesNotMatch(downstream, /\.conclusion == "success"\)\]\s*\|/);
+  assert.match(downstream, /applicable job '\$expected_job' owns convergence/);
   assert.match(downstream, /actions\/workflows\/\$workflow\/dispatches/);
-  assert.match(downstream, /dispatch_exact_main_downstream wo-0059-actual-paper-runtime\.yml false/);
-  assert.match(downstream, /dispatch_exact_main_downstream autopilot-cloudflare-promote\.yml false/);
+  assert.match(downstream, /dispatch_exact_main_downstream wo-0059-actual-paper-runtime\.yml false actual-paper-runtime/);
+  assert.match(downstream, /dispatch_exact_main_downstream autopilot-cloudflare-promote\.yml false "Promote exact CI-verified Worker revision"/);
   assert.match(downstream, /inputs\[head_sha\]=\$MERGED_MAIN/);
-  assert.match(downstream, /dispatch_exact_main_downstream android-stable-release-trigger\.yml true/);
+  assert.match(downstream, /dispatch_exact_main_downstream android-stable-release-trigger\.yml true dispatch/);
   assert.doesNotMatch(downstream, /android-stable-release\.yml/);
-  assert.match(downstream, /dispatch_exact_main_downstream windows-desktop-stable-release\.yml false/);
+  assert.match(downstream, /dispatch_exact_main_downstream windows-desktop-stable-release\.yml false "Build and publish exact-main Windows installer"/);
   assert.doesNotMatch(downstream, /enable.*workflow|workflows\/.*\/enable/i, "Release must never re-enable an intentionally disabled workflow");
 });
 
