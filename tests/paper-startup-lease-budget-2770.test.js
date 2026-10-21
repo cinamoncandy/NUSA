@@ -280,6 +280,48 @@ test("a replaced native prepare cannot mint an integrity attestation", () => {
   }
 });
 
+test("a prepare replaced before module load cannot mint an integrity attestation", () => {
+  // Capturing the native method at module load only helps while that method is still native when
+  // the module loads. A caller that replaced it earlier would be captured permanently and could
+  // mint a proof for a database that was never scanned, so the module has to prove the method it
+  // captured is native and refuse to attest integrity when it is not.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-poisoned-load-"));
+  const filename = path.join(dir, "poisoned.sqlite");
+  const modulePath = require.resolve("../dist/packages/storage/src/sqliteStartupIntegrity.js");
+  const cached = require.cache[modulePath];
+  const nativePrepare = DatabaseSync.prototype.prepare;
+  try {
+    delete require.cache[modulePath];
+    DatabaseSync.prototype.prepare = function permissive() {
+      return {
+        get() { return { quick_check: "ok" }; },
+        all() { return [{ seq: 0, name: "main", file: filename }]; },
+      };
+    };
+    const poisoned = require(modulePath);
+    DatabaseSync.prototype.prepare = nativePrepare;
+    const realConnection = new DatabaseSync(filename);
+    try {
+      assert.throws(
+        () => poisoned.verifyAndIssueSqliteStartupIntegrity({ prepare: () => ({}) }, "sqlite quick_check failed"),
+        /replaced SQLite prepare/,
+        "a structural fake must not obtain a proof from a module loaded against a replaced prepare",
+      );
+      assert.throws(
+        () => poisoned.verifyAndIssueSqliteStartupIntegrity(realConnection, "sqlite quick_check failed"),
+        /replaced SQLite prepare/,
+        "a module that cannot prove its prepare is native must not attest integrity for any connection",
+      );
+    } finally {
+      realConnection.close();
+    }
+  } finally {
+    DatabaseSync.prototype.prepare = nativePrepare;
+    if (cached) { require.cache[modulePath] = cached; } else { delete require.cache[modulePath]; }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("standalone AI durability stores retain their fail-closed full-file scan", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-standalone-"));
   try {

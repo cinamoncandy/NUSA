@@ -9,15 +9,33 @@ export interface SqliteStartupIntegrityAttestation {
 
 const verifiedDatabaseIdentity = new WeakMap<object, string>();
 
-// Captured once at module load, before any caller can replace the prototype method. Resolving
-// DatabaseSync.prototype.prepare on each call would still consult a mutable slot: DatabaseSync
-// supplies writable and configurable prototype methods, so a caller could substitute a permissive
-// method, mint a proof for a database that was never scanned, and restore the original afterwards.
-const nativePrepare = DatabaseSync.prototype.prepare;
+// Captured once at module load, because resolving DatabaseSync.prototype.prepare per call would
+// consult a mutable slot: DatabaseSync supplies writable and configurable prototype methods, so a
+// caller could substitute a permissive method, mint a proof for a database that was never scanned,
+// and restore the original afterwards.
+//
+// Capturing at load is not sufficient by itself, because a caller that replaced the method before
+// this module loaded would be captured permanently. SQLite's implementation rejects any receiver
+// that is not a real connection, so the captured method is proven to be native before it is
+// trusted. A replacement that accepts a non-SQLite receiver leaves this module unable to attest
+// integrity at all: every path below then fails closed instead of issuing or reusing a proof.
+const capturedPrepare = DatabaseSync.prototype.prepare;
+
+function acceptsNonSQLiteReceiver(candidate: (sql: string) => unknown): boolean {
+  try {
+    candidate.call(Object.create(null), "SELECT 1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const nativePrepare = acceptsNonSQLiteReceiver(capturedPrepare) ? null : capturedPrepare;
 
 function prepareNative(connection: DatabaseSync, sql: string) {
   // Calling the native prototype method validates SQLite's internal receiver brand. Calling
   // connection.prepare directly would let a structural fake claim that quick_check passed.
+  if (nativePrepare == null) throw new Error("sqlite integrity cannot trust a replaced SQLite prepare");
   return nativePrepare.call(connection, sql);
 }
 
