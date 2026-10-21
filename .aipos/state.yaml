@@ -2711,23 +2711,24 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: CURRENT_MAIN_SYNC_PENDING_FRESH_EXACT_HEAD_CI_AND_NON_AUTHOR_REVIEW
+  status: CONDITIONAL_PRELOAD_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_CI_AND_NON_AUTHOR_REVIEW
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
   base_sha: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
   latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
-  repair_head: df02db557200c119cf2f2323b3d684d9579a2327
+  repair_head: e45839c586697ad530904f2eb23bb0477b0f488d
   superseded_heads:
     - 2e4597f58f685f7ae4b2009a7bca88d38bc68c43
     - 4d8febb0b7faaf19797f1706024a30a00c0e255c
     - 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4
-  finding: "Three successive non-author findings, one per exact head: a structurally forged DatabaseSync-like object minted a registered startup-integrity proof; DatabaseSync.prototype.prepare is writable and configurable, so replacing it around a single issuer call minted one too; and capturing that method at module load still trusted a method that had been replaced before the module loaded."
-  repair: "Issuance and identity reads call a native DatabaseSync.prototype.prepare captured once at module load, and that capture is proven native before it is trusted, by requiring SQLite to reject a non-SQLite receiver. When any layer fails the module cannot attest integrity, so issuance throws and consumers fall back to the full-file quick_check."
-  evidence_binding: "Every record below names the exact SHA its evidence belongs to and is never evidence for a later head. Audit and Release must re-bind exact-head CI and a fresh non-author receipt to their own merge-candidate SHA."
-  validation_head: df02db557200c119cf2f2323b3d684d9579a2327
-  validation: "Against df02db557200c119cf2f2323b3d684d9579a2327: tsc exit 0; focused startup and writer-lease suites 15/15 PASS including the forged-issuer, replaced-prepare and poisoned-load regressions; preflight exit 0; lint 0 errors; validate:full exit 0 with failures []; security:gate exit 0 with unmitigated [] and secrets 0; git diff --check clean. Against 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4: exact-head CI 15 success and 1 skipped, 0 failure."
-  next: "Push to PR #2855, then require fresh exact-head CI and a fresh non-author receipt bound to the exact head; retain Draft/HOLD until acceptance, Audit, and Release."
+    - 30a8ed89dc5c418a55978682cd497dc14daf116b
+  finding: "Four successive non-author P1 findings showed that a reusable startup-integrity proof could not safely trust application-realm DatabaseSync.prototype.prepare: structural fake issuer, per-call prototype replacement, pre-module-load replacement, and finally a conditional replacement that rejected the single sentinel probe while forging quick_check/database_list for other receivers on exact head 30a8ed89dc5c418a55978682cd497dc14daf116b."
+  repair: "File-backed integrity attestation no longer tries to infer whether the mutable application-realm prepare method is native. Full-file and attested table-scoped quick_check operations run in a fresh Node process with NODE_OPTIONS cleared, a read-only SQLite connection, and pre/post device+inode identity. The opaque proof is bound to that independently observed file identity. Same-identity proofs receive only scoped checks; absent/forged/different-file proofs cause the fresh process to perform the full-file scan. In-memory/URI stores remain non-shareable."
+  evidence_binding: "Every recorded validation names the exact SHA it belongs to. Previous CI/review receipts remain historical after any head change; Audit and Release must bind to their exact merge candidate."
+  validation_head: e45839c586697ad530904f2eb23bb0477b0f488d
+  validation: "Against e45839c586697ad530904f2eb23bb0477b0f488d source tree: exact conditional pre-load prepare poisoning regression PASS using Node 24 type stripping; same-file proof reuse plus different-file full-scan fallback source regression PASS; TypeScript transpile diagnostics PASS for all four changed TS modules; git diff --check PASS. A local pnpm build attempt was NOT accepted as PASS because the 954 MiB Oracle validation host hit the existing Node heap limit (~258 MiB) and exited 134 before diagnostics; no source assertion/test/gate was weakened and no service/runtime/DB mutation occurred. Fresh GitHub exact-head CI owns canonical typecheck/build/full regression evidence."
+  next: "Update durable evidence, push the existing #2855 branch without force, require fresh exact-head CI plus fresh non-author review with zero unresolved P0/P1, then obtain the separate structured NUSA Validator ACCEPTED receipt before Audit/Release. Keep Draft."
   safety:
     PAPER_ONLY: true
     liveAuthority: NONE

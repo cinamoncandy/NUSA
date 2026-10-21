@@ -1,5 +1,5 @@
 id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-title: "Prevent structural SQLite fakes from minting startup integrity proof"
+title: "Prevent application-realm SQLite method replacement from minting startup integrity proof"
 status: IN_PROGRESS
 priority: P0
 owner: nusa-server-runtime
@@ -10,18 +10,23 @@ base_branch: main
 base_commit: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
 latest_main_sync_commit: 458d53689a58e1013adca3557bf9f8b35a087d88
 implementation_branch: fix/sqlite-integrity-attestation-2770
+repair_head: e45839c586697ad530904f2eb23bb0477b0f488d
 authority_impact: none
-objective: "Keep the #2770 bounded startup scan optimization while ensuring only a genuine native SQLite connection can issue a reusable full-file integrity attestation."
+objective: "Keep the #2770 bounded startup-scan optimization while ensuring a reusable proof can be issued only from independently verified file-backed SQLite integrity evidence."
 root_cause:
-  transition: "untrusted structurally-shaped connection -> integrity attestation issuance"
-  evidence: "Three successive non-author findings, one per exact head. On 2e4597f58f685f7ae4b2009a7bca88d38bc68c43 a fake prepare() returning quick_check=ok and a forged database_list file path received a module-registry proof. On 4d8febb0b7faaf19797f1706024a30a00c0e255c DatabaseSync.prototype.prepare was shown to be writable and configurable, so replacing it around a single issuer call minted a proof for an unscanned path and restored cleanly. On 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4 a method replaced before the module loaded was captured permanently and attested without any native prepare running."
-  classification: "trust-boundary validation missing at proof issuer"
+  transition: "mutable application-realm SQLite method -> reusable integrity attestation issuance"
+  evidence: "Successive P1 findings on 2e4597f58, 4d8febb0b, 00a5ec0ee, and 30a8ed89d proved that structural validation or finite fake-receiver probes cannot establish that DatabaseSync.prototype.prepare is native. The latest exact-head reproduction used a conditional replacement that throws only for the null-prototype sentinel but forges quick_check/database_list for other receivers, minting a reusable WeakMap proof."
+  classification: "spoofable trust anchor at integrity proof issuer"
   superseded_heads:
     - 2e4597f58f685f7ae4b2009a7bca88d38bc68c43
     - 4d8febb0b7faaf19797f1706024a30a00c0e255c
     - 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4
+    - 30a8ed89dc5c418a55978682cd497dc14daf116b
 scope:
   - packages/storage/src/sqliteStartupIntegrity.ts
+  - packages/storage/src/index.ts
+  - packages/storage/src/aiCalibrationDurability.ts
+  - packages/storage/src/aiOutcomeAttributionMemory.ts
   - tests/paper-startup-lease-budget-2770.test.js
 prohibited:
   - bypassing_or_weakening_full_file_quick_check
@@ -30,21 +35,21 @@ prohibited:
   - direct_database_mutation_or_historical_rewrite
   - live_or_real_authority_expansion
 acceptance:
-  - native SQLite receiver branding rejects structural fake connections before proof issuance
-  - a replaced prototype method cannot mint a proof, including when it is restored before the issuer returns
-  - a prepare replaced before this module loads cannot mint a proof for any connection, structural or genuine
-  - genuine SQLite connections still complete canonical full-file quick_check and may issue proof
-  - same-database identity binding and per-store checks remain enforced
-  - forged issuer regression test fails before fix and passes after fix
-  - focused startup and writer-lease regressions pass
-  - every recorded validation names the exact SHA it was run against, and no record is reused for a later head
-  - exact-head CI and fresh non-author validation pass before Audit/Release
+  - "file-backed full-file integrity is checked outside the mutable application DatabaseSync prototype realm"
+  - "conditional prepare replacement installed before module load cannot forge proof issuance"
+  - "proof identity is bound to independently observed device+inode and rejects file replacement/different-file reuse"
+  - "same-file attestation retains store-scoped quick_check and existing hash-chain replay"
+  - "absent, forged, or different-file attestation retains a full-file quick_check"
+  - "in-memory/URI databases do not receive reusable file identity"
+  - "focused startup/writer-lease regressions and exact-head CI pass before promotion"
+  - "fresh non-author review has zero unresolved P0/P1 findings"
+  - "structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit"
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-rollback: "Revert the issuer receiver-brand check and its regression test together; retain the preexisting full-scan fail-closed behavior."
-validation_head: df02db557200c119cf2f2323b3d684d9579a2327
-validation: "Against df02db557200c119cf2f2323b3d684d9579a2327: tsc exit 0; focused startup and writer-lease suites 15/15 PASS, including the forged-issuer, replaced-prepare and poisoned-load regressions, each confirmed to fail against its own pre-fix head; preflight exit 0; lint 0 errors; validate:full exit 0 with failures []; security:gate exit 0 with unmitigated [] and secrets 0; git diff --check clean. Against 00a5ec0ee7a3d34f0430bafb0f70ea4911cfc6e4: exact-head CI 15 success and 1 skipped, 0 failure. This record is evidence for that SHA only and must not be read as validation of any later head."
-next: "Current-main sync is complete at merge commit 458d53689; commit this metadata-only receipt, push PR #2855, then require fresh exact-head CI plus fresh non-author review and structured NUSA Validator ACCEPTED before Audit/Release. Keep Draft."
+rollback: "Revert the fresh-process integrity verifier and filename callsite changes together; fall back to the original independent full-file scans rather than trusting any application-realm prepare attestation."
+validation_head: e45839c586697ad530904f2eb23bb0477b0f488d
+validation: "Source-level exact P1 regression PASS under Node 24 type stripping; same-file reuse/different-file full-scan fallback source regression PASS; changed TypeScript modules transpile without diagnostics; git diff --check PASS. Local pnpm build is explicitly NOT PASS evidence: it terminated exit 134 from the validation host's existing ~258 MiB Node heap limit. Canonical typecheck/build/full tests remain delegated to fresh exact-head GitHub CI."
+next: "Commit this exact-SHA evidence, push #2855 without force, then require fresh exact-head CI and non-author review. Keep Draft and do not enter Audit/Release until a separate structured NUSA Validator ACCEPTED receipt exists."
