@@ -2,8 +2,8 @@
 
 Audited: 2026-10-22
 
-- Source files: 1163
-- Runtime edges: 1662
+- Source files: 1164
+- Runtime edges: 1663
 - Type-only edges: 965
 - Runtime cycles: 0
 - Type cycles: 13

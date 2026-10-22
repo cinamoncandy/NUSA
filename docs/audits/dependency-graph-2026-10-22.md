@@ -667,8 +667,8 @@ Audited: 2026-10-22
 | type | apps/cloud/src/ownerCredential/ownerDeviceCredentialService.ts | apps/cloud/src/mobileSessionService.ts |
 | type | apps/cloud/src/p0AlertRepository.ts | packages/storage/src/index.ts |
 | runtime | apps/cloud/src/p0AlertRepository.ts | apps/cloud/src/p0AlertLedger.ts |
-| type | apps/cloud/src/paperAccountRetirement.ts | packages/storage/src/index.ts |
 | type | apps/cloud/src/paperAccountingLedger.ts | apps/cloud/src/paperTradingExecutionLoop.ts |
+| type | apps/cloud/src/paperAccountRetirement.ts | packages/storage/src/index.ts |
 | runtime | apps/cloud/src/paperApprovalService.ts | packages/core/src/paperApprovalService.ts |
 | type | apps/cloud/src/paperAutoLearningRuntime.ts | apps/cloud/src/cioDecisionEngine.ts |
 | runtime | apps/cloud/src/paperAutoLearningRuntime.ts | apps/cloud/src/paperAutonomousDecisionValidation.ts |
@@ -1563,11 +1563,11 @@ Audited: 2026-10-22
 | type | apps/desktop/src/shadow/shadowOperationalTypes.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
 | type | apps/desktop/src/shadow/shadowOperationalTypes.ts | apps/desktop/src/shadow/shadowLongRunningDiagnostics.ts |
 | type | apps/desktop/src/shadow/shadowPilotRuntime.ts | apps/desktop/src/paper/paperBroker.ts |
+| type | apps/desktop/src/shadow/shadowReadinessBlockers.ts | apps/desktop/src/shadow/shadowOperationalTypes.ts |
 | runtime | apps/desktop/src/shadow/shadowReadOnlyProjection.ts | packages/contracts/src/shadowObservabilityReadOnly.ts |
 | type | apps/desktop/src/shadow/shadowReadOnlyProjection.ts | apps/desktop/src/exchange/marketConnectionSupervisor.ts |
 | type | apps/desktop/src/shadow/shadowReadOnlyProjection.ts | apps/desktop/src/shadow/shadowOperationalTypes.ts |
 | type | apps/desktop/src/shadow/shadowReadOnlyProjection.ts | apps/desktop/src/shadow/shadowPilotRuntime.ts |
-| type | apps/desktop/src/shadow/shadowReadinessBlockers.ts | apps/desktop/src/shadow/shadowOperationalTypes.ts |
 | type | apps/desktop/src/strategy/backtestAnalytics.ts | apps/desktop/src/paper/paperBroker.ts |
 | runtime | apps/desktop/src/strategy/backtestEngine.ts | apps/desktop/src/paper/paperBroker.ts |
 | runtime | apps/desktop/src/strategy/backtestEngine.ts | apps/desktop/src/strategy/strategyEngine.ts |
@@ -1781,8 +1781,6 @@ Audited: 2026-10-22
 | runtime | apps/mobile/index.js | apps/mobile/App.tsx |
 | runtime | apps/mobile/index.js | apps/mobile/src/AppErrorBoundary.tsx |
 | runtime | apps/mobile/index.js | apps/mobile/app.json |
-| runtime | apps/mobile/src/AppErrorBoundary.tsx | apps/mobile/src/designSystem.ts |
-| runtime | apps/mobile/src/ThemeProvider.tsx | apps/mobile/src/designSystem.ts |
 | runtime | apps/mobile/src/aiBacktestEngine.ts | packages/core/src/optimizer/aiBacktestEngine.ts |
 | type | apps/mobile/src/aiCioDashboard.ts | apps/cloud/src/dashboardAggregator.ts |
 | runtime | apps/mobile/src/aiEvaluationEngine.ts | apps/mobile/src/aiBacktestEngine.ts |
@@ -1799,6 +1797,7 @@ Audited: 2026-10-22
 | runtime | apps/mobile/src/aiView.tsx | apps/mobile/src/designSystem.ts |
 | type | apps/mobile/src/androidBackNavigation.ts | apps/mobile/src/navigationContract.ts |
 | type | apps/mobile/src/androidSecureStorage.ts | apps/mobile/src/mobileSecurity.ts |
+| runtime | apps/mobile/src/AppErrorBoundary.tsx | apps/mobile/src/designSystem.ts |
 | runtime | apps/mobile/src/approvalGateway.tsx | apps/mobile/src/components.tsx |
 | runtime | apps/mobile/src/approvalGateway.tsx | apps/mobile/src/ThemeProvider.tsx |
 | runtime | apps/mobile/src/approvalGateway.tsx | apps/mobile/src/designSystem.ts |
@@ -1978,14 +1977,14 @@ Audited: 2026-10-22
 | runtime | apps/mobile/src/marketsView.tsx | apps/mobile/src/intelligenceOs.tsx |
 | runtime | apps/mobile/src/marketsView.tsx | apps/mobile/src/designSystem.ts |
 | runtime | apps/mobile/src/marketsView.tsx | apps/mobile/src/monitorCopy.ts |
-| type | apps/mobile/src/mobileAppShell.ts | apps/mobile/src/dashboardScreenState.ts |
-| runtime | apps/mobile/src/mobileAppShell.ts | apps/mobile/src/mobileNavigation.ts |
 | type | apps/mobile/src/mobileApprovedSession.ts | apps/mobile/src/mobileSecurity.ts |
 | type | apps/mobile/src/mobileApprovedSession.ts | apps/mobile/src/ownerDeviceCredential.ts |
 | runtime | apps/mobile/src/mobileApprovedSession.ts | apps/mobile/src/startupTiming.ts |
 | runtime | apps/mobile/src/mobileApprovedSessionBoundary.ts | apps/mobile/src/androidSecureStorage.ts |
 | runtime | apps/mobile/src/mobileApprovedSessionBoundary.ts | apps/mobile/src/mobileApprovedSession.ts |
 | type | apps/mobile/src/mobileApprovedSessionBoundary.ts | apps/mobile/src/mobileApprovedSession.ts |
+| type | apps/mobile/src/mobileAppShell.ts | apps/mobile/src/dashboardScreenState.ts |
+| runtime | apps/mobile/src/mobileAppShell.ts | apps/mobile/src/mobileNavigation.ts |
 | runtime | apps/mobile/src/mobileDashboardSync.ts | packages/contracts/src/mobileDashboard.ts |
 | runtime | apps/mobile/src/mobileSecurityCoordinator.ts | apps/mobile/src/secureSession.ts |
 | runtime | apps/mobile/src/mobileSecurityCoordinator.ts | apps/mobile/src/mobileSecurity.ts |
@@ -2235,6 +2234,7 @@ Audited: 2026-10-22
 | type | apps/mobile/src/systemLearningSupervisorView.tsx | packages/contracts/src/evolutionLearningSupervisor.ts |
 | runtime | apps/mobile/src/systemLearningSupervisorView.tsx | apps/mobile/src/designSystem.ts |
 | runtime | apps/mobile/src/tabTransition.tsx | apps/mobile/src/designSystem.ts |
+| runtime | apps/mobile/src/ThemeProvider.tsx | apps/mobile/src/designSystem.ts |
 | type | apps/mobile/src/tradingService.ts | apps/mobile/src/apiClient.ts |
 | type | apps/mobile/src/tradingView.tsx | apps/mobile/src/dashboardCredentialSession.ts |
 | runtime | apps/mobile/src/tradingView.tsx | apps/mobile/src/paperLearningMonitorView.tsx |
@@ -2524,6 +2524,7 @@ Audited: 2026-10-22
 | type | packages/storage/src/futuresPublicStore.ts | packages/storage/src/index.ts |
 | type | packages/storage/src/hedgeRecoveryStore.ts | apps/cloud/src/hedgeRecoveryLedger.ts |
 | type | packages/storage/src/improvementCandidateMemory.ts | packages/core/src/improvement/improvementTypes.ts |
+| runtime | packages/storage/src/index.ts | packages/storage/src/sqliteIntegrityBootstrap.ts |
 | runtime | packages/storage/src/index.ts | packages/storage/src/researchMemorySemantics.ts |
 | runtime | packages/storage/src/index.ts | packages/contracts/src/aiInference.ts |
 | type | packages/storage/src/index.ts | packages/contracts/src/aiCalibrationDurability.ts |

@@ -14,9 +14,11 @@ const nativeDatabasePrepare = DatabaseSync.prototype.prepare;
 const nativeStatementGet = StatementSync.prototype.get;
 const nativeModuleLoadDescriptor = Object.getOwnPropertyDescriptor(Module, "_load");
 const nativeModuleLoad = nativeModuleLoadDescriptor?.value;
+const nativeModuleResolveFilenameDescriptor = Object.getOwnPropertyDescriptor(Module, "_resolveFilename");
+const nativeModuleResolveFilename = nativeModuleResolveFilenameDescriptor?.value;
 const nativeModuleRequireDescriptor = Object.getOwnPropertyDescriptor(Module.prototype, "require");
 const nativeModuleRequire = nativeModuleRequireDescriptor?.value;
-if (typeof nativeModuleLoad !== "function" || typeof nativeModuleRequire !== "function") {
+if (typeof nativeModuleLoad !== "function" || typeof nativeModuleResolveFilename !== "function" || typeof nativeModuleRequire !== "function") {
   throw new Error("CommonJS module loader is unavailable; refusing SQLite integrity bootstrap");
 }
 const nativeMethodsAreCanonical = cleanRealm.apply(cleanRealm.functionToString, nativeDatabasePrepare, []) === "function prepare() { [native code] }"
@@ -55,6 +57,15 @@ Object.defineProperty(Module, "_load", {
   enumerable: nativeModuleLoadDescriptor?.enumerable ?? true,
   writable: false,
   value: nativeModuleLoad,
+});
+// The native loader still asks Module._resolveFilename which cache key to load. Keep that
+// dispatch immutable too: otherwise a resolver replacement can route the later storage import
+// to an attacker-added entry in the otherwise pinned, intentionally extensible module cache.
+Object.defineProperty(Module, "_resolveFilename", {
+  configurable: false,
+  enumerable: nativeModuleResolveFilenameDescriptor?.enumerable ?? true,
+  writable: false,
+  value: nativeModuleResolveFilename,
 });
 // Node's generated `require()` dispatches through the current module's `.require` method before
 // reaching Module._load. Pin that entry point too; otherwise application code can bypass the
