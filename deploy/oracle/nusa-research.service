@@ -10,11 +10,10 @@ Group=nusa
 WorkingDirectory=/opt/nusa/current
 EnvironmentFile=/etc/nusa/cloud-runtime.env
 Environment=HOME=/var/lib/nusa
-ExecStart=/usr/bin/node --require /opt/nusa/current/dist/packages/storage/src/sqliteIntegrityBootstrap.js /opt/nusa/current/scripts/run-cloud-research-snapshot.js
+ExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node --max-old-space-size=256 --require /opt/nusa/current/dist/packages/storage/src/sqliteIntegrityBootstrap.js /opt/nusa/current/scripts/run-cloud-research-snapshot.js
 # The 1 GB host is shared with the PAPER runtime and the GitHub runners. Research is batch work:
 # cap its heap (inherited by the child run) and total memory, and run it at the lowest priority so
 # it is killed or slowed before it can starve PAPER or the runners.
-Environment=NODE_OPTIONS=--max-old-space-size=256
 MemoryMax=560M
 Nice=19
 IOSchedulingClass=idle

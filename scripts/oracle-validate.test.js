@@ -13,7 +13,7 @@ const TOKEN = "t".repeat(64);
 const AUTOPILOT_TOKEN = "a".repeat(64);
 
 const PAPER_UNIT = `[Unit]\nDescription=NUSA Cloud Paper Runtime\n[Service]\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js\nRestart=on-failure\nNoNewPrivileges=true\nProtectSystem=strict\nReadWritePaths=/var/lib/nusa /var/backups/nusa\n`;
-const RESEARCH_UNIT = `[Unit]\nDescription=NUSA canonical Research\n[Service]\nType=oneshot\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/node --require /opt/nusa/current/dist/packages/storage/src/sqliteIntegrityBootstrap.js /opt/nusa/current/scripts/run-cloud-research-snapshot.js\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=/var/lib/nusa /var/backups/nusa\nEnvironment=NODE_OPTIONS=--max-old-space-size=256\nMemoryMax=560M\nNice=19\nIOSchedulingClass=idle\n`;
+const RESEARCH_UNIT = `[Unit]\nDescription=NUSA canonical Research\n[Service]\nType=oneshot\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node --max-old-space-size=256 --require /opt/nusa/current/dist/packages/storage/src/sqliteIntegrityBootstrap.js /opt/nusa/current/scripts/run-cloud-research-snapshot.js\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=/var/lib/nusa /var/backups/nusa\nMemoryMax=560M\nNice=19\nIOSchedulingClass=idle\n`;
 const RESEARCH_TIMER = `[Unit]\nDescription=Schedule Research\n[Timer]\nOnBootSec=2min\nOnCalendar=*-*-* 09:15:00 Asia/Seoul\nPersistent=true\nRandomizedDelaySec=5min\nUnit=nusa-research.service\n[Install]\nWantedBy=timers.target\n`;
 const AUTOPILOT_UNIT = `[Unit]\nDescription=NUSA Persistent Autopilot Runtime\n[Service]\nType=simple\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nEnvironment=HOME=/var/lib/nusa\nExecStart=/usr/bin/node /opt/nusa/current/scripts/autopilot-runtime.js\nRestart=always\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=/var/lib/nusa\nUMask=0077\n`;
 
@@ -96,6 +96,19 @@ test("fails closed when the PAPER supervisor may inherit an untrusted NODE_OPTIO
   const result = validate(root);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /unit missing ExecStart=\/usr\/bin\/env -u NODE_OPTIONS/);
+});
+
+test("fails closed when the Research process may inherit an untrusted NODE_OPTIONS preload", () => {
+  const root = fixture({ NODE_OPTIONS: "--require /tmp/untrusted-preload.js" });
+  try {
+    const unit = path.join(root, "etc/systemd/system/nusa-research.service");
+    fs.writeFileSync(unit, fs.readFileSync(unit, "utf8").replace("/usr/bin/env -u NODE_OPTIONS ", ""));
+    const result = validate(root);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Research unit missing ExecStart=\/usr\/bin\/env -u NODE_OPTIONS/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("fails closed when the autonomous Research timer is missing", () => {

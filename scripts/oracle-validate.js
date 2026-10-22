@@ -79,9 +79,10 @@ for (const required of ["User=nusa", "Group=nusa", "NoNewPrivileges=true", "Prot
 if (/ExecStart=.*dist\/apps\/cloud\/src\/runtime\.js/.test(unit)) fail("systemd must not bypass the supervised PAPER launcher");
 
 const researchUnit = fs.readFileSync(researchServicePath, "utf8");
-for (const required of ["Type=oneshot", "User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "ProtectHome=true", "WorkingDirectory=/opt/nusa/current", "EnvironmentFile=/etc/nusa/cloud-runtime.env", "ExecStart=/usr/bin/node --require /opt/nusa/current/dist/packages/storage/src/sqliteIntegrityBootstrap.js /opt/nusa/current/scripts/run-cloud-research-snapshot.js", "ReadWritePaths=/var/lib/nusa /var/backups/nusa", "MemoryMax=560M", "Nice=19"]) {
+for (const required of ["Type=oneshot", "User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "ProtectHome=true", "WorkingDirectory=/opt/nusa/current", "EnvironmentFile=/etc/nusa/cloud-runtime.env", "ExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node --max-old-space-size=256 --require /opt/nusa/current/dist/packages/storage/src/sqliteIntegrityBootstrap.js /opt/nusa/current/scripts/run-cloud-research-snapshot.js", "ReadWritePaths=/var/lib/nusa /var/backups/nusa", "MemoryMax=560M", "Nice=19"]) {
   if (!researchUnit.includes(required)) fail(`Research unit missing ${required}`);
 }
+if (/^Environment=NODE_OPTIONS=/m.test(researchUnit)) fail("Research unit must not reintroduce NODE_OPTIONS through an environment assignment");
 if (/ExecStart=.*research-real-market-run\.js/.test(researchUnit)) fail("Research systemd must use the canonical snapshot runner");
 
 const timer = fs.readFileSync(researchTimerPath, "utf8");
