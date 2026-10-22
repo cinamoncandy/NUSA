@@ -11,7 +11,7 @@ Group=nusa
 WorkingDirectory=/opt/nusa
 EnvironmentFile=/etc/nusa/cloud-paper.env
 Environment=NUSA_PAPER_SUPERVISOR_STATE_PATH=/var/lib/nusa/supervisor.json
-ExecStart=/usr/bin/node /opt/nusa/scripts/start-cloud-paper-supervisor.js
+ExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node --require /opt/nusa/dist/packages/storage/src/sqliteIntegrityBootstrap.js /opt/nusa/scripts/start-cloud-paper-supervisor.js
 Restart=always
 RestartSec=5
 KillSignal=SIGTERM

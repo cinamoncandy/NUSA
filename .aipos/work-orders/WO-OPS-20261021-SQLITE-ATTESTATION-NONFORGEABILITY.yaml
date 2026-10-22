@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-title: Prepare Research recovery after shared SQLite startup initialization
-status: MODULE_INTEROP_RAW_REQUIRE_REPAIR_LOCAL_VALIDATION_PENDING_REMOTE_EXACT_HEAD_REVIEW_VALIDATOR
+title: Preserve SQLite integrity trust across PAPER and Research startup
+status: LEGACY_CLOUD_PAPER_PRELOAD_REPAIR_LOCAL_VALIDATION_PENDING_REMOTE_EXACT_HEAD_CI_REVIEW_VALIDATOR
 priority: P0
 owner: nusa-server-runtime
 repository: cinamoncandy/NUSA
@@ -35,6 +35,7 @@ repair:
   - Pin the captured CommonJS Module._resolveFilename property in the production preload so application code cannot redirect the later integrity-bootstrap import to an attacker-added entry in the extensible module cache; a corrupt-file child-process regression verifies replacement attempts fail closed.
   - Publish the frozen sqliteIntegrityBoundary on a non-writable/non-configurable property of Node's canonical Module constructor and make production storage consume that slot directly. After the trusted preload, storage no longer resolves ./sqliteIntegrityBootstrap, so mutable resolver helpers including Module._findPath and Module._resolveLookupPaths cannot substitute the capability. Direct developer/test imports use the bootstrap fallback only when the slot is absent.
   - Preserve Storybook 8.6.19 security patch; no security gate waiver.
+  - The documented legacy Cloud PAPER systemd parent removes NODE_OPTIONS before Node starts and preloads sqliteIntegrityBootstrap; its supervisor strips NODE_OPTIONS from the database-owning child and preloads the same trusted boundary before runtime code.
 prohibited:
   - bypassing_or_weakening_canonical_full_file_quick_check
   - weakening_store_scoped_checks_or_hash_chain_replay
@@ -63,6 +64,7 @@ acceptance:
   - the Module._load repair and corrupt-file adversarial regression pass locally (40 focused tests, build, validate:full, AIPOS provenance, and security:gate)
   - pre-load and post-load replacement of DatabaseSync.prepare or StatementSync.get cannot mint full-file trust or forge its result; JavaScript and Proxy replacements fail closed, and corrupted files remain rejected
   - production PAPER and Research entrypoints load the integrity bootstrap before application code
+  - documented legacy Cloud PAPER systemd parent and supervised database-owning child both scrub NODE_OPTIONS and load the trusted integrity bootstrap before application code
   - Oracle PAPER systemd removes NODE_OPTIONS before the supervisor process starts, and child execution cannot prepend a preload before the integrity bootstrap
   - Oracle Research systemd removes NODE_OPTIONS before Node starts while preserving the 256 MiB heap limit on the command line
   - Each spawned Research Node study/probe process independently receives the 256 MiB heap limit; the parent-only setting is not treated as inherited proof
@@ -78,8 +80,9 @@ finding_head: aa313fc8a80005925c64c0c7fa6249c1da5814be
 require_dispatch_source_repair_commit: dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4
 validation: 'Fresh review of aa313fc8a80005925c64c0c7fa6249c1da5814be completed with a new P1: mutable Module.__esModule/default can exploit TypeScript default-import interop and substitute the protected capability read. aa313 clean-install CI validation, Security gate, Typecheck, Build, and seven companion workflows were green before this finding, but all aa313 receipts become historical after the substantive successor. Local raw-require repair validation is rerun before push.'
 pre_resolver_repair_next: 'Historical only. The Module._resolveFilename pin is committed in 4f44517c704786b9c7334a722f83194614bcc3ca; do not repeat that repair or its push.'
-latest_local_validation: 'Raw CommonJS node:module import-assignment repair validation PASS: changed storage transpile diagnostics PASS; emitted index uses const Module = require("node:module") and no __importDefault for this boundary; exact Module.__esModule/default poisoning regression PASS 1/1; focused PAPER startup/writer-lease suite PASS 26/26; direct-import fallback PASS; AIPOS YAML/drift/cross-AI/provenance and diff-check PASS. Fresh successor GitHub CI/security/typecheck/build remains required; aa313 receipts are historical.'
-next: 'Resolve the PR head dynamically. If the current branch contains the immutable Module capability-slot repair and this durable record, do not create another documentation-only successor merely to record SHA/workflow status. Require fresh exact-head workflows, fresh non-author P0/P1=0, and a separate formal NUSA Validator exact SHA/P0/P1/P2/ACCEPTED before Audit/Release. Keep Draft; do not merge or mutate Oracle.'
+latest_local_validation: 'Raw CommonJS node:module and legacy Cloud PAPER preload repair validation PASS: cloud-paper supervisor contract/runtime tests 7/7; SQLite startup-integrity adversarial cases 4/4; AIPOS and diff-check PASS. GitHub runs from the prior head are historical; require fresh exact-head validation for this source change.'
+latest_review_finding: 'Fresh review on predecessor 8ba3273442abd7172aad21dfd6659cc2a98ec0ad found P1: documented deploy/cloud-paper/nusa-cloud-paper.service started a supervisor without scrubbing NODE_OPTIONS/preloading the trusted SQLite boundary, and the supervisor forwarded NODE_OPTIONS and launched the database-owning child without the boundary. The source successor adds parent/child preload and scrub coverage; fresh exact-head review must adjudicate.'
+next: 'Resolve the PR head dynamically. Require fresh exact-head workflows, fresh non-author adjudication of all P0/P1 findings with zero unresolved P0/P1, and a separate formal NUSA Validator receipt bound to the exact SHA with P0/P1/P2 and explicit ACCEPTED before Audit/Release. Keep Draft; do not create status-only commits, merge, or mutate Oracle.'
 prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
 
 latest_prototype_poisoning_finding_head: 09bd6051f09bb3ad0230c1900445d3648d858754
