@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   buildLearningDecision,
@@ -10,6 +13,7 @@ import {
 import { buildLearningInputSet } from "./learningInputSet";
 import { LearningDecisionLedger } from "./learningDecisionLedger";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
+import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 
 const POLICIES = {
   learningPolicyVersion: "learn-v1",
@@ -21,7 +25,7 @@ const POLICIES = {
 const inputSet = (cutoff = 900) =>
   buildLearningInputSet({
     cutoffTimestamp: cutoff,
-    researchEvidence: [{ recordId: "trial-a", recordedAt: 100 }],
+    researchEvidence: ["trial-a", "trial-b", "trial-c"].map((recordId, index) => ({ recordId, recordedAt: 100 + index })),
     paperEvidence: [{ recordId: "p1", recordedAt: 200 }],
     policies: POLICIES,
   });
@@ -43,16 +47,29 @@ function decisionInput(overrides: Partial<LearningDecisionInput> = {}): Learning
 }
 
 describe("A1 decision identity", () => {
-  it("same decision content yields the same fingerprint, in any supply order", () => {
-    const two = [buildLearningDecision(decisionInput({ proposedChanges: [
+  it("canonicalizes proposal and reason-reference order", () => {
+    const ordered = buildLearningDecision(decisionInput({
+      proposedChanges: [
+        { surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 },
+        { surface: "unlistedCadence", currentValue: 1, proposedValue: 2 },
+      ],
+      reasonEvidence: ["trial-a", "p1"],
+    }));
+    const shuffled = buildLearningDecision(decisionInput({
+      proposedChanges: [
+        { surface: "unlistedCadence", currentValue: 1, proposedValue: 2 },
+        { surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 },
+      ],
+      reasonEvidence: ["p1", "trial-a"],
+    }));
+    assert.equal(learningDecisionFingerprint(ordered), learningDecisionFingerprint(shuffled));
+  });
+
+  it("rejects duplicate proposals for the same surface", () => {
+    assert.throws(() => buildLearningDecision(decisionInput({ proposedChanges: [
       { surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 },
       { surface: "longBarTickEvery", currentValue: 2, proposedValue: 3 },
-    ] }))];
-    const shuffled = [buildLearningDecision(decisionInput({ proposedChanges: [
-      { surface: "longBarTickEvery", currentValue: 2, proposedValue: 3 },
-      { surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 },
-    ] }))];
-    assert.notEqual(learningDecisionFingerprint(two[0]), learningDecisionFingerprint(shuffled[0]), "change order is part of the identity");
+    ] })), /only one proposal per surface/);
   });
 
   it("the cycle id is inherited from the input set, so one evidence set yields one cycle", () => {
@@ -115,6 +132,11 @@ describe("A1 aperture falsification", () => {
     assert.equal(assessChange({ surface: "longBarTickEvery", currentValue: 2, proposedValue: 2 }).verdict, "REJECTED");
   });
 
+  it("refuses a caller premise whose current value is outside owner bounds", () => {
+    assert.equal(assessChange({ surface: "longBarTickEvery", currentValue: 0, proposedValue: 1 }).verdict, "REJECTED");
+    assert.match(assessChange({ surface: "longBarTickEvery", currentValue: 0, proposedValue: 1 }).reason, /current value is outside/);
+  });
+
   it("refuses a surface learning invented, because the allowlist is owner-defined", () => {
     const assessment = assessChange({ surface: "someNewKnobLearningDiscovered", currentValue: 1, proposedValue: 2 });
     assert.equal(assessment.verdict, "REJECTED");
@@ -147,6 +169,13 @@ describe("A1 immutable surface - section 29", () => {
     assert.equal(fromFailure.admissibleChanges.length, 1);
     assert.equal(fromFailure.rejectedChanges.length, 2);
     assert.deepEqual(fromFailure.rejectedChanges.map((change) => change.surface), ["qualificationThreshold", "riskLimitPerOrder"]);
+  });
+
+  it("rejects unbounded, duplicate, or non-A2 reason evidence", () => {
+    assert.throws(() => buildLearningDecision(decisionInput({ proposedChanges: Array.from({ length: 33 }, () => ({ surface: "unknown", currentValue: 1, proposedValue: 2 })) })), /bounded receipt limit/);
+    assert.throws(() => buildLearningDecision(decisionInput({ reasonEvidence: Array.from({ length: 65 }, () => "trial-a") })), /bounded receipt limit/);
+    assert.throws(() => buildLearningDecision(decisionInput({ reasonEvidence: ["not-in-a2"] })), /durable A2 input set/);
+    assert.throws(() => buildLearningDecision(decisionInput({ reasonEvidence: ["trial-a", "trial-a"] })), /may not repeat/);
   });
 });
 
@@ -209,12 +238,43 @@ describe("A1 durable exactly-once - section 43", () => {
     assert.equal(store.summary().decisionsRecorded, 1, "exactly one durable decision");
   });
 
+  it("same-cycle retry with new attempt metadata replays the first durable decision", () => {
+    const { records, ledger } = fakeLedger();
+    const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
+    const firstDecision = buildLearningDecision(decisionInput());
+    new LearningInputSetLedger(ledger).append(decisionInput().inputSet);
+    const first = store.append(firstDecision);
+    const retry = buildLearningDecision(decisionInput({
+      createdAt: "2026-10-18T01:00:00.000Z",
+      sourceCommit: "4d07d31463ec3ff95132b7cde235937682cc994a",
+      runtimeIdentity: "runtime-restarted",
+    }));
+    const replayed = store.append(retry);
+    assert.equal(records.filter((record) => record.validationStatus === "LEARNING_DECISION").length, 1);
+    assert.equal(replayed.replayed, true);
+    assert.equal(replayed.fingerprint, first.fingerprint);
+    assert.equal(replayed.decision.createdAt, first.decision.createdAt);
+  });
+
+  it("rejects a different decision for an already decided cycle", () => {
+    const { ledger } = fakeLedger();
+    const store = new LearningDecisionLedger(ledger);
+    const firstInput = decisionInput();
+    new LearningInputSetLedger(ledger).append(firstInput.inputSet);
+    store.append(buildLearningDecision(firstInput));
+    assert.throws(() => store.append(buildLearningDecision(decisionInput({
+      proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 9 }],
+    }))), /already has a different durable decision/);
+  });
+
   it("keeps a rejected decision rather than dropping it from the denominator", () => {
     const { ledger } = fakeLedger();
     const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
     new LearningInputSetLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
     store.append(buildLearningDecision(decisionInput()));
-    store.append(buildLearningDecision(decisionInput({ proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 9 }] })));
+    const nextInput = decisionInput({ inputSet: inputSet(901), proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 9 }] });
+    new LearningInputSetLedger(ledger).append(nextInput.inputSet);
+    store.append(buildLearningDecision(nextInput));
 
     assert.equal(store.summary().decisionsRecorded, 2);
     assert.equal(store.rejections().length, 1, "the refusal is recorded evidence, not a discarded attempt");
@@ -228,7 +288,7 @@ describe("A1 durable exactly-once - section 43", () => {
     store.append(decision);
     assert.equal(store.summary().decisionsRecorded, 1);
 
-    const decisionRecord = records.find((record) => String(record.opportunityId).startsWith("learning-decision:"))!;
+    const decisionRecord = records.find((record) => record.validationStatus === "LEARNING_DECISION")!;
     const tampered = JSON.parse(decisionRecord.hypothesis as string) as Record<string, unknown>;
     tampered.changeMagnitude = 99;
     decisionRecord.hypothesis = JSON.stringify(tampered);
@@ -239,5 +299,39 @@ describe("A1 durable exactly-once - section 43", () => {
     const { ledger } = fakeLedger();
     const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
     assert.throws(() => store.append(buildLearningDecision(decisionInput())), /A2 input set to be durable first/);
+  });
+
+  it("binds learning policy and reason references to the durable A2 receipt", () => {
+    const { ledger } = fakeLedger();
+    const store = new LearningDecisionLedger(ledger);
+    const input = decisionInput();
+    new LearningInputSetLedger(ledger).append(input.inputSet);
+    const decision = buildLearningDecision(input);
+    assert.throws(() => store.append({ ...decision, learningPolicyVersion: "learn-v2" }), /does not match its durable A2 input set/);
+    assert.throws(() => store.append({ ...decision, reasonEvidence: ["not-in-a2"] }), /not present in its durable A2 input set/);
+  });
+
+  it("uses the real hash-chained SQLite ledger across close and reopen", () => {
+    const directory = mkdtempSync(join(tmpdir(), "nusa-a1-ledger-"));
+    const databasePath = join(directory, "learning.sqlite");
+    let db = new SqliteDatabase(databasePath);
+    try {
+      const ledger = new SqliteEvolutionLearningLedger(db);
+      const inputSetLedger = new LearningInputSetLedger(ledger);
+      const decisionLedger = new LearningDecisionLedger(ledger);
+      const input = decisionInput();
+      const inputSetReceipt = inputSetLedger.append(input.inputSet);
+      assert.equal(inputSetReceipt.replayed, false);
+      const decision = buildLearningDecision(input);
+      const first = decisionLedger.append(decision);
+      assert.equal(first.replayed, false);
+      assert.equal(decisionLedger.append(buildLearningDecision(decisionInput({ runtimeIdentity: "runtime-restarted" }))).replayed, true);
+      db.close();
+      db = new SqliteDatabase(databasePath);
+      assert.equal(new LearningDecisionLedger(new SqliteEvolutionLearningLedger(db)).summary().decisionsRecorded, 1);
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
