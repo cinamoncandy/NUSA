@@ -772,6 +772,60 @@ test("replacing CommonJS Module._resolveFilename cannot route SQLite integrity l
   assert.equal(result.status, 0, `preloaded Module._resolveFilename boundary must reject replacement:\n${result.stdout}\n${result.stderr}`);
 });
 
+test("post-preload Module._findPath replacement cannot redirect the immutable SQLite boundary slot", () => {
+  const bootstrapPath = path.join(root, "dist", "packages", "storage", "src", "sqliteIntegrityBootstrap.js");
+  const indexPath = path.join(root, "dist", "packages", "storage", "src", "index.js");
+  const script = `
+    const assert = require("node:assert/strict");
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path = require("node:path");
+    const Module = require("node:module");
+    const { DatabaseSync } = require("node:sqlite");
+    const indexPath = ${JSON.stringify(path.join(root, "dist", "packages", "storage", "src", "index.js"))};
+    const nativeFindPath = Module._findPath;
+    const forgedPath = path.join(os.tmpdir(), "nusa-2770-forged-findpath-bootstrap.js");
+    let forgedResolutions = 0;
+    let forgedChecks = 0;
+    Module._cache[forgedPath] = {
+      id: forgedPath,
+      filename: forgedPath,
+      loaded: true,
+      exports: { sqliteIntegrityBoundary: {
+        prepare: () => ({ get: () => { forgedChecks++; return { quick_check: "ok" }; } }),
+        read: (statement) => statement.get(),
+        resultIsOk: () => true,
+      } },
+    };
+    Module._findPath = function(request, paths, isMain, conditions) {
+      if (request === "./sqliteIntegrityBootstrap") {
+        forgedResolutions++;
+        return forgedPath;
+      }
+      return nativeFindPath.call(this, request, paths, isMain, conditions);
+    };
+
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-findpath-replacement-"));
+    const filename = path.join(directory, "state.sqlite");
+    const initial = new DatabaseSync(filename);
+    initial.exec("CREATE TABLE integrity_test (value INTEGER)");
+    initial.close();
+    fs.writeFileSync(filename, Buffer.from("not a sqlite database"));
+    try {
+      const { SqliteDatabase } = require(indexPath);
+      assert.throws(() => new SqliteDatabase(filename), /quick_check failed|malformed|not a database|corrupt/i);
+      assert.equal(forgedResolutions, 0, "storage consumer must use the immutable preload capability without resolving the bootstrap again");
+      assert.equal(forgedChecks, 0, "a forged _findPath target must never perform the integrity check");
+    } finally {
+      Module._findPath = nativeFindPath;
+      delete Module._cache[forgedPath];
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  `;
+  const result = spawnSync(process.execPath, ["--require", bootstrapPath, "-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `post-preload _findPath replacement must not forge SQLite integrity:\n${result.stdout}\n${result.stderr}`);
+});
+
 test("replacing application Object.values cannot turn a corrupt quick_check result into ok", () => {
   const script = `
     const assert = require("node:assert/strict");

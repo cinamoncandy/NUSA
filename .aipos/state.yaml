@@ -2732,29 +2732,29 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
 
 current_ops_sqlite_resolver_pin_20261022:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: LOCAL_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI_REVIEW_VALIDATOR
+  status: FINDPATH_REPAIR_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI_REVIEW_VALIDATOR
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
-  pre_repair_exact_head: a188810183ee0d2ddb14ad81704c12cfd35bb05a
+  reviewed_exact_head: 4f44517c704786b9c7334a722f83194614bcc3ca
   protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
-  new_finding: "Fresh non-author Codex review found Module._resolveFilename remained writable after the trusted preload. A replacement could route the later storage import to an attacker-added cache entry and forge the SQLite integrity boundary."
-  reproduction: "Added a child-process regression that attempts the resolver replacement, preloads a forged cache entry, and opens a corrupt SQLite file. It failed on the pre-repair tree because Reflect.set succeeded."
-  repair: "The bootstrap captures Module._resolveFilename's own descriptor and function before application imports, rejects a missing resolver, and defines the captured resolver non-writable/non-configurable. The new child-process regression proves assignment/redefinition fail and the corrupt database remains rejected."
+  new_finding: "Fresh non-author Codex review on exact head 4f44517c704786b9c7334a722f83194614bcc3ca found that pinning Module._resolveFilename was still insufficient because the native resolver calls writable Module._findPath. A targeted replacement could route only ./sqliteIntegrityBootstrap to an attacker-added cache entry and forge quick_check=ok. The same review found this recovery record still described the already-committed resolver repair as local/pending."
+  repair: "The trusted preload now publishes the frozen sqliteIntegrityBoundary directly on a non-writable/non-configurable property of Node's canonical Module constructor. Production storage reads that immutable capability slot, so it does not resolve ./sqliteIntegrityBootstrap after the preload and therefore does not depend on mutable resolver helpers such as Module._findPath or Module._resolveLookupPaths. Direct developer/test imports retain a bootstrap fallback only when no preload slot exists. The new child-process regression replaces Module._findPath after preload, targets only ./sqliteIntegrityBootstrap, opens a corrupt SQLite file, and requires both zero forged resolutions and rejection of the corrupt database. Canonical full-file quick_check, four AI scoped checks, hash-chain replay, startup/recovery ordering, writer-lease semantics, Research child heap propagation, and the 300-second readiness budget remain unchanged."
+  historical_exact_head_workflows: "Before this repair, exact head 4f44517c704786b9c7334a722f83194614bcc3ca passed CI 39733540736, Research advisory 39733540815, Capability 39733540744, Activation 39733540747, Transport 39733540790, Read-only Broker 39733540904, Actual PAPER 39733540789, and Android Guard 39733540809. These receipts are historical after any successor commit and must not be reused."
   local_validation:
-    node_runtime: 24.18.0
-    build: PASS
-    typecheck: PASS
-    focused_resolver_attack: PASS_1_OF_1_AFTER_RED_REPRODUCTION
-    sqlite_startup_writer_lease: PASS_22_OF_22
-    validate_full: PASS
+    changed_storage_transpile_diagnostics: PASS
+    exact_findpath_attack_regression: PASS_1_OF_1
+    sqlite_startup_writer_lease: PASS_25_OF_25
+    direct_import_fallback: PASS
+    root_typescript_compile: PENDING_LONG_RUNNING_VALIDATION
+    aipos_yaml: PASS_514_FILES
+    aipos_drift: PASS
+    aipos_cross_ai: PASS
     aipos_provenance: PASS
-    lint: PASS_36_EXISTING_WARNINGS_ZERO_ERRORS
     diff_check: PASS
-    security_gate: BLOCKED_DEPENDENCY_AUDIT_UNAVAILABLE_AFTER_3_BOUNDED_ATTEMPTS_PNPM
+    security_gate: LOCAL_ENVIRONMENT_NOT_PASS_LICENSE_METADATA_MISSING_FROM_STALE_SHARED_NODE_MODULES_UNMITIGATED_ZERO_SECRETS_ZERO
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "Commit the source/test and synchronized AIPOS repair, push the successor to the existing PR branch, then obtain fresh exact-head workflows, non-author adjudication of current P1s, and a separate formal NUSA Validator receipt. Keep Draft; no Audit, Release, merge, or Oracle mutation before canonical gates."
-
+  next: "Resolve the PR head dynamically. Once this substantive repair and durable record are present in the branch, do not create a documentation-only successor merely to record the current SHA or workflow status. Require fresh exact-head workflows and fresh non-author review with zero current P0/P1, then a separate formal NUSA Validator receipt with exact SHA/P0/P1/P2/ACCEPTED before Independent Audit or Release. Keep Draft; no merge or Oracle mutation."
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
   status: READY_FOR_REVIEW

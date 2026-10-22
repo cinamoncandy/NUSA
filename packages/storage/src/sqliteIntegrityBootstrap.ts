@@ -46,6 +46,22 @@ export const sqliteIntegrityBoundary = Object.freeze({
   resultIsOk: sqliteIntegrityResultIsOk,
 });
 
+// Publish the trusted capability directly on Node's canonical Module constructor. The storage
+// consumer reads this immutable slot after the production preload, so it does not need to
+// reacquire the capability through a relative CommonJS resolution path whose internal helpers
+// (for example Module._findPath or Module._resolveLookupPaths) remain mutable application APIs.
+export const SQLITE_INTEGRITY_BOUNDARY_SLOT = "__nusaSqliteIntegrityBoundary" as const;
+const existingBoundarySlot = Object.getOwnPropertyDescriptor(Module, SQLITE_INTEGRITY_BOUNDARY_SLOT);
+if (existingBoundarySlot != null && existingBoundarySlot.value !== sqliteIntegrityBoundary) {
+  throw new Error("SQLite integrity boundary slot already exists with an unexpected value");
+}
+Object.defineProperty(Module, SQLITE_INTEGRITY_BOUNDARY_SLOT, {
+  configurable: false,
+  enumerable: false,
+  writable: false,
+  value: sqliteIntegrityBoundary,
+});
+
 // This is a process bootstrap capability. Prevent subsequent application code from replacing
 // its exports or deleting the cache entry between the preload and storage module initialization.
 Object.freeze(exports);

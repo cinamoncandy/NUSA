@@ -1,5 +1,19 @@
+import Module from "node:module";
 import { DatabaseSync } from "node:sqlite";
-import { sqliteIntegrityBoundary } from "./sqliteIntegrityBootstrap";
+
+type SqliteIntegrityBoundary = Readonly<{
+  prepare: (connection: DatabaseSync, sql: string) => unknown;
+  read: (statement: unknown) => Record<string, unknown> | undefined;
+  resultIsOk: (result: Record<string, unknown> | undefined) => boolean;
+}>;
+const SQLITE_INTEGRITY_BOUNDARY_SLOT = "__nusaSqliteIntegrityBoundary" as const;
+const preloadedSqliteIntegrityBoundary = (Module as typeof Module & {
+  readonly __nusaSqliteIntegrityBoundary?: SqliteIntegrityBoundary;
+})[SQLITE_INTEGRITY_BOUNDARY_SLOT];
+// Production obtains the capability from the immutable preload slot and never resolves the
+// bootstrap module again. Direct developer/test imports retain a fail-closed bootstrap fallback.
+const sqliteIntegrityBoundary: SqliteIntegrityBoundary = preloadedSqliteIntegrityBoundary
+  ?? (require("./sqliteIntegrityBootstrap") as { sqliteIntegrityBoundary: SqliteIntegrityBoundary }).sqliteIntegrityBoundary;
 
 export * from "./researchMemorySemantics";
 import {
