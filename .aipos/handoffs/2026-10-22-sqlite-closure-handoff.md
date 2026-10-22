@@ -34,9 +34,9 @@ Full local `tsc` is not claimed: this Oracle validation host hit its existing ~2
 
 ## Remaining gates
 
-Commit this durable AIPOS/handoff successor. Before any push, verify GitHub PR #2855 still points to `9e4d6688...`; only then push the two-commit chain as a normal fast-forward. Any successor SHA invalidates all `9e4d6688...` exact-head receipts.
+This handoff is deliberately self-stable: resolve the PR head dynamically from GitHub. If the current branch contains source repair dd60977f... and this durable record, **do not create another documentation-only successor merely to record the current head SHA or workflow status**. A new commit is justified only by a new substantive code/recovery finding.
 
-Then require:
+For the dynamically resolved current head, require:
 1. fresh exact-head required workflows;
 2. fresh non-author review/adjudication with zero current P0/P1;
 3. a separate formal NUSA Validator receipt bound to the exact SHA with P0/P1/P2 counts and explicit `ACCEPTED`;

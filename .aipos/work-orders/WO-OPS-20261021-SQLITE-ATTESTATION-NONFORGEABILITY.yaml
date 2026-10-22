@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
 title: Prepare Research recovery after shared SQLite startup initialization
-status: REQUIRE_DISPATCH_P1_REPAIRED_PENDING_EXACT_HEAD_GATES
+status: REQUIRE_DISPATCH_REPAIR_COMMITTED_PENDING_REMOTE_GATES
 priority: P0
 owner: nusa-server-runtime
 repository: cinamoncandy/NUSA
@@ -72,7 +72,7 @@ test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
 finding_head: 9e4d668829247a397018089fc6bd981f5ad81db0
 require_dispatch_source_repair_commit: dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4
 validation: 'Exact head 9e4d668829247a397018089fc6bd981f5ad81db0 completed/success on CI 39708723397, Mobile Native 39708723564, Research advisory 39708723368, Transport 39708723488, Activation 39708723348, Capability 39708723272, Actual PAPER 39708723273, Read-only Broker 39708723438, and Android Guard 39708723475 before fresh review exposed the Module.prototype.require dispatch P1 and stale-handoff P1. Source repair dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4 pins native Module.prototype.require non-writable/non-configurable alongside the existing Module._load and Module._cache protections and adds the exact corrupt-file adversarial regression. Changed storage transpile diagnostics PASS, exact new regression PASS, focused PAPER startup/writer-lease 23/23 PASS, and git diff --check PASS. Full local tsc is not claimed because this validation host hit its existing ~258 MiB Node heap ceiling. All 9e4 workflow receipts are stale for acceptance after dd60977f.'
-next: 'Commit the durable AIPOS/handoff successor. Before push, fresh-verify PR #2855 still points to 9e4d668829247a397018089fc6bd981f5ad81db0; if so, push only as a normal fast-forward. Then require fresh exact-head workflows, fresh non-author review with zero current P0/P1, and separate formal NUSA Validator exact SHA/P0/P1/P2/ACCEPTED before Audit/Release. Keep Draft; no merge or Oracle mutation.'
+next: 'Resolve the current PR head dynamically. If it contains source repair dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4 and this durable record, do not create another documentation-only successor merely to record the current SHA or gate status. Continue with exact-current-head workflows, fresh non-author review with zero current P0/P1, and separate formal NUSA Validator exact SHA/P0/P1/P2/ACCEPTED before Audit/Release. Only a new substantive finding justifies a successor commit. Keep Draft; no merge or Oracle mutation.'
 prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
 
 latest_prototype_poisoning_finding_head: 09bd6051f09bb3ad0230c1900445d3648d858754
