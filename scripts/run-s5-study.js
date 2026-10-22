@@ -6,7 +6,7 @@
  *             "SIGNAL_EXISTS_NOT_TRADABLE"|"HOLDOUT_PASS"|"DATA_INTEGRITY_FAIL", ...numbers}
  * It refuses to run unless the S5 design file still hashes to S5_DESIGN_SHA256. It places no order and writes nothing; the result is research evidence.
  */
-const { runImbalanceStudy, constants } = require("./lib/orderBookImbalanceStudy.js");
+const { runImbalanceStudy, eligibleMarkets, constants } = require("./lib/orderBookImbalanceStudy.js");
 const { assertDesignFrozen, S5_DESIGN_FILE, S5_DESIGN_SHA256 } = require("./lib/preregisteredDesign.js");
 const { makeDbProvider, bookSource } = require("./run-preregistered-studies.js");
 
@@ -15,12 +15,13 @@ const frozenS5 = () => assertDesignFrozen({ file: S5_DESIGN_FILE, expected: S5_D
 function runS5({ db, now = Date.now(), frozen = frozenS5 }) {
   frozen();
   const { TRAIN_START, HOLD_END, PRINT_AT, H } = constants;
-  if (now < PRINT_AT) return ["S5H", "S5L"].map((study) => ({ study, status: "WAITING_DATA" }));
-  // Any stored row stamped after the run time (beyond 5 s) means the clock or the source cannot be trusted.
+  // Design step 1: any stored row stamped after the run time (beyond 5 s) means the clock or the source cannot be trusted; it precedes WAITING_DATA.
   if (Number(db.prepare(`SELECT COUNT(*) AS n FROM ${bookSource(db)} WHERE captured_at_ms > ?`).get(now + 5_000).n) > 0) return ["S5H", "S5L"].map((study) => ({ study, status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" }));
+  if (now < PRINT_AT) return ["S5H", "S5L"].map((study) => ({ study, status: "WAITING_DATA" }));
   const provider = makeDbProvider(db, { from: TRAIN_START - H, to: HOLD_END + H });
   const results = runImbalanceStudy({ provider, now });
-  const identity = provider.hashRows();
+  // Dataset identity = the rows of the ELIGIBLE markets that were read (design: entry and exit windows of eligible markets).
+  const identity = provider.hashRows(new Set(eligibleMarkets(provider)));
   return results.map((r) => ({ ...r, datasetSha256: identity.sha256, datasetRows: identity.rows }));
 }
 

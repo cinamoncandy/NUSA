@@ -4,7 +4,7 @@
  * across markets, and does it beat taker costs? Every rule below is the design file's rule; a number or sentence here that differs from
  * the design is a bug. Pure function of a book provider ({ markets(), bookIn(market, fromExclusive, toInclusive) }); places no order.
  */
-const { minimumCount, tradeNet, compareCodes, upperMedian, cohortStats, studentTUpperP, oneSidedTests } = require("./preregisteredStudyStats.js");
+const { minimumCount, tradeNet, compareCodes, upperMedian, cohortStats, studentTUpperP, studentTCritical, oneSidedTests } = require("./preregisteredStudyStats.js");
 
 const M = 60_000;
 const H = 60 * M;
@@ -53,7 +53,9 @@ function eligibleMarkets(provider) {
 function pickTail(ranked, tail) {
   const k = Math.floor((ranked.length + 9) / 10);
   const sorted = [...ranked].sort((x, y) => (tail === "H" ? y.imb - x.imb : x.imb - y.imb) || compareCodes(x.market, y.market));
-  return sorted.slice(0, k);
+  const picks = sorted.slice(0, k);
+  Object.defineProperty(picks, "tieAtBoundary", { value: sorted.length > k && sorted[k - 1].imb === sorted[k].imb }); // printed, never tested
+  return picks;
 }
 
 /** One cohort (one decision hour): null when empty (fewer than 60 ranked markets, or no benchmark market with an exit book). */
@@ -68,26 +70,28 @@ function buildCohort(provider, universe, t) {
   if (bench.length === 0) return null;
   const gross = (r) => mid(r.x) / mid(r.e) - 1;
   const benchmarkGross = mean(bench.map(gross));
-  const out = { ranked: ranked.length, benchGaps: ranked.length - bench.length, benchmarkGross };
+  const horizons = bench.map((r) => (r.x.t - r.e.t) / M);
+  const out = { ranked: ranked.length, benchGaps: ranked.length - bench.length, benchmarkGross, horizonSum: horizons.reduce((a, v) => a + v, 0), horizonN: horizons.length, horizonMin: Math.min(...horizons), horizonMax: Math.max(...horizons) };
   for (const tail of ["H", "L"]) {
     const picks = pickTail(ranked, tail);
     const gaps = picks.filter((p) => p.x == null).length;
     const grossValues = picks.map((p) => (p.x == null ? -1 : gross(p)));
     const net = (bp) => mean(picks.map((p) => (p.x == null ? -1 : tradeNet({ askEntry: p.e.a, bidExit: p.x.b, entryBp: bp, exitBp: bp }))));
-    out[tail] = { picks: picks.length, gaps, excess: mean(grossValues) - benchmarkGross, netBase: net(BASE_BP), netStress: net(STRESS_BP) };
+    out[tail] = { picks: picks.length, gaps, tie: picks.tieAtBoundary, gapShare: picks.length === 0 ? 0 : gaps / picks.length, excess: mean(grossValues) - benchmarkGross, netBase: net(BASE_BP), netStress: net(STRESS_BP) };
   }
   return out;
 }
 
-/** Lag-1 autocorrelation (mean-centred, total-variance divisor); 0 when the variance is 0. */
-function lag1(values) {
+/** Lag-k autocorrelation (mean-centred, total-variance divisor); 0 when the variance is 0. */
+function lagK(values, k) {
   const m = mean(values);
   const den = values.reduce((s, v) => s + (v - m) ** 2, 0);
   if (den === 0) return 0;
   let num = 0;
-  for (let i = 1; i < values.length; i += 1) num += (values[i] - m) * (values[i - 1] - m);
+  for (let i = k; i < values.length; i += 1) num += (values[i] - m) * (values[i - k] - m);
   return num / den;
 }
+const lag1 = (values) => lagK(values, 1);
 
 function tailSummary(tail, cohorts, blocks) {
   const excess = cohorts.map((c) => (c == null ? 0 : c[tail].excess));
@@ -103,7 +107,12 @@ function tailSummary(tail, cohorts, blocks) {
   const picks = live.reduce((s, c) => s + c[tail].picks, 0);
   const gaps = live.reduce((s, c) => s + c[tail].gaps, 0);
   const tests = oneSidedTests(blockValues, ALPHA, { seed: SEED });
+  const half = Math.floor(blockValues.length / 2);
+  const tieN = live.filter((c) => c[tail].tie).length;
   return {
+    firstHalfBp: mean(blockValues.slice(0, half)) * 10_000, lastHalfBp: mean(blockValues.slice(half)) * 10_000,
+    autocorr1to6: [1, 2, 3, 4, 5, 6].map((k) => lagK(blockValues, k)), tieShare: live.length === 0 ? 0 : tieN / live.length, gapShareMean: mean(live.map((c) => c[tail].gapShare)),
+    minDetectableExcessBp: tests.sd > 0 ? (studentTCritical(ALPHA, tests.df) * tests.sd) / Math.sqrt(tests.n) * 10_000 : null,
     grossPass: tests.pass, grossMeanBp: tests.mean * 10_000, blockT: tests.t, tP: tests.tP, permP: tests.permP, blocks: blockValues.length, blockSdBp: tests.sd * 10_000,
     r1: lag1(blockValues), picks, pickGaps: gaps, pickGapBreach: gaps * 100 > picks,
     netBaseBp: mean(cohorts.map((c) => (c == null ? 0 : c[tail].netBase))) * 10_000, netStressBp: mean(cohorts.map((c) => (c == null ? 0 : c[tail].netStress))) * 10_000,
@@ -121,7 +130,8 @@ function runImbalanceStudy({ provider, now = Date.now() }) {
   const nonEmpty = cohorts.filter((c) => c != null).length;
   const benchGaps = cohorts.reduce((s, c) => s + (c == null ? 0 : c.benchGaps), 0);
   const ranked = cohorts.reduce((s, c) => s + (c == null ? 0 : c.ranked), 0);
-  const base = { eligibleMarkets: universe.length, cohorts: times.length, nonEmptyCohorts: nonEmpty, benchmarkGaps: benchGaps, rankedTotal: ranked };
+  const horizonN = cohorts.reduce((a, c) => a + (c == null ? 0 : c.horizonN), 0);
+  const base = { realisedHorizonMin: { mean: horizonN === 0 ? null : cohorts.reduce((a, c) => a + (c == null ? 0 : c.horizonSum), 0) / horizonN, min: Math.min(...cohorts.filter((c) => c != null).map((c) => c.horizonMin)), max: Math.max(...cohorts.filter((c) => c != null).map((c) => c.horizonMax)) }, eligibleMarkets: universe.length, cohorts: times.length, nonEmptyCohorts: nonEmpty, benchmarkGaps: benchGaps, rankedTotal: ranked };
   if (nonEmpty < minimumCount(times.length)) return ["S5H", "S5L"].map((study) => ({ study, ...base, status: "INSUFFICIENT_DATA", reasonCode: "DATA_COHORTS" }));
   const benchBreach = benchGaps * 20 > ranked;
   const sums = { S5H: tailSummary("H", cohorts, blocks), S5L: tailSummary("L", cohorts, blocks) };
@@ -138,4 +148,4 @@ function runImbalanceStudy({ provider, now = Date.now() }) {
   });
 }
 
-module.exports = { runImbalanceStudy, eligibleMarkets, buildCohort, pickTail, lag1, constants: { TRAIN_START, TRAIN_END, HOLD_START, HOLD_END, PRINT_AT, ALPHA, SEED, M, H } };
+module.exports = { runImbalanceStudy, eligibleMarkets, buildCohort, pickTail, lag1, lagK, constants: { TRAIN_START, TRAIN_END, HOLD_START, HOLD_END, PRINT_AT, ALPHA, SEED, M, H } };

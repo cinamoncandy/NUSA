@@ -61,10 +61,16 @@ function makeDbProvider(db, { from, to }) {
     }
     return out;
   };
-  const hashRows = () => {
+  // Optionally restricted to a set of markets (study S5 hashes only the rows of its eligible markets).
+  const hashRows = (onlyMarkets) => {
     const hash = crypto.createHash("sha256");
-    for (const key of [...consumed.keys()].sort()) hash.update(`${consumed.get(key)}\n`);
-    return { sha256: hash.digest("hex"), rows: consumed.size };
+    let rows = 0;
+    for (const key of [...consumed.keys()].sort()) {
+      if (onlyMarkets != null && !onlyMarkets.has(key.slice(0, key.indexOf(",")))) continue;
+      hash.update(`${consumed.get(key)}\n`);
+      rows += 1;
+    }
+    return { sha256: hash.digest("hex"), rows };
   };
   return { markets: () => marketList, bookAt, bookIn, lastBidBetween, booksBetween, hashRows };
 }

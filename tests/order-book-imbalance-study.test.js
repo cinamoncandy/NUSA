@@ -120,3 +120,86 @@ test("both tails working is BOTH_TAILS_AMBIGUOUS, never a pass", () => {
   const out = runImbalanceStudy({ provider: planted({ both: true }), now: NOW });
   assert.deepEqual(out.map((r) => r.status), ["BOTH_TAILS_AMBIGUOUS", "BOTH_TAILS_AMBIGUOUS"]);
 });
+
+// ---- window-exact provider over explicit samples, and verdict branches ----
+function sampleProvider(samples, markets = codes) {
+  return { markets: () => markets, bookIn: (market, from, to) => { const r = samples.filter((x) => x.market === market && x.t > from && x.t <= to).sort((a, b) => a.t - b.t).pop(); return r; }, hashRows: () => ({ sha256: "x", rows: 0 }) };
+}
+
+test("bookIn windows are open at the start and closed at the end, and the latest sample wins", () => {
+  const t = HOLD_START + 45 * M;
+  const samples = [{ market: "KRW-M00", t: t - 2 * M, b: 99, a: 99.1, b5: 1, a5: 1 }, { market: "KRW-M00", t: t - M, b: 100, a: 100.1, b5: 1, a5: 1 }];
+  const p = sampleProvider(samples);
+  const c = buildCohort(p, ["KRW-M00"], t);
+  assert.equal(c, null); // one market is below the 60-market minimum, but the window selection is exercised in the next assertion
+  assert.equal(p.bookIn("KRW-M00", t - 2 * M, t).b, 100); // the sample exactly at t - 2 min is excluded, the later one wins
+  assert.equal(p.bookIn("KRW-M00", t - M, t), undefined); // a sample exactly at the window start is excluded
+});
+
+function withExit(fn) {
+  // entry books flat; exit books decided by fn(market, hourIndex) -> undefined | {b, a}
+  return provider((market, to, from) => {
+    const isExit = (to % H) < 30 * M;
+    const i = Number(market.slice(5));
+    const base = { b: 100, a: 100.05, b5: 1 + i / 100, a5: 1 };
+    if (!isExit || to <= HOLD_START) return base;
+    const h = Math.floor((to - 15 * M - HOLD_START) / H);
+    const x = fn(market, h);
+    return x === undefined ? undefined : { ...x, b5: base.b5, a5: base.a5 };
+  });
+}
+
+test("too many pick gaps (above 1%) is INSUFFICIENT_DATA DATA_GAPS", () => {
+  const out = runImbalanceStudy({ provider: withExit((m) => (m === "KRW-M69" ? undefined : { b: 100, a: 100.05 })), now: NOW });
+  assert.deepEqual(out.map((r) => [r.status, r.reasonCode]), [["INSUFFICIENT_DATA", "DATA_GAPS"], ["SIGNAL_NOT_FOUND", undefined]]);
+});
+
+test("benchmark gaps above 5% of ranked markets is INSUFFICIENT_DATA DATA_BENCHMARK_GAPS", () => {
+  const out = runImbalanceStudy({ provider: withExit((m) => ((i) => (i >= 10 && i < 63 && i % 5 < 2 ? undefined : { b: 100, a: 100.05 }))(Number(m.slice(5)))), now: NOW });
+  assert.ok(out.every((r) => r.status === "INSUFFICIENT_DATA"));
+  assert.ok(out.some((r) => r.reasonCode === "DATA_BENCHMARK_GAPS"));
+});
+
+test("a gross pass with fewer than 8 down blocks is INSUFFICIENT_DATA DATA_DOWN_BLOCKS", () => {
+  const noise = (h) => { const x = Math.sin(h * 12.9898 + 4.1) * 43758.5453; return x - Math.floor(x); };
+  const out = runImbalanceStudy({ provider: withExit((m, h) => { const i = Number(m.slice(5)); const p = 100 * (1 + 0.003 + (i >= 63 ? 0.006 + (noise(h) - 0.5) * 0.004 : 0)); return { b: p, a: p + 0.05 }; }), now: NOW });
+  assert.equal(out[0].status, "INSUFFICIENT_DATA");
+  assert.equal(out[0].reasonCode, "DATA_DOWN_BLOCKS");
+  assert.equal(out[0].downBlocks, 0);
+});
+
+test("a gross pass whose block values are positively autocorrelated is INCONCLUSIVE_DEPENDENCE", () => {
+  // The effect size trends slowly with time, so neighbouring block values are strongly correlated; benchmark alternates so down blocks exist.
+  const out = runImbalanceStudy({ provider: withExit((m, h) => { const i = Number(m.slice(5)); const drift = Math.floor(h / 4) % 2 === 0 ? -0.0006 : 0.0006; const p = 100 * (1 + drift + (i >= 63 ? 0.004 + (h / 336) * 0.01 : 0)); return { b: p, a: p + 0.05 }; }), now: NOW });
+  assert.equal(out[0].status, "INCONCLUSIVE_DEPENDENCE");
+  assert.ok(out[0].r1 > 0.3);
+});
+
+test("a cohort whose benchmark set is empty is an empty cohort", () => {
+  const t = HOLD_START + 45 * M;
+  const p = { markets: () => codes, bookIn: (m, from, to) => (to > t + 5 * M ? undefined : { t: to, b: 100, a: 100.1, b5: 1.1, a5: 1 }) };
+  assert.equal(buildCohort(p, codes, t), null);
+});
+
+test("the runner reports DATA_INTEGRITY_FAIL before WAITING_DATA when a row is stamped in the future", () => {
+  const db = { prepare: () => ({ get: () => ({ n: 1 }) }) };
+  const out = runS5({ db, now: PRINT_AT - 1, frozen: () => ({}) });
+  assert.deepEqual(out.map((r) => [r.status, r.reasonCode]), [["DATA_INTEGRITY_FAIL", "DATA_FUTURE"], ["DATA_INTEGRITY_FAIL", "DATA_FUTURE"]]);
+});
+
+test("makeDbProvider.bookIn on real SQLite: an invalid latest sample is no book (no look-back); the dataset hash can be limited to markets", () => {
+  const { DatabaseSync } = require("node:sqlite");
+  const { makeDbProvider } = require("../scripts/run-preregistered-studies.js");
+  const db = new DatabaseSync(":memory:");
+  db.exec("CREATE TABLE research_orderbook_samples (market TEXT, captured_at_ms INTEGER, best_bid REAL, best_ask REAL, bid_size_5 REAL, ask_size_5 REAL, total_bid_size REAL, total_ask_size REAL, PRIMARY KEY (market, captured_at_ms))");
+  const ins = db.prepare("INSERT INTO research_orderbook_samples VALUES (?, ?, ?, ?, ?, ?, 0, 0)");
+  const t = HOLD_START + 45 * M;
+  ins.run("KRW-A", t - 90_000, 100, 100.1, 1, 1); // older valid sample
+  ins.run("KRW-A", t - 30_000, 101, 100, 1, 1); // newer but crossed (invalid)
+  ins.run("KRW-B", t - 30_000, 100, 100.1, 1, 1);
+  const p = makeDbProvider(db, { from: t - H, to: t + H });
+  assert.equal(p.bookIn("KRW-A", t - 2 * M, t), undefined);
+  assert.equal(p.bookIn("KRW-B", t - 2 * M, t).b, 100);
+  assert.equal(p.hashRows(new Set(["KRW-B"])).rows, 1);
+  assert.equal(p.hashRows().rows, 1); // the crossed KRW-A book was never accepted, so only KRW-B was consumed
+});
