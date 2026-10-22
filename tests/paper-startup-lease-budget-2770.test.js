@@ -624,6 +624,53 @@ test("replacing the whole CommonJS module cache cannot substitute the preloaded 
   assert.equal(result.status, 0, `module-cache replacement must not forge SQLite integrity:\n${result.stdout}\n${result.stderr}`);
 });
 
+test("replacing CommonJS Module._load cannot substitute the preloaded SQLite boundary", () => {
+  const bootstrapPath = path.join(root, "dist", "packages", "storage", "src", "sqliteIntegrityBootstrap.js");
+  const script = `
+    const assert = require("node:assert/strict");
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path = require("node:path");
+    const Module = require("node:module");
+    const { DatabaseSync } = require("node:sqlite");
+    const nativeLoad = Module._load;
+    const bootstrapPath = ${JSON.stringify(bootstrapPath)};
+    const trustedBootstrap = require(bootstrapPath);
+    let forgedLoads = 0;
+    const forgedLoad = function(request, parent, isMain) {
+      if (request === "./sqliteIntegrityBootstrap") {
+        forgedLoads++;
+        return { sqliteIntegrityBoundary: {
+          prepare: () => ({ get: () => ({ quick_check: "ok" }) }),
+          read: (statement) => statement.get(),
+          resultIsOk: () => true,
+        } };
+      }
+      return nativeLoad.call(this, request, parent, isMain);
+    };
+    assert.equal(Reflect.set(Module, "_load", forgedLoad), false);
+    assert.throws(() => Object.defineProperty(Module, "_load", { value: forgedLoad }), TypeError);
+    assert.strictEqual(Module._load, nativeLoad, "preload must keep the original loader immutable");
+
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-loader-replacement-"));
+    const filename = path.join(directory, "state.sqlite");
+    const initial = new DatabaseSync(filename);
+    initial.exec("CREATE TABLE integrity_test (value INTEGER)");
+    initial.close();
+    fs.writeFileSync(filename, Buffer.from("not a sqlite database"));
+    try {
+      const { SqliteDatabase } = require(${JSON.stringify(path.join(root, "dist", "packages", "storage", "src", "index.js"))});
+      assert.ok(trustedBootstrap.sqliteIntegrityBoundary);
+      assert.throws(() => new SqliteDatabase(filename), /quick_check failed|malformed|not a database|corrupt/i);
+      assert.equal(forgedLoads, 0, "the mutable loader must never substitute the integrity capability");
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  `;
+  const result = spawnSync(process.execPath, ["--require", bootstrapPath, "-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `preloaded Module._load boundary must reject replacement:\n${result.stdout}\n${result.stderr}`);
+});
+
 test("replacing application Object.values cannot turn a corrupt quick_check result into ok", () => {
   const script = `
     const assert = require("node:assert/strict");

@@ -12,6 +12,8 @@ const cleanRealm = runInNewContext("({ apply: Reflect.apply, functionToString: F
 };
 const nativeDatabasePrepare = DatabaseSync.prototype.prepare;
 const nativeStatementGet = StatementSync.prototype.get;
+const nativeModuleLoad = Object.getOwnPropertyDescriptor(Module, "_load")?.value;
+if (typeof nativeModuleLoad !== "function") throw new Error("CommonJS module loader is unavailable; refusing SQLite integrity bootstrap");
 const nativeMethodsAreCanonical = cleanRealm.apply(cleanRealm.functionToString, nativeDatabasePrepare, []) === "function prepare() { [native code] }"
   && cleanRealm.apply(cleanRealm.functionToString, nativeStatementGet, []) === "function get() { [native code] }";
 
@@ -40,6 +42,15 @@ export const sqliteIntegrityBoundary = Object.freeze({
 // This is a process bootstrap capability. Prevent subsequent application code from replacing
 // its exports or deleting the cache entry between the preload and storage module initialization.
 Object.freeze(exports);
+// The storage consumer is loaded after this preload, so it still traverses Node's CommonJS loader.
+// Pin the loader at the same trust boundary: otherwise later code can forge the bootstrap export
+// returned for `require("./sqliteIntegrityBootstrap")`, regardless of cache-entry protections.
+Object.defineProperty(Module, "_load", {
+  configurable: false,
+  enumerable: true,
+  writable: false,
+  value: nativeModuleLoad,
+});
 const bootstrapCache = require.cache;
 const bootstrapModule = bootstrapCache?.[__filename];
 if (bootstrapModule != null && bootstrapCache != null) {
