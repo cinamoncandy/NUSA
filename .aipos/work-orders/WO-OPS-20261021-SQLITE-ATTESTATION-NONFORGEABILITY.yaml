@@ -21,15 +21,16 @@ repair_head: 992e0e090cba3e5cad5a271854dc78af309a3e19
 authority_impact: none
 objective: 'Close #2770''s pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed.'
 root_cause:
-  transition: untrusted NODE_OPTIONS preload in either systemd parent -> hostile code before SQLite integrity bootstrap -> forged integrity result
-  evidence: Fresh review of exact head 9d9515a6 found that EnvironmentFile can override Environment=NODE_OPTIONS in nusa-research.service, so the heap-only NODE_OPTIONS assignment does not exclude a preload before the research integrity bootstrap. The PAPER unit already scrubs NODE_OPTIONS with env -u; Research is repaired to use the same parent scrub and a direct 256 MiB Node CLI heap cap. Earlier PAPER parent, native-method, VM factory, Object.values, and Module._cache replacement attacks are captured as separate historical/repaired cases.
-  classification: systemd EnvironmentFile value crossed the process bootstrap trust boundary before database-owning Node startup
+  transition: untrusted NODE_OPTIONS preload or unbounded spawned Research heap -> compromised integrity bootstrap or resource exhaustion -> missing fail-closed Research evidence
+  evidence: Fresh review of exact head 9d9515a found the Research EnvironmentFile preload boundary; bcc9c62 fixed parent startup by scrubbing NODE_OPTIONS and moving the heap cap to Node CLI. Review of exact head 3eb81c1 then found spawned Research jobs did not inherit a parent CLI heap limit. This follow-up applies the 256 MiB CLI limit to each sequential child. The AIPOS review also caught that the 3eb81c work order still called its already-committed sync pending; this follow-up corrects the state/handoff.
+  classification: per-process heap limit was not propagated to spawned Research Node jobs; completed AIPOS sync was mislabeled pending
 repair:
   - Canonical SqliteDatabase full-scan registration and both existing AI-store admission checks now share the index.ts lexical scope. The WeakMap and resolver are not exported, there is no imported registration/verifier capability, and sqliteVerifiedSharedConnection.ts is deleted. Existing AI-store paths re-export the same genuine constructors; their implementations were relocated without changing their schemas, scoped checks, hash-chain replay, ownership, or standalone full scans. Startup ordering remains unchanged.
   - Keep canonical quick_check before Cloud AI initialization, Research prepareRecovery and writer-lease acquisition.
   - Move clean-realm/native-method capture into a dedicated SQLite integrity bootstrap and preload it before application code in the supervised PAPER runtime and canonical Oracle Research systemd unit. The supervised database-owning child strips inherited NODE_OPTIONS so arbitrary preloads cannot run before the boundary. Capture clean-realm Reflect.apply, Function.prototype.toString and Object.values; use only those captures for native method checks, integrity reads and result interpretation. Make bootstrap exports/cache binding immutable after initialization. Standalone developer execution is explicit via cloud:runtime:bare preload. Full-file scans, scoped AI-store checks, hash-chain replay and startup ordering remain unchanged.
   - Strip NODE_OPTIONS at both Oracle systemd parent boundaries with `/usr/bin/env -u NODE_OPTIONS` before launching Node; pass Research's bounded 256 MiB heap via the Node command line, not Environment=NODE_OPTIONS. Make Oracle validation fail closed if either unit stops scrubbing NODE_OPTIONS or the Research heap bound is lost.
   - Add corrupt-database child-process regressions proving late VM/SQLite prototype replacement and late Object.values replacement cannot forge an integrity pass. Add launcher and Oracle-unit contract checks for parent and child NODE_OPTIONS scrubbing and preload ordering. Retain all prior poisoning, cache replacement, full-scan and recovery-order regressions.
+  - Pass the explicit 256 MiB max-old-space limit to each sequential Node child launched by the Research snapshot runner; regression asserts every spawned command carries the bound.
   - Preserve Storybook 8.6.19 security patch; no security gate waiver.
 prohibited:
   - bypassing_or_weakening_canonical_full_file_quick_check
@@ -56,6 +57,7 @@ acceptance:
   - production PAPER and Research entrypoints load the integrity bootstrap before application code
   - Oracle PAPER systemd removes NODE_OPTIONS before the supervisor process starts, and child execution cannot prepend a preload before the integrity bootstrap
   - Oracle Research systemd removes NODE_OPTIONS before Node starts while preserving the 256 MiB heap limit on the command line
+  - Each spawned Research Node study/probe process independently receives the 256 MiB heap limit; the parent-only setting is not treated as inherited proof
   - replacing node:vm.runInNewContext or Object.values after bootstrap cannot bypass full-file integrity rejection
 safety:
   paper_only: true
@@ -70,8 +72,12 @@ source_repair_commit: 30a718279401dea433de1142e8d3fc61cd387f61
 latest_remote_head_before_research_preload_repair: 9d9515a6a62a18be3eadf425c381856156c3c8f6
 research_preload_source_repair_commit: bcc9c62d25d59021e0b0840abd26eedb356c44f4
 candidate_head_before_aipos_sync: bcc9c62d25d59021e0b0840abd26eedb356c44f4
-validation: 'Research parent-preload source repair bcc9c62d25d59021e0b0840abd26eedb356c44f4: scripts/oracle-validate.test.js 12/12 PASS. validate:full PASS (strict AIPOS YAML 513 files/no duplicates; architecture 1164 files, 0 runtime cycles, 0 findings; AIPOS drift/conformance and safety checks PASS). security:gate PASS (unmitigated advisories 0, secrets 0). aipos:provenance PASS. lint:scripts PASS with 0 errors and 36 pre-existing warnings. git diff --check PASS. Prior exact head 9d9515a6 workflows are historical and not reusable. AIPOS synchronization commit and exact successor-head CI/review/Validator remain pending.'
-next: Complete full local validation and update AIPOS with the exact Research systemd repair; push only the existing PR branch. Require fresh exact-head CI and companions, non-author adjudication of all current P0/P1 threads, and separate formal NUSA Validator ACCEPTED with exact SHA and P0/P1/P2 counts. Only then proceed to Independent Audit and governed Release. Keep Draft; no merge or Oracle mutation before acceptance.
+previous_aipos_sync_commit: 3eb81c1493771b2e7396060bf342028a533318bf
+followup_research_heap_source_repair_commit: b4968375f160f020534e16c304dd5171c145ad4b
+previous_aipos_sync_status: COMPLETED_IN_3EB81C149
+followup_candidate_validation: 'Source repair b4968375f160f020534e16c304dd5171c145ad4b: focused Research snapshot + Oracle validator suites 20/20 PASS; validate:full PASS; security:gate PASS with 0 unmitigated advisories and 0 secrets; aipos:provenance PASS; lint:scripts 0 errors/36 warnings; git diff --check PASS.'
+validation: 'Historical Research parent-preload source repair bcc9c62d25d59021e0b0840abd26eedb356c44f4 passed its Oracle validator, full validation, security, AIPOS provenance, and lint gates. Prior AIPOS sync 3eb81c1493771b2e7396060bf342028a533318bf is completed. Current Research child-heap source repair is b4968375f160f020534e16c304dd5171c145ad4b with focused 20/20, validate:full, security:gate, aipos:provenance, lint (0 errors/36 warnings), and diff checks passing. Successor exact-head workflows, non-author review adjudication, and formal Validator remain pending.'
+next: Commit this AIPOS sync, push only the existing PR branch after rechecking expected remote head and main/base, then require fresh exact-head CI/companions, non-author adjudication of all review threads, and separate formal NUSA Validator with exact SHA/P0/P1/P2/ACCEPTED. Only afterward may Independent Audit and governed Release be considered. Keep Draft; no merge or Oracle mutation before acceptance.
 prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
 
 latest_prototype_poisoning_finding_head: 09bd6051f09bb3ad0230c1900445d3648d858754
