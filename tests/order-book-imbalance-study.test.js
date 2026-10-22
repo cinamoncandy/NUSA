@@ -200,6 +200,12 @@ test("makeDbProvider.bookIn on real SQLite: an invalid latest sample is no book 
   const p = makeDbProvider(db, { from: t - H, to: t + H });
   assert.equal(p.bookIn("KRW-A", t - 2 * M, t), undefined);
   assert.equal(p.bookIn("KRW-B", t - 2 * M, t).b, 100);
-  assert.equal(p.hashRows(new Set(["KRW-B"])).rows, 1);
-  assert.equal(p.hashRows().rows, 1); // the crossed KRW-A book was never accepted, so only KRW-B was consumed
+  ins.run("KRW-C", t - 20_000, 100, 100.1, 1, 1);
+  assert.equal(p.bookIn("KRW-C", t - 2 * M, t).b, 100);
+  const all = p.hashRows(); // the crossed KRW-A book was never accepted, so KRW-B and KRW-C were consumed
+  const onlyB = p.hashRows(new Set(["KRW-B"]));
+  assert.equal(all.rows, 2);
+  assert.equal(onlyB.rows, 1);
+  assert.notEqual(onlyB.sha256, all.sha256);
+  assert.equal(p.hashRows().sha256, all.sha256); // no filter: unchanged and repeatable
 });
