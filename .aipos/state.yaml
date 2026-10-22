@@ -2732,15 +2732,15 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
 
 current_ops_sqlite_resolver_pin_20261022:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: CANDIDATE_BOOTSTRAP_PREFLIGHT_REPAIR_LOCAL_PASS_PENDING_NEW_EXACT_HEAD_GATES
+  status: RECOVERY_RECORD_P1_CORRECTED_PENDING_SUCCESSOR_EXACT_HEAD_GATES
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
-  reviewed_exact_head: 5321c75e8201d801c26a68d0e199a821a46e118b
+  finding_head: 4b6785323535b37bf0b0275ec7eb0f9f803d9d69
   protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
   source_repair: "Trusted preload publishes the frozen SQLite integrity boundary on Node Module; storage uses raw CommonJS node:module import-assignment and preload-captured native DatabaseSync constructor, prepare, and get through the immutable boundary. Canonical and standalone storage opens use the captured native constructor, so replacing node:sqlite.DatabaseSync after preload cannot redirect integrity checking to another database. Legacy Cloud PAPER systemd scrubs NODE_OPTIONS and preloads the boundary before the supervisor; supervisor strips NODE_OPTIONS and preloads it before the database-owning child. AI stores share only the checked canonical connection and retain scoped checks/hash-chain replay."
-  latest_review_findings: "Fresh separate NUSA Validator report on exact parent head 4e5b0e75da292c23c4028251f4bd1e79fdd9f53b recorded P0=0, P1=0, P2=5 and ACCEPTED_WITH_CONDITIONS, not the required explicit ACCEPTED. Its candidate-release bootstrap existence condition was verified as a real gap: scripts/oracle-validate.js checked unit text but not dist/packages/storage/src/sqliteIntegrityBootstrap.js before candidate unit installation. The active successor adds a fail-closed candidate artifact check and positive/negative regressions. The validator independently adjudicated all 25 unresolved outdated threads; those were resolved. Prior SQLite and AIPOS findings/receipts on other SHAs remain historical."
-  historical_predecessor_workflows: "Head 5321c75e8201d801c26a68d0e199a821a46e118b: CI run 39741534205 SUCCESS; Actual PAPER 39741534128, Capability Guard 39741534127, Activation Rehearsal 39741534043, Transport Readiness 39741534014, Read-only Broker 39741534056, Android Release Guard 39741534113, Research advisory 39741534376, Autopilot Bridge 39741530747 all SUCCESS. Historical only; all exact-head status after any subsequent PR-head update must be resolved dynamically from GitHub. No current-head PASS is asserted in this record."
+  latest_review_findings: "The separate fresh NUSA Validator on parent 4e5b0e75da292c23c4028251f4bd1e79fdd9f53b returned P0=0, P1=0, P2=5, ACCEPTED_WITH_CONDITIONS; this does not meet the explicit ACCEPTED gate. Its candidate-bootstrap artifact condition was repaired in scripts/oracle-validate.js and committed/pushed on PR head 4b6785323535b37bf0b0275ec7eb0f9f803d9d69. Fresh Codex review on that exact head found P1 4348034655: the state, work order, and handoff still instructed repeating the completed commit/push. This recovery-record-only successor corrects that stale instruction. Prior-head reviews and Validator receipts remain historical."
+  previous_exact_head_workflows: "On 4b6785323535b37bf0b0275ec7eb0f9f803d9d69, CI 39773522607 and the eight companion workflows all completed SUCCESS. These receipts are historical after this recovery-record successor; resolve current checks dynamically from GitHub."
   local_validation:
     native_constructor_capture_and_post_preload_export_poison_regression: PASS
     focused_sqlite_startup_writer_lease_research_recovery_tests: PASS_46_OF_46
@@ -2759,7 +2759,7 @@ current_ops_sqlite_resolver_pin_20261022:
     security_gate: PASS_0_UNMITIGATED_0_SECRETS
   formal_validator: "PARENT_4E5B0E75_ACCEPTED_WITH_CONDITIONS; successor requires fresh exact-head P0/P1/P2 and explicit ACCEPTED"
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "A substantive candidate-bootstrap existence preflight repair is locally validated on the successor worktree; commit and push it to the existing PR #2855 branch without force. The parent 4e5b0e75 CI, pending Codex review and ACCEPTED_WITH_CONDITIONS Validator are historical for the new head. Resolve exact-head workflows dynamically, then obtain fresh non-author review and separate formal NUSA Validator P0/P1/P2 with explicit ACCEPTED before Independent Audit or Release. Keep Draft; no Oracle mutation."
+  next: "Resolve the current PR #2855 head and exact-head workflows dynamically. Require fresh non-author review with no current actionable P0/P1 and a separate formal NUSA Validator receipt bound to that exact SHA with P0/P1/P2 and explicit ACCEPTED. Only then proceed to Independent Audit, Release authorization, protected merge, and exact-main Oracle acceptance. Do not repeat the candidate-bootstrap source repair or recovery-record commit/push; keep Draft/HOLD and do not mutate Oracle."
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
   status: READY_FOR_REVIEW
