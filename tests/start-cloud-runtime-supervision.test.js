@@ -12,7 +12,8 @@ test("production cloud runtime entrypoint is supervised", () => {
 
 test("production supervisor launches the closed-learning composition root", () => {
   assert.match(source, /const PRODUCTION_RUNTIME_ENTRYPOINT = "dist\/apps\/cloud\/src\/closedLearningProductionRuntime\.js"/);
-  assert.match(source, /spawnFn\(process\.execPath, \[PRODUCTION_RUNTIME_ENTRYPOINT\]/);
+  assert.match(source, /spawnFn\(process\.execPath, \["--require", bootstrapPath, PRODUCTION_RUNTIME_ENTRYPOINT\]/);
+  assert.match(source, /delete env\.NODE_OPTIONS/);
   assert.doesNotMatch(source, /spawnFn\(process\.execPath, \["dist\/apps\/cloud\/src\/runtime\.js"\]/);
 });
 
