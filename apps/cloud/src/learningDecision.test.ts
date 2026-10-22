@@ -121,6 +121,17 @@ describe("A1 aperture falsification", () => {
     assert.equal(assessChange({ surface: "longBarTickEvery", currentValue: 1, proposedValue: 0 }).verdict, "REJECTED");
   });
 
+  it("refuses fractional cadence premises and proposals", () => {
+    for (const request of [
+      { surface: "longBarTickEvery", currentValue: 1, proposedValue: 1.5 },
+      { surface: "longBarTickEvery", currentValue: 1.5, proposedValue: 2 },
+    ]) {
+      const assessment = assessChange(request);
+      assert.equal(assessment.verdict, "REJECTED");
+      assert.match(assessment.reason, /safe integers/);
+    }
+  });
+
   it("refuses a step larger than the per-cycle delta, even inside the bounds", () => {
     const assessment = assessChange({ surface: "longBarTickEvery", currentValue: 1, proposedValue: 4 });
     assert.equal(assessment.verdict, "REJECTED");

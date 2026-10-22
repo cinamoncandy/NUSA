@@ -255,6 +255,10 @@ export function assessChange(request: LearningChangeRequest): LearningChangeAsse
     maximumDeltaPerCycle: definition.maximumDeltaPerCycle,
   });
 
+  if (!Number.isSafeInteger(request.currentValue) || !Number.isSafeInteger(request.proposedValue)) {
+    return Object.freeze({ surface, currentValue: request.currentValue, proposedValue: request.proposedValue, ...bounds, verdict: "REJECTED" as const, reason: "cadence values must be safe integers" });
+  }
+
   if (request.currentValue < definition.minimum || request.currentValue > definition.maximum) {
     return Object.freeze({ surface, currentValue: request.currentValue, proposedValue: request.proposedValue, ...bounds, verdict: "REJECTED" as const, reason: "current value is outside the owner bounds" });
   }
