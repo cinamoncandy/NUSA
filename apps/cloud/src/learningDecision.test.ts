@@ -8,6 +8,7 @@ import {
   assessChange,
   learningDecisionFingerprint,
   assertLearningDecision,
+  assertLearningDecisionPremisesMatchCurrentSpec,
   type LearningDecisionInput,
 } from "./learningDecision";
 import { buildLearningInputSet } from "./learningInputSet";
@@ -197,6 +198,22 @@ describe("A1 is a receipt, not an authority - section 24", () => {
       decisionOutcome: "ADMISSIBLE" as const,
     };
     assert.throws(() => assertLearningDecision(forged), /owner aperture/);
+  });
+
+  it("fails closed when the actual current spec value differs from the proposal premise", () => {
+    const decision = buildLearningDecision(decisionInput());
+    assert.throws(() => assertLearningDecisionPremisesMatchCurrentSpec(decision, {
+      fingerprint: SPEC_A,
+      values: { longBarTickEvery: 4 },
+    }), /does not match the canonical current research spec/);
+    assert.throws(() => assertLearningDecisionPremisesMatchCurrentSpec(decision, {
+      fingerprint: "b".repeat(64),
+      values: { longBarTickEvery: 1 },
+    }), /does not match the decision premise/);
+    assert.doesNotThrow(() => assertLearningDecisionPremisesMatchCurrentSpec(decision, {
+      fingerprint: SPEC_A,
+      values: { longBarTickEvery: 1 },
+    }));
   });
 
   it("a decision is immutable once built, on every construction path", () => {

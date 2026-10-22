@@ -162,6 +162,12 @@ export interface LearningDecisionInput {
   readonly runtimeIdentity: string;
 }
 
+/** Owner-read snapshot supplied by the future bounded A4 apply gate, never by an AI proposal. */
+export interface LearningDecisionCurrentResearchSpec {
+  readonly fingerprint: string;
+  readonly values: Readonly<Record<string, number>>;
+}
+
 const SHA64 = /^[a-f0-9]{64}$/;
 const BOUNDED = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
 
@@ -414,4 +420,30 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   if (candidate.changeMagnitude !== expectedMagnitude) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision change magnitude is invalid");
   const expectedOutcome = admissible.length > 0 ? "ADMISSIBLE" : proposed.length > 0 ? "REJECTED" : "INSUFFICIENT";
   if (candidate.decisionOutcome !== expectedOutcome) throw new LearningDecisionError("MALFORMED_DECISION", "decision outcome does not match its validated assessments");
+}
+
+/**
+ * Revalidates every allowlisted premise against an owner-read current spec snapshot.
+ * A1's stored `currentValue` is only a proposal premise. Any A4 implementation must call this with
+ * the canonical current spec read immediately before application; a caller-provided claim alone is
+ * not sufficient to authorize a mutation.
+ */
+export function assertLearningDecisionPremisesMatchCurrentSpec(
+  value: unknown,
+  currentSpec: LearningDecisionCurrentResearchSpec,
+): asserts value is LearningDecision {
+  assertLearningDecision(value);
+  if (currentSpec == null || typeof currentSpec !== "object" || !SHA64.test(currentSpec.fingerprint ?? "")) {
+    throw new LearningDecisionError("CURRENT_SPEC_UNAVAILABLE", "canonical current research spec identity is required before application");
+  }
+  if (currentSpec.fingerprint !== value.previousResearchSpecFingerprint) {
+    throw new LearningDecisionError("CURRENT_SPEC_IDENTITY_MISMATCH", "current research spec does not match the decision premise");
+  }
+  for (const change of value.proposedChanges) {
+    if (allowlistedSurface(change.surface) == null) continue;
+    const actual = currentSpec.values?.[change.surface];
+    if (!Number.isFinite(actual) || actual !== change.currentValue) {
+      throw new LearningDecisionError("CURRENT_SPEC_VALUE_MISMATCH", "decision premise does not match the canonical current research spec");
+    }
+  }
 }
