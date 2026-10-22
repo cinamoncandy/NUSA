@@ -47,19 +47,17 @@ export function DecisionBars({ hourly }: { readonly hourly?: ReadonlyArray<numbe
   return <View style={styles.block} testID="learning-decision-bars" accessibilityLabel={`${m.example ? "예시 · " : ""}최근 ${m.bars.length}시간 판단 ${m.total.toLocaleString("en-US")}건`}>
     <SectionLabel left="판단 흐름" right={m.example ? "예시" : `${m.bars.length}시간`} />
     <View style={styles.bars} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {m.bars.map((b, i) => <View key={i} style={[styles.bar, { height: `${b.ratio * 100}%`, backgroundColor: b.recent ? calmColors.order : RAIL }]} />)}
+      {m.bars.map((b, i) => <View key={i} style={[styles.bar, { height: `${b.ratio * 100}%`, backgroundColor: b.recent ? calmColors.order : calmColors.muted, opacity: b.recent ? 1 : 0.4 }]} />)}
     </View>
     <Text style={styles.note}>판단이 많다고 수익이 나는 것은 아니에요. 활동량만 보여 줘요.{m.example ? " 막대는 예시예요." : ""}</Text>
   </View>;
 }
 
-const RAIL = "#2A3440";
-
 const styles = StyleSheet.create({
   block: { paddingHorizontal: 20, marginTop: 22, gap: 12 },
   note: { color: calmColors.muted, fontSize: readableFont(12), lineHeight: 18 },
   tl: { paddingLeft: 26, gap: 20, marginTop: 6 },
-  tlLine: { position: "absolute", left: 5, top: 8, bottom: 8, width: StyleSheet.hairlineWidth, backgroundColor: RAIL },
+  tlLine: { position: "absolute", left: 5, top: 8, bottom: 8, width: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
   ev: { gap: 2 },
   dot: { position: "absolute", left: -26, top: 9, width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: calmColors.muted, backgroundColor: calmColors.ground },
   dotNext: { borderColor: calmColors.order, backgroundColor: calmColors.order },
