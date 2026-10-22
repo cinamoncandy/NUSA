@@ -79,6 +79,36 @@ describe("A1 decision identity", () => {
     assert.equal(buildLearningDecision(decisionInput()).learningCycleId, decision.learningCycleId);
   });
 
+  it("carries an immutable full A2 input set and rejects a mismatched embedded identity", () => {
+    const input = decisionInput();
+    const decision = buildLearningDecision(input);
+    assert.deepEqual(decision.learningInputSet, input.inputSet);
+    assert.notEqual(decision.learningInputSet, input.inputSet, "A1 owns a canonical immutable copy");
+    assert.equal(Object.isFrozen(decision.learningInputSet), true);
+    assert.equal(Object.isFrozen(decision.learningInputSet.researchEvidenceRecordIds), true);
+    assert.throws(() => assertLearningDecision({
+      ...decision,
+      learningInputSet: { ...decision.learningInputSet, cutoffTimestamp: decision.learningInputSet.cutoffTimestamp + 1 },
+    }), /does not match the decision fingerprint/);
+  });
+
+  it("fails closed when the full A2 provenance cannot fit the existing decision receipt bound", () => {
+    const evidence = Array.from({ length: 329 }, (_, index) => ({
+      recordId: `research-${String(index).padStart(3, "0")}-${"x".repeat(27)}`,
+      recordedAt: index + 1,
+    }));
+    const largeInputSet = buildLearningInputSet({
+      cutoffTimestamp: 10_000,
+      researchEvidence: evidence,
+      paperEvidence: [],
+      policies: POLICIES,
+    });
+    assert.throws(() => buildLearningDecision(decisionInput({
+      inputSet: largeInputSet,
+      reasonEvidence: [evidence[0].recordId],
+    })), /receipt size limit/);
+  });
+
   it("one changed evidence identity yields a different decision fingerprint", () => {
     const baseline = buildLearningDecision(decisionInput());
     const changed = buildLearningDecision(decisionInput({ inputSet: inputSet(901) }));
@@ -335,7 +365,7 @@ describe("A1 durable exactly-once - section 43", () => {
     const input = decisionInput();
     new LearningInputSetLedger(ledger).append(input.inputSet);
     const decision = buildLearningDecision(input);
-    assert.throws(() => store.append({ ...decision, learningPolicyVersion: "learn-v2" }), /does not match its durable A2 input set/);
+    assert.throws(() => store.append({ ...decision, learningPolicyVersion: "learn-v2" }), /does not match its embedded A2 input set/);
     assert.throws(() => store.append({ ...decision, reasonEvidence: ["not-in-a2"] }), /not present in its durable A2 input set/);
   });
 

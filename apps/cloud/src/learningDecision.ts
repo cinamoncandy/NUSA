@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
-import { assertLearningInputSet, learningCycleId, learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
+import { assertLearningInputSet, buildLearningInputSet, learningCycleId, learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
 
 /**
  * A1 - the Learning Decision.
@@ -133,6 +133,8 @@ export type LearningDecisionOutcome = "ADMISSIBLE" | "REJECTED" | "INSUFFICIENT"
 export interface LearningDecision {
   readonly schemaVersion: typeof LEARNING_DECISION_SCHEMA_VERSION;
   readonly learningCycleId: string;
+  /** Full canonical A2 provenance, carried so every A1 receipt can re-resolve its own basis. */
+  readonly learningInputSet: LearningInputSet;
   readonly learningInputSetFingerprint: string;
   readonly previousResearchSpecFingerprint: string;
   readonly learningPolicyVersion: string;
@@ -215,6 +217,25 @@ function assertBoundedString(value: unknown, field: string): string {
   return value;
 }
 
+function canonicalInputSet(value: LearningInputSet): LearningInputSet {
+  assertLearningInputSet(value);
+  const rebuilt = buildLearningInputSet({
+    cutoffTimestamp: value.cutoffTimestamp,
+    researchEvidence: value.researchEvidenceRecordIds.map((recordId, index) => ({ recordId, recordedAt: value.researchEvidenceObservedAt[index] })),
+    paperEvidence: value.paperEvidenceRecordIds.map((recordId, index) => ({ recordId, recordedAt: value.paperEvidenceObservedAt[index] })),
+    policies: {
+      learningPolicyVersion: value.learningPolicyVersion,
+      researchPolicyVersion: value.researchPolicyVersion,
+      riskPolicyVersion: value.riskPolicyVersion,
+      governancePolicyVersion: value.governancePolicyVersion,
+    },
+  });
+  if (learningInputSetFingerprint(rebuilt) !== learningInputSetFingerprint(value)) {
+    throw new LearningDecisionError("INPUT_SET_IDENTITY_CONFLICT", "canonical A2 input set changed during reconstruction");
+  }
+  return rebuilt;
+}
+
 /**
  * Classifies one proposal against the owner allowlist and the immutable surface.
  *
@@ -290,7 +311,7 @@ export function assessChange(request: LearningChangeRequest): LearningChangeAsse
  */
 export function buildLearningDecision(input: LearningDecisionInput): LearningDecision {
   if (input == null || typeof input !== "object") throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "learning decision input is required");
-  assertLearningInputSet(input.inputSet);
+  const inputSet = canonicalInputSet(input.inputSet);
   if (!SHA64.test(input.previousResearchSpecFingerprint ?? "")) throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "previous research spec fingerprint must be a SHA-256 digest");
   assertBoundedString(input.objectiveVersion, "objective version");
   assertBoundedString(input.createdAt, "created at");
@@ -300,7 +321,7 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
   if (!Array.isArray(input.reasonEvidence)) throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "reason evidence must be a list");
   if (input.proposedChanges.length > MAX_LEARNING_DECISION_CHANGES) throw new LearningDecisionError("DECISION_TOO_LARGE", "proposed changes exceed the bounded receipt limit");
   if (input.reasonEvidence.length > MAX_LEARNING_DECISION_REASON_EVIDENCE) throw new LearningDecisionError("DECISION_TOO_LARGE", "reason evidence exceeds the bounded receipt limit");
-  const evidenceIds = new Set([...input.inputSet.researchEvidenceRecordIds, ...input.inputSet.paperEvidenceRecordIds]);
+  const evidenceIds = new Set([...inputSet.researchEvidenceRecordIds, ...inputSet.paperEvidenceRecordIds]);
   const seenEvidence = new Set<string>();
   for (const reference of input.reasonEvidence) {
     assertBoundedString(reference, "reason evidence reference");
@@ -325,10 +346,11 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
 
   const decision = Object.freeze({
     schemaVersion: LEARNING_DECISION_SCHEMA_VERSION,
-    learningCycleId: learningCycleId(input.inputSet),
-    learningInputSetFingerprint: learningInputSetFingerprint(input.inputSet),
+    learningCycleId: learningCycleId(inputSet),
+    learningInputSet: inputSet,
+    learningInputSetFingerprint: learningInputSetFingerprint(inputSet),
     previousResearchSpecFingerprint: input.previousResearchSpecFingerprint,
-    learningPolicyVersion: input.inputSet.learningPolicyVersion,
+    learningPolicyVersion: inputSet.learningPolicyVersion,
     objectiveVersion: input.objectiveVersion,
     proposedChanges,
     admissibleChanges,
@@ -358,6 +380,7 @@ export function learningDecisionContentFingerprint(decision: LearningDecision): 
   return digest({
     schemaVersion: decision.schemaVersion,
     learningCycleId: decision.learningCycleId,
+    learningInputSet: decision.learningInputSet,
     learningInputSetFingerprint: decision.learningInputSetFingerprint,
     previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
     learningPolicyVersion: decision.learningPolicyVersion,
@@ -385,10 +408,18 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   if (value == null || typeof value !== "object") throw new LearningDecisionError("MALFORMED_DECISION", "learning decision is required");
   const candidate = value as Partial<LearningDecision>;
   if (candidate.schemaVersion !== LEARNING_DECISION_SCHEMA_VERSION) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision schema version is unsupported");
-  const fields = ["schemaVersion", "learningCycleId", "learningInputSetFingerprint", "previousResearchSpecFingerprint", "learningPolicyVersion", "objectiveVersion", "proposedChanges", "admissibleChanges", "rejectedChanges", "reasonEvidence", "changeMagnitude", "allowedSurfaceVersion", "immutableSurfaceVersion", "decisionOutcome", "createdAt", "sourceCommit", "runtimeIdentity"];
+  const fields = ["schemaVersion", "learningCycleId", "learningInputSet", "learningInputSetFingerprint", "previousResearchSpecFingerprint", "learningPolicyVersion", "objectiveVersion", "proposedChanges", "admissibleChanges", "rejectedChanges", "reasonEvidence", "changeMagnitude", "allowedSurfaceVersion", "immutableSurfaceVersion", "decisionOutcome", "createdAt", "sourceCommit", "runtimeIdentity"];
   if (Object.keys(candidate).sort().join("\n") !== fields.sort().join("\n")) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision contains missing or unsupported fields");
+  try {
+    assertLearningInputSet(candidate.learningInputSet);
+    if (learningInputSetFingerprint(candidate.learningInputSet) !== candidate.learningInputSetFingerprint) throw new LearningDecisionError("MALFORMED_DECISION", "embedded A2 input set does not match the decision fingerprint");
+  } catch (error) {
+    if (error instanceof LearningDecisionError) throw error;
+    throw new LearningDecisionError("MALFORMED_DECISION", error instanceof Error ? error.message : "embedded A2 input set is malformed");
+  }
   if (!SHA64.test(candidate.learningInputSetFingerprint ?? "")) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision input fingerprint is invalid");
   if (candidate.learningCycleId !== "learning-cycle:" + candidate.learningInputSetFingerprint) throw new LearningDecisionError("MALFORMED_DECISION", "learning cycle identity does not match its input set");
+  if (candidate.learningPolicyVersion !== candidate.learningInputSet.learningPolicyVersion) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision policy does not match its embedded A2 input set");
   if (!SHA64.test(candidate.previousResearchSpecFingerprint ?? "")) throw new LearningDecisionError("MALFORMED_DECISION", "previous research spec fingerprint is invalid");
   if (candidate.allowedSurfaceVersion !== ALLOWED_SURFACE_VERSION) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision allowed-surface version is unsupported");
   if (candidate.immutableSurfaceVersion !== IMMUTABLE_SURFACE_VERSION) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision immutable-surface version is unsupported");
