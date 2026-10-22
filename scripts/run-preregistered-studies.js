@@ -49,6 +49,8 @@ function makeDbProvider(db, { from, to }) {
     bookCache.set(key, r);
     return r;
   };
+  // Latest valid snapshot in (fromExclusive, toInclusive]; an invalid latest snapshot means no book (no look-back). Study S5 reads (t+13m, t+15m].
+  const bookIn = (market, fromExclusive, toInclusive) => clean(market, latest.get(market, fromExclusive, toInclusive));
   const lastBidBetween = (market, fromMs, toMs) => clean(market, lastBid.get(market, fromMs, toMs))?.b;
   // UNION ALL can in principle return the same (market, stamp) from both tables; one snapshot counts once toward the 5-snapshot rule.
   const booksBetween = (market, fromMs, toMs) => {
@@ -64,7 +66,7 @@ function makeDbProvider(db, { from, to }) {
     for (const key of [...consumed.keys()].sort()) hash.update(`${consumed.get(key)}\n`);
     return { sha256: hash.digest("hex"), rows: consumed.size };
   };
-  return { markets: () => marketList, bookAt, lastBidBetween, booksBetween, hashRows };
+  return { markets: () => marketList, bookAt, bookIn, lastBidBetween, booksBetween, hashRows };
 }
 
 function runAll({ db, now = Date.now(), frozen = assertDesignFrozen }) {
