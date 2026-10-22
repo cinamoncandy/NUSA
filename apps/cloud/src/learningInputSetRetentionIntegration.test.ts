@@ -8,7 +8,9 @@ import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/p
 import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { evolutionLedgerRetentionGuard } from "./closedLearningEvolutionLedgerRepository";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
+import { LearningInputSetLedgerError } from "./learningInputSetLedger";
 import { buildLearningInputSet, MAX_LEARNING_INPUT_SET_RECEIPT_BYTES } from "./learningInputSet";
+import { learningInputSetFingerprint } from "./learningInputSet";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 
 // A2 <-> A7 integration. Both the Learning Input Set ledger and the realized-period store are built
@@ -60,6 +62,41 @@ const inputSetCiting = (...paperRecordIds: string[]) => buildLearningInputSet({
 });
 
 describe("A2 -> A7 integration over the production retention path", () => {
+  it("rejects a matching A2 identity with conflicting durable status or retention metadata", () => {
+    for (const invalid of [
+      { validationStatus: "UNKNOWN_STATUS" },
+      { changeReference: "different-policy" },
+      { evidenceReferences: ["learning-input-set:placeholder"] },
+    ]) {
+      const { learningLedger, inputSets, close } = fixture();
+      try {
+        const inputSet = inputSetCiting("p1");
+        const fingerprint = learningInputSetFingerprint(inputSet);
+        const opportunityId = `learning-input-set:${fingerprint}`;
+        const references = [opportunityId, "paper-period:p1"];
+        const record = learningLedger.append({
+          opportunityId,
+          problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
+          evidenceReferences: references,
+          hypothesis: canonicalResearchJson(inputSet),
+          changeReference: inputSet.learningPolicyVersion,
+          validationStatus: "LEARNING_INPUT_SET",
+          outcome: "SUCCESS",
+          failureReason: null,
+          rollbackReference: null,
+          reusable: true,
+          recordedAt: "2026-10-20T00:00:00.000Z",
+          ...invalid,
+        });
+        assert.equal(record.opportunityId, opportunityId);
+        assert.throws(() => inputSets.append(inputSet), (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "MALFORMED_RECEIPT");
+        assert.throws(() => inputSets.protectedPeriodReferences(), /metadata does not match/);
+      } finally {
+        close();
+      }
+    }
+  });
+
   it("stores and replays a near-limit input set using the ledger's exact serialized byte count", () => {
     const { inputSets, learningLedger, close } = fixture();
     try {

@@ -7,6 +7,7 @@ import {
   learningCycleId,
   learningInputSetFingerprint,
   learningInputSetPeriodReferences,
+  MAX_LEARNING_INPUT_SET_EVIDENCE_REFERENCES,
   type LearningInputSetInput,
 } from "./learningInputSet";
 
@@ -103,6 +104,19 @@ describe("A2 learning input set canonicalization", () => {
     );
   });
 
+  it("rejects excessive evidence counts before iterating or canonicalizing the evidence arrays", () => {
+    const tooMany = new Proxy(new Array(MAX_LEARNING_INPUT_SET_EVIDENCE_REFERENCES + 1), {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) throw new Error("must reject by count before iteration");
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    assert.throws(
+      () => buildLearningInputSet(input({ researchEvidence: tooMany, paperEvidence: [] })),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "TOO_MANY_EVIDENCE_REFERENCES",
+    );
+  });
+
   it("does not allow the post-decision META partition to enter A2 identity", () => {
     assert.throws(
       () => buildLearningInputSet({ ...input(), metaPartitionIdentity: "meta-train" } as never),
@@ -111,6 +125,15 @@ describe("A2 learning input set canonicalization", () => {
     const valid = buildLearningInputSet(input());
     assert.equal(Object.hasOwn(valid, "metaPartitionIdentity"), false);
     assert.throws(() => assertLearningInputSet({ ...valid, metaPartitionIdentity: "meta-train" } as never), /META assignment is not part of A2 identity/);
+  });
+
+  it("rejects unknown fields in producer input, policy, evidence and durable receipts", () => {
+    const valid = buildLearningInputSet(input());
+    assert.throws(() => buildLearningInputSet({ ...input(), staleProducerField: "old" } as never), /unsupported field/);
+    assert.throws(() => buildLearningInputSet(input({ policies: { ...POLICIES, stalePolicy: "v1" } as never })), /unsupported field/);
+    assert.throws(() => buildLearningInputSet(input({ researchEvidence: [{ recordId: "trial-a", recordedAt: 10, stale: true }] as never })), /unsupported field/);
+    assert.throws(() => assertLearningInputSet({ ...valid, staleProducerField: "old" } as never), /unsupported field/);
+    assert.throws(() => learningInputSetFingerprint({ ...valid, staleProducerField: "old" } as never), /unsupported field/);
   });
 
   it("emits the exact paper-period references the retention guard needs", () => {
@@ -148,6 +171,13 @@ describe("A2 falsification - evidence that must be refused", () => {
     for (const recordId of malformed) {
       refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId, recordedAt: 10 }] })), "MALFORMED_RECORD_ID");
     }
+  });
+
+  it("bounds PAPER ids to the existing evidence-reference size and grammar", () => {
+    const maxId = "p".repeat(227);
+    assertLearningInputSet(buildLearningInputSet(input({ paperEvidence: [{ recordId: maxId, recordedAt: 10 }], researchEvidence: [] })));
+    refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "p".repeat(228), recordedAt: 10 }], researchEvidence: [] })), "MALFORMED_RECORD_ID");
+    refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "period with spaces", recordedAt: 10 }], researchEvidence: [] })), "MALFORMED_RECORD_ID");
   });
 
   it("rejects one record counted as both research and performance evidence", () => {

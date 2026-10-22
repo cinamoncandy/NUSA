@@ -22,6 +22,8 @@ export const LEARNING_INPUT_SET_SCHEMA_VERSION = 1;
 export const LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION = "learning-input-set-canonical-order-v2";
 /** Must fit the existing Evolution Learning ledger hypothesis field without changing its bound. */
 export const MAX_LEARNING_INPUT_SET_RECEIPT_BYTES = 16_384;
+/** Hard CPU/memory bound checked before sorting, hashing, or copying evidence lanes. */
+export const MAX_LEARNING_INPUT_SET_EVIDENCE_REFERENCES = 512;
 
 export class LearningInputSetError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -70,6 +72,8 @@ export interface LearningInputSet {
 const SHA64 = /^[a-f0-9]{64}$/;
 const POLICY_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const MAX_RECORD_ID_LENGTH = 512;
+const MAX_PAPER_REFERENCE_ID_LENGTH = 227; // existing ledger reference limit (240) minus `paper-period:`.
+const PAPER_REFERENCE_ID = /^[A-Za-z0-9_.:/#@-]{1,227}$/;
 
 /** Locale-independent ordering for values included in durable canonical identities. */
 function compareCanonicalStrings(left: string, right: string): number {
@@ -112,7 +116,45 @@ function hasControlCharacter(value: string): boolean {
 function validateRecordId(recordId: string, lane: string): void {
   if (typeof recordId !== "string" || recordId.trim().length === 0) throw new LearningInputSetError("MALFORMED_RECORD_ID", lane + " evidence record id is required");
   if (recordId.length > MAX_RECORD_ID_LENGTH) throw new LearningInputSetError("MALFORMED_RECORD_ID", lane + " evidence record id is too long");
+  if (lane === "performance" && (recordId.length > MAX_PAPER_REFERENCE_ID_LENGTH || !PAPER_REFERENCE_ID.test(recordId))) {
+    throw new LearningInputSetError("MALFORMED_RECORD_ID", "performance evidence record id cannot fit the canonical PAPER ledger reference");
+  }
   if (hasControlCharacter(recordId)) throw new LearningInputSetError("MALFORMED_RECORD_ID", lane + " evidence record id contains a control character");
+}
+
+function assertExactKeys(value: object, allowed: readonly string[], code: string, label: string): void {
+  const allowedKeys = new Set(allowed);
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) throw new LearningInputSetError(code, label + " contains an unsupported field");
+  }
+}
+
+function assertEvidenceBudget(research: readonly LearningEvidenceReference[], paper: readonly LearningEvidenceReference[]): void {
+  const total = research.length + paper.length;
+  if (total > MAX_LEARNING_INPUT_SET_EVIDENCE_REFERENCES) {
+    throw new LearningInputSetError("TOO_MANY_EVIDENCE_REFERENCES", "learning input set exceeds the bounded evidence-reference count");
+  }
+
+  // Estimate the persisted A2 shape before lane sorting/copying/digest work. The fixed allowance
+  // covers schema, policy, digest, and JSON punctuation fields; per-record bytes cover the exact
+  // JSON string form, timestamp digits, and both array separators. The exact storage serializer
+  // check still runs on the completed object below.
+  let estimatedBytes = 1_024;
+  for (const references of [research, paper]) {
+    for (const reference of references) {
+      if (reference == null || typeof reference !== "object") throw new LearningInputSetError("MALFORMED_EVIDENCE", "evidence contribution is malformed");
+      const recordId = reference.recordId;
+      if (typeof recordId !== "string" || recordId.length === 0 || recordId.length > MAX_RECORD_ID_LENGTH) {
+        throw new LearningInputSetError("MALFORMED_RECORD_ID", "evidence record id is malformed or too long");
+      }
+      const timestamp = reference.recordedAt;
+      if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new LearningInputSetError("MALFORMED_EVIDENCE", "evidence observation time is invalid");
+      estimatedBytes += Buffer.byteLength(JSON.stringify(recordId), "utf8") + String(timestamp).length + 2;
+      if (estimatedBytes > MAX_LEARNING_INPUT_SET_RECEIPT_BYTES) {
+        throw new LearningInputSetError("INPUT_SET_TOO_LARGE", "learning input set exceeds the existing durable receipt size limit");
+      }
+    }
+  }
 }
 
 function validatePolicyVersions(policies: LearningPolicyIdentity): void {
@@ -164,18 +206,28 @@ function laneOf(references: readonly LearningEvidenceReference[], lane: string, 
 export function buildLearningInputSet(input: LearningInputSetInput): LearningInputSet {
   if (input == null || typeof input !== "object") throw new LearningInputSetError("MALFORMED_INPUT", "learning input set input is required");
   if (Object.hasOwn(input, "metaPartitionIdentity")) throw new LearningInputSetError("META_PARTITION_NOT_PART_OF_INPUT_SET", "META assignment follows the A1 decision and is not part of A2 identity");
+  assertExactKeys(input, ["cutoffTimestamp", "researchEvidence", "paperEvidence", "policies"], "MALFORMED_INPUT", "learning input set input");
   if (!Array.isArray(input.researchEvidence) || !Array.isArray(input.paperEvidence)) throw new LearningInputSetError("MALFORMED_INPUT", "learning evidence lanes must be lists");
   if (!Number.isSafeInteger(input.cutoffTimestamp) || input.cutoffTimestamp < 0) throw new LearningInputSetError("INVALID_CUTOFF", "point-in-time cutoff must be a non-negative integer timestamp");
   if (input.researchEvidence.length === 0 && input.paperEvidence.length === 0) throw new LearningInputSetError("EMPTY_INPUT_SET", "a learning input set must cite at least one evidence record");
+  assertEvidenceBudget(input.researchEvidence, input.paperEvidence);
+  if (input.policies == null || typeof input.policies !== "object" || Array.isArray(input.policies)) {
+    throw new LearningInputSetError("INVALID_POLICY_VERSION", "policy identities are required");
+  }
+  assertExactKeys(input.policies, ["learningPolicyVersion", "researchPolicyVersion", "riskPolicyVersion", "governancePolicyVersion"], "INVALID_POLICY_VERSION", "learning policy identities");
   validatePolicyVersions(input.policies);
+  for (const reference of [...input.researchEvidence, ...input.paperEvidence]) {
+    assertExactKeys(reference, ["recordId", "recordedAt"], "MALFORMED_EVIDENCE", "evidence contribution");
+  }
 
   const research = laneOf(input.researchEvidence, "research", input.cutoffTimestamp);
   const performance = laneOf(input.paperEvidence, "performance", input.cutoffTimestamp);
 
   // The two lanes may not silently cite the same record: that would count one record as both
   // research and performance evidence, and the lane digests would double-count it.
+  const researchIds = new Set(research.recordIds);
   for (const recordId of performance.recordIds) {
-    if (research.recordIds.includes(recordId)) throw new LearningInputSetError("CROSS_LANE_DUPLICATE", "evidence was supplied to both lanes");
+    if (researchIds.has(recordId)) throw new LearningInputSetError("CROSS_LANE_DUPLICATE", "evidence was supplied to both lanes");
   }
 
   const inputSet = Object.freeze({
@@ -208,6 +260,7 @@ function assertReceiptSize(inputSet: LearningInputSet): void {
 
 /** The deterministic identity of an input set. Same evidence plus same policies yields the same fingerprint. */
 export function learningInputSetFingerprint(inputSet: LearningInputSet): string {
+  assertLearningInputSet(inputSet);
   return digest(inputSet);
 }
 
@@ -229,12 +282,23 @@ export function learningInputSetPeriodReferences(inputSet: LearningInputSet): re
 export function assertLearningInputSet(value: unknown): asserts value is LearningInputSet {
   if (value == null || typeof value !== "object") throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set is required");
   const candidate = value as Partial<LearningInputSet>;
-  if (candidate.schemaVersion !== LEARNING_INPUT_SET_SCHEMA_VERSION) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set schema version is unsupported");
   if (Object.hasOwn(candidate, "metaPartitionIdentity")) throw new LearningInputSetError("MALFORMED_INPUT_SET", "META assignment is not part of A2 identity");
+  assertExactKeys(value, [
+    "schemaVersion", "cutoffTimestamp", "researchEvidenceRecordIds", "researchEvidenceObservedAt",
+    "paperEvidenceRecordIds", "paperEvidenceObservedAt", "researchLaneDigest", "performanceLaneDigest",
+    "learningPolicyVersion", "researchPolicyVersion", "riskPolicyVersion", "governancePolicyVersion",
+    "canonicalOrderingVersion",
+  ], "MALFORMED_INPUT_SET", "learning input set");
+  if (candidate.schemaVersion !== LEARNING_INPUT_SET_SCHEMA_VERSION) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set schema version is unsupported");
   if (candidate.canonicalOrderingVersion !== LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set canonical ordering version is unsupported");
   if (!Number.isSafeInteger(candidate.cutoffTimestamp) || (candidate.cutoffTimestamp as number) < 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set cutoff is invalid");
   for (const lane of ["researchEvidenceRecordIds", "paperEvidenceRecordIds"] as const) {
     if (!Array.isArray(candidate[lane])) throw new LearningInputSetError("MALFORMED_INPUT_SET", lane + " must be a list");
+  }
+  const researchCount = (candidate.researchEvidenceRecordIds as readonly unknown[]).length;
+  const paperCount = (candidate.paperEvidenceRecordIds as readonly unknown[]).length;
+  if (researchCount + paperCount > MAX_LEARNING_INPUT_SET_EVIDENCE_REFERENCES) {
+    throw new LearningInputSetError("MALFORMED_INPUT_SET", "learning input set exceeds the bounded evidence-reference count");
   }
   const laneMeta = [
     ["researchEvidenceRecordIds", "researchEvidenceObservedAt", "researchLaneDigest"],

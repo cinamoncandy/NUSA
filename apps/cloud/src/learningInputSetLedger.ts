@@ -25,10 +25,37 @@ import {
  */
 
 type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
+type EvolutionLedgerRecord = ReturnType<EvolutionLedgerPort["list"]>[number];
 
 const HASH = /^[a-f0-9]{64}$/;
 const INPUT_SET_RECORD = /^learning-input-set:[a-f0-9]{64}$/;
 const MAX_RECORDS = 10_000;
+const INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
+const INPUT_SET_STATUS = "LEARNING_INPUT_SET";
+
+function assertStoredMetadata(record: EvolutionLedgerRecord, inputSet: LearningInputSet, fingerprint: string): void {
+  const opportunityId = `learning-input-set:${fingerprint}`;
+  const expectedReferences = [opportunityId, ...learningInputSetPeriodReferences(inputSet)];
+  const actualReferences = record.evidenceReferences;
+  const expectedSet = new Set(expectedReferences);
+  const actualSet = new Set(actualReferences);
+  if (
+    record.opportunityId !== opportunityId
+    || record.problem !== INPUT_SET_PROBLEM
+    || record.changeReference !== inputSet.learningPolicyVersion
+    || record.validationStatus !== INPUT_SET_STATUS
+    || record.outcome !== "SUCCESS"
+    || record.failureReason !== null
+    || record.rollbackReference !== null
+    || record.reusable !== true
+    || actualReferences.length !== expectedReferences.length
+    || actualSet.size !== actualReferences.length
+    || expectedSet.size !== expectedReferences.length
+    || expectedReferences.some((reference) => !actualSet.has(reference))
+  ) {
+    throw new LearningInputSetLedgerError("MALFORMED_RECEIPT", "durable learning input set metadata does not match its canonical identity and retention references");
+  }
+}
 
 export class LearningInputSetLedgerError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -80,14 +107,16 @@ export class LearningInputSetLedger {
     if (!HASH.test(fingerprint)) throw new LearningInputSetLedgerError("IDENTITY_DERIVATION_FAILED", "learning input set fingerprint is not a SHA-256 digest");
     const opportunityId = `learning-input-set:${fingerprint}`;
 
-    const existing = this.ledger.list().find((record) => record.opportunityId === opportunityId);
+    const records = this.ledger.list();
+    const existing = records.find((record) => record.opportunityId === opportunityId);
     if (existing != null) {
       const replayed = parseReceipt(existing);
       if (learningInputSetFingerprint(replayed) !== fingerprint) throw new LearningInputSetLedgerError("IDENTITY_CONFLICT", "learning input set identity was reused with different evidence");
+      assertStoredMetadata(existing, replayed, fingerprint);
       return Object.freeze({ inputSet: replayed, fingerprint, learningCycleId: learningCycleId(replayed), recordedAt: existing.recordedAt, replayed: true });
     }
 
-    const recorded = this.ledger.list().length;
+    const recorded = records.length;
     if (recorded >= MAX_RECORDS) throw new LearningInputSetLedgerError("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted");
 
     const timestamp = this.now();
@@ -96,7 +125,7 @@ export class LearningInputSetLedger {
     const periodReferences = learningInputSetPeriodReferences(inputSet);
     const record = this.ledger.append({
       opportunityId,
-      problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
+      problem: INPUT_SET_PROBLEM,
       evidenceReferences: Object.freeze([opportunityId, ...periodReferences]),
       hypothesis: canonicalResearchJson(inputSet),
       changeReference: inputSet.learningPolicyVersion,
@@ -113,6 +142,7 @@ export class LearningInputSetLedger {
 
     const replayedSet = parseReceipt(record);
     if (learningInputSetFingerprint(replayedSet) !== fingerprint) throw new LearningInputSetLedgerError("IDENTITY_CONFLICT", "recorded learning input set did not survive canonical replay identically");
+    assertStoredMetadata(record, replayedSet, fingerprint);
     return Object.freeze({ inputSet: replayedSet, fingerprint, learningCycleId: learningCycleId(replayedSet), recordedAt: record.recordedAt, replayed: false });
   }
 
@@ -124,6 +154,7 @@ export class LearningInputSetLedger {
       const inputSet = parseReceipt(record);
       const fingerprint = learningInputSetFingerprint(inputSet);
       if (record.opportunityId !== `learning-input-set:${fingerprint}`) throw new LearningInputSetLedgerError("IDENTITY_CONFLICT", "recorded learning input set does not match its ledger identity");
+      assertStoredMetadata(record, inputSet, fingerprint);
       const receipt = Object.freeze({ inputSet, fingerprint, learningCycleId: learningCycleId(inputSet), recordedAt: record.recordedAt, replayed: false });
       if (latest == null || receipt.recordedAt >= latest.recordedAt) latest = receipt;
     }
@@ -135,9 +166,10 @@ export class LearningInputSetLedger {
     const references = new Set<string>();
     for (const record of this.ledger.list()) {
       if (!INPUT_SET_RECORD.test(record.opportunityId)) continue;
-      for (const reference of record.evidenceReferences) {
-        if (reference.startsWith("paper-period:")) references.add(reference);
-      }
+      const inputSet = parseReceipt(record);
+      const fingerprint = learningInputSetFingerprint(inputSet);
+      assertStoredMetadata(record, inputSet, fingerprint);
+      for (const reference of learningInputSetPeriodReferences(inputSet)) references.add(reference);
     }
     return Object.freeze([...references].sort());
   }
