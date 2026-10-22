@@ -2732,15 +2732,15 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
 
 current_ops_sqlite_resolver_pin_20261022:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: EXACT_HEAD_CI_PASS_CURRENT_REVIEW_FINDINGS_UNDER_ADJUDICATION_FORMAL_VALIDATOR_PENDING
+  status: PENDING_FRESH_CURRENT_HEAD_REVIEW_AND_FORMAL_VALIDATOR
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
   reviewed_exact_head: 5321c75e8201d801c26a68d0e199a821a46e118b
   protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
   source_repair: "The trusted preload publishes the frozen integrity boundary on Node's canonical Module constructor; production index.ts uses TypeScript import-assignment so emitted CommonJS consumes raw require(\"node:module\") and bypasses mutable __esModule/default interop markers. Loader/resolver/cache attacks are prevented by the preload's pinned dispatch slots. The full-file quick_check uses preload-captured native DatabaseSync.prepare and StatementSync.get through a frozen boundary; the two production AI stores share only the canonical checked connection and retain table-scoped checks plus hash-chain replay."
-  latest_review_findings: "Fresh non-author review on exact head 5321c75e8201d801c26a68d0e199a821a46e118b reported P1: register shared trust only after an unpoisonable SQLite scan (comment 4340847494), plus two AIPOS evidence-placement P1s (comments 4345704808 and 4345704817). The AIPOS records were corrected in the current successor. The SQLite finding is under independent adjudication: source uses the preload-captured native prepare/get through the frozen boundary; post-load prototype.prepare poisoning against a corrupt DB was rejected with sqlite quick_check failed and zero forged calls, and the focused attack regressions passed 4/4. This author-side reproduction is not review acceptance; keep the finding open until non-author re-evaluation."
-  current_exact_head_workflows: "Predecessor head 5321c75e8201d801c26a68d0e199a821a46e118b: CI run 39741534205 SUCCESS; Actual PAPER 39741534128, Capability Guard 39741534127, Activation Rehearsal 39741534043, Transport Readiness 39741534014, Read-only Broker 39741534056, Android Release Guard 39741534113, Research advisory 39741534376, Autopilot Bridge 39741530747 all SUCCESS. These become historical after the AIPOS correction successor."
+  latest_review_findings: "Fresh non-author review on exact head 5321c75e8201d801c26a68d0e199a821a46e118b reported P1: register shared trust only after an unpoisonable SQLite scan (comment 4340847494), plus two AIPOS evidence-placement P1s (comments 4345704808 and 4345704817). The AIPOS evidence-placement records were repaired on successor 8ba3273442abd7172aad21dfd6659cc2a98ec0ad. Review of that successor found a P1 because its work-order status said exact-head CI PASS while only predecessor runs were recorded (comment 4346444501); the current successor changes the record to pending review/Validator and explicitly requires dynamic GitHub head/check resolution, avoiding status-only commits. The SQLite finding remains under independent adjudication: source uses the preload-captured native prepare/get through the frozen boundary; post-load prototype.prepare poisoning against a corrupt DB was rejected with sqlite quick_check failed and zero forged calls, and focused attack regressions passed 4/4. This author-side reproduction is not review acceptance; keep the finding open until non-author re-evaluation."
+  historical_predecessor_workflows: "Head 5321c75e8201d801c26a68d0e199a821a46e118b: CI run 39741534205 SUCCESS; Actual PAPER 39741534128, Capability Guard 39741534127, Activation Rehearsal 39741534043, Transport Readiness 39741534014, Read-only Broker 39741534056, Android Release Guard 39741534113, Research advisory 39741534376, Autopilot Bridge 39741530747 all SUCCESS. Historical only; all exact-head status after any subsequent PR-head update must be resolved dynamically from GitHub. No current-head PASS is asserted in this record."
   local_validation:
     post_load_prototype_poison_corrupt_db_reproduction: REJECTED_FORGED_CALLS_0
     focused_startup_integrity_adversarial_tests: PASS_4_OF_4
@@ -2752,7 +2752,7 @@ current_ops_sqlite_resolver_pin_20261022:
     aipos_record_corrections: PASS
   formal_validator: PENDING_FRESH_NON_AUTHOR_EXACT_SHA_P0_P1_P2_ACCEPTED
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "Validate the AIPOS record corrections and push this substantive review-finding repair on the existing PR branch. Then require fresh exact-head workflows, non-author adjudication of the open SQLite P1 plus zero other P0/P1, and a separate formal NUSA Validator receipt with exact SHA/P0/P1/P2/ACCEPTED before Independent Audit or Release. Keep Draft; no merge or Oracle mutation."
+  next: "Resolve the current PR head and exact-head workflows dynamically from GitHub; do not create status-only commits to copy run IDs. Require fresh non-author adjudication of the open SQLite P1 plus zero other P0/P1, and a separate formal NUSA Validator receipt bound to the resolved exact SHA with P0/P1/P2 and explicit ACCEPTED before Independent Audit or Release. Keep Draft; no merge or Oracle mutation."
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
   status: READY_FOR_REVIEW
