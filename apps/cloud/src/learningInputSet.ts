@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 
 /**
  * A2 - the Learning Input Set.
@@ -18,7 +19,7 @@ import { createHash } from "node:crypto";
  */
 
 export const LEARNING_INPUT_SET_SCHEMA_VERSION = 1;
-export const LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION = "learning-input-set-canonical-order-v1";
+export const LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION = "learning-input-set-canonical-order-v2";
 /** Must fit the existing Evolution Learning ledger hypothesis field without changing its bound. */
 export const MAX_LEARNING_INPUT_SET_RECEIPT_BYTES = 16_384;
 
@@ -197,7 +198,9 @@ export function buildLearningInputSet(input: LearningInputSetInput): LearningInp
 }
 
 function assertReceiptSize(inputSet: LearningInputSet): void {
-  const bytes = Buffer.byteLength(canonical(inputSet), "utf8");
+  // Measure exactly the representation the existing ledger persists, not the A2 fingerprint
+  // serializer. Identity canonicalization and storage serialization are separate contracts.
+  const bytes = Buffer.byteLength(canonicalResearchJson(inputSet), "utf8");
   if (bytes > MAX_LEARNING_INPUT_SET_RECEIPT_BYTES) {
     throw new LearningInputSetError("INPUT_SET_TOO_LARGE", "learning input set exceeds the existing durable receipt size limit");
   }

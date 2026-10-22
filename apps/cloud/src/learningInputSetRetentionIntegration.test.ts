@@ -5,7 +5,8 @@ import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/p
 import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { evolutionLedgerRetentionGuard } from "./closedLearningEvolutionLedgerRepository";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
-import { buildLearningInputSet } from "./learningInputSet";
+import { buildLearningInputSet, MAX_LEARNING_INPUT_SET_RECEIPT_BYTES } from "./learningInputSet";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 
 // A2 <-> A7 integration. Both the Learning Input Set ledger and the realized-period store are built
 // over ONE SqliteDatabase, exactly as production wires them (runtime.ts passes the same
@@ -40,6 +41,7 @@ function fixture() {
   return {
     db,
     periodStore,
+    learningLedger,
     inputSets: new LearningInputSetLedger(learningLedger),
     // The production guard, derived from the production ledger, over the production database.
     guard: () => evolutionLedgerRetentionGuard(learningLedger),
@@ -55,6 +57,34 @@ const inputSetCiting = (...paperRecordIds: string[]) => buildLearningInputSet({
 });
 
 describe("A2 -> A7 integration over the production retention path", () => {
+  it("stores and replays a near-limit input set using the ledger's exact serialized byte count", () => {
+    const { inputSets, learningLedger, close } = fixture();
+    try {
+      const paperEvidence = Array.from({ length: 120 }, (_, index) => ({
+        recordId: `period-${"x".repeat(96)}-${index.toString().padStart(3, "0")}`,
+        recordedAt: 100 + index,
+      }));
+      const inputSet = buildLearningInputSet({
+        cutoffTimestamp: 1_000,
+        researchEvidence: [],
+        paperEvidence,
+        policies: POLICIES,
+      });
+      const serializedBytes = Buffer.byteLength(canonicalResearchJson(inputSet), "utf8");
+      assert.ok(serializedBytes > 14_000, "fixture exercises the upper receipt boundary");
+      assert.ok(serializedBytes <= MAX_LEARNING_INPUT_SET_RECEIPT_BYTES);
+
+      const first = inputSets.append(inputSet);
+      assert.equal(first.replayed, false);
+      const stored = learningLedger.list().find((record) => record.opportunityId === `learning-input-set:${first.fingerprint}`);
+      assert.ok(stored);
+      assert.equal(Buffer.byteLength(stored.hypothesis, "utf8"), serializedBytes, "the admitted size equals the exact stored hypothesis size");
+      assert.equal(inputSets.append(inputSet).replayed, true, "the exact durable receipt survives canonical read-back and replay");
+    } finally {
+      close();
+    }
+  });
+
   it("a recorded input set pins the realized periods it cites against retention", () => {
     const { db, periodStore, inputSets, guard, close } = fixture();
     try {
