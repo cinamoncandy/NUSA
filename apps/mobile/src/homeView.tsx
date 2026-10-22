@@ -297,7 +297,7 @@ export function HomeView({
         <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>실제 돈은 쓰지 않는 PAPER 판단 흐름</Text>
       </View>
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
-        <Pressable onPress={() => onNavigate("Paper")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
+        <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>관측</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>시장 관측</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}</Text>
@@ -315,14 +315,14 @@ export function HomeView({
           <Text>CASH EXPOSURE</Text>
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
-        <Pressable onPress={() => onNavigate("More")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
+        <Pressable accessibilityRole="button" onPress={() => onNavigate("More")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>기록</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>성과와 기록</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} 보유 중` : account ? "보유 없음" : "계정 대기 중"}</Text>
           <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>투자 가능</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>예비금</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>
 
-        <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: Boolean(disconnected) }} disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.aiSignalStart }]}>학습</Text><Text style={[styles.commandArrow, { color: theme.colors.aiSignalEnd }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 기록</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]} numberOfLines={2}>{decisionSurface.learning}</Text>
@@ -346,7 +346,7 @@ export function HomeView({
       {detailsOpen ? <View style={styles.details}>
         <View style={styles.detailNarrative} testID="ai-card">
           <Text style={[styles.detailCopy, { color: theme.colors.textMuted }]}>{why}</Text>
-          {aiInsightAvailable ? <Pressable onPress={() => onNavigate("Paper")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>PAPER 근거 상세 보기 →</Text></Pressable> : null}
+          {aiInsightAvailable ? <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>PAPER 근거 상세 보기 →</Text></Pressable> : null}
         </View>
         <View style={[styles.detailFacts, { borderColor: theme.colors.border }]} testID="home-risk-status">
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>{HOME_DETAIL_LABELS.risk}</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>

@@ -44,6 +44,12 @@ test("a stale phone quote feed is described as local display lag, not a server d
   assert.equal(model.states.market, "QUOTE STALE");
   assert.match(model.detail, /서버 판단과는 별개/);
   assert.doesNotMatch(model.detail, /보류/);
+  // The healthy headline stays; a stale quote only adds a note.
+  assert.equal(model.headline, field({}).headline);
+  assert.equal(model.phase, "CONNECTED");
+  const noExec = field({ feedStale: true, decisionCount: 10, paperOrderCount: 0 });
+  assert.match(noExec.headline, /실행이 없습니다/);
+  assert.match(noExec.detail, /서버 판단과는 별개/);
 });
 
 test("decisions without paper orders use neutral no-execution wording, never an invented cause", () => {
@@ -109,4 +115,15 @@ test("HOME evidence row shows canonical counters verbatim and never guesses a ze
   const unknown = buildHomeFieldFacts({ ...base, decisionCount: null, paperOrderCount: null, pipelineStage: null });
   assert.deepEqual(unknown.map((f) => f.value), ["—", "—", "—"]);
   assert.ok(Object.isFrozen(facts) && Object.isFrozen(facts[0]));
+});
+
+test("a stale phone quote feed never changes an unhealthy phase", () => {
+  for (const flags of [{ checking: true }, { disconnected: true, recovering: true }, { disconnected: true }, { haltActive: true }, { degraded: true }]) {
+    const clean = field(flags);
+    const stale = field({ ...flags, feedStale: true });
+    assert.equal(stale.phase, clean.phase);
+    assert.equal(stale.headline, clean.headline);
+    assert.equal(stale.detail, clean.detail);
+    assert.equal(stale.tone, clean.tone);
+  }
 });
