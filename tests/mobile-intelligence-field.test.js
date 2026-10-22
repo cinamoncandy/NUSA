@@ -116,3 +116,14 @@ test("HOME evidence row shows canonical counters verbatim and never guesses a ze
   assert.deepEqual(unknown.map((f) => f.value), ["—", "—", "—"]);
   assert.ok(Object.isFrozen(facts) && Object.isFrozen(facts[0]));
 });
+
+test("a stale phone quote feed never changes an unhealthy phase", () => {
+  for (const flags of [{ checking: true }, { disconnected: true, recovering: true }, { disconnected: true }, { haltActive: true }, { degraded: true }]) {
+    const clean = field(flags);
+    const stale = field({ ...flags, feedStale: true });
+    assert.equal(stale.phase, clean.phase);
+    assert.equal(stale.headline, clean.headline);
+    assert.equal(stale.detail, clean.detail);
+    assert.equal(stale.tone, clean.tone);
+  }
+});
