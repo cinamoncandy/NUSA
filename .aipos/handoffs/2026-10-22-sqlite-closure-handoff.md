@@ -2,6 +2,10 @@
 
 PR #2855, branch `fix/sqlite-integrity-attestation-2770`.
 
+## Candidate bootstrap preflight follow-up
+
+The fresh NUSA Validator read parent head `4e5b0e75da292c23c4028251f4bd1e79fdd9f53b` and returned P0=0, P1=0, P2=5 with `ACCEPTED_WITH_CONDITIONS`, which does not meet the required explicit `ACCEPTED` gate. One condition was a real release-preflight gap: the candidate's systemd units could be selected without confirming that `dist/packages/storage/src/sqliteIntegrityBootstrap.js` exists. The active successor adds this fail-closed artifact check in `scripts/oracle-validate.js` and positive/negative regressions. On the successor worktree: candidate artifact tests 2/2, relevant Oracle/SQLite suite 69/69, `validate:full`, `security:gate` and diff-check PASS. All 25 unresolved outdated review threads were adjudicated by that independent Validator and resolved. The source head must now be committed and pushed; all parent CI/review/Validator evidence is historical for the new SHA. Keep Draft/HOLD and require fresh exact-head gates and explicit Validator ACCEPTED before Audit/Release. No Oracle mutation.
+
 ## Latest continuation (2026-10-22, constructor trust boundary)
 
 The previously recorded Cloud PAPER preload successor is `65a0a047074a9c02193e533a33410cb5c71a6478` on protected base `21241b67e153bb8db15e566168fe3daef44b2cbf`. Fresh Codex review on that exact head found P1 `4346588560`: application code can replace the exported `node:sqlite.DatabaseSync` constructor after preload and before storage import, redirecting the requested persistent file to an in-memory connection while the protected native `prepare/get` still reports `quick_check=ok`.

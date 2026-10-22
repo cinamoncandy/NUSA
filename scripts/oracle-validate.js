@@ -59,6 +59,12 @@ if (!fs.existsSync(backupPath)) fail(`missing backup directory: ${backupPath}`);
 for (const requiredPath of [servicePath, researchServicePath, researchTimerPath, autopilotServicePath]) {
   if (!fs.existsSync(requiredPath)) fail(`missing systemd unit: ${requiredPath}`);
 }
+if (candidateRelease !== null) {
+  const sqliteIntegrityBootstrap = path.join(candidateRelease, "dist/packages/storage/src/sqliteIntegrityBootstrap.js");
+  if (!fs.existsSync(sqliteIntegrityBootstrap)) {
+    fail(`missing SQLite integrity bootstrap in candidate release: ${sqliteIntegrityBootstrap}`);
+  }
+}
 let activeReleaseCommit = null;
 if (fs.existsSync(currentPath)) {
   if (!fs.lstatSync(currentPath).isSymbolicLink()) fail("/opt/nusa/current must be an atomic symlink");

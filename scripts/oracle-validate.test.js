@@ -45,11 +45,27 @@ function fixture(overrides = {}) {
   return root;
 }
 
-function validate(root) {
+function validate(root, candidateRelease) {
   return spawnSync(process.execPath, [path.join(__dirname, "oracle-validate.js")], {
-    env: { ...process.env, NUSA_ORACLE_ROOT: root },
+    env: {
+      ...process.env,
+      NUSA_ORACLE_ROOT: root,
+      ...(candidateRelease ? { NUSA_ORACLE_RELEASE_DIR: candidateRelease } : {}),
+    },
     encoding: "utf8",
   });
+}
+
+function candidateReleaseFixture(root, includeSqliteBootstrap) {
+  const candidate = path.join(root, "opt/nusa/releases", VALID_SHA);
+  write(candidate, "/deploy/oracle/nusa.service", PAPER_UNIT);
+  write(candidate, "/deploy/oracle/nusa-research.service", RESEARCH_UNIT);
+  write(candidate, "/deploy/oracle/nusa-research.timer", RESEARCH_TIMER);
+  write(candidate, "/deploy/oracle/nusa-autopilot.service", AUTOPILOT_UNIT);
+  if (includeSqliteBootstrap) {
+    write(candidate, "/dist/packages/storage/src/sqliteIntegrityBootstrap.js", "// compiled bootstrap\n");
+  }
+  return candidate;
 }
 
 function pointCurrentAt(root, sha) {
@@ -69,6 +85,24 @@ test("accepts a hardened Oracle PAPER + autonomous Research installation", () =>
   assert.equal(output.status, "PASS");
   assert.equal(output.sourceCommit, VALID_SHA);
   assert.equal(output.snapshotPath, "/var/lib/nusa/research-replay-snapshots.json");
+});
+
+test("candidate preflight requires the compiled SQLite integrity bootstrap before unit installation", () => {
+  const root = fixture();
+  const candidate = candidateReleaseFixture(root, false);
+  const result = validate(root, candidate);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /missing SQLite integrity bootstrap in candidate release/);
+});
+
+test("candidate preflight accepts the compiled SQLite integrity bootstrap at the unit target path", () => {
+  const root = fixture();
+  const candidate = candidateReleaseFixture(root, true);
+  const result = validate(root, candidate);
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout.trim());
+  assert.equal(output.status, "PASS");
+  assert.equal(output.candidateRelease, candidate);
 });
 
 test("fails closed when the Research unit loses its host memory limits", () => {
