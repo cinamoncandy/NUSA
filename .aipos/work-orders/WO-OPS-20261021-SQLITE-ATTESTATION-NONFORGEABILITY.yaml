@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
 title: Prepare Research recovery after shared SQLite startup initialization
-status: FINDPATH_CAPABILITY_REPAIR_LOCAL_VALIDATION_PENDING_REMOTE_EXACT_HEAD_REVIEW_VALIDATOR
+status: MODULE_INTEROP_RAW_REQUIRE_REPAIR_LOCAL_VALIDATION_PENDING_REMOTE_EXACT_HEAD_REVIEW_VALIDATOR
 priority: P0
 owner: nusa-server-runtime
 repository: cinamoncandy/NUSA
@@ -59,6 +59,7 @@ acceptance:
   - replacing Module.prototype.require after the production preload cannot substitute a forged SQLite integrity boundary
   - replacing Module._resolveFilename after the production preload cannot route the integrity-bootstrap import to a forged module-cache entry
   - replacing Module._findPath after the production preload cannot redirect the SQLite integrity boundary because the production storage consumer reads the immutable preload capability slot and performs no relative bootstrap resolution
+  - adding Module.__esModule=true and an attacker-controlled Module.default after preload cannot redirect the capability read; the storage consumer must use the raw CommonJS node:module export without __importDefault interop
   - the Module._load repair and corrupt-file adversarial regression pass locally (40 focused tests, build, validate:full, AIPOS provenance, and security:gate)
   - pre-load and post-load replacement of DatabaseSync.prepare or StatementSync.get cannot mint full-file trust or forge its result; JavaScript and Proxy replacements fail closed, and corrupted files remain rejected
   - production PAPER and Research entrypoints load the integrity bootstrap before application code
@@ -73,11 +74,11 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 rollback: Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation.
 test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-finding_head: 4f44517c704786b9c7334a722f83194614bcc3ca
+finding_head: aa313fc8a80005925c64c0c7fa6249c1da5814be
 require_dispatch_source_repair_commit: dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4
-validation: 'Exact reviewed head 4f44517c704786b9c7334a722f83194614bcc3ca passed CI 39733540736, Research advisory 39733540815, Capability 39733540744, Activation 39733540747, Transport 39733540790, Read-only Broker 39733540904, Actual PAPER 39733540789, and Android Guard 39733540809 before fresh review exposed the Module._findPath and stale-recovery-record P1s. Those receipts are historical after this substantive repair and are not acceptance evidence for its successor. Changed storage transpile diagnostics pass locally; exact attack regression, focused suite, and AIPOS gates are rerun on the repair tree before push.'
+validation: 'Fresh review of aa313fc8a80005925c64c0c7fa6249c1da5814be completed with a new P1: mutable Module.__esModule/default can exploit TypeScript default-import interop and substitute the protected capability read. aa313 clean-install CI validation, Security gate, Typecheck, Build, and seven companion workflows were green before this finding, but all aa313 receipts become historical after the substantive successor. Local raw-require repair validation is rerun before push.'
 pre_resolver_repair_next: 'Historical only. The Module._resolveFilename pin is committed in 4f44517c704786b9c7334a722f83194614bcc3ca; do not repeat that repair or its push.'
-latest_local_validation: 'Current substantive repair removes production relative bootstrap reacquisition by consuming an immutable Module capability slot. Changed storage transpile diagnostics PASS; exact Module._findPath attack regression PASS 1/1; focused PAPER startup/writer-lease suite PASS 25/25; direct-import fallback PASS; AIPOS YAML/drift/cross-AI/provenance and diff-check PASS. Local security gate is explicitly NOT a pass because this worktree uses stale shared node_modules and license audit cannot find multiple lockfile package metadata entries; its vulnerability result had unmitigated=0 and secrets=0. Canonical successor GitHub CI/security evidence remains required.'
+latest_local_validation: 'Raw CommonJS node:module import-assignment repair validation PASS: changed storage transpile diagnostics PASS; emitted index uses const Module = require("node:module") and no __importDefault for this boundary; exact Module.__esModule/default poisoning regression PASS 1/1; focused PAPER startup/writer-lease suite PASS 26/26; direct-import fallback PASS; AIPOS YAML/drift/cross-AI/provenance and diff-check PASS. Fresh successor GitHub CI/security/typecheck/build remains required; aa313 receipts are historical.'
 next: 'Resolve the PR head dynamically. If the current branch contains the immutable Module capability-slot repair and this durable record, do not create another documentation-only successor merely to record SHA/workflow status. Require fresh exact-head workflows, fresh non-author P0/P1=0, and a separate formal NUSA Validator exact SHA/P0/P1/P2/ACCEPTED before Audit/Release. Keep Draft; do not merge or mutate Oracle.'
 prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
 

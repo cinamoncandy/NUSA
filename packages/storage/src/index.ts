@@ -1,4 +1,4 @@
-import Module from "node:module";
+import Module = require("node:module");
 import { DatabaseSync } from "node:sqlite";
 
 type SqliteIntegrityBoundary = Readonly<{

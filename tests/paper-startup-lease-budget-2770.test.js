@@ -826,6 +826,49 @@ test("post-preload Module._findPath replacement cannot redirect the immutable SQ
   assert.equal(result.status, 0, `post-preload _findPath replacement must not forge SQLite integrity:\n${result.stdout}\n${result.stderr}`);
 });
 
+test("post-preload Module ES-module interop markers cannot redirect the immutable SQLite boundary slot", () => {
+  const bootstrapPath = path.join(root, "dist", "packages", "storage", "src", "sqliteIntegrityBootstrap.js");
+  const script = `
+    const assert = require("node:assert/strict");
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path = require("node:path");
+    const Module = require("node:module");
+    const { DatabaseSync } = require("node:sqlite");
+    const indexPath = ${JSON.stringify(path.join(root, "dist", "packages", "storage", "src", "index.js"))};
+    let forgedChecks = 0;
+    const forgedBoundary = {
+      prepare: () => ({ get: () => { forgedChecks++; return { quick_check: "ok" }; } }),
+      read: (statement) => statement.get(),
+      resultIsOk: () => true,
+    };
+    Object.defineProperty(Module, "__esModule", { configurable: true, writable: true, value: true });
+    Object.defineProperty(Module, "default", {
+      configurable: true,
+      writable: true,
+      value: { __nusaSqliteIntegrityBoundary: forgedBoundary },
+    });
+
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-module-interop-poison-"));
+    const filename = path.join(directory, "state.sqlite");
+    const initial = new DatabaseSync(filename);
+    initial.exec("CREATE TABLE integrity_test (value INTEGER)");
+    initial.close();
+    fs.writeFileSync(filename, Buffer.from("not a sqlite database"));
+    try {
+      const { SqliteDatabase } = require(indexPath);
+      assert.throws(() => new SqliteDatabase(filename), /quick_check failed|malformed|not a database|corrupt/i);
+      assert.equal(forgedChecks, 0, "storage must read the protected slot from the raw Module constructor, not a forged default export");
+    } finally {
+      delete Module.default;
+      delete Module.__esModule;
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  `;
+  const result = spawnSync(process.execPath, ["--require", bootstrapPath, "-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `Module ES-module interop poisoning must not forge SQLite integrity:\n${result.stdout}\n${result.stderr}`);
+});
+
 test("replacing application Object.values cannot turn a corrupt quick_check result into ok", () => {
   const script = `
     const assert = require("node:assert/strict");

@@ -1895,12 +1895,15 @@ issue_661_paper_learning_visibility:
     mobile_screen: apps/mobile/src/paperLearningScreen.ts
     mobile_view: apps/mobile/src/paperLearningMonitorView.tsx
   local_validation:
-    typecheck: PASS
-    build: PASS
-    lint: PASS
-    architecture_truth: PASS
-    package_validate: PASS
-    full_isolated_suite: PASS_574_FILES
+    changed_storage_transpile_diagnostics: PASS
+    raw_commonjs_module_emit: PASS_NO_IMPORT_DEFAULT
+    exact_module_interop_attack_regression: PASS_1_OF_1
+    sqlite_startup_writer_lease: PASS_26_OF_26
+    direct_import_fallback: PASS
+    aipos_yaml: PASS_514_FILES
+    aipos_drift: PASS
+    aipos_cross_ai: PASS
+    aipos_provenance: PASS
     diff_check: PASS
   safety:
     mode: PAPER
@@ -2256,7 +2259,7 @@ current_closed_loop_convergence_support_20261019:
   validator_finding: "Fresh exact-head review identified P2: markPendingIneligible raw-inserts a later successor without checking whether its periodId was reserved by an earlier immutable disposition whose successor is retired/finalized."
   followup_finding_head: ff29b9b23c662d95fbe44e8e4c9e544ef974e015
   followup_finding: "Fresh exact-head review found a second P2: markPendingIneligible can reserve a successor periodId already present in realized history because disposition reservation checks only immutable dispositions; finalization later fails with RECORD_ID_CONFLICT."
-  repair: "Before terminalizing the current row, reject a proposed successor periodId or periodIndex already present in immutable disposition history; transaction rollback preserves the original pending row. Regression covers old successor ID reuse at a different later index and confirms a fresh ID still succeeds."
+  repair: "The storage consumer now imports node:module with TypeScript import-assignment syntax so CommonJS output consumes the raw require(\"node:module\") result and never routes the trusted capability read through __importDefault or mutable __esModule/default markers. The trusted preload still publishes sqliteIntegrityBoundary on the non-writable/non-configurable canonical Module slot. A new child-process regression preloads the genuine boundary, adds attacker-controlled Module.__esModule and Module.default, opens a corrupt SQLite file, and requires corrupt-file rejection with zero forged integrity checks. Canonical quick_check/scoped checks/hash replay/readiness/lease/Risk/Governance semantics remain unchanged."
   historical_local_validation: "Frozen-lockfile install with scripts initially disabled; after process-local Git Bash PATH and pnpm rebuild electron for the existing locked dependency, pnpm test PASS across 1,256 isolated test files; build PASS; focused regression 3/3 PASS; pnpm run validate:full PASS."
   earlier_repair_head_ci: PASS
   earlier_repair_head: 8d9825f45cc08997475c1c27fd461bcfc2b33be6
@@ -2732,15 +2735,15 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
 
 current_ops_sqlite_resolver_pin_20261022:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: FINDPATH_REPAIR_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI_REVIEW_VALIDATOR
+  status: MODULE_INTEROP_REPAIR_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI_REVIEW_VALIDATOR
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
-  reviewed_exact_head: 4f44517c704786b9c7334a722f83194614bcc3ca
+  reviewed_exact_head: aa313fc8a80005925c64c0c7fa6249c1da5814be
   protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
-  new_finding: "Fresh non-author Codex review on exact head 4f44517c704786b9c7334a722f83194614bcc3ca found that pinning Module._resolveFilename was still insufficient because the native resolver calls writable Module._findPath. A targeted replacement could route only ./sqliteIntegrityBootstrap to an attacker-added cache entry and forge quick_check=ok. The same review found this recovery record still described the already-committed resolver repair as local/pending."
+  new_finding: "Fresh non-author Codex review on exact head aa313fc8a80005925c64c0c7fa6249c1da5814be found a new P1 in the immutable Module-slot repair: TypeScript default-import interop can consult mutable Module.__esModule and Module.default before reading the protected slot. Post-preload code can therefore add __esModule=true plus a forged default object and redirect the capability read without changing any pinned loader/resolver/cache property."
   repair: "The trusted preload now publishes the frozen sqliteIntegrityBoundary directly on a non-writable/non-configurable property of Node's canonical Module constructor. Production storage reads that immutable capability slot, so it does not resolve ./sqliteIntegrityBootstrap after the preload and therefore does not depend on mutable resolver helpers such as Module._findPath or Module._resolveLookupPaths. Direct developer/test imports retain a bootstrap fallback only when no preload slot exists. The new child-process regression replaces Module._findPath after preload, targets only ./sqliteIntegrityBootstrap, opens a corrupt SQLite file, and requires both zero forged resolutions and rejection of the corrupt database. Canonical full-file quick_check, four AI scoped checks, hash-chain replay, startup/recovery ordering, writer-lease semantics, Research child heap propagation, and the 300-second readiness budget remain unchanged."
-  historical_exact_head_workflows: "Before this repair, exact head 4f44517c704786b9c7334a722f83194614bcc3ca passed CI 39733540736, Research advisory 39733540815, Capability 39733540744, Activation 39733540747, Transport 39733540790, Read-only Broker 39733540904, Actual PAPER 39733540789, and Android Guard 39733540809. These receipts are historical after any successor commit and must not be reused."
+  historical_exact_head_workflows: "On aa313fc8a80005925c64c0c7fa6249c1da5814be, seven companion/Android/PAPER workflows completed SUCCESS and the CI validation job completed SUCCESS including clean-install Security gate, Typecheck, and Build while the overall CI run was still finalizing. Fresh Codex review then completed with this Module interop P1. All aa313 receipts are historical after the substantive successor and must not be reused for acceptance."
   local_validation:
     changed_storage_transpile_diagnostics: PASS
     exact_findpath_attack_regression: PASS_1_OF_1
