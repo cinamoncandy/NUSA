@@ -7,7 +7,7 @@ repository: cinamoncandy/NUSA
 base_branch: main
 branch: claude/orderbook-signal-design
 owner_request: "2026-10-22 in chat: design an order-book based signal study to shorten the time to a verdict."
-design: "docs/research-ledger/PREREGISTERED_STUDY_S5_2026-10-22.md (design v4). Holdout 2026-11-12..11-26, eligibility training 10-15..11-01, two hypotheses (high / low imbalance), alpha 0.05/2 on 4-hour blocks, gross and taker-net stages."
+design: "docs/research-ledger/PREREGISTERED_STUDY_S5_2026-10-22.md (design v5). Holdout 2026-11-12..11-26, eligibility training 10-15..11-01, two hypotheses (high / low imbalance), alpha 0.05/2 on 4-hour blocks, gross and taker-net stages."
 dependency: "Needs PR #2854 (order-book archive, migration 032) deployed before 2026-10-28T01:22Z; the archive keeps exactly the minutes this design reads (43-45 and 58-0 of every hour)."
 next: "Independent design review, then freeze (sha256) before 2026-10-29T00:00Z, then an implementation PR (reuse scripts/lib/preregisteredStudyStats.js) merged before 2026-11-12T00:00Z. A PASS qualifies only a forward SHADOW test."
 safety:
