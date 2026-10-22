@@ -96,6 +96,9 @@ export class LearningDecisionLedger {
 
   private assertDecisionBinding(decision: LearningDecision): void {
     const inputSet = this.assertDurableInputSet(decision.learningInputSetFingerprint);
+    if (canonicalResearchJson(decision.learningInputSet) !== canonicalResearchJson(inputSet)) {
+      throw new LearningDecisionLedgerError("INPUT_SET_IDENTITY_CONFLICT", "embedded A2 input set does not match its durable receipt");
+    }
     if (decision.learningPolicyVersion !== inputSet.learningPolicyVersion) throw new LearningDecisionLedgerError("POLICY_IDENTITY_CONFLICT", "decision learning policy does not match its durable A2 input set");
     const evidenceIds = new Set([...inputSet.researchEvidenceRecordIds, ...inputSet.paperEvidenceRecordIds]);
     if (decision.reasonEvidence.some((reference) => !evidenceIds.has(reference))) throw new LearningDecisionLedgerError("UNBOUND_REASON_EVIDENCE", "decision reason evidence is not present in its durable A2 input set");
