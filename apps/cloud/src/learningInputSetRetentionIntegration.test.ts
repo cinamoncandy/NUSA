@@ -62,6 +62,9 @@ describe("A2 -> A7 integration over the production retention path", () => {
 
       const receipt = inputSets.append(inputSetCiting("p1", "p2"));
       assert.equal(receipt.replayed, false, "first append records a new input set");
+      assert.equal(Object.isFrozen(receipt.inputSet), true, "read-back input set is immutable");
+      assert.equal(Object.isFrozen(receipt.inputSet.paperEvidenceRecordIds), true, "nested evidence arrays are immutable");
+      assert.throws(() => { (receipt.inputSet.paperEvidenceRecordIds as string[]).push("forged"); }, TypeError);
 
       // The citation is durable in the ledger, in the exact form the guard reads.
       const references = inputSets.protectedPeriodReferences();
@@ -141,6 +144,8 @@ describe("A2 -> A7 integration over the production retention path", () => {
       const second = inputSets.append(inputSetCiting("p1"));
       assert.equal(second.replayed, true, "the second append is recognised as a replay");
       assert.equal(second.fingerprint, first.fingerprint);
+      assert.equal(Object.isFrozen(second.inputSet), true, "replayed input set is immutable");
+      assert.equal(Object.isFrozen(inputSets.summary().latest?.inputSet), true, "summary read-back input set is immutable");
       assert.equal(inputSets.summary().setsRecorded, 1, "exactly one durable input set");
 
       const result = periodStore.prune(1, guard());

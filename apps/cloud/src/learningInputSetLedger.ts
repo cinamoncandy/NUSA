@@ -58,7 +58,12 @@ function parseReceipt(record: { readonly hypothesis: string; readonly recordedAt
   } catch (error) {
     throw new LearningInputSetLedgerError("MALFORMED_RECEIPT", error instanceof Error ? error.message : "recorded learning input set is malformed");
   }
-  return parsed;
+  const inputSet = parsed as LearningInputSet;
+  Object.freeze(inputSet.researchEvidenceRecordIds);
+  Object.freeze(inputSet.researchEvidenceObservedAt);
+  Object.freeze(inputSet.paperEvidenceRecordIds);
+  Object.freeze(inputSet.paperEvidenceObservedAt);
+  return Object.freeze(inputSet);
 }
 
 export class LearningInputSetLedger {
