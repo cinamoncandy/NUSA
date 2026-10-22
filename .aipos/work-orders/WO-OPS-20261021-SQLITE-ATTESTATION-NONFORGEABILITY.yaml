@@ -1,6 +1,6 @@
 id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
 title: Prepare Research recovery after shared SQLite startup initialization
-status: IN_PROGRESS
+status: SOURCE_REPAIR_COMMITTED_AIPOS_SYNC_PENDING_EXACT_HEAD_GATES
 priority: P0
 owner: nusa-server-runtime
 repository: cinamoncandy/NUSA
@@ -51,6 +51,7 @@ acceptance:
   - fresh non-author review has zero unresolved current P0/P1 findings
   - separate structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit
   - pre-bootstrap replacement of the former internal verifier cache cannot admit raw, forged or replaced connections into either genuine store
+  - replacing Module._cache wholesale after the production preload cannot substitute a forged SQLite integrity boundary
   - pre-load and post-load replacement of DatabaseSync.prepare or StatementSync.get cannot mint full-file trust or forge its result; JavaScript and Proxy replacements fail closed, and corrupted files remain rejected
   - production PAPER and Research entrypoints load the integrity bootstrap before application code
   - Oracle PAPER systemd removes NODE_OPTIONS before the supervisor process starts, and child execution cannot prepend a preload before the integrity bootstrap
@@ -62,9 +63,11 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 rollback: Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation.
 test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
-validation_head: 4182f9c2ed735f6348079016d484ac18b503f7b2
-validation: 'Source repair commit 992e0e090cba3e5cad5a271854dc78af309a3e19: build and focused SQLite/startup suite 67/67 PASS; preflight, validate:full, security:gate, and AIPOS YAML/drift/conformance/provenance PASS. Parent preload repair commit f14fba8a007f217295bdbc5cd994b2e1f0c9a225 passed focused Oracle validator/launcher/supervisor tests 29/29 plus preflight and AIPOS gates before commit. Exact-head CI 39691113017 on 4182f9c2 failed only coverage-core-1: tests/oracle-supervised-entrypoint.test.js expected the old systemd ExecStart. The same shard was reproduced locally, the contract test was updated to require /usr/bin/env -u NODE_OPTIONS, focused tests passed 12/12, and the full affected isolated shard passed 317 test files. All other CI coverage shards, validation, and five companion workflows passed on 4182f9c2. This evidence is historical after the pending test-only commit; no product thresholds or safety behavior were weakened.'
-next: Commit the corrected test contract and AIPOS evidence, then require terminal exact-head CI and five companion workflows on the latest pushed #2855 head, followed by fresh non-author review with current P0/P1=0. Obtain separate formal NUSA Validator ACCEPTED with exact SHA and P0/P1/P2 counts before Audit/Release. Keep Draft; no merge or Oracle mutation before acceptance.
+prior_exact_head_validation: f9a2574fa83af4502eaaca54ec1398791948c89b
+previous_failed_validation_head: 4182f9c2ed735f6348079016d484ac18b503f7b2
+source_repair_commit: 30a718279401dea433de1142e8d3fc61cd387f61
+validation: 'Historical source repairs: 992e0e09 build and focused SQLite/startup suite 67/67 PASS; f14fba8a focused Oracle validator/launcher/supervisor tests 29/29 PASS. Historical 4182f9c2 CI 39691113017 failed only because the systemd contract test expected the old ExecStart; after test correction the targeted tests passed 12/12 and affected shard 317/317. Pre-repair exact head f9a2574: CI 39691883637 and five required companions 39691883881, 39691883783, 39691883714, 39691883679, 39691883663 all PASS; fresh review had three unresolved P1 threads. Source repair 30a718279401dea433de1142e8d3fc61cd387f61: build PASS and tests/paper-startup-lease-budget-2770.test.js 19/19 PASS. Synchronized working-tree AIPOS checks: preflight, architecture truth, AIPOS drift, cross-AI conformance, work-order provenance, and git diff --check PASS. Exact-head GitHub validation for the AIPOS successor is pending.'
+next: Commit this AIPOS synchronization, then require terminal exact-head CI and all five companions on the resulting PR head, fresh non-author review confirming current P0/P1=0, and separate formal NUSA Validator ACCEPTED with exact SHA and P0/P1/P2 counts. Only then proceed to Independent Audit and governed Release. Keep Draft; no merge or Oracle mutation before acceptance.
 prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
 
 latest_prototype_poisoning_finding_head: 09bd6051f09bb3ad0230c1900445d3648d858754
@@ -76,4 +79,4 @@ protected_main_verified: 8174e6241c3558362ab333c0b092337ce4d52bf4
 
 statement_get_finding_head: 10500dd5027fadc3b36cf4d3deea42ba6443f877
 statement_get_reproduction_head: 6af8f71db6917afd9dbd044487d5f2a186eb25cd
-source_repair_commit: 09628c057e6867dde98404b18e97e150186219b9
+statement_get_source_repair_commit: 09628c057e6867dde98404b18e97e150186219b9
