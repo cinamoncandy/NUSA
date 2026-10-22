@@ -19,6 +19,8 @@ import { createHash } from "node:crypto";
 
 export const LEARNING_INPUT_SET_SCHEMA_VERSION = 1;
 export const LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION = "learning-input-set-canonical-order-v1";
+/** Must fit the existing Evolution Learning ledger hypothesis field without changing its bound. */
+export const MAX_LEARNING_INPUT_SET_RECEIPT_BYTES = 16_384;
 
 export class LearningInputSetError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -175,7 +177,7 @@ export function buildLearningInputSet(input: LearningInputSetInput): LearningInp
     if (research.recordIds.includes(recordId)) throw new LearningInputSetError("CROSS_LANE_DUPLICATE", "evidence was supplied to both lanes");
   }
 
-  return Object.freeze({
+  const inputSet = Object.freeze({
     schemaVersion: LEARNING_INPUT_SET_SCHEMA_VERSION,
     cutoffTimestamp: input.cutoffTimestamp,
     researchEvidenceRecordIds: research.recordIds,
@@ -190,6 +192,15 @@ export function buildLearningInputSet(input: LearningInputSetInput): LearningInp
     governancePolicyVersion: input.policies.governancePolicyVersion,
     canonicalOrderingVersion: LEARNING_INPUT_SET_CANONICAL_ORDERING_VERSION,
   });
+  assertReceiptSize(inputSet);
+  return inputSet;
+}
+
+function assertReceiptSize(inputSet: LearningInputSet): void {
+  const bytes = Buffer.byteLength(canonical(inputSet), "utf8");
+  if (bytes > MAX_LEARNING_INPUT_SET_RECEIPT_BYTES) {
+    throw new LearningInputSetError("INPUT_SET_TOO_LARGE", "learning input set exceeds the existing durable receipt size limit");
+  }
 }
 
 /** The deterministic identity of an input set. Same evidence plus same policies yields the same fingerprint. */
@@ -252,4 +263,5 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
     riskPolicyVersion: candidate.riskPolicyVersion ?? "",
     governancePolicyVersion: candidate.governancePolicyVersion ?? "",
   });
+  assertReceiptSize(candidate as LearningInputSet);
 }

@@ -243,10 +243,6 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // default on the PAPER host; NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED makes candidates wait.
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
-  const learningEvidenceAuthority = researchExperiments?.learningEvidenceAuthority ?? createLearningEvidenceAuthorityFromReaders({
-    readResearch: () => { throw new Error("closed learning durable evidence authority is unavailable"); },
-    readPaper: () => { throw new Error("closed learning durable evidence authority is unavailable"); },
-  });
   const learningInputSetEvidenceAuthority = createLearningEvidenceAuthorityFromReaders({
     readResearch: (recordId) => history.readEvidence(recordId),
     readPaper: (recordId) => {
@@ -254,6 +250,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       return period == null ? undefined : Object.freeze({ recordId, recordedAt: period.record.periodEndAt });
     },
   });
+  // Research experiment composition is optional. When disabled, keep the canonical durable
+  // decision-history and realized-period readers available; only absent research evidence should
+  // fail closed. PAPER evidence must not become unreadable merely because experiment ticks are off.
+  const learningEvidenceAuthority = researchExperiments?.learningEvidenceAuthority ?? learningInputSetEvidenceAuthority;
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, learningEvidenceAuthority, Date.now);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
   const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => coordinator.runAsync(input);

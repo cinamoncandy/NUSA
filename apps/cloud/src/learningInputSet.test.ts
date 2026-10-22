@@ -91,6 +91,18 @@ describe("A2 learning input set canonicalization", () => {
     assertLearningInputSet(buildLearningInputSet(input({ researchEvidence: [] })));
   });
 
+  it("rejects evidence sets that cannot fit the existing durable receipt bound", () => {
+    const researchEvidence = Array.from({ length: 300 }, (_, index) => ({
+      recordId: `closed-learning-replay:${"a".repeat(64)}:candidate-${index.toString().padStart(4, "0")}`,
+      recordedAt: index + 1,
+    }));
+    assert.throws(
+      () => buildLearningInputSet(input({ researchEvidence, paperEvidence: [] })),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "INPUT_SET_TOO_LARGE",
+      "oversized input must fail before it is represented as a valid A2 receipt",
+    );
+  });
+
   it("does not allow the post-decision META partition to enter A2 identity", () => {
     assert.throws(
       () => buildLearningInputSet({ ...input(), metaPartitionIdentity: "meta-train" } as never),
