@@ -1,27 +1,47 @@
 # SQLite shared integrity closure repair
 
-PR #2855, branch fix/sqlite-integrity-attestation-2770.
-Fresh protected main: 8174e6241c3558362ab333c0b092337ce4d52bf4 (GitHub main and PR base rechecked 2026-10-22 KST).
-PR base API snapshot: 8174e6241c3558362ab333c0b092337ce4d52bf4.
-Latest source repair recorded in the AIPOS evidence successor: b4968375f160f020534e16c304dd5171c145ad4b.
+PR #2855, branch `fix/sqlite-integrity-attestation-2770`.
 
-The previous current-head Codex finding on 09bd6051f09bb3ad0230c1900445d3648d858754 reproduced replacement of DatabaseSync.prototype.prepare after the storage module loaded and before canonical database construction. The fake method returned quick_check=ok; the raw trust registry then admitted both genuine AI stores with only four scoped checks. This was reproduced in a separate local process.
+## Current binding
 
-The source repair captures the built-in DatabaseSync.prototype.prepare and Reflect.apply immediately after importing node:sqlite, before any project module imports. Canonical full-file and AI-store scoped integrity PRAGMAs use this private captured method. New regression on the compiled source proves a post-load prototype replacement cannot forge the full scan: forged full calls 0, genuine full checks 1, scoped checks 4. Existing wholesale CommonJS barrel replacement and pre-bootstrap internal cache replacement tests remain.
+- Protected `main` / PR base: `8174e6241c3558362ab333c0b092337ce4d52bf4`.
+- Fresh review finding head: `9e4d668829247a397018089fc6bd981f5ad81db0`.
+- Current committed source repair: `dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4`.
+- PR remains OPEN / Draft. Resolve the remote branch head dynamically immediately before any push.
 
-Local evidence on source repair 17c0a3120123711c8955301e957c4d8a116cff6d:
-- pnpm typecheck, pnpm build, pnpm preflight, pnpm run validate:full, pnpm run security:gate, and git diff --check: PASS.
-- focused startup/lease/recovery: 34/34 PASS.
-- AI calibration/attribution durability: 22/22 PASS.
-- AIPOS YAML and architecture drift validators: PASS.
-- The security gate generated an SBOM file diff during validation; that generated-only diff was restored.
+## Current P1 closure
 
-The earlier exact-head CI and companion workflow receipts on 09bd6051 are historical after this source repair. No formal NUSA Validator, Audit, Release, merge, or Oracle mutation has occurred. Keep the PR Draft. Oracle was not accessed or mutated.
+Fresh Codex review on `9e4d6688...` found two current P1s:
 
-The AIPOS sync was committed/pushed at c404e3180c722bf6aed6d9922d622a00ea66cded; all eight exact-head workflows there completed/success. Fresh review of fedb934b787af7fdc63ec80f44aa52bc18032a3b found P1s: mutable CommonJS Module._load could substitute the integrity boundary; AIPOS current-head evidence was stale. All nine fedb runs later completed/success. A local repair pins Module._load before application code and regression-tests rejection of a corrupt database under loader-replacement attempts; build, focused 40/40, validate:full, and AIPOS provenance pass. Candidate security gate remains unverified because package audit is unavailable. fedb is only the finding head; resolve current branch ref from GitHub. PR #2855 remained OPEN/DRAFT with protected main/base 8174e6241c3558362ab333c0b092337ce4d52bf4.
+1. `Module.prototype.require` remained replaceable after the trusted preload, so generated CommonJS `require("./sqliteIntegrityBootstrap")` could bypass the already-pinned `Module._load` and return a forged integrity boundary.
+2. This handoff still described the already-committed loader repair as local/pending and contradicted the state/work-order security-gate record.
 
-Next: retry security:gate when package audit is available, recheck protected main and current PR branch ref, then commit/push the local repair as a normal fast-forward. Resolve current head dynamically from GitHub; preserve fedb only as the review-finding head. Then obtain all exact-head workflows, fresh non-author adjudication of every finding, and separate formal NUSA Validator. Any successor commit invalidates previous exact-head receipts. Keep Draft; no Audit/Release/merge/Oracle mutation before Validator acceptance.
+Source repair `dd60977f...` captures the native `Module.prototype.require` descriptor during the trusted preload and pins it non-writable/non-configurable alongside `Module._load` and `Module._cache`. The new child-process adversarial regression attempts that exact replacement, then proves a deliberately corrupt SQLite database is still rejected and the forged require path is never invoked.
 
-Exact-head workflow evidence on c404 is PASS, but review and Validator remain pending. Oracle `/health` and `/ready` were attempted read-only and were blocked by this environment's network policy; Oracle runtime health/source SHA, real PAPER fill/PnL, restart/replay, and learning-cycle continuity remain UNVERIFIED.
+The repair does not weaken the canonical full-file `quick_check`, four AI store-scoped checks, hash-chain replay, startup/recovery ordering, PAPER writer lease, Research child 256 MiB heap propagation, Risk/Governance thresholds, or the 300-second readiness budget.
 
-Safety remains: PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; realOrderAuthority=false; realTransferAuthority=false; aiAuthority=ZERO_AUTHORITY; VERIFIED=false.
+## Evidence
+
+Before the new P1 was found, exact head `9e4d6688...` completed successfully on CI `39708723397`, Mobile Native `39708723564`, Research advisory `39708723368`, Transport `39708723488`, Activation `39708723348`, Capability `39708723272`, Actual PAPER `39708723273`, Read-only Broker `39708723438`, and Android Guard `39708723475`. Those receipts are historical after source repair `dd60977f...`.
+
+On the `dd60977f...` source tree:
+- changed storage TypeScript transpile diagnostics: PASS;
+- exact `Module.prototype.require` replacement regression: PASS;
+- focused PAPER startup + writer-lease tests: 23/23 PASS;
+- `git diff --check`: PASS.
+
+Full local `tsc` is not claimed: this Oracle validation host hit its existing ~258 MiB Node heap ceiling and exited OOM.
+
+## Remaining gates
+
+Commit this durable AIPOS/handoff successor. Before any push, verify GitHub PR #2855 still points to `9e4d6688...`; only then push the two-commit chain as a normal fast-forward. Any successor SHA invalidates all `9e4d6688...` exact-head receipts.
+
+Then require:
+1. fresh exact-head required workflows;
+2. fresh non-author review/adjudication with zero current P0/P1;
+3. a separate formal NUSA Validator receipt bound to the exact SHA with P0/P1/P2 counts and explicit `ACCEPTED`;
+4. only after that, Independent Audit → Release authorization → protected-main merge → exact-main Oracle PAPER runtime acceptance.
+
+Oracle `/health`, `/ready`, deployed source SHA, genuine PAPER fill/PnL, restart/replay, and learning-loop continuity remain UNVERIFIED. No Oracle mutation or runtime acceptance is claimed.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, `realTransferAuthority=false`, `aiAuthority=ZERO_AUTHORITY`, `VERIFIED=false`.
