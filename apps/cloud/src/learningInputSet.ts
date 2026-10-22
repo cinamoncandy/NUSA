@@ -68,6 +68,11 @@ const SHA64 = /^[a-f0-9]{64}$/;
 const POLICY_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const MAX_RECORD_ID_LENGTH = 512;
 
+/** Locale-independent ordering for values included in durable canonical identities. */
+function compareCanonicalStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function canonical(value: unknown): string {
   if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
   if (typeof value === "number") {
@@ -77,7 +82,7 @@ function canonical(value: unknown): string {
   if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
   if (typeof value === "object") {
     return "{" + Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => compareCanonicalStrings(left, right))
       .map(([key, item]) => JSON.stringify(key) + ":" + canonical(item))
       .join(",") + "}";
   }
@@ -138,7 +143,7 @@ function laneOf(references: readonly LearningEvidenceReference[], lane: string, 
     if (reference.recordedAt >= cutoffTimestamp) throw new LearningInputSetError("PIT_VIOLATION", lane + " evidence was recorded at or after the point-in-time cutoff");
     seen.add(reference.recordId);
   }
-  const ordered = [...references].sort((left, right) => left.recordId.localeCompare(right.recordId));
+  const ordered = [...references].sort((left, right) => compareCanonicalStrings(left.recordId, right.recordId));
   const recordIds = Object.freeze(ordered.map((reference) => reference.recordId));
   return Object.freeze({
     recordIds,
@@ -174,9 +179,9 @@ export function buildLearningInputSet(input: LearningInputSetInput): LearningInp
     schemaVersion: LEARNING_INPUT_SET_SCHEMA_VERSION,
     cutoffTimestamp: input.cutoffTimestamp,
     researchEvidenceRecordIds: research.recordIds,
-    researchEvidenceObservedAt: Object.freeze([...input.researchEvidence].sort((left, right) => left.recordId.localeCompare(right.recordId)).map((reference) => reference.recordedAt)),
+    researchEvidenceObservedAt: Object.freeze([...input.researchEvidence].sort((left, right) => compareCanonicalStrings(left.recordId, right.recordId)).map((reference) => reference.recordedAt)),
     paperEvidenceRecordIds: performance.recordIds,
-    paperEvidenceObservedAt: Object.freeze([...input.paperEvidence].sort((left, right) => left.recordId.localeCompare(right.recordId)).map((reference) => reference.recordedAt)),
+    paperEvidenceObservedAt: Object.freeze([...input.paperEvidence].sort((left, right) => compareCanonicalStrings(left.recordId, right.recordId)).map((reference) => reference.recordedAt)),
     researchLaneDigest: research.digest,
     performanceLaneDigest: performance.digest,
     learningPolicyVersion: input.policies.learningPolicyVersion,
@@ -229,7 +234,7 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
     let previous = "";
     ids.forEach((id, index) => {
       validateRecordId(id as string, idsKey);
-      if (index > 0 && (id as string).localeCompare(previous) <= 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", idsKey + " must be unique and canonically ordered");
+      if (index > 0 && compareCanonicalStrings(id as string, previous) <= 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", idsKey + " must be unique and canonically ordered");
       if (allIds.has(id as string)) throw new LearningInputSetError("MALFORMED_INPUT_SET", "evidence record id appears in both lanes");
       allIds.add(id as string); previous = id as string;
       if (!Number.isSafeInteger(times[index]) || (times[index] as number) < 0 || (times[index] as number) >= (candidate.cutoffTimestamp as number)) throw new LearningInputSetError("MALFORMED_INPUT_SET", timesKey + " contains an invalid point-in-time value");
