@@ -2711,19 +2711,23 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: PROTECTED_MAIN_94726_SYNCED_PENDING_EXACT_HEAD_GATES
+  status: MAIN_21241_SYNCED_LOCAL_GATES_PASS_PENDING_REMOTE_EXACT_HEAD_REVIEW_VALIDATOR
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
-  protected_main_sha: 94726afcfc0fdadf267df0b0ecb8494abd801e98
-  pr_reported_base_sha: 94726afcfc0fdadf267df0b0ecb8494abd801e98
+  protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
+  pr_reported_base_sha_before_sync: 94726afcfc0fdadf267df0b0ecb8494abd801e98
+  main_sync: "Protected main 21241b67e153bb8db15e566168fe3daef44b2cbf merged into PR head b745449433f458463242f83f4affc7754c898ded; resolve resulting remote head dynamically after push."
+  local_validation_tree_before_aipos_amend: 215ba83ed2b63fdf3a17e81184cea8c083167c86
   finding_head: 9e4d668829247a397018089fc6bd981f5ad81db0
   source_repair_commit: dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4
   finding: "Fresh Codex review on exact head 9e4d668829247a397018089fc6bd981f5ad81db0 found two current P1s: post-preload replacement of Module.prototype.require could bypass the pinned Module._load and fabricate sqliteIntegrityBootstrap exports, and the durable handoff still described the already-committed loader repair as local/pending."
   repair: "Source repair dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4 captures the native Module.prototype.require descriptor during the trusted preload and pins it non-writable/non-configurable alongside Module._load and Module._cache. The exact adversarial child-process regression verifies replacement is refused, a corrupt SQLite file remains rejected, and the forged require path is never invoked. Full-file quick_check, four AI scoped checks, hash-chain replay, startup/recovery ordering, writer-lease semantics, Research child heap propagation, and the 300-second readiness budget remain unchanged. This durable successor reconciles every recovery record to the committed repair and actual remaining gates."
   validation: "Exact head 9e4d668829247a397018089fc6bd981f5ad81db0 completed/success on CI 39708723397, Mobile Native 39708723564, Research advisory 39708723368, Transport 39708723488, Activation 39708723348, Capability 39708723272, Actual PAPER 39708723273, Read-only Broker 39708723438, and Android Guard 39708723475 before fresh review exposed the require-dispatch and stale-handoff P1s. Those receipts become historical after dd60977f. On the dd60977f source tree, changed storage transpile diagnostics PASS, the exact Module.prototype.require attack regression PASS, focused PAPER startup/writer-lease tests PASS 23/23, and git diff --check PASS. Full local tsc is not claimed because this Oracle validation host hit its existing ~258 MiB Node heap ceiling and exited OOM."
-  next: "Protected main advanced to 94726afcfc0fdadf267df0b0ecb8494abd801e98 after exact-head e5717083239755bd5fe18479a555c27a40390bfa workflows passed; sync that main was required, and the lockfile conflict was resolved using protected main's lockfile with frozen-lockfile validation PASS. Those prior receipts are historical. Resolve the new PR head dynamically and require fresh exact-head workflows, fresh non-author adjudication with zero current P0/P1, and a separate formal NUSA Validator receipt with exact SHA/P0/P1/P2/ACCEPTED before Audit/Release. Do not create a docs-only successor; keep Draft and do not deploy Oracle."
+  next: "Push the fast-forward successor merging protected main 21241b67e153bb8db15e566168fe3daef44b2cbf, resolve the PR head dynamically, then obtain fresh exact-head workflows, fresh non-author adjudication resolving current P1 threads (including require dispatch), and separate formal NUSA Validator exact SHA/P0/P1/P2/ACCEPTED before Audit/Release. Keep Draft; no merge or Oracle mutation."
   runtime: "Oracle health/readiness, deployed source SHA, genuine PAPER fill/PnL, restart/replay, and learning-loop acceptance remain UNVERIFIED; no Oracle mutation or runtime acceptance is claimed."
+  latest_local_validation: "Supersedes historical validation above for merged code tree 215ba83ed2b63fdf3a17e81184cea8c083167c86: build PASS; typecheck PASS; SQLite startup/writer-lease and changed-main mobile regressions 38/38 PASS; validate:full PASS; AIPOS provenance PASS; security:gate PASS (0 unmitigated, 0 secrets); lint PASS with 36 warnings; diff-check PASS. New PR exact-head workflows, fresh non-author review, and formal Validator are pending."
+  latest_main_transition: "Protected main 21241b67e153bb8db15e566168fe3daef44b2cbf is merged into PR head b745449433f458463242f83f4affc7754c898ded in local successor; remote PR head must be resolved after fast-forward push."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_optimizer_core:

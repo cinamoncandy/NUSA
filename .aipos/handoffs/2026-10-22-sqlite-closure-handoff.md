@@ -4,6 +4,14 @@ PR #2855, branch `fix/sqlite-integrity-attestation-2770`.
 
 ## Current binding
 
+### Latest continuation (2026-10-22)
+
+This subsection supersedes the older binding and local-validation statements below. Protected main `21241b67e153bb8db15e566168fe3daef44b2cbf` was merged into remote PR head `b745449433f458463242f83f4affc7754c898ded` in local successor `215ba83ed2b63fdf3a17e81184cea8c083167c86`. After the AIPOS edits in this successor, resolve the final PR head from GitHub dynamically; do not infer it from this handoff.
+
+On the merged code tree before these AIPOS-only edits: `pnpm run build`, `pnpm run typecheck`, focused SQLite startup/writer-lease plus changed-main mobile regressions (38/38), `pnpm run validate:full`, `pnpm run aipos:provenance`, `pnpm run security:gate`, and `pnpm run lint` all passed. Lint reported 36 warnings and zero errors. `git diff --check` passed. Earlier remote workflows for `b745449...` are historical after the main sync; exact-head remote workflows, fresh non-author review, and formal NUSA Validator are pending for the pushed successor.
+
+Six current non-outdated review threads were still unresolved on `b745449...`. The `Module.prototype.require` source fix and adversarial test are present, but reviewer closure is still required. Also re-evaluate the other threads against the synced exact head; an author reply is not a non-author receipt. Keep PR #2855 OPEN/DRAFT; Audit, Release, merge, and Oracle mutation remain prohibited pending their separate gates. Oracle runtime SHA, genuine fill/PnL, restart continuity, and learning-loop acceptance remain UNVERIFIED.
+
 - Protected `main`: `94726afcfc0fdadf267df0b0ecb8494abd801e98` (freshly merged into the PR branch; resolve the current PR head dynamically).
 - Fresh review finding head: `9e4d668829247a397018089fc6bd981f5ad81db0`.
 - Current committed source repair: `dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4`.
