@@ -49,6 +49,21 @@ describe("A2 learning input set canonicalization", () => {
     assert.equal(learningCycleId(forward), learningCycleId(shuffled));
   });
 
+  it("uses locale-independent ordering for Unicode, case, and punctuation in durable identities", () => {
+    const records = [
+      { recordId: "éclair", recordedAt: 30 },
+      { recordId: "Z:trial", recordedAt: 20 },
+      { recordId: "a-trial", recordedAt: 10 },
+      { recordId: "e\u0301clair", recordedAt: 40 },
+    ];
+    const forward = buildLearningInputSet(input({ researchEvidence: records }));
+    const reversed = buildLearningInputSet(input({ researchEvidence: [...records].reverse() }));
+
+    assert.deepEqual([...forward.researchEvidenceRecordIds], [...records.map(({ recordId }) => recordId)].sort());
+    assert.deepEqual([...reversed.researchEvidenceRecordIds], [...forward.researchEvidenceRecordIds]);
+    assert.equal(learningInputSetFingerprint(forward), learningInputSetFingerprint(reversed));
+  });
+
   it("yields one identity for the same evidence and a different one for any change", () => {
     const baseline = learningInputSetFingerprint(buildLearningInputSet(input()));
     const variants = [
