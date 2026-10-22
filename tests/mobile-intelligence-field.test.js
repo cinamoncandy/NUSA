@@ -44,6 +44,12 @@ test("a stale phone quote feed is described as local display lag, not a server d
   assert.equal(model.states.market, "QUOTE STALE");
   assert.match(model.detail, /서버 판단과는 별개/);
   assert.doesNotMatch(model.detail, /보류/);
+  // The healthy headline stays; a stale quote only adds a note.
+  assert.equal(model.headline, field({}).headline);
+  assert.equal(model.phase, "CONNECTED");
+  const noExec = field({ feedStale: true, decisionCount: 10, paperOrderCount: 0 });
+  assert.match(noExec.headline, /실행이 없습니다/);
+  assert.match(noExec.detail, /서버 판단과는 별개/);
 });
 
 test("decisions without paper orders use neutral no-execution wording, never an invented cause", () => {
