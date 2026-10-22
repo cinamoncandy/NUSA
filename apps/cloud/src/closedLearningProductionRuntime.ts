@@ -249,6 +249,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       const period = periods.listRealizedPeriods().find((item) => item.record.recordId === recordId);
       return period == null ? undefined : Object.freeze({ recordId, recordedAt: period.record.periodEndAt });
     },
+    readResearchSnapshot: () => history.listEvidence(),
+    readPaperSnapshot: readPaperEvidence,
   });
   // Research experiment composition is optional. When disabled, keep the canonical durable
   // decision-history and realized-period readers available; only absent research evidence should

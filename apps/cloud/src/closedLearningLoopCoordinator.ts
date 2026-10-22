@@ -187,16 +187,45 @@ export class ClosedLearningLoopCoordinator {
   }
 
   private assertDurableEvidence(identity: ClosedLearningEvidenceIdentity): void {
-    for (const reference of identity.evidenceReferences) {
-      const parsed = parseEvidenceReference(reference);
+    const references = identity.evidenceReferences.map(parseEvidenceReference);
+    const hasResearch = references.some((reference) => reference.lane === "research");
+    const hasPaper = references.some((reference) => reference.lane === "paper");
+    const researchSnapshot = hasResearch ? this.evidenceAuthority.readResearchSnapshot?.() : undefined;
+    const paperSnapshot = hasPaper ? this.evidenceAuthority.readPaperSnapshot?.() : undefined;
+    const researchIndex = researchSnapshot == null ? undefined : this.indexEvidenceSnapshot(researchSnapshot, "research");
+    const paperIndex = paperSnapshot == null ? undefined : this.indexEvidenceSnapshot(paperSnapshot, "PAPER");
+
+    for (const parsed of references) {
       const resolved = parsed.lane === "research"
-        ? this.evidenceAuthority.readResearch(parsed.recordId)
-        : this.evidenceAuthority.readPaper(parsed.recordId);
+        ? researchIndex == null ? this.evidenceAuthority.readResearch(parsed.recordId) : researchIndex.get(parsed.recordId)
+        : paperIndex == null ? this.evidenceAuthority.readPaper(parsed.recordId) : paperIndex.get(parsed.recordId);
       if (resolved != null && (resolved.recordId !== parsed.recordId || !Number.isSafeInteger(resolved.recordedAt) || resolved.recordedAt < 0)) {
         throw new Error("closed learning evidence authority returned malformed evidence");
       }
       if (resolved == null) throw new Error("closed learning evidence is not backed by its canonical durable authority");
     }
+  }
+
+  private indexEvidenceSnapshot(
+    snapshot: readonly { readonly recordId: string; readonly recordedAt: number }[],
+    lane: string,
+  ): ReadonlyMap<string, { readonly recordId: string; readonly recordedAt: number }> {
+    if (!Array.isArray(snapshot)) throw new Error(`closed learning ${lane} evidence snapshot is malformed`);
+    const index = new Map<string, { readonly recordId: string; readonly recordedAt: number }>();
+    for (const record of snapshot) {
+      if (
+        record == null
+        || typeof record.recordId !== "string"
+        || record.recordId.length === 0
+        || !Number.isSafeInteger(record.recordedAt)
+        || record.recordedAt < 0
+        || index.has(record.recordId)
+      ) {
+        throw new Error(`closed learning ${lane} evidence snapshot is malformed`);
+      }
+      index.set(record.recordId, record);
+    }
+    return index;
   }
 
   private deployQualified(record: ClosedLearningCycleRecord): ClosedLearningCycleRecord {

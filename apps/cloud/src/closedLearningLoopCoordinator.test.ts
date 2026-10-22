@@ -99,6 +99,41 @@ describe("ClosedLearningLoopCoordinator", () => {
     assert.equal(evaluations, 0);
     assert.equal(repository.history.length, 0);
   });
+
+  it("loads one canonical snapshot per evidence lane instead of replaying the ledger for every reference", () => {
+    const paperIds = Array.from({ length: 300 }, (_, index) => String(1_000 + index));
+    let paperSnapshotReads = 0;
+    let researchSnapshotReads = 0;
+    let singlePaperReads = 0;
+    let singleResearchReads = 0;
+    const authority = createLearningEvidenceAuthorityFromReaders({
+      readResearch: () => { singleResearchReads += 1; return undefined; },
+      readPaper: () => { singlePaperReads += 1; return undefined; },
+      readResearchSnapshot: () => { researchSnapshotReads += 1; return [{ recordId: "17", recordedAt: 1 }]; },
+      readPaperSnapshot: () => { paperSnapshotReads += 1; return paperIds.map((recordId) => ({ recordId, recordedAt: 1 })); },
+    });
+    const input = evidence({ evidenceReferences: [...paperIds.map((id) => `paper-period:${id}`), "research-evaluation:17"] });
+    const repository = new MemoryRepository();
+    const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => decision("REJECTED") }, { deploy: () => { throw new Error("must not deploy"); } }, authority);
+
+    assert.equal(coordinator.run(input).status, "EXECUTED");
+    assert.equal(paperSnapshotReads, 1);
+    assert.equal(researchSnapshotReads, 1);
+    assert.equal(singlePaperReads, 0);
+    assert.equal(singleResearchReads, 0);
+  });
+
+  it("fails closed on duplicate identities in a durable evidence snapshot", () => {
+    let evaluations = 0;
+    const authority = createLearningEvidenceAuthorityFromReaders({
+      readResearch: () => undefined,
+      readPaper: () => undefined,
+      readPaperSnapshot: () => [{ recordId: "42", recordedAt: 1 }, { recordId: "42", recordedAt: 1 }],
+    });
+    const coordinator = new ClosedLearningLoopCoordinator(new MemoryRepository(), { evaluate: () => { evaluations += 1; return decision("REJECTED"); } }, { deploy: () => { throw new Error("must not deploy"); } }, authority);
+    assert.throws(() => coordinator.run(evidence({ evidenceReferences: ["paper-period:42"] })), /snapshot is malformed/);
+    assert.equal(evaluations, 0);
+  });
   it("persists REJECTED and INSUFFICIENT decisions without PAPER deployment", () => {
     for (const outcome of ["REJECTED", "INSUFFICIENT"] as const) {
       const repository = new MemoryRepository();
