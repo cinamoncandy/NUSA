@@ -2,6 +2,7 @@ import Module = require("node:module");
 import { DatabaseSync } from "node:sqlite";
 
 type SqliteIntegrityBoundary = Readonly<{
+  open: (filename: string) => DatabaseSync;
   prepare: (connection: DatabaseSync, sql: string) => unknown;
   read: (statement: unknown) => Record<string, unknown> | undefined;
   resultIsOk: (result: Record<string, unknown> | undefined) => boolean;
@@ -171,7 +172,7 @@ export class SqliteDatabase implements TransactionRunner {
   public readonly migrationResult: MigrationResult;
   private inTransaction = false;
   public constructor(filename = ":memory:") {
-    this.connection = new DatabaseSync(filename);
+    this.connection = sqliteIntegrityBoundary.open(filename);
     try {
       this.connection.exec("PRAGMA foreign_keys = ON");
       this.connection.exec("PRAGMA busy_timeout = 5000");
@@ -834,7 +835,7 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
   public constructor(filename = ":memory:", verifiedSharedDatabase?: SqliteDatabase) {
     const sharedConnection = verifiedSharedDatabase == null ? null : resolveCheckedSharedConnection(verifiedSharedDatabase);
     if (verifiedSharedDatabase != null && sharedConnection == null) throw new Error("shared AI calibration database has not passed canonical full-file quick_check");
-    this.connection = sharedConnection ?? new DatabaseSync(filename);
+    this.connection = sharedConnection ?? sqliteIntegrityBoundary.open(filename);
     this.ownsConnection = sharedConnection == null;
     try {
       if (this.ownsConnection) {
@@ -1169,7 +1170,7 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
   public constructor(filename = ":memory:", verifiedSharedDatabase?: SqliteDatabase) {
     const sharedConnection = verifiedSharedDatabase == null ? null : resolveCheckedSharedConnection(verifiedSharedDatabase);
     if (verifiedSharedDatabase != null && sharedConnection == null) throw new Error("shared AI attribution database has not passed canonical full-file quick_check");
-    this.connection = sharedConnection ?? new DatabaseSync(filename);
+    this.connection = sharedConnection ?? sqliteIntegrityBoundary.open(filename);
     this.ownsConnection = sharedConnection == null;
     try {
       if (this.ownsConnection) {

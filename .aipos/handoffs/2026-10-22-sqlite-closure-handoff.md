@@ -2,6 +2,14 @@
 
 PR #2855, branch `fix/sqlite-integrity-attestation-2770`.
 
+## Latest continuation (2026-10-22, constructor trust boundary)
+
+The previously recorded Cloud PAPER preload successor is `65a0a047074a9c02193e533a33410cb5c71a6478` on protected base `21241b67e153bb8db15e566168fe3daef44b2cbf`. Fresh Codex review on that exact head found P1 `4346588560`: application code can replace the exported `node:sqlite.DatabaseSync` constructor after preload and before storage import, redirecting the requested persistent file to an in-memory connection while the protected native `prepare/get` still reports `quick_check=ok`.
+
+The current local successor captures the native `DatabaseSync` constructor inside `sqliteIntegrityBootstrap`, exposes only a bounded `open(filename)` through the immutable boundary, and routes canonical plus standalone storage connections through it. Native constructor identity is checked with the captured clean-realm `Function.prototype.toString`; a corrupt-file child-process regression replaces the public constructor after preload and proves the forged constructor is never called and the corrupt requested file is rejected. This retains the full-file check and fail-closed behavior.
+
+The review also identified a stale handoff P1 (`4346588569`): durable records omitted the Cloud PAPER source repair and current gates. This subsection and the active AIPOS work-order/state now describe both source repairs without asserting current-head workflow success. The 65a CI/companion receipts are historical after this constructor repair. Fresh exact-head workflows, non-author adjudication of all findings, and a separate formal NUSA Validator receipt with exact SHA/P0/P1/P2/`ACCEPTED` remain required. Keep #2855 Draft; no Audit, Release, merge, or Oracle mutation before those gates. `VERIFIED=false`.
+
 ## Current binding
 
 ### Latest continuation (2026-10-22)

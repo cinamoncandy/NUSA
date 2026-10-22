@@ -5,12 +5,14 @@ import { runInNewContext } from "node:vm";
 // Production preloads this module before application modules run. Keep the mutable Node core
 // references inside this frozen, non-replaceable module so later application code cannot swap
 // the VM factory, SQLite methods, or result enumeration used by the integrity boundary.
-const cleanRealm = runInNewContext("({ apply: Reflect.apply, functionToString: Function.prototype.toString, values: Object.values })") as {
+const cleanRealm = runInNewContext("({ apply: Reflect.apply, construct: Reflect.construct, functionToString: Function.prototype.toString, values: Object.values })") as {
   readonly apply: typeof Reflect.apply;
+  readonly construct: typeof Reflect.construct;
   readonly functionToString: (value: Function) => string;
   readonly values: typeof Object.values;
 };
 const nativeDatabasePrepare = DatabaseSync.prototype.prepare;
+const nativeDatabaseSync = DatabaseSync;
 const nativeStatementGet = StatementSync.prototype.get;
 const nativeModuleLoadDescriptor = Object.getOwnPropertyDescriptor(Module, "_load");
 const nativeModuleLoad = nativeModuleLoadDescriptor?.value;
@@ -22,7 +24,13 @@ if (typeof nativeModuleLoad !== "function" || typeof nativeModuleResolveFilename
   throw new Error("CommonJS module loader is unavailable; refusing SQLite integrity bootstrap");
 }
 const nativeMethodsAreCanonical = cleanRealm.apply(cleanRealm.functionToString, nativeDatabasePrepare, []) === "function prepare() { [native code] }"
+  && cleanRealm.apply(cleanRealm.functionToString, nativeDatabaseSync, []) === "function DatabaseSync() { [native code] }"
   && cleanRealm.apply(cleanRealm.functionToString, nativeStatementGet, []) === "function get() { [native code] }";
+
+function openSqliteDatabase(filename: string): DatabaseSync {
+  if (!nativeMethodsAreCanonical) throw new Error("native SQLite database constructor is unavailable; refusing to open database");
+  return cleanRealm.construct(nativeDatabaseSync, [filename]) as DatabaseSync;
+}
 
 function prepareSqliteIntegrityStatement(connection: DatabaseSync, sql: string): StatementSync {
   if (!nativeMethodsAreCanonical) throw new Error("native SQLite integrity methods are unavailable; refusing integrity check");
@@ -41,6 +49,7 @@ function sqliteIntegrityResultIsOk(result: Record<string, unknown> | undefined):
 }
 
 export const sqliteIntegrityBoundary = Object.freeze({
+  open: openSqliteDatabase,
   prepare: prepareSqliteIntegrityStatement,
   read: getSqliteIntegrityResult,
   resultIsOk: sqliteIntegrityResultIsOk,
