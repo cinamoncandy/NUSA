@@ -2711,7 +2711,7 @@ current_research_continuous_experiments:
 
 current_ops_sqlite_attestation_nonforgeability_20261021:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: SOURCE_REPAIR_COMMITTED_AIPOS_SYNC_PENDING_EXACT_HEAD_GATES
+  status: AIPOS_SYNCED_C404_EXACT_HEAD_WORKFLOWS_PASS_REVIEW_VALIDATOR_PENDING
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
@@ -2722,12 +2722,12 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
   previous_failed_exact_head: 4182f9c2ed735f6348079016d484ac18b503f7b2
   previous_source_repair_commit: f14fba8a007f217295bdbc5cd994b2e1f0c9a225
   source_repair_commit: 30a718279401dea433de1142e8d3fc61cd387f61
-  finding: "Fresh review of exact head 3eb81c1493771b2e7396060bf342028a533318bf found that the Research unit's 256 MiB Node CLI cap applied only to its wrapper; spawned study/probe children lacked the per-process limit. Source repair b4968375f160f020534e16c304dd5171c145ad4b now passes the bound to every spawned child. Three prior SQLite/PAPER/cache threads remain unresolved pending reviewer confirmation."
+  finding: "Fresh review of exact head 3eb81c1493771b2e7396060bf342028a533318bf found that the Research unit's 256 MiB Node CLI cap applied only to its wrapper; source repair b4968375f160f020534e16c304dd5171c145ad4b now passes the bound to every spawned child. The AIPOS successor is already committed at c404e3180c722bf6aed6d9922d622a00ea66cded; exact-head workflows on c404 all pass. No fresh non-author review or formal Validator receipt is present. Current unresolved review threads include whole-module-cache integrity-boundary replacement and Research child heap propagation; these require independent adjudication against current code."
   research_preload_source_repair_commit: bcc9c62d25d59021e0b0840abd26eedb356c44f4
   candidate_head_before_aipos_sync: bcc9c62d25d59021e0b0840abd26eedb356c44f4
   repair: "Historical repairs 992e0e09, f14fba8a, and 30a718279 preserve the native SQLite boundary, PAPER parent preload scrub, and pinned Module._cache. Research parent-preload repair bcc9c62d25d59021e0b0840abd26eedb356c44f4 scrubs NODE_OPTIONS and sets the parent CLI heap cap. Follow-up source repair b4968375f160f020534e16c304dd5171c145ad4b passes --max-old-space-size=256 to every spawned Research child. The prior AIPOS sync 3eb81c1493771b2e7396060bf342028a533318bf is complete; this commit synchronizes its correction and exact source evidence."
-  validation: "Current source/AIPOS candidate: focused Research snapshot + Oracle validator suites 20/20 PASS; validate:full PASS; security:gate PASS (unmitigated advisories 0, secrets 0); aipos:provenance PASS; lint:scripts 0 errors/36 warnings; git diff --check PASS. Exact successor-head CI/companions, non-author adjudication of every review thread, and separate formal NUSA Validator remain pending."
-  next: "Push only this AIPOS sync to the existing PR branch after confirming remote head b4968375f160f020534e16c304dd5171c145ad4b and protected main/base 8174e6241c3558362ab333c0b092337ce4d52bf4. Then require fresh exact-head CI/companions, non-author adjudication of every current P0/P1 thread, and separate formal NUSA Validator with exact SHA/P0/P1/P2/ACCEPTED. Only afterward may Independent Audit and governed Release be considered; keep Draft and do not mutate/deploy Oracle before acceptance."
+  validation: "Source repair b4968375f160f020534e16c304dd5171c145ad4b local focused 20/20, PAPER startup/recovery 19/19, validate:full, security:gate, aipos:provenance, lint (0 errors/36 existing warnings), and diff checks PASS. AIPOS sync is present on exact PR head c404e3180c722bf6aed6d9922d622a00ea66cded. GitHub exact-head workflows on c404 all completed/success: CI 39702093301, Mobile Native 39702093299, PAPER runtime 39702093383, Capability Guard 39702093361, Activation 39702093339, Transport 39702093419, Read-only Broker 39702093302, Android Guard 39702093402. PR #2855 OPEN/DRAFT; base/protected main 8174e6241c3558362ab333c0b092337ce4d52bf4; exact head c404e3180c722bf6aed6d9922d622a00ea66cded. Fresh non-author review and formal Validator are missing. Oracle health/ready and runtime acceptance remain UNVERIFIED."
+  next: "AIPOS sync is complete; do not repeat it. Recheck protected main and PR head; request/obtain a fresh non-author review of the exact current head and adjudication of all review threads, then a separate formal NUSA Validator with exact SHA/P0/P1/P2/ACCEPTED. Any new commit invalidates c404 workflow/review evidence and requires new exact-head validation. Keep Draft; no Audit/Release/merge/Oracle mutation before Validator acceptance."
   previous_aipos_sync_commit: 3eb81c1493771b2e7396060bf342028a533318bf
   followup_research_heap_source_repair_commit: b4968375f160f020534e16c304dd5171c145ad4b
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
