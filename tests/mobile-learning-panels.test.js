@@ -41,3 +41,12 @@ test("decision bars use real hourly counts when valid, the latest four hours are
   for (const bad of [null, undefined, [1], [1, -2], [1, NaN]]) assert.equal(m.buildDecisionBars(bad).example, true);
   assert.equal(m.buildDecisionBars().bars.length, 24);
 });
+
+test("the panels say 예시 on screen and in the accessibility label, and do not use heavy weights", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const src = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/learningPanels.tsx"), "utf8");
+  assert.match(src, /m\.example \? "예시"/);
+  assert.equal((src.match(/"예시 · "/g) || []).length, 2);
+  assert.doesNotMatch(src, /fontWeight: "(700|800|900)"/);
+});

@@ -9,7 +9,7 @@ import { buildCostWall, buildDecisionBars, buildStudyTimeline } from "./learning
 export function StudyTimeline({ nowMs }: { readonly nowMs: number }) {
   const rows = buildStudyTimeline(nowMs);
   return <View style={styles.block} testID="learning-studies" accessibilityLabel={rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}>
-    <SectionLabel left="사전 등록 연구" right="설계 고정" />
+    <SectionLabel left="사전 등록 연구" right="사전 등록" />
     <View style={styles.tl}>
       <View style={styles.tlLine} />
       {rows.map((r) => <View key={r.id} style={styles.ev}>
@@ -27,37 +27,39 @@ export function StudyTimeline({ nowMs }: { readonly nowMs: number }) {
 export function CostWall({ input }: { readonly input?: ReadonlyArray<{ readonly label: string; readonly bp: number }> | null }) {
   const m = buildCostWall(input);
   const wallPct = `${(m.wallBp / m.maxBp) * 100}%` as const;
-  return <View style={styles.block} testID="learning-cost-wall" accessibilityLabel={`비용의 벽 왕복 ${m.wallBp}bp. ${m.bars.map((b) => `${b.label} ${b.bp}bp ${b.over ? "넘음" : "못 넘음"}`).join(", ")}${m.example ? ". 예시 값" : ""}`}>
+  return <View style={styles.block} testID="learning-cost-wall" accessibilityLabel={`${m.example ? "예시 · " : ""}비용의 벽 왕복 ${m.wallBp}bp. ${m.bars.map((b) => `${b.label} ${b.bp}bp ${b.over ? "넘음" : "못 넘음"}`).join(", ")}`}>
     <SectionLabel left="비용의 벽" right={m.example ? "예시" : `${m.wallBp}bp`} />
     <View style={styles.wallBody}>
       {m.bars.map((b) => <View key={b.label} style={styles.wRow}>
         <Text style={styles.wLabel}>{b.label}</Text>
-        <View style={styles.wTrack}><View style={[styles.wFill, { width: `${b.ratio * 100}%`, backgroundColor: b.over ? calmColors.order : calmColors.text }]} /></View>
+        <View style={styles.wTrack}><View style={[styles.wFill, { width: `${b.ratio * 100}%`, backgroundColor: b.over ? calmColors.text : calmColors.muted }]} /></View>
         <Text style={styles.wValue}>{b.bp}</Text>
       </View>)}
       <View pointerEvents="none" style={styles.wOverlay}><View style={[styles.wLine, { left: wallPct }]}><Text style={styles.wTag}>{m.wallBp}bp</Text></View></View>
     </View>
-    <Text style={styles.note}>비용선을 넘지 못하면 순수익은 마이너스예요.{m.example ? " 막대는 설명용 예시이고 실제 후보 값이 아니에요." : ""}</Text>
+    <Text style={styles.note}>비용선을 넘지 못하면 순수익은 마이너스예요. 스프레드는 별도예요.{m.example ? " 막대는 설명용 예시이고 실제 후보 값이 아니에요." : ""}</Text>
   </View>;
 }
 
 /** Decision bars: one bar per hour, the latest hours in the live tone. Shows activity, not performance. */
 export function DecisionBars({ hourly }: { readonly hourly?: ReadonlyArray<number> | null }) {
   const m = buildDecisionBars(hourly);
-  return <View style={styles.block} testID="learning-decision-bars" accessibilityLabel={`최근 ${m.bars.length}시간 판단 ${m.total.toLocaleString("en-US")}건${m.example ? ". 예시 값" : ""}`}>
+  return <View style={styles.block} testID="learning-decision-bars" accessibilityLabel={`${m.example ? "예시 · " : ""}최근 ${m.bars.length}시간 판단 ${m.total.toLocaleString("en-US")}건`}>
     <SectionLabel left="판단 흐름" right={m.example ? "예시" : `${m.bars.length}시간`} />
     <View style={styles.bars} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {m.bars.map((b, i) => <View key={i} style={[styles.bar, { height: `${b.ratio * 100}%`, backgroundColor: b.recent ? calmColors.order : "#2A3440" }]} />)}
+      {m.bars.map((b, i) => <View key={i} style={[styles.bar, { height: `${b.ratio * 100}%`, backgroundColor: b.recent ? calmColors.order : RAIL }]} />)}
     </View>
     <Text style={styles.note}>판단이 많다고 수익이 나는 것은 아니에요. 활동량만 보여 줘요.{m.example ? " 막대는 예시예요." : ""}</Text>
   </View>;
 }
 
+const RAIL = "#2A3440";
+
 const styles = StyleSheet.create({
   block: { paddingHorizontal: 20, marginTop: 22, gap: 12 },
   note: { color: calmColors.muted, fontSize: readableFont(12), lineHeight: 18 },
   tl: { paddingLeft: 26, gap: 20, marginTop: 6 },
-  tlLine: { position: "absolute", left: 5, top: 8, bottom: 8, width: StyleSheet.hairlineWidth, backgroundColor: "#2A3440" },
+  tlLine: { position: "absolute", left: 5, top: 8, bottom: 8, width: StyleSheet.hairlineWidth, backgroundColor: RAIL },
   ev: { gap: 2 },
   dot: { position: "absolute", left: -26, top: 9, width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: calmColors.muted, backgroundColor: calmColors.ground },
   dotNext: { borderColor: calmColors.order, backgroundColor: calmColors.order },
@@ -71,8 +73,8 @@ const styles = StyleSheet.create({
   wFill: { height: 9, borderRadius: 1 },
   wValue: { width: 28, textAlign: "right", color: calmColors.muted, fontSize: readableFont(12), fontVariant: ["tabular-nums"] },
   wOverlay: { position: "absolute", top: 0, bottom: 0, left: 84, right: 38 },
-  wLine: { position: "absolute", top: 0, bottom: 0, borderLeftWidth: 1, borderLeftColor: calmColors.loss, borderStyle: "dashed" },
-  wTag: { position: "absolute", top: -2, left: -16, width: 44, textAlign: "center", color: calmColors.loss, fontSize: readableFont(12), fontWeight: "700" },
+  wLine: { position: "absolute", top: 0, bottom: 0, borderLeftWidth: 1, borderLeftColor: calmColors.loss },
+  wTag: { position: "absolute", top: -2, left: -16, width: 44, textAlign: "center", color: calmColors.loss, fontSize: readableFont(12), fontWeight: "600" },
   bars: { flexDirection: "row", alignItems: "flex-end", gap: 3, height: 64 },
   bar: { flex: 1, borderRadius: 1, minHeight: 2 },
 });
