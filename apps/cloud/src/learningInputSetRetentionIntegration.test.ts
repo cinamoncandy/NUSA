@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/persistedPaperPeriodStore";
@@ -184,6 +187,35 @@ describe("A2 -> A7 integration over the production retention path", () => {
       assert.deepEqual(retained(db), ["p1", "p2"]);
     } finally {
       close();
+    }
+  });
+
+  it("restores A2 receipts and retention pins after a file-backed SQLite restart", () => {
+    const directory = mkdtempSync(join(tmpdir(), "nusa-a2-restart-"));
+    const databasePath = join(directory, "learning.sqlite");
+    let db = new SqliteDatabase(databasePath);
+    try {
+      new SqlitePersistedPaperPeriodStore(db);
+      seedPeriods(db, ["p1", "p2", "p3"]);
+      let learningLedger = new SqliteEvolutionLearningLedger(db);
+      let inputSets = new LearningInputSetLedger(learningLedger);
+      const inputSet = inputSetCiting("p1", "p2");
+      assert.equal(inputSets.append(inputSet).replayed, false);
+
+      db.close();
+      db = new SqliteDatabase(databasePath);
+      const restartedPeriodStore = new SqlitePersistedPaperPeriodStore(db);
+      learningLedger = new SqliteEvolutionLearningLedger(db);
+      inputSets = new LearningInputSetLedger(learningLedger);
+
+      assert.equal(inputSets.append(inputSet).replayed, true, "restart replay returns the original A2 identity");
+      assert.deepEqual([...inputSets.protectedPeriodReferences()], ["paper-period:p1", "paper-period:p2"]);
+      const result = restartedPeriodStore.prune(1, evolutionLedgerRetentionGuard(learningLedger));
+      assert.equal(result.deleted, 0, "the only older records cited by A2 survive retention after restart");
+      assert.deepEqual(retained(db), ["p1", "p2", "p3"]);
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 });
