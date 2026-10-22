@@ -16,3 +16,8 @@ test('registered design hash matches the design file bytes (freeze)', () => {
   const { assertDesignFrozen } = require('../scripts/lib/preregisteredDesign.js');
   assert.doesNotThrow(() => assertDesignFrozen());
 });
+
+test('registered S5 design hash matches the S5 design file bytes (freeze)', () => {
+  const { assertDesignFrozen, S5_DESIGN_FILE, S5_DESIGN_SHA256 } = require('../scripts/lib/preregisteredDesign.js');
+  assert.doesNotThrow(() => assertDesignFrozen({ file: S5_DESIGN_FILE, expected: S5_DESIGN_SHA256 }));
+});
