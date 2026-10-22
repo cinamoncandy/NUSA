@@ -1,4 +1,5 @@
 import { DatabaseSync, StatementSync } from "node:sqlite";
+import Module from "node:module";
 import { runInNewContext } from "node:vm";
 
 // Production preloads this module before application modules run. Keep the mutable Node core
@@ -42,6 +43,10 @@ Object.freeze(exports);
 const bootstrapCache = require.cache;
 const bootstrapModule = bootstrapCache?.[__filename];
 if (bootstrapModule != null && bootstrapCache != null) {
+  // `require.cache` aliases Module._cache. Protect the cache reference itself as well as this
+  // entry: otherwise application code can replace Module._cache wholesale and install a forged
+  // bootstrap export that bypasses the immutable entry in the original cache object.
+  Object.defineProperty(Module, "_cache", { configurable: false, enumerable: true, writable: false, value: bootstrapCache });
   Object.defineProperty(bootstrapModule, "exports", { configurable: false, enumerable: true, writable: false, value: exports });
   Object.defineProperty(bootstrapCache, __filename, { configurable: false, enumerable: true, writable: false, value: bootstrapModule });
 }

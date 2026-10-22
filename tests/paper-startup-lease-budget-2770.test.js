@@ -574,6 +574,56 @@ test("the process-preloaded SQLite boundary survives later VM and SQLite prototy
   assert.equal(result.status, 0, `preloaded SQLite boundary must survive VM and prototype replacement:\n${result.stdout}\n${result.stderr}`);
 });
 
+test("replacing the whole CommonJS module cache cannot substitute the preloaded SQLite boundary", () => {
+  const bootstrapPath = path.join(root, "dist", "packages", "storage", "src", "sqliteIntegrityBootstrap.js");
+  const script = `
+    const assert = require("node:assert/strict");
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path = require("node:path");
+    const Module = require("node:module");
+    const { DatabaseSync } = require("node:sqlite");
+    const bootstrapPath = ${JSON.stringify(bootstrapPath)};
+    const trustedCache = Module._cache;
+    const trustedBootstrap = trustedCache[bootstrapPath];
+    assert.ok(trustedBootstrap, "the SQLite bootstrap must be loaded before application code");
+    const forgedCache = Object.create(null);
+    let forgedChecks = 0;
+    forgedCache[bootstrapPath] = {
+      id: bootstrapPath,
+      filename: bootstrapPath,
+      loaded: true,
+      exports: { sqliteIntegrityBoundary: {
+        prepare: () => ({ get: () => { forgedChecks++; return { quick_check: "ok" }; } }),
+        read: (statement) => statement.get(),
+        resultIsOk: () => true,
+      } },
+    };
+    Module._cache = forgedCache;
+    assert.strictEqual(Module._cache, trustedCache, "preload must pin the global module cache reference");
+    assert.strictEqual(require.cache[bootstrapPath], trustedBootstrap, "require.cache must still expose the pinned cache entry");
+
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-2770-cache-replacement-"));
+    const filename = path.join(directory, "state.sqlite");
+    const initial = new DatabaseSync(filename);
+    initial.exec("CREATE TABLE untouched(value TEXT)");
+    initial.close();
+    const size = fs.statSync(filename).size;
+    const fd = fs.openSync(filename, "r+");
+    fs.writeSync(fd, Buffer.alloc(4096, 0xaa), 0, 4096, size - 4096);
+    fs.closeSync(fd);
+    try {
+      const { SqliteDatabase } = require(${JSON.stringify(path.join(root, "dist", "packages", "storage", "src", "index.js"))});
+      assert.throws(() => new SqliteDatabase(filename), /quick_check failed|malformed|not a database|corrupt/i);
+      assert.equal(forgedChecks, 0, "the forged cache entry must never provide the integrity boundary");
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  `;
+  const result = spawnSync(process.execPath, ["--require", bootstrapPath, "-e", script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `module-cache replacement must not forge SQLite integrity:\n${result.stdout}\n${result.stderr}`);
+});
+
 test("replacing application Object.values cannot turn a corrupt quick_check result into ok", () => {
   const script = `
     const assert = require("node:assert/strict");
