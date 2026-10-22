@@ -49,6 +49,21 @@ describe("A2 learning input set canonicalization", () => {
     assert.equal(learningCycleId(forward), learningCycleId(shuffled));
   });
 
+  it("uses locale-independent ordering for Unicode, case, and punctuation in durable identities", () => {
+    const records = [
+      { recordId: "éclair", recordedAt: 30 },
+      { recordId: "Z:trial", recordedAt: 20 },
+      { recordId: "a-trial", recordedAt: 10 },
+      { recordId: "e\u0301clair", recordedAt: 40 },
+    ];
+    const forward = buildLearningInputSet(input({ researchEvidence: records }));
+    const reversed = buildLearningInputSet(input({ researchEvidence: [...records].reverse() }));
+
+    assert.deepEqual([...forward.researchEvidenceRecordIds], [...records.map(({ recordId }) => recordId)].sort());
+    assert.deepEqual([...reversed.researchEvidenceRecordIds], [...forward.researchEvidenceRecordIds]);
+    assert.equal(learningInputSetFingerprint(forward), learningInputSetFingerprint(reversed));
+  });
+
   it("yields one identity for the same evidence and a different one for any change", () => {
     const baseline = learningInputSetFingerprint(buildLearningInputSet(input()));
     const variants = [
@@ -74,6 +89,18 @@ describe("A2 learning input set canonicalization", () => {
   it("accepts a single populated lane while rejecting an entirely empty set", () => {
     assertLearningInputSet(buildLearningInputSet(input({ paperEvidence: [] })));
     assertLearningInputSet(buildLearningInputSet(input({ researchEvidence: [] })));
+  });
+
+  it("rejects evidence sets that cannot fit the existing durable receipt bound", () => {
+    const researchEvidence = Array.from({ length: 300 }, (_, index) => ({
+      recordId: `closed-learning-replay:${"a".repeat(64)}:candidate-${index.toString().padStart(4, "0")}`,
+      recordedAt: index + 1,
+    }));
+    assert.throws(
+      () => buildLearningInputSet(input({ researchEvidence, paperEvidence: [] })),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "INPUT_SET_TOO_LARGE",
+      "oversized input must fail before it is represented as a valid A2 receipt",
+    );
   });
 
   it("does not allow the post-decision META partition to enter A2 identity", () => {

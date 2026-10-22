@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import { assertLearningInputSet, learningCycleId, learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
 
 /**
@@ -30,6 +31,9 @@ import { assertLearningInputSet, learningCycleId, learningInputSetFingerprint, t
  */
 
 export const LEARNING_DECISION_SCHEMA_VERSION = 1;
+export const MAX_LEARNING_DECISION_CHANGES = 32;
+export const MAX_LEARNING_DECISION_REASON_EVIDENCE = 64;
+export const MAX_LEARNING_DECISION_RECEIPT_BYTES = 16_384;
 export const ALLOWED_SURFACE_VERSION = "learning-allowed-surface-v1";
 export const IMMUTABLE_SURFACE_VERSION = "learning-immutable-surface-v1";
 export class LearningDecisionError extends Error {
@@ -107,6 +111,7 @@ export type LearningChangeVerdict = "ADMISSIBLE" | "REJECTED";
 /** The §27 aperture fields, carried per change so a later application is bounded and auditable. */
 export interface LearningChangeAssessment {
   readonly surface: string;
+  /** A1 premise only; A4 must re-read the owner spec and reject any mismatch before application. */
   readonly currentValue: number;
   readonly proposedValue: number;
   readonly minimum?: number;
@@ -118,6 +123,7 @@ export interface LearningChangeAssessment {
 
 export interface LearningChangeRequest {
   readonly surface: string;
+  /** Untrusted caller premise, never sufficient authority for an application. */
   readonly currentValue: number;
   readonly proposedValue: number;
 }
@@ -156,8 +162,18 @@ export interface LearningDecisionInput {
   readonly runtimeIdentity: string;
 }
 
+/** Owner-read snapshot supplied by the future bounded A4 apply gate, never by an AI proposal. */
+export interface LearningDecisionCurrentResearchSpec {
+  readonly fingerprint: string;
+  readonly values: Readonly<Record<string, number>>;
+}
+
 const SHA64 = /^[a-f0-9]{64}$/;
 const BOUNDED = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
+
+function compareCanonicalStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
 
 function canonical(value: unknown): string {
   if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
@@ -171,7 +187,7 @@ function canonical(value: unknown): string {
       "{" +
       Object.entries(value as Record<string, unknown>)
         .filter(([, entry]) => entry !== undefined)
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => compareCanonicalStrings(left, right))
         .map(([key, entry]) => JSON.stringify(key) + ":" + canonical(entry))
         .join(",") +
       "}"
@@ -239,6 +255,10 @@ export function assessChange(request: LearningChangeRequest): LearningChangeAsse
     maximumDeltaPerCycle: definition.maximumDeltaPerCycle,
   });
 
+  if (request.currentValue < definition.minimum || request.currentValue > definition.maximum) {
+    return Object.freeze({ surface, currentValue: request.currentValue, proposedValue: request.proposedValue, ...bounds, verdict: "REJECTED" as const, reason: "current value is outside the owner bounds" });
+  }
+
   if (request.proposedValue < definition.minimum || request.proposedValue > definition.maximum) {
     return Object.freeze({ surface, currentValue: request.currentValue, proposedValue: request.proposedValue, ...bounds, verdict: "REJECTED" as const, reason: "proposed value is outside the owner bounds" });
   }
@@ -274,9 +294,24 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
   assertBoundedString(input.runtimeIdentity, "runtime identity");
   if (!Array.isArray(input.proposedChanges)) throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "proposed changes must be a list");
   if (!Array.isArray(input.reasonEvidence)) throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "reason evidence must be a list");
-  for (const reference of input.reasonEvidence) assertBoundedString(reference, "reason evidence reference");
-
-  const proposedChanges = Object.freeze(input.proposedChanges.map(assessChange));
+  if (input.proposedChanges.length > MAX_LEARNING_DECISION_CHANGES) throw new LearningDecisionError("DECISION_TOO_LARGE", "proposed changes exceed the bounded receipt limit");
+  if (input.reasonEvidence.length > MAX_LEARNING_DECISION_REASON_EVIDENCE) throw new LearningDecisionError("DECISION_TOO_LARGE", "reason evidence exceeds the bounded receipt limit");
+  const evidenceIds = new Set([...input.inputSet.researchEvidenceRecordIds, ...input.inputSet.paperEvidenceRecordIds]);
+  const seenEvidence = new Set<string>();
+  for (const reference of input.reasonEvidence) {
+    assertBoundedString(reference, "reason evidence reference");
+    if (!evidenceIds.has(reference)) throw new LearningDecisionError("UNBOUND_REASON_EVIDENCE", "reason evidence must cite the durable A2 input set");
+    if (seenEvidence.has(reference)) throw new LearningDecisionError("DUPLICATE_REASON_EVIDENCE", "reason evidence may not repeat an identity");
+    seenEvidence.add(reference);
+  }
+  const seenSurfaces = new Set<string>();
+  for (const change of input.proposedChanges) {
+    if (seenSurfaces.has(change?.surface)) throw new LearningDecisionError("DUPLICATE_CHANGE_SURFACE", "a decision may contain only one proposal per surface");
+    seenSurfaces.add(change?.surface);
+  }
+  const proposedChanges = Object.freeze([...input.proposedChanges].sort((left, right) =>
+    compareCanonicalStrings(left.surface, right.surface) || left.currentValue - right.currentValue || left.proposedValue - right.proposedValue,
+  ).map(assessChange));
   const admissibleChanges = Object.freeze(proposedChanges.filter((change) => change.verdict === "ADMISSIBLE"));
   const rejectedChanges = Object.freeze(proposedChanges.filter((change) => change.verdict === "REJECTED"));
   const changeMagnitude = admissibleChanges.reduce((largest, change) => Math.max(largest, Math.abs(change.proposedValue - change.currentValue)), 0);
@@ -284,7 +319,7 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
   const decisionOutcome: LearningDecisionOutcome =
     admissibleChanges.length > 0 ? "ADMISSIBLE" : proposedChanges.length > 0 ? "REJECTED" : "INSUFFICIENT";
 
-  return Object.freeze({
+  const decision = Object.freeze({
     schemaVersion: LEARNING_DECISION_SCHEMA_VERSION,
     learningCycleId: learningCycleId(input.inputSet),
     learningInputSetFingerprint: learningInputSetFingerprint(input.inputSet),
@@ -294,7 +329,7 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
     proposedChanges,
     admissibleChanges,
     rejectedChanges,
-    reasonEvidence: Object.freeze([...input.reasonEvidence]),
+    reasonEvidence: Object.freeze([...input.reasonEvidence].sort(compareCanonicalStrings)),
     changeMagnitude,
     allowedSurfaceVersion: ALLOWED_SURFACE_VERSION,
     immutableSurfaceVersion: IMMUTABLE_SURFACE_VERSION,
@@ -303,11 +338,35 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
     sourceCommit: input.sourceCommit,
     runtimeIdentity: input.runtimeIdentity,
   });
+  if (Buffer.byteLength(canonicalResearchJson(decision), "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
+    throw new LearningDecisionError("DECISION_TOO_LARGE", "learning decision exceeds the existing durable receipt size limit");
+  }
+  return decision;
 }
 
 /** The deterministic identity of a decision. Same decision content yields the same fingerprint. */
 export function learningDecisionFingerprint(decision: LearningDecision): string {
   return digest(decision);
+}
+
+/** Stable retry identity excludes attempt metadata but includes every decision premise and result. */
+export function learningDecisionContentFingerprint(decision: LearningDecision): string {
+  return digest({
+    schemaVersion: decision.schemaVersion,
+    learningCycleId: decision.learningCycleId,
+    learningInputSetFingerprint: decision.learningInputSetFingerprint,
+    previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+    learningPolicyVersion: decision.learningPolicyVersion,
+    objectiveVersion: decision.objectiveVersion,
+    proposedChanges: decision.proposedChanges,
+    admissibleChanges: decision.admissibleChanges,
+    rejectedChanges: decision.rejectedChanges,
+    reasonEvidence: decision.reasonEvidence,
+    changeMagnitude: decision.changeMagnitude,
+    allowedSurfaceVersion: decision.allowedSurfaceVersion,
+    immutableSurfaceVersion: decision.immutableSurfaceVersion,
+    decisionOutcome: decision.decisionOutcome,
+  });
 }
 
 /**
@@ -333,11 +392,22 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   for (const field of ["proposedChanges", "admissibleChanges", "rejectedChanges", "reasonEvidence"] as const) {
     if (!Array.isArray(candidate[field])) throw new LearningDecisionError("MALFORMED_DECISION", field + " must be a list");
   }
+  if (candidate.proposedChanges!.length > MAX_LEARNING_DECISION_CHANGES || candidate.reasonEvidence!.length > MAX_LEARNING_DECISION_REASON_EVIDENCE) {
+    throw new LearningDecisionError("MALFORMED_DECISION", "learning decision exceeds the bounded receipt limits");
+  }
+  if (Buffer.byteLength(canonicalResearchJson(candidate), "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
+    throw new LearningDecisionError("MALFORMED_DECISION", "learning decision exceeds the existing durable receipt size limit");
+  }
   for (const [field, item] of [["learningPolicyVersion", candidate.learningPolicyVersion], ["objectiveVersion", candidate.objectiveVersion], ["createdAt", candidate.createdAt], ["sourceCommit", candidate.sourceCommit], ["runtimeIdentity", candidate.runtimeIdentity]] as const) assertBoundedString(item, field);
   for (const reference of candidate.reasonEvidence!) assertBoundedString(reference, "reason evidence reference");
 
   const proposed = candidate.proposedChanges as readonly LearningChangeRequest[];
   const assessments = proposed.map(assessChange);
+  const seenSurfaces = new Set<string>();
+  for (const change of proposed) {
+    if (seenSurfaces.has(change.surface)) throw new LearningDecisionError("MALFORMED_DECISION", "decision contains duplicate proposals for one surface");
+    seenSurfaces.add(change.surface);
+  }
   const admissible = assessments.filter((change) => change.verdict === "ADMISSIBLE");
   const rejected = assessments.filter((change) => change.verdict === "REJECTED");
   if (canonical(assessments) !== canonical(candidate.proposedChanges)
@@ -349,5 +419,31 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   const expectedMagnitude = admissible.reduce((largest, change) => Math.max(largest, Math.abs(change.proposedValue - change.currentValue)), 0);
   if (candidate.changeMagnitude !== expectedMagnitude) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision change magnitude is invalid");
   const expectedOutcome = admissible.length > 0 ? "ADMISSIBLE" : proposed.length > 0 ? "REJECTED" : "INSUFFICIENT";
-  if (candidate.decisionOutcome !== expectedOutcome) throw new LearningDecisionError("MALFORMED_DECISION", "decision outcome does not match its assessments and application receipt");
+  if (candidate.decisionOutcome !== expectedOutcome) throw new LearningDecisionError("MALFORMED_DECISION", "decision outcome does not match its validated assessments");
+}
+
+/**
+ * Revalidates every allowlisted premise against an owner-read current spec snapshot.
+ * A1's stored `currentValue` is only a proposal premise. Any A4 implementation must call this with
+ * the canonical current spec read immediately before application; a caller-provided claim alone is
+ * not sufficient to authorize a mutation.
+ */
+export function assertLearningDecisionPremisesMatchCurrentSpec(
+  value: unknown,
+  currentSpec: LearningDecisionCurrentResearchSpec,
+): asserts value is LearningDecision {
+  assertLearningDecision(value);
+  if (currentSpec == null || typeof currentSpec !== "object" || !SHA64.test(currentSpec.fingerprint ?? "")) {
+    throw new LearningDecisionError("CURRENT_SPEC_UNAVAILABLE", "canonical current research spec identity is required before application");
+  }
+  if (currentSpec.fingerprint !== value.previousResearchSpecFingerprint) {
+    throw new LearningDecisionError("CURRENT_SPEC_IDENTITY_MISMATCH", "current research spec does not match the decision premise");
+  }
+  for (const change of value.proposedChanges) {
+    if (allowlistedSurface(change.surface) == null) continue;
+    const actual = currentSpec.values?.[change.surface];
+    if (!Number.isFinite(actual) || actual !== change.currentValue) {
+      throw new LearningDecisionError("CURRENT_SPEC_VALUE_MISMATCH", "decision premise does not match the canonical current research spec");
+    }
+  }
 }

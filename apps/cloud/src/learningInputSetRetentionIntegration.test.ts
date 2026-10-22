@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { evolutionLedgerRetentionGuard } from "./closedLearningEvolutionLedgerRepository";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
-import { buildLearningInputSet } from "./learningInputSet";
+import { buildLearningInputSet, MAX_LEARNING_INPUT_SET_RECEIPT_BYTES } from "./learningInputSet";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 
 // A2 <-> A7 integration. Both the Learning Input Set ledger and the realized-period store are built
 // over ONE SqliteDatabase, exactly as production wires them (runtime.ts passes the same
@@ -40,6 +44,7 @@ function fixture() {
   return {
     db,
     periodStore,
+    learningLedger,
     inputSets: new LearningInputSetLedger(learningLedger),
     // The production guard, derived from the production ledger, over the production database.
     guard: () => evolutionLedgerRetentionGuard(learningLedger),
@@ -55,6 +60,34 @@ const inputSetCiting = (...paperRecordIds: string[]) => buildLearningInputSet({
 });
 
 describe("A2 -> A7 integration over the production retention path", () => {
+  it("stores and replays a near-limit input set using the ledger's exact serialized byte count", () => {
+    const { inputSets, learningLedger, close } = fixture();
+    try {
+      const paperEvidence = Array.from({ length: 120 }, (_, index) => ({
+        recordId: `period-${"x".repeat(96)}-${index.toString().padStart(3, "0")}`,
+        recordedAt: 100 + index,
+      }));
+      const inputSet = buildLearningInputSet({
+        cutoffTimestamp: 1_000,
+        researchEvidence: [],
+        paperEvidence,
+        policies: POLICIES,
+      });
+      const serializedBytes = Buffer.byteLength(canonicalResearchJson(inputSet), "utf8");
+      assert.ok(serializedBytes > 14_000, "fixture exercises the upper receipt boundary");
+      assert.ok(serializedBytes <= MAX_LEARNING_INPUT_SET_RECEIPT_BYTES);
+
+      const first = inputSets.append(inputSet);
+      assert.equal(first.replayed, false);
+      const stored = learningLedger.list().find((record) => record.opportunityId === `learning-input-set:${first.fingerprint}`);
+      assert.ok(stored);
+      assert.equal(Buffer.byteLength(stored.hypothesis, "utf8"), serializedBytes, "the admitted size equals the exact stored hypothesis size");
+      assert.equal(inputSets.append(inputSet).replayed, true, "the exact durable receipt survives canonical read-back and replay");
+    } finally {
+      close();
+    }
+  });
+
   it("a recorded input set pins the realized periods it cites against retention", () => {
     const { db, periodStore, inputSets, guard, close } = fixture();
     try {
@@ -62,6 +95,9 @@ describe("A2 -> A7 integration over the production retention path", () => {
 
       const receipt = inputSets.append(inputSetCiting("p1", "p2"));
       assert.equal(receipt.replayed, false, "first append records a new input set");
+      assert.equal(Object.isFrozen(receipt.inputSet), true, "read-back input set is immutable");
+      assert.equal(Object.isFrozen(receipt.inputSet.paperEvidenceRecordIds), true, "nested evidence arrays are immutable");
+      assert.throws(() => { (receipt.inputSet.paperEvidenceRecordIds as string[]).push("forged"); }, TypeError);
 
       // The citation is durable in the ledger, in the exact form the guard reads.
       const references = inputSets.protectedPeriodReferences();
@@ -141,6 +177,8 @@ describe("A2 -> A7 integration over the production retention path", () => {
       const second = inputSets.append(inputSetCiting("p1"));
       assert.equal(second.replayed, true, "the second append is recognised as a replay");
       assert.equal(second.fingerprint, first.fingerprint);
+      assert.equal(Object.isFrozen(second.inputSet), true, "replayed input set is immutable");
+      assert.equal(Object.isFrozen(inputSets.summary().latest?.inputSet), true, "summary read-back input set is immutable");
       assert.equal(inputSets.summary().setsRecorded, 1, "exactly one durable input set");
 
       const result = periodStore.prune(1, guard());
@@ -149,6 +187,35 @@ describe("A2 -> A7 integration over the production retention path", () => {
       assert.deepEqual(retained(db), ["p1", "p2"]);
     } finally {
       close();
+    }
+  });
+
+  it("restores A2 receipts and retention pins after a file-backed SQLite restart", () => {
+    const directory = mkdtempSync(join(tmpdir(), "nusa-a2-restart-"));
+    const databasePath = join(directory, "learning.sqlite");
+    let db = new SqliteDatabase(databasePath);
+    try {
+      new SqlitePersistedPaperPeriodStore(db);
+      seedPeriods(db, ["p1", "p2", "p3"]);
+      let learningLedger = new SqliteEvolutionLearningLedger(db);
+      let inputSets = new LearningInputSetLedger(learningLedger);
+      const inputSet = inputSetCiting("p1", "p2");
+      assert.equal(inputSets.append(inputSet).replayed, false);
+
+      db.close();
+      db = new SqliteDatabase(databasePath);
+      const restartedPeriodStore = new SqlitePersistedPaperPeriodStore(db);
+      learningLedger = new SqliteEvolutionLearningLedger(db);
+      inputSets = new LearningInputSetLedger(learningLedger);
+
+      assert.equal(inputSets.append(inputSet).replayed, true, "restart replay returns the original A2 identity");
+      assert.deepEqual([...inputSets.protectedPeriodReferences()], ["paper-period:p1", "paper-period:p2"]);
+      const result = restartedPeriodStore.prune(1, evolutionLedgerRetentionGuard(learningLedger));
+      assert.equal(result.deleted, 0, "the only older records cited by A2 survive retention after restart");
+      assert.deepEqual(retained(db), ["p1", "p2", "p3"]);
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 });
