@@ -12,8 +12,13 @@ const cleanRealm = runInNewContext("({ apply: Reflect.apply, functionToString: F
 };
 const nativeDatabasePrepare = DatabaseSync.prototype.prepare;
 const nativeStatementGet = StatementSync.prototype.get;
-const nativeModuleLoad = Object.getOwnPropertyDescriptor(Module, "_load")?.value;
-if (typeof nativeModuleLoad !== "function") throw new Error("CommonJS module loader is unavailable; refusing SQLite integrity bootstrap");
+const nativeModuleLoadDescriptor = Object.getOwnPropertyDescriptor(Module, "_load");
+const nativeModuleLoad = nativeModuleLoadDescriptor?.value;
+const nativeModuleRequireDescriptor = Object.getOwnPropertyDescriptor(Module.prototype, "require");
+const nativeModuleRequire = nativeModuleRequireDescriptor?.value;
+if (typeof nativeModuleLoad !== "function" || typeof nativeModuleRequire !== "function") {
+  throw new Error("CommonJS module loader is unavailable; refusing SQLite integrity bootstrap");
+}
 const nativeMethodsAreCanonical = cleanRealm.apply(cleanRealm.functionToString, nativeDatabasePrepare, []) === "function prepare() { [native code] }"
   && cleanRealm.apply(cleanRealm.functionToString, nativeStatementGet, []) === "function get() { [native code] }";
 
@@ -47,9 +52,18 @@ Object.freeze(exports);
 // returned for `require("./sqliteIntegrityBootstrap")`, regardless of cache-entry protections.
 Object.defineProperty(Module, "_load", {
   configurable: false,
-  enumerable: true,
+  enumerable: nativeModuleLoadDescriptor?.enumerable ?? true,
   writable: false,
   value: nativeModuleLoad,
+});
+// Node's generated `require()` dispatches through the current module's `.require` method before
+// reaching Module._load. Pin that entry point too; otherwise application code can bypass the
+// protected loader by replacing Module.prototype.require and fabricating the bootstrap export.
+Object.defineProperty(Module.prototype, "require", {
+  configurable: false,
+  enumerable: nativeModuleRequireDescriptor?.enumerable ?? false,
+  writable: false,
+  value: nativeModuleRequire,
 });
 const bootstrapCache = require.cache;
 const bootstrapModule = bootstrapCache?.[__filename];
