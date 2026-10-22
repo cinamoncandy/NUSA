@@ -211,7 +211,7 @@ export function HomeView({
           <View style={[styles.liveDot, { backgroundColor: systemColor }]} />
           <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         </View>
-        <Pressable accessibilityRole="button" onPress={onGoSettings} style={({ pressed }) => [styles.statusCapsule, { borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}>
+        <Pressable accessibilityRole="button" hitSlop={{ top: 7, bottom: 7 }} onPress={onGoSettings} style={({ pressed }) => [styles.statusCapsule, { borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}>
           <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{shownConnectionLabel}</Text>
         </Pressable>
       </View>
