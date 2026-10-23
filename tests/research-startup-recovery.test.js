@@ -158,6 +158,8 @@ for (const competingOwner of [false, true]) {
     t.mock.method(ResearchRecoveryCoordinator.prototype, "recover", function () {
       validations++;
       assert.deepEqual(db.connection.prepare("SELECT * FROM cloud_paper_writer_leases").all(), before);
+      const aiDurabilityTables = db.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('ai_calibration_durability_meta', 'ai_outcome_attribution_memory_meta') ORDER BY name").all().map((row) => row.name);
+      assert.deepEqual(aiDurabilityTables, ["ai_calibration_durability_meta", "ai_outcome_attribution_memory_meta"], "Cloud AI schema initialization must finish before research recovery evidence is prepared");
       if (!competingOwner) now += 30001;
       return original.call(this);
     });

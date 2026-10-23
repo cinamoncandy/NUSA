@@ -11,6 +11,9 @@ const path = require("node:path");
 
 const DESIGN_FILE = path.join(__dirname, "..", "..", "docs", "research-ledger", "PREREGISTERED_STUDIES_2026-10-21.md");
 const DESIGN_SHA256 = "c5308ca4688f48848b585e1d6a7332c1af6025ceea0f472ae773ff3802fd00dc";
+/** Study S5 (order-book imbalance, 15-minute horizon) is registered separately: its own design file, its own hash. */
+const S5_DESIGN_FILE = path.join(__dirname, "..", "..", "docs", "research-ledger", "PREREGISTERED_STUDY_S5_2026-10-22.md");
+const S5_DESIGN_SHA256 = "e64aeec4a7f8ad3c2ac42919c589550320ca0b31f5be994d98abba0df24a5575";
 /** @type {ReadonlyArray<{ file: string, sha256: string, date: string }>} */
 const ADDENDA = Object.freeze([]);
 
@@ -25,4 +28,4 @@ function assertDesignFrozen({ file = DESIGN_FILE, expected = DESIGN_SHA256, adde
   return { designSha256: actual, addenda: addenda.length };
 }
 
-module.exports = { DESIGN_FILE, DESIGN_SHA256, ADDENDA, assertDesignFrozen, sha256Bytes };
+module.exports = { DESIGN_FILE, DESIGN_SHA256, S5_DESIGN_FILE, S5_DESIGN_SHA256, ADDENDA, assertDesignFrozen, sha256Bytes };
