@@ -253,6 +253,51 @@ test("only a canonical A1 receipt can release one matching A2 reservation", () =
   }
 });
 
+test("replay does not resurrect an A2 reservation for the immediately preceding canonical A1 receipt format", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 3);
+    const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", "legacy-paper-period");
+    ledger.append(inputSet.record);
+    const currentDecision = ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:01:00.000Z", inputSet.inputSet));
+
+    // Seed the exact canonical shape written by the preceding A1 payload serializer, which omitted
+    // the embedded A2 object but retained its durable fingerprint. Recompute the fixture's existing
+    // hash-chain row so reopen exercises real ledger replay rather than a parser-only shortcut.
+    const stored = JSON.parse(currentDecision.hypothesis) as Record<string, unknown>;
+    const { learningInputSet: _omittedHistoricalField, ...legacyPayload } = stored;
+    const legacyDecision = { ...currentDecision, hypothesis: canonicalResearchJson(legacyPayload) };
+    const row = db.connection.prepare(
+      "SELECT sequence, previous_hash FROM evolution_learning_ledger_events WHERE opportunity_id = ?",
+    ).get(currentDecision.opportunityId) as { sequence: number; previous_hash: string };
+    const contentHash = sha256(canonicalResearchJson(legacyDecision));
+    const eventHash = sha256(canonicalResearchJson({
+      schemaVersion: 1,
+      sequence: row.sequence,
+      opportunityId: legacyDecision.opportunityId,
+      contentHash,
+      payload: legacyDecision,
+      recordedAt: legacyDecision.recordedAt,
+      previousHash: row.previous_hash,
+    }));
+    db.connection.prepare(
+      "UPDATE evolution_learning_ledger_events SET content_hash = ?, payload_json = ?, event_hash = ? WHERE opportunity_id = ?",
+    ).run(contentHash, canonicalResearchJson(legacyDecision), eventHash, currentDecision.opportunityId);
+    db.connection.prepare("UPDATE evolution_learning_ledger_meta SET ledger_hash = ? WHERE id = 1").run(eventHash);
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 3);
+    assert.equal(ledger.list().length, 2);
+    ledger.append(record("opp:after-legacy-a1", "2026-08-29T00:02:00.000Z"));
+    assert.equal(ledger.size(), 3, "a durable legacy A1 receipt releases its already-consumed A2 capacity reservation");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
 test("forbidden fields are rejected before they can be persisted", () => {
   const db = new SqliteDatabase(":memory:");
   try {

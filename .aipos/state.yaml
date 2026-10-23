@@ -3785,9 +3785,9 @@ current_learning_resume_failed_cycle:
 current_learning_a1_receipt_provenance_20261023:
   work_order: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-  validation: "Fresh exact-head review found 2 P2s: durable A1 omitted full A2 basis and accepted 241–256-byte reason IDs that storage rejects. Full A2 binding and 240-byte limit repaired; focused SQLite/A1 tests pass 60/60."
+  validation: "A fresh review on 88a57734 found one additional P2: replaying the immediately preceding canonical A1 receipt shape could resurrect its A2 reservation. Replay now resolves that exact legacy payload through its durable A2 receipt and reuses full provenance validation; new A1 writes remain strict. Restart/capacity regression plus A1/storage focused tests pass 61/61; build, Node 24.19 preflight, and security gate pass."
   issue: 2793
-  next: "Complete exact-head build/preflight/CI and request fresh independent review; no production application or cycle completion claim."
+  next: "Complete validate:full/AIPOS provenance, push a successor exact head, run exact-head CI, then request fresh independent review; no production application or cycle completion claim."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:
