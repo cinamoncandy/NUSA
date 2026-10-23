@@ -311,7 +311,7 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
     if (!Array.isArray(times) || times.length !== ids.length || (ids.length === 0 && times.length !== 0)) throw new LearningInputSetError("MALFORMED_INPUT_SET", timesKey + " must align with its record ids");
     let previous = "";
     ids.forEach((id, index) => {
-      validateRecordId(id as string, idsKey);
+      validateRecordId(id as string, idsKey === "paperEvidenceRecordIds" ? "performance" : "research");
       if (index > 0 && compareCanonicalStrings(id as string, previous) <= 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", idsKey + " must be unique and canonically ordered");
       if (allIds.has(id as string)) throw new LearningInputSetError("MALFORMED_INPUT_SET", "evidence record id appears in both lanes");
       allIds.add(id as string); previous = id as string;
