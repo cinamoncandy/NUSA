@@ -7,17 +7,19 @@ repository: cinamoncandy/NUSA
 branch: feat/supersession-a5
 pull_request: 2796
 base_branch: feat/meta-oos-a3
-parent_head: 94cad0eeed8be76dcc2d12bc2ad851a2f822d380
+parent_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
 owner_request: "2026-10-23: continue Learning PRs from A2 upward; run relevant tests and pnpm run preflight on Node 24.19+, and request a fresh independent review after exact-head CI passes. Do not delay #2855 or the order-book archive deployment."
 authority_impact: immutable_learning_evidence_and_replay_correctness_only
 objective: "Complete A5 supersession as a deterministic, append-only chain with append-time graph validation, replay idempotency, atomic rehydration, and durable restart-safe records through the existing Evolution Learning ledger."
-first_broken_transition: "Learning supersession link API -> graph integrity and retry identity -> durable append/restart replay"
+first_broken_transition: "canonical supersession payload and Evolution envelope -> bounded, identity-faithful durable append/restart replay"
 scope:
   include:
     - "Reject cycle, merge, reactivation, and fork edges before mutating the registry."
     - "Treat predecessor + successor + surface as edge identity; preserve the first immutable link on metadata-only replay."
     - "Make batch rehydration all-or-nothing and bounded."
     - "Validate graph constraints again against the current hash-chain snapshot inside the existing serialized append transaction."
+    - "Reject canonical link payloads exceeding the existing Evolution hypothesis bound before the generic record factory can truncate them."
+    - "Validate the complete durable Evolution envelope during replay, including evidence references, policy/status, outcome, failure/rollback fields, reusable flag, and canonical recordedAt."
     - "Reuse the existing append-only hash-chained Evolution Learning SQLite ledger; create no second store."
     - "Add file-backed SQLite restart, replay, and no-duplicate regressions."
   exclude:
@@ -29,6 +31,8 @@ acceptance:
   - "Same edge replay with changed reason/timestamp returns the original immutable link and appends no record."
   - "Rehydration validates on a staged registry and commits no partial batch on failure."
   - "A stale concurrent claimant cannot append a fork after another writer commits; the ledger transaction observes the winning link and rejects the loser."
+  - "An oversized canonical payload is rejected before append and leaves the ledger unchanged."
+  - "A hash-chain-valid but noncanonical supersession envelope fails closed during replay."
   - "Durable links use the existing Evolution Learning ledger and survive SQLite close/reopen with identical identity and zero duplicate rows."
   - "Node 24.19+ focused tests, pnpm run preflight, build, validate:full, security:gate, and exact-head CI pass; fresh independent review is requested only after exact-head CI is green."
   - "PR remains Draft; unresolved cutoff/META owner and production-trigger dependencies remain explicit."
@@ -44,13 +48,13 @@ safety:
   fail_closed: true
 validation:
   node: "v24.19.0"
-  focused: "A2/A1/A3/A4/A5 plus Evolution Learning ledger restart/concurrency suite: 147/147 PASS; A5 tests 22/22 PASS."
+  focused: "A2/A1/A3/A4/A5 plus Evolution Learning ledger restart/concurrency suite: 158/158 PASS, including oversized-payload and forged-envelope regressions."
   build: PASS
   preflight: PASS
   validate_full: PASS
   security_gate: PASS
   diff_check: PASS
-  exact_head_ci: PENDING
+  exact_head_ci: PENDING_AFTER_A3_SYNC_AND_A5_REPAIR
   independent_review: PENDING
-remaining: "No production caller or authority is defined. Exact-head CI and independent review remain required."
-next: "Push this validated successor to the existing #2796 branch after checking its remote head; run exact-head CI and request a fresh independent review only after it passes."
+remaining: "No production caller or cutoff/META authority is defined. Exact-head CI and fresh independent review remain required."
+next: "Push the repaired A5 successor to the existing #2796 branch after confirming its remote head; run exact-head CI and request a fresh independent review only after it passes."
