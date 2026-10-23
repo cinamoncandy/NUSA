@@ -3195,6 +3195,14 @@ current_futures_paper_core_20261014:
   next: "Review, CI, merge; then futures research after the B0 probe answer. Not wired to runtime."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_futures_research_data_fetch_20261014:
+  work_order: WO-FUTURES-20261014-RESEARCH-DATA-FETCH
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/futures-research-data
+  validation: "11 script/workflow tests, 22 all-workflow tests and 7 validators PASS."
+  next: "Fresh-session review, merge, one dispatch, freeze data with hashes."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_futures_research_prereg_20261014:
   work_order: WO-FUTURES-20261014-RESEARCH-PREREG
   status: READY_FOR_REVIEW
