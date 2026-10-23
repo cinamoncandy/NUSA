@@ -53,7 +53,7 @@ test("a blank or whitespace-only value is treated as absent rather than as confi
   assert.equal(env.NUSA_CLOUD_UPBIT_PUBLIC_DATA, "true");
 });
 
-test("a configured dashboard token does not require the fallback token file", () => {
+test("a configured dashboard token does not require the fallback token file and starts with the trusted SQLite preload", () => {
   const listeners = new Map(["SIGINT", "SIGTERM"].map((signal) => [signal, new Set(process.listeners(signal))]));
   const child = {
     exitCode: null,
@@ -64,9 +64,10 @@ test("a configured dashboard token does not require the fallback token file", ()
   let spawnOptions;
   try {
     start({
+      cwd: path.resolve(__dirname, ".."),
       env: { NUSA_CLOUD_DASHBOARD_TOKEN: TOKEN },
       resolveToken: () => { throw new Error("fallback token file must not be touched"); },
-      spawn: (_command, _args, options) => { spawnOptions = options; return child; },
+      spawn: (_command, args, options) => { spawnOptions = options; assert.deepEqual(args, ["--require", path.resolve(__dirname, "..", "dist/packages/storage/src/sqliteIntegrityBootstrap.js"), require("../scripts/start-cloud-runtime.js").PRODUCTION_RUNTIME_ENTRYPOINT]); return child; },
       write: () => {}
     });
     assert.equal(spawnOptions.env.NUSA_CLOUD_DASHBOARD_TOKEN, TOKEN);
@@ -75,6 +76,11 @@ test("a configured dashboard token does not require the fallback token file", ()
       for (const listener of process.listeners(signal)) if (!before.has(listener)) process.removeListener(signal, listener);
     }
   }
+});
+
+test("runtime database child does not inherit mutable NODE_OPTIONS preloads", () => {
+  const { env } = buildRuntimeEnv({ NODE_OPTIONS: "--require ./untrusted-preload.js --max-old-space-size=128" }, TOKEN);
+  assert.equal(env.NODE_OPTIONS, undefined);
 });
 
 test("private exchange credentials are stripped from the runtime environment, not forwarded", () => {

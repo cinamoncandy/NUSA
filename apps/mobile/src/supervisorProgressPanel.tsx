@@ -87,7 +87,7 @@ export function SupervisorProgressPanel({ refreshing }: Readonly<{ refreshing: b
       </View>
     </View>
 
-    <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded((value) => !value)} style={({ pressed }) => [styles.toggle, { borderTopColor: theme.colors.border, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-progress-toggle">
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded }} hitSlop={{ top: 2, bottom: 2 }} onPress={() => setExpanded((value) => !value)} style={({ pressed }) => [styles.toggle, { borderTopColor: theme.colors.border, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-progress-toggle">
       <Text style={[styles.toggleLabel, { color: theme.colors.textMuted }]}>{expanded ? "EVIDENCE CLOSE" : "EVIDENCE OPEN"}</Text>
       <Text style={[styles.toggleLabel, { color: theme.colors.textMuted }]}>{snapshot.headSha.slice(0, 8)}</Text>
     </Pressable>

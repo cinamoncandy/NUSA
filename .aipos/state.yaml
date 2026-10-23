@@ -2708,6 +2708,58 @@ current_research_continuous_experiments:
   branch: claude/nusa-repository-j93sd8-research-scheduler
   authority_impact: research-evidence-only
   remaining: stage_2_composition_then_stage_3_tests_then_owner_approved_deploy
+
+current_ops_sqlite_attestation_nonforgeability_20261021:
+  work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+  status: HISTORICAL_SUPERSEDED_BY_CURRENT_SQLITE_CONTINUATION
+  branch: fix/sqlite-integrity-attestation-2770
+  issue: 2770
+  pull_request: 2855
+  protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
+  pr_reported_base_sha_before_sync: 94726afcfc0fdadf267df0b0ecb8494abd801e98
+  main_sync: "Protected main 21241b67e153bb8db15e566168fe3daef44b2cbf merged into PR head b745449433f458463242f83f4affc7754c898ded; resolve resulting remote head dynamically after push."
+  local_validation_tree_before_aipos_amend: 215ba83ed2b63fdf3a17e81184cea8c083167c86
+  finding_head: 9e4d668829247a397018089fc6bd981f5ad81db0
+  source_repair_commit: dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4
+  finding: "Fresh Codex review on exact head 9e4d668829247a397018089fc6bd981f5ad81db0 found two current P1s: post-preload replacement of Module.prototype.require could bypass the pinned Module._load and fabricate sqliteIntegrityBootstrap exports, and the durable handoff still described the already-committed loader repair as local/pending."
+  repair: "Source repair dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4 captures the native Module.prototype.require descriptor during the trusted preload and pins it non-writable/non-configurable alongside Module._load and Module._cache. The exact adversarial child-process regression verifies replacement is refused, a corrupt SQLite file remains rejected, and the forged require path is never invoked. Full-file quick_check, four AI scoped checks, hash-chain replay, startup/recovery ordering, writer-lease semantics, Research child heap propagation, and the 300-second readiness budget remain unchanged. This durable successor reconciles every recovery record to the committed repair and actual remaining gates."
+  validation: "Exact head 9e4d668829247a397018089fc6bd981f5ad81db0 completed/success on CI 39708723397, Mobile Native 39708723564, Research advisory 39708723368, Transport 39708723488, Activation 39708723348, Capability 39708723272, Actual PAPER 39708723273, Read-only Broker 39708723438, and Android Guard 39708723475 before fresh review exposed the require-dispatch and stale-handoff P1s. Those receipts become historical after dd60977f. On the dd60977f source tree, changed storage transpile diagnostics PASS, the exact Module.prototype.require attack regression PASS, focused PAPER startup/writer-lease tests PASS 23/23, and git diff --check PASS. Full local tsc is not claimed because this Oracle validation host hit its existing ~258 MiB Node heap ceiling and exited OOM."
+  next: "Historical repair lineage only. Use current_ops_sqlite_resolver_pin_20261022 for the active PR #2855 head, review findings, and required gates."
+  runtime: "Oracle health/readiness, deployed source SHA, genuine PAPER fill/PnL, restart/replay, and learning-loop acceptance remain UNVERIFIED; no Oracle mutation or runtime acceptance is claimed."
+  latest_local_validation: "Supersedes historical validation above for merged code tree 215ba83ed2b63fdf3a17e81184cea8c083167c86: build PASS; typecheck PASS; SQLite startup/writer-lease and changed-main mobile regressions 38/38 PASS; validate:full PASS; AIPOS provenance PASS; security:gate PASS (0 unmitigated, 0 secrets); lint PASS with 36 warnings; diff-check PASS. New PR exact-head workflows, fresh non-author review, and formal Validator are pending."
+  latest_main_transition: "Protected main 21241b67e153bb8db15e566168fe3daef44b2cbf is merged into PR head b745449433f458463242f83f4affc7754c898ded in local successor; remote PR head must be resolved after fast-forward push."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_sqlite_resolver_pin_20261022:
+  work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+  status: RECOVERY_RECORD_P1_CORRECTED_PENDING_SUCCESSOR_EXACT_HEAD_GATES
+  branch: fix/sqlite-integrity-attestation-2770
+  issue: 2770
+  pull_request: 2855
+  finding_head: 4b6785323535b37bf0b0275ec7eb0f9f803d9d69
+  protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
+  source_repair: "Trusted preload publishes the frozen SQLite integrity boundary on Node Module; storage uses raw CommonJS node:module import-assignment and preload-captured native DatabaseSync constructor, prepare, and get through the immutable boundary. Canonical and standalone storage opens use the captured native constructor, so replacing node:sqlite.DatabaseSync after preload cannot redirect integrity checking to another database. Legacy Cloud PAPER systemd scrubs NODE_OPTIONS and preloads the boundary before the supervisor; supervisor strips NODE_OPTIONS and preloads it before the database-owning child. AI stores share only the checked canonical connection and retain scoped checks/hash-chain replay."
+  latest_review_findings: "The separate fresh NUSA Validator on parent 4e5b0e75da292c23c4028251f4bd1e79fdd9f53b returned P0=0, P1=0, P2=5, ACCEPTED_WITH_CONDITIONS; this does not meet the explicit ACCEPTED gate. Its candidate-bootstrap artifact condition was repaired in scripts/oracle-validate.js and committed/pushed on PR head 4b6785323535b37bf0b0275ec7eb0f9f803d9d69. Fresh Codex review on that exact head found P1 4348034655: the state, work order, and handoff still instructed repeating the completed commit/push. This recovery-record-only successor corrects that stale instruction. Prior-head reviews and Validator receipts remain historical."
+  previous_exact_head_workflows: "On 4b6785323535b37bf0b0275ec7eb0f9f803d9d69, CI 39773522607 and the eight companion workflows all completed SUCCESS. These receipts are historical after this recovery-record successor; resolve current checks dynamically from GitHub."
+  local_validation:
+    native_constructor_capture_and_post_preload_export_poison_regression: PASS
+    focused_sqlite_startup_writer_lease_research_recovery_tests: PASS_46_OF_46
+    post_load_prototype_poison_corrupt_db_reproduction: REJECTED_FORGED_CALLS_0
+    focused_startup_integrity_adversarial_tests: PASS_4_OF_4
+    cloud_paper_supervisor_preload_and_env_tests: PASS_7_OF_7
+    aipos_yaml: PASS_514_FILES
+    aipos_drift: PASS
+    aipos_provenance: PASS
+    aipos_cross_ai: PASS
+    diff_check: PASS
+    aipos_record_corrections: PASS
+    candidate_bootstrap_preflight_tests: PASS_2_OF_2
+    relevant_oracle_and_sqlite_regressions: PASS_69_OF_69
+    validate_full: PASS
+    security_gate: PASS_0_UNMITIGATED_0_SECRETS
+  formal_validator: "PARENT_4E5B0E75_ACCEPTED_WITH_CONDITIONS; successor requires fresh exact-head P0/P1/P2 and explicit ACCEPTED"
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: "Resolve the current PR #2855 head and exact-head workflows dynamically. Require fresh non-author review with no current actionable P0/P1 and a separate formal NUSA Validator receipt bound to that exact SHA with P0/P1/P2 and explicit ACCEPTED. Only then proceed to Independent Audit, Release authorization, protected merge, and exact-main Oracle acceptance. Do not repeat the candidate-bootstrap source repair or recovery-record commit/push; keep Draft/HOLD and do not mutate Oracle."
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
   status: READY_FOR_REVIEW

@@ -60,7 +60,7 @@
     "desktop": "pnpm run build && electron apps/desktop",
     "desktop:dev": "pnpm run build && electron apps/desktop",
     "cloud:runtime": "pnpm run build && node scripts/start-cloud-runtime.js",
-    "cloud:runtime:bare": "pnpm run build && node dist/apps/cloud/src/runtime.js",
+    "cloud:runtime:bare": "pnpm run build && node --require ./dist/packages/storage/src/sqliteIntegrityBootstrap.js dist/apps/cloud/src/runtime.js",
     "autopilot:runtime": "node scripts/autopilot-runtime.js",
     "package:win": "pnpm run preflight && pnpm run build && node scripts/validate-package.js && electron-builder --win nsis",
     "package:portable": "pnpm run preflight && pnpm run build && node scripts/validate-package.js && electron-builder --config electron-builder.portable.yml --win portable",
