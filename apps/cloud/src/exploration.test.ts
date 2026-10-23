@@ -6,8 +6,11 @@ import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages
 import { mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
+import { createEvolutionLearningRecord } from "../../autopilot/src/evolveLearningMemory";
+import type { EvolutionLearningRecord } from "../../autopilot/src/evolveLearningMemory";
 import { buildLearningInputSet } from "./learningInputSet";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
+import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
 import { StrategyFamilyRegistry } from "./strategyFamilyRegistry";
 import { ExplorationError, EXPLORATION_ALLOTMENT_PER_CYCLE, FAMILY_REPETITION_CEILING, GATES_STILL_REQUIRED, assertExplorationHistory } from "./exploration";
 import { LearningExplorationLedger } from "./explorationLedger";
@@ -60,13 +63,20 @@ function familyRegistry(): StrategyFamilyRegistry {
   return registry;
 }
 
+function evidenceAuthority() {
+  return createLearningEvidenceAuthorityFromReaders({
+    readResearch: (recordId: string) => recordId === "trial-a" ? { recordId, recordedAt: TIME - 10_000 } : undefined,
+    readPaper: (recordId: string) => recordId === "period-a" ? { recordId, recordedAt: TIME - 5_000 } : undefined,
+  });
+}
+
 function setup(filename: string, now: () => number = () => TIME) {
   const db = new SqliteDatabase(filename);
   const evolution = new SqliteEvolutionLearningLedger(db);
-  const inputSets = new LearningInputSetLedger(evolution, now);
+  const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(), now);
   const input = inputSets.append(inputSet());
-  const exploration = new LearningExplorationLedger(evolution, evolution, familyRegistry(), now);
-  return { db, evolution, input, exploration };
+  const exploration = new LearningExplorationLedger(evolution, inputSets, familyRegistry(), now);
+  return { db, evolution, input, inputSets, exploration };
 }
 
 describe("A6 durable exploration contract", () => {
@@ -92,7 +102,8 @@ describe("A6 durable exploration contract", () => {
     const db = new SqliteDatabase(filename);
     try {
       const evolution = new SqliteEvolutionLearningLedger(db);
-      const ledger = new LearningExplorationLedger(evolution, evolution, familyRegistry(), () => TIME);
+      const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(), () => TIME);
+      const ledger = new LearningExplorationLedger(evolution, inputSets, familyRegistry(), () => TIME);
       assert.throws(() => ledger.propose(HASH("missing"), candidate()), (error: unknown) => error instanceof ExplorationError && error.code === "A2_INPUT_NOT_DURABLE");
       assert.equal(evolution.size(), 0);
     } finally {
@@ -168,11 +179,41 @@ describe("A6 durable exploration contract", () => {
     }
   });
 
+  it("rejects a hash-chain-shaped A6 receipt with a noncanonical Evolution envelope", () => {
+    const filename = dbPath();
+    const state = setup(filename);
+    try {
+      state.exploration.propose(state.input.fingerprint, candidate());
+      const original = state.evolution.list().find((record) => record.validationStatus === "LEARNING_EXPLORATION");
+      assert.ok(original);
+      const corruptions: readonly ((record: EvolutionLearningRecord) => EvolutionLearningRecord)[] = [
+        (record) => createEvolutionLearningRecord({ ...record, outcome: "SUCCESS" }),
+        (record) => createEvolutionLearningRecord({ ...record, reusable: true }),
+        (record) => createEvolutionLearningRecord({ ...record, evidenceReferences: ["unrelated-evidence"] }),
+        (record) => createEvolutionLearningRecord({ ...record, problem: "unrelated learning record" }),
+        (record) => createEvolutionLearningRecord({ ...record, changeReference: "different-policy" }),
+        (record) => createEvolutionLearningRecord({ ...record, recordedAt: "2026-10-23T03:00:00Z" }),
+      ];
+      for (const corrupt of corruptions) {
+        const forged = corrupt(original);
+        const forgedLedger = {
+          list: () => [forged],
+          appendWithValidation: () => { throw new Error("append must not run during replay"); },
+        };
+        const replay = new LearningExplorationLedger(forgedLedger, state.inputSets, familyRegistry(), () => TIME);
+        assert.throws(() => replay.list(), (error: unknown) => error instanceof ExplorationError && ["MALFORMED_RECEIPT", "IDENTITY_CONFLICT"].includes(error.code));
+      }
+    } finally {
+      state.db.close();
+      cleanup(filename);
+    }
+  });
+
   it("fails closed when a competing process consumes the stale allotment before append", () => {
     const filename = dbPath();
     const state = setup(filename);
     try {
-      const competing = new LearningExplorationLedger(state.evolution, state.evolution, familyRegistry(), () => TIME);
+      const competing = new LearningExplorationLedger(state.evolution, state.inputSets, familyRegistry(), () => TIME);
       const racingPort = {
         list: () => state.evolution.list(),
         appendWithValidation: (record: Parameters<typeof state.evolution.appendWithValidation>[0], validateCurrent: Parameters<typeof state.evolution.appendWithValidation>[1]) => {
@@ -180,7 +221,7 @@ describe("A6 durable exploration contract", () => {
           return state.evolution.appendWithValidation(record, validateCurrent);
         },
       };
-      const stale = new LearningExplorationLedger(racingPort, state.evolution, familyRegistry(), () => TIME);
+      const stale = new LearningExplorationLedger(racingPort, state.inputSets, familyRegistry(), () => TIME);
       assert.throws(() => stale.propose(state.input.fingerprint, candidate()), (error: unknown) => error instanceof ExplorationError && error.code === "CONCURRENT_CHANGE");
       assert.equal(state.exploration.list().length, 1, "losing stale writer appends no receipt");
     } finally {
@@ -206,12 +247,14 @@ describe("A6 durable exploration contract", () => {
 function setupAfterRestart(filename: string) {
   const db = new SqliteDatabase(filename);
   const evolution = new SqliteEvolutionLearningLedger(db);
-  const input = new LearningInputSetLedger(evolution, () => TIME).summary().latest;
+  const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(), () => TIME);
+  const input = inputSets.summary().latest;
   assert.ok(input, "the canonical A2 receipt survives restart");
   return {
     db,
     evolution,
     input,
-    exploration: new LearningExplorationLedger(evolution, evolution, familyRegistry(), () => TIME + 1_000),
+    inputSets,
+    exploration: new LearningExplorationLedger(evolution, inputSets, familyRegistry(), () => TIME + 1_000),
   };
 }
