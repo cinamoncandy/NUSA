@@ -92,23 +92,6 @@ describe("A1 decision identity", () => {
     }), /does not match the decision fingerprint/);
   });
 
-  it("fails closed when the full A2 provenance cannot fit the existing decision receipt bound", () => {
-    const evidence = Array.from({ length: 329 }, (_, index) => ({
-      recordId: `research-${String(index).padStart(3, "0")}-${"x".repeat(27)}`,
-      recordedAt: index + 1,
-    }));
-    const largeInputSet = buildLearningInputSet({
-      cutoffTimestamp: 10_000,
-      researchEvidence: evidence,
-      paperEvidence: [],
-      policies: POLICIES,
-    });
-    assert.throws(() => buildLearningDecision(decisionInput({
-      inputSet: largeInputSet,
-      reasonEvidence: [evidence[0].recordId],
-    })), /receipt size limit/);
-  });
-
   it("one changed evidence identity yields a different decision fingerprint", () => {
     const baseline = buildLearningDecision(decisionInput());
     const changed = buildLearningDecision(decisionInput({ inputSet: inputSet(901) }));
@@ -282,6 +265,27 @@ describe("A1 durable exactly-once - section 43", () => {
     };
   }
 
+  it("references a large valid A2 set without duplicating it in the bounded A1 receipt", () => {
+    const evidence = Array.from({ length: 329 }, (_, index) => ({
+      recordId: `research-${String(index).padStart(3, "0")}-${"x".repeat(27)}`,
+      recordedAt: index + 1,
+    }));
+    const largeInputSet = buildLearningInputSet({
+      cutoffTimestamp: 10_000,
+      researchEvidence: evidence,
+      paperEvidence: [],
+      policies: POLICIES,
+    });
+    const input = decisionInput({ inputSet: largeInputSet, reasonEvidence: [evidence[0].recordId] });
+    const decision = buildLearningDecision(input);
+    const { records, ledger } = fakeLedger();
+    new LearningInputSetLedger(ledger).append(largeInputSet);
+    const receipt = new LearningDecisionLedger(ledger).append(decision);
+    const stored = JSON.parse(records.find((record) => record.validationStatus === "LEARNING_DECISION")!.hypothesis as string) as Record<string, unknown>;
+    assert.equal("learningInputSet" in stored, false, "the durable A2 row is referenced by identity instead of duplicated");
+    assert.equal(receipt.decision.learningInputSetFingerprint, decision.learningInputSetFingerprint);
+  });
+
   it("appending the same decision twice records it once", () => {
     const { ledger } = fakeLedger();
     const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
@@ -366,7 +370,27 @@ describe("A1 durable exactly-once - section 43", () => {
     new LearningInputSetLedger(ledger).append(input.inputSet);
     const decision = buildLearningDecision(input);
     assert.throws(() => store.append({ ...decision, learningPolicyVersion: "learn-v2" }), /does not match its embedded A2 input set/);
-    assert.throws(() => store.append({ ...decision, reasonEvidence: ["not-in-a2"] }), /not present in its durable A2 input set/);
+    assert.throws(() => store.append({ ...decision, reasonEvidence: ["not-in-a2"] }), /canonical A2 input set/);
+  });
+
+  it("rejects duplicate or noncanonical reason references during receipt validation", () => {
+    const decision = buildLearningDecision(decisionInput({ reasonEvidence: ["trial-a", "p1"] }));
+    assert.throws(() => assertLearningDecision({ ...decision, reasonEvidence: ["trial-a", "trial-a"] }), /may not repeat/);
+    assert.throws(() => assertLearningDecision({ ...decision, reasonEvidence: ["trial-a", "p1"] }), /canonical ordering/);
+  });
+
+  it("deep-freezes decisions rehydrated from the durable ledger", () => {
+    const { ledger } = fakeLedger();
+    const input = decisionInput();
+    new LearningInputSetLedger(ledger).append(input.inputSet);
+    const store = new LearningDecisionLedger(ledger);
+    const decision = buildLearningDecision(input);
+    store.append(decision);
+    const restored = store.summary().latest!.decision;
+    assert.equal(Object.isFrozen(restored), true);
+    assert.equal(Object.isFrozen(restored.learningInputSet.researchEvidenceRecordIds), true);
+    assert.throws(() => (restored.learningInputSet.researchEvidenceRecordIds as string[]).push("forged"), TypeError);
+    assert.throws(() => (restored.proposedChanges as unknown[]).push({}), TypeError);
   });
 
   it("uses the real hash-chained SQLite ledger across close and reopen", () => {

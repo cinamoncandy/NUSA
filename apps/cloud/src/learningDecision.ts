@@ -364,7 +364,7 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
     sourceCommit: input.sourceCommit,
     runtimeIdentity: input.runtimeIdentity,
   });
-  if (Buffer.byteLength(canonicalResearchJson(decision), "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
+  if (Buffer.byteLength(canonicalResearchJson(learningDecisionDurablePayload(decision)), "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
     throw new LearningDecisionError("DECISION_TOO_LARGE", "learning decision exceeds the existing durable receipt size limit");
   }
   return decision;
@@ -373,6 +373,12 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
 /** The deterministic identity of a decision. Same decision content yields the same fingerprint. */
 export function learningDecisionFingerprint(decision: LearningDecision): string {
   return digest(decision);
+}
+
+/** A1 references the durable A2 row by identity instead of duplicating its potentially large payload. */
+export function learningDecisionDurablePayload(decision: LearningDecision): Omit<LearningDecision, "learningInputSet"> {
+  const { learningInputSet: _inputSet, ...payload } = decision;
+  return payload;
 }
 
 /** Stable retry identity excludes attempt metadata but includes every decision premise and result. */
@@ -430,11 +436,21 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   if (candidate.proposedChanges!.length > MAX_LEARNING_DECISION_CHANGES || candidate.reasonEvidence!.length > MAX_LEARNING_DECISION_REASON_EVIDENCE) {
     throw new LearningDecisionError("MALFORMED_DECISION", "learning decision exceeds the bounded receipt limits");
   }
-  if (Buffer.byteLength(canonicalResearchJson(candidate), "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
+  if (Buffer.byteLength(canonicalResearchJson(learningDecisionDurablePayload(candidate as LearningDecision)), "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
     throw new LearningDecisionError("MALFORMED_DECISION", "learning decision exceeds the existing durable receipt size limit");
   }
   for (const [field, item] of [["learningPolicyVersion", candidate.learningPolicyVersion], ["objectiveVersion", candidate.objectiveVersion], ["createdAt", candidate.createdAt], ["sourceCommit", candidate.sourceCommit], ["runtimeIdentity", candidate.runtimeIdentity]] as const) assertBoundedString(item, field);
-  for (const reference of candidate.reasonEvidence!) assertBoundedString(reference, "reason evidence reference");
+  const evidenceIds = new Set([...candidate.learningInputSet!.researchEvidenceRecordIds, ...candidate.learningInputSet!.paperEvidenceRecordIds]);
+  let previousReasonReference: string | undefined;
+  const seenReasonReferences = new Set<string>();
+  for (const reference of candidate.reasonEvidence!) {
+    assertBoundedString(reference, "reason evidence reference");
+    if (!evidenceIds.has(reference)) throw new LearningDecisionError("MALFORMED_DECISION", "reason evidence must cite the canonical A2 input set");
+    if (seenReasonReferences.has(reference)) throw new LearningDecisionError("MALFORMED_DECISION", "reason evidence may not repeat an identity");
+    if (previousReasonReference != null && compareCanonicalStrings(previousReasonReference, reference) > 0) throw new LearningDecisionError("MALFORMED_DECISION", "reason evidence must use canonical ordering");
+    seenReasonReferences.add(reference);
+    previousReasonReference = reference;
+  }
 
   const proposed = candidate.proposedChanges as readonly LearningChangeRequest[];
   const assessments = proposed.map(assessChange);
