@@ -3730,6 +3730,17 @@ current_learning_resume_failed_cycle:
   finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
   limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
 
+current_learning_a4_bounded_application_20261022:
+  work_order: WO-LEARNING-20261022-A4-APPLICATION
+  pull_request: 2794
+  branch: feat/learning-application-a4
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  exact_head_before_successor: 3d53b8b70521c3ffdf5d31beeb3bbdc0fb1e084f
+  first_broken_transition: "A1 ADMISSIBLE -> current owner spec + durable META-HOLDOUT eligibility -> bounded A4 application"
+  validation: "Successor changes: caller-supplied eligibility removed in favor of cycle/decision-bound owner port defaulting closed; full current research spec fingerprint is revalidated; durable intent is appended before mutation and can be reconciled after restart; fail-safe write/read-back verified; receipt provenance is fingerprint-bound. Node 24.19.0; focused A1/A2/A4 86/86 PASS; build, preflight, validate:full, security:gate, diff-check PASS. Successor-head CI/review still required."
+  remaining: "No production caller is wired. Keep Draft; exact-head CI, fresh independent review, canonical A3 authority and production runtime integration remain open."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_baseline_observation_20261013:
   work_order: WO-LEARNING-20261013-BASELINE-OBSERVATION
   status: DEPLOYED_RUNTIME_VERIFIED
