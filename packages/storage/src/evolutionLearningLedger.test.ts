@@ -105,6 +105,44 @@ test("chronology regression and bounded capacity fail closed without pruning his
   }
 });
 
+test("an unrelated writer cannot consume the capacity reserved for an A2 input set's A1 decision", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 3);
+    ledger.append(record("opp:existing", "2026-08-29T00:00:00.000Z"));
+    const inputFingerprint = "a".repeat(64);
+    ledger.append(record(`learning-input-set:${inputFingerprint}`, "2026-08-29T00:01:00.000Z", {
+      problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
+      evidenceReferences: [`learning-input-set:${inputFingerprint}`, "paper-period:p1"],
+      validationStatus: "LEARNING_INPUT_SET",
+    }));
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 3);
+
+    assert.throws(
+      () => ledger.append(record(`closed-learning-failure:${"c".repeat(64)}`, "2026-08-29T00:02:00.000Z", {
+        problem: "NUSA closed learning cycle failure: durable recovery evidence",
+        validationStatus: "CYCLE_FAILURE",
+      })),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "CAPACITY_EXCEEDED",
+    );
+    assert.equal(ledger.size(), 2, "a closed-learning failure append leaves the reserved A1 slot untouched");
+
+    ledger.append(record(`learning-decision-cycle-v1:${"b".repeat(64)}`, "2026-08-29T00:02:00.000Z", {
+      problem: "NUSA learning decision: the bounded conclusion drawn from one learning input set",
+      evidenceReferences: [inputFingerprint, "learning-decision-cycle-v1:" + "b".repeat(64)],
+      validationStatus: "LEARNING_DECISION",
+    }));
+    assert.equal(ledger.size(), 3, "the matching A1 decision can consume the reserved slot");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
 test("forbidden fields are rejected before they can be persisted", () => {
   const db = new SqliteDatabase(":memory:");
   try {
