@@ -1,9 +1,9 @@
 id: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
 title: Preserve full A2 provenance in durable A1 receipts and align evidence reference bounds
-status: LOCAL_VALIDATED_A2_SYNCED_PENDING_EXACT_HEAD_CI
-validation: "After syncing reviewed A2 head 4d7750f37a08e7a8196dad25552340fdff27fe00, focused A1/A2/authority/retention/Evolution ledger tests pass 96/96; pnpm build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks pass. The sync preserves the A1 legacy reservation replay and canonical A2 authority validation. No thresholds, authority, or historical production rows changed."
-review: "A2 exact-head independent Codex review completed on 4d7750f37a08e7a8196dad25552340fdff27fe00 with no inline findings. A1 requires a fresh review after its exact-head CI; no formal NUSA Validator acceptance is claimed."
-remaining: "Run validate:full and provenance checks, then push a successor head, pass exact-head CI, and request fresh independent review; downstream Validator/Audit/Release/runtime and genuine Learning evidence remain pending."
+status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+validation: "After syncing reviewed A2 head 4d7750f37a08e7a8196dad25552340fdff27fe00, a fresh A1 review on 40e43db82d0a2aed299bea682308e30be160d3e4 found three P2s: mixed-case A2 PAPER IDs disagreed with storage reference order; restored A2 could make a formerly bounded legacy A1 receipt exceed the current combined bound; and fingerprint-keyed legacy A1 replay did not release its A2 reservation. Repairs add a legacy-byte validator, preserve the existing storage ordering, and recognize the exact legacy fingerprint identity. Focused A1 decision/storage tests pass 66/66; pnpm build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks pass. No thresholds, authority, or historical production rows changed."
+review: "Fresh exact-head review of 40e43db82d0a2aed299bea682308e30be160d3e4 identified three P2 findings now repaired locally; fresh independent review is required again after successor exact-head CI. No formal NUSA Validator acceptance is claimed."
+remaining: "Update this work order/state with the validated repair, verify remote PR head is still 40e43db82d0a2aed299bea682308e30be160d3e4, push the substantive successor non-forcing, pass exact-head CI and request fresh independent review; downstream Validator/Audit/Release/runtime and genuine Learning evidence remain pending."
 priority: P1
 risk: MEDIUM
 authority_impact: none
@@ -29,5 +29,5 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: "Push the locally validated A2-synchronized successor non-forcing after confirming remote head, pass exact-head CI and request fresh independent review; retain PAPER-only authority boundaries."
+next: "Push the locally validated A2-synchronized repair non-forcing after confirming remote head, pass exact-head CI and request fresh independent review; retain PAPER-only authority boundaries."
 version: 1

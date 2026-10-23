@@ -3784,10 +3784,10 @@ current_learning_resume_failed_cycle:
 
 current_learning_a1_receipt_provenance_20261023:
   work_order: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
-  status: LOCAL_VALIDATED_A2_SYNCED_PENDING_EXACT_HEAD_CI
-  validation: "A1 and A2 now share current A2 head 4d7750f37a08e7a8196dad25552340fdff27fe00. After conflict resolution, focused A1/A2/authority/retention/Evolution ledger tests pass 96/96; build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks pass."
+  status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  validation: "Fresh review of A1 head 40e43db82d0a2aed299bea682308e30be160d3e4 found three P2s covering mixed-case A2 reference ordering, legacy A1 receipt size after A2 rehydration, and fingerprint-keyed legacy reservation replay. Repairs pass 66/66 focused A1 decision/storage tests, build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks."
   issue: 2793
-  next: "Commit and push the A2-synchronized successor non-forcing, verify exact-head CI, then request fresh independent review if green. No production application or cycle completion claim."
+  next: "Verify remote PR head is still 40e43db82d0a2aed299bea682308e30be160d3e4, commit and push the substantive repair non-forcing, verify exact-head CI, then request fresh independent review if green. No production application or cycle completion claim."
 current_learning_a2_evidence_resolution_20261023:
   work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
   status: EXACT_HEAD_CI_PASS_REVIEW_NO_FINDINGS

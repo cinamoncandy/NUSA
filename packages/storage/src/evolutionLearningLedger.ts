@@ -208,7 +208,8 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     || decision.learningInputSet == null || typeof decision.learningInputSet !== "object" || Array.isArray(decision.learningInputSet)
     || canonicalResearchJson(decision.learningInputSet) !== inputSetPayload
     || decision.learningCycleId !== `learning-cycle:${fingerprint}`
-    || record.opportunityId !== `learning-decision-cycle-v1:${sha256(decision.learningCycleId as string)}`
+    || (record.opportunityId !== `learning-decision-cycle-v1:${sha256(decision.learningCycleId as string)}`
+      && record.opportunityId !== `learning-decision:${sha256(record.hypothesis)}`)
     || record.changeReference !== decision.learningPolicyVersion
     || !SHA256.test(decision.previousResearchSpecFingerprint as string)
     || typeof decision.learningPolicyVersion !== "string" || !LEARNING_POLICY_ID.test(decision.learningPolicyVersion)
@@ -298,7 +299,10 @@ function canonicalLearningInputSetForReservation(record: EvolutionLearningRecord
     if (typeof input[field] !== "string" || !LEARNING_POLICY_ID.test(input[field] as string)) return false;
   }
   if (sha256(canonicalResearchJson(input)) !== fingerprint) return false;
-  const expectedReferences = [record.opportunityId, ...(input.paperEvidenceRecordIds as string[]).map((id) => `paper-period:${id}`)];
+  // EvolutionLearningLedger.normalize stores references in localeCompare order. Match that one
+  // canonical storage ordering even though A2 lane IDs themselves use code-point ordering.
+  const expectedReferences = [record.opportunityId, ...(input.paperEvidenceRecordIds as string[]).map((id) => `paper-period:${id}`)]
+    .sort((left, right) => left.localeCompare(right));
   return record.evidenceReferences.length === expectedReferences.length
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
 }

@@ -3,6 +3,7 @@ import { canonicalResearchJson } from "../../../packages/contracts/src/researchR
 import { MAX_EVOLUTION_LEARNING_LEDGER_RECORDS, type SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import {
   assertLearningDecision,
+  assertLegacyLearningDecision,
   learningDecisionDurablePayload,
   learningDecisionContentFingerprint,
   learningDecisionFingerprint,
@@ -89,9 +90,13 @@ export class LearningDecisionLedger {
     try {
       // Older branch-local receipts embedded A2. Current receipts store its durable identity and
       // resolve the canonical A2 row from the same append-only ledger on every read.
-      const learningInputSet = stored.learningInputSet ?? this.assertDurableInputSet(stored.learningInputSetFingerprint ?? "");
+      if (Object.hasOwn(stored, "learningInputSet")) {
+        assertLearningDecision(stored);
+        return deepFreeze(stored as LearningDecision);
+      }
+      const learningInputSet = this.assertDurableInputSet(stored.learningInputSetFingerprint ?? "");
       const decision = { ...stored, learningInputSet };
-      assertLearningDecision(decision);
+      assertLegacyLearningDecision(decision, stored, record.hypothesis);
       return deepFreeze(decision as LearningDecision);
     } catch (error) {
       throw new LearningDecisionLedgerError("MALFORMED_RECEIPT", error instanceof Error ? error.message : "recorded learning decision is malformed");

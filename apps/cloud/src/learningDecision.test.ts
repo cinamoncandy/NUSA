@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import {
   buildLearningDecision,
   assessChange,
   learningDecisionFingerprint,
   assertLearningDecision,
   assertLearningDecisionPremisesMatchCurrentSpec,
+  MAX_LEARNING_DECISION_RECEIPT_BYTES,
   type LearningDecisionInput,
 } from "./learningDecision";
 import { buildLearningInputSet } from "./learningInputSet";
@@ -308,6 +311,53 @@ describe("A1 durable exactly-once - section 43", () => {
     });
     const input = decisionInput({ inputSet: largeInputSet, reasonEvidence: [evidence[0].recordId] });
     assert.throws(() => buildLearningDecision(input), /existing durable receipt size limit/);
+  });
+
+  it("replays a historically bounded stripped-A2 receipt whose restored full basis exceeds the current size bound", () => {
+    const { records, ledger } = fakeLedger();
+    const researchEvidence = Array.from({ length: 380 }, (_, index) => ({
+      recordId: `research-${String(index).padStart(3, "0")}-${"x".repeat(20)}`,
+      recordedAt: index + 1,
+    }));
+    const largeInputSet = buildLearningInputSet({
+      cutoffTimestamp: 10_000,
+      researchEvidence,
+      paperEvidence: [],
+      policies: POLICIES,
+    });
+    const authority = testEvidenceAuthority(largeInputSet);
+    const inputSetReceipt = new LearningInputSetLedger(ledger, authority).append(largeInputSet);
+    const baseDecision = buildLearningDecision(decisionInput({ proposedChanges: [], reasonEvidence: [] }));
+    const { learningInputSet: _smallInputSet, ...strippedBase } = baseDecision;
+    const learningCycleId = `learning-cycle:${inputSetReceipt.fingerprint}`;
+    const legacyPayload = {
+      ...strippedBase,
+      learningCycleId,
+      learningInputSetFingerprint: inputSetReceipt.fingerprint,
+      learningPolicyVersion: largeInputSet.learningPolicyVersion,
+    };
+    const legacyJson = canonicalResearchJson(legacyPayload);
+    const restoredJson = canonicalResearchJson({ ...legacyPayload, learningInputSet: largeInputSet });
+    assert.ok(Buffer.byteLength(legacyJson, "utf8") <= MAX_LEARNING_DECISION_RECEIPT_BYTES);
+    assert.ok(Buffer.byteLength(restoredJson, "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES);
+    const opportunityId = `learning-decision-cycle-v1:${createHash("sha256").update(learningCycleId, "utf8").digest("hex")}`;
+    records.push({
+      opportunityId,
+      problem: "NUSA learning decision: the bounded conclusion drawn from one learning input set",
+      evidenceReferences: [opportunityId, inputSetReceipt.fingerprint],
+      hypothesis: legacyJson,
+      changeReference: largeInputSet.learningPolicyVersion,
+      validationStatus: "LEARNING_DECISION",
+      outcome: "SUCCESS",
+      failureReason: null,
+      rollbackReference: null,
+      reusable: true,
+      recordedAt: "2026-10-18T00:00:00.000Z",
+    });
+
+    const summary = new LearningDecisionLedger(ledger, authority).summary();
+    assert.equal(summary.decisionsRecorded, 1);
+    assert.deepEqual(summary.latest?.decision.learningInputSet, largeInputSet);
   });
 
   it("rejects reason references that the canonical ledger cannot persist", () => {
