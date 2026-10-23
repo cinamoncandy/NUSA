@@ -172,16 +172,17 @@ function canonicalEvent(sequence: number, record: EvolutionLearningRecord, previ
  * no second reservation store or mutable history is introduced.
  */
 function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[]): Set<string> {
-  const completed = new Set<string>();
-  for (const record of records) {
-    if (record.validationStatus !== "LEARNING_DECISION" || record.problem !== LEARNING_DECISION_PROBLEM || !LEARNING_DECISION_ID.test(record.opportunityId)) continue;
-    for (const reference of record.evidenceReferences) if (SHA256.test(reference)) completed.add(reference);
-  }
   const pending = new Set<string>();
   for (const record of records) {
-    if (record.validationStatus !== "LEARNING_INPUT_SET" || record.problem !== LEARNING_INPUT_SET_PROBLEM) continue;
-    const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-    if (match != null && !completed.has(match[1])) pending.add(match[1]);
+    if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
+      const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
+      if (match != null) pending.add(match[1]);
+      continue;
+    }
+    if (record.validationStatus === "LEARNING_DECISION" && record.problem === LEARNING_DECISION_PROBLEM && LEARNING_DECISION_ID.test(record.opportunityId)) {
+      const matchingReservations = record.evidenceReferences.filter((reference) => pending.has(reference));
+      if (matchingReservations.length === 1) pending.delete(matchingReservations[0]);
+    }
   }
   return pending;
 }
