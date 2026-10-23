@@ -3962,6 +3962,66 @@ current_docs_claude_handoff:
   next: "Re-verify main, PRs 2637/2638/2639/2633/2586 and runtime health, then continue existing PRs only; see the handoff file for the ordered next permitted actions."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_autopilot_fresh_validator_gate_20261020:
+  work_order: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
+  issue: 2760
+  pull_request: 2772
+  branch: fix/validator-evidence-gate-2760
+  status: CURRENT_MAIN_SYNCED_AIPOS_RECONCILIATION_PENDING_SUCCESSOR_CI_AND_FRESH_VALIDATOR
+  base_sha: 9b6c99cee1750f02ae4dcb9cfe0dba429649dce5
+  prior_pr_head: e0d1465ba6d50e740c766f1daca02459858b0c48
+  local_sync_checkpoint: fa83cb282fcee259f568bc7dd95d515d4f0046b8
+  remote_update_plan: "The exact verified tree was published by a non-force expected-head update from e0d1465... to db7fc759.... The pending AIPOS reconciliation successor must be published only after the GitHub Git Database API tree SHA exactly matches its local HEAD^{tree}; create it as a child of db7fc759..., then update the existing PR branch with expected_sha=db7fc759de47c620a3220c0f12baea7121e3a2d4 and force=false. On any mismatch or lease rejection, stop without changing the ref."
+  synchronization: "Fresh GitHub PR metadata confirmed #2772 was OPEN/Draft at e0d1465ba6d50e740c766f1daca02459858b0c48 while protected main was 9b6c99cee1750f02ae4dcb9cfe0dba429649dce5. GitHub compare showed 8 PR-only and 12 main-only commits from common base 7e560405ad15b4eec8a5e46b0ad32873286df525. Current-main paths did not overlap the PR's changed paths; merge applied cleanly in the isolated worktree. The validated tree was reconstructed through the GitHub Git Database API and its SHA exactly matched the local tree; the existing PR ref was conditionally fast-forwarded from expected e0d1465... to db7fc759de47c620a3220c0f12baea7121e3a2d4 with force=false. The PR is OPEN/Draft, based on current protected main 9b6c99..., and all six exact-head workflows on db7fc759... passed; these receipts become historical for the AIPOS reconciliation successor."
+  validation_after_sync: "PASS: preflight, build, typecheck, validate:full, security:gate, and full suite PASS (1263 isolated test files). Initial full-suite attempt had only a Windows bash PATH ENOENT; rerun with installed Git Bash added to this process PATH passed. Exact-head GitHub checks and fresh non-author Validator remain pending for the successor head."
+  previous_head: fdc81d4d1694a41f0152aa5ab8908a5cccd194b9
+  previous_head_ci:
+    ci_run: 39014447418
+    actual_paper_run: 39014447395
+    capability_guard_run: 39014447400
+    activation_rehearsal_run: 39014447413
+    transport_readiness_run: 39014447392
+    readonly_broker_run: 39014447396
+    result: HISTORICAL_PASS_SUCCESSOR_REQUIRES_FRESH_EVIDENCE
+  previous_validator:
+    verdict: FAIL
+    p0: 0
+    p1: 2
+    findings:
+      - protected_main_not_reconciled
+      - work_order_missing_from_canonical_state
+    result: HISTORICAL_REVIEW_SUCCESSOR_REQUIRES_FRESH_REVIEW
+  repair:
+    - merged_current_protected_main_without_rewriting_history
+    - registered_work_order_and_phase_in_canonical_state
+  validated_successor_head: 4cbfdc93d6fb01e50cc985a8f19af5641c439136
+  exact_head_ci:
+    ci_run: 39378962568
+    actual_paper_run: 39378962602
+    capability_guard_run: 39378962558
+    activation_rehearsal_run: 39378962564
+    transport_readiness_run: 39378962551
+    readonly_broker_run: 39378962553
+    result: PASS_ALL_SIX_ON_VALIDATED_SUCCESSOR
+    status_after_evidence_commit: HISTORICAL_REQUIRES_FRESH_SUCCESSOR_CHECKS
+  aipos_evidence_successor_head: de440808fb30c5b0291d4e6dff9cf2090fc3fafe
+  latest_successor_ci:
+    ci_run: 39379663687
+    actual_paper_run: 39379663605
+    capability_guard_run: 39379663731
+    activation_rehearsal_run: 39379663688
+    transport_readiness_run: 39379663628
+    readonly_broker_run: 39379663625
+    result: PASS_ALL_SIX_ON_EXACT_HEAD
+    status_after_this_record_commit: HISTORICAL_REQUIRES_FRESH_SUCCESSOR_CHECKS
+  fresh_non_author_validator: PENDING_ON_FINAL_EXACT_HEAD
+  next: "Publish the AIPOS reconciliation successor only after exact tree SHA comparison and expected-head fast-forward from db7fc759de47c620a3220c0f12baea7121e3a2d4. Then obtain fresh workflows on that new exact head and a separate fresh non-author Validator. Keep Draft; do not self-review, mark Ready, Audit, Release, or merge. Avoid self-referential current-head claims."
+  safety:
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+    paper_only: true
+
 current_autopilot_light_task_gate:
   work_order: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE
   status: READY_FOR_REVIEW

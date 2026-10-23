@@ -337,7 +337,7 @@ describe("NUSA autopilot GitHub webhook", () => {
         labels: [],
         head: { sha: headSha },
       }), { status: 200 });
-      if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+      if (url.includes("/actions/workflows/autopilot-execution-consumer.yml/runs?")) {
         return new Response(JSON.stringify({ workflow_runs: auditPublished ? [{ display_title: `audit:1955:${workflowRunId}:${headSha}`, status: "in_progress", conclusion: null }] : [] }), { status: 200, headers: { "content-type": "application/json" } });
       }
       if (url.endsWith("/dispatches")) {
@@ -431,7 +431,7 @@ describe("NUSA autopilot GitHub webhook", () => {
         labels: [],
         head: { sha: headSha },
       }), { status: 200 });
-      if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+      if (url.includes("/actions/workflows/autopilot-execution-consumer.yml/runs?")) {
         return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
       }
       if (url.endsWith("/dispatches")) {
@@ -497,7 +497,7 @@ describe("NUSA autopilot GitHub webhook", () => {
         labels: [],
         head: { sha: headSha },
       }), { status: 200 });
-      if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+      if (url.includes("/actions/workflows/autopilot-execution-consumer.yml/runs?")) {
         // The first dispatch was accepted but never became a visible Audit run.
         return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
       }
