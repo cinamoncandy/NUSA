@@ -40,7 +40,17 @@ export interface IntelligenceFieldModel {
 
 const ALL: readonly FieldSubsystem[] = ["governance", "market", "risk", "axiom", "paper"];
 
+const STALE_NOTE = "시세 화면만 지연되었습니다. 서버 판단과는 별개입니다.";
+
 export function buildIntelligenceField(input: IntelligenceFieldInput): IntelligenceFieldModel {
+  const model = buildBase(input);
+  // The phone's public quote feed is display-only; it says nothing about the server decision feed. It never replaces the
+  // headline of a healthy state (that hid real information such as "no executions"); it adds a note and marks the market node.
+  if (!input.feedStale || (model.phase !== "CONNECTED" && model.phase !== "ATTENTION")) return model;
+  return freeze({ ...model, detail: `${model.detail}\n${STALE_NOTE}`, focus: "market", states: { ...model.states, market: "QUOTE STALE" }, coreLevel: Math.min(model.coreLevel, 0.85) });
+}
+
+function buildBase(input: IntelligenceFieldInput): IntelligenceFieldModel {
   if (input.checking) {
     return freeze({ phase: "LAUNCH", statusWord: "STARTING", tone: "dim", headline: "NUSA를 깨우는 중", detail: "로컬 상태를 확인합니다.", lit: [], focus: null, states: {}, coreLevel: 0.25 });
   }
@@ -55,10 +65,6 @@ export function buildIntelligenceField(input: IntelligenceFieldInput): Intellige
   }
   if (input.degraded) {
     return freeze({ phase: "DEGRADED", statusWord: "DEGRADED", tone: "amber", headline: "PAPER 상태 확인 필요", detail: "서버 상태가 정상으로 확인되지 않았습니다. 아래 안내를 확인해 주세요.", lit: ["governance"], focus: "governance", states: { governance: "DEGRADED" }, coreLevel: 0.5 });
-  }
-  if (input.feedStale) {
-    // The phone's public quote feed is display-only; it says nothing about the server decision feed.
-    return freeze({ phase: "ATTENTION", statusWord: "ONLINE", tone: "green", headline: "시세 표시가 늦습니다", detail: "이 기기의 공개 시세 화면만 지연되었습니다. 서버 판단과는 별개입니다.", lit: ALL, focus: "market", states: { governance: "ONLINE", market: "QUOTE STALE", risk: "MONITORING", axiom: "ONLINE", paper: input.readyForPaperOperations ? "ACTIVE" : "OBSERVING" }, coreLevel: 0.85 });
   }
   const deciding = (input.decisionCount ?? 0) > 0;
   const noOrders = input.paperOrderCount === 0;
