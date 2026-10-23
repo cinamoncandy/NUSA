@@ -18,6 +18,10 @@ const OUTCOMES = new Set<EvolutionLearningRecord["outcome"]>([
 ]);
 const REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
+const LEARNING_INPUT_SET_ID = /^learning-input-set:([a-f0-9]{64})$/;
+const LEARNING_DECISION_ID = /^learning-decision(?::|-cycle-v1:)[a-f0-9]{64}$/;
+const LEARNING_INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
+const LEARNING_DECISION_PROBLEM = "NUSA learning decision: the bounded conclusion drawn from one learning input set";
 const FORBIDDEN_KEY = /(?:password|authorization|cookie|credential|secret|token|nonce|signature|private|access[_-]?key)/i;
 const FORBIDDEN_VALUE = /(?:bearer\s+[A-Za-z0-9._-]+|(?:api|access|secret|private)[_-]?key\s*[:=]|-----BEGIN|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.)/i;
 const FIELDS = new Set([
@@ -161,6 +165,43 @@ function canonicalEvent(sequence: number, record: EvolutionLearningRecord, previ
   });
 }
 
+/**
+ * A durable A2 input set is a promise that one matching A1 decision may follow. Keep capacity for
+ * every unresolved pair inside the same serialized append boundary, so an unrelated ledger writer
+ * cannot consume the last slot between the A2 and A1 appends. These are existing record identities;
+ * no second reservation store or mutable history is introduced.
+ */
+function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[]): Set<string> {
+  const completed = new Set<string>();
+  for (const record of records) {
+    if (record.validationStatus !== "LEARNING_DECISION" || record.problem !== LEARNING_DECISION_PROBLEM || !LEARNING_DECISION_ID.test(record.opportunityId)) continue;
+    for (const reference of record.evidenceReferences) if (SHA256.test(reference)) completed.add(reference);
+  }
+  const pending = new Set<string>();
+  for (const record of records) {
+    if (record.validationStatus !== "LEARNING_INPUT_SET" || record.problem !== LEARNING_INPUT_SET_PROBLEM) continue;
+    const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
+    if (match != null && !completed.has(match[1])) pending.add(match[1]);
+  }
+  return pending;
+}
+
+function pendingReservationsAfterAppend(
+  pending: Set<string>,
+  record: EvolutionLearningRecord,
+): Set<string> {
+  const next = new Set(pending);
+  if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
+    const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
+    if (match != null) next.add(match[1]);
+  }
+  if (record.validationStatus === "LEARNING_DECISION" && record.problem === LEARNING_DECISION_PROBLEM && LEARNING_DECISION_ID.test(record.opportunityId)) {
+    const matchingReservations = record.evidenceReferences.filter((reference) => next.has(reference));
+    if (matchingReservations.length === 1) next.delete(matchingReservations[0]);
+  }
+  return next;
+}
+
 function eventHash(sequence: number, record: EvolutionLearningRecord, previousHash: string): string {
   return sha256(canonicalEvent(sequence, record, previousHash));
 }
@@ -208,7 +249,8 @@ export class SqliteEvolutionLearningLedger {
       if (contentHash(existing) !== contentHash(record)) invalid("IDENTITY_CONFLICT", "learning opportunity was reused with different evidence");
       return existing;
     }
-    if (current.records.length >= this.maximumRecords) invalid("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted");
+    const pending = pendingReservationsAfterAppend(pendingLearningDecisionFingerprints(current.records), record);
+    if (current.records.length + 1 + pending.size > this.maximumRecords) invalid("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted or reserved for pending A1 decisions");
     const previous = current.records.at(-1);
     if (previous != null && Date.parse(record.recordedAt) < Date.parse(previous.recordedAt)) invalid("CHRONOLOGY_REGRESSION", "learning record timestamp regressed");
 
