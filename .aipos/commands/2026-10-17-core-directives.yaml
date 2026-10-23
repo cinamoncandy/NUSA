@@ -1,0 +1,255 @@
+version: 1
+kind: AIPOS_CORE_DIRECTIVES
+issuedAt: "2026-10-17"
+issuedBy: CORE
+baseProtectedMain: "58a8e4fbb32fcc8dee018bd6563982e4e3ba0a8c"
+policy:
+  preserveCurrentMissionSerialization: true
+  liveActivationAuthorized: false
+  realMoneyMutationAuthorized: false
+  providerAssignment: "dynamic_by_availability"
+  marketScope:
+    spot:
+      venue: UPBIT
+      mode: PAPER_ONLY_UNTIL_SEPARATELY_AUTHORIZED
+    futures:
+      venueClass: OVERSEAS_EXCHANGE
+      exactVenue: UNSELECTED
+      mode: PAPER_ONLY_UNTIL_SEPARATELY_AUTHORIZED
+      requireJurisdictionAndAccessReviewBeforeVenueSelection: true
+
+commands:
+  - commandId: CORE-P0-LEARNING-CLOSED-LOOP
+    owner: LEARNING
+    priority: P0
+    status: READY
+    objective: >-
+      Close the actual PAPER learning continuity from valid realized period through Performance
+      Evidence, Durable Feedback, Learning Cycle N, Research N+1, Candidate N+1, and revalidation,
+      using real evidence rather than counters or synthetic success. Preserve venue/instrument identity
+      so Upbit spot evidence can never be silently mixed with future overseas-derivatives evidence.
+    firstBrokenTransition: "fresh-check-required-before-execution"
+    canonicalOwner: LEARNING
+    safetyInvariants:
+      - PAPER_ONLY
+      - liveAuthority=NONE
+      - productionMutationAllowed=false
+      - aiAuthority=ZERO_AUTHORITY
+      - no_threshold_relaxation
+      - no_synthetic_profit_evidence
+      - no_historical_rewrite
+      - no_direct_db_edit
+      - no_cross_venue_evidence_aliasing
+    acceptanceCriteria:
+      - "Valid realized PAPER period with COMPLETE cost evidence"
+      - "Performance Evidence excludes INELIGIBLE observations from denominator/results"
+      - "Durable Feedback is restart-safe, replay-safe, idempotent, and identity-bound"
+      - "Learning Cycle consumes Feedback exactly once"
+      - "Feedback N -> Learning Cycle N -> Research N+1 identity continuity is proven"
+      - "Candidate N+1 provenance is complete; zero qualification is acceptable"
+      - "Restart/replay produces no duplicate canonical side effects"
+      - "Instrument/venue/product-type identity is explicit and preserved"
+    evidenceRequired:
+      - exact_head_ci
+      - fresh_non_author_validation
+      - audit_and_release_if_code_changes
+      - exact_main_runtime_sha_if_merged
+      - actual_paper_runtime_evidence
+      - restart_replay_receipts
+    handoffTo:
+      - DATA_EVIDENCE
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-DATA-EVIDENCE-CONTINUITY
+    owner: DATA_EVIDENCE
+    priority: P1
+    status: READY
+    objective: >-
+      Independently verify provenance, PIT/leakage safety, cost/fill/performance evidence completeness,
+      and fingerprint/identity continuity for the learning-loop evidence chain, with explicit venue and
+      product taxonomy for Upbit spot and future overseas futures/perpetuals.
+    firstBrokenTransition: "follow-the-learning-command-evidence-chain"
+    canonicalOwner: DATA_EVIDENCE
+    safetyInvariants:
+      - UNKNOWN_remains_UNKNOWN
+      - no_cherry_picking
+      - no_failed_trial_deletion
+      - no_synthetic_missing_evidence
+      - no_historical_rewrite
+      - no_cross_venue_or_cross_product_data_blending_without_explicit_contract
+    acceptanceCriteria:
+      - "Dataset provenance is reconstructable"
+      - "PIT/leakage checks pass or fail closed"
+      - "Cost/fill/performance evidence is complete and identity-bound"
+      - "Fingerprint chain has no unexplained discontinuity"
+      - "Spot vs futures/perpetual data, mark/index/last prices, funding, fees, contract specs, and timestamps are separately attributable when derivatives are introduced"
+    evidenceRequired:
+      - provenance_receipts
+      - fingerprint_chain
+      - pit_leakage_results
+      - cost_fill_performance_receipts
+    handoffTo:
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-VALIDATE-RELEASE-RUNTIME
+    owner: VALIDATION_RELEASE_RUNTIME
+    priority: P1
+    status: READY
+    objective: >-
+      Independently validate implementation and evidence, enforce non-author review/Audit/Release gates,
+      verify exact-main deployment/runtime SHA, and prove restart/replay/canary behavior when applicable.
+      For overseas futures readiness, require fail-closed behavior for leverage, liquidation, stale position,
+      funding, exchange disconnect, and reconciliation failure before any future live authorization can even
+      be considered.
+    firstBrokenTransition: "consume-current-pr-and-runtime-state-fresh"
+    canonicalOwner: VALIDATION_RELEASE_RUNTIME
+    safetyInvariants:
+      - no_self_approval
+      - no_fake_non_author_review
+      - no_test_relaxation
+      - no_safety_guard_weakening
+      - no_blind_restart
+      - no_live_futures_activation
+    acceptanceCriteria:
+      - "Exact-head CI belongs to the reviewed head"
+      - "Fresh non-author review is genuine"
+      - "Audit and release authorization are observed, not inferred"
+      - "Runtime SHA equals expected protected-main SHA after deploy"
+      - "Restart/replay does not duplicate side effects"
+      - "Derivatives PAPER tests cover margin, leverage, liquidation boundary, reduce-only semantics, stale/reconcile failure, and funding accounting before promotion"
+    evidenceRequired:
+      - review_record
+      - audit_record
+      - release_record
+      - runtime_sha_receipt
+      - canary_and_restart_replay_receipts
+    handoffTo:
+      - CORE
+
+  - commandId: CORE-P1-SERVER-DERIVATIVES-READINESS
+    owner: SERVER_AUTOMATION
+    priority: P1
+    status: READY
+    objective: >-
+      Prepare infrastructure and operational controls for a future overseas-exchange derivatives PAPER
+      capability without enabling LIVE. Inventory network/API dependencies, clock sync, exchange status,
+      websocket reconnect/replay, rate limits, credential isolation, position reconciliation, and durable
+      receipt collection. Reuse existing canonical services/schedulers/stores; create no duplicate control plane.
+    firstBrokenTransition: "inventory-existing-runtime-and-automation-before-new-work"
+    canonicalOwner: SERVER_AUTOMATION
+    safetyInvariants:
+      - PAPER_ONLY
+      - no_live_credentials
+      - no_withdrawal_permission
+      - no_blind_restart
+      - no_duplicate_scheduler
+      - no_direct_db_edit
+      - fail_closed_on_stale_exchange_state
+    acceptanceCriteria:
+      - "Overseas-exchange PAPER connectivity requirements are documented without selecting or activating LIVE credentials"
+      - "Clock drift, websocket loss, stale mark/index data, rate-limit, and reconciliation failure modes have bounded fail-closed handling plans"
+      - "Operational receipts can distinguish Upbit spot from overseas derivatives components"
+    evidenceRequired:
+      - runtime_inventory
+      - dependency_map
+      - failure_mode_matrix
+      - restart_replay_plan
+    handoffTo:
+      - DEV
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P2-DEV-NEXT-CANONICAL
+    owner: DEV
+    priority: P2
+    status: READY
+    objective: >-
+      After P0 learning and its required validation/data evidence are converged, implement the next
+      CORE-approved canonical feature. Prepare a derivatives-capability extension that keeps Upbit spot as
+      the spot venue and supports an as-yet-unselected overseas futures/perpetual venue through minimal
+      venue/product abstractions, without creating duplicate Risk, Governance, Evidence, Learning, execution,
+      store, or scheduler owners.
+    firstBrokenTransition: "blocked-by-higher-priority-learning-convergence"
+    canonicalOwner: DEV
+    safetyInvariants:
+      - reuse_existing_pr_branch_owner
+      - minimal_patch
+      - fail_closed
+      - no_duplicate_engine_store_scheduler
+      - no_live_futures_activation
+      - no_credential_authority_expansion
+    acceptanceCriteria:
+      - "CORE approval exists for the selected task"
+      - "Existing canonical owner/branch/PR is reused when present"
+      - "Focused regression and exact-head CI pass"
+      - "Design covers long/short, isolated/cross margin, leverage, initial/maintenance margin, liquidation price, mark/index/last price, funding, contract size, reduce-only, post-only, stop/TP, fee/slippage, and reconciliation semantics"
+      - "Spot behavior remains regression-safe"
+    evidenceRequired:
+      - implementation_diff
+      - focused_tests
+      - exact_head_ci
+      - architecture_overlap_analysis
+    handoffTo:
+      - DATA_EVIDENCE
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-SCOUT-OVERSEAS-FUTURES
+    owner: SCOUT
+    priority: P1
+    status: READY
+    objective: >-
+      Research overseas crypto futures/perpetual exchanges and open-source/reference systems suitable for
+      NUSA's future derivatives capability. Compare market structure, APIs, contract models, fees, funding,
+      margin/liquidation mechanics, reliability, geographic/account eligibility, and testnet/PAPER support.
+      Submit candidates to CORE only; do not open accounts, bypass regional restrictions, acquire credentials,
+      or promote any venue automatically.
+    firstBrokenTransition: "venue-and-capability-research"
+    canonicalOwner: SCOUT
+    safetyInvariants:
+      - advisory_only
+      - no_account_creation
+      - no_region_bypass
+      - no_credential_acquisition
+      - no_direct_strategy_promotion
+      - respect_licenses_and_access_controls
+    acceptanceCriteria:
+      - "Each venue candidate has official-source evidence for API, product, margin, liquidation, funding, fee, and testnet/PAPER capabilities"
+      - "Eligibility/availability uncertainty is explicit and UNKNOWN remains UNKNOWN"
+      - "Comparison includes operational reliability and API constraints, not just leverage or fees"
+      - "CORE disposition is required before DEV venue-specific implementation"
+    evidenceRequired:
+      - official_source_references
+      - venue_comparison
+      - capability_gap_analysis
+      - adoption_recommendation
+    handoffTo:
+      - DATA_EVIDENCE
+      - DEV
+      - CORE
+
+  - commandId: CORE-P2-SCOUT-CAPABILITY-INTAKE
+    owner: SCOUT
+    priority: P2
+    status: READY
+    objective: >-
+      Continue external capability discovery and extraction, but do not directly promote or implement;
+      submit evidence-backed candidates to CORE for adopt/reject/duplicate classification.
+    firstBrokenTransition: "continuous-discovery"
+    canonicalOwner: SCOUT
+    safetyInvariants:
+      - advisory_only
+      - no_direct_strategy_promotion
+      - respect_licenses_and_access_controls
+      - no_credential_or_private_code_extraction
+    acceptanceCriteria:
+      - "Each candidate has source, value hypothesis, falsification condition, and existing-NUSA overlap analysis"
+      - "CORE disposition is required before DEV implementation"
+    evidenceRequired:
+      - source_references
+      - capability_comparison
+      - adoption_recommendation
+    handoffTo:
+      - CORE
