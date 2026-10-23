@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -306,6 +307,21 @@ describe("A1 durable exactly-once - section 43", () => {
     assert.equal(second.replayed, true, "the second append is recognised as a replay");
     assert.equal(second.fingerprint, first.fingerprint);
     assert.equal(store.summary().decisionsRecorded, 1, "exactly one durable decision");
+  });
+
+  it("restores a decision by fingerprint from the current cycle-keyed ledger identity", () => {
+    const { records, ledger } = fakeLedger();
+    const input = decisionInput();
+    new LearningInputSetLedger(ledger).append(input.inputSet);
+    const store = new LearningDecisionLedger(ledger);
+    const appended = store.append(buildLearningDecision(input));
+
+    const restored = store.byFingerprint(appended.fingerprint);
+    assert.ok(restored);
+    assert.equal(restored.fingerprint, appended.fingerprint);
+    assert.equal(restored.learningCycleId, appended.learningCycleId);
+    assert.equal(restored.decision.learningCycleId, appended.learningCycleId);
+    assert.equal(records.some((record) => record.opportunityId === `learning-decision-cycle-v1:${createHash("sha256").update(appended.learningCycleId).digest("hex")}`), true);
   });
 
   it("same-cycle retry with new attempt metadata replays the first durable decision", () => {

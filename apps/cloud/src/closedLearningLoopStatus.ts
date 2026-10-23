@@ -66,6 +66,30 @@ export type ClosedLearningMetaLearningStatus = Readonly<{
   paperPeriodsConsumed: number; paperNetBp?: number; paperExcessBp?: number; paperEvidenceFingerprint?: string;
 }>;
 
+/**
+ * Refresh the two independent advisory projections without letting a display/read failure change
+ * Research cadence. A meta-learning calculation failure retains its historical conservative reset;
+ * a Learning-status read failure only withdraws that status snapshot.
+ */
+export function refreshClosedLearningProjections(input: {
+  readonly buildMetaLearning: () => ClosedLearningMetaLearningStatus;
+  readonly readLearningStatus: () => import("./learningLoopStatus").LearningLoopStatus;
+  readonly setLongBarTickEvery: (value: number) => void;
+  readonly observeMetaLearning: (report: ClosedLearningMetaLearningStatus | undefined) => void;
+  readonly observeLearning: (report: import("./learningLoopStatus").LearningLoopStatus | undefined) => void;
+}): void {
+  try {
+    const meta = input.buildMetaLearning();
+    input.setLongBarTickEvery(meta.longBarTickEvery);
+    input.observeMetaLearning(meta);
+  } catch {
+    input.setLongBarTickEvery(1);
+    input.observeMetaLearning(undefined);
+  }
+  try { input.observeLearning(input.readLearningStatus()); }
+  catch { input.observeLearning(undefined); }
+}
+
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
   realizedPeriods: number;

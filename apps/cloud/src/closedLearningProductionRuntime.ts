@@ -19,7 +19,7 @@ import { buildCanonicalPaperCandidatePerformance, PAPER_COVERED_DAY_SCORING_VERS
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
-import { ClosedLearningLoopStatusTracker, tickErrorClass } from "./closedLearningLoopStatus";
+import { ClosedLearningLoopStatusTracker, refreshClosedLearningProjections, tickErrorClass } from "./closedLearningLoopStatus";
 import { ClosedLearningChain } from "./closedLearningChain";
 import { SqliteResearchHoldoutLedger } from "../../../packages/storage/src/researchHoldoutLedger";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
@@ -139,12 +139,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // chain, one history: constructing it here rehydrates exactly-once from what is already recorded
   // rather than assuming the previous process left nothing half-done.
   const learningChain = new ClosedLearningChain(new SqliteEvolutionLearningLedger(database), new SqliteResearchHoldoutLedger(database));
-  // The learning application currently in force, if one has actually taken effect. Read by the
-  // research request path so v2 section 8 is restorable from provenance: a request this application
-  // caused names it, its decision, and the previous spec. It is rehydrated from durable history, so
-  // a restart attributes new research to the application that is genuinely in force.
-  let appliedLearning = learningChain.latestAppliedLearning();
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery, paperEvidenceReader: () => readPaperEvidence(), causedByLearning: () => appliedLearning, resolveLearningParent: () => learningChain.latestAppliedLearning() });
+  // Periodic Research runs are not evidence that a Learning application caused a specific request.
+  // Keep the causal-parent contract available to an explicit future caller, but do not attach the
+  // latest durable application to every scheduled variant or market.
+  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery, paperEvidenceReader: () => readPaperEvidence() });
   researchExperiments?.prepareRecovery();
   try {
   // Cloud AI durability opens the same canonical SQLite file and performs its own full-file
@@ -461,8 +459,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       }
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
       persistLastBlocked();
-      try {
-        const meta = buildMetaLearningStatus({
+      refreshClosedLearningProjections({
+        buildMetaLearning: () => buildMetaLearningStatus({
           // A finished pre-registered study written by the host Research service joins the reviewed ledger automatically.
           ledger: (() => { const study = readOrderBookStudyResult(config.cloudStateDbPath); return study == null || RESEARCH_LEDGER_SNAPSHOT.some((e) => e.id === study.id) ? RESEARCH_LEDGER_SNAPSHOT : [...RESEARCH_LEDGER_SNAPSHOT, study]; })(),
           runtimeTicksByInterval: researchExperiments?.experimentTicksByInterval() ?? null,
@@ -472,15 +470,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
           paperPeriods: periods.listRealizedPeriods()
             .filter((item) => item.candidateProvenance.length === 1 && item.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID)
             .map((item) => ({ recordId: item.record.recordId, netReturn: item.record.realizedReturns[OWNER_BASELINE_CANDIDATE_ID] ?? Number.NaN, benchmarkReturn: item.record.benchmarkReturn, ...(item.record.canonicalOutcomeReceiptFingerprint == null ? {} : { outcomeFingerprint: item.record.canonicalOutcomeReceiptFingerprint }) })),
-        });
-        longBarTickEvery = meta.longBarTickEvery;
-        loopStatus.observeMetaLearning(meta);
-        // Re-read what is actually in force from durable history rather than from memory, so a
-        // learning cycle that completed earlier becomes the causal parent of the research requests
-        // that follow it, and a restart attributes them to the application genuinely in force.
-        appliedLearning = learningChain.latestAppliedLearning();
-        loopStatus.observeLearning(learningChain.status());
-      } catch { longBarTickEvery = 1; loopStatus.observeMetaLearning(undefined); loopStatus.observeLearning(undefined); }
+        }),
+        readLearningStatus: () => learningChain.status(),
+        setLongBarTickEvery: (value) => { longBarTickEvery = value; },
+        observeMetaLearning: (report) => loopStatus.observeMetaLearning(report),
+        observeLearning: (report) => loopStatus.observeLearning(report),
+      });
       if (baselineShadow != null) {
         loopStatus.observeShadow(baselineShadow.summary());
         const persistable = baselineShadow.takePersistable();
