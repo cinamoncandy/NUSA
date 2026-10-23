@@ -31,6 +31,9 @@ export function LearningView(props: Props) {
       <InstrumentHero index="02 / 학습" lines={[{ text: model.headline, color: calmToneColor(model.tone) }]} />
       {model.sub ? <Reveal index={1} reducedMotion={reduced}><Text style={styles.sub}>{model.sub}</Text></Reveal> : null}
     </>}
+    <PressScale accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
+      <Text style={styles.foldText}>자세히 보기 (운영 · 학습 · 재현 · 실계좌)</Text><Text style={styles.foldText}>›</Text>
+    </PressScale>
     <View style={styles.labelWrap}><SectionLabel left="루프 · 모의투자" right={`${model.steps.filter((x) => x.state === "DONE").length} / ${model.steps.length}`} /></View>
     <View style={styles.track} accessibilityLabel={model.steps.map((s) => `${s.label} ${s.state === "DONE" ? "확인" : s.state === "BLOCKED" ? "막힘" : "없음"}`).join(", ")}>
       {model.steps.map((step) => <View key={step.label} style={styles.step}>
@@ -45,9 +48,6 @@ export function LearningView(props: Props) {
     <PaperResultBars raw={learningLoop} />
     <OverfitGate raw={learningLoop} />
     <StudyTimeline nowMs={Date.now()} />
-    <PressScale accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
-      <Text style={styles.foldText}>자세히 보기 (운영 · 학습 · 재현 · 실계좌)</Text><Text style={styles.foldText}>›</Text>
-    </PressScale>
   </ScrollView>;
 }
 
