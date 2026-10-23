@@ -3799,6 +3799,17 @@ current_learning_a2_evidence_resolution_20261023:
   next: "A2 is reviewed and remains Draft; continue sequentially with the A1 sync in existing PR #2793. #2855 and server deployment remain untouched."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_learning_a4_bounded_application_20261022:
+  work_order: WO-LEARNING-20261022-A4-APPLICATION
+  pull_request: 2794
+  branch: feat/learning-application-a4
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  exact_head_before_successor: 3d53b8b70521c3ffdf5d31beeb3bbdc0fb1e084f
+  first_broken_transition: "A1 ADMISSIBLE -> current owner spec + durable META-HOLDOUT eligibility -> bounded A4 application"
+  validation: "Successor changes: caller eligibility is removed; current spec identity is checked; durable write-ahead intent, restart reconciliation, fail-safe read-back, and provenance-bound receipts are enforced. Fresh review of f909604b found two P1 and one P2; fixes require well-formed META proof counters, closed-set recovery outcomes, and the existing canonical exclusive owner lease around the whole application operation. Node 24.19.0; focused A1/A2/A4 90/90 PASS; build, preflight, validate:full, security:gate, diff-check PASS. Successor exact-head CI/review pending."
+  remaining: "No production caller is wired. Keep Draft; exact-head CI, fresh independent review, canonical A3 authority and production runtime integration remain open."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_baseline_observation_20261013:
   work_order: WO-LEARNING-20261013-BASELINE-OBSERVATION
   status: DEPLOYED_RUNTIME_VERIFIED
