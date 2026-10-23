@@ -4,7 +4,7 @@ status: CI_PASS_PENDING_FRESH_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/supersession-a5
-base_head: c3b249decef4ce5eedd616b49a62fa04bc1e4448
+base_head: b0e32e575b5cf96ab4b659fb06e8671db0c1ea71
 branch: feat/exploration-a6
 pull_request: 2797
 authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
@@ -18,6 +18,8 @@ scope:
     - "Persist attempts through the existing Evolution Learning hash-chain ledger and validate cycle budget/family constraints within its serialized append transaction."
     - "Bound total receipts through the existing ledger capacity and validate all restart/replay history deterministically."
     - "Require the durable Evolution record timestamp to be canonical ISO form when replaying A6 receipts."
+    - "Resolve every replayed A6 learningCycleId against the canonical durable A2 receipt in the same ledger snapshot."
+    - "Persist only the four validated cost-model fields in the candidate-derived descriptor; caller extras cannot poison replay."
     - "Reuse the canonical LearningInputSetLedger reader and evidence authority for both initial A2 lookup and in-transaction snapshot revalidation."
   exclude:
     - "Defining cutoff/META policy or changing A2/A3 owner policy."
@@ -31,6 +33,8 @@ acceptance:
   - "A stale concurrent writer cannot append a verdict derived from an obsolete history snapshot."
   - "Malformed/tampered receipt fields, counters, gates, or replay order fail closed."
   - "A hash-chain-shaped but noncanonical durable Evolution envelope fails closed during A6 replay."
+  - "Orphaned A6 history without a matching canonical durable A2 receipt fails closed after restart/replay."
+  - "Extra caller cost-model properties are excluded from the durable descriptor and replay remains valid."
   - "ALLOTTED states that all PIT/OOS/walk-forward/cost/sample/qualification/Governance gates remain; no pass, candidate, or application is produced."
   - "Run focused tests, build, pnpm run preflight (Node >=24.19), validate:full, security:gate, AIPOS provenance, and exact-head CI."
   - "After exact-head CI passes, request fresh independent review; keep the PR Draft and do not Audit/Release/merge/deploy."
@@ -47,7 +51,7 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "A2/A1/A3/A4/A5/A6 plus Evolution Learning and retention integration: 178/178 PASS; includes A6 SQLite restart/replay, stale writer, canonical authority snapshot, and malformed durable envelope regressions."
+  focused: "A2/A1/A3/A4/A5/A6/M2 plus chain and retention tests: 138/138 PASS on Node 24.19.0; includes orphan A6/A2 replay rejection, extra cost-field exclusion, SQLite restart/replay, and serialized stale-writer coverage."
   build: PASS on Node 24.19.0 / pnpm 11.25.0
   preflight: PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 522-file AIPOS YAML checks PASS
   validate_full: PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS

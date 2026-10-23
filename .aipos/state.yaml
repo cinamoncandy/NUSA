@@ -100,12 +100,12 @@ current_learning_exploration_a6_20261023:
   status: EXACT_HEAD_CI_PASS_PENDING_INDEPENDENT_REVIEW
   branch: feat/exploration-a6
   pull_request: 2797
-  base_parent: e1a04675eea6a9011cc3eaa49e35fb6840c81f6c
-  validation: "Node 24.19.0/pnpm 11.25.0; A2/A1/A3/A4/A5/A6 + Evolution Learning ledger 164/164 PASS, including actual SQLite restart/replay and stale-writer rejection. Build, explicit preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS."
+  base_parent: b0e32e575b5cf96ab4b659fb06e8671db0c1ea71
+  validation: "Node 24.19.0/pnpm 11.25.0; A2/A1/A3/A4/A5/A6/M2/chain/retention tests 138/138 PASS after binding replay to durable A2 and restricting cost descriptors. Build, preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS."
   blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined. Keep stacked PR Draft; no Audit/Release/merge/deployment."
-  exact_head: 3d613a310dfe465aa696b3e43c0a1aaaa0f9e269
-  exact_head_ci: "PASS; run 39892413992; validation, four core coverage shards, UI/E2E, aggregate coverage, final test SUCCESS."
-  independent_review: "Fresh exact-head @codex review requested in PR comment 6356382527; no response yet."
+  exact_head: e1950b1a918bdb435e5ac613173d76520b19cd60
+  exact_head_ci: "PASS; run 40040577653; validation, coverage shards, aggregate coverage, final test SUCCESS."
+  independent_review: "Fresh exact-head @codex review requested in PR comment 6376952704; pending."
   next: "Keep #2797 Draft; adjudicate fresh review when available. Cutoff/META owners and production Learning trigger remain unresolved; no Audit/Release/merge/deploy."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
@@ -130,25 +130,28 @@ current_learning_hourly_recovery_20261012:
 
 current_learning_status_m2_20261023:
   work_order: WO-LEARNING-20261023-M2-STATUS-PROJECTION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: feat/learning-status-m2
   pull_request: 2798
-  base_parent: 3d613a310dfe465aa696b3e43c0a1aaaa0f9e269
-  validation: "Node 24.19.0/pnpm 11.25.0; M2 + A6 focused tests 19/19 PASS. Build, explicit preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS after reconverging on A6 head 3d613a31."
+  base_parent: e1950b1a918bdb435e5ac613173d76520b19cd60
+  validation: "Node 24.19.0/pnpm 11.25.0; M2 + A6/A5/A4/A3/A2/chain/retention focused suite 176/176 PASS after syncing A6 e1950b1a, including A6 replay/A2 binding and cost descriptor regressions. Build, preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS."
   blockers: "Cutoff/META policy owners and production Learning trigger remain unresolved; status projection does not address them or claim production integration."
-  next: "Push existing PR non-force, run exact-head CI, then request fresh independent review only after green. Keep Draft; no server action."
+  next: "Push the existing PR branch non-force, require exact-head CI, then request fresh independent review only after green. Keep Draft; no server action."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_supersession_a5_20261023:
   work_order: WO-LEARNING-20261023-A5-SUPERSESSION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: EXACT_HEAD_CI_PASS_PENDING_INDEPENDENT_REVIEW
   branch: feat/supersession-a5
   pull_request: 2796
   parent_head: 94cad0eeed8be76dcc2d12bc2ad851a2f822d380
   first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
-  validation: "Node24.19.0; A2/A1/A3/A4/A5 plus Evolution Learning restart/concurrency suite 147/147 PASS; A5 22/22; build, preflight, validate:full, security:gate, AIPOS provenance, diff check PASS."
-  next: "Push final local validation to existing #2796 branch; require exact-head CI then request fresh independent review."
-  blockers: "Final-head local/remote validation pending. Cutoff/META owner and production trigger remain undefined; no production caller or learning completion is claimed."
+  exact_head: b0e32e575b5cf96ab4b659fb06e8671db0c1ea71
+  exact_head_ci: "PASS; run 40039875737."
+  validation: "Node 24.19.0; A2/A1/A3/A4/A5/A6/M2/Evolution Learning focused tests 97/97 PASS; build, preflight, validate:full, security:gate, AIPOS provenance, diff check PASS."
+  independent_review: "Fresh exact-head @codex review requested in PR comment 6376864763; pending."
+  next: "Keep #2796 Draft and adjudicate fresh review. Cutoff/META owner and production trigger remain undefined; no production caller or learning completion is claimed."
+  blockers: "Cutoff/META owner and production Learning trigger remain undefined. No Audit/Release/merge/deployment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_upgrade_20261012:
