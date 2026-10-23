@@ -77,13 +77,18 @@ function assertEvidenceResolves(inputSet: LearningInputSet, authority: LearningE
         indexed.set(record.recordId, record);
       }
     }
-    ids.forEach((recordId, index) => {
+    for (let index = 0; index < ids.length; index += 1) {
+      if (!Object.hasOwn(ids, index) || !Object.hasOwn(observedAt, index)) {
+        throw new LearningInputSetLedgerError("MALFORMED_RECEIPT", `${lane} evidence references contain sparse entries`);
+      }
+      const recordId = ids[index];
+      const expectedObservedAt = observedAt[index];
       const resolved = indexed == null ? read(recordId) : indexed.get(recordId);
       if (resolved == null) throw new LearningInputSetLedgerError("EVIDENCE_UNRESOLVED", `${lane} evidence ${recordId} does not resolve in its canonical durable reader`);
-      if (resolved.recordId !== recordId || resolved.recordedAt !== observedAt[index]) {
+      if (resolved.recordId !== recordId || resolved.recordedAt !== expectedObservedAt) {
         throw new LearningInputSetLedgerError("EVIDENCE_IDENTITY_MISMATCH", `${lane} evidence ${recordId} does not match its canonical identity and observation time`);
       }
-    });
+    }
   };
 
   resolve("research", inputSet.researchEvidenceRecordIds, inputSet.researchEvidenceObservedAt, authority.readResearch, authority.readResearchSnapshot);

@@ -3784,19 +3784,19 @@ current_learning_resume_failed_cycle:
 
 current_learning_a1_receipt_provenance_20261023:
   work_order: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-  validation: "A fresh review on 88a57734 found one additional P2: replaying the immediately preceding canonical A1 receipt shape could resurrect its A2 reservation. Replay now resolves that exact legacy payload through its durable A2 receipt and reuses full provenance validation; new A1 writes remain strict. A1 was then synchronized to A2 exact head 70f6dd58f92fb00a8a747abef4d8be84de7ad540. The A2 authority constructor contract exposed stale A1 tests and a production read path; A1 now requires the same canonical LearningEvidenceAuthority when resolving durable A2 on append/replay. A2/A1/storage focused tests pass 93/93; build, Node 24.19 preflight, validate:full, security gate, and diff check pass. Exact-head CI is pending."
+  status: LOCAL_VALIDATED_A2_SYNCED_PENDING_EXACT_HEAD_CI
+  validation: "A1 and A2 now share current A2 head 4d7750f37a08e7a8196dad25552340fdff27fe00. After conflict resolution, focused A1/A2/authority/retention/Evolution ledger tests pass 96/96; build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks pass."
   issue: 2793
-  next: "Confirm remote A1 head, push the tested A2-synchronized successor non-forcing, run exact-head CI, then request fresh independent review; no production application or cycle completion claim."
+  next: "Commit and push the A2-synchronized successor non-forcing, verify exact-head CI, then request fresh independent review if green. No production application or cycle completion claim."
 current_learning_a2_evidence_resolution_20261023:
   work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
-  status: EXACT_HEAD_CI_PASS_PENDING_FRESH_INDEPENDENT_REVIEW
+  status: EXACT_HEAD_CI_PASS_REVIEW_NO_FINDINGS
   pull_request: 2792
   branch: feat/learning-input-set-a2
-  prior_exact_head: 6f5a703a34335a86e810033e770089437b926486
+  prior_exact_head: 4d7750f37a08e7a8196dad25552340fdff27fe00
   first_broken_transition: "A2 receipt -> canonical Research/PAPER evidence resolution"
-  validation: "Repair commit 70f6dd58f92fb00a8a747abef4d8be84de7ad540: A2/storage relevant tests 42/42 PASS; pnpm build, Node 24.19.0 preflight, validate:full, security:gate, and diff check PASS. Exact-head PR CI 39901483096 and manual CI 39901477933 PASS; required companion workflows PASS. Fresh exact-head independent review was requested and remains pending."
-  next: "A2 exact-head CI and fresh independent review, then sync A1 to the reviewed A2 head. #2855 and server deployment remain untouched."
+  validation: "Review of predecessor 66d4ee3fe6f2026cbe31e92915f21fdc17b56cea found two P2s: sparse-array holes at the evidence-resolution boundary and whitespace Research IDs counted as canonical reservations. Both were repaired on 4d7750f37a08e7a8196dad25552340fdff27fe00. A2/A1/storage tests 44/44 PASS; build, Node 24.19.0 preflight, validate:full, security:gate, provenance, and diff checks PASS. Exact-head CI run 39903170341 and required companion workflows PASS. Fresh Codex review submitted on the exact head; no inline findings were produced."
+  next: "A2 is reviewed and remains Draft; continue sequentially with the A1 sync in existing PR #2793. #2855 and server deployment remain untouched."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:

@@ -1,8 +1,8 @@
 id: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
 title: Preserve full A2 provenance in durable A1 receipts and align evidence reference bounds
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-validation: "Fresh review of A1 head 88a57734222d0fb1e29d2721da02c1f3de905792 found a P2 compatibility gap: replay of a canonical immediately preceding A1 receipt without embedded learningInputSet could resurrect its already-consumed A2 capacity reservation. Replay now accepts only that exact legacy shape after temporarily resolving and validating its full A2 basis; new writes remain self-contained and strict. A regression seeds a hash-chain-valid historical row, closes/reopens SQLite, and proves capacity is released exactly once. Focused storage+A1 tests pass 61/61; build, Node 24.19.0 preflight, security gate, and diff check pass. Earlier A1 provenance and reason-reference P2 fixes remain in this head. No thresholds, authority, or historical production rows changed."
-review: "Current exact-head independent review found P2 legacy reservation replay. Repaired with strict legacy-shape validation against the durable A2 row and a restart/capacity regression; request fresh review after successor exact-head CI."
+status: LOCAL_VALIDATED_A2_SYNCED_PENDING_EXACT_HEAD_CI
+validation: "After syncing reviewed A2 head 4d7750f37a08e7a8196dad25552340fdff27fe00, focused A1/A2/authority/retention/Evolution ledger tests pass 96/96; pnpm build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks pass. The sync preserves the A1 legacy reservation replay and canonical A2 authority validation. No thresholds, authority, or historical production rows changed."
+review: "A2 exact-head independent Codex review completed on 4d7750f37a08e7a8196dad25552340fdff27fe00 with no inline findings. A1 requires a fresh review after its exact-head CI; no formal NUSA Validator acceptance is claimed."
 remaining: "Run validate:full and provenance checks, then push a successor head, pass exact-head CI, and request fresh independent review; downstream Validator/Audit/Release/runtime and genuine Learning evidence remain pending."
 priority: P1
 risk: MEDIUM

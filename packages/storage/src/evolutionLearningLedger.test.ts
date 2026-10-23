@@ -25,15 +25,15 @@ const record = (opportunityId: string, recordedAt: string, overrides: Partial<Ev
 
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 
-function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerprint: string; readonly inputSet: Readonly<Record<string, unknown>>; readonly record: EvolutionLearningRecord } {
+function inputSetRecord(recordedAt: string, paperId: string, researchId = "trial-1"): { readonly fingerprint: string; readonly inputSet: Readonly<Record<string, unknown>>; readonly record: EvolutionLearningRecord } {
   const inputSet = {
     schemaVersion: 1,
     cutoffTimestamp: 10_000,
-    researchEvidenceRecordIds: ["trial-1"],
+    researchEvidenceRecordIds: [researchId],
     researchEvidenceObservedAt: [1],
     paperEvidenceRecordIds: [paperId],
     paperEvidenceObservedAt: [2],
-    researchLaneDigest: sha256(canonicalResearchJson({ lane: "research", recordIds: ["trial-1"], observedAt: [1] })),
+    researchLaneDigest: sha256(canonicalResearchJson({ lane: "research", recordIds: [researchId], observedAt: [1] })),
     performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: [paperId], observedAt: [2] })),
     learningPolicyVersion: "learn-v1",
     researchPolicyVersion: "research-v1",
@@ -223,6 +223,25 @@ test("a malformed namespace-shaped A2 record cannot reserve capacity after resta
     ledger = new SqliteEvolutionLearningLedger(db, 2);
     ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
     assert.equal(ledger.size(), 2, "only a complete canonical A2 receipt consumes A1 capacity");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("a whitespace Research ID cannot reserve A1 capacity after restart", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 2);
+    const malformedA2 = inputSetRecord("2026-08-29T00:00:00.000Z", "p1", " ");
+    ledger.append(malformedA2.record);
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 2);
+    ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
+    assert.equal(ledger.size(), 2, "a whitespace Research ID does not reserve capacity for an A1 decision");
   } finally {
     db.close();
     removeDatabasePath(filename);
