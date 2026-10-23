@@ -1,0 +1,33 @@
+id: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
+title: Preserve full A2 provenance in durable A1 receipts and align evidence reference bounds
+status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+validation: "After syncing reviewed A2 head 4d7750f37a08e7a8196dad25552340fdff27fe00, a fresh A1 review on 40e43db82d0a2aed299bea682308e30be160d3e4 found three P2s: mixed-case A2 PAPER IDs disagreed with storage reference order; restored A2 could make a formerly bounded legacy A1 receipt exceed the current combined bound; and fingerprint-keyed legacy A1 replay did not release its A2 reservation. Repairs add a legacy-byte validator, preserve the existing storage ordering, and recognize the exact legacy fingerprint identity. Focused A1 decision/storage tests pass 66/66; pnpm build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks pass. No thresholds, authority, or historical production rows changed."
+review: "Fresh exact-head review of 40e43db82d0a2aed299bea682308e30be160d3e4 identified three P2 findings now repaired locally; fresh independent review is required again after successor exact-head CI. No formal NUSA Validator acceptance is claimed."
+remaining: "Update this work order/state with the validated repair, verify remote PR head is still 40e43db82d0a2aed299bea682308e30be160d3e4, push the substantive successor non-forcing, pass exact-head CI and request fresh independent review; downstream Validator/Audit/Release/runtime and genuine Learning evidence remain pending."
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: a3e136553a796192ccdb9d0fdf009d2d4f4d4c94
+issue: 2793
+scope: "Existing A1 LearningDecision, A2 LearningInputSetLedger, and existing EvolutionLearningLedger only. A1 re-resolves its durable A2 basis through the same canonical LearningEvidenceAuthority; storage reservation release binds the canonical A2 record to its durable payload."
+impact: "A1 receipt can independently re-resolve and verify its evidence basis after export, while malformed or oversized inputs fail closed before they can consume a reserved ledger slot."
+compatibility: "Keep the existing ledger schema and 16 KiB hypothesis bound. Oversized self-contained A1 receipts reject deterministically; no historical record rewrite or alternate store."
+acceptance:
+  - "A durable A1 receipt includes the complete A2 set and its existing fingerprint/cycle binding."
+  - "The storage ledger releases exactly one matching pending A2 reservation only for a self-contained A1 receipt bound to that A2 payload."
+  - "A reason evidence ID too long for the canonical 240-byte ledger reference fails at decision construction; a 240-byte ID persists in SQLite."
+  - "Existing exactly-once, restart/replay, tamper and fail-closed behavior remains intact."
+verification_commands:
+  - node --require ./tests/register-dist.cjs --test dist/apps/cloud/src/learningDecision.test.js dist/packages/storage/src/evolutionLearningLedger.test.js
+  - pnpm run build
+  - pnpm run preflight
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run aipos:provenance
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Push the locally validated A2-synchronized repair non-forcing after confirming remote head, pass exact-head CI and request fresh independent review; retain PAPER-only authority boundaries."
+version: 1

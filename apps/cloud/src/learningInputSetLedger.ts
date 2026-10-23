@@ -1,5 +1,6 @@
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import { MAX_EVOLUTION_LEARNING_LEDGER_RECORDS, type SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import type { LearningEvidenceAuthority, LearningEvidenceRecord } from "./learningEvidenceAuthority";
 import {
   learningCycleId,
   learningInputSetFingerprint,
@@ -58,6 +59,42 @@ function assertStoredMetadata(record: EvolutionLedgerRecord, inputSet: LearningI
   }
 }
 
+function assertEvidenceResolves(inputSet: LearningInputSet, authority: LearningEvidenceAuthority): void {
+  const resolve = (
+    lane: "research" | "paper",
+    ids: readonly string[],
+    observedAt: readonly number[],
+    read: (recordId: string) => LearningEvidenceRecord | undefined,
+    snapshot?: () => readonly LearningEvidenceRecord[],
+  ): void => {
+    let indexed: Map<string, LearningEvidenceRecord> | undefined;
+    if (snapshot != null) {
+      indexed = new Map();
+      for (const record of snapshot()) {
+        if (record == null || typeof record.recordId !== "string" || !Number.isSafeInteger(record.recordedAt) || record.recordedAt < 0 || indexed.has(record.recordId)) {
+          throw new LearningInputSetLedgerError("EVIDENCE_AUTHORITY_INVALID", `${lane} evidence snapshot is malformed or ambiguous`);
+        }
+        indexed.set(record.recordId, record);
+      }
+    }
+    for (let index = 0; index < ids.length; index += 1) {
+      if (!Object.hasOwn(ids, index) || !Object.hasOwn(observedAt, index)) {
+        throw new LearningInputSetLedgerError("MALFORMED_RECEIPT", `${lane} evidence references contain sparse entries`);
+      }
+      const recordId = ids[index];
+      const expectedObservedAt = observedAt[index];
+      const resolved = indexed == null ? read(recordId) : indexed.get(recordId);
+      if (resolved == null) throw new LearningInputSetLedgerError("EVIDENCE_UNRESOLVED", `${lane} evidence ${recordId} does not resolve in its canonical durable reader`);
+      if (resolved.recordId !== recordId || resolved.recordedAt !== expectedObservedAt) {
+        throw new LearningInputSetLedgerError("EVIDENCE_IDENTITY_MISMATCH", `${lane} evidence ${recordId} does not match its canonical identity and observation time`);
+      }
+    }
+  };
+
+  resolve("research", inputSet.researchEvidenceRecordIds, inputSet.researchEvidenceObservedAt, authority.readResearch, authority.readResearchSnapshot);
+  resolve("paper", inputSet.paperEvidenceRecordIds, inputSet.paperEvidenceObservedAt, authority.readPaper, authority.readPaperSnapshot);
+}
+
 export class LearningInputSetLedgerError extends Error {
   public constructor(readonly code: string, message: string) {
     super(message);
@@ -95,7 +132,11 @@ function parseReceipt(record: { readonly hypothesis: string; readonly recordedAt
 }
 
 export class LearningInputSetLedger {
-  public constructor(private readonly ledger: EvolutionLedgerPort, private readonly now: () => number = Date.now) {}
+  public constructor(
+    private readonly ledger: EvolutionLedgerPort,
+    private readonly evidenceAuthority: LearningEvidenceAuthority,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   /**
    * Records an input set idempotently. Replaying the same canonical input produces the same
@@ -104,6 +145,7 @@ export class LearningInputSetLedger {
    */
   public append(inputSet: LearningInputSet): LearningInputSetReceipt {
     assertLearningInputSet(inputSet);
+    assertEvidenceResolves(inputSet, this.evidenceAuthority);
     const fingerprint = learningInputSetFingerprint(inputSet);
     if (!HASH.test(fingerprint)) throw new LearningInputSetLedgerError("IDENTITY_DERIVATION_FAILED", "learning input set fingerprint is not a SHA-256 digest");
     const opportunityId = `learning-input-set:${fingerprint}`;
@@ -148,13 +190,14 @@ export class LearningInputSetLedger {
   }
 
   /** Exact canonical reader used by downstream A1; validates the full durable metadata contract. */
-  public getByFingerprint(fingerprint: string): LearningInputSetReceipt | undefined {
+  public getByFingerprint(fingerprint: string, snapshot: readonly EvolutionLedgerRecord[] = this.ledger.list()): LearningInputSetReceipt | undefined {
     if (!HASH.test(fingerprint)) throw new LearningInputSetLedgerError("IDENTITY_DERIVATION_FAILED", "learning input set fingerprint is not a SHA-256 digest");
     const opportunityId = `learning-input-set:${fingerprint}`;
-    const record = this.ledger.list().find((candidate) => candidate.opportunityId === opportunityId);
+    const record = snapshot.find((candidate) => candidate.opportunityId === opportunityId);
     if (record == null) return undefined;
     const inputSet = parseReceipt(record);
     if (learningInputSetFingerprint(inputSet) !== fingerprint) throw new LearningInputSetLedgerError("IDENTITY_CONFLICT", "recorded learning input set does not match its fingerprint");
+    assertEvidenceResolves(inputSet, this.evidenceAuthority);
     assertStoredMetadata(record, inputSet, fingerprint);
     return Object.freeze({ inputSet, fingerprint, learningCycleId: learningCycleId(inputSet), recordedAt: record.recordedAt, replayed: true });
   }
@@ -167,6 +210,7 @@ export class LearningInputSetLedger {
       const inputSet = parseReceipt(record);
       const fingerprint = learningInputSetFingerprint(inputSet);
       if (record.opportunityId !== `learning-input-set:${fingerprint}`) throw new LearningInputSetLedgerError("IDENTITY_CONFLICT", "recorded learning input set does not match its ledger identity");
+      assertEvidenceResolves(inputSet, this.evidenceAuthority);
       assertStoredMetadata(record, inputSet, fingerprint);
       const receipt = Object.freeze({ inputSet, fingerprint, learningCycleId: learningCycleId(inputSet), recordedAt: record.recordedAt, replayed: false });
       if (latest == null || receipt.recordedAt >= latest.recordedAt) latest = receipt;
@@ -182,6 +226,7 @@ export class LearningInputSetLedger {
       const inputSet = parseReceipt(record);
       const fingerprint = learningInputSetFingerprint(inputSet);
       assertStoredMetadata(record, inputSet, fingerprint);
+      assertEvidenceResolves(inputSet, this.evidenceAuthority);
       for (const reference of learningInputSetPeriodReferences(inputSet)) references.add(reference);
     }
     return Object.freeze([...references].sort());

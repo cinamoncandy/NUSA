@@ -19,17 +19,28 @@ const OUTCOMES = new Set<EvolutionLearningRecord["outcome"]>([
 const REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const LEARNING_INPUT_SET_ID = /^learning-input-set:([a-f0-9]{64})$/;
+const LEARNING_INPUT_SET_FIELDS = new Set([
+  "schemaVersion", "cutoffTimestamp", "researchEvidenceRecordIds", "researchEvidenceObservedAt",
+  "paperEvidenceRecordIds", "paperEvidenceObservedAt", "researchLaneDigest", "performanceLaneDigest",
+  "learningPolicyVersion", "researchPolicyVersion", "riskPolicyVersion", "governancePolicyVersion",
+  "canonicalOrderingVersion",
+]);
 const LEARNING_DECISION_ID = /^learning-decision(?::|-cycle-v1:)([a-f0-9]{64})$/;
 const LEARNING_INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
 const LEARNING_DECISION_PROBLEM = "NUSA learning decision: the bounded conclusion drawn from one learning input set";
 const LEARNING_DECISION_FIELDS = new Set([
-  "schemaVersion", "learningCycleId", "learningInputSetFingerprint", "previousResearchSpecFingerprint",
+  "schemaVersion", "learningCycleId", "learningInputSet", "learningInputSetFingerprint", "previousResearchSpecFingerprint",
   "learningPolicyVersion", "objectiveVersion", "proposedChanges", "admissibleChanges", "rejectedChanges",
   "reasonEvidence", "changeMagnitude", "allowedSurfaceVersion", "immutableSurfaceVersion", "decisionOutcome",
   "createdAt", "sourceCommit", "runtimeIdentity",
 ]);
+// The immediately preceding A1 writer deliberately stored only the durable A2 identity and
+// resolved the full input set on replay. Keep accepting exactly that canonical historical shape
+// while rebuilding reservations; new A1 appends must still satisfy the stronger embedded-A2 check.
+const LEGACY_LEARNING_DECISION_FIELDS = new Set([...LEARNING_DECISION_FIELDS].filter((field) => field !== "learningInputSet"));
 const LEARNING_POLICY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const LEARNING_BOUNDED_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
+const LEARNING_REASON_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,239}$/;
 const FORBIDDEN_KEY = /(?:password|authorization|cookie|credential|secret|token|nonce|signature|private|access[_-]?key)/i;
 const FORBIDDEN_VALUE = /(?:bearer\s+[A-Za-z0-9._-]+|(?:api|access|secret|private)[_-]?key\s*[:=]|-----BEGIN|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.)/i;
 const FIELDS = new Set([
@@ -179,7 +190,7 @@ function canonicalEvent(sequence: number, record: EvolutionLearningRecord, previ
  * cannot consume the last slot between the A2 and A1 appends. These are existing record identities;
  * no second reservation store or mutable history is introduced.
  */
-function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord, fingerprint: string): boolean {
+function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord, fingerprint: string, inputSetPayload: string): boolean {
   if (record.validationStatus !== "LEARNING_DECISION" || record.problem !== LEARNING_DECISION_PROBLEM
     || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true) return false;
   let payload: unknown;
@@ -194,8 +205,11 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     || canonicalResearchJson(decision) !== record.hypothesis
     || decision.schemaVersion !== 1
     || decision.learningInputSetFingerprint !== fingerprint
+    || decision.learningInputSet == null || typeof decision.learningInputSet !== "object" || Array.isArray(decision.learningInputSet)
+    || canonicalResearchJson(decision.learningInputSet) !== inputSetPayload
     || decision.learningCycleId !== `learning-cycle:${fingerprint}`
-    || record.opportunityId !== `learning-decision-cycle-v1:${sha256(decision.learningCycleId as string)}`
+    || (record.opportunityId !== `learning-decision-cycle-v1:${sha256(decision.learningCycleId as string)}`
+      && record.opportunityId !== `learning-decision:${sha256(record.hypothesis)}`)
     || record.changeReference !== decision.learningPolicyVersion
     || !SHA256.test(decision.previousResearchSpecFingerprint as string)
     || typeof decision.learningPolicyVersion !== "string" || !LEARNING_POLICY_ID.test(decision.learningPolicyVersion)
@@ -211,8 +225,84 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     || !Array.isArray(decision.admissibleChanges) || !Array.isArray(decision.rejectedChanges)
     || !Array.isArray(decision.reasonEvidence) || decision.reasonEvidence.length > 64) return false;
   const reasons = decision.reasonEvidence as unknown[];
-  if (reasons.some((item, index) => typeof item !== "string" || !LEARNING_BOUNDED_ID.test(item) || (index > 0 && item <= (reasons[index - 1] as string)))) return false;
+  if (reasons.some((item, index) => typeof item !== "string" || !LEARNING_REASON_REFERENCE.test(item) || (index > 0 && item <= (reasons[index - 1] as string)))) return false;
   const expectedReferences = [record.opportunityId, fingerprint, ...(reasons as string[])].sort((left, right) => left.localeCompare(right));
+  return record.evidenceReferences.length === expectedReferences.length
+    && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
+}
+
+function canonicalLegacyLearningDecisionForReservation(record: EvolutionLearningRecord, fingerprint: string, inputSetPayload: string): boolean {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(record.hypothesis);
+  } catch {
+    return false;
+  }
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const decision = payload as Record<string, unknown>;
+  if (Object.keys(decision).length !== LEGACY_LEARNING_DECISION_FIELDS.size
+    || Object.keys(decision).some((key) => !LEGACY_LEARNING_DECISION_FIELDS.has(key))
+    || Object.prototype.hasOwnProperty.call(decision, "learningInputSet")
+    || canonicalResearchJson(decision) !== record.hypothesis
+    || decision.learningInputSetFingerprint !== fingerprint) return false;
+
+  let inputSet: unknown;
+  try {
+    inputSet = JSON.parse(inputSetPayload);
+  } catch {
+    return false;
+  }
+  // Upgrade the historical payload only in memory, then run it through the same full provenance,
+  // identity, policy, and evidence-reference checks used for newly written A1 receipts.
+  const upgraded = { ...decision, learningInputSet: inputSet };
+  const upgradedRecord = { ...record, hypothesis: canonicalResearchJson(upgraded) };
+  return canonicalLearningDecisionForReservation(upgradedRecord, fingerprint, inputSetPayload);
+}
+
+function canonicalLearningInputSetForReservation(record: EvolutionLearningRecord, fingerprint: string): boolean {
+  if (record.validationStatus !== "LEARNING_INPUT_SET" || record.problem !== LEARNING_INPUT_SET_PROBLEM
+    || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true) return false;
+  let payload: unknown;
+  try { payload = JSON.parse(record.hypothesis); } catch { return false; }
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const input = payload as Record<string, unknown>;
+  if (Object.keys(input).length !== LEARNING_INPUT_SET_FIELDS.size
+    || Object.keys(input).some((key) => !LEARNING_INPUT_SET_FIELDS.has(key))
+    || canonicalResearchJson(input) !== record.hypothesis
+    || input.schemaVersion !== 1
+    || input.canonicalOrderingVersion !== "learning-input-set-canonical-order-v2"
+    || !Number.isSafeInteger(input.cutoffTimestamp) || (input.cutoffTimestamp as number) < 0
+    || record.opportunityId !== `learning-input-set:${fingerprint}`
+    || record.changeReference !== input.learningPolicyVersion) return false;
+  const lanes = [
+    { name: "research", ids: input.researchEvidenceRecordIds, observed: input.researchEvidenceObservedAt, digest: input.researchLaneDigest },
+    { name: "performance", ids: input.paperEvidenceRecordIds, observed: input.paperEvidenceObservedAt, digest: input.performanceLaneDigest },
+  ];
+  const allIds = new Set<string>();
+  for (const lane of lanes) {
+    if (!Array.isArray(lane.ids) || !Array.isArray(lane.observed) || lane.ids.length !== lane.observed.length || !SHA256.test(lane.digest as string)) return false;
+    let previous = "";
+    for (let index = 0; index < lane.ids.length; index += 1) {
+      const id = lane.ids[index];
+      const observed = lane.observed[index];
+      if (typeof id !== "string" || id.trim().length === 0 || id.length > 512 || /[\u0000-\u001f\u007f]/.test(id)
+        || (index > 0 && id <= previous) || allIds.has(id)
+        || !Number.isSafeInteger(observed) || (observed as number) < 0 || (observed as number) >= (input.cutoffTimestamp as number)) return false;
+      if (lane.name === "performance" && (id.length > 227 || !/^[A-Za-z0-9_.:/#@-]+$/.test(id))) return false;
+      allIds.add(id); previous = id;
+    }
+    const expectedDigest = sha256(canonicalResearchJson({ lane: lane.name === "research" ? "research" : "performance", recordIds: lane.ids, observedAt: lane.observed }));
+    if (lane.digest !== expectedDigest) return false;
+  }
+  if (allIds.size === 0 || allIds.size > 512) return false;
+  for (const field of ["learningPolicyVersion", "researchPolicyVersion", "riskPolicyVersion", "governancePolicyVersion"] as const) {
+    if (typeof input[field] !== "string" || !LEARNING_POLICY_ID.test(input[field] as string)) return false;
+  }
+  if (sha256(canonicalResearchJson(input)) !== fingerprint) return false;
+  // EvolutionLearningLedger.normalize stores references in localeCompare order. Match that one
+  // canonical storage ordering even though A2 lane IDs themselves use code-point ordering.
+  const expectedReferences = [record.opportunityId, ...(input.paperEvidenceRecordIds as string[]).map((id) => `paper-period:${id}`)]
+    .sort((left, right) => left.localeCompare(right));
   return record.evidenceReferences.length === expectedReferences.length
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
 }
@@ -221,34 +311,39 @@ function isLearningDecisionCandidate(record: EvolutionLearningRecord): boolean {
   return record.validationStatus === "LEARNING_DECISION" || record.problem === LEARNING_DECISION_PROBLEM || LEARNING_DECISION_ID.test(record.opportunityId);
 }
 
-function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[]): Set<string> {
-  const pending = new Set<string>();
+function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[]): Map<string, string> {
+  const pending = new Map<string, string>();
   for (const record of records) {
     if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
       const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-      if (match != null) pending.add(match[1]);
+      if (match != null && canonicalLearningInputSetForReservation(record, match[1])) pending.set(match[1], record.hypothesis);
       continue;
     }
     if (isLearningDecisionCandidate(record)) {
       const matchingReservations = record.evidenceReferences.filter((reference) => pending.has(reference));
-      if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0])) pending.delete(matchingReservations[0]);
+      if (matchingReservations.length === 1) {
+        const fingerprint = matchingReservations[0];
+        const inputSetPayload = pending.get(fingerprint)!;
+        if (canonicalLearningDecisionForReservation(record, fingerprint, inputSetPayload)
+          || canonicalLegacyLearningDecisionForReservation(record, fingerprint, inputSetPayload)) pending.delete(fingerprint);
+      }
     }
   }
   return pending;
 }
 
 function pendingReservationsAfterAppend(
-  pending: Set<string>,
+  pending: Map<string, string>,
   record: EvolutionLearningRecord,
-): Set<string> {
-  const next = new Set(pending);
+): Map<string, string> {
+  const next = new Map(pending);
   if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
     const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-    if (match != null) next.add(match[1]);
+    if (match != null && canonicalLearningInputSetForReservation(record, match[1])) next.set(match[1], record.hypothesis);
   }
   if (isLearningDecisionCandidate(record)) {
     const matchingReservations = record.evidenceReferences.filter((reference) => next.has(reference));
-    if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0])) next.delete(matchingReservations[0]);
+    if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0], next.get(matchingReservations[0])!)) next.delete(matchingReservations[0]);
   }
   return next;
 }
@@ -316,7 +411,7 @@ export class SqliteEvolutionLearningLedger {
     const pendingReservations = pendingLearningDecisionFingerprints(current.records);
     if (isLearningDecisionCandidate(record)) {
       const matchingReservations = record.evidenceReferences.filter((reference) => pendingReservations.has(reference));
-      if (matchingReservations.length !== 1 || !canonicalLearningDecisionForReservation(record, matchingReservations[0])) {
+      if (matchingReservations.length !== 1 || !canonicalLearningDecisionForReservation(record, matchingReservations[0], pendingReservations.get(matchingReservations[0])!)) {
         invalid("INVALID_LEARNING_DECISION_RECEIPT", "only a canonical A1 receipt bound to exactly one pending A2 input set may use reserved capacity");
       }
     }

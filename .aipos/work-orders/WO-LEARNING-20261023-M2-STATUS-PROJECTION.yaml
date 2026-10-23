@@ -1,29 +1,33 @@
 id: WO-LEARNING-20261023-M2-STATUS-PROJECTION
 title: "M2 truthful display-only Learning loop status projection"
-status: VERIFYING
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/exploration-a6
+base_head: aa04f67ad5b1c1a18219d0f136df4f629fa10a77
 branch: feat/learning-status-m2
 pull_request: 2798
 authority_impact: none-display-only-read-model
 objective: "Expose a closed, scalar-only, immutable Learning status summary from caller-provided read snapshots without changing the learning lifecycle or providing any actionable input to a scheduler, decision, or governance path."
-first_broken_transition: "existing durable Learning evidence -> truthful, non-actionable status projection"
+first_broken_transition: "partial or caller-supplied status fields -> explicit unknown/invalid and unverified display state"
 scope:
   include:
     - "Report existing A2/A1/A4/META/A5/A6 identity and summary fields only when source evidence is present."
     - "Keep the Learning projection read-only, frozen, deterministic, scalar-only, and restricted to the closed field allowlist."
     - "Preserve verdict and eligibility reason together so status cannot display bare permission."
+    - "Label the entire projection as unverified display-only, and report per-component UNKNOWN/INVALID/AVAILABLE state."
+    - "Validate identities, enum values, non-negative counters, and bounded reason text before presenting component details."
     - "Reconverge the existing PR on the latest A6 parent without adding a production caller or new store."
   exclude:
     - "Writing evidence or wiring status into scheduler, Research, qualification, Governance, Risk, or execution."
     - "Defining cutoff/META policy or changing exploration, cost, sample, qualification, Risk, capital, or authority thresholds."
     - "Audit, Release, merge, deployment, or any server operation."
 acceptance:
-  - "Missing evidence remains absent; the projection invents no default identity or eligibility."
+  - "Missing evidence identities and details remain absent, while componentAvailability explicitly identifies UNKNOWN/INVALID inputs."
   - "The exact closed field set and scalar-only property are tested."
   - "Output and source remain immutable; repeated projection is deterministic and does not mutate source."
-  - "Eligibility always includes its reason; display values have no setter or instruction-shaped field."
+  - "Caller-provided eligibility is always prefixed UNVERIFIED_INPUT and includes its reason; APPLIED is never presented as verified."
+  - "Malformed counts and unsafe free text are withdrawn rather than formatted as facts."
   - "Run relevant tests, build, Node >=24.19 pnpm run preflight, validate:full, security:gate, AIPOS provenance, and exact-head CI."
   - "Request fresh independent review only after exact-head CI is green; keep Draft and make no production or server claim."
 safety:
@@ -37,11 +41,11 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "19/19 PASS: M2 projection tests 11/11 and A6 durable exploration tests 8/8 on the reconverged parent."
-  build: "PASS on Node 24.19.0 / pnpm 11.25.0."
-  preflight: "PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 516-file AIPOS YAML checks PASS."
-  validate_full: "PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS."
-  security_gate: "PASS; no unmitigated finding or secret detected."
-  aipos_provenance: "PASS."
+  focused: "A2/A1/A3/A4/A5/A6/M2 plus Evolution Learning and retention suite: 191/191 PASS; includes explicit UNKNOWN/INVALID status and unverified-claim regressions."
+  build: PASS on Node 24.19.0 / pnpm 11.25.0
+  preflight: PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 522-file AIPOS YAML validation PASS
+  validate_full: PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS
+  security_gate: PASS; no unmitigated finding or secret detected
+  aipos_provenance: PASS
   exact_head_ci: PENDING_AFTER_PUSH
   independent_review: PENDING

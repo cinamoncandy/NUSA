@@ -1,0 +1,53 @@
+id: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
+title: "A2 must resolve input references through canonical durable evidence readers"
+status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_FINDINGS
+priority: P0
+owner_request: "Advance the closed learning loop in dependency order, starting with A2. Each PR requires relevant tests and pnpm run preflight on Node 24.19+, then fresh independent review after exact-head CI is green. Do not let this sequence block PR #2855 or the order-book archive server deployment; server deployment remains after #2855."
+source:
+  pull_request: 2792
+  branch: feat/learning-input-set-a2
+  prior_exact_head: 4d7750f37a08e7a8196dad25552340fdff27fe00
+  first_broken_transition: "syntactically valid A2 evidence ids -> successful durable receipt without canonical Research/PAPER resolution"
+scope:
+  - "Require the existing LearningEvidenceAuthority at the A2 durable ledger boundary."
+  - "Resolve every cited Research and PAPER identity and exact observedAt before append and before downstream read/replay."
+  - "Reject missing, duplicate/ambiguous, malformed, or timestamp-mismatched canonical evidence fail-closed."
+  - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt in the existing hash-chained ledger."
+  - "Reject sparse holes in every aligned persisted evidence-id and observation-time array before hashing, authority lookup, or append."
+  - "Reuse existing Research history, realized PAPER period store, and Evolution Learning ledger; create no engine/store/scheduler."
+exclusions:
+  - "No live/real-money authority or production mutation change."
+  - "No qualification, Risk, OOS, sample, cost, or retention threshold change."
+  - "No synthetic evidence, historical rewrite, DB repair, deployment, merge, or server mutation."
+acceptance:
+  - "Unresolvable Research/PAPER citation cannot create an A2 receipt."
+  - "Observed timestamp must match canonical durable source exactly."
+  - "Restart and replay re-resolve the same evidence identity and remain idempotent."
+  - "Malformed namespace-shaped A2 rows cannot consume a durable A1 capacity reservation."
+  - "Sparse caller-shaped A2 arrays fail before append and leave the existing ledger replayable with no reserved slot."
+  - "Relevant A2 and storage regression tests pass."
+  - "pnpm run preflight passes on Node >=24.19."
+  - "Exact-head CI passes before fresh independent review is requested."
+validation_commands:
+  - "pnpm run build"
+  - "node --test dist/apps/cloud/src/learningInputSet.test.js dist/apps/cloud/src/learningInputSetRetentionIntegration.test.js dist/packages/storage/src/evolutionLearningLedger.test.js"
+  - "pnpm run preflight"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "git diff --check"
+verification:
+  local_focused: "PASS 44/44 A2, A1, retention integration, and SQLite Evolution Learning ledger tests, including sparse-array append rejection and whitespace-ID reservation rejection after restart."
+  local_build: "PASS TypeScript build."
+  preflight: "PASS Node 24.19.0, sqlite available, portability/platform-independent/mobile/AIPOS validators."
+  validate_full: "PASS architecture truth, safety architecture, AI zero-authority, architecture, AIPOS drift/conformance, safety invariants/input validators."
+  security_gate: "PASS; no unmitigated advisories or secrets."
+  exact_head_ci: "PASS: run 39903170341 and required companion workflows passed on exact head 4d7750f37a08e7a8196dad25552340fdff27fe00."
+  independent_review: "Fresh Codex review submitted and completed on exact head 4d7750f37a08e7a8196dad25552340fdff27fe00 at 2026-10-23T05:07:53Z; no inline findings were produced. This is advisory review evidence, not formal NUSA Validator acceptance."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+next: "A2 is complete through exact-head CI and fresh review; continue in dependency order with A1 PR #2793, which is being synchronized to this A2 head. Keep #2792 Draft; do not deploy or interfere with #2855/server archive deployment."

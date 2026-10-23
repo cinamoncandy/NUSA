@@ -25,16 +25,17 @@ const record = (opportunityId: string, recordedAt: string, overrides: Partial<Ev
 
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 
-function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerprint: string; readonly record: EvolutionLearningRecord } {
+function inputSetRecord(recordedAt: string, paperId: string, researchId = "trial-1", paperIds: readonly string[] = [paperId]): { readonly fingerprint: string; readonly inputSet: Readonly<Record<string, unknown>>; readonly record: EvolutionLearningRecord } {
+  const canonicalPaperIds = [...paperIds].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
   const inputSet = {
     schemaVersion: 1,
     cutoffTimestamp: 10_000,
-    researchEvidenceRecordIds: ["trial-1"],
+    researchEvidenceRecordIds: [researchId],
     researchEvidenceObservedAt: [1],
-    paperEvidenceRecordIds: [paperId],
-    paperEvidenceObservedAt: [2],
-    researchLaneDigest: sha256(canonicalResearchJson({ lane: "research", recordIds: ["trial-1"], observedAt: [1] })),
-    performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: [paperId], observedAt: [2] })),
+    paperEvidenceRecordIds: canonicalPaperIds,
+    paperEvidenceObservedAt: canonicalPaperIds.map(() => 2),
+    researchLaneDigest: sha256(canonicalResearchJson({ lane: "research", recordIds: [researchId], observedAt: [1] })),
+    performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: canonicalPaperIds, observedAt: canonicalPaperIds.map(() => 2) })),
     learningPolicyVersion: "learn-v1",
     researchPolicyVersion: "research-v1",
     riskPolicyVersion: "risk-v1",
@@ -45,9 +46,10 @@ function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerp
   const opportunityId = `learning-input-set:${fingerprint}`;
   return {
     fingerprint,
+    inputSet,
     record: record(opportunityId, recordedAt, {
       problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
-      evidenceReferences: [opportunityId, `paper-period:${paperId}`],
+      evidenceReferences: [opportunityId, ...canonicalPaperIds.map((id) => `paper-period:${id}`)],
       hypothesis: canonicalResearchJson(inputSet),
       changeReference: "learn-v1",
       validationStatus: "LEARNING_INPUT_SET",
@@ -59,12 +61,12 @@ function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerp
   };
 }
 
-function decisionRecord(fingerprint: string, recordedAt: string, extraEvidence: readonly string[] = []): EvolutionLearningRecord {
+function decisionRecord(fingerprint: string, recordedAt: string, inputSet: Readonly<Record<string, unknown>>, extraEvidence: readonly string[] = [], identity: "cycle" | "fingerprint" = "cycle"): EvolutionLearningRecord {
   const learningCycleId = `learning-cycle:${fingerprint}`;
-  const opportunityId = `learning-decision-cycle-v1:${sha256(learningCycleId)}`;
   const payload = {
     schemaVersion: 1,
     learningCycleId,
+    learningInputSet: inputSet,
     learningInputSetFingerprint: fingerprint,
     previousResearchSpecFingerprint: "c".repeat(64),
     learningPolicyVersion: "learn-v1",
@@ -81,6 +83,9 @@ function decisionRecord(fingerprint: string, recordedAt: string, extraEvidence: 
     sourceCommit: "source-1",
     runtimeIdentity: "paper-runtime-1",
   };
+  const opportunityId = identity === "fingerprint"
+    ? `learning-decision:${sha256(canonicalResearchJson(payload))}`
+    : `learning-decision-cycle-v1:${sha256(learningCycleId)}`;
   return record(opportunityId, recordedAt, {
     problem: "NUSA learning decision: the bounded conclusion drawn from one learning input set",
     evidenceReferences: [opportunityId, fingerprint, ...extraEvidence],
@@ -200,8 +205,79 @@ test("an unrelated writer cannot consume the capacity reserved for an A2 input s
     );
     assert.equal(ledger.size(), 2, "a closed-learning failure append leaves the reserved A1 slot untouched");
 
-    ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:02:00.000Z"));
+    ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:02:00.000Z", inputSet.inputSet));
     assert.equal(ledger.size(), 3, "the matching A1 decision can consume the reserved slot");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("a malformed namespace-shaped A2 record cannot reserve capacity after restart", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 2);
+    const malformedA2 = inputSetRecord("2026-08-29T00:00:00.000Z", "p1");
+    ledger.append({ ...malformedA2.record, hypothesis: "{}" });
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 2);
+    ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
+    assert.equal(ledger.size(), 2, "only a complete canonical A2 receipt consumes A1 capacity");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("a whitespace Research ID cannot reserve A1 capacity after restart", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 2);
+    const malformedA2 = inputSetRecord("2026-08-29T00:00:00.000Z", "p1", " ");
+    ledger.append(malformedA2.record);
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 2);
+    ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
+    assert.equal(ledger.size(), 2, "a whitespace Research ID does not reserve capacity for an A1 decision");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("canonical A2 PAPER IDs with mixed-case ordering retain their A1 reservation", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db, 3);
+    const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", "Z", "trial-1", ["Z", "a"]);
+    ledger.append(inputSet.record);
+    ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:01:00.000Z", inputSet.inputSet));
+    assert.equal(ledger.size(), 2, "mixed-case A2 references remain eligible for their canonical A1 receipt");
+  } finally {
+    db.close();
+  }
+});
+
+test("restart replay releases reservations for fingerprint-keyed A1 decisions", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 3);
+    const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", "p1");
+    ledger.append(inputSet.record);
+    ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:01:00.000Z", inputSet.inputSet, [], "fingerprint"));
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 3);
+    ledger.append(record("opp:after-fingerprint-a1", "2026-08-29T00:02:00.000Z"));
+    assert.equal(ledger.size(), 3, "a historical fingerprint-keyed A1 receipt releases its A2 reservation after restart");
   } finally {
     db.close();
     removeDatabasePath(filename);
@@ -218,11 +294,11 @@ test("only a canonical A1 receipt can release one matching A2 reservation", () =
     ledger.append(first.record);
     ledger.append(second.record);
     assert.throws(
-      () => ledger.append({ ...decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z"), hypothesis: "{}" }),
+      () => ledger.append({ ...decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z", first.inputSet), hypothesis: "{}" }),
       (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_LEARNING_DECISION_RECEIPT",
       "a generic writer cannot release A2 capacity with only A1-shaped status and identity metadata",
     );
-    const forged = decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z", [second.fingerprint]);
+    const forged = decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z", first.inputSet, [second.fingerprint]);
     assert.throws(
       () => ledger.append(forged),
       (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_LEARNING_DECISION_RECEIPT",
@@ -242,9 +318,54 @@ test("only a canonical A1 receipt can release one matching A2 reservation", () =
       "an ambiguous A1 receipt must not release either durable reservation during replay",
     );
 
-    ledger.append(decisionRecord(first.fingerprint, "2026-08-29T00:03:00.000Z"));
-    ledger.append(decisionRecord(second.fingerprint, "2026-08-29T00:04:00.000Z"));
+    ledger.append(decisionRecord(first.fingerprint, "2026-08-29T00:03:00.000Z", first.inputSet));
+    ledger.append(decisionRecord(second.fingerprint, "2026-08-29T00:04:00.000Z", second.inputSet));
     assert.equal(ledger.size(), 4, "each one-to-one A1 receipt releases exactly one reserved slot");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("replay does not resurrect an A2 reservation for the immediately preceding canonical A1 receipt format", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 3);
+    const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", "legacy-paper-period");
+    ledger.append(inputSet.record);
+    const currentDecision = ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:01:00.000Z", inputSet.inputSet));
+
+    // Seed the exact canonical shape written by the preceding A1 payload serializer, which omitted
+    // the embedded A2 object but retained its durable fingerprint. Recompute the fixture's existing
+    // hash-chain row so reopen exercises real ledger replay rather than a parser-only shortcut.
+    const stored = JSON.parse(currentDecision.hypothesis) as Record<string, unknown>;
+    const { learningInputSet: _omittedHistoricalField, ...legacyPayload } = stored;
+    const legacyDecision = { ...currentDecision, hypothesis: canonicalResearchJson(legacyPayload) };
+    const row = db.connection.prepare(
+      "SELECT sequence, previous_hash FROM evolution_learning_ledger_events WHERE opportunity_id = ?",
+    ).get(currentDecision.opportunityId) as { sequence: number; previous_hash: string };
+    const contentHash = sha256(canonicalResearchJson(legacyDecision));
+    const eventHash = sha256(canonicalResearchJson({
+      schemaVersion: 1,
+      sequence: row.sequence,
+      opportunityId: legacyDecision.opportunityId,
+      contentHash,
+      payload: legacyDecision,
+      recordedAt: legacyDecision.recordedAt,
+      previousHash: row.previous_hash,
+    }));
+    db.connection.prepare(
+      "UPDATE evolution_learning_ledger_events SET content_hash = ?, payload_json = ?, event_hash = ? WHERE opportunity_id = ?",
+    ).run(contentHash, canonicalResearchJson(legacyDecision), eventHash, currentDecision.opportunityId);
+    db.connection.prepare("UPDATE evolution_learning_ledger_meta SET ledger_hash = ? WHERE id = 1").run(eventHash);
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 3);
+    assert.equal(ledger.list().length, 2);
+    ledger.append(record("opp:after-legacy-a1", "2026-08-29T00:02:00.000Z"));
+    assert.equal(ledger.size(), 3, "a durable legacy A1 receipt releases its already-consumed A2 capacity reservation");
   } finally {
     db.close();
     removeDatabasePath(filename);
