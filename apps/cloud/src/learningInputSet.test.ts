@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import {
   LearningInputSetError,
   assertLearningInputSet,
@@ -9,6 +11,7 @@ import {
   learningInputSetPeriodReferences,
   MAX_LEARNING_INPUT_SET_EVIDENCE_REFERENCES,
   type LearningInputSetInput,
+  type LearningInputSet,
 } from "./learningInputSet";
 
 // A2. The Learning Decision may not consume an arbitrary query result, so the evidence it may
@@ -34,6 +37,10 @@ const input = (overrides: Partial<LearningInputSetInput> = {}): LearningInputSet
   policies: POLICIES,
   ...overrides,
 });
+
+const laneDigest = (lane: "research" | "performance", recordIds: readonly string[], observedAt: readonly number[]): string => createHash("sha256")
+  .update(canonicalResearchJson({ lane, recordIds, observedAt }), "utf8")
+  .digest("hex");
 
 describe("A2 learning input set canonicalization", () => {
   it("fingerprints identically regardless of the order evidence was supplied in", () => {
@@ -178,6 +185,36 @@ describe("A2 falsification - evidence that must be refused", () => {
     assertLearningInputSet(buildLearningInputSet(input({ paperEvidence: [{ recordId: maxId, recordedAt: 10 }], researchEvidence: [] })));
     refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "p".repeat(228), recordedAt: 10 }], researchEvidence: [] })), "MALFORMED_RECORD_ID");
     refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "period with spaces", recordedAt: 10 }], researchEvidence: [] })), "MALFORMED_RECORD_ID");
+  });
+
+  it("rechecks the PAPER reference limit for caller-shaped durable input sets", () => {
+    const valid = buildLearningInputSet(input({ paperEvidence: [{ recordId: "p".repeat(227), recordedAt: 10 }], researchEvidence: [] }));
+    const oversizedId = "p".repeat(228);
+    const shaped: LearningInputSet = {
+      ...valid,
+      paperEvidenceRecordIds: [oversizedId],
+      performanceLaneDigest: laneDigest("performance", [oversizedId], [10]),
+    };
+    assert.throws(
+      () => assertLearningInputSet(shaped),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "MALFORMED_RECORD_ID",
+    );
+  });
+
+  it("rejects oversized caller-shaped receipts before they can be treated as valid A2 input", () => {
+    const valid = buildLearningInputSet(input({ researchEvidence: [], paperEvidence: [{ recordId: "period-1", recordedAt: 1 }]}));
+    const recordIds = Array.from({ length: 284 }, (_, index) => `closed-learning-replay:${"a".repeat(64)}:candidate-${index.toString().padStart(4, "0")}`);
+    const observedAt = recordIds.map((_, index) => index + 1);
+    const shaped: LearningInputSet = {
+      ...valid,
+      researchEvidenceRecordIds: recordIds,
+      researchEvidenceObservedAt: observedAt,
+      researchLaneDigest: laneDigest("research", recordIds, observedAt),
+    };
+    assert.throws(
+      () => assertLearningInputSet(shaped),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "INPUT_SET_TOO_LARGE",
+    );
   });
 
   it("rejects one record counted as both research and performance evidence", () => {
