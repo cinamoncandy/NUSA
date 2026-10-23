@@ -1,5 +1,12 @@
+import { createHash } from "node:crypto";
 import type { CapitalAllocationPolicy } from "./capitalAllocationEngine";
 import { evaluatePaperPortfolioRiskEvidence, type PaperPortfolioRiskEvidenceInput } from "./paperPortfolioRiskEvidence";
+import {
+  fingerprintFamilyPortfolioRiskPolicy,
+  verifyFamilyPortfolioRiskEvidenceFingerprint,
+  type FamilyPortfolioRiskEvidence,
+  type FamilyPortfolioRiskPolicy,
+} from "./familyPortfolioRiskEvidence";
 
 export type PaperPortfolioAdvisoryDecision = "ADVISE" | "ABSTAIN";
 export type PaperEvidenceStatus = "VERIFIED" | "INSUFFICIENT" | "UNKNOWN" | "CONFLICTING";
@@ -22,6 +29,15 @@ export interface PaperPortfolioEvidence {
   readonly grossExpectedEdge: number;
 }
 
+export interface PaperFamilyRiskAdvisoryBinding {
+  readonly strategyId: string;
+  readonly familyId: string;
+  readonly observedAt: string;
+  readonly sourceSha: string;
+  readonly evidence: FamilyPortfolioRiskEvidence;
+  readonly bindingFingerprintSha256: string;
+}
+
 export interface PaperPortfolioAdvisoryInput {
   readonly advisoryId: string;
   readonly strategyId: string;
@@ -31,12 +47,18 @@ export interface PaperPortfolioAdvisoryInput {
   readonly minimumEvidencePeriods: number;
   readonly maximumEvidenceAgeMs: number;
   readonly maximumRegimeCoFailureRate: number;
+  readonly familyRiskPolicy: FamilyPortfolioRiskPolicy;
   readonly riskEvidence?: PaperPortfolioRiskEvidenceInput;
+  readonly familyRisk?: PaperFamilyRiskAdvisoryBinding;
 }
 
 export interface PaperPortfolioAdvisoryResult {
   readonly advisoryId: string;
   readonly strategyId: string;
+  readonly familyId: string | null;
+  readonly familyRiskFingerprintSha256: string | null;
+  readonly familyRiskBindingFingerprintSha256: string | null;
+  readonly familyRiskPolicyFingerprintSha256: string | null;
   readonly decision: PaperPortfolioAdvisoryDecision;
   readonly recommendedWeight: number;
   readonly maximumWeight: number;
@@ -55,6 +77,23 @@ export interface PaperPortfolioAdvisoryResult {
 }
 
 const sha256 = /^[a-f0-9]{64}$/i;
+const gitSha = /^[a-f0-9]{40}$/i;
+const familyRiskBindingFingerprint = (input: Omit<PaperFamilyRiskAdvisoryBinding, "bindingFingerprintSha256">): string =>
+  createHash("sha256").update([
+    `strategyId=${input.strategyId}`,
+    `familyId=${input.familyId}`,
+    `observedAt=${input.observedAt}`,
+    `sourceSha=${input.sourceSha.toLowerCase()}`,
+    `evidenceFingerprintSha256=${input.evidence.fingerprintSha256.toLowerCase()}`,
+  ].join("\n"), "utf8").digest("hex");
+
+export const createPaperFamilyRiskAdvisoryBinding = (
+  input: Omit<PaperFamilyRiskAdvisoryBinding, "bindingFingerprintSha256">,
+): PaperFamilyRiskAdvisoryBinding => Object.freeze({
+  ...input,
+  bindingFingerprintSha256: familyRiskBindingFingerprint(input),
+});
+
 const requireFinite = (value: number, label: string): void => {
   if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
 };
@@ -72,6 +111,14 @@ const validateConsumedPolicy = (policy: CapitalAllocationPolicy): void => {
   requireRatio(policy.maximumPortfolioWeight, "maximumPortfolioWeight");
   requireRatio(policy.maximumStrategyWeight, "maximumStrategyWeight");
   requireRatio(policy.maximumCorrelation, "maximumCorrelation");
+};
+const validateFamilyRiskPolicy = (policy: FamilyPortfolioRiskPolicy): void => {
+  requireRatio(policy.maximumStrategyWeight, "familyRiskPolicy.maximumStrategyWeight");
+  requireRatio(policy.maximumFamilyWeight, "familyRiskPolicy.maximumFamilyWeight");
+  requireRatio(policy.maximumAbsoluteFamilyCorrelation, "familyRiskPolicy.maximumAbsoluteFamilyCorrelation");
+  requireRatio(policy.maximumFamilyDrawdownOverlap, "familyRiskPolicy.maximumFamilyDrawdownOverlap");
+  requireRatio(policy.maximumRegimeConcentration, "familyRiskPolicy.maximumRegimeConcentration");
+  requireRatio(policy.maximumFamilyRiskBudgetUsage, "familyRiskPolicy.maximumFamilyRiskBudgetUsage");
 };
 const freezeResult = (result: PaperPortfolioAdvisoryResult): PaperPortfolioAdvisoryResult => {
   Object.freeze(result.reasons);
@@ -97,6 +144,8 @@ export const evaluatePaperPortfolioAdvisory = (
   if (!Number.isInteger(input.evidence.evidencePeriods) || input.evidence.evidencePeriods < 0) throw new Error("evidencePeriods must be a non-negative integer");
   if (!Number.isFinite(input.maximumEvidenceAgeMs) || input.maximumEvidenceAgeMs < 0) throw new Error("maximumEvidenceAgeMs must be non-negative");
   validateConsumedPolicy(policy);
+  validateFamilyRiskPolicy(input.familyRiskPolicy);
+  const expectedFamilyRiskPolicyFingerprintSha256 = fingerprintFamilyPortfolioRiskPolicy(input.familyRiskPolicy);
   requireRatio(input.maximumRegimeCoFailureRate, "maximumRegimeCoFailureRate");
   requireRatio(input.evidence.currentPortfolioGrossWeight, "currentPortfolioGrossWeight");
   requireRatio(input.evidence.currentStrategyWeight, "currentStrategyWeight");
@@ -108,6 +157,41 @@ export const evaluatePaperPortfolioAdvisory = (
   requireFinite(input.evidence.grossExpectedEdge, "grossExpectedEdge");
 
   const reasons: string[] = [];
+  const familyRisk = input.familyRisk;
+  if (familyRisk == null) {
+    reasons.push("FAMILY_RISK_EVIDENCE_MISSING");
+  } else {
+    const familyObservedAtMs = Date.parse(familyRisk.observedAt);
+    if (!familyRisk.strategyId.trim() || !familyRisk.familyId.trim()) reasons.push("FAMILY_RISK_IDENTITY_MISSING");
+    if (!gitSha.test(familyRisk.sourceSha)) reasons.push("FAMILY_RISK_SOURCE_SHA_INVALID");
+    const expectedBindingFingerprint = familyRiskBindingFingerprint({
+      strategyId: familyRisk.strategyId,
+      familyId: familyRisk.familyId,
+      observedAt: familyRisk.observedAt,
+      sourceSha: familyRisk.sourceSha,
+      evidence: familyRisk.evidence,
+    });
+    if (!sha256.test(familyRisk.bindingFingerprintSha256)
+      || familyRisk.bindingFingerprintSha256 !== expectedBindingFingerprint) reasons.push("FAMILY_RISK_BINDING_FINGERPRINT_MISMATCH");
+    if (!verifyFamilyPortfolioRiskEvidenceFingerprint(familyRisk.evidence)) reasons.push("FAMILY_RISK_FINGERPRINT_MISMATCH");
+    if (familyRisk.evidence.policyFingerprintSha256 !== expectedFamilyRiskPolicyFingerprintSha256) reasons.push("FAMILY_RISK_POLICY_MISMATCH");
+    if (!Number.isFinite(familyObservedAtMs)) reasons.push("FAMILY_RISK_TIMESTAMP_INVALID");
+    else {
+      if (familyObservedAtMs > generatedAtMs) reasons.push("FAMILY_RISK_EVIDENCE_FUTURE");
+      if (generatedAtMs - familyObservedAtMs > input.maximumEvidenceAgeMs) reasons.push("FAMILY_RISK_EVIDENCE_STALE");
+    }
+    if (familyRisk.strategyId !== input.strategyId) reasons.push("FAMILY_RISK_STRATEGY_MISMATCH");
+    if (familyRisk.evidence.status !== "VERIFIED") reasons.push("FAMILY_RISK_NOT_VERIFIED");
+    if (familyRisk.evidence.mode !== "PAPER_ONLY"
+      || familyRisk.evidence.liveAuthority !== "NONE"
+      || familyRisk.evidence.productionMutationAllowed !== false
+      || familyRisk.evidence.aiAuthority !== "ZERO_AUTHORITY") reasons.push("FAMILY_RISK_AUTHORITY_MISMATCH");
+    if (!(familyRisk.strategyId in familyRisk.evidence.strategyExposure)) reasons.push("FAMILY_RISK_STRATEGY_NOT_COVERED");
+    if (!(familyRisk.familyId in familyRisk.evidence.familyExposure)) reasons.push("FAMILY_RISK_FAMILY_NOT_COVERED");
+    if (familyRisk.evidence.strategyFamily[familyRisk.strategyId] !== familyRisk.familyId) reasons.push("FAMILY_RISK_STRATEGY_FAMILY_MISMATCH");
+    if ((familyRisk.evidence.reasons?.length ?? 0) > 0) reasons.push(...familyRisk.evidence.reasons.map((reason) => `FAMILY_RISK_${reason}`));
+  }
+
   if (input.riskEvidence == null) {
     reasons.push("RISK_EVIDENCE_MISSING");
   } else {
@@ -149,6 +233,10 @@ export const evaluatePaperPortfolioAdvisory = (
   );
   const maximumWeight = roundFinite(Math.min(policy.maximumStrategyWeight, availablePortfolioWeight), "maximumWeight");
   if (maximumWeight <= 0) reasons.push("PORTFOLIO_CONCENTRATION_LIMIT_REACHED");
+  if (familyRisk != null) {
+    const evaluatedStrategyWeight = familyRisk.evidence.strategyExposure[familyRisk.strategyId];
+    if (evaluatedStrategyWeight != null && evaluatedStrategyWeight !== maximumWeight) reasons.push("FAMILY_RISK_PROPOSED_WEIGHT_MISMATCH");
+  }
 
   const failClosed = reasons.length > 0;
   const recommendedWeight = failClosed ? 0 : maximumWeight;
@@ -157,6 +245,10 @@ export const evaluatePaperPortfolioAdvisory = (
   return freezeResult({
     advisoryId: input.advisoryId,
     strategyId: input.strategyId,
+    familyId: familyRisk?.familyId ?? null,
+    familyRiskFingerprintSha256: familyRisk?.evidence.fingerprintSha256 ?? null,
+    familyRiskBindingFingerprintSha256: familyRisk?.bindingFingerprintSha256 ?? null,
+    familyRiskPolicyFingerprintSha256: familyRisk?.evidence.policyFingerprintSha256 ?? null,
     decision: failClosed ? "ABSTAIN" : "ADVISE",
     recommendedWeight,
     maximumWeight,
