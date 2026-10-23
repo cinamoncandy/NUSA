@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { assessChange, assertLearningDecision, learningDecisionFingerprint, type LearningDecision } from "./learningDecision";
+import { assessChange, assertLearningDecision, assertLearningDecisionPremisesMatchCurrentSpec, learningDecisionFingerprint, type LearningDecision, type LearningDecisionCurrentResearchSpec } from "./learningDecision";
 
 /**
  * A4 - bounded application, plus M3 integration with the existing steering surface.
@@ -52,6 +52,8 @@ export interface LearningApplicationReceipt {
   readonly schemaVersion: typeof LEARNING_APPLICATION_SCHEMA_VERSION;
   readonly learningDecisionFingerprint: string;
   readonly learningCycleId: string;
+  readonly previousResearchSpecFingerprint: string;
+  readonly intentFingerprint: string;
   readonly surface: string;
   readonly previousValue: number;
   readonly requestedValue: number;
@@ -81,10 +83,47 @@ export interface MetaOosEligibility {
   readonly partition: string;
   readonly cyclesEvaluated: number;
   readonly reason: string;
+  readonly learningCycleId: string;
+  readonly learningDecisionFingerprint: string;
+}
+
+export interface LearningApplicationIntent {
+  readonly schemaVersion: typeof LEARNING_APPLICATION_SCHEMA_VERSION;
+  readonly learningDecisionFingerprint: string;
+  readonly learningCycleId: string;
+  readonly previousResearchSpecFingerprint: string;
+  readonly surface: string;
+  readonly previousValue: number;
+  readonly requestedValue: number;
+  readonly boundedValue: number;
+  readonly applicationTimestamp: string;
+  readonly runtimeIdentity: string;
+  readonly sourceCommit: string;
+  readonly intentFingerprint: string;
+}
+
+export interface LearningApplicationJournal {
+  terminalFor(decisionFingerprint: string, surface: string): LearningApplicationReceipt | undefined;
+  pendingIntentFor(decisionFingerprint: string, surface: string): LearningApplicationIntent | undefined;
+  appendIntent(intent: LearningApplicationIntent): void;
+  append(receipt: LearningApplicationReceipt): { readonly receipt: LearningApplicationReceipt };
+}
+
+export interface ApplicationLeaseResult<T> {
+  readonly acquired: boolean;
+  readonly value?: T;
 }
 
 /** The runtime's own canonical state and setter. Only ever reached after every check has passed. */
 export interface ApplicationPorts {
+  /** Canonical A3 owner lookup; omitted means ineligible. */
+  readonly resolveMetaOosEligibility?: (decision: LearningDecision, decisionFingerprint: string) => MetaOosEligibility;
+  /** Owner-read full spec identity and values, not a caller assertion. */
+  readonly readCurrentResearchSpec: () => LearningDecisionCurrentResearchSpec;
+  /** Reconcile a durable pending intent using the canonical application owner after restart. */
+  readonly reconcileIntent?: (intent: LearningApplicationIntent) => "APPLIED" | "NOT_APPLIED" | "UNKNOWN";
+  /** Existing canonical single-writer owner; the entire read/intent/mutate/receipt sequence runs inside it. */
+  readonly withExclusiveApplicationLease: <T>(identity: string, operation: () => T) => ApplicationLeaseResult<T>;
   /** Canonical current value of a surface, read from the same place the runtime reads it. */
   readonly readCurrent: (surface: string) => number;
   /** The existing canonical application surface. Throws to signal an execution failure. */
@@ -137,6 +176,8 @@ export function applicationFingerprint(receipt: Omit<LearningApplicationReceipt,
   return digest({
     learningDecisionFingerprint: receipt.learningDecisionFingerprint,
     learningCycleId: receipt.learningCycleId,
+    previousResearchSpecFingerprint: receipt.previousResearchSpecFingerprint,
+    intentFingerprint: receipt.intentFingerprint,
     surface: receipt.surface,
     previousValue: receipt.previousValue,
     requestedValue: receipt.requestedValue,
@@ -145,7 +186,14 @@ export function applicationFingerprint(receipt: Omit<LearningApplicationReceipt,
     applicationOutcome: receipt.applicationOutcome,
     fallbackReason: receipt.fallbackReason ?? null,
     rejectionReason: receipt.rejectionReason ?? null,
+    applicationTimestamp: receipt.applicationTimestamp,
+    runtimeIdentity: receipt.runtimeIdentity,
+    sourceCommit: receipt.sourceCommit,
   });
+}
+
+export function learningApplicationIntentFingerprint(intent: Omit<LearningApplicationIntent, "intentFingerprint" | "schemaVersion">): string {
+  return digest(intent);
 }
 
 function buildReceipt(fields: Omit<LearningApplicationReceipt, "applicationFingerprint" | "schemaVersion" | "outcomeVersion">): LearningApplicationReceipt {
@@ -157,6 +205,11 @@ function buildReceipt(fields: Omit<LearningApplicationReceipt, "applicationFinge
   });
 }
 
+function buildIntent(fields: Omit<LearningApplicationIntent, "intentFingerprint" | "schemaVersion">): LearningApplicationIntent {
+  const canonicalFields = { ...fields, schemaVersion: LEARNING_APPLICATION_SCHEMA_VERSION as typeof LEARNING_APPLICATION_SCHEMA_VERSION };
+  return Object.freeze({ ...canonicalFields, intentFingerprint: learningApplicationIntentFingerprint(fields) });
+}
+
 function assertContext(context: ApplicationContext): void {
   if (context == null || typeof context !== "object") throw new LearningApplicationError("MALFORMED_CONTEXT", "application context is required");
   for (const [field, value] of Object.entries({ applicationTimestamp: context.applicationTimestamp, runtimeIdentity: context.runtimeIdentity, sourceCommit: context.sourceCommit })) {
@@ -164,9 +217,13 @@ function assertContext(context: ApplicationContext): void {
   }
 }
 
-function assertEligibility(eligibility: MetaOosEligibility): void {
+function assertEligibility(eligibility: MetaOosEligibility, decision: LearningDecision, fingerprint: string): void {
   if (eligibility == null || typeof eligibility !== "object") throw new LearningApplicationError("MALFORMED_ELIGIBILITY", "meta-OOS eligibility proof is required");
+  if (typeof eligibility.eligible !== "boolean") throw new LearningApplicationError("MALFORMED_ELIGIBILITY", "eligibility result must be a boolean");
+  if (!Number.isSafeInteger(eligibility.cyclesEvaluated) || eligibility.cyclesEvaluated < 0) throw new LearningApplicationError("MALFORMED_ELIGIBILITY", "cycles evaluated must be a non-negative safe integer");
   if (typeof eligibility.reason !== "string" || eligibility.reason.length === 0) throw new LearningApplicationError("MALFORMED_ELIGIBILITY", "eligibility must state its reason");
+  if (eligibility.learningCycleId !== decision.learningCycleId || eligibility.learningDecisionFingerprint !== fingerprint) throw new LearningApplicationError("ELIGIBILITY_IDENTITY_MISMATCH", "meta-OOS eligibility is not bound to the exact decision cycle");
+  if (eligibility.eligible && (eligibility.partition !== "meta-holdout" || eligibility.cyclesEvaluated < 3)) throw new LearningApplicationError("ELIGIBILITY_POLICY_INVALID", "only a sufficiently evidenced meta-holdout may authorize application");
 }
 
 /**
@@ -183,6 +240,9 @@ export class ApplicationRegistry {
   }
 
   public record(receipt: LearningApplicationReceipt): void {
+    // A refusal is evidence about one attempt, not a terminal application. Do not let a temporary
+    // META/readiness refusal permanently pin this decision to REJECTED.
+    if (receipt.applicationOutcome === "REJECTED") return;
     const key = receipt.learningDecisionFingerprint + "|" + receipt.surface;
     const existing = this.receipts.get(key);
     if (existing != null) {
@@ -211,9 +271,23 @@ export class ApplicationRegistry {
 }
 
 function refusal(decision: LearningDecision, fingerprint: string, surface: string, previousValue: number, requestedValue: number, boundedValue: number, context: ApplicationContext, reason: string): LearningApplicationReceipt {
+  const intent = buildIntent({
+    learningDecisionFingerprint: fingerprint,
+    learningCycleId: decision.learningCycleId,
+    previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+    surface,
+    previousValue,
+    requestedValue,
+    boundedValue,
+    applicationTimestamp: context.applicationTimestamp,
+    runtimeIdentity: context.runtimeIdentity,
+    sourceCommit: context.sourceCommit,
+  });
   return buildReceipt({
     learningDecisionFingerprint: fingerprint,
     learningCycleId: decision.learningCycleId,
+    previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+    intentFingerprint: intent.intentFingerprint,
     surface,
     previousValue,
     requestedValue,
@@ -236,42 +310,148 @@ function refusal(decision: LearningDecision, fingerprint: string, surface: strin
  */
 export function applyBoundedChange(
   decision: LearningDecision,
-  eligibility: MetaOosEligibility,
   ports: ApplicationPorts,
   context: ApplicationContext,
+  journal: LearningApplicationJournal,
   registry: ApplicationRegistry,
 ): LearningApplicationReceipt {
   assertLearningDecision(decision);
-  assertEligibility(eligibility);
   assertContext(context);
-  if (ports == null || typeof ports !== "object") throw new LearningApplicationError("MALFORMED_PORTS", "application ports are required");
+  if (ports == null || typeof ports !== "object" || journal == null || typeof journal !== "object") throw new LearningApplicationError("MALFORMED_PORTS", "application ports and durable journal are required");
+
+  const admittedChange = decision.decisionOutcome === "ADMISSIBLE" ? decision.admissibleChanges[0] : undefined;
+  const leaseIdentity = decision.learningCycleId + "|" + (admittedChange?.surface ?? "none");
+  if (typeof ports.withExclusiveApplicationLease !== "function") throw new LearningApplicationError("APPLICATION_OWNER_UNAVAILABLE", "canonical exclusive application owner is required");
+  const leased = ports.withExclusiveApplicationLease(leaseIdentity, () => applyBoundedChangeUnderLease(decision, ports, context, journal, registry));
+  if (leased == null || leased.acquired !== true) throw new LearningApplicationError("APPLICATION_OWNER_BUSY", "canonical application owner did not grant the exclusive lease; no mutation was attempted");
+  if (!("value" in leased)) throw new LearningApplicationError("APPLICATION_OWNER_RESULT_MISSING", "exclusive application owner returned no operation result");
+  return leased.value as LearningApplicationReceipt;
+}
+
+function applyBoundedChangeUnderLease(
+  decision: LearningDecision,
+  ports: ApplicationPorts,
+  context: ApplicationContext,
+  journal: LearningApplicationJournal,
+  registry: ApplicationRegistry,
+): LearningApplicationReceipt {
 
   const fingerprint = learningDecisionFingerprint(decision);
 
   // A decision that never admitted a change has nothing to apply, whatever it claims.
   const change = decision.admissibleChanges[0];
+  const reject = (surface: string, previousValue: number, requestedValue: number, boundedValue: number, reason: string): LearningApplicationReceipt => {
+    const receipt = refusal(decision, fingerprint, surface, previousValue, requestedValue, boundedValue, context, reason);
+    const durable = journal.append(receipt).receipt;
+    registry.record(durable);
+    return durable;
+  };
   if (decision.decisionOutcome !== "ADMISSIBLE" || change == null) {
-    const receipt = refusal(decision, fingerprint, "none", 0, 0, 0, context, "decision outcome did not admit a bounded change");
-    registry.record(receipt);
-    return receipt;
+    return reject("none", 0, 0, 0, "decision outcome did not admit a bounded change");
+  }
+
+  // A durable terminal mutation wins over any later eligibility or runtime-state fluctuation.
+  // REJECTED is not cached as terminal: a later durable META evaluation may legitimately change it.
+  const durableExisting = journal.terminalFor(fingerprint, change.surface);
+  if (durableExisting != null && durableExisting.applicationOutcome !== "REJECTED") {
+    registry.record(durableExisting);
+    return durableExisting;
+  }
+  const existing = registry.recorded(fingerprint, change.surface);
+  if (existing != null && existing.applicationOutcome !== "REJECTED") return existing;
+
+  const priorIntent = journal.pendingIntentFor(fingerprint, change.surface);
+  if (priorIntent != null) {
+    const reconciliation = ports.reconcileIntent?.(priorIntent) ?? "UNKNOWN";
+    if (reconciliation !== "APPLIED" && reconciliation !== "NOT_APPLIED" && reconciliation !== "UNKNOWN") {
+      throw new LearningApplicationError("APPLICATION_INTENT_UNRESOLVED", "canonical reconciliation returned an unsupported result; no mutation was attempted");
+    }
+    if (reconciliation === "UNKNOWN") throw new LearningApplicationError("APPLICATION_INTENT_UNRESOLVED", "durable application intent cannot be reconciled safely; no mutation was attempted");
+    if (reconciliation === "APPLIED") {
+      const appliedValue = ports.readCurrent(change.surface);
+      if (appliedValue !== priorIntent.boundedValue) throw new LearningApplicationError("APPLICATION_INTENT_READBACK_MISMATCH", "reconciled applied intent does not match canonical state");
+      const recovered = buildReceipt({
+        learningDecisionFingerprint: fingerprint,
+        learningCycleId: decision.learningCycleId,
+        previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+        intentFingerprint: priorIntent.intentFingerprint,
+        surface: change.surface,
+        previousValue: priorIntent.previousValue,
+        requestedValue: priorIntent.requestedValue,
+        boundedValue: priorIntent.boundedValue,
+        appliedValue,
+        applicationOutcome: "APPLIED",
+        applicationTimestamp: context.applicationTimestamp,
+        runtimeIdentity: context.runtimeIdentity,
+        sourceCommit: context.sourceCommit,
+      });
+      const durable = journal.append(recovered).receipt;
+      registry.record(durable);
+      return durable;
+    }
+    // A negative recovery result closes the interrupted attempt; a separate fresh invocation may
+    // retry only after this receipt is durable and the canonical owner lease is reacquired.
+    const rejected = buildReceipt({
+      learningDecisionFingerprint: fingerprint,
+      learningCycleId: decision.learningCycleId,
+      previousResearchSpecFingerprint: priorIntent.previousResearchSpecFingerprint,
+      intentFingerprint: priorIntent.intentFingerprint,
+      surface: priorIntent.surface,
+      previousValue: priorIntent.previousValue,
+      requestedValue: priorIntent.requestedValue,
+      boundedValue: priorIntent.boundedValue,
+      appliedValue: ports.readCurrent(priorIntent.surface),
+      applicationOutcome: "REJECTED",
+      rejectionReason: "recovery confirmed the previous intent was not applied; a new bounded attempt is required",
+      applicationTimestamp: context.applicationTimestamp,
+      runtimeIdentity: context.runtimeIdentity,
+      sourceCommit: context.sourceCommit,
+    });
+    const durable = journal.append(rejected).receipt;
+    registry.record(durable);
+    return durable;
   }
 
   // Meta-OOS eligibility is checked before any surface is touched, so a system without A3 cannot
   // mutate research policy no matter what else is true.
+  let eligibility: MetaOosEligibility;
+  try {
+    eligibility = ports.resolveMetaOosEligibility?.(decision, fingerprint) ?? Object.freeze({
+      eligible: false,
+      partition: "meta-holdout",
+      cyclesEvaluated: 0,
+      reason: "canonical META-OOS owner is not wired",
+      learningCycleId: decision.learningCycleId,
+      learningDecisionFingerprint: fingerprint,
+    });
+    assertEligibility(eligibility, decision, fingerprint);
+  } catch (error) {
+    const current = ports.readCurrent(change.surface);
+    const reason = error instanceof Error ? error.message : "canonical META-OOS lookup failed";
+    return reject(change.surface, current, change.proposedValue, current, "meta-OOS eligibility unavailable: " + reason);
+  }
   if (!eligibility.eligible) {
     const current = ports.readCurrent(change.surface);
-    const receipt = refusal(decision, fingerprint, change.surface, current, change.proposedValue, current, context, "meta-OOS eligibility not established: " + eligibility.reason);
-    registry.record(receipt);
-    return receipt;
+    return reject(change.surface, current, change.proposedValue, current, "meta-OOS eligibility not established: " + eligibility.reason);
+  }
+
+  // Verify the full owner-read research identity immediately before application. Matching only the
+  // numeric cadence is insufficient if another field in the canonical spec has changed.
+  let currentSpec: LearningDecisionCurrentResearchSpec;
+  try {
+    currentSpec = ports.readCurrentResearchSpec();
+    assertLearningDecisionPremisesMatchCurrentSpec(decision, currentSpec);
+  } catch (error) {
+    const current = ports.readCurrent(change.surface);
+    const reason = error instanceof Error ? error.message : "canonical current research spec is unavailable";
+    return reject(change.surface, current, change.proposedValue, current, "current research spec failed validation: " + reason);
   }
 
   // Defense in depth: A1's admission is not authority to skip the check.
   const reassessment = assessChange({ surface: change.surface, currentValue: change.currentValue, proposedValue: change.proposedValue });
   if (reassessment.verdict !== "ADMISSIBLE") {
     const current = ports.readCurrent(change.surface);
-    const receipt = refusal(decision, fingerprint, change.surface, current, change.proposedValue, current, context, "surface re-check failed: " + reassessment.reason);
-    registry.record(receipt);
-    return receipt;
+    return reject(change.surface, current, change.proposedValue, current, "surface re-check failed: " + reassessment.reason);
   }
 
   const previousValue = ports.readCurrent(change.surface);
@@ -280,21 +460,34 @@ export function applyBoundedChange(
 
   // Exactly-once: the same decision and surface never produces a second side effect. A replay is
   // answered with the first receipt, so it neither re-reads the runtime nor reaches the setter again.
-  const existing = registry.recorded(fingerprint, change.surface);
-  if (existing != null) return existing;
+  const existingAfterRead = registry.recorded(fingerprint, change.surface);
+  if (existingAfterRead != null && existingAfterRead.applicationOutcome !== "REJECTED") return existingAfterRead;
 
   // Stale guard: a decision computed against one value may not be applied to another.
   if (previousValue !== change.currentValue) {
-    const receipt = refusal(decision, fingerprint, change.surface, previousValue, requestedValue, previousValue, context, "stale previous value: decision expected " + String(change.currentValue) + " but the runtime is at " + String(previousValue));
-    registry.record(receipt);
-    return receipt;
+    return reject(change.surface, previousValue, requestedValue, previousValue, "stale previous value: decision expected " + String(change.currentValue) + " but the runtime is at " + String(previousValue));
   }
 
   // Already at the target: nothing to do, and nothing to claim.
   if (previousValue === requestedValue) {
+    const intent = buildIntent({
+      learningDecisionFingerprint: fingerprint,
+      learningCycleId: decision.learningCycleId,
+      previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+      surface: change.surface,
+      previousValue,
+      requestedValue,
+      boundedValue,
+      applicationTimestamp: context.applicationTimestamp,
+      runtimeIdentity: context.runtimeIdentity,
+      sourceCommit: context.sourceCommit,
+    });
+    journal.appendIntent(intent);
     const receipt = buildReceipt({
       learningDecisionFingerprint: fingerprint,
       learningCycleId: decision.learningCycleId,
+      previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+      intentFingerprint: intent.intentFingerprint,
       surface: change.surface,
       previousValue,
       requestedValue,
@@ -305,19 +498,47 @@ export function applyBoundedChange(
       runtimeIdentity: context.runtimeIdentity,
       sourceCommit: context.sourceCommit,
     });
-    registry.record(receipt);
-    return receipt;
+    const durable = journal.append(receipt).receipt;
+    registry.record(durable);
+    return durable;
   }
+
+  const intent = priorIntent ?? buildIntent({
+    learningDecisionFingerprint: fingerprint,
+    learningCycleId: decision.learningCycleId,
+    previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+    surface: change.surface,
+    previousValue,
+    requestedValue,
+    boundedValue,
+    applicationTimestamp: context.applicationTimestamp,
+    runtimeIdentity: context.runtimeIdentity,
+    sourceCommit: context.sourceCommit,
+  });
+  // Write-ahead identity is durable before the runtime surface changes. If the process dies after
+  // commit but before the outcome receipt, restart reconciliation must prove what happened.
+  if (priorIntent == null) journal.appendIntent(intent);
 
   try {
     ports.commit(change.surface, boundedValue);
+    const actualApplied = ports.readCurrent(change.surface);
+    if (actualApplied !== boundedValue) throw new LearningApplicationError("APPLICATION_READBACK_MISMATCH", "canonical application value does not match the requested bounded value");
   } catch (error) {
     // The preserved fail-safe: an execution failure falls back rather than leaving a half-applied
     // policy, and the receipt says so instead of reporting success.
     const fallback = ports.failSafeValue(change.surface);
+    try {
+      ports.commit(change.surface, fallback);
+    } catch {
+      throw new LearningApplicationError("FAIL_SAFE_APPLY_FAILED", "application failed and fail-safe value could not be committed");
+    }
+    const actualFallback = ports.readCurrent(change.surface);
+    if (actualFallback !== fallback) throw new LearningApplicationError("FAIL_SAFE_READBACK_MISMATCH", "committed fail-safe value does not match canonical read-back");
     const receipt = buildReceipt({
       learningDecisionFingerprint: fingerprint,
       learningCycleId: decision.learningCycleId,
+      previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+      intentFingerprint: intent.intentFingerprint,
       surface: change.surface,
       previousValue,
       requestedValue,
@@ -329,13 +550,16 @@ export function applyBoundedChange(
       runtimeIdentity: context.runtimeIdentity,
       sourceCommit: context.sourceCommit,
     });
-    registry.record(receipt);
-    return receipt;
+    const durable = journal.append(receipt).receipt;
+    registry.record(durable);
+    return durable;
   }
 
   const receipt = buildReceipt({
     learningDecisionFingerprint: fingerprint,
     learningCycleId: decision.learningCycleId,
+    previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+    intentFingerprint: intent.intentFingerprint,
     surface: change.surface,
     previousValue,
     requestedValue,
@@ -346,8 +570,9 @@ export function applyBoundedChange(
     runtimeIdentity: context.runtimeIdentity,
     sourceCommit: context.sourceCommit,
   });
-  registry.record(receipt);
-  return receipt;
+  const durable = journal.append(receipt).receipt;
+  registry.record(durable);
+  return durable;
 }
 
 /** Fails closed on anything that is not exactly an application receipt. */
@@ -362,6 +587,27 @@ export function assertLearningApplicationReceipt(value: unknown): asserts value 
     if (!Number.isFinite(candidate[field])) throw new LearningApplicationError("MALFORMED_RECEIPT", field + " must be a finite number");
   }
   if (typeof candidate.applicationFingerprint !== "string" || !SHA64.test(candidate.applicationFingerprint)) throw new LearningApplicationError("MALFORMED_RECEIPT", "application fingerprint is invalid");
+  if (!SHA64.test(candidate.intentFingerprint ?? "")) throw new LearningApplicationError("MALFORMED_RECEIPT", "application intent fingerprint is invalid");
+  if (typeof candidate.learningCycleId !== "string" || !/^learning-cycle:[a-f0-9]{64}$/.test(candidate.learningCycleId)) throw new LearningApplicationError("MALFORMED_RECEIPT", "application cycle identity is invalid");
+  if (!SHA64.test(candidate.previousResearchSpecFingerprint ?? "")) throw new LearningApplicationError("MALFORMED_RECEIPT", "application research spec identity is invalid");
+  assertContext({
+    applicationTimestamp: candidate.applicationTimestamp ?? "",
+    runtimeIdentity: candidate.runtimeIdentity ?? "",
+    sourceCommit: candidate.sourceCommit ?? "",
+  });
   const { schemaVersion: _schema, outcomeVersion: _outcome, applicationFingerprint: recorded, ...content } = candidate as LearningApplicationReceipt;
   if (applicationFingerprint(content) !== recorded) throw new LearningApplicationError("IDENTITY_CONFLICT", "application receipt does not match its own fingerprint");
+}
+
+export function assertLearningApplicationIntent(value: unknown): asserts value is LearningApplicationIntent {
+  if (value == null || typeof value !== "object") throw new LearningApplicationError("MALFORMED_INTENT", "application intent is required");
+  const candidate = value as Partial<LearningApplicationIntent>;
+  if (candidate.schemaVersion !== LEARNING_APPLICATION_SCHEMA_VERSION) throw new LearningApplicationError("MALFORMED_INTENT", "application intent schema version is unsupported");
+  if (!SHA64.test(candidate.learningDecisionFingerprint ?? "") || !/^learning-cycle:[a-f0-9]{64}$/.test(candidate.learningCycleId ?? "")) throw new LearningApplicationError("MALFORMED_INTENT", "application intent identity is invalid");
+  if (!SHA64.test(candidate.previousResearchSpecFingerprint ?? "")) throw new LearningApplicationError("MALFORMED_INTENT", "application intent research spec identity is invalid");
+  if (typeof candidate.surface !== "string" || !BOUNDED.test(candidate.surface)) throw new LearningApplicationError("MALFORMED_INTENT", "application intent surface is invalid");
+  for (const field of ["previousValue", "requestedValue", "boundedValue"] as const) if (!Number.isFinite(candidate[field])) throw new LearningApplicationError("MALFORMED_INTENT", field + " must be finite");
+  assertContext({ applicationTimestamp: candidate.applicationTimestamp ?? "", runtimeIdentity: candidate.runtimeIdentity ?? "", sourceCommit: candidate.sourceCommit ?? "" });
+  const { schemaVersion: _schema, intentFingerprint: recorded, ...content } = candidate as LearningApplicationIntent;
+  if (typeof recorded !== "string" || !SHA64.test(recorded) || learningApplicationIntentFingerprint(content) !== recorded) throw new LearningApplicationError("IDENTITY_CONFLICT", "application intent does not match its own fingerprint");
 }

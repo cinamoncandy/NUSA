@@ -204,6 +204,8 @@ function AuthenticatedApp() {
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
+  const supplementalRefreshGenerationRef = useRef(0);
+  const lastSupplementalRefreshKeyRef = useRef<string>("");
   const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const publicRefreshGenerationRef = useRef(0);
   const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());
@@ -287,12 +289,6 @@ function AuthenticatedApp() {
       const currentEndpoint = getConfiguredPaperEndpoint();
       if (currentEndpoint !== endpoint || !isPaperConnectionVerified(endpoint)) return;
       setOperations(result);
-      const shadowResult = await loadShadowOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
-      if (generation === refreshGenerationRef.current && getConfiguredPaperEndpoint() === endpoint && isPaperConnectionVerified(endpoint)) setShadowOperations(shadowResult);
-      const realResult = await loadRealReadOnlyOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
-      if (generation === refreshGenerationRef.current && getConfiguredPaperEndpoint() === endpoint && isPaperConnectionVerified(endpoint)) setRealReadOnlyOperations(realResult);
-      const liveResult = await loadLiveReadinessOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
-      if (generation === refreshGenerationRef.current && getConfiguredPaperEndpoint() === endpoint && isPaperConnectionVerified(endpoint)) setLiveReadinessOperations(liveResult);
       if (result.status === "READY") {
         const nextVersion = runtimeCoordinator.current().lastPersistedVersion + 1;
         dispatchRuntime({ type: "RECOVERY_MATCHED", version: nextVersion });
@@ -305,6 +301,39 @@ function AuthenticatedApp() {
     void request.then(clearIfCurrent, clearIfCurrent);
     return request;
   }, [credentialSession, dispatchRuntime, runtimeCoordinator]);
+
+  const refreshSupplemental = useCallback((force = false): Promise<void> => {
+    const endpoint = getConfiguredPaperEndpoint();
+    if (endpoint == null || !isPaperConnectionVerified(endpoint)) return Promise.resolve();
+    const surface = paperLearningOpen || activeTab === "Paper" ? "PAPER" : activeTab === "Live" ? "LIVE" : null;
+    if (surface == null) return Promise.resolve();
+    const key = `${endpoint}:${surface}`;
+    if (!force && lastSupplementalRefreshKeyRef.current === key) return Promise.resolve();
+    lastSupplementalRefreshKeyRef.current = key;
+    const generation = ++supplementalRefreshGenerationRef.current;
+    const request = (async () => {
+      if (surface === "PAPER") {
+        // SHADOW and REAL_READ_ONLY are secondary projections. Fetch them only when the PAPER
+        // monitor is actually visible and in parallel, so unavailable PAPER_ONLY surfaces cannot
+        // delay the HOME cold-start path or the canonical PAPER projection. A 503 is retained as
+        // the current unavailable result and is not automatically retried by the 5s PAPER poll.
+        const [shadowResult, realResult] = await Promise.all([
+          loadShadowOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider }),
+          loadRealReadOnlyOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider }),
+        ]);
+        if (generation !== supplementalRefreshGenerationRef.current || getConfiguredPaperEndpoint() !== endpoint || !isPaperConnectionVerified(endpoint)) return;
+        setShadowOperations(shadowResult);
+        setRealReadOnlyOperations(realResult);
+        return;
+      }
+      // LIVE readiness is likewise lazy: HOME/PAPER launch must never wait on a surface that is
+      // informational only and carries no activation authority.
+      const liveResult = await loadLiveReadinessOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
+      if (generation !== supplementalRefreshGenerationRef.current || getConfiguredPaperEndpoint() !== endpoint || !isPaperConnectionVerified(endpoint)) return;
+      setLiveReadinessOperations(liveResult);
+    })();
+    return request;
+  }, [activeTab, credentialSession, paperLearningOpen]);
 
   const refreshPublicMarkets = useCallback((): Promise<void> => {
     if (publicRefreshInFlightRef.current) return publicRefreshInFlightRef.current;
@@ -443,8 +472,18 @@ function AuthenticatedApp() {
   useEffect(() => {
     if (authStatus !== "SIGNED_IN") return;
     // Re-project as soon as a background restore verifies, instead of waiting for the next poll.
-    return subscribePaperSessionVerified(() => { void refresh().catch(() => undefined); });
-  }, [authStatus, refresh]);
+    // Reset the lazy-surface key because the same endpoint now belongs to a newly proven session.
+    return subscribePaperSessionVerified(() => {
+      lastSupplementalRefreshKeyRef.current = "";
+      void Promise.all([refresh(), refreshSupplemental()]).catch(() => undefined);
+    });
+  }, [authStatus, refresh, refreshSupplemental]);
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    // Secondary observation is navigation-driven, not part of the 5s startup/polling critical path.
+    void refreshSupplemental().catch(() => undefined);
+  }, [appState, authStatus, refreshSupplemental]);
+
   useEffect(() => {
     refreshGenerationRef.current += 1;
     if (authStatus !== "SIGNED_IN" || appState !== "active") return;
@@ -485,12 +524,12 @@ function AuthenticatedApp() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refresh();
+      await Promise.all([refresh(), refreshSupplemental(true)]);
     } finally {
       await refreshPublicMarkets().catch(() => undefined);
       setRefreshing(false);
     }
-  }, [refresh, refreshPublicMarkets]);
+  }, [refresh, refreshPublicMarkets, refreshSupplemental]);
 
   const entryProfile = getHomeVisualProfile(appTheme.preset);
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text></View></SafeAreaView>;

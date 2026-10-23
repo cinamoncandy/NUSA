@@ -1,29 +1,12 @@
 import { createHash } from "node:crypto";
+import { validateResearchCandidateSpecification, type ResearchCandidateSpecification } from "../../../packages/contracts/src/researchCandidateSpecification";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
+import { StrategyFamilyRegistry } from "./strategyFamilyRegistry";
 
-/**
- * A6 - diversity and exploration control.
- *
- * The failure this exists to prevent is re-running the same failed experiment indefinitely: the same
- * family, the same shape, the same outcome, arrived at again because nothing remembers that it was
- * already tried. Every recorded attempt is therefore counted against the space it occupies, and a
- * bounded exploration allotment decides how much genuinely new ground the next cycle may cover.
- *
- * Two properties are deliberately structural rather than advisory.
- *
- * **`EXHAUSTED` is a normal durable answer.** When the allotment runs out the result is `EXHAUSTED`
- * and it is recorded as such. The budget is never raised automatically to make a request succeed, so
- * "we wanted to explore" cannot itself create the room to explore. Getting more room is an owner
- * decision, like widening the aperture.
- *
- * **Exploration is not a gate bypass.** Nothing in this module produces a qualified candidate, a pass,
- * or an admission. The strongest verdict it can offer is "may be *evaluated*", and evaluation is the
- * same PIT, OOS, walk-forward, cost, sample, qualification, and Governance path every other candidate
- * takes. Suppressed and exhausted attempts are recorded rather than dropped, because a plan that kept
- * re-trying one idea and never noticed is exactly the evidence worth keeping (v2 sections 25-27).
- */
-
-export const EXPLORATION_SCHEMA_VERSION = 1;
+export const EXPLORATION_SCHEMA_VERSION = 2;
 export const EXPLORATION_POLICY_VERSION = "exploration-v1";
+export const EXPLORATION_ALLOTMENT_PER_CYCLE = 4;
+export const FAMILY_REPETITION_CEILING = 3;
 
 export class ExplorationError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -32,213 +15,229 @@ export class ExplorationError extends Error {
   }
 }
 
-/**
- * The owner-set exploration allotment for one cycle.
- *
- * This is a fixed owner number, not something learning derives from how much it would like to try.
- */
-export const EXPLORATION_ALLOTMENT_PER_CYCLE = 4;
+export type ExplorationVerdict = "ALLOTTED" | "SUPPRESSED_EXACT_DUPLICATE" | "SUPPRESSED_NEAR_DUPLICATE" | "SUPPRESSED_FAMILY_CEILING" | "EXHAUSTED";
 
-/** Families that are exhausted may not be re-proposed regardless of remaining allotment. */
-export const FAMILY_REPETITION_CEILING = 3;
-
-export type ExplorationVerdict = "ALLOTTED" | "SUPPRESSED_EXACT_DUPLICATE" | "SUPPRESSED_FAMILY_CEILING" | "EXHAUSTED";
-
-export interface ExperimentShape {
-  /** Stable identity of a proposed experiment, derived from its full configuration. */
-  readonly experimentIdentity: string;
-  /** Strategy family it belongs to, e.g. `RULE/CLOSE/FIVE`. */
-  readonly family: string;
-  /** Exact configuration identity, used for exact-duplicate detection. */
-  readonly configurationIdentity: string;
-}
+export const GATES_STILL_REQUIRED: readonly string[] = Object.freeze([
+  "point-in-time", "out-of-sample", "walk-forward", "cost-completeness", "minimum-sample", "qualification", "governance",
+]);
 
 export interface ExplorationAttempt {
-  readonly verdict: ExplorationVerdict;
+  readonly schemaVersion: typeof EXPLORATION_SCHEMA_VERSION;
+  readonly policyVersion: typeof EXPLORATION_POLICY_VERSION;
+  readonly learningCycleId: string;
   readonly experimentIdentity: string;
-  readonly family: string;
-  /** How many attempts in this family have been recorded before this one. */
+  readonly configurationIdentity: string;
+  readonly configurationDescriptor: ExplorationConfigurationDescriptor;
+  readonly strategyId: string;
+  readonly strategyVersion: string;
+  readonly familyId: string;
   readonly familyRepetitionCount: number;
-  /** How many near-duplicates of this shape have already been attempted. */
-  readonly nearDuplicateCount: number;
-  /**
-   * The precomputed near-duplicate key, so a replayed attempt can still be compared for similarity
-   * without needing the original configuration identity to have been stored alongside it.
-   */
   readonly nearDuplicateKey: string;
+  readonly nearDuplicateCount: number;
+  readonly verdict: ExplorationVerdict;
   readonly allotmentRemaining: number;
-  /** Explains a suppression or exhaustion in words a reviewer can check. */
   readonly reason: string;
-  /**
-   * Always the same list. Exploration never narrows it: a proposal reaching here still has every
-   * gate ahead of it, and this field states so explicitly rather than leaving it to be assumed.
-   */
   readonly gatesStillRequired: readonly string[];
 }
 
-export const GATES_STILL_REQUIRED: readonly string[] = Object.freeze([
-  "point-in-time",
-  "out-of-sample",
-  "walk-forward",
-  "cost-completeness",
-  "minimum-sample",
-  "qualification",
-  "governance",
-]);
-
-const SHA64 = /^[a-f0-9]{64}$/;
-const BOUNDED = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
-
-function digest(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
+export interface ExplorationConfigurationDescriptor {
+  readonly familyId: string;
+  readonly strategyId: string;
+  readonly strategyVersion: string;
+  readonly parametersSha256: string;
+  readonly codeSha: string;
+  readonly datasetContentSha256: string;
+  readonly costModel: Readonly<{ readonly feeBps: number; readonly slippageBps: number; readonly spreadBps: number; readonly turnoverAssumption: number }>;
+  readonly evaluationWindowStart: string;
+  readonly evaluationWindowEnd: string;
 }
 
-/**
- * Near-duplicate shape: identity excluded, membership and configuration kept.
- *
- * Two proposals for the same family and the same configuration are near-duplicates even when their
- * outer identity differs, because the difference between them is naming rather than substance.
- */
-function nearDuplicateKey(shape: ExperimentShape): string {
-  return digest({ family: shape.family, configurationIdentity: shape.configurationIdentity });
+const HASH = /^[a-f0-9]{64}$/;
+const CODE_SHA = /^[a-f0-9]{40}$/;
+const CYCLE_ID = /^learning-cycle:[a-f0-9]{64}$/;
+const VERDICTS = new Set<ExplorationVerdict>(["ALLOTTED", "SUPPRESSED_EXACT_DUPLICATE", "SUPPRESSED_NEAR_DUPLICATE", "SUPPRESSED_FAMILY_CEILING", "EXHAUSTED"]);
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-function assertShape(shape: ExperimentShape): void {
-  if (shape == null || typeof shape !== "object") throw new ExplorationError("MALFORMED_SHAPE", "experiment shape is required");
-  for (const [field, value] of Object.entries({ experimentIdentity: shape.experimentIdentity, family: shape.family, configurationIdentity: shape.configurationIdentity })) {
-    if (typeof value !== "string" || !BOUNDED.test(value)) throw new ExplorationError("MALFORMED_SHAPE", field + " must be a bounded identifier");
+function candidateShape(candidate: ResearchCandidateSpecification, families: StrategyFamilyRegistry): {
+  readonly experimentIdentity: string;
+  readonly configurationIdentity: string;
+  readonly nearDuplicateKey: string;
+  readonly strategyId: string;
+  readonly strategyVersion: string;
+  readonly familyId: string;
+  readonly configurationDescriptor: ExplorationConfigurationDescriptor;
+} {
+  const errors = validateResearchCandidateSpecification(candidate);
+  if (errors.length > 0) throw new ExplorationError("INVALID_CANDIDATE", "canonical Research Candidate Specification is invalid: " + errors.join(","));
+  try {
+    families.requireMembership(candidate.strategyId, candidate.strategyVersion, candidate.familyId);
+  } catch {
+    throw new ExplorationError("UNREGISTERED_FAMILY_MEMBER", "candidate strategy family is not registered for this exact strategy version");
   }
-  if (!SHA64.test(shape.configurationIdentity)) throw new ExplorationError("MALFORMED_SHAPE", "configuration identity must be a SHA-256 digest");
+  const configurationDescriptor: ExplorationConfigurationDescriptor = Object.freeze({
+    familyId: candidate.familyId,
+    strategyId: candidate.strategyId,
+    strategyVersion: candidate.strategyVersion,
+    parametersSha256: sha256(candidate.parametersCanonicalJson),
+    codeSha: candidate.codeSha.toLowerCase(),
+    datasetContentSha256: candidate.datasetContentSha256.toLowerCase(),
+    costModel: Object.freeze({ ...candidate.costModel }),
+    evaluationWindowStart: candidate.evaluationWindowStart,
+    evaluationWindowEnd: candidate.evaluationWindowEnd,
+  });
+  const configurationIdentity = sha256(canonicalResearchJson(configurationDescriptor));
+  // Near duplicate deliberately excludes dataset/window/cost so a renamed or re-evaluated copy
+  // of the same family configuration cannot consume fresh exploration budget.
+  const nearDuplicateKey = sha256(canonicalResearchJson({
+    familyId: candidate.familyId,
+    strategyId: candidate.strategyId,
+    strategyVersion: candidate.strategyVersion,
+    parametersSha256: configurationDescriptor.parametersSha256,
+  }));
+  return Object.freeze({
+    experimentIdentity: configurationIdentity,
+    configurationIdentity,
+    nearDuplicateKey,
+    strategyId: candidate.strategyId,
+    strategyVersion: candidate.strategyVersion,
+    familyId: candidate.familyId,
+    configurationDescriptor,
+  });
 }
 
-/**
- * Records exploration attempts and decides whether a new one may be *evaluated*.
- *
- * It holds only attempt receipts: no candidate, no qualification, no performance evidence, and no
- * research request is produced or reachable here, so there is no path by which exploration could
- * promote itself.
- */
-export class ExplorationRegistry {
-  private readonly attempts: ExplorationAttempt[] = [];
-  private consumed = 0;
+function stableString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value);
+}
 
-  /** Attempts recorded so far in this cycle, whether they were allotted or suppressed. */
-  public recordedAttempts(): readonly ExplorationAttempt[] {
-    return Object.freeze([...this.attempts]);
+function expectedReason(verdict: ExplorationVerdict, familyId: string): string {
+  switch (verdict) {
+    case "SUPPRESSED_EXACT_DUPLICATE": return "the canonical candidate configuration was already attempted in this learning cycle";
+    case "SUPPRESSED_NEAR_DUPLICATE": return "the same registered family configuration was already attempted in this learning cycle";
+    case "SUPPRESSED_FAMILY_CEILING": return "registered family " + familyId + " has reached its owner-set repetition ceiling of " + String(FAMILY_REPETITION_CEILING);
+    case "EXHAUSTED": return "owner-set exploration allotment of " + String(EXPLORATION_ALLOTMENT_PER_CYCLE) + " for this learning cycle is exhausted";
+    case "ALLOTTED": return "within the owner-set exploration allotment; all required evaluation and governance gates remain";
   }
+}
 
-  public allotmentRemaining(): number {
-    return Math.max(0, EXPLORATION_ALLOTMENT_PER_CYCLE - this.consumed);
+function deriveAttempt(
+  cycleId: string,
+  shape: ReturnType<typeof candidateShape>,
+  history: readonly ExplorationAttempt[],
+): ExplorationAttempt {
+  if (!CYCLE_ID.test(cycleId)) throw new ExplorationError("INVALID_CYCLE_ID", "a canonical A2 learning cycle identity is required");
+  const current = history.filter((attempt) => attempt.learningCycleId === cycleId);
+  const exactDuplicate = current.some((attempt) => attempt.configurationIdentity === shape.configurationIdentity);
+  const nearDuplicateCount = current.filter((attempt) => attempt.nearDuplicateKey === shape.nearDuplicateKey).length;
+  const familyAttempts = current.filter((attempt) => attempt.familyId === shape.familyId && attempt.verdict === "ALLOTTED").length;
+  const allotted = current.filter((attempt) => attempt.verdict === "ALLOTTED").length;
+  const remaining = Math.max(0, EXPLORATION_ALLOTMENT_PER_CYCLE - allotted);
+  const verdict: ExplorationVerdict = exactDuplicate
+    ? "SUPPRESSED_EXACT_DUPLICATE"
+    : nearDuplicateCount > 0
+      ? "SUPPRESSED_NEAR_DUPLICATE"
+      : familyAttempts >= FAMILY_REPETITION_CEILING
+        ? "SUPPRESSED_FAMILY_CEILING"
+        : remaining === 0
+          ? "EXHAUSTED"
+          : "ALLOTTED";
+  const nextAllotted = allotted + (verdict === "ALLOTTED" ? 1 : 0);
+  const nextRemaining = Math.max(0, EXPLORATION_ALLOTMENT_PER_CYCLE - nextAllotted);
+  const nextFamilyCount = familyAttempts + (verdict === "ALLOTTED" ? 1 : 0);
+  return Object.freeze({
+    schemaVersion: EXPLORATION_SCHEMA_VERSION,
+    policyVersion: EXPLORATION_POLICY_VERSION,
+    learningCycleId: cycleId,
+    experimentIdentity: shape.experimentIdentity,
+    configurationIdentity: shape.configurationIdentity,
+    configurationDescriptor: shape.configurationDescriptor,
+    strategyId: shape.strategyId,
+    strategyVersion: shape.strategyVersion,
+    familyId: shape.familyId,
+    familyRepetitionCount: nextFamilyCount,
+    nearDuplicateKey: shape.nearDuplicateKey,
+    nearDuplicateCount,
+    verdict,
+    allotmentRemaining: nextRemaining,
+    reason: expectedReason(verdict, shape.familyId),
+    gatesStillRequired: GATES_STILL_REQUIRED,
+  });
+}
+
+export function assertExplorationAttempt(value: unknown): asserts value is ExplorationAttempt {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new ExplorationError("MALFORMED_ATTEMPT", "exploration attempt must be an object");
+  const attempt = value as Record<string, unknown>;
+  const fields = ["schemaVersion", "policyVersion", "learningCycleId", "experimentIdentity", "configurationIdentity", "configurationDescriptor", "strategyId", "strategyVersion", "familyId", "familyRepetitionCount", "nearDuplicateKey", "nearDuplicateCount", "verdict", "allotmentRemaining", "reason", "gatesStillRequired"];
+  if (Object.keys(attempt).length !== fields.length || Object.keys(attempt).some((field) => !fields.includes(field))) throw new ExplorationError("MALFORMED_ATTEMPT", "exploration attempt fields are not exact");
+  if (attempt.schemaVersion !== EXPLORATION_SCHEMA_VERSION || attempt.policyVersion !== EXPLORATION_POLICY_VERSION || !CYCLE_ID.test(String(attempt.learningCycleId))) throw new ExplorationError("MALFORMED_ATTEMPT", "exploration schema, policy or cycle identity is unsupported");
+  if (![attempt.experimentIdentity, attempt.configurationIdentity, attempt.nearDuplicateKey].every((item) => typeof item === "string" && HASH.test(item))) throw new ExplorationError("MALFORMED_ATTEMPT", "exploration fingerprints are malformed");
+  const descriptor = attempt.configurationDescriptor as Record<string, unknown> | null;
+  const descriptorFields = ["familyId", "strategyId", "strategyVersion", "parametersSha256", "codeSha", "datasetContentSha256", "costModel", "evaluationWindowStart", "evaluationWindowEnd"];
+  if (descriptor == null || typeof descriptor !== "object" || Array.isArray(descriptor)
+    || Object.keys(descriptor).length !== descriptorFields.length || Object.keys(descriptor).some((field) => !descriptorFields.includes(field))) {
+    throw new ExplorationError("MALFORMED_ATTEMPT", "configuration descriptor fields are not exact");
   }
-
-  public familyRepetitionCount(family: string): number {
-    return this.attempts.filter((attempt) => attempt.family === family).length;
+  const cost = descriptor.costModel as Record<string, unknown> | null;
+  if (cost == null || typeof cost !== "object" || Array.isArray(cost)
+    || Object.keys(cost).length !== 4 || Object.keys(cost).some((field) => !["feeBps", "slippageBps", "spreadBps", "turnoverAssumption"].includes(field))
+    || Object.values(cost).some((item) => typeof item !== "number" || !Number.isFinite(item) || item < 0)) {
+    throw new ExplorationError("MALFORMED_ATTEMPT", "configuration cost model is malformed");
   }
-
-  public nearDuplicateCount(shape: ExperimentShape): number {
-    const key = nearDuplicateKey(shape);
-    return this.attempts.filter((attempt) => attempt.experimentIdentity !== shape.experimentIdentity && attempt.nearDuplicateKey === key).length;
+  if (![descriptor.familyId, descriptor.strategyId, descriptor.strategyVersion, descriptor.evaluationWindowStart, descriptor.evaluationWindowEnd].every(stableString)
+    || ![descriptor.parametersSha256, descriptor.datasetContentSha256].every((item) => typeof item === "string" && HASH.test(item))
+    || typeof descriptor.codeSha !== "string" || !CODE_SHA.test(descriptor.codeSha)
+    || !Number.isFinite(Date.parse(descriptor.evaluationWindowStart as string)) || !Number.isFinite(Date.parse(descriptor.evaluationWindowEnd as string))
+    || Date.parse(descriptor.evaluationWindowStart as string) >= Date.parse(descriptor.evaluationWindowEnd as string)) {
+    throw new ExplorationError("MALFORMED_ATTEMPT", "configuration descriptor identity is malformed");
   }
-
-  private record(attempt: ExplorationAttempt): ExplorationAttempt {
-    this.attempts.push(attempt);
-    return Object.freeze(attempt);
+  const expectedConfig = sha256(canonicalResearchJson(descriptor));
+  const expectedNear = sha256(canonicalResearchJson({ familyId: descriptor.familyId, strategyId: descriptor.strategyId, strategyVersion: descriptor.strategyVersion, parametersSha256: descriptor.parametersSha256 }));
+  if (attempt.experimentIdentity !== expectedConfig || attempt.configurationIdentity !== expectedConfig || attempt.nearDuplicateKey !== expectedNear
+    || attempt.strategyId !== descriptor.strategyId || attempt.strategyVersion !== descriptor.strategyVersion || attempt.familyId !== descriptor.familyId
+    || !stableString(attempt.reason)) throw new ExplorationError("MALFORMED_ATTEMPT", "candidate-derived identity or explanation is inconsistent");
+  if (!Number.isSafeInteger(attempt.familyRepetitionCount) || (attempt.familyRepetitionCount as number) < 0
+    || !Number.isSafeInteger(attempt.nearDuplicateCount) || (attempt.nearDuplicateCount as number) < 0
+    || !Number.isSafeInteger(attempt.allotmentRemaining) || (attempt.allotmentRemaining as number) < 0 || (attempt.allotmentRemaining as number) > EXPLORATION_ALLOTMENT_PER_CYCLE
+    || typeof attempt.verdict !== "string" || !VERDICTS.has(attempt.verdict as ExplorationVerdict)
+    || !Array.isArray(attempt.gatesStillRequired) || canonicalResearchJson(attempt.gatesStillRequired) !== canonicalResearchJson(GATES_STILL_REQUIRED)) {
+    throw new ExplorationError("MALFORMED_ATTEMPT", "exploration counters, verdict, or required gates are invalid");
   }
+}
 
-  /**
-   * Decides whether a proposed experiment may be evaluated, recording the decision either way.
-   *
-   * Checks run in a fixed order so the reason is deterministic: exhaustion first, because no further
-   * room exists at all; then exact duplication; then family repetition; then allotment.
-   */
-  public propose(shape: ExperimentShape): ExplorationAttempt {
-    assertShape(shape);
-    const dupKey = nearDuplicateKey(shape);
+/** Pure deterministic assessment. Durable callers must validate and serialize append around this result. */
+export function assessExploration(
+  cycleId: string,
+  candidate: ResearchCandidateSpecification,
+  families: StrategyFamilyRegistry,
+  history: readonly ExplorationAttempt[],
+): ExplorationAttempt {
+  for (const attempt of history) assertExplorationAttempt(attempt);
+  const shape = candidateShape(candidate, families);
+  return deriveAttempt(cycleId, shape, history);
+}
 
-    if (this.allotmentRemaining() <= 0) {
-      return this.record({
-        verdict: "EXHAUSTED",
-        experimentIdentity: shape.experimentIdentity,
-        family: shape.family,
-        familyRepetitionCount: this.familyRepetitionCount(shape.family),
-        nearDuplicateCount: this.nearDuplicateCount(shape),
-      nearDuplicateKey: dupKey,
-        allotmentRemaining: 0,
-        reason: "exploration allotment of " + String(EXPLORATION_ALLOTMENT_PER_CYCLE) + " for this cycle is used up; it is not raised automatically to admit another attempt",
-        gatesStillRequired: GATES_STILL_REQUIRED,
-      });
-    }
-
-    if (this.attempts.some((attempt) => attempt.experimentIdentity === shape.experimentIdentity)) {
-      return this.record({
-        verdict: "SUPPRESSED_EXACT_DUPLICATE",
-        experimentIdentity: shape.experimentIdentity,
-        family: shape.family,
-        familyRepetitionCount: this.familyRepetitionCount(shape.family),
-        nearDuplicateCount: this.nearDuplicateCount(shape),
-      nearDuplicateKey: dupKey,
-        allotmentRemaining: this.allotmentRemaining(),
-        reason: "this exact experiment identity has already been attempted and is not proposed again",
-        gatesStillRequired: GATES_STILL_REQUIRED,
-      });
-    }
-
-    const repetition = this.familyRepetitionCount(shape.family);
-    if (repetition >= FAMILY_REPETITION_CEILING) {
-      return this.record({
-        verdict: "SUPPRESSED_FAMILY_CEILING",
-        experimentIdentity: shape.experimentIdentity,
-        family: shape.family,
-        familyRepetitionCount: repetition,
-        nearDuplicateCount: this.nearDuplicateCount(shape),
-      nearDuplicateKey: dupKey,
-        allotmentRemaining: this.allotmentRemaining(),
-        reason: "family " + shape.family + " has " + String(repetition) + " attempt(s) at its ceiling of " + String(FAMILY_REPETITION_CEILING) + "; re-running it is the loop this control exists to break",
-        gatesStillRequired: GATES_STILL_REQUIRED,
-      });
-    }
-
-    // Only an allotted attempt consumes allotment. Suppressions cost nothing, so they cannot be used
-    // to drain the budget and they never manufacture room.
-    this.consumed += 1;
-    return this.record({
-      verdict: "ALLOTTED",
-      experimentIdentity: shape.experimentIdentity,
-      family: shape.family,
-      familyRepetitionCount: repetition + 1,
-      nearDuplicateCount: this.nearDuplicateCount(shape),
-      nearDuplicateKey: dupKey,
-      allotmentRemaining: this.allotmentRemaining(),
-      reason: "within the owner-set exploration allotment; it still faces every gate in the normal path",
-      gatesStillRequired: GATES_STILL_REQUIRED,
-    });
+/** Validate a complete durable projection by replaying its deterministic counters and verdicts. */
+export function assertExplorationHistory(history: readonly ExplorationAttempt[]): void {
+  const accepted: ExplorationAttempt[] = [];
+  for (const attempt of history) {
+    assertExplorationAttempt(attempt);
+    const expected = deriveAttempt(attempt.learningCycleId, {
+      experimentIdentity: attempt.experimentIdentity,
+      configurationIdentity: attempt.configurationIdentity,
+      nearDuplicateKey: attempt.nearDuplicateKey,
+      strategyId: attempt.strategyId,
+      strategyVersion: attempt.strategyVersion,
+      familyId: attempt.familyId,
+      configurationDescriptor: attempt.configurationDescriptor,
+    }, accepted);
+    if (!sameExplorationAttempt(attempt, expected)) throw new ExplorationError("CORRUPTED_HISTORY", "durable exploration history is not a deterministic replay");
+    accepted.push(attempt);
   }
+}
 
-  public status(): { readonly attempts: number; readonly allotted: number; readonly suppressed: number; readonly exhausted: boolean; readonly allotmentRemaining: number } {
-    const allotted = this.attempts.filter((attempt) => attempt.verdict === "ALLOTTED").length;
-    const suppressed = this.attempts.length - allotted;
-    return Object.freeze({
-      attempts: this.attempts.length,
-      allotted,
-      suppressed,
-      exhausted: this.allotmentRemaining() <= 0,
-      allotmentRemaining: this.allotmentRemaining(),
-    });
-  }
-
-  /**
-   * Replays durable attempts so a restart does not hand back allotment that was already spent.
-   *
-   * The allotment is re-derived from recorded attempts rather than stored as a mutable counter, so it
-   * cannot drift from the history it summarizes.
-   */
-  public rehydrate(attempts: readonly ExplorationAttempt[]): void {
-    for (const attempt of attempts) {
-      if (!Object.values(["ALLOTTED", "SUPPRESSED_EXACT_DUPLICATE", "SUPPRESSED_FAMILY_CEILING", "EXHAUSTED"]).includes(attempt.verdict)) {
-        throw new ExplorationError("MALFORMED_ATTEMPT", "exploration verdict is outside the closed set");
-      }
-      this.attempts.push(attempt);
-    }
-    this.consumed = this.attempts.filter((attempt) => attempt.verdict === "ALLOTTED").length;
-  }
+/** Deterministic payload equality used by the durable adapter's serialized append validator. */
+export function sameExplorationAttempt(left: ExplorationAttempt, right: ExplorationAttempt): boolean {
+  return canonicalResearchJson(left) === canonicalResearchJson(right);
 }

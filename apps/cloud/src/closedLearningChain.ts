@@ -168,7 +168,10 @@ export class ClosedLearningChain {
 
     // Durable counts are observable, but caller-selected partitions are not an authorization source.
     // Keep A4 closed until the canonical assignment-policy owner is connected.
-    const recordedEligibility = this.metaOos.eligibility({ isCycleCompleted: (learningCycleId: string) => this.decisions.hasDecisionFor(learningCycleId) });
+    const recordedEligibility = this.metaOos.eligibility(
+      { isCycleCompleted: (learningCycleId: string) => this.decisions.hasDecisionFor(learningCycleId) },
+      { learningCycleId: inputSetReceipt.learningCycleId, learningDecisionFingerprint: decisionReceipt.fingerprint },
+    );
     const eligibility: MetaOosEligibility = Object.freeze({
       ...recordedEligibility,
       eligible: false,
@@ -182,30 +185,23 @@ export class ClosedLearningChain {
       runtimeIdentity: cycle.runtimeIdentity,
       sourceCommit: cycle.sourceCommit,
     };
-    const application = applyBoundedChange(decision, eligibility, applicationPorts, context, this.registry);
-    let applicationReceipt: LearningApplicationDurableReceipt;
+    const failClosedApplicationPorts: ApplicationPorts = {
+      ...applicationPorts,
+      // The partition supplied by this experimental composition is not an authority source.
+      // Until the canonical META policy owner exists, A4 must receive the explicit refusal.
+      resolveMetaOosEligibility: () => eligibility,
+    };
+    let application;
     try {
-      applicationReceipt = this.applications.append(application);
-    } catch (error) {
-      // Never leave a live change without its durable receipt. Roll back an admitted change to the
-      // existing fail-safe surface before surfacing the durability failure for retry/recovery.
-      if (application.applicationOutcome === "APPLIED") {
-        const change = decision.admissibleChanges[0];
-        try {
-          applicationPorts.commit(change.surface, applicationPorts.failSafeValue(change.surface));
-        } catch (rollbackError) {
-          throw new LearningChainError(
-            "APPLICATION_DURABILITY_ROLLBACK_FAILED",
-            `application receipt durability failed and fail-safe rollback failed: ${rollbackError instanceof Error ? rollbackError.message : "unknown rollback failure"}`,
-          );
-        }
-        this.registry.forget(application);
-      }
-      throw new LearningChainError(
-        "APPLICATION_DURABILITY_FAILED",
-        `application receipt durability failed after runtime application: ${error instanceof Error ? error.message : "unknown durability failure"}`,
-      );
+      application = applyBoundedChange(decision, failClosedApplicationPorts, context, this.applications, this.registry);
+    } catch {
+      // A4 writes a durable intent before mutation and a durable receipt before returning. If that
+      // protocol cannot produce a terminal result, preserve the earlier A1/A3 evidence and stop.
+      throw new LearningChainError("APPLICATION_DURABILITY_FAILED", "A4 could not persist a terminal application result");
     }
+    // applyBoundedChange persists the receipt through the same ledger before returning. This
+    // idempotent read-back supplies the durable envelope for the result without a second record.
+    const applicationReceipt = this.applications.append(application);
 
     const status = buildLearningLoopStatus({
       inputSet: { fingerprint: inputSetReceipt.fingerprint, learningCycleId: inputSetReceipt.learningCycleId },
@@ -274,12 +270,18 @@ export class ClosedLearningChain {
   public status(): LearningLoopStatus {
     const inputSet = this.inputSets.summary().latest;
     const decision = this.decisions.summary().latest;
-    const partition = this.metaOos.assignments().at(-1)?.partition;
+    const latestAssignment = this.metaOos.assignments().at(-1);
     const application = decision == null ? undefined : this.applications.forDecision(decision.fingerprint).at(-1);
+    const meta = decision == null || latestAssignment?.learningCycleId !== decision.learningCycleId
+      ? undefined
+      : this.metaOos.eligibility(
+          { isCycleCompleted: (learningCycleId: string) => this.decisions.hasDecisionFor(learningCycleId) },
+          { learningCycleId: decision.learningCycleId, learningDecisionFingerprint: decision.fingerprint },
+        );
     return buildLearningLoopStatus({
       ...(inputSet == null ? {} : { inputSet: { fingerprint: inputSet.fingerprint, learningCycleId: inputSet.learningCycleId } }),
       ...(decision == null ? {} : { decision: { fingerprint: decision.fingerprint } }),
-      ...(partition == null ? {} : { meta: this.metaOos.eligibility({ isCycleCompleted: (learningCycleId) => this.decisions.hasDecisionFor(learningCycleId) }) }),
+      ...(meta == null || latestAssignment == null ? {} : { meta: { ...meta, partition: latestAssignment.partition } }),
       ...(application == null ? {} : { application: { fingerprint: application.fingerprint, applicationOutcome: application.receipt.applicationOutcome } }),
     });
   }
