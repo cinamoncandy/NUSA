@@ -53,5 +53,6 @@ test("canonical counters and untrusted runtime strings are forwarded safely", ()
 
 test("the phone quote feed only marks market staleness", () => {
   assert.equal(buildHomeFieldInput(source({ publicMarketStale: true })).feedStale, true);
-  assert.equal(phase({ publicMarketStale: true }), "ATTENTION");
+  // Stale quotes no longer take over the phase/headline of an otherwise healthy state.
+  assert.equal(phase({ publicMarketStale: true }), phase({ publicMarketStale: false }));
 });

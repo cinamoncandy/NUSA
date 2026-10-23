@@ -1,0 +1,101 @@
+id: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+title: Preserve SQLite integrity trust across PAPER and Research startup
+status: RECOVERY_RECORD_P1_CORRECTED_PENDING_SUCCESSOR_EXACT_HEAD_REVIEW_VALIDATOR
+priority: P0
+owner: nusa-server-runtime
+repository: cinamoncandy/NUSA
+issue: 2770
+pull_request: 2855
+base_branch: main
+base_commit: 21241b67e153bb8db15e566168fe3daef44b2cbf
+latest_main_sync_commit: 21241b67e153bb8db15e566168fe3daef44b2cbf
+implementation_branch: fix/sqlite-integrity-attestation-2770
+prior_storage_repair_head: 0e7cdc1a6516e399b8ac84dffd3200d553bb6781
+prior_recovery_order_head: 07a364f710c011b152aff2239d79455c1356e262
+prior_shared_database_repair_head: 3ff16bac4d7da87426316a16b5d81fbe3844c222
+prior_export_lock_head: 175ec9ff6f5cf6ef6138f67a925df414341f2429
+reviewed_broken_head: 378099d0d1d234b375af1699424faac5e718a519
+prior_repair_head: 9888a4b3ef1a2c965831bfd1098d94bc2e185501
+reviewed_prototype_poisoning_head: 09bd6051f09bb3ad0230c1900445d3648d858754
+repair_head: 992e0e090cba3e5cad5a271854dc78af309a3e19
+authority_impact: none
+objective: 'Close #2770''s pre-listener startup failure while keeping the canonical full-file integrity scan and shared SQLite connection fail-closed.'
+root_cause:
+  transition: untrusted NODE_OPTIONS preload or unbounded spawned Research heap -> compromised integrity bootstrap or resource exhaustion -> missing fail-closed Research evidence; candidate unit installation also requires the compiled bootstrap artifact to exist
+  evidence: Fresh review of exact head 9d9515a found the Research EnvironmentFile preload boundary; bcc9c62 fixed parent startup by scrubbing NODE_OPTIONS and moving the heap cap to Node CLI. Review of exact head 3eb81c1 then found spawned Research jobs did not inherit a parent CLI heap limit. This follow-up applies the 256 MiB CLI limit to each sequential child. The AIPOS review also caught that the 3eb81c work order still called its already-committed sync pending; this follow-up corrects the state/handoff.
+  classification: "Fresh non-author review on exact head 4f44517c704786b9c7334a722f83194614bcc3ca found two current P1s: native Module._resolveFilename still calls writable Module._findPath, which can redirect only ./sqliteIntegrityBootstrap to a forged cache entry; and the durable recovery records still called the already-committed resolver repair local/pending. The repair removes production reacquisition of the boundary through relative CommonJS resolution rather than continuing to pin resolver internals one helper at a time."
+repair:
+  - Canonical SqliteDatabase full-scan registration and both existing AI-store admission checks now share the index.ts lexical scope. The WeakMap and resolver are not exported, there is no imported registration/verifier capability, and sqliteVerifiedSharedConnection.ts is deleted. Existing AI-store paths re-export the same genuine constructors; their implementations were relocated without changing their schemas, scoped checks, hash-chain replay, ownership, or standalone full scans. Startup ordering remains unchanged.
+  - Keep canonical quick_check before Cloud AI initialization, Research prepareRecovery and writer-lease acquisition.
+  - Move clean-realm/native-method capture into a dedicated SQLite integrity bootstrap and preload it before application code in the supervised PAPER runtime and canonical Oracle Research systemd unit. The supervised database-owning child strips inherited NODE_OPTIONS so arbitrary preloads cannot run before the boundary. Capture clean-realm Reflect.apply, Function.prototype.toString and Object.values; use only those captures for native method checks, integrity reads and result interpretation. Make bootstrap exports/cache binding immutable after initialization. Standalone developer execution is explicit via cloud:runtime:bare preload. Full-file scans, scoped AI-store checks, hash-chain replay and startup ordering remain unchanged.
+  - Strip NODE_OPTIONS at both Oracle systemd parent boundaries with `/usr/bin/env -u NODE_OPTIONS` before launching Node; pass Research's bounded 256 MiB heap via the Node command line, not Environment=NODE_OPTIONS. Make Oracle validation fail closed if either unit stops scrubbing NODE_OPTIONS or the Research heap bound is lost.
+  - Add corrupt-database child-process regressions proving late VM/SQLite prototype replacement and late Object.values replacement cannot forge an integrity pass. Add launcher and Oracle-unit contract checks for parent and child NODE_OPTIONS scrubbing and preload ordering. Retain all prior poisoning, cache replacement, full-scan and recovery-order regressions.
+  - Pass the explicit 256 MiB max-old-space limit to each sequential Node child launched by the Research snapshot runner; regression asserts every spawned command carries the bound.
+  - Pin the native CommonJS Module._load property in the production preload so application code cannot replace the loader and substitute a forged SQLite integrity bootstrap; a corrupt-file child-process regression verifies replacement attempts fail closed.
+  - Pin the captured CommonJS Module._resolveFilename property in the production preload so application code cannot redirect the later integrity-bootstrap import to an attacker-added entry in the extensible module cache; a corrupt-file child-process regression verifies replacement attempts fail closed.
+  - Publish the frozen sqliteIntegrityBoundary on a non-writable/non-configurable property of Node's canonical Module constructor and make production storage consume that slot directly. After the trusted preload, storage no longer resolves ./sqliteIntegrityBootstrap, so mutable resolver helpers including Module._findPath and Module._resolveLookupPaths cannot substitute the capability. Direct developer/test imports use the bootstrap fallback only when the slot is absent.
+  - Preserve Storybook 8.6.19 security patch; no security gate waiver.
+  - The documented legacy Cloud PAPER systemd parent removes NODE_OPTIONS before Node starts and preloads sqliteIntegrityBootstrap; its supervisor strips NODE_OPTIONS from the database-owning child and preloads the same trusted boundary before runtime code.
+  - Candidate Oracle preflight now fails closed unless the staged release contains `dist/packages/storage/src/sqliteIntegrityBootstrap.js`, before systemd units that reference it can be installed.
+prohibited:
+  - bypassing_or_weakening_canonical_full_file_quick_check
+  - weakening_store_scoped_checks_or_hash_chain_replay
+  - changing_startup_readiness_budget_or_writer_lease_semantics
+  - direct_database_mutation_or_historical_rewrite
+  - live_or_real_authority_expansion
+acceptance:
+  - production startup prepares exactly one full-file quick_check plus four AI store-scoped quick_check statements
+  - production composition passes its canonical SqliteDatabase, whose exact connection is registered only after full-file quick_check
+  - raw, forged, and replaced shared-connection inputs cannot skip the canonical full-file quick_check
+  - atomic rename/replacement of the original pathname cannot redirect a shared AI store
+  - closing a shared AI store does not close the canonical connection
+  - standalone AI stores still perform one full-file quick_check each
+  - canonical full-file quick_check remains before Cloud AI and before PAPER writer-lease acquisition
+  - Cloud AI schema initialization completes before Research recovery evidence preparation
+  - Research recovery preparation remains before PAPER writer-lease acquisition and does not disturb an existing competing owner
+  - fresh exact-head CI and five required companions pass
+  - fresh non-author review has zero unresolved current P0/P1 findings
+  - separate structured NUSA Validator records exact head, P0/P1/P2 counts, and explicit ACCEPTED before Audit
+  - pre-bootstrap replacement of the former internal verifier cache cannot admit raw, forged or replaced connections into either genuine store
+  - replacing Module._cache or Module._load after the production preload cannot substitute a forged SQLite integrity boundary
+  - replacing Module.prototype.require after the production preload cannot substitute a forged SQLite integrity boundary
+  - replacing Module._resolveFilename after the production preload cannot route the integrity-bootstrap import to a forged module-cache entry
+  - replacing Module._findPath after the production preload cannot redirect the SQLite integrity boundary because the production storage consumer reads the immutable preload capability slot and performs no relative bootstrap resolution
+  - adding Module.__esModule=true and an attacker-controlled Module.default after preload cannot redirect the capability read; the storage consumer must use the raw CommonJS node:module export without __importDefault interop
+  - replacing node:sqlite.DatabaseSync after the trusted preload cannot redirect a canonical or standalone storage open to another database; all opens use the captured native constructor through the immutable integrity boundary, and a corrupt requested-file child-process regression fails closed
+  - the Module._load repair and corrupt-file adversarial regression pass locally (40 focused tests, build, validate:full, AIPOS provenance, and security:gate)
+  - pre-load and post-load replacement of DatabaseSync.prepare or StatementSync.get cannot mint full-file trust or forge its result; JavaScript and Proxy replacements fail closed, and corrupted files remain rejected
+  - production PAPER and Research entrypoints load the integrity bootstrap before application code
+  - documented legacy Cloud PAPER systemd parent and supervised database-owning child both scrub NODE_OPTIONS and load the trusted integrity bootstrap before application code
+  - Oracle PAPER systemd removes NODE_OPTIONS before the supervisor process starts, and child execution cannot prepend a preload before the integrity bootstrap
+  - Oracle Research systemd removes NODE_OPTIONS before Node starts while preserving the 256 MiB heap limit on the command line
+  - Each spawned Research Node study/probe process independently receives the 256 MiB heap limit; the parent-only setting is not treated as inherited proof
+  - replacing node:vm.runInNewContext or Object.values after bootstrap cannot bypass full-file integrity rejection
+  - candidate Oracle preflight rejects a missing compiled SQLite bootstrap and accepts the exact candidate artifact before any unit installation
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+rollback: Revert shared-connection composition and return AI stores to their original independent full-file scans; do not restore any reusable attestation implementation.
+test_portability_repair_head: 806bde966b25a38bbc0edafd83610d3e88e1e625
+finding_head: aa313fc8a80005925c64c0c7fa6249c1da5814be
+require_dispatch_source_repair_commit: dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4
+validation: 'Fresh review of aa313fc8a80005925c64c0c7fa6249c1da5814be completed with a new P1: mutable Module.__esModule/default can exploit TypeScript default-import interop and substitute the protected capability read. aa313 clean-install CI validation, Security gate, Typecheck, Build, and seven companion workflows were green before this finding, but all aa313 receipts become historical after the substantive successor. Local raw-require repair validation is rerun before push.'
+pre_resolver_repair_next: 'Historical only. The Module._resolveFilename pin is committed in 4f44517c704786b9c7334a722f83194614bcc3ca; do not repeat that repair or its push.'
+latest_validator: 'Separate fresh NUSA Validator read exact parent head 4e5b0e75da292c23c4028251f4bd1e79fdd9f53b and reported P0=0, P1=0 within its threat model, P2=5, VERDICT=ACCEPTED_WITH_CONDITIONS. The candidate bootstrap-file preflight condition was confirmed absent in scripts/oracle-validate.js and repaired with a fail-closed existence check plus positive/negative tests. The Validator independently adjudicated all 25 unresolved outdated threads; all were resolved. This is not explicit ACCEPTED for the successor.'
+latest_local_validation: 'Candidate-preflight source repair was committed/pushed in PR head 4b6785323535b37bf0b0275ec7eb0f9f803d9d69. Its focused candidate tests passed 2/2; Oracle release/supervisor/SQLite regressions 69/69; validate:full, security:gate, AIPOS checks and diff-check passed. Exact-head CI 39773522607 and all eight companion workflows completed SUCCESS on 4b678532. Fresh Codex review then found P1 4348034655: durable recovery records still said to commit/push that completed repair. This successor corrects only those recovery records; all 4b workflow/review receipts are historical for the successor.'
+latest_review_finding: 'Fresh review on exact predecessor 65a0a047074a9c02193e533a33410cb5c71a6478 found P1 4346588560: post-preload replacement of the node:sqlite.DatabaseSync export could redirect the requested persistent database to in-memory while native integrity methods remained genuine. The current source successor captures the native constructor in the trusted preload and routes storage opens through the immutable boundary; a corrupt-file child-process regression asserts forged opens=0. Review also found stale handoff P1 4346588569; the durable handoff now records the Cloud PAPER repair and constructor finding. Fresh review on 7ee5bb0a659d393530cc78e6b85f19c653e147a8 found P1 4346666870: stale `next` text in state.yaml instructed repeating already-completed commit/push; this repair removes that instruction and makes next actions reflect completed work.'
+next: 'Resolve the current PR head dynamically and require its exact-head CI/companions to pass, fresh non-author review to clear current actionable P0/P1, and a separate formal NUSA Validator receipt bound to the exact SHA with P0/P1/P2 and explicit ACCEPTED. Then proceed to Independent Audit, Release authorization, protected merge, and exact-main Oracle runtime acceptance. The candidate-bootstrap source repair and this recovery-record correction are already committed on the existing PR branch; do not repeat commit/push work. Keep Draft/HOLD and do not deploy or mutate Oracle before canonical gates.'
+prior_public_cache_repair_head: f933bb231823f0d7bb100142a457255747a3581f
+
+latest_prototype_poisoning_finding_head: 09bd6051f09bb3ad0230c1900445d3648d858754
+protected_main_at_latest_repair: 0e04ff50afa87b57e611f54bec528abe2cf9dc8d
+
+preload_prepare_finding_head: 53f834eeaedc8e73848814a8a5407463a970747a
+preload_prepare_source_repair_commit: 831896bac6de87fe32ce5c4c12d566ad3d9482bc
+protected_main_verified: 8174e6241c3558362ab333c0b092337ce4d52bf4
+
+statement_get_finding_head: 10500dd5027fadc3b36cf4d3deea42ba6443f877
+statement_get_reproduction_head: 6af8f71db6917afd9dbd044487d5f2a186eb25cd
+statement_get_source_repair_commit: 09628c057e6867dde98404b18e97e150186219b9
