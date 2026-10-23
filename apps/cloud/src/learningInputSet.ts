@@ -310,13 +310,21 @@ export function assertLearningInputSet(value: unknown): asserts value is Learnin
     const times = candidate[timesKey] as readonly unknown[] | undefined;
     if (!Array.isArray(times) || times.length !== ids.length || (ids.length === 0 && times.length !== 0)) throw new LearningInputSetError("MALFORMED_INPUT_SET", timesKey + " must align with its record ids");
     let previous = "";
-    ids.forEach((id, index) => {
+    for (let index = 0; index < ids.length; index += 1) {
+      // Array iteration helpers skip holes. A sparse caller-shaped receipt could therefore pass
+      // identity validation, be written to the append-only ledger, then fail on receipt replay.
+      // Require every aligned slot to be an own element before reading or hashing it.
+      if (!Object.hasOwn(ids, index) || !Object.hasOwn(times, index)) {
+        throw new LearningInputSetError("MALFORMED_INPUT_SET", idsKey + " and " + timesKey + " must not contain sparse entries");
+      }
+      const id = ids[index];
+      const observedAt = times[index];
       validateRecordId(id as string, idsKey === "paperEvidenceRecordIds" ? "performance" : "research");
       if (index > 0 && compareCanonicalStrings(id as string, previous) <= 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", idsKey + " must be unique and canonically ordered");
       if (allIds.has(id as string)) throw new LearningInputSetError("MALFORMED_INPUT_SET", "evidence record id appears in both lanes");
       allIds.add(id as string); previous = id as string;
-      if (!Number.isSafeInteger(times[index]) || (times[index] as number) < 0 || (times[index] as number) >= (candidate.cutoffTimestamp as number)) throw new LearningInputSetError("MALFORMED_INPUT_SET", timesKey + " contains an invalid point-in-time value");
-    });
+      if (!Number.isSafeInteger(observedAt) || (observedAt as number) < 0 || (observedAt as number) >= (candidate.cutoffTimestamp as number)) throw new LearningInputSetError("MALFORMED_INPUT_SET", timesKey + " contains an invalid point-in-time value");
+    }
     if (digest({ lane: idsKey.startsWith("research") ? "research" : "performance", recordIds: ids, observedAt: times }) !== candidate[digestKey]) throw new LearningInputSetError("MALFORMED_INPUT_SET", digestKey + " does not match the canonical lane evidence");
   }
   if (allIds.size === 0) throw new LearningInputSetError("MALFORMED_INPUT_SET", "a learning input set must cite at least one evidence record");

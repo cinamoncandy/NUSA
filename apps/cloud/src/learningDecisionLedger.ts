@@ -3,6 +3,7 @@ import { canonicalResearchJson } from "../../../packages/contracts/src/researchR
 import { MAX_EVOLUTION_LEARNING_LEDGER_RECORDS, type SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import {
   assertLearningDecision,
+  assertLegacyLearningDecision,
   learningDecisionDurablePayload,
   learningDecisionContentFingerprint,
   learningDecisionFingerprint,
@@ -10,6 +11,7 @@ import {
 } from "./learningDecision";
 import { learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
+import type { LearningEvidenceAuthority } from "./learningEvidenceAuthority";
 
 /**
  * Durable adapter for A1 over the existing append-only, hash-chained Evolution Learning ledger.
@@ -70,7 +72,11 @@ function assertRecordIdentity(record: { readonly opportunityId: string }, decisi
 }
 
 export class LearningDecisionLedger {
-  public constructor(private readonly ledger: EvolutionLedgerPort, private readonly now: () => number = Date.now) {}
+  public constructor(
+    private readonly ledger: EvolutionLedgerPort,
+    private readonly evidenceAuthority: LearningEvidenceAuthority,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   private parseReceipt(record: { readonly hypothesis: string; readonly recordedAt: string }): LearningDecision {
     let parsed: unknown;
@@ -84,9 +90,13 @@ export class LearningDecisionLedger {
     try {
       // Older branch-local receipts embedded A2. Current receipts store its durable identity and
       // resolve the canonical A2 row from the same append-only ledger on every read.
-      const learningInputSet = stored.learningInputSet ?? this.assertDurableInputSet(stored.learningInputSetFingerprint ?? "");
+      if (Object.hasOwn(stored, "learningInputSet")) {
+        assertLearningDecision(stored);
+        return deepFreeze(stored as LearningDecision);
+      }
+      const learningInputSet = this.assertDurableInputSet(stored.learningInputSetFingerprint ?? "");
       const decision = { ...stored, learningInputSet };
-      assertLearningDecision(decision);
+      assertLegacyLearningDecision(decision, stored, record.hypothesis);
       return deepFreeze(decision as LearningDecision);
     } catch (error) {
       throw new LearningDecisionLedgerError("MALFORMED_RECEIPT", error instanceof Error ? error.message : "recorded learning decision is malformed");
@@ -96,7 +106,7 @@ export class LearningDecisionLedger {
   private assertDurableInputSet(fingerprint: string): LearningInputSet {
     let receipt;
     try {
-      receipt = new LearningInputSetLedger(this.ledger).getByFingerprint(fingerprint);
+      receipt = new LearningInputSetLedger(this.ledger, this.evidenceAuthority).getByFingerprint(fingerprint);
     } catch (error) {
       throw new LearningDecisionLedgerError("MALFORMED_INPUT_SET", error instanceof Error ? error.message : "canonical A2 input set receipt is invalid");
     }
