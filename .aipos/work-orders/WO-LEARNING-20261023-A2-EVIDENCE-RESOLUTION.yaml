@@ -1,0 +1,51 @@
+id: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
+title: "A2 must resolve input references through canonical durable evidence readers"
+status: IMPLEMENTED_LOCAL_PENDING_EXACT_HEAD_CI
+priority: P0
+owner_request: "Advance the closed learning loop in dependency order, starting with A2. Each PR requires relevant tests and pnpm run preflight on Node 24.19+, then fresh independent review after exact-head CI is green. Do not let this sequence block PR #2855 or the order-book archive server deployment; server deployment remains after #2855."
+source:
+  pull_request: 2792
+  branch: feat/learning-input-set-a2
+  prior_exact_head: 6f5a703a34335a86e810033e770089437b926486
+  first_broken_transition: "syntactically valid A2 evidence ids -> successful durable receipt without canonical Research/PAPER resolution"
+scope:
+  - "Require the existing LearningEvidenceAuthority at the A2 durable ledger boundary."
+  - "Resolve every cited Research and PAPER identity and exact observedAt before append and before downstream read/replay."
+  - "Reject missing, duplicate/ambiguous, malformed, or timestamp-mismatched canonical evidence fail-closed."
+  - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt in the existing hash-chained ledger."
+  - "Reuse existing Research history, realized PAPER period store, and Evolution Learning ledger; create no engine/store/scheduler."
+exclusions:
+  - "No live/real-money authority or production mutation change."
+  - "No qualification, Risk, OOS, sample, cost, or retention threshold change."
+  - "No synthetic evidence, historical rewrite, DB repair, deployment, merge, or server mutation."
+acceptance:
+  - "Unresolvable Research/PAPER citation cannot create an A2 receipt."
+  - "Observed timestamp must match canonical durable source exactly."
+  - "Restart and replay re-resolve the same evidence identity and remain idempotent."
+  - "Malformed namespace-shaped A2 rows cannot consume a durable A1 capacity reservation."
+  - "Relevant A2 and storage regression tests pass."
+  - "pnpm run preflight passes on Node >=24.19."
+  - "Exact-head CI passes before fresh independent review is requested."
+validation_commands:
+  - "pnpm run build"
+  - "node --test dist/apps/cloud/src/learningInputSet.test.js dist/apps/cloud/src/learningInputSetRetentionIntegration.test.js dist/packages/storage/src/evolutionLearningLedger.test.js"
+  - "pnpm run preflight"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "git diff --check"
+verification:
+  local_focused: "PASS 42/42 A2 canonicalization, retention integration, and SQLite Evolution Learning ledger tests."
+  local_build: "PASS TypeScript build."
+  preflight: "PASS Node 24.19.0, sqlite available, portability/platform-independent/mobile/AIPOS validators."
+  validate_full: "PASS architecture truth, safety architecture, AI zero-authority, architecture, AIPOS drift/conformance, safety invariants/input validators."
+  security_gate: "PASS; no unmitigated advisories or secrets."
+  exact_head_ci: "PENDING after substantive repair commit."
+  independent_review: "PENDING; request only after exact-head CI is green."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Commit the locally validated A2 repair to the existing PR #2792 branch; run fresh exact-head CI, then request one new independent review if CI is green. Do not deploy or interfere with #2855/server archive deployment."

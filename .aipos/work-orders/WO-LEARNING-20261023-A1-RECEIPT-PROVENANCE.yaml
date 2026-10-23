@@ -9,7 +9,7 @@ risk: MEDIUM
 authority_impact: none
 base_commit: a3e136553a796192ccdb9d0fdf009d2d4f4d4c94
 issue: 2793
-scope: "Existing A1 LearningDecision and existing EvolutionLearningLedger only. A1 receipt carries the full canonical A2 set; storage reservation release binds that embedded set byte-for-byte to the pending A2 ledger payload."
+scope: "Existing A1 LearningDecision, A2 LearningInputSetLedger, and existing EvolutionLearningLedger only. A1 re-resolves its durable A2 basis through the same canonical LearningEvidenceAuthority; storage reservation release binds the canonical A2 record to its durable payload."
 impact: "A1 receipt can independently re-resolve and verify its evidence basis after export, while malformed or oversized inputs fail closed before they can consume a reserved ledger slot."
 compatibility: "Keep the existing ledger schema and 16 KiB hypothesis bound. Oversized self-contained A1 receipts reject deterministically; no historical record rewrite or alternate store."
 acceptance:
@@ -29,5 +29,5 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: "Run full local verification, push successor exact head, pass exact-head CI and request fresh independent review; retain PAPER-only authority boundaries."
+next: "Push the locally validated A2-synchronized successor non-forcing after confirming remote head, pass exact-head CI and request fresh independent review; retain PAPER-only authority boundaries."
 version: 1

@@ -10,6 +10,7 @@ import {
 } from "./learningDecision";
 import { learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
+import type { LearningEvidenceAuthority } from "./learningEvidenceAuthority";
 
 /**
  * Durable adapter for A1 over the existing append-only, hash-chained Evolution Learning ledger.
@@ -70,7 +71,11 @@ function assertRecordIdentity(record: { readonly opportunityId: string }, decisi
 }
 
 export class LearningDecisionLedger {
-  public constructor(private readonly ledger: EvolutionLedgerPort, private readonly now: () => number = Date.now) {}
+  public constructor(
+    private readonly ledger: EvolutionLedgerPort,
+    private readonly evidenceAuthority: LearningEvidenceAuthority,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   private parseReceipt(record: { readonly hypothesis: string; readonly recordedAt: string }): LearningDecision {
     let parsed: unknown;
@@ -96,7 +101,7 @@ export class LearningDecisionLedger {
   private assertDurableInputSet(fingerprint: string): LearningInputSet {
     let receipt;
     try {
-      receipt = new LearningInputSetLedger(this.ledger).getByFingerprint(fingerprint);
+      receipt = new LearningInputSetLedger(this.ledger, this.evidenceAuthority).getByFingerprint(fingerprint);
     } catch (error) {
       throw new LearningDecisionLedgerError("MALFORMED_INPUT_SET", error instanceof Error ? error.message : "canonical A2 input set receipt is invalid");
     }

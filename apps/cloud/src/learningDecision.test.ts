@@ -14,6 +14,7 @@ import {
 import { buildLearningInputSet } from "./learningInputSet";
 import { LearningDecisionLedger } from "./learningDecisionLedger";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
+import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 
 const POLICIES = {
@@ -30,6 +31,17 @@ const inputSet = (cutoff = 900) =>
     paperEvidence: [{ recordId: "p1", recordedAt: 200 }],
     policies: POLICIES,
   });
+
+const testEvidenceAuthority = (fixture = inputSet()) => {
+  const research = new Map(fixture.researchEvidenceRecordIds.map((recordId, index) => [recordId, { recordId, recordedAt: fixture.researchEvidenceObservedAt[index] }]));
+  const paper = new Map(fixture.paperEvidenceRecordIds.map((recordId, index) => [recordId, { recordId, recordedAt: fixture.paperEvidenceObservedAt[index] }]));
+  return createLearningEvidenceAuthorityFromReaders({
+    readResearch: (recordId) => research.get(recordId),
+    readPaper: (recordId) => paper.get(recordId),
+    readResearchSnapshot: () => [...research.values()],
+    readPaperSnapshot: () => [...paper.values()],
+  });
+};
 
 const SPEC_A = "a".repeat(64);
 
@@ -276,9 +288,9 @@ describe("A1 durable exactly-once - section 43", () => {
   it("persists the complete A2 basis in a bounded, independently verifiable A1 receipt", () => {
     const { records, ledger } = fakeLedger();
     const input = decisionInput();
-    new LearningInputSetLedger(ledger).append(input.inputSet);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority()).append(input.inputSet);
     const decision = buildLearningDecision(input);
-    new LearningDecisionLedger(ledger).append(decision);
+    new LearningDecisionLedger(ledger, testEvidenceAuthority()).append(decision);
     const stored = JSON.parse(records.find((record) => record.validationStatus === "LEARNING_DECISION")!.hypothesis as string) as Record<string, unknown>;
     assert.deepEqual(stored.learningInputSet, decision.learningInputSet);
   });
@@ -325,9 +337,9 @@ describe("A1 durable exactly-once - section 43", () => {
         paperEvidence: [],
         policies: POLICIES,
       });
-      new LearningInputSetLedger(ledger).append(inputSet);
+      new LearningInputSetLedger(ledger, testEvidenceAuthority(inputSet)).append(inputSet);
       const decision = buildLearningDecision(decisionInput({ inputSet, reasonEvidence: [reference] }));
-      assert.equal(new LearningDecisionLedger(ledger).append(decision).replayed, false);
+      assert.equal(new LearningDecisionLedger(ledger, testEvidenceAuthority(inputSet)).append(decision).replayed, false);
     } finally {
       db.close();
       rmSync(directory, { recursive: true, force: true });
@@ -336,9 +348,9 @@ describe("A1 durable exactly-once - section 43", () => {
 
   it("appending the same decision twice records it once", () => {
     const { ledger } = fakeLedger();
-    const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
+    const store = new LearningDecisionLedger(ledger, testEvidenceAuthority(), () => Date.parse("2026-10-18T00:00:00.000Z"));
     const decision = buildLearningDecision(decisionInput());
-    new LearningInputSetLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority(), () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
 
     const first = store.append(decision);
     assert.equal(first.replayed, false);
@@ -350,9 +362,9 @@ describe("A1 durable exactly-once - section 43", () => {
 
   it("same-cycle retry with new attempt metadata replays the first durable decision", () => {
     const { records, ledger } = fakeLedger();
-    const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
+    const store = new LearningDecisionLedger(ledger, testEvidenceAuthority(), () => Date.parse("2026-10-18T00:00:00.000Z"));
     const firstDecision = buildLearningDecision(decisionInput());
-    new LearningInputSetLedger(ledger).append(decisionInput().inputSet);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority()).append(decisionInput().inputSet);
     const first = store.append(firstDecision);
     const retry = buildLearningDecision(decisionInput({
       createdAt: "2026-10-18T01:00:00.000Z",
@@ -368,9 +380,9 @@ describe("A1 durable exactly-once - section 43", () => {
 
   it("rejects a different decision for an already decided cycle", () => {
     const { ledger } = fakeLedger();
-    const store = new LearningDecisionLedger(ledger);
+    const store = new LearningDecisionLedger(ledger, testEvidenceAuthority());
     const firstInput = decisionInput();
-    new LearningInputSetLedger(ledger).append(firstInput.inputSet);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority()).append(firstInput.inputSet);
     store.append(buildLearningDecision(firstInput));
     assert.throws(() => store.append(buildLearningDecision(decisionInput({
       proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 9 }],
@@ -379,11 +391,11 @@ describe("A1 durable exactly-once - section 43", () => {
 
   it("keeps a rejected decision rather than dropping it from the denominator", () => {
     const { ledger } = fakeLedger();
-    const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
-    new LearningInputSetLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
+    const store = new LearningDecisionLedger(ledger, testEvidenceAuthority(), () => Date.parse("2026-10-18T00:00:00.000Z"));
+    new LearningInputSetLedger(ledger, testEvidenceAuthority(), () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
     store.append(buildLearningDecision(decisionInput()));
     const nextInput = decisionInput({ inputSet: inputSet(901), proposedChanges: [{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 9 }] });
-    new LearningInputSetLedger(ledger).append(nextInput.inputSet);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority()).append(nextInput.inputSet);
     store.append(buildLearningDecision(nextInput));
 
     assert.equal(store.summary().decisionsRecorded, 2);
@@ -392,9 +404,9 @@ describe("A1 durable exactly-once - section 43", () => {
 
   it("replays every durable receipt and fails closed on a tampered one", () => {
     const { records, ledger } = fakeLedger();
-    const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
+    const store = new LearningDecisionLedger(ledger, testEvidenceAuthority(), () => Date.parse("2026-10-18T00:00:00.000Z"));
     const decision = buildLearningDecision(decisionInput());
-    new LearningInputSetLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority(), () => Date.parse("2026-10-18T00:00:00.000Z")).append(decisionInput().inputSet);
     store.append(decision);
     assert.equal(store.summary().decisionsRecorded, 1);
 
@@ -407,15 +419,15 @@ describe("A1 durable exactly-once - section 43", () => {
 
   it("refuses a well-formed decision unless its canonical A2 receipt is already durable", () => {
     const { ledger } = fakeLedger();
-    const store = new LearningDecisionLedger(ledger, () => Date.parse("2026-10-18T00:00:00.000Z"));
+    const store = new LearningDecisionLedger(ledger, testEvidenceAuthority(), () => Date.parse("2026-10-18T00:00:00.000Z"));
     assert.throws(() => store.append(buildLearningDecision(decisionInput())), /A2 input set to be durable first/);
   });
 
   it("binds learning policy and reason references to the durable A2 receipt", () => {
     const { ledger } = fakeLedger();
-    const store = new LearningDecisionLedger(ledger);
+    const store = new LearningDecisionLedger(ledger, testEvidenceAuthority());
     const input = decisionInput();
-    new LearningInputSetLedger(ledger).append(input.inputSet);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority()).append(input.inputSet);
     const decision = buildLearningDecision(input);
     assert.throws(() => store.append({ ...decision, learningPolicyVersion: "learn-v2" }), /does not match its embedded A2 input set/);
     assert.throws(() => store.append({ ...decision, reasonEvidence: ["not-in-a2"] }), /canonical A2 input set/);
@@ -424,10 +436,10 @@ describe("A1 durable exactly-once - section 43", () => {
   it("requires the complete canonical A2 metadata and retention references", () => {
     const { records, ledger } = fakeLedger();
     const input = decisionInput();
-    new LearningInputSetLedger(ledger).append(input.inputSet);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority()).append(input.inputSet);
     const a2 = records.find((record) => record.validationStatus === "LEARNING_INPUT_SET")!;
     a2.evidenceReferences = [a2.opportunityId];
-    assert.throws(() => new LearningDecisionLedger(ledger).append(buildLearningDecision(input)), /metadata does not match/);
+    assert.throws(() => new LearningDecisionLedger(ledger, testEvidenceAuthority()).append(buildLearningDecision(input)), /metadata does not match/);
   });
 
   it("rejects duplicate or noncanonical reason references during receipt validation", () => {
@@ -439,8 +451,8 @@ describe("A1 durable exactly-once - section 43", () => {
   it("deep-freezes decisions rehydrated from the durable ledger", () => {
     const { ledger } = fakeLedger();
     const input = decisionInput();
-    new LearningInputSetLedger(ledger).append(input.inputSet);
-    const store = new LearningDecisionLedger(ledger);
+    new LearningInputSetLedger(ledger, testEvidenceAuthority()).append(input.inputSet);
+    const store = new LearningDecisionLedger(ledger, testEvidenceAuthority());
     const decision = buildLearningDecision(input);
     store.append(decision);
     const restored = store.summary().latest!.decision;
@@ -456,8 +468,8 @@ describe("A1 durable exactly-once - section 43", () => {
     let db = new SqliteDatabase(databasePath);
     try {
       const ledger = new SqliteEvolutionLearningLedger(db);
-      const inputSetLedger = new LearningInputSetLedger(ledger);
-      const decisionLedger = new LearningDecisionLedger(ledger);
+      const inputSetLedger = new LearningInputSetLedger(ledger, testEvidenceAuthority());
+      const decisionLedger = new LearningDecisionLedger(ledger, testEvidenceAuthority());
       const input = decisionInput();
       const inputSetReceipt = inputSetLedger.append(input.inputSet);
       assert.equal(inputSetReceipt.replayed, false);
@@ -467,7 +479,7 @@ describe("A1 durable exactly-once - section 43", () => {
       assert.equal(decisionLedger.append(buildLearningDecision(decisionInput({ runtimeIdentity: "runtime-restarted" }))).replayed, true);
       db.close();
       db = new SqliteDatabase(databasePath);
-      assert.equal(new LearningDecisionLedger(new SqliteEvolutionLearningLedger(db)).summary().decisionsRecorded, 1);
+      assert.equal(new LearningDecisionLedger(new SqliteEvolutionLearningLedger(db), testEvidenceAuthority()).summary().decisionsRecorded, 1);
     } finally {
       db.close();
       rmSync(directory, { recursive: true, force: true });
