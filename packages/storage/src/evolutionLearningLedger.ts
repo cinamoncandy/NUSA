@@ -28,6 +28,10 @@ const LEARNING_DECISION_FIELDS = new Set([
   "reasonEvidence", "changeMagnitude", "allowedSurfaceVersion", "immutableSurfaceVersion", "decisionOutcome",
   "createdAt", "sourceCommit", "runtimeIdentity",
 ]);
+// The immediately preceding A1 writer deliberately stored only the durable A2 identity and
+// resolved the full input set on replay. Keep accepting exactly that canonical historical shape
+// while rebuilding reservations; new A1 appends must still satisfy the stronger embedded-A2 check.
+const LEGACY_LEARNING_DECISION_FIELDS = new Set([...LEARNING_DECISION_FIELDS].filter((field) => field !== "learningInputSet"));
 const LEARNING_POLICY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const LEARNING_BOUNDED_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
 const LEARNING_REASON_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,239}$/;
@@ -220,6 +224,34 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
 }
 
+function canonicalLegacyLearningDecisionForReservation(record: EvolutionLearningRecord, fingerprint: string, inputSetPayload: string): boolean {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(record.hypothesis);
+  } catch {
+    return false;
+  }
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const decision = payload as Record<string, unknown>;
+  if (Object.keys(decision).length !== LEGACY_LEARNING_DECISION_FIELDS.size
+    || Object.keys(decision).some((key) => !LEGACY_LEARNING_DECISION_FIELDS.has(key))
+    || Object.prototype.hasOwnProperty.call(decision, "learningInputSet")
+    || canonicalResearchJson(decision) !== record.hypothesis
+    || decision.learningInputSetFingerprint !== fingerprint) return false;
+
+  let inputSet: unknown;
+  try {
+    inputSet = JSON.parse(inputSetPayload);
+  } catch {
+    return false;
+  }
+  // Upgrade the historical payload only in memory, then run it through the same full provenance,
+  // identity, policy, and evidence-reference checks used for newly written A1 receipts.
+  const upgraded = { ...decision, learningInputSet: inputSet };
+  const upgradedRecord = { ...record, hypothesis: canonicalResearchJson(upgraded) };
+  return canonicalLearningDecisionForReservation(upgradedRecord, fingerprint, inputSetPayload);
+}
+
 function isLearningDecisionCandidate(record: EvolutionLearningRecord): boolean {
   return record.validationStatus === "LEARNING_DECISION" || record.problem === LEARNING_DECISION_PROBLEM || LEARNING_DECISION_ID.test(record.opportunityId);
 }
@@ -234,7 +266,12 @@ function pendingLearningDecisionFingerprints(records: readonly EvolutionLearning
     }
     if (isLearningDecisionCandidate(record)) {
       const matchingReservations = record.evidenceReferences.filter((reference) => pending.has(reference));
-      if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0], pending.get(matchingReservations[0])!)) pending.delete(matchingReservations[0]);
+      if (matchingReservations.length === 1) {
+        const fingerprint = matchingReservations[0];
+        const inputSetPayload = pending.get(fingerprint)!;
+        if (canonicalLearningDecisionForReservation(record, fingerprint, inputSetPayload)
+          || canonicalLegacyLearningDecisionForReservation(record, fingerprint, inputSetPayload)) pending.delete(fingerprint);
+      }
     }
   }
   return pending;

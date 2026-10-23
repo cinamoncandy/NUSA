@@ -1,9 +1,9 @@
 id: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
 title: Preserve full A2 provenance in durable A1 receipts and align evidence reference bounds
 status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-validation: "Fresh independent review of A1 head a3e136553a796192ccdb9d0fdf009d2d4f4d4c94 found two P2 issues: A1 durable payload omitted its full A2 evidence basis contrary to the provenance contract, and reason references up to 256 characters passed construction but failed the existing 240-character ledger bound. Repairs include a self-contained A1 receipt with the existing 16 KiB fail-closed bound, storage reservation validation against the matching durable A2 payload, and explicit 240-byte reason-reference validation. Focused A1/storage tests pending rerun; no threshold or authority changes."
-review: "Independent review findings: P2 full A2 provenance missing from durable A1; P2 reason-reference length exceeds storage bound. The findings are repaired locally; fresh review required on successor exact head."
-remaining: "Exact-head build/preflight/CI and fresh independent review on the successor head; downstream Validator/Audit/Release/runtime and genuine Learning evidence remain pending."
+validation: "Fresh review of A1 head 88a57734222d0fb1e29d2721da02c1f3de905792 found a P2 compatibility gap: replay of a canonical immediately preceding A1 receipt without embedded learningInputSet could resurrect its already-consumed A2 capacity reservation. Replay now accepts only that exact legacy shape after temporarily resolving and validating its full A2 basis; new writes remain self-contained and strict. A regression seeds a hash-chain-valid historical row, closes/reopens SQLite, and proves capacity is released exactly once. Focused storage+A1 tests pass 61/61; build, Node 24.19.0 preflight, security gate, and diff check pass. Earlier A1 provenance and reason-reference P2 fixes remain in this head. No thresholds, authority, or historical production rows changed."
+review: "Current exact-head independent review found P2 legacy reservation replay. Repaired with strict legacy-shape validation against the durable A2 row and a restart/capacity regression; request fresh review after successor exact-head CI."
+remaining: "Run validate:full and provenance checks, then push a successor head, pass exact-head CI, and request fresh independent review; downstream Validator/Audit/Release/runtime and genuine Learning evidence remain pending."
 priority: P1
 risk: MEDIUM
 authority_impact: none
