@@ -25,7 +25,7 @@ export const SUPERSESSION_SCHEMA_VERSION = 1;
 export const SUPERSESSION_POLICY_VERSION = "supersession-v1";
 
 export class SupersessionError extends Error {
-  public constructor(readonly code: string, message: string) {
+  public constructor(readonly code: SupersessionErrorCode, message: string) {
     super(message);
     this.name = "SupersessionError";
   }
@@ -52,6 +52,8 @@ export interface SupersessionLink {
 
 const SHA64 = /^[a-f0-9]{64}$/;
 const BOUNDED = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,1023}$/;
+export const MAX_SUPERSESSION_LINKS = 4_096;
+type SupersessionErrorCode = "MALFORMED_LINK" | "IDENTITY_CONFLICT" | "NON_FINITE_VALUE" | "NON_CANONICAL_VALUE" | "SUPERSESSION_FORK" | "SUPERSESSION_CYCLE" | "SUPERSESSION_MERGE" | "SUPERSESSION_REACTIVATION" | "CAPACITY_EXCEEDED" | "DURABLE_WRITE_FAILED";
 /** A reason is prose, so spaces are allowed; control characters are not, or one reason could render as another. */
 const REASON = /^[A-Za-z0-9][A-Za-z0-9 ._,'():;/#&+-]{0,1023}$/;
 
@@ -75,7 +77,7 @@ function canonical(value: unknown): string {
       "{" +
       Object.entries(value as Record<string, unknown>)
         .filter(([, entry]) => entry !== undefined)
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
         .map(([key, entry]) => JSON.stringify(key) + ":" + canonical(entry))
         .join(",") +
       "}"
@@ -123,11 +125,50 @@ function assertInput(input: SupersessionLinkInput): void {
 export function assertSupersessionLink(value: unknown): asserts value is SupersessionLink {
   if (value == null || typeof value !== "object") throw new SupersessionError("MALFORMED_LINK", "supersession link is required");
   const candidate = value as Partial<SupersessionLink>;
+  const keys = Object.keys(value);
+  const expectedKeys = ["schemaVersion", "surface", "previousDecisionFingerprint", "nextDecisionFingerprint", "reason", "timestamp", "linkFingerprint", "supersessionPolicyVersion"];
+  if (keys.length !== expectedKeys.length || keys.some((key) => !expectedKeys.includes(key))) throw new SupersessionError("MALFORMED_LINK", "supersession link fields are not canonical");
   if (candidate.schemaVersion !== SUPERSESSION_SCHEMA_VERSION) throw new SupersessionError("MALFORMED_LINK", "supersession link schema version is unsupported");
   if (candidate.supersessionPolicyVersion !== SUPERSESSION_POLICY_VERSION) throw new SupersessionError("MALFORMED_LINK", "supersession policy version is unsupported");
   if (typeof candidate.linkFingerprint !== "string" || !SHA64.test(candidate.linkFingerprint)) throw new SupersessionError("MALFORMED_LINK", "link fingerprint is invalid");
   const { linkFingerprint: recorded, ...content } = candidate as SupersessionLink;
+  assertInput(content);
   if (digest(content) !== recorded) throw new SupersessionError("IDENTITY_CONFLICT", "supersession link does not match its own fingerprint");
+}
+
+function assertAppendAllowed(links: readonly SupersessionLink[], proposed: SupersessionLink): SupersessionLink | undefined {
+  const samePosition = links.find((candidate) => candidate.previousDecisionFingerprint === proposed.previousDecisionFingerprint && candidate.surface === proposed.surface);
+  if (samePosition != null) {
+    if (samePosition.nextDecisionFingerprint !== proposed.nextDecisionFingerprint) {
+      throw new SupersessionError(
+        "SUPERSESSION_FORK",
+        "decision " + proposed.previousDecisionFingerprint.slice(0, 12) + " on surface " + proposed.surface + " already has successor " + samePosition.nextDecisionFingerprint.slice(0, 12) + "; a second successor is a conflict, not a newer timestamp to prefer",
+      );
+    }
+    // Edge identity is predecessor + successor + surface. A retry may carry a new
+    // observation timestamp or explanation; immutable history keeps the first link.
+    return samePosition;
+  }
+
+  let cursor = proposed.nextDecisionFingerprint;
+  const visited = new Set<string>();
+  for (;;) {
+    if (cursor === proposed.previousDecisionFingerprint) throw new SupersessionError("SUPERSESSION_CYCLE", "the proposed link would create a supersession cycle");
+    if (visited.has(cursor)) throw new SupersessionError("SUPERSESSION_CYCLE", "existing supersession links already contain a cycle");
+    visited.add(cursor);
+    const next = links.find((candidate) => candidate.previousDecisionFingerprint === cursor && candidate.surface === proposed.surface);
+    if (next == null) break;
+    cursor = next.nextDecisionFingerprint;
+  }
+
+  const priorUseAsSuccessor = links.find((candidate) => candidate.nextDecisionFingerprint === proposed.nextDecisionFingerprint && candidate.surface === proposed.surface);
+  if (priorUseAsSuccessor != null) throw new SupersessionError("SUPERSESSION_MERGE", "a decision cannot have multiple predecessors on the same surface");
+
+  const alreadySuperseded = links.some((candidate) => candidate.previousDecisionFingerprint === proposed.nextDecisionFingerprint && candidate.surface === proposed.surface);
+  if (alreadySuperseded) throw new SupersessionError("SUPERSESSION_REACTIVATION", "a superseded decision cannot be reactivated as a successor");
+
+  if (links.length >= MAX_SUPERSESSION_LINKS) throw new SupersessionError("CAPACITY_EXCEEDED", "supersession history capacity is exhausted");
+  return undefined;
 }
 
 /**
@@ -149,38 +190,28 @@ export class SupersessionRegistry {
    */
   public supersede(input: SupersessionLinkInput): SupersessionLink {
     const link = buildSupersessionLink(input);
-
-    const existing = this.links.find((candidate) => candidate.previousDecisionFingerprint === input.previousDecisionFingerprint && candidate.surface === input.surface);
-    if (existing != null) {
-      if (existing.nextDecisionFingerprint !== input.nextDecisionFingerprint) {
-        throw new SupersessionError(
-          "SUPERSESSION_FORK",
-          "decision " + input.previousDecisionFingerprint.slice(0, 12) + " on surface " + input.surface + " already has successor " + existing.nextDecisionFingerprint.slice(0, 12) + "; a second successor is a conflict, not a newer timestamp to prefer",
-        );
-      }
-      if (existing.linkFingerprint !== link.linkFingerprint) {
-        throw new SupersessionError("IDENTITY_CONFLICT", "the same predecessor, successor and surface were re-supplied with different content");
-      }
-      return existing;
-    }
-
+    const existing = assertAppendAllowed(this.links, link);
+    if (existing != null) return existing;
     this.links.push(link);
     return link;
   }
 
   /** Rehydrates durable history, applying the same fork rule on the way in. */
   public rehydrate(links: readonly SupersessionLink[]): number {
+    const staged = new SupersessionRegistry();
+    staged.rehydrateUnchecked(this.links);
+    const restored = staged.rehydrateUnchecked(links);
+    this.links.splice(0, this.links.length, ...staged.links);
+    return restored;
+  }
+
+  private rehydrateUnchecked(links: readonly SupersessionLink[]): number {
     let restored = 0;
     for (const link of links) {
       assertSupersessionLink(link);
       const before = this.links.length;
-      this.supersede({
-        surface: link.surface,
-        previousDecisionFingerprint: link.previousDecisionFingerprint,
-        nextDecisionFingerprint: link.nextDecisionFingerprint,
-        reason: link.reason,
-        timestamp: link.timestamp,
-      });
+      const existing = assertAppendAllowed(this.links, link);
+      if (existing == null) this.links.push(Object.freeze({ ...link }));
       if (this.links.length > before) restored += 1;
     }
     return restored;

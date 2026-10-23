@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { createEvolutionLearningRecord, type EvolutionLearningRecord } from "../../../apps/autopilot/src/evolveLearningMemory";
+import { canonicalResearchJson } from "../../contracts/src/researchRuntime";
 import { SqliteDatabase } from "./index";
 import { EvolutionLearningLedgerError, SqliteEvolutionLearningLedger } from "./evolutionLearningLedger";
 
@@ -20,6 +22,77 @@ const record = (opportunityId: string, recordedAt: string, overrides: Partial<Ev
   recordedAt,
   ...overrides,
 });
+
+const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
+
+function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerprint: string; readonly record: EvolutionLearningRecord } {
+  const inputSet = {
+    schemaVersion: 1,
+    cutoffTimestamp: 10_000,
+    researchEvidenceRecordIds: ["trial-1"],
+    researchEvidenceObservedAt: [1],
+    paperEvidenceRecordIds: [paperId],
+    paperEvidenceObservedAt: [2],
+    researchLaneDigest: sha256(canonicalResearchJson({ lane: "research", recordIds: ["trial-1"], observedAt: [1] })),
+    performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: [paperId], observedAt: [2] })),
+    learningPolicyVersion: "learn-v1",
+    researchPolicyVersion: "research-v1",
+    riskPolicyVersion: "risk-v1",
+    governancePolicyVersion: "gov-v1",
+    canonicalOrderingVersion: "learning-input-set-canonical-order-v2",
+  };
+  const fingerprint = sha256(canonicalResearchJson(inputSet));
+  const opportunityId = `learning-input-set:${fingerprint}`;
+  return {
+    fingerprint,
+    record: record(opportunityId, recordedAt, {
+      problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
+      evidenceReferences: [opportunityId, `paper-period:${paperId}`],
+      hypothesis: canonicalResearchJson(inputSet),
+      changeReference: "learn-v1",
+      validationStatus: "LEARNING_INPUT_SET",
+      outcome: "SUCCESS",
+      failureReason: null,
+      rollbackReference: null,
+      reusable: true,
+    }),
+  };
+}
+
+function decisionRecord(fingerprint: string, recordedAt: string, extraEvidence: readonly string[] = []): EvolutionLearningRecord {
+  const learningCycleId = `learning-cycle:${fingerprint}`;
+  const opportunityId = `learning-decision-cycle-v1:${sha256(learningCycleId)}`;
+  const payload = {
+    schemaVersion: 1,
+    learningCycleId,
+    learningInputSetFingerprint: fingerprint,
+    previousResearchSpecFingerprint: "c".repeat(64),
+    learningPolicyVersion: "learn-v1",
+    objectiveVersion: "objective-v1",
+    proposedChanges: [],
+    admissibleChanges: [],
+    rejectedChanges: [],
+    reasonEvidence: [],
+    changeMagnitude: 0,
+    allowedSurfaceVersion: "learning-allowed-surface-v1",
+    immutableSurfaceVersion: "learning-immutable-surface-v1",
+    decisionOutcome: "INSUFFICIENT",
+    createdAt: "2026-08-29T00:02:30.000Z",
+    sourceCommit: "source-1",
+    runtimeIdentity: "paper-runtime-1",
+  };
+  return record(opportunityId, recordedAt, {
+    problem: "NUSA learning decision: the bounded conclusion drawn from one learning input set",
+    evidenceReferences: [opportunityId, fingerprint, ...extraEvidence],
+    hypothesis: canonicalResearchJson(payload),
+    changeReference: "learn-v1",
+    validationStatus: "LEARNING_DECISION",
+    outcome: "SUCCESS",
+    failureReason: null,
+    rollbackReference: null,
+    reusable: true,
+  });
+}
 
 function databasePath(): string {
   return join(mkdtempSync(join(process.cwd(), ".nusa-evolution-learning-")), "learning.db");
@@ -102,6 +175,79 @@ test("chronology regression and bounded capacity fail closed without pruning his
     assert.equal(ledger.size(), 1);
   } finally {
     chronologyDb.close();
+  }
+});
+
+test("an unrelated writer cannot consume the capacity reserved for an A2 input set's A1 decision", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 3);
+    ledger.append(record("opp:existing", "2026-08-29T00:00:00.000Z"));
+    const inputSet = inputSetRecord("2026-08-29T00:01:00.000Z", "p1");
+    ledger.append(inputSet.record);
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 3);
+
+    assert.throws(
+      () => ledger.append(record(`closed-learning-failure:${"c".repeat(64)}`, "2026-08-29T00:02:00.000Z", {
+        problem: "NUSA closed learning cycle failure: durable recovery evidence",
+        validationStatus: "CYCLE_FAILURE",
+      })),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "CAPACITY_EXCEEDED",
+    );
+    assert.equal(ledger.size(), 2, "a closed-learning failure append leaves the reserved A1 slot untouched");
+
+    ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:02:00.000Z"));
+    assert.equal(ledger.size(), 3, "the matching A1 decision can consume the reserved slot");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("only a canonical A1 receipt can release one matching A2 reservation", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 4);
+    const first = inputSetRecord("2026-08-29T00:00:00.000Z", "p1");
+    const second = inputSetRecord("2026-08-29T00:01:00.000Z", "p2");
+    ledger.append(first.record);
+    ledger.append(second.record);
+    assert.throws(
+      () => ledger.append({ ...decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z"), hypothesis: "{}" }),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_LEARNING_DECISION_RECEIPT",
+      "a generic writer cannot release A2 capacity with only A1-shaped status and identity metadata",
+    );
+    const forged = decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z", [second.fingerprint]);
+    assert.throws(
+      () => ledger.append(forged),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_LEARNING_DECISION_RECEIPT",
+      "an A1-shaped record that cites two pending A2 fingerprints must not be persisted",
+    );
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 4);
+
+    assert.throws(
+      () => ledger.append(record(`closed-learning-failure:${"f".repeat(64)}`, "2026-08-29T00:03:00.000Z", {
+        problem: "NUSA closed learning cycle failure: durable recovery evidence",
+        validationStatus: "CYCLE_FAILURE",
+      })),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "CAPACITY_EXCEEDED",
+      "an ambiguous A1 receipt must not release either durable reservation during replay",
+    );
+
+    ledger.append(decisionRecord(first.fingerprint, "2026-08-29T00:03:00.000Z"));
+    ledger.append(decisionRecord(second.fingerprint, "2026-08-29T00:04:00.000Z"));
+    assert.equal(ledger.size(), 4, "each one-to-one A1 receipt releases exactly one reserved slot");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
   }
 });
 

@@ -112,4 +112,9 @@ export class ClosedLearningResearchDecisionHistory {
     const record = this.repository.list().find((item) => item.evaluationId === evaluationId);
     return record == null ? undefined : Object.freeze({ recordId: record.evaluationId, recordedAt: record.observedAt });
   }
+
+  /** One integrity-checked snapshot for validating all Research references in a learning cycle. */
+  public listEvidence(): readonly { readonly recordId: string; readonly recordedAt: number }[] {
+    return Object.freeze(this.repository.list().map((record) => Object.freeze({ recordId: record.evaluationId, recordedAt: record.observedAt })));
+  }
 }

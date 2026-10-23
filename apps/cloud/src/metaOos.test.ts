@@ -11,12 +11,14 @@ import {
   assignMetaPartition,
   metaOosCyclesEligibility,
   assertMetaOosAssignment,
+  type MetaPartition,
   type MetaOosAssignmentInput,
 } from "./metaOos";
 import { MetaOosLedger } from "./metaOosLedger";
-import { buildLearningDecision } from "./learningDecision";
+import { buildLearningDecision, learningDecisionFingerprint } from "./learningDecision";
 import { buildLearningInputSet } from "./learningInputSet";
 import { applyBoundedChange, ApplicationRegistry, type ApplicationContext, type ApplicationPorts } from "./learningApplication";
+import { LearningApplicationLedger } from "./learningApplicationLedger";
 
 const POLICIES = {
   learningPolicyVersion: "learn-v1",
@@ -26,6 +28,10 @@ const POLICIES = {
 };
 const DECISION_FINGERPRINT = "c".repeat(64);
 const SPEC_A = "a".repeat(64);
+
+function eligibilityIdentity(decision: ReturnType<typeof buildLearningDecision>) {
+  return { learningCycleId: decision.learningCycleId, learningDecisionFingerprint: learningDecisionFingerprint(decision) };
+}
 
 /** The real holdout ledger validates the key shape, so this is a well-formed SHA-256 as production sends. */
 const HOLDOUT: HoldoutKey = Object.freeze({ strategyConfigHash: "a".repeat(64), market: "KRW-BTC", intervalMs: 60_000, holdoutStartMs: 1_000, holdoutEndMs: 2_000 });
@@ -222,7 +228,7 @@ describe("A3 - insufficient is legitimate and the floor is owner-fixed (section 
   it("reports ineligible below the minimum and never lowers the minimum", () => {
     const { close } = fixture();
     try {
-      const eligibility = metaOosCyclesEligibility([], "meta-holdout", 0);
+      const eligibility = metaOosCyclesEligibility([], "meta-holdout", 0, { learningCycleId: cycleId("e"), learningDecisionFingerprint: "d".repeat(64) });
       assert.equal(eligibility.eligible, false);
       assert.equal(eligibility.cyclesEvaluated, 0);
       assert.match(eligibility.reason, /owner-fixed and is not lowered/);
@@ -254,7 +260,7 @@ describe("A3 - insufficient is legitimate and the floor is owner-fixed (section 
       assert.equal(decision.decisionOutcome, "ADMISSIBLE", "the decision itself is admissible, not META-eligible");
 
       const { ledger } = fixture();
-      const eligibility = ledger.eligibility("meta-holdout");
+      const eligibility = ledger.eligibility("meta-holdout", eligibilityIdentity(decision));
       assert.equal(eligibility.eligible, false, "no recorded assignments means no eligibility, whatever the decision claims");
       assert.equal(eligibility.cyclesEvaluated, 0);
     } finally {
@@ -271,7 +277,13 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
   };
 
   function ports(state: { value: number }): ApplicationPorts {
-    return { readCurrent: () => state.value, commit: (_surface, value) => { state.value = value; }, failSafeValue: () => 1 };
+    return {
+      readCurrent: () => state.value,
+      readCurrentResearchSpec: () => ({ fingerprint: SPEC_A, values: { longBarTickEvery: state.value } }),
+      commit: (_surface, value) => { state.value = value; },
+      failSafeValue: () => 1,
+      withExclusiveApplicationLease: (_identity, operation) => Object.freeze({ acquired: true, value: operation() }),
+    };
   }
 
   function decision() {
@@ -292,11 +304,28 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
     });
   }
 
+  function applicationPorts(state: { value: number }, eligibilityFor: (partition: MetaPartition, target: ReturnType<typeof decision>) => ReturnType<MetaOosLedger["eligibility"]>): ApplicationPorts {
+    const base = ports(state);
+    return {
+      ...base,
+      resolveMetaOosEligibility: (target, _fingerprint) => eligibilityFor("meta-holdout", target as ReturnType<typeof decision>),
+    };
+  }
+
+  function journal(): LearningApplicationLedger {
+    const records: Array<Record<string, unknown>> = [];
+    return new LearningApplicationLedger({
+      append: (record: Record<string, unknown>) => { records.push(record); return record; },
+      list: () => records as never,
+    } as never, () => Date.parse(CONTEXT.applicationTimestamp));
+  }
+
   it("keeps application closed while the partitions have no completed cycles", () => {
     const { ledger, close } = fixture();
     try {
       const state = { value: 1 };
-      const receipt = applyBoundedChange(decision(), ledger.eligibility("meta-train"), ports(state), CONTEXT, new ApplicationRegistry());
+      const target = decision();
+      const receipt = applyBoundedChange(target, applicationPorts(state, (partition, current) => ledger.eligibility(partition, eligibilityIdentity(current))), CONTEXT, journal(), new ApplicationRegistry());
       assert.equal(receipt.applicationOutcome, "REJECTED");
       assert.match(receipt.rejectionReason ?? "", /meta-OOS eligibility not established/);
       assert.equal(state.value, 1, "no mutation before A3 has real cycles behind it");
@@ -306,18 +335,24 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
   });
 
   it("opens application only once recorded assignments meet the owner-fixed floor", () => {
-    const { ledger, close } = fixture();
+    const { ledger, holdouts: fixtureHoldouts, close } = fixture();
     try {
       for (let index = 0; index < META_MINIMUM_CYCLES_FOR_ELIGIBILITY; index += 1) {
-        ledger.assign(assignment({ learningCycleId: cycleId(String(index)) }), { claim: () => "CLAIMED", isUsed: () => false });
+        ledger.assign(assignment({
+          learningCycleId: cycleId(String(index)),
+          partition: "meta-holdout",
+          holdoutKey: { ...HOLDOUT, strategyConfigHash: String(index + 1).repeat(64) },
+          holdoutEvaluationId: "eval-" + String(index),
+        }), fixtureHoldouts);
       }
-      const eligibility = ledger.eligibility("meta-train");
+      const target = decision();
+      const eligibility = ledger.eligibility("meta-holdout", eligibilityIdentity(target));
       assert.equal(eligibility.eligible, true);
       assert.equal(eligibility.cyclesEvaluated, META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
 
       const state = { value: 1 };
-      const receipt = applyBoundedChange(decision(), eligibility, ports(state), CONTEXT, new ApplicationRegistry());
-      assert.equal(receipt.applicationOutcome, "APPLIED");
+      const receipt = applyBoundedChange(target, applicationPorts(state, () => eligibility), CONTEXT, journal(), new ApplicationRegistry());
+      assert.equal(receipt.applicationOutcome, "APPLIED", receipt.rejectionReason ?? receipt.fallbackReason);
       assert.equal(state.value, 2, "the bounded change is now applied, exactly once");
     } finally {
       close();
@@ -330,9 +365,11 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
       for (let index = 0; index < META_MINIMUM_CYCLES_FOR_ELIGIBILITY; index += 1) {
         ledger.assign(assignment({ learningCycleId: cycleId(String(index)), partition: "meta-train" }), { claim: () => "CLAIMED", isUsed: () => false });
       }
-      assert.equal(ledger.eligibility("meta-train").eligible, true);
-      assert.equal(ledger.eligibility("meta-validation").eligible, false, "partitions are judged separately, never pooled to reach the floor");
-      assert.equal(ledger.eligibility("meta-holdout").eligible, false);
+      const target = decision();
+      const identity = eligibilityIdentity(target);
+      assert.equal(ledger.eligibility("meta-train", identity).eligible, true);
+      assert.equal(ledger.eligibility("meta-validation", identity).eligible, false, "partitions are judged separately, never pooled to reach the floor");
+      assert.equal(ledger.eligibility("meta-holdout", identity).eligible, false);
     } finally {
       close();
     }
