@@ -19,6 +19,12 @@ const OUTCOMES = new Set<EvolutionLearningRecord["outcome"]>([
 const REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const LEARNING_INPUT_SET_ID = /^learning-input-set:([a-f0-9]{64})$/;
+const LEARNING_INPUT_SET_FIELDS = new Set([
+  "schemaVersion", "cutoffTimestamp", "researchEvidenceRecordIds", "researchEvidenceObservedAt",
+  "paperEvidenceRecordIds", "paperEvidenceObservedAt", "researchLaneDigest", "performanceLaneDigest",
+  "learningPolicyVersion", "researchPolicyVersion", "riskPolicyVersion", "governancePolicyVersion",
+  "canonicalOrderingVersion",
+]);
 const LEARNING_DECISION_ID = /^learning-decision(?::|-cycle-v1:)([a-f0-9]{64})$/;
 const LEARNING_INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
 const LEARNING_DECISION_PROBLEM = "NUSA learning decision: the bounded conclusion drawn from one learning input set";
@@ -217,6 +223,51 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
 }
 
+function canonicalLearningInputSetForReservation(record: EvolutionLearningRecord, fingerprint: string): boolean {
+  if (record.validationStatus !== "LEARNING_INPUT_SET" || record.problem !== LEARNING_INPUT_SET_PROBLEM
+    || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true) return false;
+  let payload: unknown;
+  try { payload = JSON.parse(record.hypothesis); } catch { return false; }
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const input = payload as Record<string, unknown>;
+  if (Object.keys(input).length !== LEARNING_INPUT_SET_FIELDS.size
+    || Object.keys(input).some((key) => !LEARNING_INPUT_SET_FIELDS.has(key))
+    || canonicalResearchJson(input) !== record.hypothesis
+    || input.schemaVersion !== 1
+    || input.canonicalOrderingVersion !== "learning-input-set-canonical-order-v2"
+    || !Number.isSafeInteger(input.cutoffTimestamp) || (input.cutoffTimestamp as number) < 0
+    || record.opportunityId !== `learning-input-set:${fingerprint}`
+    || record.changeReference !== input.learningPolicyVersion) return false;
+  const lanes = [
+    { name: "research", ids: input.researchEvidenceRecordIds, observed: input.researchEvidenceObservedAt, digest: input.researchLaneDigest },
+    { name: "performance", ids: input.paperEvidenceRecordIds, observed: input.paperEvidenceObservedAt, digest: input.performanceLaneDigest },
+  ];
+  const allIds = new Set<string>();
+  for (const lane of lanes) {
+    if (!Array.isArray(lane.ids) || !Array.isArray(lane.observed) || lane.ids.length !== lane.observed.length || !SHA256.test(lane.digest as string)) return false;
+    let previous = "";
+    for (let index = 0; index < lane.ids.length; index += 1) {
+      const id = lane.ids[index];
+      const observed = lane.observed[index];
+      if (typeof id !== "string" || !id || id.length > 512 || /[\u0000-\u001f\u007f]/.test(id)
+        || (index > 0 && id <= previous) || allIds.has(id)
+        || !Number.isSafeInteger(observed) || (observed as number) < 0 || (observed as number) >= (input.cutoffTimestamp as number)) return false;
+      if (lane.name === "performance" && (id.length > 227 || !/^[A-Za-z0-9_.:/#@-]+$/.test(id))) return false;
+      allIds.add(id); previous = id;
+    }
+    const expectedDigest = sha256(canonicalResearchJson({ lane: lane.name === "research" ? "research" : "performance", recordIds: lane.ids, observedAt: lane.observed }));
+    if (lane.digest !== expectedDigest) return false;
+  }
+  if (allIds.size === 0 || allIds.size > 512) return false;
+  for (const field of ["learningPolicyVersion", "researchPolicyVersion", "riskPolicyVersion", "governancePolicyVersion"] as const) {
+    if (typeof input[field] !== "string" || !LEARNING_POLICY_ID.test(input[field] as string)) return false;
+  }
+  if (sha256(canonicalResearchJson(input)) !== fingerprint) return false;
+  const expectedReferences = [record.opportunityId, ...(input.paperEvidenceRecordIds as string[]).map((id) => `paper-period:${id}`)];
+  return record.evidenceReferences.length === expectedReferences.length
+    && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
+}
+
 function isLearningDecisionCandidate(record: EvolutionLearningRecord): boolean {
   return record.validationStatus === "LEARNING_DECISION" || record.problem === LEARNING_DECISION_PROBLEM || LEARNING_DECISION_ID.test(record.opportunityId);
 }
@@ -226,7 +277,7 @@ function pendingLearningDecisionFingerprints(records: readonly EvolutionLearning
   for (const record of records) {
     if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
       const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-      if (match != null) pending.add(match[1]);
+      if (match != null && canonicalLearningInputSetForReservation(record, match[1])) pending.add(match[1]);
       continue;
     }
     if (isLearningDecisionCandidate(record)) {
@@ -244,7 +295,7 @@ function pendingReservationsAfterAppend(
   const next = new Set(pending);
   if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
     const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-    if (match != null) next.add(match[1]);
+    if (match != null && canonicalLearningInputSetForReservation(record, match[1])) next.add(match[1]);
   }
   if (isLearningDecisionCandidate(record)) {
     const matchingReservations = record.evidenceReferences.filter((reference) => next.has(reference));

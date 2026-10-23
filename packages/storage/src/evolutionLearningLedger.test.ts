@@ -208,6 +208,25 @@ test("an unrelated writer cannot consume the capacity reserved for an A2 input s
   }
 });
 
+test("a malformed namespace-shaped A2 record cannot reserve capacity after restart", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 2);
+    const malformedA2 = inputSetRecord("2026-08-29T00:00:00.000Z", "p1");
+    ledger.append({ ...malformedA2.record, hypothesis: "{}" });
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 2);
+    ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
+    assert.equal(ledger.size(), 2, "only a complete canonical A2 receipt consumes A1 capacity");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
 test("only a canonical A1 receipt can release one matching A2 reservation", () => {
   const filename = databasePath();
   let db = new SqliteDatabase(filename);
