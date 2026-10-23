@@ -212,7 +212,14 @@ export function assignMetaPartition(input: MetaOosAssignmentInput, holdouts: Hol
  * request to lower the bar. The count comes from recorded assignments, so it cannot be inflated by
  * anything a decision says about itself.
  */
-export function metaOosCyclesEligibility(partitionAssignments: readonly MetaOosAssignment[], partition: MetaPartition, cyclesEvaluated: number): MetaOosEligibility {
+export function metaOosCyclesEligibility(
+  partitionAssignments: readonly MetaOosAssignment[],
+  partition: MetaPartition,
+  cyclesEvaluated: number,
+  identity: Pick<MetaOosEligibility, "learningCycleId" | "learningDecisionFingerprint">,
+): MetaOosEligibility {
+  if (typeof identity?.learningCycleId !== "string" || !CYCLE.test(identity.learningCycleId)) throw new MetaOosError("MALFORMED_ELIGIBILITY_IDENTITY", "eligibility cycle identity is invalid");
+  if (typeof identity.learningDecisionFingerprint !== "string" || !SHA64.test(identity.learningDecisionFingerprint)) throw new MetaOosError("MALFORMED_ELIGIBILITY_IDENTITY", "eligibility decision fingerprint is invalid");
   const recorded = partitionAssignments.filter((assignment) => assignment.partition === partition).length;
   const counted = Math.min(cyclesEvaluated, recorded);
 
@@ -221,6 +228,7 @@ export function metaOosCyclesEligibility(partitionAssignments: readonly MetaOosA
       eligible: false,
       partition,
       cyclesEvaluated: counted,
+      ...identity,
       reason:
         "meta-OOS " +
         partition +
@@ -236,6 +244,7 @@ export function metaOosCyclesEligibility(partitionAssignments: readonly MetaOosA
     eligible: true,
     partition,
     cyclesEvaluated: counted,
+    ...identity,
     reason: "meta-OOS " + partition + " has " + String(counted) + " completed cycle(s) meeting the owner-fixed minimum of " + String(META_MINIMUM_CYCLES_FOR_ELIGIBILITY),
   });
 }
@@ -246,8 +255,12 @@ export function metaOosCyclesEligibility(partitionAssignments: readonly MetaOosA
  * It is deliberately not constructible from a decision's own claim: a decision that reports a large
  * `metaCyclesEvaluated` still gets no eligibility unless the assignments actually exist.
  */
-export function metaOosEligibility(assignments: readonly MetaOosAssignment[], partition: MetaPartition): MetaOosEligibility {
-  return metaOosCyclesEligibility(assignments, partition, assignments.filter((assignment) => assignment.partition === partition).length);
+export function metaOosEligibility(
+  assignments: readonly MetaOosAssignment[],
+  partition: MetaPartition,
+  identity: Pick<MetaOosEligibility, "learningCycleId" | "learningDecisionFingerprint">,
+): MetaOosEligibility {
+  return metaOosCyclesEligibility(assignments, partition, assignments.filter((assignment) => assignment.partition === partition).length, identity);
 }
 
 /** Fails closed on anything that is not exactly a Meta-OOS assignment. */
