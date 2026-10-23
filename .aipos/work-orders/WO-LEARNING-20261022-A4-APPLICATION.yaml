@@ -6,11 +6,16 @@ authority_impact: bounded-research-policy-application
 owner_request: "2026-10-22: progress the Learning stack from A2 upward; each PR requires focused tests, Node 24.19+ preflight, green exact-head CI, then a fresh independent review. Do not delay #2855 or the order-book archive deployment."
 first_broken_transition: "A1 ADMISSIBLE receipt -> current owner spec and durable META-HOLDOUT eligibility -> exactly-once bounded A4 application"
 scope: "Use the current-spec owner reader, a cycle/decision-bound META owner port that defaults closed, append-only write-ahead intent and reconciliation through the existing Evolution Learning ledger, read-back verified mutation/fail-safe, and full provenance-bound receipts. No production runtime caller or application authority is claimed."
+review_findings:
+  addressed_from_head_f909604b:
+    - "Malformed eligibility must be rejected unless eligible is boolean and cyclesEvaluated is a non-negative safe integer."
+    - "Unsupported restart reconciliation values must remain unresolved and never fall through to another mutation."
+    - "Application read/intent/mutation/receipt must run under the existing canonical exclusive application-owner lease; lease contention fails closed."
 validation:
   node: "v24.19.0"
-  focused: "A1/A2/A4 regression suite 86/86 PASS; build PASS; pnpm run preflight PASS; validate:full PASS; security:gate PASS; git diff --check PASS. Exact-head CI and fresh review pending after this successor commit."
+  focused: "A1/A2/A4 regression suite 90/90 PASS; build PASS; pnpm run preflight PASS; validate:full PASS; security:gate PASS; git diff --check PASS. Exact-head CI and fresh review pending after this successor commit."
 remaining: "Exact-head CI, fresh non-author review, A3 owner/policy integration, and a production caller remain required. Keep Draft; no Audit/Release/merge/runtime change."
-next: "Commit the substantive A4 repair, push the existing #2794 branch, wait for exact-head CI green, then request fresh independent review."
+next: "Wait for A1 exact-head independent review before final A4 base synchronization; then push this substantive repair on the existing #2794 branch, run exact-head CI, and request a fresh independent review."
 safety:
   mode: PAPER_ONLY
   liveAuthority: NONE

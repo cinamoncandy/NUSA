@@ -109,6 +109,11 @@ export interface LearningApplicationJournal {
   append(receipt: LearningApplicationReceipt): { readonly receipt: LearningApplicationReceipt };
 }
 
+export interface ApplicationLeaseResult<T> {
+  readonly acquired: boolean;
+  readonly value?: T;
+}
+
 /** The runtime's own canonical state and setter. Only ever reached after every check has passed. */
 export interface ApplicationPorts {
   /** Canonical A3 owner lookup; omitted means ineligible. */
@@ -117,6 +122,8 @@ export interface ApplicationPorts {
   readonly readCurrentResearchSpec: () => LearningDecisionCurrentResearchSpec;
   /** Reconcile a durable pending intent using the canonical application owner after restart. */
   readonly reconcileIntent?: (intent: LearningApplicationIntent) => "APPLIED" | "NOT_APPLIED" | "UNKNOWN";
+  /** Existing canonical single-writer owner; the entire read/intent/mutate/receipt sequence runs inside it. */
+  readonly withExclusiveApplicationLease: <T>(identity: string, operation: () => T) => ApplicationLeaseResult<T>;
   /** Canonical current value of a surface, read from the same place the runtime reads it. */
   readonly readCurrent: (surface: string) => number;
   /** The existing canonical application surface. Throws to signal an execution failure. */
@@ -212,6 +219,8 @@ function assertContext(context: ApplicationContext): void {
 
 function assertEligibility(eligibility: MetaOosEligibility, decision: LearningDecision, fingerprint: string): void {
   if (eligibility == null || typeof eligibility !== "object") throw new LearningApplicationError("MALFORMED_ELIGIBILITY", "meta-OOS eligibility proof is required");
+  if (typeof eligibility.eligible !== "boolean") throw new LearningApplicationError("MALFORMED_ELIGIBILITY", "eligibility result must be a boolean");
+  if (!Number.isSafeInteger(eligibility.cyclesEvaluated) || eligibility.cyclesEvaluated < 0) throw new LearningApplicationError("MALFORMED_ELIGIBILITY", "cycles evaluated must be a non-negative safe integer");
   if (typeof eligibility.reason !== "string" || eligibility.reason.length === 0) throw new LearningApplicationError("MALFORMED_ELIGIBILITY", "eligibility must state its reason");
   if (eligibility.learningCycleId !== decision.learningCycleId || eligibility.learningDecisionFingerprint !== fingerprint) throw new LearningApplicationError("ELIGIBILITY_IDENTITY_MISMATCH", "meta-OOS eligibility is not bound to the exact decision cycle");
   if (eligibility.eligible && (eligibility.partition !== "meta-holdout" || eligibility.cyclesEvaluated < 3)) throw new LearningApplicationError("ELIGIBILITY_POLICY_INVALID", "only a sufficiently evidenced meta-holdout may authorize application");
@@ -304,6 +313,23 @@ export function applyBoundedChange(
   assertContext(context);
   if (ports == null || typeof ports !== "object" || journal == null || typeof journal !== "object") throw new LearningApplicationError("MALFORMED_PORTS", "application ports and durable journal are required");
 
+  const admittedChange = decision.decisionOutcome === "ADMISSIBLE" ? decision.admissibleChanges[0] : undefined;
+  const leaseIdentity = decision.learningCycleId + "|" + (admittedChange?.surface ?? "none");
+  if (typeof ports.withExclusiveApplicationLease !== "function") throw new LearningApplicationError("APPLICATION_OWNER_UNAVAILABLE", "canonical exclusive application owner is required");
+  const leased = ports.withExclusiveApplicationLease(leaseIdentity, () => applyBoundedChangeUnderLease(decision, ports, context, journal, registry));
+  if (leased == null || leased.acquired !== true) throw new LearningApplicationError("APPLICATION_OWNER_BUSY", "canonical application owner did not grant the exclusive lease; no mutation was attempted");
+  if (!("value" in leased)) throw new LearningApplicationError("APPLICATION_OWNER_RESULT_MISSING", "exclusive application owner returned no operation result");
+  return leased.value as LearningApplicationReceipt;
+}
+
+function applyBoundedChangeUnderLease(
+  decision: LearningDecision,
+  ports: ApplicationPorts,
+  context: ApplicationContext,
+  journal: LearningApplicationJournal,
+  registry: ApplicationRegistry,
+): LearningApplicationReceipt {
+
   const fingerprint = learningDecisionFingerprint(decision);
 
   // A decision that never admitted a change has nothing to apply, whatever it claims.
@@ -331,6 +357,9 @@ export function applyBoundedChange(
   const priorIntent = journal.pendingIntentFor(fingerprint, change.surface);
   if (priorIntent != null) {
     const reconciliation = ports.reconcileIntent?.(priorIntent) ?? "UNKNOWN";
+    if (reconciliation !== "APPLIED" && reconciliation !== "NOT_APPLIED" && reconciliation !== "UNKNOWN") {
+      throw new LearningApplicationError("APPLICATION_INTENT_UNRESOLVED", "canonical reconciliation returned an unsupported result; no mutation was attempted");
+    }
     if (reconciliation === "UNKNOWN") throw new LearningApplicationError("APPLICATION_INTENT_UNRESOLVED", "durable application intent cannot be reconciled safely; no mutation was attempted");
     if (reconciliation === "APPLIED") {
       const appliedValue = ports.readCurrent(change.surface);
@@ -354,6 +383,27 @@ export function applyBoundedChange(
       registry.record(durable);
       return durable;
     }
+    // A negative recovery result closes the interrupted attempt; a separate fresh invocation may
+    // retry only after this receipt is durable and the canonical owner lease is reacquired.
+    const rejected = buildReceipt({
+      learningDecisionFingerprint: fingerprint,
+      learningCycleId: decision.learningCycleId,
+      previousResearchSpecFingerprint: priorIntent.previousResearchSpecFingerprint,
+      intentFingerprint: priorIntent.intentFingerprint,
+      surface: priorIntent.surface,
+      previousValue: priorIntent.previousValue,
+      requestedValue: priorIntent.requestedValue,
+      boundedValue: priorIntent.boundedValue,
+      appliedValue: ports.readCurrent(priorIntent.surface),
+      applicationOutcome: "REJECTED",
+      rejectionReason: "recovery confirmed the previous intent was not applied; a new bounded attempt is required",
+      applicationTimestamp: context.applicationTimestamp,
+      runtimeIdentity: context.runtimeIdentity,
+      sourceCommit: context.sourceCommit,
+    });
+    const durable = journal.append(rejected).receipt;
+    registry.record(durable);
+    return durable;
   }
 
   // Meta-OOS eligibility is checked before any surface is touched, so a system without A3 cannot
@@ -385,9 +435,6 @@ export function applyBoundedChange(
   try {
     currentSpec = ports.readCurrentResearchSpec();
     assertLearningDecisionPremisesMatchCurrentSpec(decision, currentSpec);
-    if (priorIntent != null && currentSpec.fingerprint !== priorIntent.previousResearchSpecFingerprint) {
-      throw new LearningApplicationError("APPLICATION_INTENT_STATE_MISMATCH", "pending intent was not applied but the canonical spec identity has changed");
-    }
   } catch (error) {
     const current = ports.readCurrent(change.surface);
     const reason = error instanceof Error ? error.message : "canonical current research spec is unavailable";

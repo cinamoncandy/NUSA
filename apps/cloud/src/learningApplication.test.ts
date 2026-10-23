@@ -71,6 +71,7 @@ function ports(current: { value: number }, failing = false): ApplicationPorts & 
       current.value = value;
     },
     failSafeValue: () => 1,
+    withExclusiveApplicationLease: (_identity, operation) => Object.freeze({ acquired: true, value: operation() }),
   };
 }
 
@@ -142,6 +143,35 @@ describe("A4 - the meta-OOS eligibility gate is fail-closed (section 17)", () =>
     }, CONTEXT, memoryJournal(), new ApplicationRegistry());
     assert.equal(receipt.applicationOutcome, "REJECTED");
     assert.equal(base.commits, 0);
+  });
+
+  it("refuses malformed eligibility counters instead of treating NaN as sufficient evidence", () => {
+    const state = { value: 1 };
+    const base = ports(state);
+    const decision = decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1);
+    const receipt = applyFromPorts(decision, {
+      ...base,
+      resolveMetaOosEligibility: (_decision, fingerprint) => ({
+        ...ELIGIBLE,
+        cyclesEvaluated: Number.NaN,
+        learningCycleId: decision.learningCycleId,
+        learningDecisionFingerprint: fingerprint,
+      }),
+    }, CONTEXT, memoryJournal(), new ApplicationRegistry());
+    assert.equal(receipt.applicationOutcome, "REJECTED");
+    assert.equal(base.commits, 0);
+  });
+
+  it("does not mutate when the canonical exclusive application owner is busy", () => {
+    const state = { value: 1 };
+    const base = ports(state);
+    const decision = decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1);
+    assert.throws(() => applyFromPorts(decision, {
+      ...base,
+      withExclusiveApplicationLease: () => Object.freeze({ acquired: false }),
+    }, CONTEXT, memoryJournal(), new ApplicationRegistry()), /did not grant the exclusive lease/);
+    assert.equal(base.commits, 0);
+    assert.equal(state.value, 1);
   });
 
   it("a rejected eligibility attempt does not prevent a later durable eligibility retry", () => {
@@ -287,6 +317,67 @@ describe("A4 - bounded application", () => {
     assert.equal(ledger.pendingIntentFor(decisionFingerprint, "longBarTickEvery"), undefined);
   });
 
+  it("fails closed on an unsupported recovery result instead of retrying an ambiguous mutation", () => {
+    const decision = decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1);
+    const decisionFingerprint = learningDecisionFingerprint(decision);
+    const intentFields = {
+      learningDecisionFingerprint: decisionFingerprint,
+      learningCycleId: decision.learningCycleId,
+      previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+      surface: "longBarTickEvery",
+      previousValue: 1,
+      requestedValue: 2,
+      boundedValue: 2,
+      applicationTimestamp: CONTEXT.applicationTimestamp,
+      runtimeIdentity: CONTEXT.runtimeIdentity,
+      sourceCommit: CONTEXT.sourceCommit,
+    };
+    const intent = { ...intentFields, schemaVersion: 1 as const, intentFingerprint: learningApplicationIntentFingerprint(intentFields) };
+    const journal = memoryJournal();
+    journal.appendIntent(intent);
+    const state = { value: 1 };
+    const base = ports(state);
+    assert.throws(() => applyFromPorts(decision, {
+      ...base,
+      reconcileIntent: () => "ERROR" as "UNKNOWN",
+    }, CONTEXT, journal, new ApplicationRegistry()), /unsupported result/);
+    assert.equal(base.commits, 0);
+    assert.equal(state.value, 1);
+  });
+
+  it("records NOT_APPLIED recovery before allowing a later fresh bounded retry", () => {
+    const decision = decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1);
+    const decisionFingerprint = learningDecisionFingerprint(decision);
+    const intentFields = {
+      learningDecisionFingerprint: decisionFingerprint,
+      learningCycleId: decision.learningCycleId,
+      previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
+      surface: "longBarTickEvery",
+      previousValue: 1,
+      requestedValue: 2,
+      boundedValue: 2,
+      applicationTimestamp: CONTEXT.applicationTimestamp,
+      runtimeIdentity: CONTEXT.runtimeIdentity,
+      sourceCommit: CONTEXT.sourceCommit,
+    };
+    const intent = { ...intentFields, schemaVersion: 1 as const, intentFingerprint: learningApplicationIntentFingerprint(intentFields) };
+    const journal = memoryJournal();
+    journal.appendIntent(intent);
+    const state = { value: 1 };
+    const firstAttempt = applyFromPorts(decision, {
+      ...ports(state),
+      reconcileIntent: () => "NOT_APPLIED",
+    }, CONTEXT, journal, new ApplicationRegistry());
+    assert.equal(firstAttempt.applicationOutcome, "REJECTED");
+    assert.equal(state.value, 1);
+    assert.equal(journal.pendingIntentFor(decisionFingerprint, "longBarTickEvery"), undefined);
+
+    const retryContext: ApplicationContext = { ...CONTEXT, applicationTimestamp: "2026-10-18T00:01:00.000Z" };
+    const retry = applyBoundedChange(decision, ELIGIBLE, ports(state), retryContext, new ApplicationRegistry(), journal);
+    assert.equal(retry.applicationOutcome, "APPLIED");
+    assert.equal(state.value, 2);
+  });
+
   it("rehydrates a pending write-ahead intent from the real SQLite hash-chain after process restart", () => {
     const directory = mkdtempSync(join(tmpdir(), "nusa-a4-intent-"));
     const databasePath = join(directory, "learning.sqlite");
@@ -406,6 +497,7 @@ describe("A4 falsification (section 18)", () => {
         if (value === 2) throw new Error("write applied but acknowledgment lost");
       },
       failSafeValue: () => 1,
+      withExclusiveApplicationLease: (_identity, operation) => Object.freeze({ acquired: true, value: operation() }),
     };
     const receipt = applyBoundedChange(decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1), ELIGIBLE, port, CONTEXT, new ApplicationRegistry());
     assert.equal(receipt.applicationOutcome, "FAILED");
