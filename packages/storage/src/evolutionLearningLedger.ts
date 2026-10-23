@@ -23,13 +23,14 @@ const LEARNING_DECISION_ID = /^learning-decision(?::|-cycle-v1:)([a-f0-9]{64})$/
 const LEARNING_INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
 const LEARNING_DECISION_PROBLEM = "NUSA learning decision: the bounded conclusion drawn from one learning input set";
 const LEARNING_DECISION_FIELDS = new Set([
-  "schemaVersion", "learningCycleId", "learningInputSetFingerprint", "previousResearchSpecFingerprint",
+  "schemaVersion", "learningCycleId", "learningInputSet", "learningInputSetFingerprint", "previousResearchSpecFingerprint",
   "learningPolicyVersion", "objectiveVersion", "proposedChanges", "admissibleChanges", "rejectedChanges",
   "reasonEvidence", "changeMagnitude", "allowedSurfaceVersion", "immutableSurfaceVersion", "decisionOutcome",
   "createdAt", "sourceCommit", "runtimeIdentity",
 ]);
 const LEARNING_POLICY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const LEARNING_BOUNDED_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
+const LEARNING_REASON_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,239}$/;
 const FORBIDDEN_KEY = /(?:password|authorization|cookie|credential|secret|token|nonce|signature|private|access[_-]?key)/i;
 const FORBIDDEN_VALUE = /(?:bearer\s+[A-Za-z0-9._-]+|(?:api|access|secret|private)[_-]?key\s*[:=]|-----BEGIN|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.)/i;
 const FIELDS = new Set([
@@ -179,7 +180,7 @@ function canonicalEvent(sequence: number, record: EvolutionLearningRecord, previ
  * cannot consume the last slot between the A2 and A1 appends. These are existing record identities;
  * no second reservation store or mutable history is introduced.
  */
-function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord, fingerprint: string): boolean {
+function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord, fingerprint: string, inputSetPayload: string): boolean {
   if (record.validationStatus !== "LEARNING_DECISION" || record.problem !== LEARNING_DECISION_PROBLEM
     || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true) return false;
   let payload: unknown;
@@ -194,6 +195,8 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     || canonicalResearchJson(decision) !== record.hypothesis
     || decision.schemaVersion !== 1
     || decision.learningInputSetFingerprint !== fingerprint
+    || decision.learningInputSet == null || typeof decision.learningInputSet !== "object" || Array.isArray(decision.learningInputSet)
+    || canonicalResearchJson(decision.learningInputSet) !== inputSetPayload
     || decision.learningCycleId !== `learning-cycle:${fingerprint}`
     || record.opportunityId !== `learning-decision-cycle-v1:${sha256(decision.learningCycleId as string)}`
     || record.changeReference !== decision.learningPolicyVersion
@@ -211,7 +214,7 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     || !Array.isArray(decision.admissibleChanges) || !Array.isArray(decision.rejectedChanges)
     || !Array.isArray(decision.reasonEvidence) || decision.reasonEvidence.length > 64) return false;
   const reasons = decision.reasonEvidence as unknown[];
-  if (reasons.some((item, index) => typeof item !== "string" || !LEARNING_BOUNDED_ID.test(item) || (index > 0 && item <= (reasons[index - 1] as string)))) return false;
+  if (reasons.some((item, index) => typeof item !== "string" || !LEARNING_REASON_REFERENCE.test(item) || (index > 0 && item <= (reasons[index - 1] as string)))) return false;
   const expectedReferences = [record.opportunityId, fingerprint, ...(reasons as string[])].sort((left, right) => left.localeCompare(right));
   return record.evidenceReferences.length === expectedReferences.length
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
@@ -221,34 +224,34 @@ function isLearningDecisionCandidate(record: EvolutionLearningRecord): boolean {
   return record.validationStatus === "LEARNING_DECISION" || record.problem === LEARNING_DECISION_PROBLEM || LEARNING_DECISION_ID.test(record.opportunityId);
 }
 
-function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[]): Set<string> {
-  const pending = new Set<string>();
+function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[]): Map<string, string> {
+  const pending = new Map<string, string>();
   for (const record of records) {
     if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
       const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-      if (match != null) pending.add(match[1]);
+      if (match != null) pending.set(match[1], record.hypothesis);
       continue;
     }
     if (isLearningDecisionCandidate(record)) {
       const matchingReservations = record.evidenceReferences.filter((reference) => pending.has(reference));
-      if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0])) pending.delete(matchingReservations[0]);
+      if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0], pending.get(matchingReservations[0])!)) pending.delete(matchingReservations[0]);
     }
   }
   return pending;
 }
 
 function pendingReservationsAfterAppend(
-  pending: Set<string>,
+  pending: Map<string, string>,
   record: EvolutionLearningRecord,
-): Set<string> {
-  const next = new Set(pending);
+): Map<string, string> {
+  const next = new Map(pending);
   if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
     const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-    if (match != null) next.add(match[1]);
+    if (match != null) next.set(match[1], record.hypothesis);
   }
   if (isLearningDecisionCandidate(record)) {
     const matchingReservations = record.evidenceReferences.filter((reference) => next.has(reference));
-    if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0])) next.delete(matchingReservations[0]);
+    if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0], next.get(matchingReservations[0])!)) next.delete(matchingReservations[0]);
   }
   return next;
 }
@@ -316,7 +319,7 @@ export class SqliteEvolutionLearningLedger {
     const pendingReservations = pendingLearningDecisionFingerprints(current.records);
     if (isLearningDecisionCandidate(record)) {
       const matchingReservations = record.evidenceReferences.filter((reference) => pendingReservations.has(reference));
-      if (matchingReservations.length !== 1 || !canonicalLearningDecisionForReservation(record, matchingReservations[0])) {
+      if (matchingReservations.length !== 1 || !canonicalLearningDecisionForReservation(record, matchingReservations[0], pendingReservations.get(matchingReservations[0])!)) {
         invalid("INVALID_LEARNING_DECISION_RECEIPT", "only a canonical A1 receipt bound to exactly one pending A2 input set may use reserved capacity");
       }
     }

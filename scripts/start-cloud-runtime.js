@@ -32,6 +32,7 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PAPER_CAPITAL_KRW = "10000";
 const SUPERVISOR_CHILD_ENV = "NUSA_PAPER_RUNTIME_SUPERVISOR_CHILD";
 const PRODUCTION_RUNTIME_ENTRYPOINT = "dist/apps/cloud/src/closedLearningProductionRuntime.js";
+const SQLITE_INTEGRITY_BOOTSTRAP = "dist/packages/storage/src/sqliteIntegrityBootstrap.js";
 
 /** Environment variables that would hand the runtime real-money authority. Never forwarded. */
 const PRIVATE_CREDENTIAL_PATTERN = /(ACCESS|SECRET|PRIVATE|API[_-]?KEY|TOKEN)/i;
@@ -129,6 +130,9 @@ function readOwnerResearch(file = OWNER_RESEARCH_FILE) {
 /** Fills in operational defaults without overriding anything the caller set explicitly. */
 function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccount(), ownerPaperMarkets = readOwnerPaperMarkets(), ownerResearch = readOwnerResearch()) {
   const { env, stripped } = stripPrivateExchangeCredentials(baseEnv);
+  // Do not pass NODE_OPTIONS preloads into the production database-owning child. Its trusted
+  // SQLite integrity bootstrap must execute before any application module can mutate core APIs.
+  delete env.NODE_OPTIONS;
   const defaults = {
     NUSA_MODE: "PAPER",
     NUSA_LIVE_MUTATION: "PROHIBITED",
@@ -283,8 +287,10 @@ function start(options = {}) {
   const write = options.write ?? ((text) => process.stdout.write(text));
   write(banner(env, stripped));
   const spawnFn = options.spawn ?? spawn;
-  const child = spawnFn(process.execPath, [PRODUCTION_RUNTIME_ENTRYPOINT], {
-    cwd: options.cwd ?? process.cwd(),
+  const cwd = options.cwd ?? process.cwd();
+  const bootstrapPath = path.resolve(cwd, SQLITE_INTEGRITY_BOOTSTRAP);
+  const child = spawnFn(process.execPath, ["--require", bootstrapPath, PRODUCTION_RUNTIME_ENTRYPOINT], {
+    cwd,
     env,
     stdio: ["ignore", "inherit", "pipe"],
     shell: false,
@@ -357,6 +363,7 @@ module.exports = {
   readOwnerResearch,
   launcherExitCode,
   PRODUCTION_RUNTIME_ENTRYPOINT,
+  SQLITE_INTEGRITY_BOOTSTRAP,
   recoverAbandonedWriterLease,
   resolveDashboardToken,
   runManaged,
