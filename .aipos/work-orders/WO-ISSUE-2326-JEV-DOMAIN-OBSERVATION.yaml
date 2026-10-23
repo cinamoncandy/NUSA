@@ -1,6 +1,6 @@
 id: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
 title: "Define canonical NUSA-wide Jev domain observation and task-type registry"
-status: BLOCKED
+status: COMPLETED
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -42,14 +42,14 @@ verification_commands:
   - "pnpm run aipos:provenance"
   - "git diff --check"
 evidence:
-  implementation_status: READY_FOR_REVIEW
+  implementation_status: MERGED
   implementation_head: ca56eb2a21ae93c84031ed210a62805508d8908a
   local_validation: "Local focused TypeScript compile PASS; runtime checks for credential-prefix rejection, requiredModel enum validation, and provenance boolean validation PASS; AIPOS YAML and git diff checks PASS. Full-repository tsc on the 1 GB nusa-vcn verifier was boundedly stopped for resource pressure, not a diagnostic failure."
-  external_validation: "Implementation head ca56eb2a exact-head CI 36287313910 PASS with validation, all coverage shards, aggregate coverage, and test; review threads RESOLVED. This metadata-only reconciliation requires fresh exact-head CI. Independent Audit is externally BLOCKED by WORKERS_AI_DAILY_QUOTA_EXHAUSTED until 2026-09-28T00:00:00Z (2026-09-28 09:00 KST), then canonical Release/merge remain required."
+  external_validation: "PR #2329 was governed-merged as 04a17e14130139168ad515417641f52c440cbab6 on 2026-09-27 after exact-head CI and review. The historical provider-quota blocker expired and is not a current dependency. This parent work order is complete; successor #2337 remains independently governed."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Run one fresh exact-head CI for this metadata-only reconciliation. Do not retry Audit before 2026-09-28T00:00:00Z; after the persisted provider wait expires, request independent Audit, then canonical Release/merge. No rollout above SHADOW."
+next_permitted_action: "Do not reopen completed parent PR #2329. Continue successor #2337 through fresh exact-head CI, non-author Validator, deterministic Audit, and governed Release. No rollout above SHADOW."

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "canonicalPR": 2337,
+  "baseMain": "c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f",
+  "priorHead": "df6b08d85953f5e2df06fbc9416aa996b873bf55",
+  "priorExactCI": 38745643392,
+  "reconvergence": "Non-conflicting merge of existing current protected main; no Jev implementation changes",
+  "sourceInputsCompared": 1373,
+  "sourceInputsMatch": true,
+  "sourceInputFingerprint": "27b5dcea1cd5abfbef99ea700fc4d3fa64d4986b0c740d0c6c3f8e0d0298ca7b",
+  "strictBuild": "PASS managed Node24.19 TypeScript5.9.3",
+  "rootTypecheck": "PASS",
+  "mobileTypecheck": "PASS",
+  "focusedTests": {
+    "pass": 36,
+    "fail": 0
+  },
+  "validateFull": "PASS",
+  "lint": "PASS zero errors;24 existing warnings",
+  "security": "PASS zero secrets and zero unmitigated high/critical",
+  "independentReview": "PENDING_FRESH_NONAUTHOR",
+  "auditReleaseRuntime": "PENDING",
+  "parent2329": "MERGED04a17e14; ancestry proven, old quota hold historical only",
+  "authority": "SHADOW_ADVISORY_NON_AUTHORITATIVE",
+  "usableForRouting": false,
+  "liveAuthority": "NONE",
+  "productionMutationAllowed": false,
+  "aiAuthority": "ZERO_AUTHORITY",
+  "VERIFIED": false
+}

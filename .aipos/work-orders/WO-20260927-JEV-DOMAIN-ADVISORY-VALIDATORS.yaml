@@ -1,0 +1,66 @@
+id: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
+title: Jev domain advisory validator completion
+status: IN_PROGRESS
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
+parent_pr: 2329
+base_branch: main
+base_commit: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
+prior_head: df6b08d85953f5e2df06fbc9416aa996b873bf55
+implementation_branch: feat/2326-jev-domain-advisory-validators
+authority_impact: none
+objective: 'Repair independent review6198128771: enforce accepted ADR-0019 non-emission until separately accepted
+  domain-owned contracts; preserve existing specialized validators.'
+scope:
+  include:
+  - Keep18 unaccepted domain tasks UNAVAILABLE and non-emitting; no generic DOMAIN_ADVISORY_V1 production path.
+  - Retain canonical main workflow/research/microstructure validators without changes.
+  - Negative regression covers every deferred task, mismatched model/reason/confidence, and existing accepted Research
+    envelope.
+  exclude:
+  - Runtime wiring into each domain owner.
+  - Provider transport changes.
+  - Promotion beyond SHADOW or usableForRouting=true.
+  - Canonical truth, risk, Ledger, execution, Audit, Release, merge, secret, or LIVE authority.
+acceptance:
+- All18 deferred tasks fail closed with JEV_TASK_DECISION_VALIDATOR_UNAVAILABLE; no domain-owner approval invented.
+- Existing workflow/research/microstructure specialized paths remain SHADOW and zero-authority.
+- New negative regression reproduces P1 on prior head and passes after removal of unaccepted generic path.
+- Fresh exact-head CI and separate non-author review remain required; no self-acceptance.
+evidence:
+  prior_implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
+  prior_validation: Historical17/17 generic registry tests; not current-main acceptance.
+  current_main_reconvergence: 'Historical pre-repair evidence only: generic DOMAIN_ADVISORY_V1 coexisted with
+    MARKET_MICROSTRUCTURE_V1. At the current repaired head, the generic production path is absent, all 18 deferred
+    tasks remain UNAVAILABLE and non-emitting, and only separately accepted specialized validators remain.'
+  historical_validation_source_head: 'd7d17e7da5cb1f9d091b5dbcfb43a759a18337fe; contains the prohibited
+    generic DOMAIN_ADVISORY_V1 path and is not repaired-state acceptance.'
+  validation_source_head: 09f517f029a8c05327ffc861031348bc3816ad78
+  current_validation: 'CI39157572385 SUCCESS on repaired head09f517f02 (validation, coverage shards, aggregate,
+    and test). The prior 36/36 focused receipt is historical repaired-lineage evidence only.'
+  validation_receipt: .aipos/evidence/jev-2337-adr0019-repair-20261016.json
+  independent_review: 'FAIL on09f517f02; discussion4308376333 found the repaired validation was still bound to
+    historical prohibited head d7d17e7d. This metadata repair separates historical and repaired heads; fresh
+    exact-head clearance remains required.'
+  exact_head_ci: 'CI39157572385 SUCCESS on09f517f02; historical after this metadata repair, so new exact-head CI is
+    required.'
+  audit_release_runtime: PENDING
+  prior_exact_head_ci: 38745643392 SUCCESS on df6b08d8; historical10c base, not current-main acceptance
+  stale_parent_blocker_cleanup: 'Fresh GitHub #2329 merged04a17e14 on2026-09-27; ancestry to c26 proven. Old quota
+    hold retained only as history.'
+  index_validation: CI38851401923 rejected non-canonical WO status REWORK; reproduced locally, corrected to canonical
+    IN_PROGRESS without changing validator
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: Publish this locally validated repair on existing Draft2337; new exact-head CI; fresh non-author
+  review. No Ready/Audit/Release before review. Domain expansion remains blocked by ADR-0019.
+deferred_objective: Complete the registered NUSA-wide Jev SHADOW task contract by replacing UNAVAILABLE placeholder
+  validators with one bounded DOMAIN_ADVISORY_V1 schema and task-specific classification vocabularies.
+remaining_domain_contracts: 18 tasks require separately accepted domain-owner contracts/work orders; not completed
+  or silently superseded
+review_state: REWORK_FINDINGS_REPAIRED_PENDING_FRESH_NONAUTHOR_REVIEW
