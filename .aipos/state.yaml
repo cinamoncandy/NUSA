@@ -113,6 +113,19 @@ current_learning_hourly_recovery_20261012:
   remaining: "Actual cycles remain zero; baseline recognition repair and genuine Research-qualified candidate required."
   next: "Publish bounded hourly-evaluation increment; do not claim actual cycle completion or bypass baseline Research lineage."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_supersession_a5_20261023:
+  work_order: WO-LEARNING-20261023-A5-SUPERSESSION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: feat/supersession-a5
+  pull_request: 2796
+  parent_head: 94cad0eeed8be76dcc2d12bc2ad851a2f822d380
+  first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
+  validation: "Node24.19.0; A2/A1/A3/A4/A5 plus Evolution Learning ledger restart suite 146/146 PASS; A5 tests 21/21; build, preflight, validate:full, security:gate, diff check PASS."
+  next: "Push the locally validated A5 successor to existing #2796 after exact remote-head check; require exact-head CI then request fresh independent review."
+  blockers: "Exact-head CI and independent review pending. Cutoff/META owner and production trigger remain undefined; no production caller or learning completion is claimed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_upgrade_20261012:
   work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
   status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_FRESH_CI
