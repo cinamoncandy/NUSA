@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const DESIGN_FILE = path.join(__dirname, "..", "..", "docs", "research-ledger", "PREREGISTERED_STUDIES_2026-10-21.md");
-const DESIGN_SHA256 = "PENDING";
+const DESIGN_SHA256 = "c5308ca4688f48848b585e1d6a7332c1af6025ceea0f472ae773ff3802fd00dc";
 /** @type {ReadonlyArray<{ file: string, sha256: string, date: string }>} */
 const ADDENDA = Object.freeze([]);
 

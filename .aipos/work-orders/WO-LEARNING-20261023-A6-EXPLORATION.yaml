@@ -1,0 +1,53 @@
+id: WO-LEARNING-20261023-A6-EXPLORATION
+title: "A6 durable, cycle-bound exploration assessment"
+status: VERIFYING
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: feat/supersession-a5
+branch: feat/exploration-a6
+pull_request: 2797
+authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
+objective: "Make the existing A6 exploration assessment deterministic, derived from canonical candidate identity, durable on the existing hash-chained Learning ledger, cycle-bound to durable A2, and concurrency-safe without producing candidates, qualification, application, or production wiring."
+first_broken_transition: "canonical durable A2 input and registered Research candidate -> A6 bounded exploration decision -> durable exactly-once replay"
+scope:
+  include:
+    - "Require the durable A2 input-set receipt and derive learningCycleId from it."
+    - "Validate candidate specifications with the existing Research Candidate contract and strategy family membership with the existing StrategyFamilyRegistry."
+    - "Derive configuration/near-duplicate identity from canonical candidate fields; do not accept caller-selected experiment/family/configuration identity claims."
+    - "Persist attempts through the existing Evolution Learning hash-chain ledger and validate cycle budget/family constraints within its serialized append transaction."
+    - "Bound total receipts through the existing ledger capacity and validate all restart/replay history deterministically."
+  exclude:
+    - "Defining cutoff/META policy or changing A2/A3 owner policy."
+    - "Adding a production Learning caller, scheduler, store, candidate-generation engine, qualification, Governance, or PAPER execution path."
+    - "Changing exploration allotment/family ceiling or any OOS, cost, sample, qualification, Risk, capital, or authority threshold."
+    - "Audit, Release, merge, deployment, or runtime completion claims while canonical cutoff/META owners and production trigger remain unresolved."
+acceptance:
+  - "A6 accepts only an existing durable A2 fingerprint; a caller-reconstructed or missing input set fails closed."
+  - "Same canonical candidate configuration within the same learningCycleId produces one durable receipt across retries and SQLite restart."
+  - "Different A6 receipts share the cycle allotment; same-family ceiling and near-duplicate suppression cannot be bypassed by caller naming."
+  - "A stale concurrent writer cannot append a verdict derived from an obsolete history snapshot."
+  - "Malformed/tampered receipt fields, counters, gates, or replay order fail closed."
+  - "ALLOTTED states that all PIT/OOS/walk-forward/cost/sample/qualification/Governance gates remain; no pass, candidate, or application is produced."
+  - "Run focused tests, build, pnpm run preflight (Node >=24.19), validate:full, security:gate, AIPOS provenance, and exact-head CI."
+  - "After exact-head CI passes, request fresh independent review; keep the PR Draft and do not Audit/Release/merge/deploy."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+blockers:
+  - "BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED"
+  - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
+  - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
+validation:
+  focused: "164/164 PASS across A2/A1/A3/A4/A5/A6 and Evolution Learning ledger; A6 SQLite restart/replay and stale-writer cases included."
+  build: "PASS on Node 24.19.0 / pnpm 11.25.0."
+  preflight: "PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 515-file AIPOS YAML checks PASS."
+  validate_full: "PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS."
+  security_gate: "PASS; no unmitigated finding or secret detected."
+  aipos_provenance: "PASS."
+  exact_head_ci: PENDING_AFTER_PUSH
+  independent_review: PENDING

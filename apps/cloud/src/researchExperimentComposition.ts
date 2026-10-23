@@ -141,6 +141,8 @@ export function composeResearchExperiments(input: {
       return record == null ? undefined : { recordId, recordedAt: record.evaluationTimestamp };
     },
     readPaper: (recordId) => paperEvidenceReader().find((record) => record.recordId === recordId),
+    readResearchSnapshot: () => ledger.list().map((record) => ({ recordId: record.evaluationId, recordedAt: record.evaluationTimestamp })),
+    readPaperSnapshot: paperEvidenceReader,
   });
   const precommits = new SqliteResearchPrecommitRepository(db);
   const candidates = new SqliteCandidatePromotionRepository(db);

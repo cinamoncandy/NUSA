@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/persistedPaperPeriodStore";
-import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import { MAX_EVOLUTION_LEARNING_LEDGER_RECORDS, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { evolutionLedgerRetentionGuard } from "./closedLearningEvolutionLedgerRepository";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
-import { buildLearningInputSet } from "./learningInputSet";
+import { LearningInputSetLedgerError } from "./learningInputSetLedger";
+import { buildLearningInputSet, MAX_LEARNING_INPUT_SET_RECEIPT_BYTES } from "./learningInputSet";
+import { learningInputSetFingerprint } from "./learningInputSet";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 
 // A2 <-> A7 integration. Both the Learning Input Set ledger and the realized-period store are built
 // over ONE SqliteDatabase, exactly as production wires them (runtime.ts passes the same
@@ -40,6 +46,7 @@ function fixture() {
   return {
     db,
     periodStore,
+    learningLedger,
     inputSets: new LearningInputSetLedger(learningLedger),
     // The production guard, derived from the production ledger, over the production database.
     guard: () => evolutionLedgerRetentionGuard(learningLedger),
@@ -55,6 +62,85 @@ const inputSetCiting = (...paperRecordIds: string[]) => buildLearningInputSet({
 });
 
 describe("A2 -> A7 integration over the production retention path", () => {
+  it("reserves the final shared-ledger slot for the matching A1 decision", () => {
+    let appended = false;
+    const fullExceptDecision = {
+      list: () => Array.from({ length: MAX_EVOLUTION_LEARNING_LEDGER_RECORDS - 1 }, (_, index) => ({ opportunityId: `existing-${index}` })),
+      append: () => { appended = true; throw new Error("append must not run when the A1 reservation is reached"); },
+    } as unknown as ConstructorParameters<typeof LearningInputSetLedger>[0];
+    const inputSets = new LearningInputSetLedger(fullExceptDecision);
+    assert.throws(
+      () => inputSets.append(inputSetCiting("p1")),
+      (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "CAPACITY_EXCEEDED",
+    );
+    assert.equal(appended, false, "A2 refuses before consuming the slot reserved for A1");
+  });
+
+  it("rejects a matching A2 identity with conflicting durable status or retention metadata", () => {
+    for (const invalid of [
+      { validationStatus: "UNKNOWN_STATUS" },
+      { changeReference: "different-policy" },
+      { evidenceReferences: ["learning-input-set:placeholder"] },
+    ]) {
+      const { learningLedger, inputSets, close } = fixture();
+      try {
+        const inputSet = inputSetCiting("p1");
+        const fingerprint = learningInputSetFingerprint(inputSet);
+        const opportunityId = `learning-input-set:${fingerprint}`;
+        const references = [opportunityId, "paper-period:p1"];
+        const record = learningLedger.append({
+          opportunityId,
+          problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
+          evidenceReferences: references,
+          hypothesis: canonicalResearchJson(inputSet),
+          changeReference: inputSet.learningPolicyVersion,
+          validationStatus: "LEARNING_INPUT_SET",
+          outcome: "SUCCESS",
+          failureReason: null,
+          rollbackReference: null,
+          reusable: true,
+          recordedAt: "2026-10-20T00:00:00.000Z",
+          ...invalid,
+        });
+        assert.equal(record.opportunityId, opportunityId);
+        assert.throws(() => inputSets.append(inputSet), (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "MALFORMED_RECEIPT");
+        assert.throws(() => inputSets.getByFingerprint(fingerprint), (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "MALFORMED_RECEIPT");
+        assert.throws(() => inputSets.protectedPeriodReferences(), /metadata does not match/);
+      } finally {
+        close();
+      }
+    }
+  });
+
+  it("stores and replays a near-limit input set using the ledger's exact serialized byte count", () => {
+    const { inputSets, learningLedger, close } = fixture();
+    try {
+      const paperEvidence = Array.from({ length: 120 }, (_, index) => ({
+        recordId: `period-${"x".repeat(96)}-${index.toString().padStart(3, "0")}`,
+        recordedAt: 100 + index,
+      }));
+      const inputSet = buildLearningInputSet({
+        cutoffTimestamp: 1_000,
+        researchEvidence: [],
+        paperEvidence,
+        policies: POLICIES,
+      });
+      const serializedBytes = Buffer.byteLength(canonicalResearchJson(inputSet), "utf8");
+      assert.ok(serializedBytes > 14_000, "fixture exercises the upper receipt boundary");
+      assert.ok(serializedBytes <= MAX_LEARNING_INPUT_SET_RECEIPT_BYTES);
+
+      const first = inputSets.append(inputSet);
+      assert.equal(first.replayed, false);
+      assert.deepEqual(inputSets.getByFingerprint(first.fingerprint)?.inputSet, inputSet, "downstream A1 reader returns the exact validated durable A2 receipt");
+      const stored = learningLedger.list().find((record) => record.opportunityId === `learning-input-set:${first.fingerprint}`);
+      assert.ok(stored);
+      assert.equal(Buffer.byteLength(stored.hypothesis, "utf8"), serializedBytes, "the admitted size equals the exact stored hypothesis size");
+      assert.equal(inputSets.append(inputSet).replayed, true, "the exact durable receipt survives canonical read-back and replay");
+    } finally {
+      close();
+    }
+  });
+
   it("a recorded input set pins the realized periods it cites against retention", () => {
     const { db, periodStore, inputSets, guard, close } = fixture();
     try {
@@ -62,6 +148,9 @@ describe("A2 -> A7 integration over the production retention path", () => {
 
       const receipt = inputSets.append(inputSetCiting("p1", "p2"));
       assert.equal(receipt.replayed, false, "first append records a new input set");
+      assert.equal(Object.isFrozen(receipt.inputSet), true, "read-back input set is immutable");
+      assert.equal(Object.isFrozen(receipt.inputSet.paperEvidenceRecordIds), true, "nested evidence arrays are immutable");
+      assert.throws(() => { (receipt.inputSet.paperEvidenceRecordIds as string[]).push("forged"); }, TypeError);
 
       // The citation is durable in the ledger, in the exact form the guard reads.
       const references = inputSets.protectedPeriodReferences();
@@ -141,6 +230,8 @@ describe("A2 -> A7 integration over the production retention path", () => {
       const second = inputSets.append(inputSetCiting("p1"));
       assert.equal(second.replayed, true, "the second append is recognised as a replay");
       assert.equal(second.fingerprint, first.fingerprint);
+      assert.equal(Object.isFrozen(second.inputSet), true, "replayed input set is immutable");
+      assert.equal(Object.isFrozen(inputSets.summary().latest?.inputSet), true, "summary read-back input set is immutable");
       assert.equal(inputSets.summary().setsRecorded, 1, "exactly one durable input set");
 
       const result = periodStore.prune(1, guard());
@@ -149,6 +240,35 @@ describe("A2 -> A7 integration over the production retention path", () => {
       assert.deepEqual(retained(db), ["p1", "p2"]);
     } finally {
       close();
+    }
+  });
+
+  it("restores A2 receipts and retention pins after a file-backed SQLite restart", () => {
+    const directory = mkdtempSync(join(tmpdir(), "nusa-a2-restart-"));
+    const databasePath = join(directory, "learning.sqlite");
+    let db = new SqliteDatabase(databasePath);
+    try {
+      new SqlitePersistedPaperPeriodStore(db);
+      seedPeriods(db, ["p1", "p2", "p3"]);
+      let learningLedger = new SqliteEvolutionLearningLedger(db);
+      let inputSets = new LearningInputSetLedger(learningLedger);
+      const inputSet = inputSetCiting("p1", "p2");
+      assert.equal(inputSets.append(inputSet).replayed, false);
+
+      db.close();
+      db = new SqliteDatabase(databasePath);
+      const restartedPeriodStore = new SqlitePersistedPaperPeriodStore(db);
+      learningLedger = new SqliteEvolutionLearningLedger(db);
+      inputSets = new LearningInputSetLedger(learningLedger);
+
+      assert.equal(inputSets.append(inputSet).replayed, true, "restart replay returns the original A2 identity");
+      assert.deepEqual([...inputSets.protectedPeriodReferences()], ["paper-period:p1", "paper-period:p2"]);
+      const result = restartedPeriodStore.prune(1, evolutionLedgerRetentionGuard(learningLedger));
+      assert.equal(result.deleted, 0, "the only older records cited by A2 survive retention after restart");
+      assert.deepEqual(retained(db), ["p1", "p2", "p3"]);
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 });
