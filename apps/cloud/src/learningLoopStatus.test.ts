@@ -115,7 +115,7 @@ describe("M2 - the projection stays an output", () => {
 
   it("does not present caller-claimed eligibility or application as verified when the evidence is absent", () => {
     const status = buildLearningLoopStatus({
-      meta: { eligible: true, partition: "meta-train", cyclesEvaluated: 0, reason: "caller supplied claim" },
+      meta: { eligible: true, partition: "train+validation+holdout", cyclesEvaluated: 0, reason: "caller supplied claim" },
       application: { fingerprint: "c".repeat(64), applicationOutcome: "APPLIED" },
     });
     assert.match(status.metaEligibility ?? "", /^UNVERIFIED_INPUT; claimed=ELIGIBLE; cycles=0/);
@@ -127,7 +127,7 @@ describe("M2 - the projection stays an output", () => {
 
   it("withdraws malformed counts and unsafe free text instead of formatting them as facts", () => {
     const status = buildLearningLoopStatus({
-      meta: { eligible: true, partition: "meta-train", cyclesEvaluated: Number.NaN, reason: "bad\nreason" },
+      meta: { eligible: true, partition: "train+validation+holdout", cyclesEvaluated: Number.NaN, reason: "bad\nreason" },
       supersession: { links: -1, lineageLength: 2, forked: false },
       exploration: { attempts: Number.NaN, allotted: 2, suppressed: 0, exhausted: false, allotmentRemaining: 2 },
     });
@@ -138,7 +138,7 @@ describe("M2 - the projection stays an output", () => {
     assert.equal(status.supersessionStatus, undefined);
     assert.equal(status.explorationStatus, undefined);
     const injected = buildLearningLoopStatus({
-      meta: { eligible: true, partition: "meta-train", cyclesEvaluated: 0, reason: "<script>alert(1)</script>" },
+      meta: { eligible: true, partition: "train+validation+holdout", cyclesEvaluated: 0, reason: "<script>alert(1)</script>" },
     });
     assert.match(injected.componentAvailability, /meta=INVALID/);
     assert.equal(injected.metaEligibility, undefined);

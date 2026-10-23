@@ -1,0 +1,49 @@
+id: WO-LEARNING-20261023-M3-CAUSAL-CHAIN
+title: "M3 compose durable Learning chain with causal Research continuation"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: feat/learning-status-m2
+base_head: 538c620f73880e447f2c4f763c753473e5b86d88
+branch: feat/learning-chain-12
+pull_request: 2799
+authority_impact: bounded-learning-application-no-production-authority
+objective: "Compose the existing durable A2/A1/A3/A4 lifecycle and M2 read-only projection with Research precommit causal lineage, preserving fail-closed eligibility while canonical cutoff and META policy ownership remain unresolved."
+first_broken_transition: "durable Learning application receipt -> causally bound ResearchPrecommit N+1"
+scope:
+  include:
+    - "Reuse canonical durable input, decision, assignment, eligibility, application, and research precommit contracts."
+    - "Bind applied learning parent identity and fingerprints to Research continuation."
+    - "Keep all META lanes in the existing eligibility scope and reject caller-supplied authority claims."
+    - "Preserve restart/replay, duplicate prevention, and current-cycle self-backing exclusion."
+  exclude:
+    - "Defining cutoff or META assignment policy owners or policy versions."
+    - "Creating a production scheduler, control plane, evidence store, or runtime trigger."
+    - "Relaxing qualification, OOS, sample, cost, Risk, Governance, or safety thresholds."
+    - "Server deployment, Oracle mutation, LIVE/REAL authority, Audit, Release, or merge."
+acceptance:
+  - "Integrated chain and status regressions pass on the current exact source tree."
+  - "Node >=24.19 pnpm run preflight, build, validate:full, security:gate, provenance, and diff-check pass."
+  - "Exact-head CI is green before requesting a fresh independent review."
+  - "P0/P1 review findings are repaired and revalidated; PR remains Draft."
+  - "No production runtime, completed closed loop, or performance improvement is claimed."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+blockers:
+  - "BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED"
+  - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
+  - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
+validation:
+  focused: "26/26 PASS: dist/apps/cloud/src/closedLearningChain.test.js and learningLoopStatus.test.js after syncing M2 head 538c620f."
+  build: PASS on Node 24.19.0 / pnpm 11.25.0
+  preflight: PASS on Node 24.19.0; platform portability, independent tests, Android contract, AIPOS YAML PASS
+  validate_full: PASS
+  security_gate: PASS; no unmitigated findings or secrets detected
+  aipos_provenance: PASS
+  exact_head_ci: PENDING_AFTER_FINAL_M3_PUSH
+  independent_review: PENDING_AFTER_EXACT_HEAD_CI
+next: "M2 exact-head CI 40041467269 is green. Finalize the current M3 source and metadata on the existing branch, run local gates, push non-force, run exact-head CI, and request a fresh independent review if green. Keep Draft and do not deploy."

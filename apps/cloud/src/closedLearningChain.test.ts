@@ -4,6 +4,7 @@ import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { SqliteResearchHoldoutLedger, type HoldoutKey } from "../../../packages/storage/src/researchHoldoutLedger";
 import { ClosedLearningChain, type LearningChainCycle, type LearningChainResult } from "./closedLearningChain";
+import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
 import type { ApplicationPorts } from "./learningApplication";
 import { META_MINIMUM_CYCLES_FOR_ELIGIBILITY, META_PARTITIONS, type MetaPartition } from "./metaOos";
 
@@ -32,7 +33,11 @@ function fixture() {
     clock += 1;
     return clock;
   };
-  return { db, evolution, holdouts, now, close: () => db.close() };
+  const evidenceAuthority = createLearningEvidenceAuthorityFromReaders({
+    readResearch: (recordId) => recordId.startsWith("trial-") ? { recordId, recordedAt: 100 } : undefined,
+    readPaper: (recordId) => recordId.startsWith("paper-") ? { recordId, recordedAt: 200 } : undefined,
+  });
+  return { db, evolution, holdouts, now, evidenceAuthority, close: () => db.close() };
 }
 
 function ports(state: { value: number }): ApplicationPorts {
@@ -100,9 +105,9 @@ function runFullPass(chain: ClosedLearningChain, state: { value: number }, perPa
 
 describe("Integrated chain - the two lanes join only here", () => {
   it("carries both lanes into one input set while keeping their digests distinct", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const result = chain.run(cycle("a"), ports({ value: 1 }));
       const inputSet = result.inputSetReceipt.inputSet;
 
@@ -123,9 +128,9 @@ describe("Integrated chain - the two lanes join only here", () => {
   });
 
   it("keeps every ledger on one canonical history", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const summaryBefore = { ...chain.summary() };
       assert.deepEqual(summaryBefore, { inputSets: 0, decisions: 0, applications: 0, assignments: 0 });
 
@@ -143,16 +148,16 @@ describe("Integrated chain - the two lanes join only here", () => {
 
 describe("Integrated chain - caller partition assignments remain non-authoritative", () => {
   it("refuses the change while the partition has no completed cycles, and keeps the state untouched", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const state = { value: 1 };
       const result = chain.run(cycle("a"), ports(state));
 
       assert.equal(result.eligibility.eligible, false, "one completed cycle is below the owner-fixed floor");
       assert.equal(result.applicationReceipt.receipt.applicationOutcome, "REJECTED");
       assert.equal(state.value, 1, "nothing was written to the runtime");
-      assert.match(result.status.metaEligibility ?? "", /^INELIGIBLE/, "the report states the refusal");
+      assert.match(result.status.metaEligibility ?? "", /^UNVERIFIED_INPUT; claimed=INELIGIBLE/, "the display projection never upgrades caller-derived eligibility to verified state");
       assert.equal(result.status.latestLearningCycleId, result.cycleId);
       assert.equal(result.status.latestLearningDecisionFingerprint, result.decisionReceipt.fingerprint);
       assert.equal(result.status.latestApplicationFingerprint, result.applicationReceipt.fingerprint);
@@ -163,9 +168,9 @@ describe("Integrated chain - caller partition assignments remain non-authoritati
   });
 
   it("does not authorize application from caller-supplied partitions, even when their recorded counts reach the floor", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const state = { value: 1 };
 
       // Two completed cycles in each of the three partitions: a real, if short, meta pass.
@@ -185,7 +190,7 @@ describe("Integrated chain - caller partition assignments remain non-authoritati
       assert.equal(summary.decisions, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "one decision per completed cycle");
       assert.equal(summary.applications, summary.decisions, "one application record per decision, none duplicated");
       assert.equal(summary.assignments, summary.decisions);
-      assert.match(last.status.metaEligibility ?? "", /^INELIGIBLE/, "the report and the fail-closed behaviour agree");
+      assert.match(last.status.metaEligibility ?? "", /^UNVERIFIED_INPUT; claimed=INELIGIBLE/, "the projection reports caller-derived eligibility as unverified");
 
       // The projected status is derivable from durable history alone, after the fact.
       assert.equal(chain.status().latestLearningCycleId, last.cycleId);
@@ -196,9 +201,9 @@ describe("Integrated chain - caller partition assignments remain non-authoritati
   });
 
   it("counts recorded completed cycles, never what a decision asserts for itself", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const result = chain.run(cycle("a"), ports({ value: 1 }));
       // A1 contains no META assignment; A3 binds its later record to this exact decision.
       assert.equal(Object.hasOwn(result.decisionReceipt.decision, "metaOosPartition"), false);
@@ -213,9 +218,9 @@ describe("Integrated chain - caller partition assignments remain non-authoritati
   });
 
   it("never opens the door from one partition, however many completed cycles it holds", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const state = { value: 1 };
       // This is the defect the semantic preflight caught, now pinned at the chain level: three
       // completed train cycles used to be enough to reach A4's autonomous door with zero validation
@@ -238,9 +243,9 @@ describe("Integrated chain - caller partition assignments remain non-authoritati
 
 describe("Integrated chain - section 8, the application is restorable as a causal parent", () => {
   it("reports no learning parent while nothing has taken effect", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       assert.equal(chain.latestAppliedLearning(), undefined, "nothing has been applied, so no research request may be credited with a parent");
 
       const refused = chain.run(cycle("a"), ports({ value: 1 }));
@@ -252,16 +257,16 @@ describe("Integrated chain - section 8, the application is restorable as a causa
   });
 
   it("does not report a causal parent after caller-supplied partitions reach the recorded floor", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const results = runFullPass(chain, { value: 1 }, META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "s");
       const last = results.at(-1) as LearningChainResult;
       assert.equal(last.applicationReceipt.receipt.applicationOutcome, "REJECTED");
       assert.equal(chain.latestAppliedLearning(), undefined, "non-authoritative partition inputs never become research parents");
 
       // A whole new chain object over the same store: this is what a process restart looks like.
-      const restarted = new ClosedLearningChain(evolution, holdouts, now);
+      const restarted = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       assert.equal(restarted.latestAppliedLearning(), undefined, "restart does not manufacture a causal parent from rejected applications");
     } finally {
       close();
@@ -271,7 +276,7 @@ describe("Integrated chain - section 8, the application is restorable as a causa
 
 describe("Integrated chain - restart safety", () => {
   it("rolls an applied runtime change back when its durable receipt cannot be appended", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
       let failApplicationAppend = true;
       const failingEvolution = {
@@ -281,7 +286,7 @@ describe("Integrated chain - restart safety", () => {
           return evolution.append(record);
         },
       };
-      const chain = new ClosedLearningChain(failingEvolution, holdouts, now);
+      const chain = new ClosedLearningChain(failingEvolution, holdouts, evidenceAuthority, now);
       const state = { value: 1 };
       assert.throws(() => chain.run(cycle("durability-failure"), ports(state)), (error: unknown) => error instanceof Error && "code" in error && error.code === "APPLICATION_DURABILITY_FAILED");
       assert.equal(state.value, 1, "a rejected application never mutated runtime state");
@@ -292,16 +297,16 @@ describe("Integrated chain - restart safety", () => {
   });
 
   it("rehydrates from durable history and replays without appending anything", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const first = new ClosedLearningChain(evolution, holdouts, now);
+      const first = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const state = { value: 1 };
       const original = first.run(cycle("a"), ports(state));
       assert.equal(original.applicationReceipt.receipt.applicationOutcome, "REJECTED", "below the floor, so state never moved");
       const recordsAfterFirst = evolution.list().length;
 
       // A whole new chain object over the same store: this is what a process restart looks like.
-      const restarted = new ClosedLearningChain(evolution, holdouts, now);
+      const restarted = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       assert.deepEqual(restarted.summary(), first.summary(), "the restarted chain sees exactly the same durable state");
 
       const replay = restarted.run(cycle("a"), ports(state));
@@ -319,12 +324,12 @@ describe("Integrated chain - restart safety", () => {
   });
 
   it("refuses a second chain over the same store only by construction, not by silently diverging", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       chain.run(cycle("a"), ports({ value: 1 }));
       // A second instance sees the identical history, so it cannot act as a fresh independent store.
-      const second = new ClosedLearningChain(evolution, holdouts, now);
+      const second = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       assert.equal(second.summary().applications, chain.summary().applications, "both instances report the same durable application history");
       assert.equal(evolution.list().length, chain.summary().inputSets + chain.summary().decisions + chain.summary().applications + chain.summary().assignments);
     } finally {
@@ -335,9 +340,9 @@ describe("Integrated chain - restart safety", () => {
 
 describe("Integrated chain - holdout claims go through the shared ledger", () => {
   it("refuses a second cycle on a holdout result that was already observed, leaving the chain intact", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       const first = chain.run(cycle("h1", { metaPartition: "meta-holdout", holdoutKey: HOLDOUT, holdoutEvaluationId: "eval-1" }), ports({ value: 1 }));
       assert.equal(first.metaOosReceipt.assignment.partition, "meta-holdout");
       assert.ok(first.metaOosReceipt.assignment.holdoutClaimIdentity, "the claim the cycle consumed is recorded");
@@ -361,9 +366,9 @@ describe("Integrated chain - holdout claims go through the shared ledger", () =>
   });
 
   it("requires a holdout key for a meta-holdout partition before anything downstream runs", () => {
-    const { evolution, holdouts, now, close } = fixture();
+    const { evolution, holdouts, now, evidenceAuthority, close } = fixture();
     try {
-      const chain = new ClosedLearningChain(evolution, holdouts, now);
+      const chain = new ClosedLearningChain(evolution, holdouts, evidenceAuthority, now);
       assert.throws(() => chain.run(cycle("h3", { metaPartition: "meta-holdout" }), ports({ value: 1 })), /requires a holdout key/);
       assert.equal(chain.summary().decisions, 0, "no decision without a claimed partition");
       assert.equal(chain.summary().applications, 0, "no application without a decision");
