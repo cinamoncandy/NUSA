@@ -54,7 +54,7 @@ validation:
   validate_full: PASS
   security_gate: PASS
   diff_check: PASS
-  exact_head_ci: PENDING_AFTER_A3_SYNC_AND_A5_REPAIR
+  exact_head_ci: PENDING_AFTER_AIPOS_STATE_ALIGNMENT
   independent_review: PENDING
 remaining: "No production caller or cutoff/META authority is defined. Exact-head CI and fresh independent review remain required."
-next: "Push the repaired A5 successor to the existing #2796 branch after confirming its remote head; run exact-head CI and request a fresh independent review only after it passes."
+next: "Push the AIPOS state-alignment successor to the existing #2796 branch after confirming its remote head; run exact-head CI and request a fresh independent review only after it passes."

@@ -119,11 +119,14 @@ current_learning_supersession_a5_20261023:
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: feat/supersession-a5
   pull_request: 2796
-  parent_head: 94cad0eeed8be76dcc2d12bc2ad851a2f822d380
+  parent_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
   first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
-  validation: "Node24.19.0; A2/A1/A3/A4/A5 plus Evolution Learning restart/concurrency suite 147/147 PASS; A5 22/22; build, preflight, validate:full, security:gate, AIPOS provenance, diff check PASS."
-  next: "Push final local validation to existing #2796 branch; require exact-head CI then request fresh independent review."
-  blockers: "Final-head local/remote validation pending. Cutoff/META owner and production trigger remain undefined; no production caller or learning completion is claimed."
+  validation: "Node 24.19.0; A2/A1/A3/A4/A5 plus Evolution Learning focused tests 158/158 PASS; build, preflight, validate:full, security:gate, AIPOS provenance, and diff-check PASS."
+  prior_exact_head: b0e32e575b5cf96ab4b659fb06e8671db0c1ea71
+  prior_exact_head_ci: "PASS; run 40039875737. Historical after AIPOS state/work-order alignment commit."
+  review_finding: "Fresh Codex review on b0e32e575 found P2 AIPOS parent/validation facts disagreed between state.yaml and the A5 work order. Successor aligns parent_head 05837941 and validation 158/158; new exact-head gates required."
+  next: "Push this AIPOS alignment successor to the existing #2796 branch non-force, run exact-head CI, then request a fresh independent review if green."
+  blockers: "Cutoff/META owner and production trigger remain undefined; no production caller or Learning completion is claimed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_upgrade_20261012:
