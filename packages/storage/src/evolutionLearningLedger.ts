@@ -293,6 +293,19 @@ export class SqliteEvolutionLearningLedger {
   }
 
   public append(value: EvolutionLearningRecord): EvolutionLearningRecord {
+    return this.appendWithValidation(value, () => undefined);
+  }
+
+  /**
+   * Append while validating the exact hash-chain snapshot inside the same serialized
+   * write transaction. Domain adapters use this for graph constraints that span records;
+   * a competing writer either commits first and is visible to the validator, or changes
+   * the ledger head and makes this append fail closed.
+   */
+  public appendWithValidation(
+    value: EvolutionLearningRecord,
+    validateCurrent: (records: readonly EvolutionLearningRecord[]) => void,
+  ): EvolutionLearningRecord {
     const record = normalize(value);
     const current = this.replay();
     const existing = current.records.find((item) => item.opportunityId === record.opportunityId);
@@ -315,6 +328,7 @@ export class SqliteEvolutionLearningLedger {
     this.db.transaction(() => {
       const meta = readMeta(this.db.connection);
       if (meta.eventCount !== current.eventCount || meta.ledgerHash !== current.headHash) invalid("CONCURRENT_CHANGE", "learning ledger changed during append");
+      validateCurrent(current.records);
       const sequence = meta.eventCount + 1;
       const previousHash = meta.ledgerHash;
       const currentContentHash = contentHash(record);

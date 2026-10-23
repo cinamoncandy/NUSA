@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
-import { createEvolutionLearningRecord } from "../../autopilot/src/evolveLearningMemory";
+import { createEvolutionLearningRecord, type EvolutionLearningRecord } from "../../autopilot/src/evolveLearningMemory";
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import {
   assertSupersessionLink,
@@ -16,7 +16,7 @@ const RECORD_KIND = "LEARNING_SUPERSESSION";
 const PROBLEM = "NUSA learning supersession: immutable decision lineage link";
 const ID_PREFIX = "learning-supersession-v1:";
 
-type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
+type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "appendWithValidation" | "list">;
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -56,10 +56,13 @@ function parseLink(record: { readonly opportunityId: string; readonly hypothesis
 export class LearningSupersessionLedger {
   public constructor(private readonly ledger: EvolutionLedgerPort, private readonly now: () => number = Date.now) {}
 
-  private links(): readonly SupersessionLink[] {
-    const records = this.ledger.list();
+  private linksFromRecords(records: readonly EvolutionLearningRecord[]): readonly SupersessionLink[] {
     const candidates = records.filter((record) => record.validationStatus === RECORD_KIND || record.opportunityId.startsWith(ID_PREFIX));
     return Object.freeze(candidates.map(parseLink));
+  }
+
+  private links(): readonly SupersessionLink[] {
+    return this.linksFromRecords(this.ledger.list());
   }
 
   public registry(): SupersessionRegistry {
@@ -96,7 +99,11 @@ export class LearningSupersessionLedger {
     });
 
     try {
-      this.ledger.append(record);
+      this.ledger.appendWithValidation(record, (records) => {
+        const current = new SupersessionRegistry();
+        current.rehydrate(this.linksFromRecords(records));
+        current.supersede(input);
+      });
     } catch {
       // The existing ledger serializes concurrent appends. Re-read only to classify an
       // idempotent same-edge winner; all other persistence errors remain fail-closed.

@@ -17,6 +17,7 @@ scope:
     - "Reject cycle, merge, reactivation, and fork edges before mutating the registry."
     - "Treat predecessor + successor + surface as edge identity; preserve the first immutable link on metadata-only replay."
     - "Make batch rehydration all-or-nothing and bounded."
+    - "Validate graph constraints again against the current hash-chain snapshot inside the existing serialized append transaction."
     - "Reuse the existing append-only hash-chained Evolution Learning SQLite ledger; create no second store."
     - "Add file-backed SQLite restart, replay, and no-duplicate regressions."
   exclude:
@@ -27,6 +28,7 @@ acceptance:
   - "A5 append rejects cycle, merge, reactivation, and fork edges without changing history."
   - "Same edge replay with changed reason/timestamp returns the original immutable link and appends no record."
   - "Rehydration validates on a staged registry and commits no partial batch on failure."
+  - "A stale concurrent claimant cannot append a fork after another writer commits; the ledger transaction observes the winning link and rejects the loser."
   - "Durable links use the existing Evolution Learning ledger and survive SQLite close/reopen with identical identity and zero duplicate rows."
   - "Node 24.19+ focused tests, pnpm run preflight, build, validate:full, security:gate, and exact-head CI pass; fresh independent review is requested only after exact-head CI is green."
   - "PR remains Draft; unresolved cutoff/META owner and production-trigger dependencies remain explicit."
@@ -42,7 +44,7 @@ safety:
   fail_closed: true
 validation:
   node: "v24.19.0"
-  focused: "A2/A1/A3/A4/A5 plus Evolution Learning ledger restart suite: 146/146 PASS; A5 tests 21/21 PASS."
+  focused: "A2/A1/A3/A4/A5 plus Evolution Learning ledger restart/concurrency suite: 147/147 PASS; A5 tests 22/22 PASS."
   build: PASS
   preflight: PASS
   validate_full: PASS
