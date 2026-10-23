@@ -3784,13 +3784,13 @@ current_learning_resume_failed_cycle:
 
 current_learning_a2_evidence_resolution_20261023:
   work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
-  status: IMPLEMENTED_LOCAL_PENDING_EXACT_HEAD_CI
+  status: LOCAL_VALIDATED_PENDING_NEW_EXACT_HEAD_CI
   pull_request: 2792
   branch: feat/learning-input-set-a2
   prior_exact_head: 6f5a703a34335a86e810033e770089437b926486
   first_broken_transition: "A2 receipt -> canonical Research/PAPER evidence resolution"
-  validation: "A2/storage relevant tests 42/42 PASS; pnpm build, Node 24.19.0 preflight, validate:full, security:gate, and diff check PASS. Fresh exact-head CI and independent review remain pending after repair commit."
-  next: "Commit repair on existing #2792; exact-head CI, then fresh independent review only after green. #2855 and server deployment remain untouched."
+  validation: "Review of 70f6dd58f92fb00a8a747abef4d8be84de7ad540 found P2 sparse-array append poisoning: forEach skipped holes and canonical persistence could fail only after append. Index-based own-slot validation now rejects sparse id/time arrays before durable write; regression verifies no record is appended and the chain remains replayable. A2/A1/storage focused tests 43/43 PASS; build, Node 24.19.0 preflight, validate:full, security:gate, and diff check PASS. New exact-head CI is pending."
+  next: "Commit sparse-array repair on existing #2792, run fresh exact-head CI, then request new independent review only if green. A1 is paused on this corrected A2 head; #2855 and server deployment remain untouched."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:

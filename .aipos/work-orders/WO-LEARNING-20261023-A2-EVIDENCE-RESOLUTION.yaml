@@ -13,6 +13,7 @@ scope:
   - "Resolve every cited Research and PAPER identity and exact observedAt before append and before downstream read/replay."
   - "Reject missing, duplicate/ambiguous, malformed, or timestamp-mismatched canonical evidence fail-closed."
   - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt in the existing hash-chained ledger."
+  - "Reject sparse holes in every aligned persisted evidence-id and observation-time array before hashing, authority lookup, or append."
   - "Reuse existing Research history, realized PAPER period store, and Evolution Learning ledger; create no engine/store/scheduler."
 exclusions:
   - "No live/real-money authority or production mutation change."
@@ -23,6 +24,7 @@ acceptance:
   - "Observed timestamp must match canonical durable source exactly."
   - "Restart and replay re-resolve the same evidence identity and remain idempotent."
   - "Malformed namespace-shaped A2 rows cannot consume a durable A1 capacity reservation."
+  - "Sparse caller-shaped A2 arrays fail before append and leave the existing ledger replayable with no reserved slot."
   - "Relevant A2 and storage regression tests pass."
   - "pnpm run preflight passes on Node >=24.19."
   - "Exact-head CI passes before fresh independent review is requested."
@@ -34,13 +36,13 @@ validation_commands:
   - "pnpm run security:gate"
   - "git diff --check"
 verification:
-  local_focused: "PASS 42/42 A2 canonicalization, retention integration, and SQLite Evolution Learning ledger tests."
+  local_focused: "PASS 43/43 A2, A1, retention integration, and SQLite Evolution Learning ledger tests, including sparse-array append rejection."
   local_build: "PASS TypeScript build."
   preflight: "PASS Node 24.19.0, sqlite available, portability/platform-independent/mobile/AIPOS validators."
   validate_full: "PASS architecture truth, safety architecture, AI zero-authority, architecture, AIPOS drift/conformance, safety invariants/input validators."
   security_gate: "PASS; no unmitigated advisories or secrets."
-  exact_head_ci: "PENDING after substantive repair commit."
-  independent_review: "PENDING; request only after exact-head CI is green."
+  exact_head_ci: "PENDING after sparse-array repair commit; the previous head 70f6dd58f92fb00a8a747abef4d8be84de7ad540 has historical CI PASS only."
+  independent_review: "Fresh review of 70f6dd58f92fb00a8a747abef4d8be84de7ad540 found P2 sparse-array append poisoning; repair is locally validated. Request fresh review only after new exact-head CI is green."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -48,4 +50,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Commit the locally validated A2 repair to the existing PR #2792 branch; run fresh exact-head CI, then request one new independent review if CI is green. Do not deploy or interfere with #2855/server archive deployment."
+next: "Commit the locally validated sparse-array repair to the existing PR #2792 branch; run fresh exact-head CI, then request one new independent review if CI is green. Do not deploy or interfere with #2855/server archive deployment."

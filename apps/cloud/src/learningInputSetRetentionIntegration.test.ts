@@ -99,6 +99,32 @@ const inputSetCiting = (...paperRecordIds: string[]) => buildLearningInputSet({
 });
 
 describe("A2 -> A7 integration over the production retention path", () => {
+  it("rejects sparse caller-shaped evidence before any durable A2 append", () => {
+    for (const lane of ["research", "paper"] as const) {
+      const { learningLedger, inputSets, close } = fixture();
+      try {
+        const valid = inputSetCiting("p1");
+        const malformed = lane === "research"
+          ? {
+            ...valid,
+            researchEvidenceRecordIds: Object.assign(new Array<string>(2), { 1: "trial-a" }),
+            researchEvidenceObservedAt: Object.assign(new Array<number>(2), { 1: 100 }),
+          }
+          : {
+            ...valid,
+            paperEvidenceRecordIds: Object.assign(new Array<string>(2), { 1: "p1" }),
+            paperEvidenceObservedAt: Object.assign(new Array<number>(2), { 1: 1_110 }),
+          };
+
+        assert.throws(() => inputSets.append(malformed), /must not contain sparse entries/);
+        assert.equal(learningLedger.list().length, 0, "invalid sparse input never consumes durable ledger capacity");
+        assert.equal(learningLedger.replay().eventCount, 0, "the append-only chain remains replayable after rejection");
+      } finally {
+        close();
+      }
+    }
+  });
+
   it("reserves the final shared-ledger slot for the matching A1 decision", () => {
     let appended = false;
     const fullExceptDecision = {
