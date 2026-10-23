@@ -1,12 +1,12 @@
 id: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
 title: "A2 must resolve input references through canonical durable evidence readers"
-status: IMPLEMENTED_LOCAL_PENDING_EXACT_HEAD_CI
+status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_FINDINGS
 priority: P0
 owner_request: "Advance the closed learning loop in dependency order, starting with A2. Each PR requires relevant tests and pnpm run preflight on Node 24.19+, then fresh independent review after exact-head CI is green. Do not let this sequence block PR #2855 or the order-book archive server deployment; server deployment remains after #2855."
 source:
   pull_request: 2792
   branch: feat/learning-input-set-a2
-  prior_exact_head: 6f5a703a34335a86e810033e770089437b926486
+  prior_exact_head: 4d7750f37a08e7a8196dad25552340fdff27fe00
   first_broken_transition: "syntactically valid A2 evidence ids -> successful durable receipt without canonical Research/PAPER resolution"
 scope:
   - "Require the existing LearningEvidenceAuthority at the A2 durable ledger boundary."
@@ -41,8 +41,8 @@ verification:
   preflight: "PASS Node 24.19.0, sqlite available, portability/platform-independent/mobile/AIPOS validators."
   validate_full: "PASS architecture truth, safety architecture, AI zero-authority, architecture, AIPOS drift/conformance, safety invariants/input validators."
   security_gate: "PASS; no unmitigated advisories or secrets."
-  exact_head_ci: "PENDING after sparse-array and whitespace-ID reservation repairs; previous exact-head CI receipts are historical."
-  independent_review: "Fresh review of 66d4ee3fe6f2026cbe31e92915f21fdc17b56cea found P2s for sparse arrays at the evidence-resolution boundary and whitespace Research IDs in reservation reconstruction; both are locally repaired. Request fresh review only after new exact-head CI is green."
+  exact_head_ci: "PASS: run 39903170341 and required companion workflows passed on exact head 4d7750f37a08e7a8196dad25552340fdff27fe00."
+  independent_review: "Fresh Codex review submitted and completed on exact head 4d7750f37a08e7a8196dad25552340fdff27fe00 at 2026-10-23T05:07:53Z; no inline findings were produced. This is advisory review evidence, not formal NUSA Validator acceptance."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -50,4 +50,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Commit the locally validated sparse-array and whitespace-ID repairs to existing PR #2792; run fresh exact-head CI, then request one new independent review if CI is green. Do not deploy or interfere with #2855/server archive deployment."
+next: "A2 is complete through exact-head CI and fresh review; continue in dependency order with A1 PR #2793, which is being synchronized to this A2 head. Keep #2792 Draft; do not deploy or interfere with #2855/server archive deployment."
