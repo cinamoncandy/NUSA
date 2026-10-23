@@ -12,6 +12,10 @@ import { LearningInputSetLedgerError } from "./learningInputSetLedger";
 import { buildLearningInputSet, MAX_LEARNING_INPUT_SET_RECEIPT_BYTES } from "./learningInputSet";
 import { learningInputSetFingerprint } from "./learningInputSet";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
+import { SqliteResearchFactoryDecisionHistoryRepository } from "../../../packages/storage/src/researchFactoryDecisionHistoryRepository";
+import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
+import type { ResearchFactoryDecisionHistoryRecord } from "../../../packages/contracts/src/researchFactoryDecisionHistory";
+import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 
 // A2 <-> A7 integration. Both the Learning Input Set ledger and the realized-period store are built
 // over ONE SqliteDatabase, exactly as production wires them (runtime.ts passes the same
@@ -29,10 +33,40 @@ const POLICIES = {
   governancePolicyVersion: "gov-v1",
 };
 
-/** Raw rows: retention reads only identity and chronology, and never decodes a payload. */
-function seedPeriods(db: SqliteDatabase, recordIds: readonly string[]): void {
-  const insert = db.connection.prepare("INSERT INTO research_paper_forward_periods (record_id, period_index, period_start_at, period_end_at, payload_json, checksum) VALUES (?, ?, ?, ?, '{}', 'x')");
-  recordIds.forEach((recordId, index) => insert.run(recordId, index, 1_000 + index, 1_001 + index));
+function paperPeriod(recordId: string): PersistedPaperPeriodEnvelope {
+  const suffix = Number(recordId.slice(1));
+  const periodIndex = suffix - 1;
+  const periodStartAt = 1_000 + suffix * 100;
+  return {
+    record: {
+      recordId, periodIndex, periodStartAt, periodEndAt: periodStartAt + 10,
+      advisory: { schemaVersion: 1, generatedAt: "1970-01-01T00:00:00.000Z", policy: { maximumCandidateWeight: 1, minimumEvidenceBreadth: 1, maximumCandidateCount: 1, maximumFamilyWeight: 1 }, entries: [], excludedCandidateIds: [], reasons: [], provenance: { sourceDatasetIds: ["dataset-a"] } },
+      realizedReturns: {}, benchmarkReturn: 0, turnoverCostRate: 0,
+      costEvidence: { evidenceId: `cost-${recordId}`, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: "OBSERVED", evidenceFingerprintSha256: "a".repeat(64), observedAt: periodStartAt + 10, feeRate: 0, spreadRate: 0, slippageRate: 0 },
+      status: "COMPLETED",
+    },
+    candidateProvenance: [],
+  };
+}
+
+/** Seed through the canonical checksum-valid realized-period store. */
+function seedPeriods(periodStore: SqlitePersistedPaperPeriodStore, recordIds: readonly string[]): void {
+  for (const recordId of recordIds) periodStore.append(paperPeriod(recordId));
+}
+
+function researchRecord(): ResearchFactoryDecisionHistoryRecord {
+  return { candidateId: "candidate-a", evaluationId: "trial-a", outcome: "REJECTED", reasons: [], observedAt: 100, authority: "PAPER_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" };
+}
+
+function evidenceAuthority(researchHistory: SqliteResearchFactoryDecisionHistoryRepository, periodStore: SqlitePersistedPaperPeriodStore) {
+  const researchSnapshot = () => researchHistory.list().map((record) => ({ recordId: record.evaluationId, recordedAt: record.observedAt }));
+  const paperSnapshot = () => periodStore.listRecords().map((record) => ({ recordId: record.recordId, recordedAt: record.periodEndAt }));
+  return createLearningEvidenceAuthorityFromReaders({
+    readResearch: (recordId) => researchSnapshot().find((record) => record.recordId === recordId),
+    readPaper: (recordId) => paperSnapshot().find((record) => record.recordId === recordId),
+    readResearchSnapshot: researchSnapshot,
+    readPaperSnapshot: paperSnapshot,
+  });
 }
 
 function retained(db: SqliteDatabase): string[] {
@@ -43,11 +77,14 @@ function fixture() {
   const db = new SqliteDatabase(":memory:");
   const periodStore = new SqlitePersistedPaperPeriodStore(db);
   const learningLedger = new SqliteEvolutionLearningLedger(db);
+  const researchHistory = new SqliteResearchFactoryDecisionHistoryRepository(db);
+  researchHistory.append(researchRecord());
+  const authority = evidenceAuthority(researchHistory, periodStore);
   return {
     db,
     periodStore,
     learningLedger,
-    inputSets: new LearningInputSetLedger(learningLedger),
+    inputSets: new LearningInputSetLedger(learningLedger, authority),
     // The production guard, derived from the production ledger, over the production database.
     guard: () => evolutionLedgerRetentionGuard(learningLedger),
     close: () => db.close(),
@@ -55,20 +92,46 @@ function fixture() {
 }
 
 const inputSetCiting = (...paperRecordIds: string[]) => buildLearningInputSet({
-  cutoffTimestamp: 900,
+  cutoffTimestamp: 100_000,
   researchEvidence: [{ recordId: "trial-a", recordedAt: 100 }],
-  paperEvidence: paperRecordIds.map((recordId, index) => ({ recordId, recordedAt: 200 + index })),
+  paperEvidence: paperRecordIds.map((recordId) => ({ recordId, recordedAt: 1_010 + Number(recordId.slice(1)) * 100 })),
   policies: POLICIES,
 });
 
 describe("A2 -> A7 integration over the production retention path", () => {
+  it("rejects sparse caller-shaped evidence before any durable A2 append", () => {
+    for (const lane of ["research", "paper"] as const) {
+      const { learningLedger, inputSets, close } = fixture();
+      try {
+        const valid = inputSetCiting("p1");
+        const malformed = lane === "research"
+          ? {
+            ...valid,
+            researchEvidenceRecordIds: Object.assign(new Array<string>(2), { 1: "trial-a" }),
+            researchEvidenceObservedAt: Object.assign(new Array<number>(2), { 1: 100 }),
+          }
+          : {
+            ...valid,
+            paperEvidenceRecordIds: Object.assign(new Array<string>(2), { 1: "p1" }),
+            paperEvidenceObservedAt: Object.assign(new Array<number>(2), { 1: 1_110 }),
+          };
+
+        assert.throws(() => inputSets.append(malformed), /must not contain sparse entries/);
+        assert.equal(learningLedger.list().length, 0, "invalid sparse input never consumes durable ledger capacity");
+        assert.equal(learningLedger.replay().eventCount, 0, "the append-only chain remains replayable after rejection");
+      } finally {
+        close();
+      }
+    }
+  });
+
   it("reserves the final shared-ledger slot for the matching A1 decision", () => {
     let appended = false;
     const fullExceptDecision = {
       list: () => Array.from({ length: MAX_EVOLUTION_LEARNING_LEDGER_RECORDS - 1 }, (_, index) => ({ opportunityId: `existing-${index}` })),
       append: () => { appended = true; throw new Error("append must not run when the A1 reservation is reached"); },
     } as unknown as ConstructorParameters<typeof LearningInputSetLedger>[0];
-    const inputSets = new LearningInputSetLedger(fullExceptDecision);
+    const inputSets = new LearningInputSetLedger(fullExceptDecision, { readResearch: () => ({ recordId: "trial-a", recordedAt: 100 }), readPaper: (recordId) => ({ recordId, recordedAt: 1_110 }) });
     assert.throws(
       () => inputSets.append(inputSetCiting("p1")),
       (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "CAPACITY_EXCEEDED",
@@ -82,8 +145,11 @@ describe("A2 -> A7 integration over the production retention path", () => {
       { changeReference: "different-policy" },
       { evidenceReferences: ["learning-input-set:placeholder"] },
     ]) {
-      const { learningLedger, inputSets, close } = fixture();
+      const { learningLedger, inputSets, periodStore, close } = fixture();
       try {
+        // The malformed receipt is written directly; its claimed basis must still exist so the
+        // test reaches receipt-metadata validation rather than evidence-resolution validation.
+        seedPeriods(periodStore, ["p1"]);
         const inputSet = inputSetCiting("p1");
         const fingerprint = learningInputSetFingerprint(inputSet);
         const opportunityId = `learning-input-set:${fingerprint}`;
@@ -113,7 +179,7 @@ describe("A2 -> A7 integration over the production retention path", () => {
   });
 
   it("stores and replays a near-limit input set using the ledger's exact serialized byte count", () => {
-    const { inputSets, learningLedger, close } = fixture();
+    const { learningLedger, close } = fixture();
     try {
       const paperEvidence = Array.from({ length: 120 }, (_, index) => ({
         recordId: `period-${"x".repeat(96)}-${index.toString().padStart(3, "0")}`,
@@ -129,13 +195,20 @@ describe("A2 -> A7 integration over the production retention path", () => {
       assert.ok(serializedBytes > 14_000, "fixture exercises the upper receipt boundary");
       assert.ok(serializedBytes <= MAX_LEARNING_INPUT_SET_RECEIPT_BYTES);
 
-      const first = inputSets.append(inputSet);
+      const verifiedInputSets = new LearningInputSetLedger(learningLedger, createLearningEvidenceAuthorityFromReaders({
+        readResearch: () => ({ recordId: "unused", recordedAt: 0 }),
+        readPaper: (recordId) => {
+          const index = Number(recordId.slice(-3));
+          return Number.isSafeInteger(index) && index >= 0 && index < paperEvidence.length ? { recordId, recordedAt: 100 + index } : undefined;
+        },
+      }));
+      const first = verifiedInputSets.append(inputSet);
       assert.equal(first.replayed, false);
-      assert.deepEqual(inputSets.getByFingerprint(first.fingerprint)?.inputSet, inputSet, "downstream A1 reader returns the exact validated durable A2 receipt");
+      assert.deepEqual(verifiedInputSets.getByFingerprint(first.fingerprint)?.inputSet, inputSet, "downstream A1 reader returns the exact validated durable A2 receipt");
       const stored = learningLedger.list().find((record) => record.opportunityId === `learning-input-set:${first.fingerprint}`);
       assert.ok(stored);
       assert.equal(Buffer.byteLength(stored.hypothesis, "utf8"), serializedBytes, "the admitted size equals the exact stored hypothesis size");
-      assert.equal(inputSets.append(inputSet).replayed, true, "the exact durable receipt survives canonical read-back and replay");
+      assert.equal(verifiedInputSets.append(inputSet).replayed, true, "the exact durable receipt survives canonical read-back and replay");
     } finally {
       close();
     }
@@ -144,7 +217,7 @@ describe("A2 -> A7 integration over the production retention path", () => {
   it("a recorded input set pins the realized periods it cites against retention", () => {
     const { db, periodStore, inputSets, guard, close } = fixture();
     try {
-      seedPeriods(db, ["p1", "p2", "p3", "p4", "p5"]);
+      seedPeriods(periodStore, ["p1", "p2", "p3", "p4", "p5"]);
 
       const receipt = inputSets.append(inputSetCiting("p1", "p2"));
       assert.equal(receipt.replayed, false, "first append records a new input set");
@@ -172,7 +245,7 @@ describe("A2 -> A7 integration over the production retention path", () => {
   it("an unreferenced period is still prunable - protection is not blanket retention", () => {
     const { db, periodStore, inputSets, guard, close } = fixture();
     try {
-      seedPeriods(db, ["p1", "p2", "p3"]);
+      seedPeriods(periodStore, ["p1", "p2", "p3"]);
       inputSets.append(inputSetCiting("p3"));
       // Bound 1 keeps the newest, p3, on recency alone. p1 and p2 are cited by nobody and must be
       // deleted: the guard narrows retention, it does not freeze the ledger.
@@ -188,7 +261,7 @@ describe("A2 -> A7 integration over the production retention path", () => {
   it("a reference added after a retention is honoured by the next one", () => {
     const { db, periodStore, inputSets, guard, close } = fixture();
     try {
-      seedPeriods(db, ["p1", "p2", "p3"]);
+      seedPeriods(periodStore, ["p1", "p2", "p3"]);
       // First retention knows of no citation yet.
       const before = periodStore.prune(2, guard());
       assert.equal(before.deleted, 1);
@@ -205,27 +278,37 @@ describe("A2 -> A7 integration over the production retention path", () => {
     }
   });
 
-  it("a citation of an already-absent period is reported dangling and never reconstructed", () => {
-    const { db, periodStore, inputSets, guard, close } = fixture();
+  it("refuses to persist an A2 receipt when any cited realized period is absent", () => {
+    const { db, periodStore, learningLedger, inputSets, guard, close } = fixture();
     try {
-      seedPeriods(db, ["p1"]);
-      // Cites a period that does not exist in the realized store.
-      const receipt = inputSets.append(inputSetCiting("p1", "ghost-period"));
-      assert.deepEqual([...receipt.inputSet.paperEvidenceRecordIds], ["ghost-period", "p1"]);
-
+      seedPeriods(periodStore, ["p1"]);
+      // A2 refuses to claim a successful identity unless every cited row resolves durably.
+      assert.throws(() => inputSets.append(inputSetCiting("p1", "p99")), (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "EVIDENCE_UNRESOLVED");
+      assert.equal(learningLedger.size(), 0, "unresolved evidence never produces a durable A2 success receipt");
       const result = periodStore.prune(10, guard());
-      assert.deepEqual([...result.danglingReferences], ["ghost-period"], "the missing basis is reported unverifiable");
+      assert.deepEqual([...result.danglingReferences], []);
       assert.equal(result.protectedRecordIds.length, 0);
-      assert.equal(retained(db).length, 1, "no synthetic period is invented to satisfy the citation");
+      assert.equal(retained(db).length, 1, "no synthetic period is invented to satisfy a citation");
     } finally {
       close();
     }
   });
 
+  it("rejects evidence whose canonical timestamp differs from the claimed A2 identity", () => {
+    const { learningLedger, inputSets, close } = fixture();
+    try {
+      assert.throws(
+        () => inputSets.append(buildLearningInputSet({ cutoffTimestamp: 100_000, researchEvidence: [{ recordId: "trial-a", recordedAt: 101 }], paperEvidence: [{ recordId: "p1", recordedAt: 1_110 }], policies: POLICIES })),
+        (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "EVIDENCE_IDENTITY_MISMATCH",
+      );
+      assert.equal(learningLedger.size(), 0);
+    } finally { close(); }
+  });
+
   it("re-appending the same input set adds no second citation and no second record", () => {
     const { db, periodStore, inputSets, guard, close } = fixture();
     try {
-      seedPeriods(db, ["p1", "p2"]);
+      seedPeriods(periodStore, ["p1", "p2"]);
       const first = inputSets.append(inputSetCiting("p1"));
       const second = inputSets.append(inputSetCiting("p1"));
       assert.equal(second.replayed, true, "the second append is recognised as a replay");
@@ -248,18 +331,21 @@ describe("A2 -> A7 integration over the production retention path", () => {
     const databasePath = join(directory, "learning.sqlite");
     let db = new SqliteDatabase(databasePath);
     try {
-      new SqlitePersistedPaperPeriodStore(db);
-      seedPeriods(db, ["p1", "p2", "p3"]);
+      const periodStore = new SqlitePersistedPaperPeriodStore(db);
+      seedPeriods(periodStore, ["p1", "p2", "p3"]);
+      const researchHistory = new SqliteResearchFactoryDecisionHistoryRepository(db);
+      researchHistory.append(researchRecord());
       let learningLedger = new SqliteEvolutionLearningLedger(db);
-      let inputSets = new LearningInputSetLedger(learningLedger);
+      let inputSets = new LearningInputSetLedger(learningLedger, evidenceAuthority(researchHistory, periodStore));
       const inputSet = inputSetCiting("p1", "p2");
       assert.equal(inputSets.append(inputSet).replayed, false);
 
       db.close();
       db = new SqliteDatabase(databasePath);
       const restartedPeriodStore = new SqlitePersistedPaperPeriodStore(db);
+      const restartedResearchHistory = new SqliteResearchFactoryDecisionHistoryRepository(db);
       learningLedger = new SqliteEvolutionLearningLedger(db);
-      inputSets = new LearningInputSetLedger(learningLedger);
+      inputSets = new LearningInputSetLedger(learningLedger, evidenceAuthority(restartedResearchHistory, restartedPeriodStore));
 
       assert.equal(inputSets.append(inputSet).replayed, true, "restart replay returns the original A2 identity");
       assert.deepEqual([...inputSets.protectedPeriodReferences()], ["paper-period:p1", "paper-period:p2"]);

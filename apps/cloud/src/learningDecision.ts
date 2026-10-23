@@ -34,6 +34,7 @@ export const LEARNING_DECISION_SCHEMA_VERSION = 1;
 export const MAX_LEARNING_DECISION_CHANGES = 32;
 export const MAX_LEARNING_DECISION_REASON_EVIDENCE = 64;
 export const MAX_LEARNING_DECISION_RECEIPT_BYTES = 16_384;
+const MAX_DURABLE_REASON_REFERENCE_LENGTH = 240;
 export const ALLOWED_SURFACE_VERSION = "learning-allowed-surface-v1";
 export const IMMUTABLE_SURFACE_VERSION = "learning-immutable-surface-v1";
 export class LearningDecisionError extends Error {
@@ -217,6 +218,14 @@ function assertBoundedString(value: unknown, field: string): string {
   return value;
 }
 
+function assertDurableReasonReference(value: unknown): string {
+  const reference = assertBoundedString(value, "reason evidence reference");
+  if (Buffer.byteLength(reference, "utf8") > MAX_DURABLE_REASON_REFERENCE_LENGTH) {
+    throw new LearningDecisionError("MALFORMED_DECISION_INPUT", "reason evidence reference exceeds the durable ledger reference limit");
+  }
+  return reference;
+}
+
 function canonicalInputSet(value: LearningInputSet): LearningInputSet {
   assertLearningInputSet(value);
   const rebuilt = buildLearningInputSet({
@@ -324,7 +333,7 @@ export function buildLearningDecision(input: LearningDecisionInput): LearningDec
   const evidenceIds = new Set([...inputSet.researchEvidenceRecordIds, ...inputSet.paperEvidenceRecordIds]);
   const seenEvidence = new Set<string>();
   for (const reference of input.reasonEvidence) {
-    assertBoundedString(reference, "reason evidence reference");
+    assertDurableReasonReference(reference);
     if (!evidenceIds.has(reference)) throw new LearningDecisionError("UNBOUND_REASON_EVIDENCE", "reason evidence must cite the durable A2 input set");
     if (seenEvidence.has(reference)) throw new LearningDecisionError("DUPLICATE_REASON_EVIDENCE", "reason evidence may not repeat an identity");
     seenEvidence.add(reference);
@@ -375,10 +384,9 @@ export function learningDecisionFingerprint(decision: LearningDecision): string 
   return digest(decision);
 }
 
-/** A1 references the durable A2 row by identity instead of duplicating its potentially large payload. */
-export function learningDecisionDurablePayload(decision: LearningDecision): Omit<LearningDecision, "learningInputSet"> {
-  const { learningInputSet: _inputSet, ...payload } = decision;
-  return payload;
+/** A1 receipts remain independently verifiable after export or retention of the adjacent A2 row. */
+export function learningDecisionDurablePayload(decision: LearningDecision): LearningDecision {
+  return decision;
 }
 
 /** Stable retry identity excludes attempt metadata but includes every decision premise and result. */
@@ -411,6 +419,40 @@ export function learningDecisionContentFingerprint(decision: LearningDecision): 
  * replay fail and the ledger unreadable.
  */
 export function assertLearningDecision(value: unknown): asserts value is LearningDecision {
+  assertLearningDecisionCore(value, true);
+}
+
+/**
+ * Validates the immediately preceding durable A1 format, whose A2 basis is restored from the
+ * adjacent canonical A2 record on read. Its stored receipt was bounded before that basis was
+ * embedded in the current in-memory shape, so validate the old bytes and then all current
+ * decision semantics without reapplying the newer combined payload-size bound.
+ */
+export function assertLegacyLearningDecision(
+  value: unknown,
+  storedLegacyPayload: unknown,
+  storedLegacyJson: string,
+): asserts value is LearningDecision {
+  if (value == null || typeof value !== "object" || Array.isArray(value)
+    || storedLegacyPayload == null || typeof storedLegacyPayload !== "object" || Array.isArray(storedLegacyPayload)) {
+    throw new LearningDecisionError("MALFORMED_DECISION", "legacy learning decision payload is malformed");
+  }
+  if (!Object.hasOwn(value, "learningInputSet") || Object.hasOwn(storedLegacyPayload, "learningInputSet")) {
+    throw new LearningDecisionError("MALFORMED_DECISION", "legacy learning decision must restore exactly one adjacent A2 input set");
+  }
+  const { learningInputSet: _restoredA2, ...reconstructedLegacyPayload } = value as Record<string, unknown>;
+  const canonicalLegacyJson = canonicalResearchJson(storedLegacyPayload);
+  if (canonicalLegacyJson !== storedLegacyJson
+    || canonicalResearchJson(reconstructedLegacyPayload) !== canonicalLegacyJson) {
+    throw new LearningDecisionError("MALFORMED_DECISION", "legacy decision bytes do not match the reconstructed A1 payload");
+  }
+  if (Buffer.byteLength(storedLegacyJson, "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
+    throw new LearningDecisionError("MALFORMED_DECISION", "legacy learning decision exceeds the existing durable receipt size limit");
+  }
+  assertLearningDecisionCore(value, false);
+}
+
+function assertLearningDecisionCore(value: unknown, enforceCurrentReceiptSize: boolean): asserts value is LearningDecision {
   if (value == null || typeof value !== "object") throw new LearningDecisionError("MALFORMED_DECISION", "learning decision is required");
   const candidate = value as Partial<LearningDecision>;
   if (candidate.schemaVersion !== LEARNING_DECISION_SCHEMA_VERSION) throw new LearningDecisionError("MALFORMED_DECISION", "learning decision schema version is unsupported");
@@ -436,7 +478,8 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   if (candidate.proposedChanges!.length > MAX_LEARNING_DECISION_CHANGES || candidate.reasonEvidence!.length > MAX_LEARNING_DECISION_REASON_EVIDENCE) {
     throw new LearningDecisionError("MALFORMED_DECISION", "learning decision exceeds the bounded receipt limits");
   }
-  if (Buffer.byteLength(canonicalResearchJson(learningDecisionDurablePayload(candidate as LearningDecision)), "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
+  if (enforceCurrentReceiptSize
+    && Buffer.byteLength(canonicalResearchJson(learningDecisionDurablePayload(candidate as LearningDecision)), "utf8") > MAX_LEARNING_DECISION_RECEIPT_BYTES) {
     throw new LearningDecisionError("MALFORMED_DECISION", "learning decision exceeds the existing durable receipt size limit");
   }
   for (const [field, item] of [["learningPolicyVersion", candidate.learningPolicyVersion], ["objectiveVersion", candidate.objectiveVersion], ["createdAt", candidate.createdAt], ["sourceCommit", candidate.sourceCommit], ["runtimeIdentity", candidate.runtimeIdentity]] as const) assertBoundedString(item, field);
@@ -444,7 +487,7 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
   let previousReasonReference: string | undefined;
   const seenReasonReferences = new Set<string>();
   for (const reference of candidate.reasonEvidence!) {
-    assertBoundedString(reference, "reason evidence reference");
+    assertDurableReasonReference(reference);
     if (!evidenceIds.has(reference)) throw new LearningDecisionError("MALFORMED_DECISION", "reason evidence must cite the canonical A2 input set");
     if (seenReasonReferences.has(reference)) throw new LearningDecisionError("MALFORMED_DECISION", "reason evidence may not repeat an identity");
     if (previousReasonReference != null && compareCanonicalStrings(previousReasonReference, reference) > 0) throw new LearningDecisionError("MALFORMED_DECISION", "reason evidence must use canonical ordering");

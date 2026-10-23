@@ -8,6 +8,11 @@ const { stripPrivateExchangeCredentials } = require("./start-cloud-runtime.js");
 const DEFAULT_STATE_PATH = path.join(process.env.HOME || process.cwd(), ".nusa", "cloud", "supervisor.json");
 const BASE_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
+const DEFAULT_SQLITE_INTEGRITY_BOOTSTRAP = path.resolve(__dirname, "../dist/packages/storage/src/sqliteIntegrityBootstrap.js");
+
+function runtimeSpawnArgs(runtimePath, bootstrapPath = DEFAULT_SQLITE_INTEGRITY_BOOTSTRAP) {
+  return ["--require", bootstrapPath, runtimePath];
+}
 
 function assertPaperOnly(env) {
   if (env.NUSA_MODE !== "PAPER") throw new Error("NUSA_PAPER_SUPERVISOR_REQUIRES_PAPER_MODE");
@@ -48,6 +53,8 @@ function supervisorEnv(baseEnv, state, startedAt, restartAttempt) {
     NUSA_PAPER_SUPERVISOR_RESTART_COUNT: String(state.restartCount),
     NUSA_PAPER_SUPERVISOR_STARTED_AT: String(startedAt),
   };
+  // Never inherit untrusted Node preloads into the database-owning runtime child.
+  delete next.NODE_OPTIONS;
   if (state.lastExit) {
     next.NUSA_PAPER_SUPERVISOR_LAST_EXIT_CODE = state.lastExit.code == null ? "" : String(state.lastExit.code);
     next.NUSA_PAPER_SUPERVISOR_LAST_EXIT_SIGNAL = state.lastExit.signal || "";
@@ -79,7 +86,7 @@ function start(options = {}) {
     const composed = supervisorEnv(baseEnv, state, startedAt, restartAttempt);
     if (composed.stripped.length > 0) process.stderr.write(`NUSA supervisor stripped private exchange credentials: ${composed.stripped.join(", ")}\n`);
     childStartedAt = now();
-    child = spawnFn(process.execPath, [runtimePath], {
+    child = spawnFn(process.execPath, runtimeSpawnArgs(runtimePath, options.bootstrapPath || DEFAULT_SQLITE_INTEGRITY_BOOTSTRAP), {
       cwd: options.cwd || process.cwd(),
       env: composed.env,
       stdio: "inherit",
@@ -117,4 +124,4 @@ if (require.main === module) {
   catch (error) { console.error(error instanceof Error ? error.stack || error.message : error); process.exitCode = 1; }
 }
 
-module.exports = { assertPaperOnly, readState, start, supervisorEnv, writeState };
+module.exports = { assertPaperOnly, readState, runtimeSpawnArgs, start, supervisorEnv, writeState };

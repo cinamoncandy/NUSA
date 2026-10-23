@@ -8,6 +8,7 @@ import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } fr
 import { CalmRow } from "./uiKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
+import { CostWall, DecisionBars, StudyTimeline } from "./learningPanels";
 
 type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown };
 
@@ -40,6 +41,9 @@ export function LearningView(props: Props) {
     {model.narrowest ? <Text style={styles.narrow}>{model.narrowest}</Text> : null}
     {model.rows.length === 0 ? null : <View style={styles.labelWrap}><SectionLabel left="성과 · 모의투자" right={`${model.rows.length}`} /></View>}
     <View style={styles.list}>{model.rows.map((row, i) => <Reveal key={row.label} index={2 + i} reducedMotion={reduced}><CalmRow label={row.label} value={row.value} tone={row.tone} /></Reveal>)}</View>
+    <DecisionBars />
+    <StudyTimeline nowMs={Date.now()} />
+    <CostWall />
     <PressScale accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
       <Text style={styles.foldText}>자세히 보기 (운영 · 학습 · 재현 · 실계좌)</Text><Text style={styles.foldText}>›</Text>
     </PressScale>
