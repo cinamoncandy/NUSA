@@ -1,0 +1,33 @@
+id: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
+title: Preserve full A2 provenance in durable A1 receipts and align evidence reference bounds
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+validation: "Fresh independent review of A1 head a3e136553a796192ccdb9d0fdf009d2d4f4d4c94 found two P2 issues: A1 durable payload omitted its full A2 evidence basis contrary to the provenance contract, and reason references up to 256 characters passed construction but failed the existing 240-character ledger bound. Repairs include a self-contained A1 receipt with the existing 16 KiB fail-closed bound, storage reservation validation against the matching durable A2 payload, and explicit 240-byte reason-reference validation. Focused A1/storage tests pending rerun; no threshold or authority changes."
+review: "Independent review findings: P2 full A2 provenance missing from durable A1; P2 reason-reference length exceeds storage bound. The findings are repaired locally; fresh review required on successor exact head."
+remaining: "Exact-head build/preflight/CI and fresh independent review on the successor head; downstream Validator/Audit/Release/runtime and genuine Learning evidence remain pending."
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: a3e136553a796192ccdb9d0fdf009d2d4f4d4c94
+issue: 2793
+scope: "Existing A1 LearningDecision and existing EvolutionLearningLedger only. A1 receipt carries the full canonical A2 set; storage reservation release binds that embedded set byte-for-byte to the pending A2 ledger payload."
+impact: "A1 receipt can independently re-resolve and verify its evidence basis after export, while malformed or oversized inputs fail closed before they can consume a reserved ledger slot."
+compatibility: "Keep the existing ledger schema and 16 KiB hypothesis bound. Oversized self-contained A1 receipts reject deterministically; no historical record rewrite or alternate store."
+acceptance:
+  - "A durable A1 receipt includes the complete A2 set and its existing fingerprint/cycle binding."
+  - "The storage ledger releases exactly one matching pending A2 reservation only for a self-contained A1 receipt bound to that A2 payload."
+  - "A reason evidence ID too long for the canonical 240-byte ledger reference fails at decision construction; a 240-byte ID persists in SQLite."
+  - "Existing exactly-once, restart/replay, tamper and fail-closed behavior remains intact."
+verification_commands:
+  - node --require ./tests/register-dist.cjs --test dist/apps/cloud/src/learningDecision.test.js dist/packages/storage/src/evolutionLearningLedger.test.js
+  - pnpm run build
+  - pnpm run preflight
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run aipos:provenance
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Run full local verification, push successor exact head, pass exact-head CI and request fresh independent review; retain PAPER-only authority boundaries."
+version: 1

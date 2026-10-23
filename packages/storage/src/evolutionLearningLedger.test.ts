@@ -25,7 +25,7 @@ const record = (opportunityId: string, recordedAt: string, overrides: Partial<Ev
 
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 
-function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerprint: string; readonly record: EvolutionLearningRecord } {
+function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerprint: string; readonly inputSet: Readonly<Record<string, unknown>>; readonly record: EvolutionLearningRecord } {
   const inputSet = {
     schemaVersion: 1,
     cutoffTimestamp: 10_000,
@@ -45,6 +45,7 @@ function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerp
   const opportunityId = `learning-input-set:${fingerprint}`;
   return {
     fingerprint,
+    inputSet,
     record: record(opportunityId, recordedAt, {
       problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
       evidenceReferences: [opportunityId, `paper-period:${paperId}`],
@@ -59,12 +60,13 @@ function inputSetRecord(recordedAt: string, paperId: string): { readonly fingerp
   };
 }
 
-function decisionRecord(fingerprint: string, recordedAt: string, extraEvidence: readonly string[] = []): EvolutionLearningRecord {
+function decisionRecord(fingerprint: string, recordedAt: string, inputSet: Readonly<Record<string, unknown>>, extraEvidence: readonly string[] = []): EvolutionLearningRecord {
   const learningCycleId = `learning-cycle:${fingerprint}`;
   const opportunityId = `learning-decision-cycle-v1:${sha256(learningCycleId)}`;
   const payload = {
     schemaVersion: 1,
     learningCycleId,
+    learningInputSet: inputSet,
     learningInputSetFingerprint: fingerprint,
     previousResearchSpecFingerprint: "c".repeat(64),
     learningPolicyVersion: "learn-v1",
@@ -200,7 +202,7 @@ test("an unrelated writer cannot consume the capacity reserved for an A2 input s
     );
     assert.equal(ledger.size(), 2, "a closed-learning failure append leaves the reserved A1 slot untouched");
 
-    ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:02:00.000Z"));
+    ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:02:00.000Z", inputSet.inputSet));
     assert.equal(ledger.size(), 3, "the matching A1 decision can consume the reserved slot");
   } finally {
     db.close();
@@ -218,11 +220,11 @@ test("only a canonical A1 receipt can release one matching A2 reservation", () =
     ledger.append(first.record);
     ledger.append(second.record);
     assert.throws(
-      () => ledger.append({ ...decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z"), hypothesis: "{}" }),
+      () => ledger.append({ ...decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z", first.inputSet), hypothesis: "{}" }),
       (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_LEARNING_DECISION_RECEIPT",
       "a generic writer cannot release A2 capacity with only A1-shaped status and identity metadata",
     );
-    const forged = decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z", [second.fingerprint]);
+    const forged = decisionRecord(first.fingerprint, "2026-08-29T00:02:00.000Z", first.inputSet, [second.fingerprint]);
     assert.throws(
       () => ledger.append(forged),
       (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_LEARNING_DECISION_RECEIPT",
@@ -242,8 +244,8 @@ test("only a canonical A1 receipt can release one matching A2 reservation", () =
       "an ambiguous A1 receipt must not release either durable reservation during replay",
     );
 
-    ledger.append(decisionRecord(first.fingerprint, "2026-08-29T00:03:00.000Z"));
-    ledger.append(decisionRecord(second.fingerprint, "2026-08-29T00:04:00.000Z"));
+    ledger.append(decisionRecord(first.fingerprint, "2026-08-29T00:03:00.000Z", first.inputSet));
+    ledger.append(decisionRecord(second.fingerprint, "2026-08-29T00:04:00.000Z", second.inputSet));
     assert.equal(ledger.size(), 4, "each one-to-one A1 receipt releases exactly one reserved slot");
   } finally {
     db.close();
