@@ -249,7 +249,7 @@ function canonicalLearningInputSetForReservation(record: EvolutionLearningRecord
     for (let index = 0; index < lane.ids.length; index += 1) {
       const id = lane.ids[index];
       const observed = lane.observed[index];
-      if (typeof id !== "string" || !id || id.length > 512 || /[\u0000-\u001f\u007f]/.test(id)
+      if (typeof id !== "string" || id.trim().length === 0 || id.length > 512 || /[\u0000-\u001f\u007f]/.test(id)
         || (index > 0 && id <= previous) || allIds.has(id)
         || !Number.isSafeInteger(observed) || (observed as number) < 0 || (observed as number) >= (input.cutoffTimestamp as number)) return false;
       if (lane.name === "performance" && (id.length > 227 || !/^[A-Za-z0-9_.:/#@-]+$/.test(id))) return false;

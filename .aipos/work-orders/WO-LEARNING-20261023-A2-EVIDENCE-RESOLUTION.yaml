@@ -36,13 +36,13 @@ validation_commands:
   - "pnpm run security:gate"
   - "git diff --check"
 verification:
-  local_focused: "PASS 43/43 A2, A1, retention integration, and SQLite Evolution Learning ledger tests, including sparse-array append rejection."
+  local_focused: "PASS 44/44 A2, A1, retention integration, and SQLite Evolution Learning ledger tests, including sparse-array append rejection and whitespace-ID reservation rejection after restart."
   local_build: "PASS TypeScript build."
   preflight: "PASS Node 24.19.0, sqlite available, portability/platform-independent/mobile/AIPOS validators."
   validate_full: "PASS architecture truth, safety architecture, AI zero-authority, architecture, AIPOS drift/conformance, safety invariants/input validators."
   security_gate: "PASS; no unmitigated advisories or secrets."
-  exact_head_ci: "PENDING after sparse-array repair commit; the previous head 70f6dd58f92fb00a8a747abef4d8be84de7ad540 has historical CI PASS only."
-  independent_review: "Fresh review of 70f6dd58f92fb00a8a747abef4d8be84de7ad540 found P2 sparse-array append poisoning; repair is locally validated. Request fresh review only after new exact-head CI is green."
+  exact_head_ci: "PENDING after sparse-array and whitespace-ID reservation repairs; previous exact-head CI receipts are historical."
+  independent_review: "Fresh review of 66d4ee3fe6f2026cbe31e92915f21fdc17b56cea found P2s for sparse arrays at the evidence-resolution boundary and whitespace Research IDs in reservation reconstruction; both are locally repaired. Request fresh review only after new exact-head CI is green."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -50,4 +50,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Commit the locally validated sparse-array repair to the existing PR #2792 branch; run fresh exact-head CI, then request one new independent review if CI is green. Do not deploy or interfere with #2855/server archive deployment."
+next: "Commit the locally validated sparse-array and whitespace-ID repairs to existing PR #2792; run fresh exact-head CI, then request one new independent review if CI is green. Do not deploy or interfere with #2855/server archive deployment."
