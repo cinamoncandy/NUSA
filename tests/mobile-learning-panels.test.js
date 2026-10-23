@@ -1,7 +1,13 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const m = require("../dist/apps/mobile/src/learningPanelsModel.js");
+const loop = require("../dist/apps/mobile/src/learningLoopModel.js");
+
+// The numbers of the live server read on 2026-10-22 (oracle-host-diagnose /health), not invented values.
+const live = { experiments: 15, configurations: 192, discoveryPasses: 15, holdoutPasses: 0, overfitRatePercent: 100, paperPeriodsConsumed: 68, paperNetBp: -17, paperExcessBp: 2, shadowTrades: 580, shadowWins: 115, shadowGrossGainBp: 3900, shadowGrossLossBp: 5684, shadowFeeBp: 5799 };
 
 test("the study timeline is sorted, marks the next verdict and counts days", () => {
   const rows = m.buildStudyTimeline(Date.parse("2026-10-22T12:00:00Z"));
@@ -19,34 +25,48 @@ test("a verdict time in the past asks for the result instead of claiming progres
   assert.equal(rows[1].next, true);
 });
 
-test("the cost wall is 20 bp and marks only the bars above it; without real input it is labelled as an example", () => {
-  const w = m.buildCostWall();
-  assert.equal(w.wallBp, 20);
-  assert.equal(w.example, true);
-  assert.deepEqual(w.bars.map((b) => b.over), [false, false, false, false, true]);
-  assert.ok(w.bars.every((b) => b.ratio > 0 && b.ratio <= 1));
-  const real = m.buildCostWall([{ label: "X", bp: 5 }, { label: "Y", bp: 40 }]);
-  assert.equal(real.example, false);
-  assert.deepEqual(real.bars.map((b) => b.over), [false, true]);
-  assert.equal(m.buildCostWall([{ label: "X", bp: NaN }]).example, true);
+test("the cost waterfall is computed from the measured shadow totals per trade", () => {
+  const { cost } = loop.buildLearningLoopPanels(live);
+  assert.equal(cost.trades, 580);
+  assert.deepEqual(cost.rows.map((r) => r.kind), ["GAIN", "LOSS", "COST", "RESULT"]);
+  const [gain, loss, fee, result] = cost.rows.map((r) => r.bp);
+  assert.ok(Math.abs(gain - 3900 / 580) < 1e-9 && Math.abs(loss + 5684 / 580) < 1e-9 && Math.abs(fee + 5799 / 580) < 1e-9);
+  assert.ok(Math.abs(result - (3900 - 5684 - 5799) / 580) < 1e-9);
+  assert.ok(result < 0 && cost.scaleBp >= Math.abs(result));
+  assert.equal(Math.round(cost.winRatePercent), 20);
+  assert.match(cost.summary, /수수료를 빼기 전에도 거래당 -3\.1bp/);
 });
 
-test("decision bars use real hourly counts when valid, the latest four hours are recent, bad input falls back to the labelled example", () => {
-  const real = m.buildDecisionBars([10, 20, 40, 0, 5, 30]);
-  assert.equal(real.example, false);
-  assert.equal(real.total, 105);
-  assert.deepEqual(real.bars.map((b) => b.recent), [false, false, true, true, true, true]);
-  assert.equal(real.bars[2].ratio, 1);
-  assert.ok(real.bars[3].ratio >= 0.04);
-  for (const bad of [null, undefined, [1], [1, -2], [1, NaN]]) assert.equal(m.buildDecisionBars(bad).example, true);
-  assert.equal(m.buildDecisionBars().bars.length, 24);
+test("paper result and the holdout gate use the measured values and say plainly when nothing passed", () => {
+  const { paper, overfit } = loop.buildLearningLoopPanels(live);
+  assert.equal(paper.netBp, -17);
+  assert.equal(paper.excessBp, 2);
+  assert.equal(paper.periods, 68);
+  assert.match(paper.summary, /68구간 동안 모의투자 순결과 -17bp, 전부 사기 대비 \+2bp/);
+  assert.equal(overfit.holdoutPasses, 0);
+  assert.match(overfit.summary, /15개가 모두 새 데이터에서 탈락/);
 });
 
-test("the panels say 예시 on screen and in the accessibility label, and do not use heavy weights", () => {
-  const fs = require("node:fs");
-  const path = require("node:path");
+test("missing, malformed or inconsistent inputs produce no panel instead of a guessed number", () => {
+  for (const raw of [null, undefined, 5, "x", [], {}]) assert.deepEqual(loop.buildLearningLoopPanels(raw), { cost: null, paper: null, overfit: null });
+  assert.equal(loop.buildLearningLoopPanels({ ...live, shadowTrades: 0 }).cost, null);
+  assert.equal(loop.buildLearningLoopPanels({ ...live, shadowWins: 581 }).cost, null);
+  assert.equal(loop.buildLearningLoopPanels({ ...live, shadowFeeBp: -5 }).cost, null);
+  assert.equal(loop.buildLearningLoopPanels({ ...live, shadowGrossGainBp: 1.5 }).cost, null);
+  assert.equal(loop.buildLearningLoopPanels({ ...live, holdoutPasses: 16 }).overfit, null);
+  assert.equal(loop.buildLearningLoopPanels({ ...live, discoveryPasses: 200 }).overfit, null);
+  assert.equal(loop.buildLearningLoopPanels({ ...live, paperNetBp: NaN, paperExcessBp: undefined }).paper, null);
+  assert.equal(loop.buildLearningLoopPanels({ paperNetBp: -17 }).paper.excessBp, null);
+});
+
+test("the learning panels contain no example values and no heavy weights, and the app passes the real heartbeat", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/learningPanels.tsx"), "utf8");
-  assert.match(src, /m\.example \? "예시"/);
-  assert.equal((src.match(/"예시 · "/g) || []).length, 2);
+  assert.doesNotMatch(src, /예시/);
   assert.doesNotMatch(src, /fontWeight: "(700|800|900)"/);
+  assert.doesNotMatch(src, /#[0-9A-Fa-f]{6}/);
+  const view = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/learningView.tsx"), "utf8");
+  assert.match(view, /<CostWaterfall raw=\{learningLoop\} \/>/);
+  assert.doesNotMatch(view, /DecisionBars|CostWall\b/);
+  const app = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/App.tsx"), "utf8");
+  assert.equal((app.match(/learningLoop=\{snapshot\?\.operations\.heartbeat\?\.learningLoop \?\? null\}/g) || []).length, 2);
 });

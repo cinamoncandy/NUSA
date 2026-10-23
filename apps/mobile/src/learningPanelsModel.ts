@@ -1,7 +1,6 @@
 /**
- * Display-only models for the three "학습" panels: registered studies, the cost wall and the decision bars.
- * No I/O and no authority. The studies list mirrors the frozen pre-registrations (docs/research-ledger); the cost wall and the decision bars
- * are explanatory shapes, and every one of them says so on screen unless real input is given.
+ * Display-only model for the "학습" studies timeline. No I/O and no authority. The list mirrors the frozen pre-registrations
+ * (docs/research-ledger): dates are the designs' first verdict print times, nothing here is a measurement.
  */
 const DAY = 86_400_000;
 
@@ -41,42 +40,4 @@ export function buildStudyTimeline(nowMs: number, studies: ReadonlyArray<Registe
     const status = past ? "판정 시점이 지났어요 · 결과를 확인하세요" : `${s.frozen ? "설계 고정됨" : "결과 대기"} · ${left}일 남음`;
     return Object.freeze({ id: s.id, name: s.name, dateLabel, status, tone: past ? "ATTENTION" as const : s.frozen ? "MUTED" as const : "ATTENTION" as const, next: i === nextIndex });
   }));
-}
-
-export interface CostWallBar { readonly label: string; readonly bp: number }
-export interface CostWallModel {
-  readonly wallBp: number;
-  readonly maxBp: number;
-  readonly bars: ReadonlyArray<CostWallBar & { readonly over: boolean; readonly ratio: number }>;
-  readonly example: boolean;
-}
-
-/** Round trip: 5 bp fee + 5 bp slippage on each side. */
-export const COST_WALL_BP = 20;
-const EXAMPLE_BARS: ReadonlyArray<CostWallBar> = Object.freeze([
-  { label: "후보 A", bp: 6 }, { label: "후보 B", bp: 11 }, { label: "후보 C", bp: 14 }, { label: "후보 D", bp: 9 }, { label: "신호 효과?", bp: 24 },
-]);
-
-export function buildCostWall(input?: ReadonlyArray<CostWallBar> | null): CostWallModel {
-  const real = input != null && input.length > 0 && input.every((b) => Number.isFinite(b.bp) && b.bp >= 0 && b.label.length > 0);
-  const source = real ? input as ReadonlyArray<CostWallBar> : EXAMPLE_BARS;
-  const maxBp = Math.max(COST_WALL_BP * 1.5, ...source.map((b) => b.bp));
-  return Object.freeze({ wallBp: COST_WALL_BP, maxBp, example: !real, bars: Object.freeze(source.map((b) => Object.freeze({ label: b.label, bp: b.bp, over: b.bp > COST_WALL_BP, ratio: Math.min(1, b.bp / maxBp) }))) });
-}
-
-export interface DecisionBarsModel {
-  readonly bars: ReadonlyArray<{ readonly ratio: number; readonly recent: boolean }>;
-  readonly total: number;
-  readonly example: boolean;
-}
-
-/** Hourly decision counts (oldest first). Without real input a fixed example shape is shown and labelled as such. */
-export function buildDecisionBars(hourly?: ReadonlyArray<number> | null): DecisionBarsModel {
-  const real = hourly != null && hourly.length >= 2 && hourly.every((v) => Number.isFinite(v) && v >= 0);
-  const values = real ? (hourly as ReadonlyArray<number>).slice(-24) : Array.from({ length: 24 }, (_, i) => 40 + Math.round(Math.abs(Math.sin(i * 1.7 + 0.6)) * 360));
-  const max = Math.max(1, ...values);
-  return Object.freeze({
-    example: !real, total: values.reduce((s, v) => s + v, 0),
-    bars: Object.freeze(values.map((v, i) => Object.freeze({ ratio: Math.max(0.04, v / max), recent: i >= values.length - 4 }))),
-  });
 }

@@ -3,7 +3,12 @@ import { StyleSheet, Text, View } from "react-native";
 import { SectionLabel } from "./instrumentKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
-import { buildCostWall, buildDecisionBars, buildStudyTimeline } from "./learningPanelsModel";
+import { buildStudyTimeline } from "./learningPanelsModel";
+import { buildLearningLoopPanels } from "./learningLoopModel";
+
+const fmt = (n: number): string => (n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1));
+const rowColor = (kind: "GAIN" | "LOSS" | "COST" | "RESULT", bp: number): string =>
+  kind === "RESULT" ? (bp < 0 ? calmColors.attention : calmColors.text) : kind === "GAIN" ? calmColors.text : calmColors.muted;
 
 /** Registered studies: a vertical line, one dot per study, the next verdict highlighted. Dates are the frozen designs' verdict times. */
 export function StudyTimeline({ nowMs }: { readonly nowMs: number }) {
@@ -23,33 +28,74 @@ export function StudyTimeline({ nowMs }: { readonly nowMs: number }) {
   </View>;
 }
 
-/** The cost wall: candidates' gross edge against the round-trip cost line. Bars that do not reach the line lose money after costs. */
-export function CostWall({ input }: { readonly input?: ReadonlyArray<{ readonly label: string; readonly bp: number }> | null }) {
-  const m = buildCostWall(input);
-  const wallPct = `${(m.wallBp / m.maxBp) * 100}%` as const;
-  return <View style={styles.block} testID="learning-cost-wall" accessibilityLabel={`${m.example ? "예시 · " : ""}비용의 벽 왕복 ${m.wallBp}bp. ${m.bars.map((b) => `${b.label} ${b.bp}bp ${b.over ? "넘음" : "못 넘음"}`).join(", ")}`}>
-    <SectionLabel left="비용의 벽" right={m.example ? "예시" : `${m.wallBp}bp`} />
-    <View style={styles.wallBody}>
-      {m.bars.map((b) => <View key={b.label} style={styles.wRow}>
-        <Text style={styles.wLabel}>{b.label}</Text>
-        <View style={styles.wTrack}><View style={[styles.wFill, { width: `${b.ratio * 100}%`, backgroundColor: b.over ? calmColors.text : calmColors.muted }]} /></View>
-        <Text style={styles.wValue}>{b.bp}</Text>
-      </View>)}
-      <View pointerEvents="none" style={styles.wOverlay}><View style={[styles.wLine, { left: wallPct }]}><Text style={styles.wTag}>{m.wallBp}bp</Text></View></View>
-    </View>
-    <Text style={styles.note}>비용선을 넘지 못하면 순수익은 마이너스예요. 스프레드는 별도예요.{m.example ? " 막대는 설명용 예시이고 실제 후보 값이 아니에요." : ""}</Text>
+/** One signed bar on a zero axis: positive to the right, negative to the left. */
+function SignedBar({ bp, scaleBp, color }: { readonly bp: number; readonly scaleBp: number; readonly color: string }) {
+  const half = Math.min(1, Math.abs(bp) / scaleBp) * 50;
+  return <View style={styles.axis} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View style={styles.zero} />
+    <View style={[styles.signed, bp >= 0 ? { left: "50%", width: `${half}%` } : { right: "50%", width: `${half}%` }, { backgroundColor: color }]} />
   </View>;
 }
 
-/** Decision bars: one bar per hour, the latest hours in the live tone. Shows activity, not performance. */
-export function DecisionBars({ hourly }: { readonly hourly?: ReadonlyArray<number> | null }) {
-  const m = buildDecisionBars(hourly);
-  return <View style={styles.block} testID="learning-decision-bars" accessibilityLabel={`${m.example ? "예시 · " : ""}최근 ${m.bars.length}시간 판단 ${m.total.toLocaleString("en-US")}건`}>
-    <SectionLabel left="판단 흐름" right={m.example ? "예시" : `${m.bars.length}시간`} />
-    <View style={styles.bars} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {m.bars.map((b, i) => <View key={i} style={[styles.bar, { height: `${b.ratio * 100}%`, backgroundColor: b.recent ? calmColors.order : calmColors.muted, opacity: b.recent ? 1 : 0.4 }]} />)}
+/** The cost wall, measured: what an average shadow trade of the owner baseline gains, loses and pays in fees, and what is left. */
+export function CostWaterfall({ raw }: { readonly raw: unknown }) {
+  const { cost } = buildLearningLoopPanels(raw);
+  if (cost == null) return <Missing title="거래 한 번의 손익" />;
+  return <View style={styles.block} testID="learning-cost-waterfall" accessibilityLabel={`거래 한 번의 손익. 거래 ${cost.trades}건 기준. ${cost.rows.map((r) => `${r.label} ${fmt(r.bp)}bp`).join(", ")}. ${cost.summary}`}>
+    <SectionLabel left="거래 한 번의 손익" right={`${cost.trades.toLocaleString("en-US")}건 · bp`} />
+    <View style={styles.rows}>
+      {cost.rows.map((r) => <View key={r.label} style={styles.row}>
+        <View style={styles.rowHead}>
+          <Text style={[styles.rowLabel, r.kind === "RESULT" ? styles.rowLabelStrong : null]}>{r.label}</Text>
+          <Text style={[styles.rowValue, { color: rowColor(r.kind, r.bp) }]}>{fmt(r.bp)}</Text>
+        </View>
+        <SignedBar bp={r.bp} scaleBp={cost.scaleBp} color={rowColor(r.kind, r.bp)} />
+      </View>)}
     </View>
-    <Text style={styles.note}>판단이 많다고 수익이 나는 것은 아니에요. 활동량만 보여 줘요.{m.example ? " 막대는 예시예요." : ""}</Text>
+    <Text style={styles.note}>{cost.summary}{cost.winRatePercent == null ? "" : ` 이긴 비율은 ${cost.winRatePercent.toFixed(0)}%예요.`}</Text>
+  </View>;
+}
+
+/** The owner baseline's PAPER result over the periods the learner consumed, and against buying everything. */
+export function PaperResultBars({ raw }: { readonly raw: unknown }) {
+  const { paper } = buildLearningLoopPanels(raw);
+  if (paper == null) return <Missing title="모의투자 성과" />;
+  const rows = [paper.netBp == null ? null : { label: "모의투자 순결과", bp: paper.netBp }, paper.excessBp == null ? null : { label: "전부 사기 대비", bp: paper.excessBp }].filter((x): x is { label: string; bp: number } => x != null);
+  return <View style={styles.block} testID="learning-paper-result" accessibilityLabel={`모의투자 성과. ${paper.summary}`}>
+    <SectionLabel left="모의투자 성과" right={paper.periods == null ? "bp" : `${paper.periods}구간 · bp`} />
+    <View style={styles.rows}>
+      {rows.map((r) => <View key={r.label} style={styles.row}>
+        <View style={styles.rowHead}><Text style={styles.rowLabel}>{r.label}</Text><Text style={[styles.rowValue, { color: r.bp < 0 ? calmColors.attention : calmColors.text }]}>{r.bp > 0 ? `+${r.bp}` : `${r.bp}`}</Text></View>
+        <SignedBar bp={r.bp} scaleBp={paper.scaleBp} color={r.bp < 0 ? calmColors.attention : calmColors.text} />
+      </View>)}
+    </View>
+    <Text style={styles.note}>{paper.summary}</Text>
+  </View>;
+}
+
+/** First screen passes against the independent holdout: the number that survived new data. */
+export function OverfitGate({ raw }: { readonly raw: unknown }) {
+  const { overfit } = buildLearningLoopPanels(raw);
+  if (overfit == null) return <Missing title="새 데이터에서의 결과" />;
+  const total = Math.max(overfit.discoveryPasses, 1);
+  return <View style={styles.block} testID="learning-overfit-gate" accessibilityLabel={`새 데이터에서의 결과. ${overfit.summary}`}>
+    <SectionLabel left="새 데이터에서의 결과" right={overfit.overfitRatePercent == null ? null : `탈락 ${overfit.overfitRatePercent}%`} />
+    <View style={styles.gate} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={[styles.gatePassed, { flex: overfit.holdoutPasses / total }]} />
+      <View style={[styles.gateLost, { flex: (total - overfit.holdoutPasses) / total }]} />
+    </View>
+    <View style={styles.gateLegend}>
+      <Text style={styles.rowLabel}>1차 통과 {overfit.discoveryPasses}개</Text>
+      <Text style={[styles.rowValue, { color: overfit.holdoutPasses === 0 ? calmColors.attention : calmColors.text }]}>독립 검증 합격 {overfit.holdoutPasses}개</Text>
+    </View>
+    <Text style={styles.note}>{overfit.summary} 기준은 낮추지 않아요.</Text>
+  </View>;
+}
+
+function Missing({ title }: { readonly title: string }) {
+  return <View style={styles.block} accessibilityLabel={`${title}. 서버에서 아직 받지 못했어요`}>
+    <SectionLabel left={title} right={null} />
+    <Text style={styles.note}>서버에서 아직 받지 못했어요. 값을 지어내지 않고 비워 둬요.</Text>
   </View>;
 }
 
@@ -64,15 +110,17 @@ const styles = StyleSheet.create({
   date: { color: calmColors.text, fontSize: 34, fontWeight: "500", letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
   evName: { color: calmColors.text, fontSize: readableFont(14), fontWeight: "500" },
   evStatus: { fontSize: readableFont(12) },
-  wallBody: { paddingTop: 22, paddingBottom: 4 },
-  wRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 30 },
-  wLabel: { width: 74, color: calmColors.muted, fontSize: readableFont(12) },
-  wTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: calmColors.line, justifyContent: "center" },
-  wFill: { height: 9, borderRadius: 1 },
-  wValue: { width: 28, textAlign: "right", color: calmColors.muted, fontSize: readableFont(12), fontVariant: ["tabular-nums"] },
-  wOverlay: { position: "absolute", top: 0, bottom: 0, left: 84, right: 38 },
-  wLine: { position: "absolute", top: 0, bottom: 0, borderLeftWidth: 1, borderLeftColor: calmColors.loss },
-  wTag: { position: "absolute", top: -2, left: -16, width: 44, textAlign: "center", color: calmColors.loss, fontSize: readableFont(12), fontWeight: "600" },
-  bars: { flexDirection: "row", alignItems: "flex-end", gap: 3, height: 64 },
-  bar: { flex: 1, borderRadius: 1, minHeight: 2 },
+  rows: { gap: 14 },
+  row: { gap: 6 },
+  rowHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 10 },
+  rowLabel: { color: calmColors.muted, fontSize: readableFont(13) },
+  rowLabelStrong: { color: calmColors.text },
+  rowValue: { fontSize: readableFont(15), fontWeight: "500", fontVariant: ["tabular-nums"] },
+  axis: { height: 10, justifyContent: "center" },
+  zero: { position: "absolute", left: "50%", top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: calmColors.muted },
+  signed: { position: "absolute", top: 2, height: 6, borderRadius: 1 },
+  gate: { flexDirection: "row", height: 10, borderRadius: 2, overflow: "hidden", backgroundColor: calmColors.line },
+  gatePassed: { backgroundColor: calmColors.order },
+  gateLost: { backgroundColor: calmColors.attention, opacity: 0.55 },
+  gateLegend: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
 });

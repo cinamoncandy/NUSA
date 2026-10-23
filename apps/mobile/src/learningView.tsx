@@ -8,9 +8,9 @@ import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } fr
 import { CalmRow } from "./uiKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
-import { CostWall, DecisionBars, StudyTimeline } from "./learningPanels";
+import { CostWaterfall, OverfitGate, PaperResultBars, StudyTimeline } from "./learningPanels";
 
-type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown };
+type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown; /** Server heartbeat learningLoop (display only): measured numbers for the panels; null when absent. */ readonly learningLoop?: unknown };
 
 /**
  * "학습" — calm redesign of the PAPER tab. The summary is new; the full read-only monitors
@@ -19,7 +19,7 @@ type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server 
 export function LearningView(props: Props) {
   const [details, setDetails] = useState(false);
   const reduced = useReducedMotion();
-  const { learningFunnel, ...monitorProps } = props;
+  const { learningFunnel, learningLoop, ...monitorProps } = props;
   const model = buildLearningScreen(props.paper);
   const funnel = buildLearningFunnel(learningFunnel);
   if (details) return <View style={styles.screen}>
@@ -41,9 +41,10 @@ export function LearningView(props: Props) {
     {model.narrowest ? <Text style={styles.narrow}>{model.narrowest}</Text> : null}
     {model.rows.length === 0 ? null : <View style={styles.labelWrap}><SectionLabel left="성과 · 모의투자" right={`${model.rows.length}`} /></View>}
     <View style={styles.list}>{model.rows.map((row, i) => <Reveal key={row.label} index={2 + i} reducedMotion={reduced}><CalmRow label={row.label} value={row.value} tone={row.tone} /></Reveal>)}</View>
-    <DecisionBars />
+    <CostWaterfall raw={learningLoop} />
+    <PaperResultBars raw={learningLoop} />
+    <OverfitGate raw={learningLoop} />
     <StudyTimeline nowMs={Date.now()} />
-    <CostWall />
     <PressScale accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
       <Text style={styles.foldText}>자세히 보기 (운영 · 학습 · 재현 · 실계좌)</Text><Text style={styles.foldText}>›</Text>
     </PressScale>
