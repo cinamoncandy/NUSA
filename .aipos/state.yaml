@@ -3798,6 +3798,14 @@ current_learning_resume_failed_cycle:
   finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
   limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
 
+current_learning_a1_receipt_provenance_20261023:
+  work_order: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  validation: "Fresh exact-head review found 2 P2s: durable A1 omitted full A2 basis and accepted 241–256-byte reason IDs that storage rejects. Full A2 binding and 240-byte limit repaired; focused SQLite/A1 tests pass 60/60."
+  issue: 2793
+  next: "Complete exact-head build/preflight/CI and request fresh independent review; no production application or cycle completion claim."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_a4_bounded_application_20261022:
   work_order: WO-LEARNING-20261022-A4-APPLICATION
   pull_request: 2794
