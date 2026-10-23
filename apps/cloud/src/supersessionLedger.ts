@@ -22,6 +22,10 @@ function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function surfaceEvidenceReference(surface: string): string {
+  return "supersession-surface:" + createHash("sha256").update(surface, "utf8").digest("hex");
+}
+
 function opportunityId(link: SupersessionLink): string {
   return ID_PREFIX + sha256(canonicalResearchJson({
     surface: link.surface,
@@ -54,8 +58,8 @@ function parseLink(record: EvolutionLearningRecord): SupersessionLink {
     throw new SupersessionError("MALFORMED_LINK", "durable supersession payload is not valid JSON");
   }
   assertSupersessionLink(parsed);
-  const expectedEvidenceReferences = [parsed.previousDecisionFingerprint, parsed.nextDecisionFingerprint, parsed.surface]
-    .sort((left, right) => left.localeCompare(right));
+  const expectedEvidenceReferences = [parsed.previousDecisionFingerprint, parsed.nextDecisionFingerprint, surfaceEvidenceReference(parsed.surface)]
+    .sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
   if (
     canonicalResearchJson(parsed) !== record.hypothesis ||
     Buffer.byteLength(record.hypothesis, "utf8") > 2_000 ||
@@ -115,7 +119,8 @@ export class LearningSupersessionLedger {
     const record = createEvolutionLearningRecord({
       opportunityId: id,
       problem: PROBLEM,
-      evidenceReferences: [candidate.previousDecisionFingerprint, candidate.nextDecisionFingerprint, candidate.surface].sort(),
+      evidenceReferences: [candidate.previousDecisionFingerprint, candidate.nextDecisionFingerprint, surfaceEvidenceReference(candidate.surface)]
+        .sort((left, right) => left < right ? -1 : left > right ? 1 : 0),
       hypothesis,
       changeReference: SUPERSESSION_POLICY_VERSION,
       validationStatus: RECORD_KIND,
