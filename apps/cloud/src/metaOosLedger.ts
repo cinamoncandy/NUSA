@@ -1,5 +1,6 @@
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import type { MetaOosEligibility } from "./learningApplication";
 import {
   assertMetaOosAssignment,
   assertMetaOosAssignmentReplay,
@@ -144,8 +145,8 @@ export class MetaOosLedger {
    * Derived only from durable assignments, so a decision cannot buy eligibility by asserting a cycle
    * count of its own.
    */
-  public eligibility(partition: MetaPartition) {
-    return metaOosEligibility(this.records(), partition);
+  public eligibility(partition: MetaPartition, identity: Pick<MetaOosEligibility, "learningCycleId" | "learningDecisionFingerprint">): MetaOosEligibility {
+    return metaOosEligibility(this.records(), partition, identity);
   }
 
   public summary(): { readonly assignmentsRecorded: number; readonly train: number; readonly validation: number; readonly holdout: number } {
