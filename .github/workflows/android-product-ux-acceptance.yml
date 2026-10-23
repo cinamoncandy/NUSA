@@ -139,7 +139,7 @@ jobs:
           tap "tab-More"; capture 05-more
           tap_after_scroll "more-PaperEvidence"; capture 06-paper
           # calm-v1: the PAPER evidence opens on the 학습 summary; the full read-only monitor is behind 자세히 보기.
-          tap "learning-details"; capture 07-paper-evidence-open
+          tap_after_scroll "learning-details"; capture 07-paper-evidence-open
           tap "tab-More"; capture 08-more-return
           tap_after_scroll "more-Portfolio"; capture 09-portfolio
           tap "header-tools-menu"; tap "header-settings"; capture 10-settings
