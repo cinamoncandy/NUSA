@@ -37,6 +37,8 @@ function fixture() {
 
 function ports(state: { value: number }): ApplicationPorts {
   return {
+    readCurrentResearchSpec: () => ({ fingerprint: "a".repeat(64), values: { longBarTickEvery: state.value } }),
+    withExclusiveApplicationLease: <T>(_identity: string, operation: () => T) => Object.freeze({ acquired: true, value: operation() }),
     readCurrent: () => state.value,
     commit: (_surface, value) => {
       state.value = value;
@@ -174,7 +176,7 @@ describe("Integrated chain - caller partition assignments remain non-authoritati
       const results = runFullPass(chain, state, 1, "q");
       const last = results.at(-1) as LearningChainResult;
       assert.equal(last.eligibility.eligible, false, "no canonical owner authorized the caller's partition assignments");
-      assert.equal(last.eligibility.cyclesEvaluated, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
+      assert.equal(last.eligibility.cyclesEvaluated, META_MINIMUM_CYCLES_FOR_ELIGIBILITY - 1, "holdout count excludes current cycle; the proof still requires all lanes");
       assert.match(last.eligibility.reason, /canonical META assignment policy owner is not connected/);
       assert.ok(results.every((result) => result.applicationReceipt.receipt.applicationOutcome === "REJECTED"));
       assert.equal(state.value, 1, "recorded caller partitions never mutate runtime state");
@@ -203,8 +205,8 @@ describe("Integrated chain - caller partition assignments remain non-authoritati
       assert.equal(result.metaOosReceipt.assignment.learningDecisionFingerprint, result.decisionReceipt.fingerprint);
       assert.equal(result.decisionReceipt.decision.decisionOutcome, "ADMISSIBLE");
       assert.equal(chain.metaPartitionCount("meta-train"), 1);
-      assert.equal(result.eligibility.cyclesEvaluated, 1, "eligibility counts the completed cycle that now exists");
-      assert.equal(result.eligibility.eligible, false, "one is not three, in any partition");
+      assert.equal(result.eligibility.cyclesEvaluated, 0, "the current cycle cannot count itself as completed prior evidence");
+      assert.equal(result.eligibility.eligible, false, "a cycle is never evidence for its own eligibility");
     } finally {
       close();
     }
@@ -223,7 +225,7 @@ describe("Integrated chain - caller partition assignments remain non-authoritati
         results.push(chain.run(cycle("t" + index.toString(16)), ports(state)));
       }
       const last = results.at(-1) as LearningChainResult;
-      assert.equal(last.eligibility.cyclesEvaluated, META_PARTITIONS.length * META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "train alone is deep, and deep is not covered");
+      assert.equal(last.eligibility.cyclesEvaluated, 0, "train-only evidence does not count as holdout coverage");
       assert.equal(last.eligibility.eligible, false, "train alone may never open the door");
       assert.match(last.eligibility.reason, /canonical META assignment policy owner is not connected/);
       assert.equal(last.applicationReceipt.receipt.applicationOutcome, "REJECTED");

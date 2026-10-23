@@ -212,9 +212,6 @@ export const META_MINIMUM_CYCLES_FOR_ELIGIBILITY = 3;
 /** Every partition must reach the floor. There is no partition whose coverage may be skipped. */
 export const META_PARTITION_FLOOR = META_MINIMUM_CYCLES_FOR_ELIGIBILITY;
 
-/** Reported on the eligibility proof so a reader sees the scope rather than a single lane. */
-export const META_ALL_PARTITIONS_SCOPE = "train+validation+holdout";
-
 /**
  * Evidence that an assigned cycle actually *completed*, rather than merely being filed.
  *
@@ -260,17 +257,26 @@ function completedCount(assignments: readonly MetaOosAssignment[], partition: Me
  * `metaCyclesEvaluated` still gets no eligibility unless the assignments *and* their completions
  * actually exist.
  */
-export function metaOosEligibility(assignments: readonly MetaOosAssignment[], completion?: MetaOosCompletionEvidence): MetaOosEligibility {
-  const perPartition = META_PARTITIONS.map((partition) => ({ partition, completed: completedCount(assignments, partition, completion) }));
-  const total = perPartition.reduce((sum, entry) => sum + entry.completed, 0);
+export function metaOosEligibility(
+  assignments: readonly MetaOosAssignment[],
+  completion: MetaOosCompletionEvidence | undefined,
+  identity: Pick<MetaOosEligibility, "learningCycleId" | "learningDecisionFingerprint">,
+): MetaOosEligibility {
+  if (typeof identity?.learningCycleId !== "string" || !CYCLE.test(identity.learningCycleId)) throw new MetaOosError("MALFORMED_ELIGIBILITY_IDENTITY", "eligibility cycle identity is invalid");
+  if (typeof identity.learningDecisionFingerprint !== "string" || !SHA64.test(identity.learningDecisionFingerprint)) throw new MetaOosError("MALFORMED_ELIGIBILITY_IDENTITY", "eligibility decision fingerprint is invalid");
+  // The current decision is the target being evaluated, never evidence in its own favor.
+  const priorAssignments = assignments.filter((assignment) => assignment.learningCycleId !== identity.learningCycleId);
+  const perPartition = META_PARTITIONS.map((partition) => ({ partition, completed: completedCount(priorAssignments, partition, completion) }));
   const coverage = perPartition.map((entry) => entry.partition.slice("meta-".length) + " " + String(entry.completed) + "/" + String(META_PARTITION_FLOOR)).join(", ");
   const behind = perPartition.filter((entry) => entry.completed < META_PARTITION_FLOOR);
+  const holdoutCompleted = perPartition.find((entry) => entry.partition === "meta-holdout")?.completed ?? 0;
 
   if (behind.length > 0) {
     return Object.freeze({
       eligible: false,
-      partition: META_ALL_PARTITIONS_SCOPE,
-      cyclesEvaluated: total,
+      partition: "meta-holdout",
+      cyclesEvaluated: holdoutCompleted,
+      ...identity,
       reason:
         "meta-OOS has " +
         coverage +
@@ -282,8 +288,11 @@ export function metaOosEligibility(assignments: readonly MetaOosAssignment[], co
 
   return Object.freeze({
     eligible: true,
-    partition: META_ALL_PARTITIONS_SCOPE,
-    cyclesEvaluated: total,
+    // A4 only accepts an eligibility proof scoped to the protected holdout lane. The reason still
+    // reports all three lanes, and the verdict above remains global across every partition.
+    partition: "meta-holdout",
+    cyclesEvaluated: holdoutCompleted,
+    ...identity,
     reason: "meta-OOS has " + coverage + " completed cycle(s), covering all three partitions at the owner-fixed floor of " + String(META_PARTITION_FLOOR),
   });
 }

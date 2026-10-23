@@ -37,6 +37,16 @@ describe("A5 - history is appended, never rewritten (section 23)", () => {
     assert.equal(registry.size(), 1, "no duplicate relationship");
   });
 
+  it("treats a replay with changed observation metadata as the same immutable edge", () => {
+    const registry = new SupersessionRegistry();
+    const first = registry.supersede(link());
+    const replay = registry.supersede(link({ reason: "replayed after restart", timestamp: "2026-10-19T00:00:00.000Z" }));
+    assert.equal(replay.linkFingerprint, first.linkFingerprint);
+    assert.equal(replay.reason, first.reason);
+    assert.equal(replay.timestamp, first.timestamp);
+    assert.equal(registry.size(), 1);
+  });
+
   it("carries every required field", () => {
     const registry = new SupersessionRegistry();
     const built = registry.supersede(link());
@@ -96,7 +106,7 @@ describe("A5 - supersession fork detection (section 24)", () => {
   it("distinguishes successors of different predecessors", () => {
     const registry = new SupersessionRegistry();
     registry.supersede(link());
-    registry.supersede(link({ previousDecisionFingerprint: C }));
+    registry.supersede(link({ previousDecisionFingerprint: C, nextDecisionFingerprint: "d".repeat(64) }));
     assert.equal(registry.size(), 2, "two predecessors, two independent lineages");
   });
 
@@ -120,21 +130,42 @@ describe("A5 - the chain reads forward without cycles", () => {
     assert.deepEqual([...registry.lineage(C, "longBarTickEvery")], [], "the latest decision has no successor yet");
   });
 
-  it("fails closed if a lineage were ever to cycle", () => {
+  it("rejects a cycle at append time", () => {
     const registry = new SupersessionRegistry();
     registry.supersede(link());
-    // Inject a back-edge directly: this can only happen if history was rewritten out of band.
-    (registry as unknown as { links: Array<Record<string, unknown>> }).links.push({
-      schemaVersion: SUPERSESSION_SCHEMA_VERSION,
-      surface: "longBarTickEvery",
-      previousDecisionFingerprint: B,
-      nextDecisionFingerprint: A,
-      reason: "cycle",
-      timestamp: "2026-10-18T00:00:00.000Z",
-      linkFingerprint: "f".repeat(64),
-      supersessionPolicyVersion: "supersession-v1",
-    });
-    assert.throws(() => registry.lineage(A, "longBarTickEvery"), /cycles back/);
+    assert.throws(() => registry.supersede(link({ previousDecisionFingerprint: B, nextDecisionFingerprint: A })), /would create a supersession cycle/);
+    assert.equal(registry.size(), 1);
+  });
+
+  it("rejects a multi-link cycle and a merge at append time", () => {
+    const cycle = new SupersessionRegistry();
+    cycle.supersede(link());
+    cycle.supersede(link({ previousDecisionFingerprint: B, nextDecisionFingerprint: C }));
+    assert.throws(() => cycle.supersede(link({ previousDecisionFingerprint: C, nextDecisionFingerprint: A })), /would create a supersession cycle/);
+    assert.equal(cycle.size(), 2);
+
+    const merge = new SupersessionRegistry();
+    merge.supersede(link());
+    assert.throws(() => merge.supersede(link({ previousDecisionFingerprint: C, nextDecisionFingerprint: B })), /multiple predecessors/);
+    assert.equal(merge.size(), 1);
+  });
+
+  it("rejects reactivation of a superseded decision", () => {
+    const registry = new SupersessionRegistry();
+    registry.supersede(link());
+    registry.supersede(link({ previousDecisionFingerprint: B, nextDecisionFingerprint: C }));
+    assert.throws(() => registry.supersede(link({ previousDecisionFingerprint: "d".repeat(64), nextDecisionFingerprint: A })), /cannot be reactivated/);
+    assert.equal(registry.size(), 2);
+  });
+
+  it("rehydrates a batch atomically when a later link conflicts", () => {
+    const registry = new SupersessionRegistry();
+    registry.supersede(link({ previousDecisionFingerprint: "d".repeat(64), nextDecisionFingerprint: "e".repeat(64) }));
+    const before = registry.all();
+    const first = buildSupersessionLink(link({ previousDecisionFingerprint: A, nextDecisionFingerprint: B }));
+    const conflict = buildSupersessionLink(link({ previousDecisionFingerprint: A, nextDecisionFingerprint: C }));
+    assert.throws(() => registry.rehydrate([first, conflict]), /already has successor/);
+    assert.deepEqual(registry.all(), before);
   });
 });
 

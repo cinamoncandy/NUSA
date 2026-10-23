@@ -153,8 +153,11 @@ export class MetaOosLedger {
    * or supplying something unusable, fails closed to zero completed cycles and therefore to
    * INSUFFICIENT - the same deliberate shape as A4's required `MetaOosEligibility` argument.
    */
-  public eligibility(completion?: MetaOosCompletionEvidence): MetaOosEligibility {
-    return metaOosEligibility(this.records(), completion);
+  public eligibility(
+    completion: MetaOosCompletionEvidence | undefined,
+    identity: Pick<MetaOosEligibility, "learningCycleId" | "learningDecisionFingerprint">,
+  ): MetaOosEligibility {
+    return metaOosEligibility(this.records(), completion, identity);
   }
 
   public summary(): { readonly assignmentsRecorded: number; readonly train: number; readonly validation: number; readonly holdout: number } {
