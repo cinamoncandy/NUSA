@@ -179,6 +179,46 @@ describe("A6 durable exploration contract", () => {
     }
   });
 
+  it("replay rejects exploration history without its canonical A2 input set", () => {
+    const filename = dbPath();
+    const state = setup(filename);
+    const orphanFilename = dbPath();
+    const orphanDb = new SqliteDatabase(orphanFilename);
+    try {
+      state.exploration.propose(state.input.fingerprint, candidate());
+      const record = state.evolution.list().find((entry) => entry.validationStatus === "LEARNING_EXPLORATION");
+      assert.ok(record);
+      const orphanEvolution = new SqliteEvolutionLearningLedger(orphanDb);
+      const emptyInputSets = new LearningInputSetLedger(orphanEvolution, evidenceAuthority(), () => TIME);
+      const replay = new LearningExplorationLedger({
+        list: () => [record],
+        appendWithValidation: () => { throw new Error("append must not run during replay"); },
+      }, emptyInputSets, familyRegistry(), () => TIME);
+      assert.throws(() => replay.list(), (error: unknown) => error instanceof ExplorationError && error.code === "A2_INPUT_NOT_DURABLE");
+    } finally {
+      state.db.close();
+      orphanDb.close();
+      cleanup(filename);
+      cleanup(orphanFilename);
+    }
+  });
+
+  it("persists only the exact validated cost-model fields", () => {
+    const filename = dbPath();
+    const state = setup(filename);
+    try {
+      const extraCostCandidate = candidate({
+        costModel: { ...candidate().costModel, callerClaim: true } as ResearchCandidateSpecification["costModel"],
+      });
+      const attempt = state.exploration.propose(state.input.fingerprint, extraCostCandidate);
+      assert.deepEqual(Object.keys(attempt.configurationDescriptor.costModel).sort(), ["feeBps", "slippageBps", "spreadBps", "turnoverAssumption"]);
+      assert.equal(state.exploration.list().length, 1, "post-append replay remains valid after caller extras are excluded");
+    } finally {
+      state.db.close();
+      cleanup(filename);
+    }
+  });
+
   it("rejects a hash-chain-shaped A6 receipt with a noncanonical Evolution envelope", () => {
     const filename = dbPath();
     const state = setup(filename);

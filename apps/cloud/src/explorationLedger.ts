@@ -74,6 +74,13 @@ export class LearningExplorationLedger {
   private attemptsFromRecords(records: readonly EvolutionLearningRecord[]): readonly ExplorationAttempt[] {
     const candidates = records.filter((record) => record.validationStatus === RECORD_KIND || record.opportunityId.startsWith(ID_PREFIX));
     const attempts = candidates.map(parseAttempt);
+    for (const attempt of attempts) {
+      const fingerprint = attempt.learningCycleId.slice("learning-cycle:".length);
+      const inputSet = this.inputSets.getByFingerprint(fingerprint, records);
+      if (inputSet == null || inputSet.learningCycleId !== attempt.learningCycleId) {
+        throw new ExplorationError("A2_INPUT_NOT_DURABLE", "replayed exploration attempt has no matching canonical durable A2 input set");
+      }
+    }
     assertExplorationHistory(attempts);
     return Object.freeze(attempts);
   }

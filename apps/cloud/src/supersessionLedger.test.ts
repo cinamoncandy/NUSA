@@ -106,6 +106,33 @@ test("A5 rejects a canonical link that would be truncated by the Evolution recor
   }
 });
 
+test("A5 preserves long or fingerprint-shaped surfaces through normalized evidence references", () => {
+  const filename = pathForTest();
+  const db = new SqliteDatabase(filename);
+  try {
+    const evolution = new SqliteEvolutionLearningLedger(db);
+    const supersession = new LearningSupersessionLedger(evolution, () => Date.parse("2026-10-22T00:00:00.000Z"));
+    for (const [index, surface] of (["s".repeat(1_024), A] as const).entries()) {
+      const previous = index === 0 ? A : "c".repeat(64);
+      const next = index === 0 ? B : "d".repeat(64);
+      const link = supersession.supersede({
+        surface,
+        previousDecisionFingerprint: previous,
+        nextDecisionFingerprint: next,
+        reason: "bounded change",
+        timestamp: "2026-10-22T00:00:00.000Z",
+      });
+      assert.equal(supersession.registry().successorOf(previous, surface)?.linkFingerprint, link.linkFingerprint);
+      assert.ok(evolution.list().at(-1)?.evidenceReferences.includes(surface) === false, "the raw surface is retained in the payload, not normalized as a reference");
+    }
+    assert.equal(evolution.size(), 2);
+    assert.equal(evolution.replay().eventCount, 2);
+  } finally {
+    db.close();
+    cleanup(filename);
+  }
+});
+
 test("A5 replay rejects a chain-valid record whose Evolution envelope is not canonical", () => {
   const filename = pathForTest();
   const db = new SqliteDatabase(filename);
