@@ -224,6 +224,14 @@ describe("A1 is a receipt, not an authority - section 24", () => {
     assert.throws(() => assertLearningDecision(forged), /owner aperture/);
   });
 
+  it("rejects a reordered proposal list even when each proposal assessment is valid", () => {
+    const decision = buildLearningDecision(decisionInput({ proposedChanges: [
+      { surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 },
+      { surface: "unknownFutureSurface", currentValue: 1, proposedValue: 2 },
+    ] }));
+    assert.throws(() => assertLearningDecision({ ...decision, proposedChanges: [...decision.proposedChanges].reverse() }), /canonical ordering/);
+  });
+
   it("fails closed when the actual current spec value differs from the proposal premise", () => {
     const decision = buildLearningDecision(decisionInput());
     assert.throws(() => assertLearningDecisionPremisesMatchCurrentSpec(decision, {
@@ -371,6 +379,15 @@ describe("A1 durable exactly-once - section 43", () => {
     const decision = buildLearningDecision(input);
     assert.throws(() => store.append({ ...decision, learningPolicyVersion: "learn-v2" }), /does not match its embedded A2 input set/);
     assert.throws(() => store.append({ ...decision, reasonEvidence: ["not-in-a2"] }), /canonical A2 input set/);
+  });
+
+  it("requires the complete canonical A2 metadata and retention references", () => {
+    const { records, ledger } = fakeLedger();
+    const input = decisionInput();
+    new LearningInputSetLedger(ledger).append(input.inputSet);
+    const a2 = records.find((record) => record.validationStatus === "LEARNING_INPUT_SET")!;
+    a2.evidenceReferences = [a2.opportunityId];
+    assert.throws(() => new LearningDecisionLedger(ledger).append(buildLearningDecision(input)), /metadata does not match/);
   });
 
   it("rejects duplicate or noncanonical reason references during receipt validation", () => {

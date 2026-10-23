@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
-import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import { MAX_EVOLUTION_LEARNING_LEDGER_RECORDS, type SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import {
   assertLearningDecision,
   learningDecisionDurablePayload,
@@ -8,7 +8,8 @@ import {
   learningDecisionFingerprint,
   type LearningDecision,
 } from "./learningDecision";
-import { assertLearningInputSet, learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
+import { learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
+import { LearningInputSetLedger } from "./learningInputSetLedger";
 
 /**
  * Durable adapter for A1 over the existing append-only, hash-chained Evolution Learning ledger.
@@ -30,7 +31,7 @@ type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list"
 const HASH = /^[a-f0-9]{64}$/;
 const DECISION_RECORD = /^learning-decision(?::|\-cycle-v1:)[a-f0-9]{64}$/;
 const DECISION_STATUS = "LEARNING_DECISION";
-const MAX_RECORDS = 10_000;
+const MAX_RECORDS = MAX_EVOLUTION_LEARNING_LEDGER_RECORDS;
 
 export class LearningDecisionLedgerError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -93,20 +94,17 @@ export class LearningDecisionLedger {
   }
 
   private assertDurableInputSet(fingerprint: string): LearningInputSet {
-    const identity = `learning-input-set:${fingerprint}`;
-    const record = this.ledger.list().find((candidate) => candidate.opportunityId === identity);
-    if (record == null || record.validationStatus !== "LEARNING_INPUT_SET" || !record.evidenceReferences.includes(identity)) {
+    let receipt;
+    try {
+      receipt = new LearningInputSetLedger(this.ledger).getByFingerprint(fingerprint);
+    } catch (error) {
+      throw new LearningDecisionLedgerError("MALFORMED_INPUT_SET", error instanceof Error ? error.message : "canonical A2 input set receipt is invalid");
+    }
+    if (receipt == null) {
       throw new LearningDecisionLedgerError("MISSING_INPUT_SET", "decision requires its canonical A2 input set to be durable first");
     }
-    let inputSet: unknown;
-    try {
-      inputSet = JSON.parse(record.hypothesis);
-      assertLearningInputSet(inputSet);
-    } catch {
-      throw new LearningDecisionLedgerError("MALFORMED_INPUT_SET", "canonical A2 input set receipt is invalid");
-    }
-    if (learningInputSetFingerprint(inputSet) !== fingerprint) throw new LearningDecisionLedgerError("INPUT_SET_IDENTITY_CONFLICT", "canonical A2 input set does not match the decision identity");
-    return deepFreeze(inputSet as LearningInputSet);
+    if (learningInputSetFingerprint(receipt.inputSet) !== fingerprint) throw new LearningDecisionLedgerError("INPUT_SET_IDENTITY_CONFLICT", "canonical A2 input set does not match the decision identity");
+    return deepFreeze(receipt.inputSet);
   }
 
   private assertDecisionBinding(decision: LearningDecision): void {

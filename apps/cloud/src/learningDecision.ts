@@ -454,6 +454,10 @@ export function assertLearningDecision(value: unknown): asserts value is Learnin
 
   const proposed = candidate.proposedChanges as readonly LearningChangeRequest[];
   const assessments = proposed.map(assessChange);
+  const canonicalProposalOrder = [...proposed].sort((left, right) =>
+    compareCanonicalStrings(left.surface, right.surface) || left.currentValue - right.currentValue || left.proposedValue - right.proposedValue,
+  );
+  if (canonical(proposed) !== canonical(canonicalProposalOrder)) throw new LearningDecisionError("MALFORMED_DECISION", "proposed changes must use canonical ordering");
   const seenSurfaces = new Set<string>();
   for (const change of proposed) {
     if (seenSurfaces.has(change.surface)) throw new LearningDecisionError("MALFORMED_DECISION", "decision contains duplicate proposals for one surface");
