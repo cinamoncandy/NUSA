@@ -1,5 +1,5 @@
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
-import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import { MAX_EVOLUTION_LEARNING_LEDGER_RECORDS, type SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import {
   learningCycleId,
   learningInputSetFingerprint,
@@ -29,7 +29,8 @@ type EvolutionLedgerRecord = ReturnType<EvolutionLedgerPort["list"]>[number];
 
 const HASH = /^[a-f0-9]{64}$/;
 const INPUT_SET_RECORD = /^learning-input-set:[a-f0-9]{64}$/;
-const MAX_RECORDS = 10_000;
+// Keep one shared-ledger slot available for the A1 decision belonging to this A2 input set.
+const MAX_RECORDS = MAX_EVOLUTION_LEARNING_LEDGER_RECORDS - 1;
 const INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
 const INPUT_SET_STATUS = "LEARNING_INPUT_SET";
 
@@ -144,6 +145,18 @@ export class LearningInputSetLedger {
     if (learningInputSetFingerprint(replayedSet) !== fingerprint) throw new LearningInputSetLedgerError("IDENTITY_CONFLICT", "recorded learning input set did not survive canonical replay identically");
     assertStoredMetadata(record, replayedSet, fingerprint);
     return Object.freeze({ inputSet: replayedSet, fingerprint, learningCycleId: learningCycleId(replayedSet), recordedAt: record.recordedAt, replayed: false });
+  }
+
+  /** Exact canonical reader used by downstream A1; validates the full durable metadata contract. */
+  public getByFingerprint(fingerprint: string): LearningInputSetReceipt | undefined {
+    if (!HASH.test(fingerprint)) throw new LearningInputSetLedgerError("IDENTITY_DERIVATION_FAILED", "learning input set fingerprint is not a SHA-256 digest");
+    const opportunityId = `learning-input-set:${fingerprint}`;
+    const record = this.ledger.list().find((candidate) => candidate.opportunityId === opportunityId);
+    if (record == null) return undefined;
+    const inputSet = parseReceipt(record);
+    if (learningInputSetFingerprint(inputSet) !== fingerprint) throw new LearningInputSetLedgerError("IDENTITY_CONFLICT", "recorded learning input set does not match its fingerprint");
+    assertStoredMetadata(record, inputSet, fingerprint);
+    return Object.freeze({ inputSet, fingerprint, learningCycleId: learningCycleId(inputSet), recordedAt: record.recordedAt, replayed: true });
   }
 
   /** Strict replay: any malformed or tampered receipt throws rather than silently dropping out. */

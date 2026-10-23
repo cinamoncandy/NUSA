@@ -5,7 +5,8 @@ import { canonicalResearchJson } from "../../contracts/src/researchRuntime";
 
 const SCHEMA_VERSION = 1 as const;
 const GENESIS_HASH = "0".repeat(64);
-const MAX_RECORDS = 4_096;
+export const MAX_EVOLUTION_LEARNING_LEDGER_RECORDS = 4_096;
+const MAX_RECORDS = MAX_EVOLUTION_LEARNING_LEDGER_RECORDS;
 const MAX_HYPOTHESIS_BYTES = 16_384;
 const OUTCOMES = new Set<EvolutionLearningRecord["outcome"]>([
   "SUCCESS",
