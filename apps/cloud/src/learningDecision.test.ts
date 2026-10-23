@@ -273,7 +273,17 @@ describe("A1 durable exactly-once - section 43", () => {
     };
   }
 
-  it("references a large valid A2 set without duplicating it in the bounded A1 receipt", () => {
+  it("persists the complete A2 basis in a bounded, independently verifiable A1 receipt", () => {
+    const { records, ledger } = fakeLedger();
+    const input = decisionInput();
+    new LearningInputSetLedger(ledger).append(input.inputSet);
+    const decision = buildLearningDecision(input);
+    new LearningDecisionLedger(ledger).append(decision);
+    const stored = JSON.parse(records.find((record) => record.validationStatus === "LEARNING_DECISION")!.hypothesis as string) as Record<string, unknown>;
+    assert.deepEqual(stored.learningInputSet, decision.learningInputSet);
+  });
+
+  it("rejects an A1 receipt whose full A2 basis would exceed the existing ledger size bound", () => {
     const evidence = Array.from({ length: 329 }, (_, index) => ({
       recordId: `research-${String(index).padStart(3, "0")}-${"x".repeat(27)}`,
       recordedAt: index + 1,
@@ -285,13 +295,43 @@ describe("A1 durable exactly-once - section 43", () => {
       policies: POLICIES,
     });
     const input = decisionInput({ inputSet: largeInputSet, reasonEvidence: [evidence[0].recordId] });
-    const decision = buildLearningDecision(input);
-    const { records, ledger } = fakeLedger();
-    new LearningInputSetLedger(ledger).append(largeInputSet);
-    const receipt = new LearningDecisionLedger(ledger).append(decision);
-    const stored = JSON.parse(records.find((record) => record.validationStatus === "LEARNING_DECISION")!.hypothesis as string) as Record<string, unknown>;
-    assert.equal("learningInputSet" in stored, false, "the durable A2 row is referenced by identity instead of duplicated");
-    assert.equal(receipt.decision.learningInputSetFingerprint, decision.learningInputSetFingerprint);
+    assert.throws(() => buildLearningDecision(input), /existing durable receipt size limit/);
+  });
+
+  it("rejects reason references that the canonical ledger cannot persist", () => {
+    const longId = "r".repeat(241);
+    const oversizedReferenceSet = buildLearningInputSet({
+      cutoffTimestamp: 900,
+      researchEvidence: [{ recordId: longId, recordedAt: 100 }],
+      paperEvidence: [],
+      policies: POLICIES,
+    });
+    assert.throws(() => buildLearningDecision(decisionInput({
+      inputSet: oversizedReferenceSet,
+      reasonEvidence: [longId],
+    })), /durable ledger reference limit/);
+  });
+
+  it("persists the maximum supported reason-reference length in SQLite", () => {
+    const directory = mkdtempSync(join(tmpdir(), "nusa-a1-reference-bound-"));
+    const databasePath = join(directory, "learning.sqlite");
+    const db = new SqliteDatabase(databasePath);
+    try {
+      const ledger = new SqliteEvolutionLearningLedger(db);
+      const reference = "r".repeat(240);
+      const inputSet = buildLearningInputSet({
+        cutoffTimestamp: 900,
+        researchEvidence: [{ recordId: reference, recordedAt: 100 }],
+        paperEvidence: [],
+        policies: POLICIES,
+      });
+      new LearningInputSetLedger(ledger).append(inputSet);
+      const decision = buildLearningDecision(decisionInput({ inputSet, reasonEvidence: [reference] }));
+      assert.equal(new LearningDecisionLedger(ledger).append(decision).replayed, false);
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("appending the same decision twice records it once", () => {
