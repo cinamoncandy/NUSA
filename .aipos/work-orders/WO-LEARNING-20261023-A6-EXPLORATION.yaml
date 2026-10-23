@@ -49,5 +49,5 @@ validation:
   validate_full: "PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS."
   security_gate: "PASS; no unmitigated finding or secret detected."
   aipos_provenance: "PASS."
-  exact_head_ci: PENDING_AFTER_PUSH
-  independent_review: PENDING
+  exact_head_ci: "PASS; workflow_dispatch run 39892413992 SUCCESS on exact head 3d613a310dfe465aa696b3e43c0a1aaaa0f9e269."
+  independent_review: "Fresh @codex review requested against exact head 3d613a310dfe465aa696b3e43c0a1aaaa0f9e269; response pending."
