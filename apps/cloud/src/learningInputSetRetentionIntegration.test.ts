@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/persistedPaperPeriodStore";
-import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import { MAX_EVOLUTION_LEARNING_LEDGER_RECORDS, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { evolutionLedgerRetentionGuard } from "./closedLearningEvolutionLedgerRepository";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
 import { LearningInputSetLedgerError } from "./learningInputSetLedger";
@@ -62,6 +62,20 @@ const inputSetCiting = (...paperRecordIds: string[]) => buildLearningInputSet({
 });
 
 describe("A2 -> A7 integration over the production retention path", () => {
+  it("reserves the final shared-ledger slot for the matching A1 decision", () => {
+    let appended = false;
+    const fullExceptDecision = {
+      list: () => Array.from({ length: MAX_EVOLUTION_LEARNING_LEDGER_RECORDS - 1 }, (_, index) => ({ opportunityId: `existing-${index}` })),
+      append: () => { appended = true; throw new Error("append must not run when the A1 reservation is reached"); },
+    } as unknown as ConstructorParameters<typeof LearningInputSetLedger>[0];
+    const inputSets = new LearningInputSetLedger(fullExceptDecision);
+    assert.throws(
+      () => inputSets.append(inputSetCiting("p1")),
+      (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "CAPACITY_EXCEEDED",
+    );
+    assert.equal(appended, false, "A2 refuses before consuming the slot reserved for A1");
+  });
+
   it("rejects a matching A2 identity with conflicting durable status or retention metadata", () => {
     for (const invalid of [
       { validationStatus: "UNKNOWN_STATUS" },
@@ -90,6 +104,7 @@ describe("A2 -> A7 integration over the production retention path", () => {
         });
         assert.equal(record.opportunityId, opportunityId);
         assert.throws(() => inputSets.append(inputSet), (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "MALFORMED_RECEIPT");
+        assert.throws(() => inputSets.getByFingerprint(fingerprint), (error: unknown) => error instanceof LearningInputSetLedgerError && error.code === "MALFORMED_RECEIPT");
         assert.throws(() => inputSets.protectedPeriodReferences(), /metadata does not match/);
       } finally {
         close();
@@ -116,6 +131,7 @@ describe("A2 -> A7 integration over the production retention path", () => {
 
       const first = inputSets.append(inputSet);
       assert.equal(first.replayed, false);
+      assert.deepEqual(inputSets.getByFingerprint(first.fingerprint)?.inputSet, inputSet, "downstream A1 reader returns the exact validated durable A2 receipt");
       const stored = learningLedger.list().find((record) => record.opportunityId === `learning-input-set:${first.fingerprint}`);
       assert.ok(stored);
       assert.equal(Buffer.byteLength(stored.hypothesis, "utf8"), serializedBytes, "the admitted size equals the exact stored hypothesis size");

@@ -105,6 +105,94 @@ test("chronology regression and bounded capacity fail closed without pruning his
   }
 });
 
+test("an unrelated writer cannot consume the capacity reserved for an A2 input set's A1 decision", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 3);
+    ledger.append(record("opp:existing", "2026-08-29T00:00:00.000Z"));
+    const inputFingerprint = "a".repeat(64);
+    ledger.append(record(`learning-input-set:${inputFingerprint}`, "2026-08-29T00:01:00.000Z", {
+      problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
+      evidenceReferences: [`learning-input-set:${inputFingerprint}`, "paper-period:p1"],
+      validationStatus: "LEARNING_INPUT_SET",
+    }));
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 3);
+
+    assert.throws(
+      () => ledger.append(record(`closed-learning-failure:${"c".repeat(64)}`, "2026-08-29T00:02:00.000Z", {
+        problem: "NUSA closed learning cycle failure: durable recovery evidence",
+        validationStatus: "CYCLE_FAILURE",
+      })),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "CAPACITY_EXCEEDED",
+    );
+    assert.equal(ledger.size(), 2, "a closed-learning failure append leaves the reserved A1 slot untouched");
+
+    ledger.append(record(`learning-decision-cycle-v1:${"b".repeat(64)}`, "2026-08-29T00:02:00.000Z", {
+      problem: "NUSA learning decision: the bounded conclusion drawn from one learning input set",
+      evidenceReferences: [inputFingerprint, "learning-decision-cycle-v1:" + "b".repeat(64)],
+      validationStatus: "LEARNING_DECISION",
+    }));
+    assert.equal(ledger.size(), 3, "the matching A1 decision can consume the reserved slot");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("replay keeps both A2 reservations when one A1 record ambiguously references both", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 5);
+    const firstFingerprint = "a".repeat(64);
+    const secondFingerprint = "b".repeat(64);
+    for (const [fingerprint, minute] of [[firstFingerprint, "00"], [secondFingerprint, "01"]] as const) {
+      ledger.append(record(`learning-input-set:${fingerprint}`, `2026-08-29T00:${minute}:00.000Z`, {
+        problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
+        evidenceReferences: [`learning-input-set:${fingerprint}`, `paper-period:${minute}`],
+        validationStatus: "LEARNING_INPUT_SET",
+      }));
+    }
+    ledger.append(record(`learning-decision-cycle-v1:${"c".repeat(64)}`, "2026-08-29T00:02:00.000Z", {
+      problem: "NUSA learning decision: the bounded conclusion drawn from one learning input set",
+      evidenceReferences: [firstFingerprint, secondFingerprint],
+      validationStatus: "LEARNING_DECISION",
+    }));
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 5);
+
+    assert.throws(
+      () => ledger.append(record(`closed-learning-failure:${"f".repeat(64)}`, "2026-08-29T00:03:00.000Z", {
+        problem: "NUSA closed learning cycle failure: durable recovery evidence",
+        validationStatus: "CYCLE_FAILURE",
+      })),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "CAPACITY_EXCEEDED",
+      "an ambiguous A1 receipt must not release either durable reservation during replay",
+    );
+
+    for (const [fingerprint, decisionFingerprint, minute] of [
+      [firstFingerprint, "d".repeat(64), "03"],
+      [secondFingerprint, "e".repeat(64), "04"],
+    ] as const) {
+      ledger.append(record(`learning-decision-cycle-v1:${decisionFingerprint}`, `2026-08-29T00:${minute}:00.000Z`, {
+        problem: "NUSA learning decision: the bounded conclusion drawn from one learning input set",
+        evidenceReferences: [fingerprint, `learning-decision-cycle-v1:${decisionFingerprint}`],
+        validationStatus: "LEARNING_DECISION",
+      }));
+    }
+    assert.equal(ledger.size(), 5, "each one-to-one A1 receipt releases exactly one reserved slot");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
 test("forbidden fields are rejected before they can be persisted", () => {
   const db = new SqliteDatabase(":memory:");
   try {

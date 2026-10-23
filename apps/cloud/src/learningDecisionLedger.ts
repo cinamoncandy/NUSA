@@ -1,13 +1,15 @@
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
-import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import { MAX_EVOLUTION_LEARNING_LEDGER_RECORDS, type SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import {
   assertLearningDecision,
+  learningDecisionDurablePayload,
   learningDecisionContentFingerprint,
   learningDecisionFingerprint,
   type LearningDecision,
 } from "./learningDecision";
-import { assertLearningInputSet, learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
+import { learningInputSetFingerprint, type LearningInputSet } from "./learningInputSet";
+import { LearningInputSetLedger } from "./learningInputSetLedger";
 
 /**
  * Durable adapter for A1 over the existing append-only, hash-chained Evolution Learning ledger.
@@ -29,7 +31,7 @@ type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list"
 const HASH = /^[a-f0-9]{64}$/;
 const DECISION_RECORD = /^learning-decision(?::|\-cycle-v1:)[a-f0-9]{64}$/;
 const DECISION_STATUS = "LEARNING_DECISION";
-const MAX_RECORDS = 10_000;
+const MAX_RECORDS = MAX_EVOLUTION_LEARNING_LEDGER_RECORDS;
 
 export class LearningDecisionLedgerError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -47,19 +49,12 @@ export interface LearningDecisionReceipt {
   readonly replayed: boolean;
 }
 
-function parseReceipt(record: { readonly hypothesis: string; readonly recordedAt: string }): LearningDecision {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(record.hypothesis);
-  } catch {
-    throw new LearningDecisionLedgerError("MALFORMED_RECEIPT", "recorded learning decision is not readable JSON");
+function deepFreeze<T>(value: T): T {
+  if (value != null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+    Object.freeze(value);
   }
-  try {
-    assertLearningDecision(parsed);
-  } catch (error) {
-    throw new LearningDecisionLedgerError("MALFORMED_RECEIPT", error instanceof Error ? error.message : "recorded learning decision is malformed");
-  }
-  return parsed;
+  return value;
 }
 
 function cycleOpportunityId(learningCycleId: string): string {
@@ -77,21 +72,39 @@ function assertRecordIdentity(record: { readonly opportunityId: string }, decisi
 export class LearningDecisionLedger {
   public constructor(private readonly ledger: EvolutionLedgerPort, private readonly now: () => number = Date.now) {}
 
+  private parseReceipt(record: { readonly hypothesis: string; readonly recordedAt: string }): LearningDecision {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(record.hypothesis);
+    } catch {
+      throw new LearningDecisionLedgerError("MALFORMED_RECEIPT", "recorded learning decision is not readable JSON");
+    }
+    if (parsed == null || typeof parsed !== "object") throw new LearningDecisionLedgerError("MALFORMED_RECEIPT", "recorded learning decision is malformed");
+    const stored = parsed as Partial<LearningDecision>;
+    try {
+      // Older branch-local receipts embedded A2. Current receipts store its durable identity and
+      // resolve the canonical A2 row from the same append-only ledger on every read.
+      const learningInputSet = stored.learningInputSet ?? this.assertDurableInputSet(stored.learningInputSetFingerprint ?? "");
+      const decision = { ...stored, learningInputSet };
+      assertLearningDecision(decision);
+      return deepFreeze(decision as LearningDecision);
+    } catch (error) {
+      throw new LearningDecisionLedgerError("MALFORMED_RECEIPT", error instanceof Error ? error.message : "recorded learning decision is malformed");
+    }
+  }
+
   private assertDurableInputSet(fingerprint: string): LearningInputSet {
-    const identity = `learning-input-set:${fingerprint}`;
-    const record = this.ledger.list().find((candidate) => candidate.opportunityId === identity);
-    if (record == null || record.validationStatus !== "LEARNING_INPUT_SET" || !record.evidenceReferences.includes(identity)) {
+    let receipt;
+    try {
+      receipt = new LearningInputSetLedger(this.ledger).getByFingerprint(fingerprint);
+    } catch (error) {
+      throw new LearningDecisionLedgerError("MALFORMED_INPUT_SET", error instanceof Error ? error.message : "canonical A2 input set receipt is invalid");
+    }
+    if (receipt == null) {
       throw new LearningDecisionLedgerError("MISSING_INPUT_SET", "decision requires its canonical A2 input set to be durable first");
     }
-    let inputSet: unknown;
-    try {
-      inputSet = JSON.parse(record.hypothesis);
-      assertLearningInputSet(inputSet);
-    } catch {
-      throw new LearningDecisionLedgerError("MALFORMED_INPUT_SET", "canonical A2 input set receipt is invalid");
-    }
-    if (learningInputSetFingerprint(inputSet) !== fingerprint) throw new LearningDecisionLedgerError("INPUT_SET_IDENTITY_CONFLICT", "canonical A2 input set does not match the decision identity");
-    return inputSet;
+    if (learningInputSetFingerprint(receipt.inputSet) !== fingerprint) throw new LearningDecisionLedgerError("INPUT_SET_IDENTITY_CONFLICT", "canonical A2 input set does not match the decision identity");
+    return deepFreeze(receipt.inputSet);
   }
 
   private assertDecisionBinding(decision: LearningDecision): void {
@@ -116,11 +129,11 @@ export class LearningDecisionLedger {
     this.assertDecisionBinding(decision);
 
     const decisions = this.ledger.list().filter((record) => record.validationStatus === DECISION_STATUS || DECISION_RECORD.test(record.opportunityId));
-    const matching = decisions.filter((record) => parseReceipt(record).learningCycleId === decision.learningCycleId);
+    const matching = decisions.filter((record) => this.parseReceipt(record).learningCycleId === decision.learningCycleId);
     if (matching.length > 1) throw new LearningDecisionLedgerError("DUPLICATE_CYCLE_DECISION", "more than one durable decision exists for a learning cycle");
     const existing = matching[0];
     if (existing != null) {
-      const replayed = parseReceipt(existing);
+      const replayed = this.parseReceipt(existing);
       assertRecordIdentity(existing, replayed);
       this.assertDecisionBinding(replayed);
       if (learningDecisionContentFingerprint(replayed) !== learningDecisionContentFingerprint(decision)) {
@@ -140,7 +153,7 @@ export class LearningDecisionLedger {
       opportunityId,
       problem: "NUSA learning decision: the bounded conclusion drawn from one learning input set",
       evidenceReferences: Object.freeze([opportunityId, decision.learningInputSetFingerprint, ...decision.reasonEvidence]),
-      hypothesis: canonicalResearchJson(decision),
+      hypothesis: canonicalResearchJson(learningDecisionDurablePayload(decision)),
       changeReference: decision.learningPolicyVersion,
       validationStatus: DECISION_STATUS,
       // As in A2, `outcome` records only that the record was formed correctly. The discriminative
@@ -159,14 +172,14 @@ export class LearningDecisionLedger {
       // A concurrent writer may have committed the same cycle key after our initial scan.
       const raced = this.ledger.list().find((candidate) => candidate.opportunityId === opportunityId);
       if (raced == null) throw error;
-      const racedDecision = parseReceipt(raced);
+      const racedDecision = this.parseReceipt(raced);
       assertRecordIdentity(raced, racedDecision);
       this.assertDecisionBinding(racedDecision);
       if (learningDecisionContentFingerprint(racedDecision) !== learningDecisionContentFingerprint(decision)) throw new LearningDecisionLedgerError("CYCLE_DECISION_CONFLICT", "concurrent writer recorded a different decision for this learning cycle");
       return Object.freeze({ decision: racedDecision, fingerprint: learningDecisionFingerprint(racedDecision), learningCycleId: racedDecision.learningCycleId, recordedAt: raced.recordedAt, replayed: true });
     }
 
-    const replayedDecision = parseReceipt(record);
+    const replayedDecision = this.parseReceipt(record);
     if (learningDecisionFingerprint(replayedDecision) !== fingerprint) throw new LearningDecisionLedgerError("IDENTITY_CONFLICT", "recorded learning decision did not survive canonical replay identically");
     assertRecordIdentity(record, replayedDecision);
     return Object.freeze({ decision: replayedDecision, fingerprint, learningCycleId: replayedDecision.learningCycleId, recordedAt: record.recordedAt, replayed: false });
@@ -178,7 +191,7 @@ export class LearningDecisionLedger {
     let latest: LearningDecisionReceipt | undefined;
     const cycles = new Set<string>();
     for (const record of records) {
-      const decision = parseReceipt(record);
+      const decision = this.parseReceipt(record);
       assertRecordIdentity(record, decision);
       this.assertDecisionBinding(decision);
       if (cycles.has(decision.learningCycleId)) throw new LearningDecisionLedgerError("DUPLICATE_CYCLE_DECISION", "more than one durable decision exists for a learning cycle");
@@ -196,7 +209,7 @@ export class LearningDecisionLedger {
     const cycles = new Set<string>();
     for (const record of this.ledger.list()) {
       if (record.validationStatus !== DECISION_STATUS && !DECISION_RECORD.test(record.opportunityId)) continue;
-      const decision = parseReceipt(record);
+      const decision = this.parseReceipt(record);
       assertRecordIdentity(record, decision);
       this.assertDecisionBinding(decision);
       if (cycles.has(decision.learningCycleId)) throw new LearningDecisionLedgerError("DUPLICATE_CYCLE_DECISION", "more than one durable decision exists for a learning cycle");
