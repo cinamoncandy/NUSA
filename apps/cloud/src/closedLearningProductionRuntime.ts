@@ -19,7 +19,9 @@ import { buildCanonicalPaperCandidatePerformance, PAPER_COVERED_DAY_SCORING_VERS
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
-import { ClosedLearningLoopStatusTracker, tickErrorClass } from "./closedLearningLoopStatus";
+import { ClosedLearningLoopStatusTracker, refreshClosedLearningProjections, tickErrorClass } from "./closedLearningLoopStatus";
+import { ClosedLearningChain } from "./closedLearningChain";
+import { SqliteResearchHoldoutLedger } from "../../../packages/storage/src/researchHoldoutLedger";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
@@ -102,6 +104,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   }
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
   const learningLedger = new SqliteEvolutionLearningLedger(database);
+  const learningHoldoutLedger = new SqliteResearchHoldoutLedger(database);
   const challengerBindings = new PaperChallengerBindingLedger(learningLedger);
   // A qualified challenger always wins; until one exists the owner-approved PAPER baseline trades.
   const paperCandidateBindingProvider = new OwnerBaselinePaperBindingProvider({
@@ -265,6 +268,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // decision-history and realized-period readers available; only absent research evidence should
   // fail closed. PAPER evidence must not become unreadable merely because experiment ticks are off.
   const learningEvidenceAuthority = researchExperiments?.learningEvidenceAuthority ?? learningInputSetEvidenceAuthority;
+  // Rehydrate the canonical chain over existing runtime stores and evidence readers.
+  const learningChain = new ClosedLearningChain(learningLedger, learningHoldoutLedger, learningInputSetEvidenceAuthority);
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, learningEvidenceAuthority, Date.now);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
   const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => coordinator.runAsync(input);
@@ -459,8 +464,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       }
       loopStatus.observeRollover(await runClosedLearningRolloverAsync(), Date.now());
       persistLastBlocked();
-      try {
-        const meta = buildMetaLearningStatus({
+      refreshClosedLearningProjections({
+        buildMetaLearning: () => buildMetaLearningStatus({
           // A finished pre-registered study written by the host Research service joins the reviewed ledger automatically.
           ledger: (() => { const study = readOrderBookStudyResult(config.cloudStateDbPath); return study == null || RESEARCH_LEDGER_SNAPSHOT.some((e) => e.id === study.id) ? RESEARCH_LEDGER_SNAPSHOT : [...RESEARCH_LEDGER_SNAPSHOT, study]; })(),
           runtimeTicksByInterval: researchExperiments?.experimentTicksByInterval() ?? null,
@@ -470,10 +475,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
           paperPeriods: periods.listRealizedPeriods()
             .filter((item) => item.candidateProvenance.length === 1 && item.candidateProvenance[0]!.candidateId === OWNER_BASELINE_CANDIDATE_ID)
             .map((item) => ({ recordId: item.record.recordId, netReturn: item.record.realizedReturns[OWNER_BASELINE_CANDIDATE_ID] ?? Number.NaN, benchmarkReturn: item.record.benchmarkReturn, ...(item.record.canonicalOutcomeReceiptFingerprint == null ? {} : { outcomeFingerprint: item.record.canonicalOutcomeReceiptFingerprint }) })),
-        });
-        longBarTickEvery = meta.longBarTickEvery;
-        loopStatus.observeMetaLearning(meta);
-      } catch { longBarTickEvery = 1; loopStatus.observeMetaLearning(undefined); }
+        }),
+        readLearningStatus: () => learningChain.status(),
+        setLongBarTickEvery: (value) => { longBarTickEvery = value; },
+        observeMetaLearning: (report) => loopStatus.observeMetaLearning(report),
+        observeLearning: (report) => loopStatus.observeLearning(report),
+      });
       if (baselineShadow != null) {
         loopStatus.observeShadow(baselineShadow.summary());
         const persistable = baselineShadow.takePersistable();

@@ -238,11 +238,18 @@ export class LearningDecisionLedger {
    */
   public byFingerprint(fingerprint: string): LearningDecisionReceipt | undefined {
     if (!HASH.test(fingerprint)) return undefined;
-    const record = this.ledger.list().find((candidate) => candidate.opportunityId === `learning-decision:${fingerprint}`);
-    if (record == null) return undefined;
-    const decision = this.parseReceipt(record);
-    if (learningDecisionFingerprint(decision) !== fingerprint) throw new LearningDecisionLedgerError("IDENTITY_CONFLICT", "recorded learning decision does not match its ledger identity");
-    return Object.freeze({ decision, fingerprint, learningCycleId: decision.learningCycleId, recordedAt: record.recordedAt, replayed: false });
+    let match: LearningDecisionReceipt | undefined;
+    for (const record of this.ledger.list()) {
+      if (record.validationStatus !== DECISION_STATUS && !DECISION_RECORD.test(record.opportunityId)) continue;
+      const decision = this.parseReceipt(record);
+      assertRecordIdentity(record, decision);
+      this.assertDecisionBinding(decision);
+      const recordedFingerprint = learningDecisionFingerprint(decision);
+      if (recordedFingerprint !== fingerprint) continue;
+      if (match != null) throw new LearningDecisionLedgerError("DUPLICATE_DECISION_IDENTITY", "more than one durable decision matches the requested fingerprint");
+      match = Object.freeze({ decision, fingerprint: recordedFingerprint, learningCycleId: decision.learningCycleId, recordedAt: record.recordedAt, replayed: false });
+    }
+    return match;
   }
 
   /** Decisions whose outcome was a refusal, kept in the denominator rather than filtered out. */

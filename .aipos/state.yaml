@@ -3129,15 +3129,28 @@ current_research_refresh_memory:
   authority_impact: resource_guard_threshold_only
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 
+current_learning_causal_parent_restoration_20261023:
+  work_order: WO-LEARNING-20261023-CAUSAL-PARENT-RESTORATION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  issue: 2800
+  branch: feat/research-causal-parent
+  base_branch: feat/learning-chain-12
+  base_sha: d0aa8ed0af2840993eff4576664d0dc8ec39eb1c
+  review_findings_source_head: 079341004f263d82c44bc09c6e7de99e6069c9de
+  repair: "Cycle-keyed decision lookup verifies durable records by computed fingerprint; periodic Research does not bind the latest application to every request; Learning projection failures are isolated from meta-learning cadence."
+  validation: "After syncing #2799 d0aa8ed0 on Node 24.19.0/pnpm 11.25.0: causal/chain/decision/status/precommit tests 75/75 PASS; research pipeline/composition 17/17 PASS; startup/SQLite/lease regression 64/64 PASS; build, preflight, validate:full, security:gate (high/critical=0), AIPOS index/provenance, diff-check PASS. First synced build exposed required constructor/status API updates; fixes and focused re-run PASS. Exact-head CI pending push."
+  next: "Commit and push the existing #2800 branch non-force, run exact-head CI, then request fresh independent review only after green. Keep Draft; no deploy until #2855 closes."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_chain12_20261023:
   work_order: WO-LEARNING-20261023-M3-CAUSAL-CHAIN
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: EXACT_HEAD_CI_PASS_PENDING_INDEPENDENT_REVIEW
   branch: feat/learning-chain-12
   pull_request: 2799
   base_parent: 326e00e5a35d49263af3736aeee5b22bb37adcd0
-  validation: "After syncing M2 326e00e5 on Node 24.19.0/pnpm 11.25.0: closedLearningChain + learningLoopStatus tests 26/26 PASS; build, preflight, validate:full, security:gate (high/critical=0), AIPOS index/provenance, diff-check PASS. Exact-head CI pending push."
+  validation: "Node 24.19.0/pnpm 11.25.0 after M2 sync: focused chain/status 26/26 PASS; build, preflight, validate:full, security:gate, AIPOS index/provenance PASS; exact CI 40047167669 and event bridge 40047160869 PASS; fresh review requested at d0aa8ed0."
   blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined."
-  next: "Push this locally validated existing #2799 successor non-force; run exact-head CI and request fresh independent review only after green. Keep Draft; no deployment."
+  next: "Keep #2799 Draft pending independent review; no Audit/Release/merge/deployment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_collection_reason:

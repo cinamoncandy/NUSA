@@ -66,6 +66,30 @@ export type ClosedLearningMetaLearningStatus = Readonly<{
   paperPeriodsConsumed: number; paperNetBp?: number; paperExcessBp?: number; paperEvidenceFingerprint?: string;
 }>;
 
+/**
+ * Refresh the two independent advisory projections without letting a display/read failure change
+ * Research cadence. A meta-learning calculation failure retains its historical conservative reset;
+ * a Learning-status read failure only withdraws that status snapshot.
+ */
+export function refreshClosedLearningProjections(input: {
+  readonly buildMetaLearning: () => ClosedLearningMetaLearningStatus;
+  readonly readLearningStatus: () => import("./learningLoopStatus").LearningLoopStatus;
+  readonly setLongBarTickEvery: (value: number) => void;
+  readonly observeMetaLearning: (report: ClosedLearningMetaLearningStatus | undefined) => void;
+  readonly observeLearning: (report: import("./learningLoopStatus").LearningLoopStatus | undefined) => void;
+}): void {
+  try {
+    const meta = input.buildMetaLearning();
+    input.setLongBarTickEvery(meta.longBarTickEvery);
+    input.observeMetaLearning(meta);
+  } catch {
+    input.setLongBarTickEvery(1);
+    input.observeMetaLearning(undefined);
+  }
+  try { input.observeLearning(input.readLearningStatus()); }
+  catch { input.observeLearning(undefined); }
+}
+
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
   realizedPeriods: number;
@@ -117,6 +141,7 @@ export class ClosedLearningLoopStatusTracker {
   private shadow: ClosedLearningEvidenceCorrelation = {};
   private replay: ClosedLearningEvidenceCorrelation = {};
   private metaLearning: ClosedLearningMetaLearningStatus | undefined;
+  private learning: import("./learningLoopStatus").LearningLoopStatus | undefined;
 
   /** Reads the identities of the current open period and the latest realized period. */
   public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[], dispositions?: readonly PersistedPaperPendingDisposition[]): void {
@@ -168,6 +193,17 @@ export class ClosedLearningLoopStatusTracker {
   /** Advisory meta-learning report; undefined withdraws it. */
   public observeMetaLearning(report: ClosedLearningMetaLearningStatus | undefined): void {
     this.metaLearning = report;
+    this.publish();
+  }
+
+  /**
+   * Advisory v2 learning-loop projection; undefined withdraws it.
+   *
+   * Display only, like everything else here. It never feeds a decision, an eligibility, or an
+   * application: the status of the loop is an output of the loop's evidence and must stay one.
+   */
+  public observeLearning(report: import("./learningLoopStatus").LearningLoopStatus | undefined): void {
+    this.learning = report;
     this.publish();
   }
 
@@ -225,7 +261,7 @@ export class ClosedLearningLoopStatusTracker {
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
-    const { evidence: _previousEvidence, metaLearning: _previousMeta, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, lastErrorClass: _previousErrorClass, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
+    const { evidence: _previousEvidence, metaLearning: _previousMeta, learning: _previousLearning, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, lastErrorClass: _previousErrorClass, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
     let eligibleAt: number | undefined;
     const start = this.periods.openPeriodStartAt;
     if (["WAITING_FOR_KST_DAY_ROLLOVER", "WAITING_FOR_EVALUATION_WINDOW"].includes(rest.rollover) && start !== undefined && Number.isSafeInteger(start) && start >= 0 && start <= rest.lastTickAt && start <= 8_640_000_000_000_000) {
@@ -245,6 +281,7 @@ export class ClosedLearningLoopStatusTracker {
       ...(this.lastErrorClass === undefined ? {} : { lastErrorClass: this.lastErrorClass }),
       ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
       ...(this.metaLearning === undefined ? {} : { metaLearning: this.metaLearning }),
+      ...(this.learning === undefined ? {} : { learning: this.learning }),
     }) as ClosedLearningLoopStatus;
   }
 

@@ -1,0 +1,45 @@
+id: WO-LEARNING-20261023-CAUSAL-PARENT-RESTORATION
+title: "Repair durable causal-parent restoration and isolate learning status failures"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P1
+owner_request: "2026-10-23: Continue the existing A2-upward Learning PR sequence; fix exact-head independent-review findings without promoting status reads to causal evidence."
+issue: 2800
+branch: feat/research-causal-parent
+base_branch: feat/learning-chain-12
+base_sha: d0aa8ed0af2840993eff4576664d0dc8ec39eb1c
+architecture_references:
+  - .aipos/architecture.md
+  - .aipos/decisions/ADR-0003-hardened-research-validity-boundaries.md
+  - .aipos/decisions/ADR-0012-governed-outcome-attribution-learning.md
+review_findings:
+  source_head: 079341004f263d82c44bc09c6e7de99e6069c9de
+  findings:
+    - id: 4355870725
+      priority: P1
+      cause: "byFingerprint searched only legacy fingerprint-keyed records, not the current cycle-keyed durable decision identity."
+    - id: 4355870728
+      priority: P1
+      cause: "The periodic Research orchestrator attached the latest APPLIED application to every due variant/market, although no causal trigger linked that application to each request."
+    - id: 4355870733
+      priority: P2
+      cause: "One combined catch let a display-only Learning status read failure reset the Research long-bar cadence."
+acceptance:
+  - "Restore decisions by verified content fingerprint across both legacy and current cycle-keyed records; malformed or conflicting records fail closed."
+  - "Periodic Research does not infer causal parentage from the latest durable application; causal parents require an explicitly linked request."
+  - "Learning status read failure withdraws only that display projection and cannot modify Research cadence."
+  - "Meta-learning calculation failure retains its existing conservative cadence fallback."
+  - "No policy, threshold, authority, execution, risk, cutoff, or META assignment behavior is widened."
+verification:
+  commands:
+    - "pnpm run build"
+    - "node --test --require ./tests/register-dist.cjs dist/apps/cloud/src/closedLearningChain.test.js dist/apps/cloud/src/closedLearningChainCausalParent.test.js dist/apps/cloud/src/learningDecision.test.js dist/apps/cloud/src/closedLearningLoopStatus.test.js dist/packages/contracts/src/researchPrecommit.test.js"
+    - "node --test tests/research-experiment-pipeline.test.js tests/research-experiment-composition.test.js"
+    - "pnpm run preflight"
+    - "pnpm run validate:full"
+    - "pnpm run security:gate"
+    - "pnpm run aipos:provenance"
+    - "git diff --check"
+  result: "After syncing #2799 d0aa8ed0 on Node 24.19.0/pnpm 11.25.0: causal/chain/decision/status/precommit tests 75/75 PASS; research pipeline/composition 17/17 PASS; startup/SQLite/lease regression 64/64 PASS; build, preflight, validate:full, security:gate (high/critical=0), AIPOS index/provenance, diff-check PASS. First synced build exposed required constructor/status API updates; after matching the existing canonical interfaces, the focused tests/build passed. Exact-head CI pending."
+remaining: "Exact-head CI, fresh independent review, formal Validator/Audit/Release as applicable, and downstream real runtime proof."
+next: "Push the validated existing PR branch non-force, run exact-head CI, then request fresh independent review only after it is green. Keep Draft and do not deploy; deployment remains behind #2855."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

@@ -133,7 +133,7 @@ test("section 8: a research request names the learning application that caused i
     const box = collector();
     const out = runResearchExperiment({ ...ports(plain), precommitStore: box.store }, spec(plain));
     assert.equal(out.status, "COMPLETED", JSON.stringify(out));
-    assert.equal(box.seen.length, 2, "the train and validation requests were pre-registered before they ran");
+    assert.equal(box.seen.length, 2, "the validation and holdout requests were pre-registered before they ran");
     assert.equal(box.seen[0].causedByLearning, undefined, "a request that no application caused invents no parent");
     assert.equal(researchSpecCausedByApplication(box.seen[0], PARENT.applicationFingerprint), false, "and it is never credited with causing something it did not cause");
   } finally { plain.db.close(); }
@@ -142,7 +142,7 @@ test("section 8: a research request names the learning application that caused i
   try {
     caused.automation.startSession(startInput("research-2026-10-02", caused.champion, caused.challenger));
     const box = collector();
-    const out = runResearchExperiment({ ...ports(caused), precommitStore: box.store }, spec(caused, { causedByLearning: PARENT }));
+    const out = runResearchExperiment({ ...ports(caused), precommitStore: box.store, resolveLearningParent: () => PARENT }, spec(caused, { causedByLearning: PARENT }));
     assert.equal(out.status, "COMPLETED", JSON.stringify(out));
     const precommit = box.seen.at(-1);
     assert.deepEqual({ ...precommit.causedByLearning }, PARENT, "all three identities travel together");
@@ -154,9 +154,24 @@ test("section 8: a research request names the learning application that caused i
   const malformed = setup();
   try {
     malformed.automation.startSession(startInput("research-2026-10-02", malformed.champion, malformed.challenger));
-    const out = runResearchExperiment({ ...ports(malformed), precommitStore: collector().store }, spec(malformed, { causedByLearning: { type: "learning-application", learningCycleId: "cycle-1", applicationFingerprint: "not-a-digest", learningDecisionFingerprint: "b".repeat(64) } }));
+    const malformedParent = { type: "learning-application", learningCycleId: "cycle-1", applicationFingerprint: "not-a-digest", learningDecisionFingerprint: "b".repeat(64) };
+    const out = runResearchExperiment({ ...ports(malformed), precommitStore: collector().store, resolveLearningParent: () => malformedParent }, spec(malformed, { causedByLearning: malformedParent }));
     assert.deepEqual({ ...out }, { status: "ERROR", reason: "INVALID_LEARNING_CAUSATION" }, "a half-specified parent fails closed rather than degrading into no parent");
   } finally { malformed.db.close(); }
+
+  const omittedClaim = setup();
+  try {
+    omittedClaim.automation.startSession(startInput("research-2026-10-02", omittedClaim.champion, omittedClaim.challenger));
+    const out = runResearchExperiment({ ...ports(omittedClaim), precommitStore: collector().store, resolveLearningParent: () => PARENT }, spec(omittedClaim));
+    assert.deepEqual({ ...out }, { status: "ERROR", reason: "PROVENANCE_LEARNING_PARENT_MISMATCH" }, "a current durable APPLIED parent cannot be silently omitted from the research spec");
+  } finally { omittedClaim.db.close(); }
+
+  const missingResolver = setup();
+  try {
+    missingResolver.automation.startSession(startInput("research-2026-10-02", missingResolver.champion, missingResolver.challenger));
+    const out = runResearchExperiment({ ...ports(missingResolver), precommitStore: collector().store }, spec(missingResolver, { causedByLearning: PARENT }));
+    assert.deepEqual({ ...out }, { status: "ERROR", reason: "PROVENANCE_LEARNING_PARENT_MISMATCH" }, "a causal claim without a durable APPLIED-parent resolver fails closed");
+  } finally { missingResolver.db.close(); }
 
   const unbound = setup();
   try {
