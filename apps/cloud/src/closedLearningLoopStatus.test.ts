@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { refreshClosedLearningProjections, type ClosedLearningMetaLearningStatus } from "./closedLearningLoopStatus";
+import { buildLearningLoopStatus } from "./learningLoopStatus";
 
 const META: ClosedLearningMetaLearningStatus = Object.freeze({
   experiments: 4, configurations: 12, discoveryPasses: 2, holdoutPasses: 0,
@@ -31,13 +32,13 @@ describe("closed-learning advisory projection isolation", () => {
     let learningStatus: unknown = undefined;
     refreshClosedLearningProjections({
       buildMetaLearning: () => { throw new Error("meta-learning calculation failed"); },
-      readLearningStatus: () => ({ schemaVersion: 1 }),
+      readLearningStatus: () => buildLearningLoopStatus({}),
       setLongBarTickEvery: (value) => { longBarTickEvery = value; },
       observeMetaLearning: (value) => { observedMeta = value; },
       observeLearning: (value) => { learningStatus = value; },
     });
     assert.equal(longBarTickEvery, 1);
     assert.equal(observedMeta, undefined);
-    assert.deepEqual(learningStatus, { schemaVersion: 1 });
+    assert.deepEqual(learningStatus, buildLearningLoopStatus({}));
   });
 });

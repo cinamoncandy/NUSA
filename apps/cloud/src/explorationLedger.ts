@@ -4,7 +4,7 @@ import type { ResearchCandidateSpecification } from "../../../packages/contracts
 import { validateResearchCandidateSpecification } from "../../../packages/contracts/src/researchCandidateSpecification";
 import type { EvolutionLearningRecord } from "../../autopilot/src/evolveLearningMemory";
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
-import { LearningInputSetLedger } from "./learningInputSetLedger";
+import type { LearningInputSetLedger } from "./learningInputSetLedger";
 import { StrategyFamilyRegistry } from "./strategyFamilyRegistry";
 import {
   assertExplorationAttempt,
@@ -20,7 +20,7 @@ const RECORD_KIND = "LEARNING_EXPLORATION";
 const PROBLEM = "NUSA learning exploration assessment receipt; not a candidate, qualification, or application";
 const ID_PREFIX = "learning-exploration-v2:";
 type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "appendWithValidation" | "list">;
-type InputSetPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
+type InputSetPort = Pick<LearningInputSetLedger, "getByFingerprint">;
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -31,9 +31,11 @@ function opportunityId(attempt: ExplorationAttempt): string {
 }
 
 function parseAttempt(record: EvolutionLearningRecord): ExplorationAttempt {
+  const recordedAt = Date.parse(record.recordedAt);
   if (record.validationStatus !== RECORD_KIND || !record.opportunityId.startsWith(ID_PREFIX)
     || record.problem !== PROBLEM || record.changeReference !== EXPLORATION_POLICY_VERSION
-    || record.outcome !== "UNKNOWN" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== false) {
+    || record.outcome !== "UNKNOWN" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== false
+    || !Number.isFinite(recordedAt) || new Date(recordedAt).toISOString() !== record.recordedAt) {
     throw new ExplorationError("MALFORMED_RECEIPT", "durable exploration record metadata is inconsistent");
   }
   let parsed: unknown;
@@ -70,8 +72,29 @@ export class LearningExplorationLedger {
   ) {}
 
   private attemptsFromRecords(records: readonly EvolutionLearningRecord[]): readonly ExplorationAttempt[] {
-    const candidates = records.filter((record) => record.validationStatus === RECORD_KIND || record.opportunityId.startsWith(ID_PREFIX));
-    const attempts = candidates.map(parseAttempt);
+    const attempts: ExplorationAttempt[] = [];
+    const priorRecords: EvolutionLearningRecord[] = [];
+    for (const record of records) {
+      if (record.validationStatus !== RECORD_KIND && !record.opportunityId.startsWith(ID_PREFIX)) {
+        priorRecords.push(record);
+        continue;
+      }
+      const attempt = parseAttempt(record);
+      const fingerprint = attempt.learningCycleId.slice("learning-cycle:".length);
+      // The authority record must precede this attempt in the same append-only snapshot. Looking
+      // at the full snapshot would retroactively authorize an A6 row with a later A2 receipt.
+      const inputSet = this.inputSets.getByFingerprint(fingerprint, priorRecords);
+      if (inputSet == null || inputSet.learningCycleId !== attempt.learningCycleId) {
+        throw new ExplorationError("A2_INPUT_NOT_DURABLE", "replayed exploration attempt has no matching canonical durable A2 input set");
+      }
+      try {
+        this.families.requireMembership(attempt.strategyId, attempt.strategyVersion, attempt.familyId);
+      } catch {
+        throw new ExplorationError("UNREGISTERED_FAMILY_MEMBER", "replayed exploration attempt is not bound to a registered strategy-family member");
+      }
+      attempts.push(attempt);
+      priorRecords.push(record);
+    }
     assertExplorationHistory(attempts);
     return Object.freeze(attempts);
   }
@@ -88,7 +111,7 @@ export class LearningExplorationLedger {
   public propose(inputSetFingerprint: string, candidate: ResearchCandidateSpecification): ExplorationAttempt {
     const errors = validateResearchCandidateSpecification(candidate);
     if (errors.length > 0) throw new ExplorationError("INVALID_CANDIDATE", "candidate specification failed validation: " + errors.join(","));
-    const inputSet = new LearningInputSetLedger(this.inputSets).getByFingerprint(inputSetFingerprint);
+    const inputSet = this.inputSets.getByFingerprint(inputSetFingerprint);
     if (inputSet == null) throw new ExplorationError("A2_INPUT_NOT_DURABLE", "exploration requires the canonical durable A2 input set");
     const cycleId = inputSet.learningCycleId;
     const history = this.list();
@@ -118,10 +141,7 @@ export class LearningExplorationLedger {
     try {
       this.ledger.appendWithValidation(record, (records) => {
         const currentHistory = this.attemptsFromRecords(records);
-        const currentInputSet = new LearningInputSetLedger({
-          list: () => records,
-          append: () => { throw new ExplorationError("INTERNAL_READ_ONLY", "transaction validation cannot append an A2 receipt"); },
-        }).getByFingerprint(inputSetFingerprint);
+        const currentInputSet = this.inputSets.getByFingerprint(inputSetFingerprint, records);
         if (currentInputSet == null || currentInputSet.learningCycleId !== cycleId) throw new ExplorationError("A2_INPUT_NOT_DURABLE", "A2 identity changed during exploration append");
         const expected = assessExploration(cycleId, candidate, this.families, currentHistory);
         if (!sameExplorationAttempt(expected, assessment)) throw new ExplorationError("CONCURRENT_CHANGE", "exploration history changed before its serialized append");

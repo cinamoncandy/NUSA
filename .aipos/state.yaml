@@ -97,17 +97,26 @@ current_research_baseline_recovery_20261012:
 
 current_learning_exploration_a6_20261023:
   work_order: WO-LEARNING-20261023-A6-EXPLORATION
-  status: EXACT_HEAD_CI_PASS_PENDING_INDEPENDENT_REVIEW
+  status: PARENT_SYNCED_LOCAL_VALIDATION_PASS_PENDING_EXACT_HEAD_CI
   branch: feat/exploration-a6
   pull_request: 2797
-  base_parent: e1a04675eea6a9011cc3eaa49e35fb6840c81f6c
-  validation: "Node 24.19.0/pnpm 11.25.0; A2/A1/A3/A4/A5/A6 + Evolution Learning ledger 164/164 PASS, including actual SQLite restart/replay and stale-writer rejection. Build, explicit preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS."
+  base_parent: 09d75bfc6e12cfef56986e708633338b8daedf87
+  validation: "A2/A1/A3/A4/A5/A6/M2/chain/retention/security focused suite 182/182 PASS; build PASS; Node 24.19.0 preflight PASS (521 AIPOS files); validate:full PASS; security:gate PASS (audit high=0); AIPOS provenance, work-order index, and diff-check PASS after parent 09d75bfc6e12cfef56986e708633338b8daedf87 sync. Exact-head CI pending push."
   blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined. Keep stacked PR Draft; no Audit/Release/merge/deployment."
-  exact_head: 3d613a310dfe465aa696b3e43c0a1aaaa0f9e269
-  exact_head_ci: "PASS; run 39892413992; validation, four core coverage shards, UI/E2E, aggregate coverage, final test SUCCESS."
-  independent_review: "Fresh exact-head @codex review requested in PR comment 6356382527; no response yet."
-  next: "Keep #2797 Draft; adjudicate fresh review when available. Cutoff/META owners and production Learning trigger remain unresolved; no Audit/Release/merge/deploy."
+  next: "Push validated A6 successor to existing feat/exploration-a6 non-force; run exact-head CI and request fresh independent review only after green. Keep Draft and do not claim production wiring."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_status_m2_20261023:
+  work_order: WO-LEARNING-20261023-M2-STATUS-PROJECTION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: feat/learning-status-m2
+  pull_request: 2798
+  base_parent: d0b046b1e11876aa3a5c7164f95e4cc51629f79f
+  validation: "Node 24.19.0/pnpm 11.25.0 after syncing A6 d0b046b1: M2+A2/A1/A4/A5/A6/retention focused tests 162/162 PASS; A3 META partition tests 19/19 PASS; build, preflight, validate:full, security:gate (high=0), AIPOS index/provenance, diff-check PASS. Exact-head CI pending push; previous CI 40041467269 is historical."
+  blockers: "Cutoff/META policy owners and production Learning trigger remain unresolved; status projection does not address them or claim production integration."
+  next: "Run Node 24.19 focused tests and pnpm run preflight/build/validate:full/security:gate on synchronized head; push existing PR non-force, require exact-head CI, then request fresh independent review only after green. Keep Draft; no server action."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 
 current_learning_fatal_shutdown_20261015:
   work_order: WO-OPS-20261015-LEARNING-FATAL-SHUTDOWN
@@ -128,27 +137,19 @@ current_learning_hourly_recovery_20261012:
   next: "Publish bounded hourly-evaluation increment; do not claim actual cycle completion or bypass baseline Research lineage."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
-current_learning_status_m2_20261023:
-  work_order: WO-LEARNING-20261023-M2-STATUS-PROJECTION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-  branch: feat/learning-status-m2
-  pull_request: 2798
-  base_parent: 3d613a310dfe465aa696b3e43c0a1aaaa0f9e269
-  validation: "Node 24.19.0/pnpm 11.25.0; M2 + A6 focused tests 19/19 PASS. Build, explicit preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS after reconverging on A6 head 3d613a31."
-  blockers: "Cutoff/META policy owners and production Learning trigger remain unresolved; status projection does not address them or claim production integration."
-  next: "Push existing PR non-force, run exact-head CI, then request fresh independent review only after green. Keep Draft; no server action."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
 current_learning_supersession_a5_20261023:
   work_order: WO-LEARNING-20261023-A5-SUPERSESSION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AFTER_SECURITY_REGRESSION_FIX
   branch: feat/supersession-a5
   pull_request: 2796
-  parent_head: 94cad0eeed8be76dcc2d12bc2ad851a2f822d380
+  parent_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
   first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
-  validation: "Node24.19.0; A2/A1/A3/A4/A5 plus Evolution Learning restart/concurrency suite 147/147 PASS; A5 22/22; build, preflight, validate:full, security:gate, AIPOS provenance, diff check PASS."
-  next: "Push final local validation to existing #2796 branch; require exact-head CI then request fresh independent review."
-  blockers: "Final-head local/remote validation pending. Cutoff/META owner and production trigger remain undefined; no production caller or learning completion is claimed."
+  validation: "Fresh npm advisories GHSA-xjj6-f33q-929c found undici 6.28.1/7.29.1 vulnerable in shared base. Existing canonical overrides updated to fixed 6.29.1/7.30.1; audit high=0 and security:gate PASS. Exact CI 40044601486 exposed an obsolete security-gate regression assertion; updated it to require 7.30.1/6.29.1 and reject 7.29.1/6.28.1. Node 24.19.0 focused A5/Evolution/worker 49/49 plus security-gate 10/10 PASS; build, preflight, validate:full, security:gate, provenance PASS. Exact-head CI pending."
+  prior_exact_head: bcbf23e5dac210be7db4291b1a9e34b40c28fc55
+  prior_exact_head_ci: "FAILED; run 40042338633. Coverage-core-3 worker.test failed only at UTC midnight because a Date.now-after-call strict >60s assertion observed a 60s minimum wait. Failure preserved; fixed deterministically with a fixed noon test clock, without changing runtime thresholds."
+  review_finding: "Fresh Codex review on b0e32e575 found P2 AIPOS parent/validation facts disagreed between state.yaml and the A5 work order. Successor bcbf23e5 aligns parent_head 05837941 and validation 158/158. Its CI failure was a UTC-midnight test-clock flake, now fixed on the current local successor; prior failure remains recorded."
+  next: "Commit corrected security-gate regression with all evidence, push non-force to #2796, run exact-head CI, request fresh independent review only after green."
+  blockers: "Cutoff/META owner and production trigger remain undefined; no production caller or Learning completion is claimed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_upgrade_20261012:
@@ -2746,6 +2747,58 @@ current_research_continuous_experiments:
   branch: claude/nusa-repository-j93sd8-research-scheduler
   authority_impact: research-evidence-only
   remaining: stage_2_composition_then_stage_3_tests_then_owner_approved_deploy
+
+current_ops_sqlite_attestation_nonforgeability_20261021:
+  work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+  status: HISTORICAL_SUPERSEDED_BY_CURRENT_SQLITE_CONTINUATION
+  branch: fix/sqlite-integrity-attestation-2770
+  issue: 2770
+  pull_request: 2855
+  protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
+  pr_reported_base_sha_before_sync: 94726afcfc0fdadf267df0b0ecb8494abd801e98
+  main_sync: "Protected main 21241b67e153bb8db15e566168fe3daef44b2cbf merged into PR head b745449433f458463242f83f4affc7754c898ded; resolve resulting remote head dynamically after push."
+  local_validation_tree_before_aipos_amend: 215ba83ed2b63fdf3a17e81184cea8c083167c86
+  finding_head: 9e4d668829247a397018089fc6bd981f5ad81db0
+  source_repair_commit: dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4
+  finding: "Fresh Codex review on exact head 9e4d668829247a397018089fc6bd981f5ad81db0 found two current P1s: post-preload replacement of Module.prototype.require could bypass the pinned Module._load and fabricate sqliteIntegrityBootstrap exports, and the durable handoff still described the already-committed loader repair as local/pending."
+  repair: "Source repair dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4 captures the native Module.prototype.require descriptor during the trusted preload and pins it non-writable/non-configurable alongside Module._load and Module._cache. The exact adversarial child-process regression verifies replacement is refused, a corrupt SQLite file remains rejected, and the forged require path is never invoked. Full-file quick_check, four AI scoped checks, hash-chain replay, startup/recovery ordering, writer-lease semantics, Research child heap propagation, and the 300-second readiness budget remain unchanged. This durable successor reconciles every recovery record to the committed repair and actual remaining gates."
+  validation: "Exact head 9e4d668829247a397018089fc6bd981f5ad81db0 completed/success on CI 39708723397, Mobile Native 39708723564, Research advisory 39708723368, Transport 39708723488, Activation 39708723348, Capability 39708723272, Actual PAPER 39708723273, Read-only Broker 39708723438, and Android Guard 39708723475 before fresh review exposed the require-dispatch and stale-handoff P1s. Those receipts become historical after dd60977f. On the dd60977f source tree, changed storage transpile diagnostics PASS, the exact Module.prototype.require attack regression PASS, focused PAPER startup/writer-lease tests PASS 23/23, and git diff --check PASS. Full local tsc is not claimed because this Oracle validation host hit its existing ~258 MiB Node heap ceiling and exited OOM."
+  next: "Historical repair lineage only. Use current_ops_sqlite_resolver_pin_20261022 for the active PR #2855 head, review findings, and required gates."
+  runtime: "Oracle health/readiness, deployed source SHA, genuine PAPER fill/PnL, restart/replay, and learning-loop acceptance remain UNVERIFIED; no Oracle mutation or runtime acceptance is claimed."
+  latest_local_validation: "Supersedes historical validation above for merged code tree 215ba83ed2b63fdf3a17e81184cea8c083167c86: build PASS; typecheck PASS; SQLite startup/writer-lease and changed-main mobile regressions 38/38 PASS; validate:full PASS; AIPOS provenance PASS; security:gate PASS (0 unmitigated, 0 secrets); lint PASS with 36 warnings; diff-check PASS. New PR exact-head workflows, fresh non-author review, and formal Validator are pending."
+  latest_main_transition: "Protected main 21241b67e153bb8db15e566168fe3daef44b2cbf is merged into PR head b745449433f458463242f83f4affc7754c898ded in local successor; remote PR head must be resolved after fast-forward push."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_sqlite_resolver_pin_20261022:
+  work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+  status: RECOVERY_RECORD_P1_CORRECTED_PENDING_SUCCESSOR_EXACT_HEAD_GATES
+  branch: fix/sqlite-integrity-attestation-2770
+  issue: 2770
+  pull_request: 2855
+  finding_head: 4b6785323535b37bf0b0275ec7eb0f9f803d9d69
+  protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
+  source_repair: "Trusted preload publishes the frozen SQLite integrity boundary on Node Module; storage uses raw CommonJS node:module import-assignment and preload-captured native DatabaseSync constructor, prepare, and get through the immutable boundary. Canonical and standalone storage opens use the captured native constructor, so replacing node:sqlite.DatabaseSync after preload cannot redirect integrity checking to another database. Legacy Cloud PAPER systemd scrubs NODE_OPTIONS and preloads the boundary before the supervisor; supervisor strips NODE_OPTIONS and preloads it before the database-owning child. AI stores share only the checked canonical connection and retain scoped checks/hash-chain replay."
+  latest_review_findings: "The separate fresh NUSA Validator on parent 4e5b0e75da292c23c4028251f4bd1e79fdd9f53b returned P0=0, P1=0, P2=5, ACCEPTED_WITH_CONDITIONS; this does not meet the explicit ACCEPTED gate. Its candidate-bootstrap artifact condition was repaired in scripts/oracle-validate.js and committed/pushed on PR head 4b6785323535b37bf0b0275ec7eb0f9f803d9d69. Fresh Codex review on that exact head found P1 4348034655: the state, work order, and handoff still instructed repeating the completed commit/push. This recovery-record-only successor corrects that stale instruction. Prior-head reviews and Validator receipts remain historical."
+  previous_exact_head_workflows: "On 4b6785323535b37bf0b0275ec7eb0f9f803d9d69, CI 39773522607 and the eight companion workflows all completed SUCCESS. These receipts are historical after this recovery-record successor; resolve current checks dynamically from GitHub."
+  local_validation:
+    native_constructor_capture_and_post_preload_export_poison_regression: PASS
+    focused_sqlite_startup_writer_lease_research_recovery_tests: PASS_46_OF_46
+    post_load_prototype_poison_corrupt_db_reproduction: REJECTED_FORGED_CALLS_0
+    focused_startup_integrity_adversarial_tests: PASS_4_OF_4
+    cloud_paper_supervisor_preload_and_env_tests: PASS_7_OF_7
+    aipos_yaml: PASS_514_FILES
+    aipos_drift: PASS
+    aipos_provenance: PASS
+    aipos_cross_ai: PASS
+    diff_check: PASS
+    aipos_record_corrections: PASS
+    candidate_bootstrap_preflight_tests: PASS_2_OF_2
+    relevant_oracle_and_sqlite_regressions: PASS_69_OF_69
+    validate_full: PASS
+    security_gate: PASS_0_UNMITIGATED_0_SECRETS
+  formal_validator: "PARENT_4E5B0E75_ACCEPTED_WITH_CONDITIONS; successor requires fresh exact-head P0/P1/P2 and explicit ACCEPTED"
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: "Resolve the current PR #2855 head and exact-head workflows dynamically. Require fresh non-author review with no current actionable P0/P1 and a separate formal NUSA Validator receipt bound to that exact SHA with P0/P1/P2 and explicit ACCEPTED. Only then proceed to Independent Audit, Release authorization, protected merge, and exact-main Oracle acceptance. Do not repeat the candidate-bootstrap source repair or recovery-record commit/push; keep Draft/HOLD and do not mutate Oracle."
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
   status: READY_FOR_REVIEW
@@ -3080,13 +3133,24 @@ current_learning_causal_parent_restoration_20261023:
   work_order: WO-LEARNING-20261023-CAUSAL-PARENT-RESTORATION
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   issue: 2800
-  branch: codex/research-learning-causal-parent
+  branch: feat/research-causal-parent
   base_branch: feat/learning-chain-12
-  base_sha: b6b823c222c9eba3f420e5ffcf7f4619c98546bd
+  base_sha: d0aa8ed0af2840993eff4576664d0dc8ec39eb1c
   review_findings_source_head: 079341004f263d82c44bc09c6e7de99e6069c9de
-  repair: "Cycle-keyed decision lookup now verifies durable records by computed fingerprint; periodic Research no longer assigns the latest application to every request; Learning projection failures are isolated from meta-learning cadence."
-  validation: "52 focused Learning/causal/status/precommit tests and 8 Research pipeline/composition tests PASS; build, Node 24.19 preflight, validate:full, security:gate, AIPOS provenance and diff check PASS. New exact-head CI/review pending."
-  next: "Exact-head CI, then fresh independent review. Keep Draft; no deploy until #2855 closes."
+  repair: "Cycle-keyed decision lookup verifies durable records by computed fingerprint; periodic Research does not bind the latest application to every request; Learning projection failures are isolated from meta-learning cadence."
+  validation: "After syncing #2799 d0aa8ed0 on Node 24.19.0/pnpm 11.25.0: causal/chain/decision/status/precommit tests 75/75 PASS; research pipeline/composition 17/17 PASS; startup/SQLite/lease regression 64/64 PASS; build, preflight, validate:full, security:gate (high/critical=0), AIPOS index/provenance, diff-check PASS. First synced build exposed required constructor/status API updates; fixes and focused re-run PASS. Exact-head CI pending push."
+  next: "Commit and push the existing #2800 branch non-force, run exact-head CI, then request fresh independent review only after green. Keep Draft; no deploy until #2855 closes."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_chain12_20261023:
+  work_order: WO-LEARNING-20261023-M3-CAUSAL-CHAIN
+  status: EXACT_HEAD_CI_PASS_PENDING_INDEPENDENT_REVIEW
+  branch: feat/learning-chain-12
+  pull_request: 2799
+  base_parent: 326e00e5a35d49263af3736aeee5b22bb37adcd0
+  validation: "Node 24.19.0/pnpm 11.25.0 after M2 sync: focused chain/status 26/26 PASS; build, preflight, validate:full, security:gate, AIPOS index/provenance PASS; exact CI 40047167669 and event bridge 40047160869 PASS; fresh review requested at d0aa8ed0."
+  blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined."
+  next: "Keep #2799 Draft pending independent review; no Audit/Release/merge/deployment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_collection_reason:
@@ -3797,6 +3861,23 @@ current_learning_resume_failed_cycle:
   authority_impact: learning-loop-control-flow-no-order-no-risk-no-ledger-write-beyond-existing-cycle-record
   finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
   limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
+
+current_learning_a1_receipt_provenance_20261023:
+  work_order: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
+  status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  validation: "Fresh review of A1 head 40e43db82d0a2aed299bea682308e30be160d3e4 found three P2s covering mixed-case A2 reference ordering, legacy A1 receipt size after A2 rehydration, and fingerprint-keyed legacy reservation replay. Repairs pass 66/66 focused A1 decision/storage tests, build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks."
+  issue: 2793
+  next: "Verify remote PR head is still 40e43db82d0a2aed299bea682308e30be160d3e4, commit and push the substantive repair non-forcing, verify exact-head CI, then request fresh independent review if green. No production application or cycle completion claim."
+current_learning_a2_evidence_resolution_20261023:
+  work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
+  status: EXACT_HEAD_CI_PASS_REVIEW_NO_FINDINGS
+  pull_request: 2792
+  branch: feat/learning-input-set-a2
+  prior_exact_head: 4d7750f37a08e7a8196dad25552340fdff27fe00
+  first_broken_transition: "A2 receipt -> canonical Research/PAPER evidence resolution"
+  validation: "Review of predecessor 66d4ee3fe6f2026cbe31e92915f21fdc17b56cea found two P2s: sparse-array holes at the evidence-resolution boundary and whitespace Research IDs counted as canonical reservations. Both were repaired on 4d7750f37a08e7a8196dad25552340fdff27fe00. A2/A1/storage tests 44/44 PASS; build, Node 24.19.0 preflight, validate:full, security:gate, provenance, and diff checks PASS. Exact-head CI run 39903170341 and required companion workflows PASS. Fresh Codex review submitted on the exact head; no inline findings were produced."
+  next: "A2 is reviewed and remains Draft; continue sequentially with the A1 sync in existing PR #2793. #2855 and server deployment remain untouched."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_a4_bounded_application_20261022:
   work_order: WO-LEARNING-20261022-A4-APPLICATION

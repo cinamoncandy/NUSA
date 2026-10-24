@@ -4,9 +4,9 @@ status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P1
 owner_request: "2026-10-23: Continue the existing A2-upward Learning PR sequence; fix exact-head independent-review findings without promoting status reads to causal evidence."
 issue: 2800
-branch: codex/research-learning-causal-parent
+branch: feat/research-causal-parent
 base_branch: feat/learning-chain-12
-base_sha: b6b823c222c9eba3f420e5ffcf7f4619c98546bd
+base_sha: d0aa8ed0af2840993eff4576664d0dc8ec39eb1c
 architecture_references:
   - .aipos/architecture.md
   - .aipos/decisions/ADR-0003-hardened-research-validity-boundaries.md
@@ -39,7 +39,7 @@ verification:
     - "pnpm run security:gate"
     - "pnpm run aipos:provenance"
     - "git diff --check"
-  result: "Local validation passed on the reconciled worktree; fresh exact-head CI and independent review are pending."
+  result: "After syncing #2799 d0aa8ed0 on Node 24.19.0/pnpm 11.25.0: causal/chain/decision/status/precommit tests 75/75 PASS; research pipeline/composition 17/17 PASS; startup/SQLite/lease regression 64/64 PASS; build, preflight, validate:full, security:gate (high/critical=0), AIPOS index/provenance, diff-check PASS. First synced build exposed required constructor/status API updates; after matching the existing canonical interfaces, the focused tests/build passed. Exact-head CI pending."
 remaining: "Exact-head CI, fresh independent review, formal Validator/Audit/Release as applicable, and downstream real runtime proof."
-next: "Freeze the repaired exact head, run its CI, then request fresh independent review. Keep Draft and do not deploy; deployment remains behind #2855."
+next: "Push the validated existing PR branch non-force, run exact-head CI, then request fresh independent review only after it is green. Keep Draft and do not deploy; deployment remains behind #2855."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

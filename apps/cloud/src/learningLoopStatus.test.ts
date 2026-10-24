@@ -34,9 +34,13 @@ describe("M2 - display-only status projection (section 28)", () => {
     assert.match(status.explorationStatus ?? "", /remaining=0/);
   });
 
-  it("omits fields whose source has not produced them, rather than inventing defaults", () => {
+  it("marks each absent source unknown rather than presenting an empty status as healthy", () => {
     const status = buildLearningLoopStatus({});
-    assert.deepEqual(Object.keys(status), ["schemaVersion"], "an empty status reports nothing, not zeroes");
+    assert.deepEqual(Object.keys(status), ["schemaVersion", "projectionScope", "componentAvailability"], "an empty status reports unknown sources, not zeroes");
+    assert.equal(status.projectionScope, "UNVERIFIED_DISPLAY_ONLY_NOT_APPROVAL");
+    assert.match(status.componentAvailability, /inputSet=UNKNOWN/);
+    assert.match(status.componentAvailability, /meta=UNKNOWN/);
+    assert.match(status.componentAvailability, /exploration=UNKNOWN/);
     assert.equal(status.latestLearningInputSetFingerprint, undefined);
     assert.equal(status.applicationOutcome, undefined);
     assert.equal(status.metaEligibility, undefined);
@@ -77,7 +81,7 @@ describe("M2 - display-only status projection (section 28)", () => {
 
   it("reports eligibility with the reason attached, never as a bare permission", () => {
     const status = buildLearningLoopStatus(FULL);
-    assert.match(status.metaEligibility ?? "", /^INELIGIBLE/, "the verdict is stated");
+    assert.match(status.metaEligibility ?? "", /^UNVERIFIED_INPUT; claimed=INELIGIBLE/, "caller input is visibly unverified");
     assert.match(status.metaEligibility ?? "", /required/, "and always with the condition that produced it");
     assert.ok((status.metaEligibility ?? "").includes("-"), "verdict and reason are joined, so a reader cannot see one without the other");
   });
@@ -104,12 +108,45 @@ describe("M2 - the projection stays an output", () => {
     // no independent behaviour of its own.
     assert.equal(rejected.applicationOutcome, "REJECTED");
     assert.equal(applied.applicationOutcome, "APPLIED");
+    assert.equal(applied.projectionScope, "UNVERIFIED_DISPLAY_ONLY_NOT_APPROVAL");
     assert.notDeepEqual({ ...rejected }, { ...applied });
     assert.equal(Object.keys(rejected).length, Object.keys(applied).length, "same shape, different recorded fact");
+  });
+
+  it("does not present caller-claimed eligibility or application as verified when the evidence is absent", () => {
+    const status = buildLearningLoopStatus({
+      meta: { eligible: true, partition: "train+validation+holdout", cyclesEvaluated: 0, reason: "caller supplied claim" },
+      application: { fingerprint: "c".repeat(64), applicationOutcome: "APPLIED" },
+    });
+    assert.match(status.metaEligibility ?? "", /^UNVERIFIED_INPUT; claimed=ELIGIBLE; cycles=0/);
+    assert.equal(status.projectionScope, "UNVERIFIED_DISPLAY_ONLY_NOT_APPROVAL");
+    assert.match(status.componentAvailability, /inputSet=UNKNOWN/);
+    assert.match(status.componentAvailability, /meta=AVAILABLE/);
+    assert.doesNotMatch(JSON.stringify(status), /LEARNING_LOOP_VERIFIED|VERIFIED=true/);
+  });
+
+  it("withdraws malformed counts and unsafe free text instead of formatting them as facts", () => {
+    const status = buildLearningLoopStatus({
+      meta: { eligible: true, partition: "train+validation+holdout", cyclesEvaluated: Number.NaN, reason: "bad\nreason" },
+      supersession: { links: -1, lineageLength: 2, forked: false },
+      exploration: { attempts: Number.NaN, allotted: 2, suppressed: 0, exhausted: false, allotmentRemaining: 2 },
+    });
+    assert.match(status.componentAvailability, /meta=INVALID/);
+    assert.match(status.componentAvailability, /supersession=INVALID/);
+    assert.match(status.componentAvailability, /exploration=INVALID/);
+    assert.equal(status.metaEligibility, undefined);
+    assert.equal(status.supersessionStatus, undefined);
+    assert.equal(status.explorationStatus, undefined);
+    const injected = buildLearningLoopStatus({
+      meta: { eligible: true, partition: "train+validation+holdout", cyclesEvaluated: 0, reason: "<script>alert(1)</script>" },
+    });
+    assert.match(injected.componentAvailability, /meta=INVALID/);
+    assert.equal(injected.metaEligibility, undefined);
   });
 
   it("survives an unexpected source shape without throwing", () => {
     assert.doesNotThrow(() => buildLearningLoopStatus(null as unknown as LearningStatusSource));
     assert.equal(buildLearningLoopStatus(null as unknown as LearningStatusSource).schemaVersion, LEARNING_STATUS_VERSION);
+    assert.match(buildLearningLoopStatus(null as unknown as LearningStatusSource).componentAvailability, /inputSet=UNKNOWN/);
   });
 });

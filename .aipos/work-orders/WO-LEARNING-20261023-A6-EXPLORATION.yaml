@@ -1,14 +1,16 @@
 id: WO-LEARNING-20261023-A6-EXPLORATION
 title: "A6 durable, cycle-bound exploration assessment"
-status: VERIFYING
+status: PARENT_SYNCED_LOCAL_VALIDATION_PASS_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/supersession-a5
+base_head: 09d75bfc6e12cfef56986e708633338b8daedf87
+parent_sync: "Merged A5 exact head 09d75bfc after CI 40045059478 PASS; A5 fresh independent review is pending. This brings undici security fix 6.29.1/7.30.1."
 branch: feat/exploration-a6
 pull_request: 2797
 authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
 objective: "Make the existing A6 exploration assessment deterministic, derived from canonical candidate identity, durable on the existing hash-chained Learning ledger, cycle-bound to durable A2, and concurrency-safe without producing candidates, qualification, application, or production wiring."
-first_broken_transition: "canonical durable A2 input and registered Research candidate -> A6 bounded exploration decision -> durable exactly-once replay"
+first_broken_transition: "A6 A2 identity lookup -> current serialized ledger snapshot under the canonical evidence authority"
 scope:
   include:
     - "Require the durable A2 input-set receipt and derive learningCycleId from it."
@@ -16,6 +18,11 @@ scope:
     - "Derive configuration/near-duplicate identity from canonical candidate fields; do not accept caller-selected experiment/family/configuration identity claims."
     - "Persist attempts through the existing Evolution Learning hash-chain ledger and validate cycle budget/family constraints within its serialized append transaction."
     - "Bound total receipts through the existing ledger capacity and validate all restart/replay history deterministically."
+    - "Require the durable Evolution record timestamp to be canonical ISO form when replaying A6 receipts."
+    - "Resolve every replayed A6 learningCycleId against a canonical durable A2 receipt that precedes the A6 record in the same ledger snapshot; later A2 cannot retroactively authorize earlier A6."
+    - "Revalidate strategy-family membership during replay; a durable-shaped A6 receipt cannot outlive its registered family membership."
+    - "Persist only the four validated cost-model fields in the candidate-derived descriptor; caller extras cannot poison replay."
+    - "Reuse the canonical LearningInputSetLedger reader and evidence authority for both initial A2 lookup and in-transaction snapshot revalidation."
   exclude:
     - "Defining cutoff/META policy or changing A2/A3 owner policy."
     - "Adding a production Learning caller, scheduler, store, candidate-generation engine, qualification, Governance, or PAPER execution path."
@@ -27,6 +34,9 @@ acceptance:
   - "Different A6 receipts share the cycle allotment; same-family ceiling and near-duplicate suppression cannot be bypassed by caller naming."
   - "A stale concurrent writer cannot append a verdict derived from an obsolete history snapshot."
   - "Malformed/tampered receipt fields, counters, gates, or replay order fail closed."
+  - "A hash-chain-shaped but noncanonical durable Evolution envelope fails closed during A6 replay."
+  - "Orphaned A6 history without a matching canonical durable A2 receipt fails closed after restart/replay."
+  - "Extra caller cost-model properties are excluded from the durable descriptor and replay remains valid."
   - "ALLOTTED states that all PIT/OOS/walk-forward/cost/sample/qualification/Governance gates remain; no pass, candidate, or application is produced."
   - "Run focused tests, build, pnpm run preflight (Node >=24.19), validate:full, security:gate, AIPOS provenance, and exact-head CI."
   - "After exact-head CI passes, request fresh independent review; keep the PR Draft and do not Audit/Release/merge/deploy."
@@ -43,11 +53,15 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "164/164 PASS across A2/A1/A3/A4/A5/A6 and Evolution Learning ledger; A6 SQLite restart/replay and stale-writer cases included."
-  build: "PASS on Node 24.19.0 / pnpm 11.25.0."
-  preflight: "PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 515-file AIPOS YAML checks PASS."
-  validate_full: "PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS."
-  security_gate: "PASS; no unmitigated finding or secret detected."
-  aipos_provenance: "PASS."
-  exact_head_ci: "PASS; workflow_dispatch run 39892413992 SUCCESS on exact head 3d613a310dfe465aa696b3e43c0a1aaaa0f9e269."
-  independent_review: "Fresh @codex review requested against exact head 3d613a310dfe465aa696b3e43c0a1aaaa0f9e269; response pending."
+  focused: "182/182 PASS on Node 24.19.0 after parent 09d75bfc sync, including both repaired review findings and undici security regression"
+  prior_focused: "165/165 PASS before latest A5 parent sync; includes orphan and out-of-order A6/A2 replay rejection, strategy-family membership revalidation, extra cost-field exclusion, SQLite restart/replay, and serialized stale-writer coverage."
+  build: "PASS on Node 24.19.0 / pnpm 11.25.0 after parent 09d75bfc sync"
+  preflight: "PASS on Node 24.19.0 after parent sync; portability, platform-independent tests, Android release contract, and 521-file AIPOS checks PASS"
+  validate_full: PASS
+  security_gate: "PASS; pnpm audit high=0/critical=0 with undici 6.29.1/7.30.1"
+  aipos_provenance: PASS
+  diff_check: PASS
+  exact_head_ci: PENDING_AFTER_PUSH
+  independent_review: PENDING_AFTER_CURRENT_EXACT_HEAD_CI
+  prior_exact_head_ci_failure: "A6 head 7b2a610c CI run 40043771127 failed security:gate before #2796 undici override repair; this failure is preserved and superseded by parent 09d75bfc, whose exact-head CI passed."
+  review_findings_repaired: "Fresh Codex review on e1950b1a found two P1s: full-snapshot lookup allowed a later A2 to retroactively authorize earlier A6, and replay skipped strategy-family membership validation. Repair enforces prior-record chronology and rechecks membership; regressions cover both. Previous head CI remains historical; current exact-head gates required after parent sync."

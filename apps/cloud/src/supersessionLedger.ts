@@ -22,6 +22,10 @@ function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function surfaceEvidenceReference(surface: string): string {
+  return "supersession-surface:" + createHash("sha256").update(surface, "utf8").digest("hex");
+}
+
 function opportunityId(link: SupersessionLink): string {
   return ID_PREFIX + sha256(canonicalResearchJson({
     surface: link.surface,
@@ -31,8 +35,20 @@ function opportunityId(link: SupersessionLink): string {
   }));
 }
 
-function parseLink(record: { readonly opportunityId: string; readonly hypothesis: string; readonly validationStatus: string }): SupersessionLink {
-  if (record.validationStatus !== RECORD_KIND || !record.opportunityId.startsWith(ID_PREFIX)) {
+function parseLink(record: EvolutionLearningRecord): SupersessionLink {
+  const recordedAt = Date.parse(record.recordedAt);
+  if (
+    record.validationStatus !== RECORD_KIND ||
+    !record.opportunityId.startsWith(ID_PREFIX) ||
+    record.problem !== PROBLEM ||
+    record.changeReference !== SUPERSESSION_POLICY_VERSION ||
+    record.outcome !== "SUCCESS" ||
+    record.failureReason !== null ||
+    record.rollbackReference !== null ||
+    record.reusable !== true ||
+    !Number.isFinite(recordedAt) ||
+    new Date(recordedAt).toISOString() !== record.recordedAt
+  ) {
     throw new SupersessionError("MALFORMED_LINK", "durable supersession record discriminator is inconsistent");
   }
   let parsed: unknown;
@@ -42,7 +58,17 @@ function parseLink(record: { readonly opportunityId: string; readonly hypothesis
     throw new SupersessionError("MALFORMED_LINK", "durable supersession payload is not valid JSON");
   }
   assertSupersessionLink(parsed);
-  if (canonicalResearchJson(parsed) !== record.hypothesis || opportunityId(parsed) !== record.opportunityId) {
+  const expectedEvidenceReferences = [parsed.previousDecisionFingerprint, parsed.nextDecisionFingerprint, surfaceEvidenceReference(parsed.surface)]
+    .sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+  if (
+    canonicalResearchJson(parsed) !== record.hypothesis ||
+    Buffer.byteLength(record.hypothesis, "utf8") > 2_000 ||
+    record.evidenceReferences.length !== expectedEvidenceReferences.length ||
+    record.evidenceReferences.some((reference, index) => reference !== expectedEvidenceReferences[index])
+  ) {
+    throw new SupersessionError("MALFORMED_LINK", "durable supersession envelope does not match the canonical link");
+  }
+  if (opportunityId(parsed) !== record.opportunityId) {
     throw new SupersessionError("IDENTITY_CONFLICT", "durable supersession record does not match its canonical identity");
   }
   return parsed;
@@ -84,11 +110,18 @@ export class LearningSupersessionLedger {
       throw new SupersessionError("DURABLE_WRITE_FAILED", "durable supersession clock is invalid");
     }
     const id = opportunityId(candidate);
+    const hypothesis = canonicalResearchJson(candidate);
+    // createEvolutionLearningRecord trims hypotheses to 2,000 characters. Reject
+    // oversized A5 payloads before that generic factory can persist a truncated link.
+    if (Buffer.byteLength(hypothesis, "utf8") > 2_000 || hypothesis.length > 2_000) {
+      throw new SupersessionError("DURABLE_WRITE_FAILED", "canonical supersession payload exceeds the durable learning-record bound");
+    }
     const record = createEvolutionLearningRecord({
       opportunityId: id,
       problem: PROBLEM,
-      evidenceReferences: [candidate.previousDecisionFingerprint, candidate.nextDecisionFingerprint, candidate.surface].sort(),
-      hypothesis: canonicalResearchJson(candidate),
+      evidenceReferences: [candidate.previousDecisionFingerprint, candidate.nextDecisionFingerprint, surfaceEvidenceReference(candidate.surface)]
+        .sort((left, right) => left < right ? -1 : left > right ? 1 : 0),
+      hypothesis,
       changeReference: SUPERSESSION_POLICY_VERSION,
       validationStatus: RECORD_KIND,
       outcome: "SUCCESS",

@@ -1,0 +1,24 @@
+current_ops_sqlite_resolver_pin_20261022:
+  work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+  status: LOCAL_REPAIR_VALIDATED_PENDING_EXACT_HEAD_CI_REVIEW_VALIDATOR
+  branch: fix/sqlite-integrity-attestation-2770
+  issue: 2770
+  pull_request: 2855
+  pre_repair_exact_head: a188810183ee0d2ddb14ad81704c12cfd35bb05a
+  protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
+  new_finding: "Fresh non-author Codex review found Module._resolveFilename remained writable after the trusted preload. A replacement could route the later storage import to an attacker-added cache entry and forge the SQLite integrity boundary."
+  reproduction: "Added a child-process regression that attempts the resolver replacement, preloads a forged cache entry, and opens a corrupt SQLite file. It failed on the pre-repair tree because Reflect.set succeeded."
+  repair: "The bootstrap captures Module._resolveFilename's own descriptor and function before application imports, rejects a missing resolver, and defines the captured resolver non-writable/non-configurable. The new child-process regression proves assignment/redefinition fail and the corrupt database remains rejected."
+  local_validation:
+    node_runtime: 24.18.0
+    build: PASS
+    typecheck: PASS
+    focused_resolver_attack: PASS_1_OF_1_AFTER_RED_REPRODUCTION
+    sqlite_startup_writer_lease: PASS_22_OF_22
+    validate_full: PASS
+    aipos_provenance: PASS
+    lint: PASS_36_EXISTING_WARNINGS_ZERO_ERRORS
+    diff_check: PASS
+    security_gate: BLOCKED_DEPENDENCY_AUDIT_UNAVAILABLE_AFTER_3_BOUNDED_ATTEMPTS_PNPM
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: "Commit the source/test and synchronized AIPOS repair, push the successor to the existing PR branch, then obtain fresh exact-head workflows, non-author adjudication of current P1s, and a separate formal NUSA Validator receipt. Keep Draft; no Audit, Release, merge, or Oracle mutation before canonical gates."

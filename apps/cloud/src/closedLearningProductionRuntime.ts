@@ -104,6 +104,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   }
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
   const learningLedger = new SqliteEvolutionLearningLedger(database);
+  const learningHoldoutLedger = new SqliteResearchHoldoutLedger(database);
   const challengerBindings = new PaperChallengerBindingLedger(learningLedger);
   // A qualified challenger always wins; until one exists the owner-approved PAPER baseline trades.
   const paperCandidateBindingProvider = new OwnerBaselinePaperBindingProvider({
@@ -133,24 +134,26 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Evidence validation is read-only and can be expensive. Do it before owning the renewable
   // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
+  let researchExperiments: ReturnType<typeof composeResearchExperiments>;
   let longBarTickEvery = 1;
   let readPaperEvidence: () => readonly { readonly recordId: string; readonly recordedAt: number }[] = () => [];
-  // The canonical learning chain, over the same durable stores the rest of the runtime uses. One
-  // chain, one history: constructing it here rehydrates exactly-once from what is already recorded
-  // rather than assuming the previous process left nothing half-done.
-  const learningChain = new ClosedLearningChain(new SqliteEvolutionLearningLedger(database), new SqliteResearchHoldoutLedger(database));
-  // Periodic Research runs are not evidence that a Learning application caused a specific request.
-  // Keep the causal-parent contract available to an explicit future caller, but do not attach the
-  // latest durable application to every scheduled variant or market.
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery, paperEvidenceReader: () => readPaperEvidence() });
-  researchExperiments?.prepareRecovery();
   try {
-  // Cloud AI durability opens the same canonical SQLite file and performs its own full-file
-  // fail-closed integrity checks. Complete those checks before acquiring the renewable PAPER
-  // writer lease; otherwise a production-sized database can starve the lease heartbeat before
-  // the HTTP listener and closed-learning scheduler become serviceable. This changes ordering
-  // only: AI remains zero-authority and uses the same durable stores.
-  const cloudAiRuntime = createCloudAiRuntime(env);
+  // Cloud AI durability uses the exact canonical SQLite connection that already completed the
+  // full-file startup quick_check. This avoids reopening and rescanning the same production-sized
+  // file while preserving each AI store's table-scoped quick_check and hash-chain replay. Keep this
+  // before research recovery preparation and the renewable PAPER writer lease: its schema
+  // initialization must not invalidate prepared SQLite change-tracking evidence, and its startup
+  // I/O must not starve the lease heartbeat.
+  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteDatabase: database });
+
+  researchExperiments = composeResearchExperiments({
+    env,
+    database,
+    log: (line) => console.log(line),
+    longBarTickEvery: () => longBarTickEvery,
+    paperEvidenceReader: () => readPaperEvidence(),
+  });
+  researchExperiments?.prepareRecovery();
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
@@ -265,6 +268,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // decision-history and realized-period readers available; only absent research evidence should
   // fail closed. PAPER evidence must not become unreadable merely because experiment ticks are off.
   const learningEvidenceAuthority = researchExperiments?.learningEvidenceAuthority ?? learningInputSetEvidenceAuthority;
+  // Rehydrate the canonical chain over existing runtime stores and evidence readers.
+  const learningChain = new ClosedLearningChain(learningLedger, learningHoldoutLedger, learningInputSetEvidenceAuthority);
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, learningEvidenceAuthority, Date.now);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
   const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => coordinator.runAsync(input);

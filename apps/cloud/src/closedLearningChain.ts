@@ -2,6 +2,7 @@ import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/sr
 import type { HoldoutKey } from "../../../packages/storage/src/researchHoldoutLedger";
 import { buildLearningInputSet, type LearningInputSet, type LearningInputSetInput } from "./learningInputSet";
 import { LearningInputSetLedger, type LearningInputSetReceipt } from "./learningInputSetLedger";
+import type { LearningEvidenceAuthority } from "./learningEvidenceAuthority";
 import { buildLearningDecision, learningDecisionFingerprint, type LearningDecisionInput } from "./learningDecision";
 import { LearningDecisionLedger, type LearningDecisionReceipt } from "./learningDecisionLedger";
 import { applyBoundedChange, ApplicationRegistry, type ApplicationPorts, type ApplicationContext, type MetaOosEligibility } from "./learningApplication";
@@ -91,11 +92,11 @@ export class ClosedLearningChain {
   private readonly metaOos: MetaOosLedger;
   private readonly registry = new ApplicationRegistry();
 
-  public constructor(evolution: EvolutionLedgerPort, private readonly holdouts: HoldoutClaimPort, now: () => number = Date.now) {
+  public constructor(evolution: EvolutionLedgerPort, private readonly holdouts: HoldoutClaimPort, evidenceAuthority: LearningEvidenceAuthority, now: () => number = Date.now) {
     if (evolution == null || typeof evolution.append !== "function" || typeof evolution.list !== "function") throw new LearningChainError("STORE_REQUIRED", "the integrated chain requires the canonical evolution ledger");
     if (holdouts == null || typeof holdouts.claim !== "function" || typeof holdouts.isUsed !== "function") throw new LearningChainError("STORE_REQUIRED", "the integrated chain requires the canonical holdout ledger");
-    this.inputSets = new LearningInputSetLedger(evolution, now);
-    this.decisions = new LearningDecisionLedger(evolution, now);
+    this.inputSets = new LearningInputSetLedger(evolution, evidenceAuthority, now);
+    this.decisions = new LearningDecisionLedger(evolution, evidenceAuthority, now);
     this.applications = new LearningApplicationLedger(evolution, now);
     this.metaOos = new MetaOosLedger(evolution, now);
     // Restore exactly-once from durable history before any application can be attempted, so a restart
@@ -207,7 +208,7 @@ export class ClosedLearningChain {
       inputSet: { fingerprint: inputSetReceipt.fingerprint, learningCycleId: inputSetReceipt.learningCycleId },
       decision: { fingerprint: decisionReceipt.fingerprint },
       application: { fingerprint: applicationReceipt.fingerprint, applicationOutcome: applicationReceipt.receipt.applicationOutcome },
-      meta: { ...eligibility, partition: cycle.metaPartition },
+      meta: { ...eligibility, partition: "train+validation+holdout" },
     });
 
     return Object.freeze({

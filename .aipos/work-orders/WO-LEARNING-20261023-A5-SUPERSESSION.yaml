@@ -1,23 +1,25 @@
 id: WO-LEARNING-20261023-A5-SUPERSESSION
 title: "Persist and validate append-only Learning supersession lineage"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AFTER_SECURITY_REGRESSION_FIX
 priority: P0
 owner: nusa-development
 repository: cinamoncandy/NUSA
 branch: feat/supersession-a5
 pull_request: 2796
 base_branch: feat/meta-oos-a3
-parent_head: 94cad0eeed8be76dcc2d12bc2ad851a2f822d380
+parent_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
 owner_request: "2026-10-23: continue Learning PRs from A2 upward; run relevant tests and pnpm run preflight on Node 24.19+, and request a fresh independent review after exact-head CI passes. Do not delay #2855 or the order-book archive deployment."
 authority_impact: immutable_learning_evidence_and_replay_correctness_only
 objective: "Complete A5 supersession as a deterministic, append-only chain with append-time graph validation, replay idempotency, atomic rehydration, and durable restart-safe records through the existing Evolution Learning ledger."
-first_broken_transition: "Learning supersession link API -> graph integrity and retry identity -> durable append/restart replay"
+first_broken_transition: "canonical supersession payload and Evolution envelope -> bounded, identity-faithful durable append/restart replay"
 scope:
   include:
     - "Reject cycle, merge, reactivation, and fork edges before mutating the registry."
     - "Treat predecessor + successor + surface as edge identity; preserve the first immutable link on metadata-only replay."
     - "Make batch rehydration all-or-nothing and bounded."
     - "Validate graph constraints again against the current hash-chain snapshot inside the existing serialized append transaction."
+    - "Reject canonical link payloads exceeding the existing Evolution hypothesis bound before the generic record factory can truncate them."
+    - "Validate the complete durable Evolution envelope during replay, including evidence references, policy/status, outcome, failure/rollback fields, reusable flag, and canonical recordedAt."
     - "Reuse the existing append-only hash-chained Evolution Learning SQLite ledger; create no second store."
     - "Add file-backed SQLite restart, replay, and no-duplicate regressions."
   exclude:
@@ -29,6 +31,8 @@ acceptance:
   - "Same edge replay with changed reason/timestamp returns the original immutable link and appends no record."
   - "Rehydration validates on a staged registry and commits no partial batch on failure."
   - "A stale concurrent claimant cannot append a fork after another writer commits; the ledger transaction observes the winning link and rejects the loser."
+  - "An oversized canonical payload is rejected before append and leaves the ledger unchanged."
+  - "A hash-chain-valid but noncanonical supersession envelope fails closed during replay."
   - "Durable links use the existing Evolution Learning ledger and survive SQLite close/reopen with identical identity and zero duplicate rows."
   - "Node 24.19+ focused tests, pnpm run preflight, build, validate:full, security:gate, and exact-head CI pass; fresh independent review is requested only after exact-head CI is green."
   - "PR remains Draft; unresolved cutoff/META owner and production-trigger dependencies remain explicit."
@@ -44,13 +48,18 @@ safety:
   fail_closed: true
 validation:
   node: "v24.19.0"
-  focused: "A2/A1/A3/A4/A5 plus Evolution Learning ledger restart/concurrency suite: 147/147 PASS; A5 tests 22/22 PASS."
-  build: PASS
-  preflight: PASS
-  validate_full: PASS
-  security_gate: PASS
+  focused_current: "A5 supersession + Evolution ledger + Autopilot worker regressions: 49/49 PASS; tests/security-gate.test.js: 10/10 PASS after undici security floor and assertion update."
+  focused: "A5 supersession + Evolution ledger + Autopilot worker regressions: 49/49 PASS after undici security floor update; previous 158/158 Learning suite remains prior source evidence."
+  build: "PASS after security floor update"
+  preflight: "PASS on Node 24.19.0 after security floor update"
+  validate_full: "PASS after security floor update"
+  security_gate: "PASS; pnpm audit high=0, critical=0 after undici 6.29.1/7.30.1 floors"
   diff_check: PASS
-  exact_head_ci: PENDING
-  independent_review: PENDING
-remaining: "No production caller or authority is defined. Exact-head CI and independent review remain required."
-next: "Push this validated successor to the existing #2796 branch after checking its remote head; run exact-head CI and request a fresh independent review only after it passes."
+  exact_head_ci: FAILED; run 40044601486; coverage-core-0 failed because tests/security-gate.test.js still asserted old undici pins. Repair in current local successor; fresh exact-head CI required.
+  independent_review: HISTORICAL_REQUESTED_FOR_651FEF857; NEW_REQUEST_REQUIRED_AFTER_CURRENT_SUCCESSOR_CI
+  latest_ci_failure: "Run 40044601486: validation/security gate PASS, coverage-core-0 failed tests/security-gate.test.js assertion expecting undici 7.29.1/6.28.1. The regression assertion is corrected to require the new fixed 7.30.1/6.29.1 versions and reject the vulnerable prior pins; no gate weakened."
+  security_finding: "A6 exact-head CI 40043771127 observed npm audit high advisories 1243113/1243114 (GHSA-xjj6-f33q-929c) against undici 6.28.1 and 7.29.1, also present in protected main. Updated existing undici override floors to fixed 6.29.1 and 7.30.1; pnpm audit now reports high=0 and security:gate PASS. No audit threshold or exception changed."
+  prior_exact_head_ci_pass: "651fef857e3b8174e4debda74505dd3b31219e22 CI 40042900064 PASS with companion workflows 40042880408 and 40042880403 PASS; historical after security dependency successor."
+  ci_failure_repair: "CI run 40042338633 failed only in tests/autopilot worker.test.ts at UTC midnight: the daily-quota production wait used the exact 60s minimum while the test compared against a later Date.now(). Fixed the test with a deterministic 2026-10-23T12:00:00Z clock; runtime behavior and thresholds unchanged. Failure receipt preserved."
+remaining: "No production caller or cutoff/META authority is defined. Exact-head CI and fresh independent review remain required."
+next: "Commit the corrected security-gate regression with evidence, push non-force to #2796, run exact-head CI, and request fresh independent review only after green."

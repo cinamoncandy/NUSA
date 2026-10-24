@@ -84,7 +84,12 @@ function candidateShape(candidate: ResearchCandidateSpecification, families: Str
     parametersSha256: sha256(candidate.parametersCanonicalJson),
     codeSha: candidate.codeSha.toLowerCase(),
     datasetContentSha256: candidate.datasetContentSha256.toLowerCase(),
-    costModel: Object.freeze({ ...candidate.costModel }),
+    costModel: Object.freeze({
+      feeBps: candidate.costModel.feeBps,
+      slippageBps: candidate.costModel.slippageBps,
+      spreadBps: candidate.costModel.spreadBps,
+      turnoverAssumption: candidate.costModel.turnoverAssumption,
+    }),
     evaluationWindowStart: candidate.evaluationWindowStart,
     evaluationWindowEnd: candidate.evaluationWindowEnd,
   });

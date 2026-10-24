@@ -202,31 +202,38 @@ describe("/coding/propose provider-capacity gating", () => {
   });
 
   it("records a daily-quota stop in the shared provider wait so a later distinct task also stops", async () => {
-    await withStubbedGithubFetch(async () => {
-      const coordinator = memoryNamespace();
-      let aiCalls = 0;
-      const env = { ...baseEnv(coordinator), AI: { async run() { aiCalls += 1; throw new Error(QUOTA_ERROR); } } } as unknown as WorkerEnv;
+    const originalNow = Date.now;
+    const fixedNow = Date.parse("2026-10-23T12:00:00.000Z");
+    Date.now = () => fixedNow;
+    try {
+      await withStubbedGithubFetch(async () => {
+        const coordinator = memoryNamespace();
+        let aiCalls = 0;
+        const env = { ...baseEnv(coordinator), AI: { async run() { aiCalls += 1; throw new Error(QUOTA_ERROR); } } } as unknown as WorkerEnv;
 
-      const first = await handleCodingProposal(proposalRequest(), env);
-      assert.equal(first.status, 409);
-      assert.equal(aiCalls, 1);
+        const first = await handleCodingProposal(proposalRequest(), env);
+        assert.equal(first.status, 409);
+        assert.equal(aiCalls, 1);
 
-      const wait = await readProviderCapacityWait(coordinator, "workers-ai");
-      assert.ok(wait, "the daily-quota stop must be recorded in the shared provider wait");
-      assert.equal(wait?.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
-      assert.ok(wait!.nextRetryAt > Date.now() + 60_000, "a daily-quota wait must extend well past the 60s local retry ceiling");
+        const wait = await readProviderCapacityWait(coordinator, "workers-ai");
+        assert.ok(wait, "the daily-quota stop must be recorded in the shared provider wait");
+        assert.equal(wait?.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+        assert.ok(wait!.nextRetryAt > fixedNow + 60_000, "a daily-quota wait must extend well past the 60s local retry ceiling");
 
-      // A distinct task hitting the same endpoint must now be stopped by the shared wait,
-      // without spending a second real Workers AI call.
-      const secondRequest = { ...request, executionId: "evolve-coding:aaaaaaaaaaaaaaaa:different-task", dedupeKey: `evolve-coding:${HEAD}:different-task` };
-      const second = await handleCodingProposal(new Request("https://worker.example.test/coding/propose", {
-        method: "POST",
-        headers: { authorization: "Bearer coding-token", "content-type": "application/json" },
-        body: JSON.stringify(secondRequest),
-      }), env);
-      assert.equal(second.status, 409);
-      assert.equal(aiCalls, 1, "a second distinct task must not spend another real Workers AI call once the shared wait is recorded");
-    });
+        // A distinct task hitting the same endpoint must now be stopped by the shared wait,
+        // without spending a second real Workers AI call.
+        const secondRequest = { ...request, executionId: "evolve-coding:aaaaaaaaaaaaaaaa:different-task", dedupeKey: `evolve-coding:${HEAD}:different-task` };
+        const second = await handleCodingProposal(new Request("https://worker.example.test/coding/propose", {
+          method: "POST",
+          headers: { authorization: "Bearer coding-token", "content-type": "application/json" },
+          body: JSON.stringify(secondRequest),
+        }), env);
+        assert.equal(second.status, 409);
+        assert.equal(aiCalls, 1, "a second distinct task must not spend another real Workers AI call once the shared wait is recorded");
+      });
+    } finally {
+      Date.now = originalNow;
+    }
   });
 
   it("fails closed without a provider call when the shared provider-wait state is unreadable", async () => {

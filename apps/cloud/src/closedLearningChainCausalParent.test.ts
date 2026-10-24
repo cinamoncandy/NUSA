@@ -14,7 +14,8 @@ function emptyChain(): ClosedLearningChain {
     claim: () => { throw new Error("claim is not used by this read-only test"); },
     isUsed: () => false,
   };
-  return new ClosedLearningChain(evolution as never, holdouts as never);
+  const evidenceAuthority = { readResearch: () => undefined, readPaper: () => undefined };
+  return new ClosedLearningChain(evolution as never, holdouts as never, evidenceAuthority);
 }
 
 function stubApplied(chain: ClosedLearningChain, cycleId: string): void {
