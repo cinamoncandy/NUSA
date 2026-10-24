@@ -116,16 +116,16 @@ current_learning_hourly_recovery_20261012:
 
 current_learning_supersession_a5_20261023:
   work_order: WO-LEARNING-20261023-A5-SUPERSESSION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AFTER_SECURITY_PATCH
   branch: feat/supersession-a5
   pull_request: 2796
   parent_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
   first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
-  validation: "Node 24.19.0; A2/A1/A3/A4/A5 plus Evolution Learning focused tests 158/158 PASS; build, preflight, validate:full, security:gate, AIPOS provenance, and diff-check PASS."
+  validation: "Fresh npm advisories GHSA-xjj6-f33q-929c found undici 6.28.1/7.29.1 vulnerable in shared base. Updated existing canonical overrides to fixed 6.29.1/7.30.1; minimal lock diff. Node 24.19.0/pnpm 11.25.0: A5/Evolution/worker focused 49/49 PASS, build, preflight, validate:full, pnpm audit high=0, security:gate, AIPOS provenance, and diff-check PASS. New exact-head CI pending."
   prior_exact_head: bcbf23e5dac210be7db4291b1a9e34b40c28fc55
   prior_exact_head_ci: "FAILED; run 40042338633. Coverage-core-3 worker.test failed only at UTC midnight because a Date.now-after-call strict >60s assertion observed a 60s minimum wait. Failure preserved; fixed deterministically with a fixed noon test clock, without changing runtime thresholds."
   review_finding: "Fresh Codex review on b0e32e575 found P2 AIPOS parent/validation facts disagreed between state.yaml and the A5 work order. Successor bcbf23e5 aligns parent_head 05837941 and validation 158/158. Its CI failure was a UTC-midnight test-clock flake, now fixed on the current local successor; prior failure remains recorded."
-  next: "Commit the deterministic UTC-midnight test-clock repair with this state/work-order update; push non-force to the existing #2796 branch, run exact-head CI, then request a fresh independent review if green."
+  next: "Commit the minimal undici security floor update with AIPOS evidence, push non-force to existing #2796, run exact-head CI, then request a fresh independent review only after green; the 651fef857 review request is historical."
   blockers: "Cutoff/META owner and production trigger remain undefined; no production caller or Learning completion is claimed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
