@@ -108,11 +108,11 @@ current_learning_exploration_a6_20261023:
 
 current_learning_status_m2_20261023:
   work_order: WO-LEARNING-20261023-M2-STATUS-PROJECTION
-  status: SYNCED_PENDING_VALIDATION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: feat/learning-status-m2
   pull_request: 2798
   base_parent: d0b046b1e11876aa3a5c7164f95e4cc51629f79f
-  validation: "Historical only: M2 prior-parent focused suite 176/176 and CI 40041467269 PASS. Latest A6 parent d0b046b1 synced; revalidation pending on merge head."
+  validation: "Node 24.19.0/pnpm 11.25.0 after syncing A6 d0b046b1: M2+A2/A1/A4/A5/A6/retention focused tests 162/162 PASS; A3 META partition tests 19/19 PASS; build, preflight, validate:full, security:gate (high=0), AIPOS index/provenance, diff-check PASS. Exact-head CI pending push; previous CI 40041467269 is historical."
   blockers: "Cutoff/META policy owners and production Learning trigger remain unresolved; status projection does not address them or claim production integration."
   next: "Run Node 24.19 focused tests and pnpm run preflight/build/validate:full/security:gate on synchronized head; push existing PR non-force, require exact-head CI, then request fresh independent review only after green. Keep Draft; no server action."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

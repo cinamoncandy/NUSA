@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261023-M2-STATUS-PROJECTION
 title: "M2 truthful display-only Learning loop status projection"
-status: SYNCED_PENDING_VALIDATION
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/exploration-a6
@@ -41,11 +41,11 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "Historical only: 176/176 on prior A6 parent e1950b1a. Re-run required after syncing A6 d0b046b1."
-  build: PENDING_AFTER_SYNC
-  preflight: PENDING_AFTER_SYNC
-  validate_full: PENDING_AFTER_SYNC
-  security_gate: PENDING_AFTER_SYNC
-  aipos_provenance: PENDING_AFTER_SYNC
-  exact_head_ci: PENDING_AFTER_SYNC_VALIDATION
+  focused: "Node 24.19.0/pnpm 11.25.0 after syncing A6 d0b046b1: M2 + A2/A1/A4/A5/A6/retention tests 162/162 PASS; A3 META partition tests 19/19 PASS."
+  build: PASS on Node 24.19.0 / pnpm 11.25.0
+  preflight: PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 522-file AIPOS YAML validation PASS
+  validate_full: PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS
+  security_gate: PASS; raw high/critical=0, unmitigated=0, secrets=0
+  aipos_provenance: PASS; work-order index PASS
+  exact_head_ci: PENDING_AFTER_PUSH
   independent_review: PENDING_AFTER_EXACT_HEAD_CI
