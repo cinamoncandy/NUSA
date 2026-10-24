@@ -8,10 +8,15 @@ import {
   type ClosedLearningEvidenceIdentity,
   type ClosedLearningResearchDecision,
 } from "./closedLearningLoopCoordinator";
+import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
 
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const SOURCE_SHA = "1".repeat(40);
+const AUTHORITY = createLearningEvidenceAuthorityFromReaders({
+  readResearch: (recordId) => recordId === "17" ? { recordId, recordedAt: 1 } : undefined,
+  readPaper: (recordId) => /^\d+$/.test(recordId) ? { recordId, recordedAt: 1 } : undefined,
+});
 
 function evidence(overrides: Partial<ClosedLearningEvidenceIdentity> = {}): ClosedLearningEvidenceIdentity {
   return {
@@ -22,7 +27,7 @@ function evidence(overrides: Partial<ClosedLearningEvidenceIdentity> = {}): Clos
     sourceCommitSha: SOURCE_SHA,
     costModelVersion: "paper-cost-v3",
     riskConfigHash: HASH_B,
-    evidenceReferences: ["paper-period:42", "league-run:17"],
+    evidenceReferences: ["paper-period:42", "research-evaluation:17"],
     ...overrides,
   };
 }
@@ -52,11 +57,88 @@ function decision(outcome: ClosedLearningResearchDecision["outcome"]): ClosedLea
 }
 
 describe("ClosedLearningLoopCoordinator", () => {
+  it("rejects corrupt authority records before sync or async downstream effects", async () => {
+    for (const record of [{ recordId: "ghost", recordedAt: 1 }, { recordId: "42", recordedAt: -1 }, { recordId: "42", recordedAt: NaN }, { recordId: "42", recordedAt: Number.MAX_SAFE_INTEGER + 1 }]) {
+      const repository = new MemoryRepository();
+      let evaluations = 0;
+      const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => { evaluations += 1; return decision("REJECTED"); } }, { deploy: () => { throw new Error("must not deploy"); } }, createLearningEvidenceAuthorityFromReaders({ readResearch: () => undefined, readPaper: () => record }));
+      const request = evidence({ evidenceReferences: ["paper-period:42"] });
+      assert.throws(() => coordinator.run(request), /malformed evidence/);
+      await assert.rejects(coordinator.runAsync(request), /malformed evidence/);
+      assert.equal(evaluations, 0);
+      assert.equal(repository.history.length, 0);
+    }
+  });
+
+  it("rejects unknown evidence namespaces before any durable or research side effect", () => {
+    let evaluations = 0;
+    const repository = new MemoryRepository();
+    const coordinator = new ClosedLearningLoopCoordinator(
+      repository,
+      { evaluate: () => { evaluations += 1; return decision("REJECTED"); } },
+      { deploy: () => { throw new Error("must not deploy"); } },
+      createLearningEvidenceAuthorityFromReaders({ readResearch: () => undefined, readPaper: () => undefined }),
+    );
+
+    assert.throws(() => coordinator.run(evidence({ evidenceReferences: ["league-run:17"] })), /namespace is invalid/);
+    assert.equal(evaluations, 0);
+    assert.equal(repository.history.length, 0);
+  });
+
+  it("rejects duplicate evidence references before any durable or research side effect", () => {
+    let evaluations = 0;
+    const repository = new MemoryRepository();
+    const coordinator = new ClosedLearningLoopCoordinator(
+      repository,
+      { evaluate: () => { evaluations += 1; return decision("REJECTED"); } },
+      { deploy: () => { throw new Error("must not deploy"); } },
+      AUTHORITY,
+    );
+
+    assert.throws(() => coordinator.run(evidence({ evidenceReferences: ["paper-period:42", "paper-period:42"] })), /duplicate/);
+    assert.equal(evaluations, 0);
+    assert.equal(repository.history.length, 0);
+  });
+
+  it("loads one canonical snapshot per evidence lane instead of replaying the ledger for every reference", () => {
+    const paperIds = Array.from({ length: 300 }, (_, index) => String(1_000 + index));
+    let paperSnapshotReads = 0;
+    let researchSnapshotReads = 0;
+    let singlePaperReads = 0;
+    let singleResearchReads = 0;
+    const authority = createLearningEvidenceAuthorityFromReaders({
+      readResearch: () => { singleResearchReads += 1; return undefined; },
+      readPaper: () => { singlePaperReads += 1; return undefined; },
+      readResearchSnapshot: () => { researchSnapshotReads += 1; return [{ recordId: "17", recordedAt: 1 }]; },
+      readPaperSnapshot: () => { paperSnapshotReads += 1; return paperIds.map((recordId) => ({ recordId, recordedAt: 1 })); },
+    });
+    const input = evidence({ evidenceReferences: [...paperIds.map((id) => `paper-period:${id}`), "research-evaluation:17"] });
+    const repository = new MemoryRepository();
+    const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => decision("REJECTED") }, { deploy: () => { throw new Error("must not deploy"); } }, authority);
+
+    assert.equal(coordinator.run(input).status, "EXECUTED");
+    assert.equal(paperSnapshotReads, 1);
+    assert.equal(researchSnapshotReads, 1);
+    assert.equal(singlePaperReads, 0);
+    assert.equal(singleResearchReads, 0);
+  });
+
+  it("fails closed on duplicate identities in a durable evidence snapshot", () => {
+    let evaluations = 0;
+    const authority = createLearningEvidenceAuthorityFromReaders({
+      readResearch: () => undefined,
+      readPaper: () => undefined,
+      readPaperSnapshot: () => [{ recordId: "42", recordedAt: 1 }, { recordId: "42", recordedAt: 1 }],
+    });
+    const coordinator = new ClosedLearningLoopCoordinator(new MemoryRepository(), { evaluate: () => { evaluations += 1; return decision("REJECTED"); } }, { deploy: () => { throw new Error("must not deploy"); } }, authority);
+    assert.throws(() => coordinator.run(evidence({ evidenceReferences: ["paper-period:42"] })), /snapshot is malformed/);
+    assert.equal(evaluations, 0);
+  });
   it("persists REJECTED and INSUFFICIENT decisions without PAPER deployment", () => {
     for (const outcome of ["REJECTED", "INSUFFICIENT"] as const) {
       const repository = new MemoryRepository();
       let deployments = 0;
-      const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => decision(outcome) }, { deploy: () => { deployments += 1; throw new Error("must not deploy"); } }, () => 10_000);
+      const coordinator = new ClosedLearningLoopCoordinator(repository, { evaluate: () => decision(outcome) }, { deploy: () => { deployments += 1; throw new Error("must not deploy"); } }, AUTHORITY, () => 10_000);
       const result = coordinator.run(evidence({ evidenceId: `evidence-${outcome}` }));
       assert.equal(result.status, "EXECUTED");
       assert.equal(result.record.decision.outcome, outcome);
@@ -84,7 +166,7 @@ describe("ClosedLearningLoopCoordinator", () => {
           aiAuthority: input.aiAuthority,
         };
       },
-    }, () => 10_000);
+    }, AUTHORITY, () => 10_000);
     const waiting = coordinator.run(evidence());
     assert.equal(waiting.status, "WAITING_GOVERNANCE_APPROVAL");
     assert.equal(waiting.record.decision.outcome, "QUALIFIED_FOR_LEAGUE");
@@ -100,7 +182,7 @@ describe("ClosedLearningLoopCoordinator", () => {
   it("still fails closed on any other deployment fault", () => {
     const coordinator = new ClosedLearningLoopCoordinator(new MemoryRepository(), { evaluate: () => decision("QUALIFIED_FOR_LEAGUE") }, {
       deploy: () => { throw new Error("PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH"); },
-    }, () => 10_000);
+    }, AUTHORITY, () => 10_000);
     assert.throws(() => coordinator.run(evidence()), /PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH/);
   });
 
@@ -116,7 +198,7 @@ describe("ClosedLearningLoopCoordinator", () => {
         productionMutationAllowed: input.productionMutationAllowed,
         aiAuthority: input.aiAuthority,
       }),
-    }, () => 20_000);
+    }, AUTHORITY, () => 20_000);
 
     const result = coordinator.run(evidence());
     assert.equal(repository.history.length, 2);
@@ -137,7 +219,7 @@ describe("ClosedLearningLoopCoordinator", () => {
         deployments += 1;
         return { deploymentId: "paper-1", candidateId: input.decision.candidateId, candidateVersion: input.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" };
       },
-    }, () => 30_000);
+    }, AUTHORITY, () => 30_000);
     assert.equal(coordinator.run(evidence()).status, "EXECUTED");
     assert.equal(coordinator.run(evidence()).status, "REPLAYED");
     assert.equal(researchRuns, 1);
@@ -156,7 +238,7 @@ describe("ClosedLearningLoopCoordinator", () => {
         deployments += 1;
         return { deploymentId: "paper-resumed", candidateId: deployment.decision.candidateId, candidateVersion: deployment.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" };
       },
-    });
+    }, AUTHORITY);
     const result = restarted.run(input);
     assert.equal(result.status, "RESUMED");
     assert.equal(result.record.paperDeployment?.deploymentId, "paper-resumed");
@@ -176,7 +258,7 @@ describe("ClosedLearningLoopCoordinator", () => {
         productionMutationAllowed: true as false,
         aiAuthority: "ZERO_AUTHORITY",
       }),
-    });
+    }, AUTHORITY);
     assert.throws(() => coordinator.run(evidence()), /authority escaped its fail-closed boundary/);
   });
 
