@@ -91,6 +91,11 @@ function invalid(code: string, message: string): never {
   throw new EvolutionLearningLedgerError(code, `${code}: ${message}`);
 }
 
+/** Stable code-unit ordering shared with canonical Learning input identities. */
+function compareCanonicalStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function text(value: unknown, field: string, maximum: number, maximumBytes?: number): string {
   if (typeof value !== "string") invalid("INVALID_RECORD", `${field} must be text`);
   const normalized = value.trim();
@@ -124,7 +129,7 @@ function normalize(value: EvolutionLearningRecord): EvolutionLearningRecord {
     if (!REFERENCE.test(normalized)) invalid("INVALID_EVIDENCE_REFERENCE", "learning evidence reference is invalid");
     return normalized;
   });
-  const uniqueEvidenceReferences = [...new Set(evidenceReferences)].sort((left, right) => left.localeCompare(right));
+  const uniqueEvidenceReferences = [...new Set(evidenceReferences)].sort(compareCanonicalStrings);
   if (uniqueEvidenceReferences.length === 0) invalid("EVIDENCE_REQUIRED", "learning evidence is required");
   const hypothesis = text(candidate.hypothesis, "hypothesis", MAX_HYPOTHESIS_BYTES, MAX_HYPOTHESIS_BYTES);
   const changeReference = text(candidate.changeReference, "changeReference", 240);
@@ -218,7 +223,7 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     || !Array.isArray(decision.reasonEvidence) || decision.reasonEvidence.length > 64) return false;
   const reasons = decision.reasonEvidence as unknown[];
   if (reasons.some((item, index) => typeof item !== "string" || !LEARNING_BOUNDED_ID.test(item) || (index > 0 && item <= (reasons[index - 1] as string)))) return false;
-  const expectedReferences = [record.opportunityId, fingerprint, ...(reasons as string[])].sort((left, right) => left.localeCompare(right));
+  const expectedReferences = [record.opportunityId, fingerprint, ...(reasons as string[])].sort(compareCanonicalStrings);
   return record.evidenceReferences.length === expectedReferences.length
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
 }

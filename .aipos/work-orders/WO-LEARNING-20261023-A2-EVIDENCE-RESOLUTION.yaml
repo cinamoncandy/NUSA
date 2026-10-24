@@ -13,6 +13,7 @@ scope:
   - "Resolve every cited Research and PAPER identity and exact observedAt before append and before downstream read/replay."
   - "Reject missing, duplicate/ambiguous, malformed, or timestamp-mismatched canonical evidence fail-closed."
   - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt in the existing hash-chained ledger."
+  - "Use the same locale-independent code-unit ordering for persisted evidence references and canonical A2 reservation reconstruction."
   - "Reject sparse holes in every aligned persisted evidence-id and observation-time array before hashing, authority lookup, or append."
   - "Reuse existing Research history, realized PAPER period store, and Evolution Learning ledger; create no engine/store/scheduler."
 exclusions:
@@ -24,6 +25,7 @@ acceptance:
   - "Observed timestamp must match canonical durable source exactly."
   - "Restart and replay re-resolve the same evidence identity and remain idempotent."
   - "Malformed namespace-shaped A2 rows cannot consume a durable A1 capacity reservation."
+  - "Mixed-case canonical PAPER ids preserve the matching A1 reservation across file-backed restart and replay."
   - "Sparse caller-shaped A2 arrays fail before append and leave the existing ledger replayable with no reserved slot."
   - "Relevant A2 and storage regression tests pass."
   - "pnpm run preflight passes on Node >=24.19."
@@ -36,13 +38,13 @@ validation_commands:
   - "pnpm run security:gate"
   - "git diff --check"
 verification:
-  local_focused: "PASS 44/44 A2, A1, retention integration, and SQLite Evolution Learning ledger tests, including sparse-array append rejection and whitespace-ID reservation rejection after restart."
+  local_focused: "PASS 13/13 SQLite Evolution Learning ledger tests on the current A2 diff, including mixed-case canonical PAPER ids retaining their A1 reservation across file-backed restart and replay."
   local_build: "PASS TypeScript build."
   preflight: "PASS Node 24.19.0, sqlite available, portability/platform-independent/mobile/AIPOS validators."
   validate_full: "PASS architecture truth, safety architecture, AI zero-authority, architecture, AIPOS drift/conformance, safety invariants/input validators."
-  security_gate: "PASS; no unmitigated advisories or secrets."
-  exact_head_ci: "PENDING after sparse-array and whitespace-ID reservation repairs; previous exact-head CI receipts are historical."
-  independent_review: "Fresh review of 66d4ee3fe6f2026cbe31e92915f21fdc17b56cea found P2s for sparse arrays at the evidence-resolution boundary and whitespace Research IDs in reservation reconstruction; both are locally repaired. Request fresh review only after new exact-head CI is green."
+  security_gate: "FAIL in fresh local audit: 4 unmitigated high advisories (electron 1243069, body-parser 1243073, undici 1243113/1243114), zero secrets. No dependency files changed in this repair; classify as current dependency baseline and do not weaken the gate."
+  exact_head_ci: "PENDING for the successor head; all prior exact-head CI receipts are historical."
+  independent_review: "Review of exact A2 head 4d7750f37a08e7a8196dad25552340fdff27fe00 found an actionable P2: localeCompare ordering in Evolution Learning ledger reservation reconstruction disagreed with A2 binary/code-unit ordering for mixed-case ids. The A2-owned comparator now uses code-unit ordering consistently; a file-backed restart/A1 reservation regression was added."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -50,4 +52,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Commit the locally validated sparse-array and whitespace-ID repairs to existing PR #2792; run fresh exact-head CI, then request one new independent review if CI is green. Do not deploy or interfere with #2855/server archive deployment."
+next: "Finish required preflight/validators and diff checks, commit the canonical-ordering repair on existing PR #2792, then run fresh exact-head CI. Request fresh independent review only after CI is green. Do not deploy or interfere with #2855/server archive deployment."

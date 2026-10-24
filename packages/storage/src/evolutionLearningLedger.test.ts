@@ -25,16 +25,17 @@ const record = (opportunityId: string, recordedAt: string, overrides: Partial<Ev
 
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 
-function inputSetRecord(recordedAt: string, paperId: string, researchId = "trial-1"): { readonly fingerprint: string; readonly record: EvolutionLearningRecord } {
+function inputSetRecord(recordedAt: string, paperId: string | readonly string[], researchId = "trial-1"): { readonly fingerprint: string; readonly record: EvolutionLearningRecord } {
+  const paperIds = (Array.isArray(paperId) ? [...paperId] : [paperId]).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
   const inputSet = {
     schemaVersion: 1,
     cutoffTimestamp: 10_000,
     researchEvidenceRecordIds: [researchId],
     researchEvidenceObservedAt: [1],
-    paperEvidenceRecordIds: [paperId],
-    paperEvidenceObservedAt: [2],
+    paperEvidenceRecordIds: paperIds,
+    paperEvidenceObservedAt: paperIds.map((_, index) => index + 2),
     researchLaneDigest: sha256(canonicalResearchJson({ lane: "research", recordIds: [researchId], observedAt: [1] })),
-    performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: [paperId], observedAt: [2] })),
+    performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: paperIds, observedAt: paperIds.map((_, index) => index + 2) })),
     learningPolicyVersion: "learn-v1",
     researchPolicyVersion: "research-v1",
     riskPolicyVersion: "risk-v1",
@@ -47,7 +48,7 @@ function inputSetRecord(recordedAt: string, paperId: string, researchId = "trial
     fingerprint,
     record: record(opportunityId, recordedAt, {
       problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
-      evidenceReferences: [opportunityId, `paper-period:${paperId}`],
+      evidenceReferences: [opportunityId, ...paperIds.map((id) => `paper-period:${id}`)],
       hypothesis: canonicalResearchJson(inputSet),
       changeReference: "learn-v1",
       validationStatus: "LEARNING_INPUT_SET",
@@ -283,6 +284,34 @@ test("only a canonical A1 receipt can release one matching A2 reservation", () =
     ledger.append(decisionRecord(first.fingerprint, "2026-08-29T00:03:00.000Z"));
     ledger.append(decisionRecord(second.fingerprint, "2026-08-29T00:04:00.000Z"));
     assert.equal(ledger.size(), 4, "each one-to-one A1 receipt releases exactly one reserved slot");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("mixed-case canonical A2 references retain their reservation across restart and matching A1 append", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 2);
+    const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", ["a", "B"]);
+    ledger.append(inputSet.record);
+
+    db.close();
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 2);
+
+    assert.throws(
+      () => ledger.append(record(`closed-learning-failure:${"d".repeat(64)}`, "2026-08-29T00:01:00.000Z", {
+        problem: "NUSA closed learning cycle failure: durable recovery evidence",
+        validationStatus: "CYCLE_FAILURE",
+      })),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "CAPACITY_EXCEEDED",
+      "the mixed-case A2 evidence keeps its reserved A1 slot after rehydration",
+    );
+    ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:02:00.000Z"));
+    assert.equal(ledger.size(), 2);
   } finally {
     db.close();
     removeDatabasePath(filename);
