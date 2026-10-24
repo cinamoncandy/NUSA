@@ -1,12 +1,14 @@
 id: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
 title: "A2 must resolve input references through canonical durable evidence readers"
-status: IMPLEMENTED_LOCAL_PENDING_EXACT_HEAD_CI
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P0
 owner_request: "Advance the closed learning loop in dependency order, starting with A2. Each PR requires relevant tests and pnpm run preflight on Node 24.19+, then fresh independent review after exact-head CI is green. Do not let this sequence block PR #2855 or the order-book archive server deployment; server deployment remains after #2855."
 source:
   pull_request: 2792
   branch: feat/learning-input-set-a2
-  prior_exact_head: 6f5a703a34335a86e810033e770089437b926486
+  prior_exact_head: d5e77af1bf8d8c7701919113d7d26bf8686a64e2
+  synchronized_candidate_head: c518e035b650ffaa2688036b847bfad1f65e7945
+  synchronized_base: 9bb373516d3e2f6da200e4728c5e5b2708dd131e
   first_broken_transition: "syntactically valid A2 evidence ids -> successful durable receipt without canonical Research/PAPER resolution"
 scope:
   - "Require the existing LearningEvidenceAuthority at the A2 durable ledger boundary."
@@ -38,13 +40,14 @@ validation_commands:
   - "pnpm run security:gate"
   - "git diff --check"
 verification:
-  local_focused: "PASS 13/13 SQLite Evolution Learning ledger tests on the current A2 diff, including mixed-case canonical PAPER ids retaining their A1 reservation across file-backed restart and replay."
-  local_build: "PASS TypeScript build."
-  preflight: "PASS Node 24.19.0, sqlite available, portability/platform-independent/mobile/AIPOS validators."
-  validate_full: "PASS architecture truth, safety architecture, AI zero-authority, architecture, AIPOS drift/conformance, safety invariants/input validators."
-  security_gate: "FAIL in fresh local audit: 4 unmitigated high advisories (electron 1243069, body-parser 1243073, undici 1243113/1243114), zero secrets. No dependency files changed in this repair; classify as current dependency baseline and do not weaken the gate."
-  exact_head_ci: "PENDING for the successor head; all prior exact-head CI receipts are historical."
-  independent_review: "Review of exact A2 head 4d7750f37a08e7a8196dad25552340fdff27fe00 found an actionable P2: localeCompare ordering in Evolution Learning ledger reservation reconstruction disagreed with A2 binary/code-unit ordering for mixed-case ids. The A2-owned comparator now uses code-unit ordering consistently; a file-backed restart/A1 reservation regression was added."
+  local_focused: "PASS 45 tests across A2 identity/retention, Evolution Learning ledger, and A1 decision tests on synchronized candidate c518e035b650ffaa2688036b847bfad1f65e7945; includes mixed-case canonical ids preserving A1 reservation across SQLite restart/replay."
+  local_build: "PASS pnpm run build on Node 24.19.0."
+  preflight: "PASS pnpm run preflight on Node 24.19.0, pnpm 11.25.0."
+  validate_full: "PASS pnpm run validate:full on synchronized candidate."
+  security_gate: "PASS pnpm run security:gate after protected main incorporated #2870 dependency remediation; zero high/critical findings and zero secrets. Previous d5e77af1 run is historical and failed against old dependency baseline."
+  diff_check: "PASS git diff --check."
+  exact_head_ci: "PENDING for c518e035b650ffaa2688036b847bfad1f65e7945; no predecessor CI receipt reused."
+  independent_review: "Prior exact-head review found a P2: localeCompare ordering disagreed with binary/code-unit ordering for mixed-case ids. Repair and SQLite restart/A1 reservation regression are present in the synchronized candidate; fresh review remains pending until exact-head CI is green."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -52,4 +55,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Finish required preflight/validators and diff checks, commit the canonical-ordering repair on existing PR #2792, then run fresh exact-head CI. Request fresh independent review only after CI is green. Do not deploy or interfere with #2855/server archive deployment."
+next: "Push the locally validated synchronized successor to the existing #2792 branch, confirm all exact-head workflows terminal PASS, then request fresh independent review. Keep Draft; do not merge or deploy, and do not interfere with #2855/server archive deployment."
