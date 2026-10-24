@@ -8,17 +8,18 @@ import { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evo
 import { SqliteResearchHoldoutLedger, type HoldoutKey } from "../../../packages/storage/src/researchHoldoutLedger";
 import {
   META_MINIMUM_CYCLES_FOR_ELIGIBILITY,
+  META_PARTITION_FLOOR,
+  META_PARTITIONS,
   assignMetaPartition,
-  metaOosCyclesEligibility,
+  metaOosEligibility,
   assertMetaOosAssignment,
-  type MetaPartition,
   type MetaOosAssignmentInput,
+  type MetaOosCompletionEvidence,
 } from "./metaOos";
 import { MetaOosLedger } from "./metaOosLedger";
 import { buildLearningDecision, learningDecisionFingerprint } from "./learningDecision";
 import { buildLearningInputSet } from "./learningInputSet";
-import { applyBoundedChange, ApplicationRegistry, type ApplicationContext, type ApplicationPorts } from "./learningApplication";
-import { LearningApplicationLedger } from "./learningApplicationLedger";
+import { applyBoundedChange, ApplicationRegistry, type ApplicationContext, type ApplicationPorts, type LearningApplicationJournal } from "./learningApplication";
 
 const POLICIES = {
   learningPolicyVersion: "learn-v1",
@@ -28,9 +29,24 @@ const POLICIES = {
 };
 const DECISION_FINGERPRINT = "c".repeat(64);
 const SPEC_A = "a".repeat(64);
+const TEST_ELIGIBILITY_IDENTITY = Object.freeze({ learningCycleId: "learning-cycle:" + "e".repeat(64), learningDecisionFingerprint: "d".repeat(64) });
 
 function eligibilityIdentity(decision: ReturnType<typeof buildLearningDecision>) {
   return { learningCycleId: decision.learningCycleId, learningDecisionFingerprint: learningDecisionFingerprint(decision) };
+}
+
+function memoryJournal(): LearningApplicationJournal {
+  const receipts = new Map<string, import("./learningApplication").LearningApplicationReceipt>();
+  const intents = new Map<string, import("./learningApplication").LearningApplicationIntent>();
+  return {
+    terminalFor: (fingerprint, surface) => [...receipts.values()].find((receipt) => receipt.learningDecisionFingerprint === fingerprint && receipt.surface === surface && receipt.applicationOutcome !== "REJECTED"),
+    pendingIntentFor: (fingerprint, surface) => [...intents.values()].find((intent) => intent.learningDecisionFingerprint === fingerprint && intent.surface === surface),
+    appendIntent: (intent) => { intents.set(intent.intentFingerprint, intent); },
+    append: (receipt) => {
+      receipts.set(receipt.applicationFingerprint, receipt);
+      return Object.freeze({ receipt });
+    },
+  };
 }
 
 /** The real holdout ledger validates the key shape, so this is a well-formed SHA-256 as production sends. */
@@ -105,7 +121,31 @@ it("replays an already-claimed meta-holdout assignment after restart without cla
     rmSync(dirname(filename), { recursive: true, force: true });
   }
 });
+/** Completion evidence counting exactly the listed cycles as resolved. Assignment alone is never enough. */
+function completed(cycleIds: readonly string[]): MetaOosCompletionEvidence {
+  const resolved = new Set(cycleIds);
+  return Object.freeze({ isCycleCompleted: (learningCycleId: string) => resolved.has(learningCycleId) });
+}
 
+/** Files `perPartition` completed cycles into every partition, as a genuine full meta pass would. */
+function fileCompletedCycles(ledger: MetaOosLedger, holdouts: SqliteResearchHoldoutLedger, perPartition: number): string[] {
+  const ids: string[] = [];
+  for (const partition of META_PARTITIONS) {
+    // Seeds must stay hex: a learning cycle id is `learning-cycle:<64 hex>`.
+    const lane = partition === "meta-train" ? "a" : partition === "meta-validation" ? "b" : "c";
+    for (let index = 0; index < perPartition; index += 1) {
+      const seed = lane + index.toString(16);
+      const id = cycleId(seed);
+      // Meta-holdout cycles each need their own key: single-use is per key, never per policy.
+      const holdout = partition === "meta-holdout"
+        ? { holdoutKey: Object.freeze({ strategyConfigHash: (index + 1).toString(16).padStart(64, "0"), market: "KRW-BTC", intervalMs: 60_000, holdoutStartMs: 1_000, holdoutEndMs: 2_000 }) as HoldoutKey, holdoutEvaluationId: "eval-" + seed }
+        : {};
+      ledger.assign(assignment({ learningCycleId: id, partition, ...holdout }), holdouts);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
 function fixture() {
   const db = new SqliteDatabase(":memory:");
   // The real holdout truth source, not a stand-in: single-use must be proven against it.
@@ -228,11 +268,12 @@ describe("A3 - insufficient is legitimate and the floor is owner-fixed (section 
   it("reports ineligible below the minimum and never lowers the minimum", () => {
     const { close } = fixture();
     try {
-      const eligibility = metaOosCyclesEligibility([], "meta-holdout", 0, { learningCycleId: cycleId("e"), learningDecisionFingerprint: "d".repeat(64) });
+      const eligibility = metaOosEligibility([], completed([]), TEST_ELIGIBILITY_IDENTITY);
       assert.equal(eligibility.eligible, false);
       assert.equal(eligibility.cyclesEvaluated, 0);
-      assert.match(eligibility.reason, /owner-fixed and is not lowered/);
-      assert.equal(META_MINIMUM_CYCLES_FOR_ELIGIBILITY, 3, "one completed cycle per partition");
+      assert.match(eligibility.reason, /neither the floor nor the coverage is lowered/);
+      assert.equal(META_MINIMUM_CYCLES_FOR_ELIGIBILITY, 3, "three completed cycles required, per partition");
+      assert.equal(META_PARTITIONS.length, 3, "and all three partitions are required, so the floor can never be reached from one lane");
     } finally {
       close();
     }
@@ -260,7 +301,7 @@ describe("A3 - insufficient is legitimate and the floor is owner-fixed (section 
       assert.equal(decision.decisionOutcome, "ADMISSIBLE", "the decision itself is admissible, not META-eligible");
 
       const { ledger } = fixture();
-      const eligibility = ledger.eligibility("meta-holdout", eligibilityIdentity(decision));
+      const eligibility = ledger.eligibility(undefined, TEST_ELIGIBILITY_IDENTITY);
       assert.equal(eligibility.eligible, false, "no recorded assignments means no eligibility, whatever the decision claims");
       assert.equal(eligibility.cyclesEvaluated, 0);
     } finally {
@@ -276,13 +317,14 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
     sourceCommit: "273d785df7b14c3a8e541ae45ea71fe3aacb49b4",
   };
 
-  function ports(state: { value: number }): ApplicationPorts {
+  function ports(state: { value: number }, eligibility: ReturnType<MetaOosLedger["eligibility"]>): ApplicationPorts {
     return {
-      readCurrent: () => state.value,
+      resolveMetaOosEligibility: () => eligibility,
       readCurrentResearchSpec: () => ({ fingerprint: SPEC_A, values: { longBarTickEvery: state.value } }),
+      withExclusiveApplicationLease: <T>(_identity: string, operation: () => T) => Object.freeze({ acquired: true, value: operation() }),
+      readCurrent: () => state.value,
       commit: (_surface, value) => { state.value = value; },
       failSafeValue: () => 1,
-      withExclusiveApplicationLease: (_identity, operation) => Object.freeze({ acquired: true, value: operation() }),
     };
   }
 
@@ -304,28 +346,13 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
     });
   }
 
-  function applicationPorts(state: { value: number }, eligibilityFor: (partition: MetaPartition, target: ReturnType<typeof decision>) => ReturnType<MetaOosLedger["eligibility"]>): ApplicationPorts {
-    const base = ports(state);
-    return {
-      ...base,
-      resolveMetaOosEligibility: (target, _fingerprint) => eligibilityFor("meta-holdout", target as ReturnType<typeof decision>),
-    };
-  }
-
-  function journal(): LearningApplicationLedger {
-    const records: Array<Record<string, unknown>> = [];
-    return new LearningApplicationLedger({
-      append: (record: Record<string, unknown>) => { records.push(record); return record; },
-      list: () => records as never,
-    } as never, () => Date.parse(CONTEXT.applicationTimestamp));
-  }
-
   it("keeps application closed while the partitions have no completed cycles", () => {
     const { ledger, close } = fixture();
     try {
       const state = { value: 1 };
       const target = decision();
-      const receipt = applyBoundedChange(target, applicationPorts(state, (partition, current) => ledger.eligibility(partition, eligibilityIdentity(current))), CONTEXT, journal(), new ApplicationRegistry());
+      const eligibility = ledger.eligibility(completed([]), eligibilityIdentity(target));
+      const receipt = applyBoundedChange(target, ports(state, eligibility), CONTEXT, memoryJournal(), new ApplicationRegistry());
       assert.equal(receipt.applicationOutcome, "REJECTED");
       assert.match(receipt.rejectionReason ?? "", /meta-OOS eligibility not established/);
       assert.equal(state.value, 1, "no mutation before A3 has real cycles behind it");
@@ -334,24 +361,81 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
     }
   });
 
-  it("opens application only once recorded assignments meet the owner-fixed floor", () => {
-    const { ledger, holdouts: fixtureHoldouts, close } = fixture();
+  it("refuses eligibility when every partition holds assignments whose cycles never resolved", () => {
+    const { ledger, holdouts, close } = fixture();
     try {
+      fileCompletedCycles(ledger, holdouts, META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
+      const eligibility = ledger.eligibility(completed([]), TEST_ELIGIBILITY_IDENTITY);
+      assert.equal(eligibility.eligible, false, "assignment is not completion; a partition cannot vouch for its own contents");
+      assert.equal(eligibility.cyclesEvaluated, 0);
+      assert.match(eligibility.reason, /an assignment is not completion/);
+    } finally {
+      close();
+    }
+  });
+
+  it("refuses eligibility when only one partition is covered, however deep it goes", () => {
+    const { ledger, close } = fixture();
+    try {
+      // The defect this preflight caught: three train assignments, and nothing else, used to be
+      // enough to open A4's autonomous door with zero validation and zero holdout behind them.
+      const ids: string[] = [];
       for (let index = 0; index < META_MINIMUM_CYCLES_FOR_ELIGIBILITY; index += 1) {
-        ledger.assign(assignment({
-          learningCycleId: cycleId(String(index)),
-          partition: "meta-holdout",
-          holdoutKey: { ...HOLDOUT, strategyConfigHash: String(index + 1).repeat(64) },
-          holdoutEvaluationId: "eval-" + String(index),
-        }), fixtureHoldouts);
+        const id = cycleId("a" + index.toString(16));
+        ledger.assign(assignment({ learningCycleId: id, partition: "meta-train" }), { claim: () => "CLAIMED", isUsed: () => false });
+        ids.push(id);
       }
+      const eligibility = ledger.eligibility(completed(ids), TEST_ELIGIBILITY_IDENTITY);
+      assert.equal(eligibility.eligible, false, "train alone may never open the door, however many completed cycles it holds");
+      assert.equal(eligibility.cyclesEvaluated, 0, "train-only evidence does not contribute to holdout cycles evaluated");
+      assert.match(eligibility.reason, /all three partitions are required/);
+    } finally {
+      close();
+    }
+  });
+
+  it("never lets the current decision complete its own partition floor", () => {
+    const { ledger, holdouts, close } = fixture();
+    try {
+      const priorIds = fileCompletedCycles(ledger, holdouts, META_PARTITION_FLOOR - 1);
+      const validationId = cycleId("d0");
+      ledger.assign(assignment({ learningCycleId: validationId, partition: "meta-validation" }), holdouts);
+      priorIds.push(validationId);
+      const holdoutId = cycleId("e0");
+      ledger.assign(assignment({
+        learningCycleId: holdoutId,
+        partition: "meta-holdout",
+        holdoutKey: Object.freeze({ ...HOLDOUT, strategyConfigHash: "e".repeat(64) }),
+        holdoutEvaluationId: "eval-e0",
+      }), holdouts);
+      priorIds.push(holdoutId);
+
       const target = decision();
-      const eligibility = ledger.eligibility("meta-holdout", eligibilityIdentity(target));
+      ledger.assign(assignment({
+        learningCycleId: target.learningCycleId,
+        learningDecisionFingerprint: learningDecisionFingerprint(target),
+        partition: "meta-train",
+      }), holdouts);
+      const eligibility = ledger.eligibility(completed([...priorIds, target.learningCycleId]), eligibilityIdentity(target));
+      assert.equal(eligibility.eligible, false, "the current cycle cannot top train from two to the floor");
+      assert.equal(eligibility.cyclesEvaluated, META_PARTITION_FLOOR, "holdout count is prior-only");
+      assert.match(eligibility.reason, /train 2\/3/);
+    } finally {
+      close();
+    }
+  });
+
+  it("opens application only once all three partitions hold completed cycles at the floor", () => {
+    const { ledger, holdouts, close } = fixture();
+    try {
+      const ids = fileCompletedCycles(ledger, holdouts, META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
+      const target = decision();
+      const eligibility = ledger.eligibility(completed(ids), eligibilityIdentity(target));
       assert.equal(eligibility.eligible, true);
-      assert.equal(eligibility.cyclesEvaluated, META_MINIMUM_CYCLES_FOR_ELIGIBILITY);
+      assert.equal(eligibility.cyclesEvaluated, META_MINIMUM_CYCLES_FOR_ELIGIBILITY, "A4 proof is scoped to the holdout lane while the reason covers all partitions");
 
       const state = { value: 1 };
-      const receipt = applyBoundedChange(target, applicationPorts(state, () => eligibility), CONTEXT, journal(), new ApplicationRegistry());
+      const receipt = applyBoundedChange(target, ports(state, eligibility), CONTEXT, memoryJournal(), new ApplicationRegistry());
       assert.equal(receipt.applicationOutcome, "APPLIED", receipt.rejectionReason ?? receipt.fallbackReason);
       assert.equal(state.value, 2, "the bounded change is now applied, exactly once");
     } finally {
@@ -359,17 +443,17 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
     }
   });
 
-  it("does not grant eligibility to a partition that has fewer recorded cycles than another", () => {
-    const { ledger, close } = fixture();
+  it("never opens from partial coverage, and never from topping up a single partition", () => {
+    const { ledger, holdouts, close } = fixture();
     try {
-      for (let index = 0; index < META_MINIMUM_CYCLES_FOR_ELIGIBILITY; index += 1) {
-        ledger.assign(assignment({ learningCycleId: cycleId(String(index)), partition: "meta-train" }), { claim: () => "CLAIMED", isUsed: () => false });
-      }
-      const target = decision();
-      const identity = eligibilityIdentity(target);
-      assert.equal(ledger.eligibility("meta-train", identity).eligible, true);
-      assert.equal(ledger.eligibility("meta-validation", identity).eligible, false, "partitions are judged separately, never pooled to reach the floor");
-      assert.equal(ledger.eligibility("meta-holdout", identity).eligible, false);
+      const ids = fileCompletedCycles(ledger, holdouts, META_PARTITION_FLOOR - 1);
+      assert.equal(ledger.eligibility(completed(ids), TEST_ELIGIBILITY_IDENTITY).eligible, false, "one short of the floor in every partition is still insufficient");
+
+      const extra = cycleId("f0");
+      ledger.assign(assignment({ learningCycleId: extra, partition: "meta-holdout", holdoutKey: Object.freeze({ strategyConfigHash: "9".repeat(64), market: "KRW-BTC", intervalMs: 60_000, holdoutStartMs: 1_000, holdoutEndMs: 2_000 }) as HoldoutKey, holdoutEvaluationId: "eval-f0" }), holdouts);
+      const eligibility = ledger.eligibility(completed([...ids, extra]), TEST_ELIGIBILITY_IDENTITY);
+      assert.equal(eligibility.eligible, false, "bringing one partition to the floor may not stand in for the other two");
+      assert.match(eligibility.reason, /all three partitions are required/);
     } finally {
       close();
     }

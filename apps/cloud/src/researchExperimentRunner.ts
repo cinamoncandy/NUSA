@@ -21,6 +21,7 @@ export interface ExperimentRunnerPorts {
   readonly now: () => number;
   readonly precommitStore?: { create(precommit: ResearchPrecommit): ResearchPrecommit };
   readonly datasetManifest?: { read(datasetId: string): HistoricalDatasetManifest };
+  readonly resolveLearningParent?: () => ExperimentSpec["causedByLearning"];
 }
 
 export interface ExperimentSpec {
@@ -43,6 +44,15 @@ export interface ExperimentSpec {
   readonly candidateCohort?: readonly Readonly<{ readonly id: string; readonly strategyId: string; readonly strategyVersion: string; readonly parameters: Readonly<Record<string, unknown>> }>[];
   readonly searchUniverse?: Readonly<Record<string, unknown>>;
   readonly datasetId?: string;
+  /**
+   * The bounded learning application that caused this experiment, when there was one.
+   *
+   * Optional because most research is not learning-caused. When present it is carried into the
+   * precommit, which is what makes v2 section 8 restorable: from this experiment's spec a reader can
+   * reach back to the application, its decision, and the previous spec, rather than inferring a link
+   * from the fact that a parameter changed shortly before the run started.
+   */
+  readonly causedByLearning?: { readonly type: "learning-application"; readonly learningCycleId: string; readonly learningDecisionFingerprint: string; readonly applicationFingerprint: string };
 }
 
 export type ExperimentOutcome =
@@ -111,6 +121,10 @@ export function runResearchExperiment(ports: ExperimentRunnerPorts, spec: Experi
         startingCash: 1,
         startingPositionQuantity: 0,
       } as unknown as ResearchInputSnapshot;
+      if (spec.causedByLearning != null && ports.resolveLearningParent != null) {
+        const applied = ports.resolveLearningParent();
+        if (applied == null || applied.learningCycleId !== spec.causedByLearning.learningCycleId || applied.applicationFingerprint !== spec.causedByLearning.applicationFingerprint || applied.learningDecisionFingerprint !== spec.causedByLearning.learningDecisionFingerprint) throw new ResearchProvenanceError("LEARNING_PARENT_MISMATCH", "causal parent is not the current durable APPLIED learning receipt");
+      }
       const precommit = ports.precommitStore == null ? undefined : createResearchPrecommit({
         schemaVersion: 1,
         experimentIdentity: evaluationId,
@@ -126,6 +140,7 @@ export function runResearchExperiment(ports: ExperimentRunnerPorts, spec: Experi
         evaluationPlan: { role, splitIdentity: spec.split.identity, walkForwardConfig: spec.walkForwardConfig },
         validationPolicyIdentity: spec.split.identity,
         createdAt: new Date(now).toISOString(),
+        ...(spec.causedByLearning == null ? {} : { causedByLearning: spec.causedByLearning }),
       });
       const durablePrecommit = precommit == null ? undefined : ports.precommitStore!.create(precommit);
       const provenance = buildResearchProvenance({

@@ -1,5 +1,4 @@
 import type { ApplicationOutcome } from "./learningApplication";
-import type { MetaPartition } from "./metaOos";
 
 /**
  * M2 - the display-only learning loop status projection.
@@ -35,8 +34,9 @@ export type LearningLoopStatus = Readonly<{
   latestLearningDecisionFingerprint?: string;
   latestApplicationFingerprint?: string;
   applicationOutcome?: ApplicationOutcome;
-  metaPartition?: MetaPartition;
-  /** e.g. `INELIGIBLE - meta-OOS meta-holdout has 0 completed cycle(s) of 3 required`. A report, never an approval. */
+  /** e.g. `train+validation+holdout`. The scope the eligibility covers, never a single lane's vote. */
+  metaScope?: string;
+  /** e.g. `INELIGIBLE - meta-OOS has train 0/3, validation 0/3, holdout 0/3 completed cycle(s)`. A report, never an approval. */
   metaEligibility?: string;
   /** e.g. `links=4;lineage=3;fork=NONE`. */
   supersessionStatus?: string;
@@ -51,7 +51,7 @@ export interface LearningStatusSource {
   readonly application?: Readonly<{ readonly fingerprint: string; readonly applicationOutcome: ApplicationOutcome }>;
   readonly meta?: Readonly<{
     readonly eligible: boolean;
-    readonly partition: MetaPartition;
+    readonly partition: string;
     readonly cyclesEvaluated: number;
     readonly reason: string;
   }>;
@@ -72,7 +72,7 @@ function summarize(values: ReadonlyArray<readonly [string, string | number]>): s
 const SHA256 = /^[a-f0-9]{64}$/;
 const CYCLE_ID = /^learning-cycle:[a-f0-9]{64}$/;
 const APPLICATION_OUTCOMES = new Set<ApplicationOutcome>(["APPLIED", "NOOP", "REJECTED", "FAILED"]);
-const META_PARTITIONS = new Set<MetaPartition>(["meta-train", "meta-validation", "meta-holdout"]);
+const META_SCOPES = new Set(["train+validation+holdout"]);
 const nonNegativeInteger = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const safeReason = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0
   && value.length <= 256 && /^[\p{L}\p{N} .,:;()/_-]+$/u.test(value.trim());
@@ -93,7 +93,7 @@ export function buildLearningLoopStatus(source: LearningStatusSource): LearningL
   const applicationState = value.application == null ? "UNKNOWN"
     : SHA256.test(value.application.fingerprint) && APPLICATION_OUTCOMES.has(value.application.applicationOutcome) ? "AVAILABLE" : "INVALID";
   const metaState = value.meta == null ? "UNKNOWN"
-    : typeof value.meta.eligible === "boolean" && META_PARTITIONS.has(value.meta.partition)
+    : typeof value.meta.eligible === "boolean" && META_SCOPES.has(value.meta.partition)
       && nonNegativeInteger(value.meta.cyclesEvaluated) && safeReason(value.meta.reason) ? "AVAILABLE" : "INVALID";
   const supersessionState = value.supersession == null ? "UNKNOWN"
     : nonNegativeInteger(value.supersession.links) && nonNegativeInteger(value.supersession.lineageLength)
@@ -125,7 +125,9 @@ export function buildLearningLoopStatus(source: LearningStatusSource): LearningL
     ...(metaState !== "AVAILABLE"
       ? {}
       : {
-          metaPartition: value.meta!.partition,
+          // Eligibility is global rather than a vote per partition, so what travels here is the
+          // scope it covers. A bare partition would read as though that one lane decided.
+          metaScope: value.meta!.partition,
           // The verdict and its reason travel together so a rendered line can never show a bare
           // permission without the condition that produced it. Caller-supplied eligibility remains
           // explicitly unverified and is never an approval receipt.
@@ -170,7 +172,7 @@ export const LEARNING_STATUS_FIELDS: readonly string[] = Object.freeze([
   "latestLearningDecisionFingerprint",
   "latestApplicationFingerprint",
   "applicationOutcome",
-  "metaPartition",
+  "metaScope",
   "metaEligibility",
   "supersessionStatus",
   "explorationStatus",

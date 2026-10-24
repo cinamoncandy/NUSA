@@ -1,6 +1,5 @@
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
-import type { MetaOosEligibility } from "./learningApplication";
 import {
   assertMetaOosAssignment,
   assertMetaOosAssignmentReplay,
@@ -9,8 +8,10 @@ import {
   type HoldoutClaimPort,
   type MetaOosAssignment,
   type MetaOosAssignmentInput,
+  type MetaOosCompletionEvidence,
   type MetaPartition,
 } from "./metaOos";
+import type { MetaOosEligibility } from "./learningApplication";
 
 /**
  * Durable adapter for A3 over the existing append-only, hash-chained Evolution Learning ledger.
@@ -142,11 +143,21 @@ export class MetaOosLedger {
   /**
    * The eligibility proof A4 consumes.
    *
-   * Derived only from durable assignments, so a decision cannot buy eligibility by asserting a cycle
-   * count of its own.
+   * Two independent conditions, both answered from durable records rather than from claims:
+   * every one of the three partitions must reach the owner-fixed floor, and an assigned cycle only
+   * counts once `completion` confirms its decision is durably recorded. A partition holding many
+   * assignments that never resolved therefore contributes nothing, and which partition a cycle
+   * happened to join cannot make the system eligible on its own.
+   *
+   * `completion` is required and has no default that reads as "everything completed". Omitting it,
+   * or supplying something unusable, fails closed to zero completed cycles and therefore to
+   * INSUFFICIENT - the same deliberate shape as A4's required `MetaOosEligibility` argument.
    */
-  public eligibility(partition: MetaPartition, identity: Pick<MetaOosEligibility, "learningCycleId" | "learningDecisionFingerprint">): MetaOosEligibility {
-    return metaOosEligibility(this.records(), partition, identity);
+  public eligibility(
+    completion: MetaOosCompletionEvidence | undefined,
+    identity: Pick<MetaOosEligibility, "learningCycleId" | "learningDecisionFingerprint">,
+  ): MetaOosEligibility {
+    return metaOosEligibility(this.records(), completion, identity);
   }
 
   public summary(): { readonly assignmentsRecorded: number; readonly train: number; readonly validation: number; readonly holdout: number } {

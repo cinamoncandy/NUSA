@@ -213,6 +213,38 @@ export class LearningDecisionLedger {
     return Object.freeze({ decisionsRecorded: records.length, ...(latest == null ? {} : { latest }) });
   }
 
+  /**
+   * Whether a cycle durably reached a decision.
+   *
+   * This is A3's completion evidence. A partition assignment says which partition a cycle belongs
+   * to; it does not say the cycle resolved. Eligibility counts only cycles that also have a
+   * recorded decision, and the check is answered from these records rather than from the
+   * assignment, so an assignment cannot vouch for its own completion.
+   */
+  public hasDecisionFor(learningCycleId: string): boolean {
+    if (typeof learningCycleId !== "string" || learningCycleId.length === 0) return false;
+    for (const record of this.ledger.list()) {
+      if (!DECISION_RECORD.test(record.opportunityId)) continue;
+      if (this.parseReceipt(record).learningCycleId === learningCycleId) return true;
+    }
+    return false;
+  }
+
+  /**
+   * One recorded decision by identity.
+   *
+   * Used to restore the research spec a decision was derived from, which is the third identity v2
+   * section 8 requires a research request to name about its causal parent.
+   */
+  public byFingerprint(fingerprint: string): LearningDecisionReceipt | undefined {
+    if (!HASH.test(fingerprint)) return undefined;
+    const record = this.ledger.list().find((candidate) => candidate.opportunityId === `learning-decision:${fingerprint}`);
+    if (record == null) return undefined;
+    const decision = this.parseReceipt(record);
+    if (learningDecisionFingerprint(decision) !== fingerprint) throw new LearningDecisionLedgerError("IDENTITY_CONFLICT", "recorded learning decision does not match its ledger identity");
+    return Object.freeze({ decision, fingerprint, learningCycleId: decision.learningCycleId, recordedAt: record.recordedAt, replayed: false });
+  }
+
   /** Decisions whose outcome was a refusal, kept in the denominator rather than filtered out. */
   public rejections(): readonly LearningDecisionReceipt[] {
     const receipts: LearningDecisionReceipt[] = [];

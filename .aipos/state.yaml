@@ -3128,6 +3128,18 @@ current_research_refresh_memory:
   branch: claude/research-refresh-memory
   authority_impact: resource_guard_threshold_only
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
+
+current_learning_chain12_20261023:
+  work_order: WO-LEARNING-20261023-M3-CAUSAL-CHAIN
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: feat/learning-chain-12
+  pull_request: 2799
+  base_parent: 326e00e5a35d49263af3736aeee5b22bb37adcd0
+  validation: "After syncing M2 326e00e5 on Node 24.19.0/pnpm 11.25.0: closedLearningChain + learningLoopStatus tests 26/26 PASS; build, preflight, validate:full, security:gate (high/critical=0), AIPOS index/provenance, diff-check PASS. Exact-head CI pending push."
+  blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined."
+  next: "Push this locally validated existing #2799 successor non-force; run exact-head CI and request fresh independent review only after green. Keep Draft; no deployment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_collection_reason:
   work_order: WO-PAPER-20261005-LEARNING-COLLECTION-REASON
   status: READY_FOR_REVIEW

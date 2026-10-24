@@ -11,6 +11,7 @@ const { CandidatePromotionRuntime } = require("../dist/apps/cloud/src/candidateP
 const { ResearchAutomationRuntime } = require("../dist/apps/cloud/src/researchAutomationRuntime.js");
 const { BacktestResearchEvaluator, buildSmaResearchStrategy } = require("../dist/apps/cloud/src/backtestResearchEvaluator.js");
 const { runResearchExperiment } = require("../dist/apps/cloud/src/researchExperimentRunner.js");
+const { researchSpecCausedByApplication, verifyResearchPrecommit } = require("../dist/packages/contracts/src/researchPrecommit.js");
 const { validateResearchProvenance } = require("../dist/packages/contracts/src/researchHardening.js");
 
 const M = 60_000;
@@ -117,4 +118,50 @@ test("skips with a stable reason when history is too short, and reports provenan
     assert.deepEqual({ ...bad }, { status: "ERROR", reason: "PROVENANCE_INVALID_SOURCE_COMMIT" });
     assert.equal(s.holdout.count(), 0);
   } finally { s.db.close(); }
+});
+
+// v2 section 8: an application changing `longBarTickEvery` is not evidence that the next research
+// run tested the change. The request has to name its causal parent, or the link is a coincidence of
+// timing rather than provenance.
+const PARENT = { type: "learning-application", learningCycleId: "cycle-1", applicationFingerprint: "a".repeat(64), learningDecisionFingerprint: "b".repeat(64) };
+const collector = () => { const seen = []; return { seen, store: { create: (p) => { seen.push(p); return p; } } }; };
+
+test("section 8: a research request names the learning application that caused it", () => {
+  const plain = setup();
+  try {
+    plain.automation.startSession(startInput("research-2026-10-02", plain.champion, plain.challenger));
+    const box = collector();
+    const out = runResearchExperiment({ ...ports(plain), precommitStore: box.store }, spec(plain));
+    assert.equal(out.status, "COMPLETED", JSON.stringify(out));
+    assert.equal(box.seen.length, 2, "the train and validation requests were pre-registered before they ran");
+    assert.equal(box.seen[0].causedByLearning, undefined, "a request that no application caused invents no parent");
+    assert.equal(researchSpecCausedByApplication(box.seen[0], PARENT.applicationFingerprint), false, "and it is never credited with causing something it did not cause");
+  } finally { plain.db.close(); }
+
+  const caused = setup();
+  try {
+    caused.automation.startSession(startInput("research-2026-10-02", caused.champion, caused.challenger));
+    const box = collector();
+    const out = runResearchExperiment({ ...ports(caused), precommitStore: box.store }, spec(caused, { causedByLearning: PARENT }));
+    assert.equal(out.status, "COMPLETED", JSON.stringify(out));
+    const precommit = box.seen.at(-1);
+    assert.deepEqual({ ...precommit.causedByLearning }, PARENT, "all three identities travel together");
+    assert.equal(researchSpecCausedByApplication(precommit, PARENT.applicationFingerprint), true, "and the resulting spec is restorable from the application that caused it");
+    assert.equal(researchSpecCausedByApplication(precommit, "d".repeat(64)), false, "a different application is not its parent");
+    verifyResearchPrecommit(precommit);
+  } finally { caused.db.close(); }
+
+  const malformed = setup();
+  try {
+    malformed.automation.startSession(startInput("research-2026-10-02", malformed.champion, malformed.challenger));
+    const out = runResearchExperiment({ ...ports(malformed), precommitStore: collector().store }, spec(malformed, { causedByLearning: { type: "learning-application", learningCycleId: "cycle-1", applicationFingerprint: "not-a-digest", learningDecisionFingerprint: "b".repeat(64) } }));
+    assert.deepEqual({ ...out }, { status: "ERROR", reason: "INVALID_LEARNING_CAUSATION" }, "a half-specified parent fails closed rather than degrading into no parent");
+  } finally { malformed.db.close(); }
+
+  const unbound = setup();
+  try {
+    unbound.automation.startSession(startInput("research-2026-10-02", unbound.champion, unbound.challenger));
+    const out = runResearchExperiment({ ...ports(unbound), precommitStore: collector().store, resolveLearningParent: () => undefined }, spec(unbound, { causedByLearning: PARENT }));
+    assert.deepEqual({ ...out }, { status: "ERROR", reason: "PROVENANCE_LEARNING_PARENT_MISMATCH" }, "causal claims require a durable APPLIED parent");
+  } finally { unbound.db.close(); }
 });
