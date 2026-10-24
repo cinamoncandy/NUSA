@@ -97,17 +97,26 @@ current_research_baseline_recovery_20261012:
 
 current_learning_exploration_a6_20261023:
   work_order: WO-LEARNING-20261023-A6-EXPLORATION
-  status: EXACT_HEAD_CI_PASS_PENDING_INDEPENDENT_REVIEW
+  status: PARENT_SYNCED_LOCAL_VALIDATION_PASS_PENDING_EXACT_HEAD_CI
   branch: feat/exploration-a6
   pull_request: 2797
-  base_parent: b0e32e575b5cf96ab4b659fb06e8671db0c1ea71
-  validation: "Node 24.19.0/pnpm 11.25.0; A2/A1/A3/A4/A5/A6/M2/chain/retention tests 138/138 PASS after binding replay to durable A2 and restricting cost descriptors. Build, preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS."
+  base_parent: 09d75bfc6e12cfef56986e708633338b8daedf87
+  validation: "A2/A1/A3/A4/A5/A6/M2/chain/retention/security focused suite 182/182 PASS; build PASS; Node 24.19.0 preflight PASS (521 AIPOS files); validate:full PASS; security:gate PASS (audit high=0); AIPOS provenance, work-order index, and diff-check PASS after parent 09d75bfc6e12cfef56986e708633338b8daedf87 sync. Exact-head CI pending push."
   blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined. Keep stacked PR Draft; no Audit/Release/merge/deployment."
-  exact_head: e1950b1a918bdb435e5ac613173d76520b19cd60
-  exact_head_ci: "PASS; run 40040577653; validation, coverage shards, aggregate coverage, final test SUCCESS."
-  independent_review: "Fresh exact-head @codex review requested in PR comment 6376952704; pending."
-  next: "Keep #2797 Draft; adjudicate fresh review when available. Cutoff/META owners and production Learning trigger remain unresolved; no Audit/Release/merge/deploy."
+  next: "Push validated A6 successor to existing feat/exploration-a6 non-force; run exact-head CI and request fresh independent review only after green. Keep Draft and do not claim production wiring."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_status_m2_20261023:
+  work_order: WO-LEARNING-20261023-M2-STATUS-PROJECTION
+  status: SYNCED_PENDING_VALIDATION
+  branch: feat/learning-status-m2
+  pull_request: 2798
+  base_parent: d0b046b1e11876aa3a5c7164f95e4cc51629f79f
+  validation: "Historical only: M2 prior-parent focused suite 176/176 and CI 40041467269 PASS. Latest A6 parent d0b046b1 synced; revalidation pending on merge head."
+  blockers: "Cutoff/META policy owners and production Learning trigger remain unresolved; status projection does not address them or claim production integration."
+  next: "Run Node 24.19 focused tests and pnpm run preflight/build/validate:full/security:gate on synchronized head; push existing PR non-force, require exact-head CI, then request fresh independent review only after green. Keep Draft; no server action."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 
 current_learning_fatal_shutdown_20261015:
   work_order: WO-OPS-20261015-LEARNING-FATAL-SHUTDOWN
@@ -128,30 +137,19 @@ current_learning_hourly_recovery_20261012:
   next: "Publish bounded hourly-evaluation increment; do not claim actual cycle completion or bypass baseline Research lineage."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
-current_learning_status_m2_20261023:
-  work_order: WO-LEARNING-20261023-M2-STATUS-PROJECTION
-  status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
-  branch: feat/learning-status-m2
-  pull_request: 2798
-  base_parent: e1950b1a918bdb435e5ac613173d76520b19cd60
-  validation: "Node 24.19.0/pnpm 11.25.0; M2 + A6/A5/A4/A3/A2/chain/retention focused suite 176/176 PASS after syncing A6 e1950b1a, including A6 replay/A2 binding and cost descriptor regressions. Build, preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS."
-  blockers: "Cutoff/META policy owners and production Learning trigger remain unresolved; status projection does not address them or claim production integration."
-  next: "Push the existing PR branch non-force, require exact-head CI, then request fresh independent review only after green. Keep Draft; no server action."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-
 current_learning_supersession_a5_20261023:
   work_order: WO-LEARNING-20261023-A5-SUPERSESSION
-  status: EXACT_HEAD_CI_PASS_PENDING_INDEPENDENT_REVIEW
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AFTER_SECURITY_REGRESSION_FIX
   branch: feat/supersession-a5
   pull_request: 2796
-  parent_head: 94cad0eeed8be76dcc2d12bc2ad851a2f822d380
+  parent_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
   first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
-  exact_head: b0e32e575b5cf96ab4b659fb06e8671db0c1ea71
-  exact_head_ci: "PASS; run 40039875737."
-  validation: "Node 24.19.0; A2/A1/A3/A4/A5/A6/M2/Evolution Learning focused tests 97/97 PASS; build, preflight, validate:full, security:gate, AIPOS provenance, diff check PASS."
-  independent_review: "Fresh exact-head @codex review requested in PR comment 6376864763; pending."
-  next: "Keep #2796 Draft and adjudicate fresh review. Cutoff/META owner and production trigger remain undefined; no production caller or learning completion is claimed."
-  blockers: "Cutoff/META owner and production Learning trigger remain undefined. No Audit/Release/merge/deployment."
+  validation: "Fresh npm advisories GHSA-xjj6-f33q-929c found undici 6.28.1/7.29.1 vulnerable in shared base. Existing canonical overrides updated to fixed 6.29.1/7.30.1; audit high=0 and security:gate PASS. Exact CI 40044601486 exposed an obsolete security-gate regression assertion; updated it to require 7.30.1/6.29.1 and reject 7.29.1/6.28.1. Node 24.19.0 focused A5/Evolution/worker 49/49 plus security-gate 10/10 PASS; build, preflight, validate:full, security:gate, provenance PASS. Exact-head CI pending."
+  prior_exact_head: bcbf23e5dac210be7db4291b1a9e34b40c28fc55
+  prior_exact_head_ci: "FAILED; run 40042338633. Coverage-core-3 worker.test failed only at UTC midnight because a Date.now-after-call strict >60s assertion observed a 60s minimum wait. Failure preserved; fixed deterministically with a fixed noon test clock, without changing runtime thresholds."
+  review_finding: "Fresh Codex review on b0e32e575 found P2 AIPOS parent/validation facts disagreed between state.yaml and the A5 work order. Successor bcbf23e5 aligns parent_head 05837941 and validation 158/158. Its CI failure was a UTC-midnight test-clock flake, now fixed on the current local successor; prior failure remains recorded."
+  next: "Commit corrected security-gate regression with all evidence, push non-force to #2796, run exact-head CI, request fresh independent review only after green."
+  blockers: "Cutoff/META owner and production trigger remain undefined; no production caller or Learning completion is claimed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_upgrade_20261012:
