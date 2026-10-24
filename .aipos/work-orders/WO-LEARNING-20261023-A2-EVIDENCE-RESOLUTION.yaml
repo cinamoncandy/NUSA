@@ -16,6 +16,7 @@ scope:
   - "Resolve every cited Research and PAPER identity and exact observedAt before append and before downstream read/replay."
   - "Reject missing, duplicate/ambiguous, malformed, or timestamp-mismatched canonical evidence fail-closed."
   - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt whose durable Research/PAPER source identities and exact timestamps still resolve."
+  - "Before an A1 receipt releases reserved capacity, re-derive every proposed/admissible/rejected change assessment against the frozen owner allowlist and verify the arrays, magnitude, and outcome are mutually consistent."
   - "Use the same locale-independent code-unit ordering for persisted evidence references and canonical A2 reservation reconstruction."
   - "Reject sparse holes in every aligned persisted evidence-id and observation-time array before hashing, authority lookup, or append."
   - "Reuse existing Research history, realized PAPER period store, and Evolution Learning ledger; create no engine/store/scheduler."
@@ -31,6 +32,7 @@ acceptance:
   - "A forged generic A2-shaped append with a missing durable source is rejected and consumes no capacity after restart."
   - "A verified A2 retains one reserved slot after restart; unrelated writes cannot use it and its matching canonical A1 consumes exactly one slot."
   - "Mixed-case canonical PAPER ids preserve the matching A1 reservation across file-backed restart and replay."
+  - "Malformed A1 change entries cannot release the A2 reservation before or after restart; canonical owner-derived assessments can release exactly one matching slot."
   - "Sparse caller-shaped A2 arrays fail before append and leave the existing ledger replayable with no reserved slot."
   - "Relevant A2 and storage regression tests pass."
   - "pnpm run preflight passes on Node >=24.19."
@@ -43,15 +45,15 @@ validation_commands:
   - "pnpm run security:gate"
   - "git diff --check"
 verification:
-  local_focused: "PASS 46 tests across A2 identity, A2/PAPER retention integration, and Evolution Learning storage; includes missing-source forged A2 rejection, no phantom reservation after restart, verified reservation replay, matching A1 release, mixed-case [A,a] ordering, sparse evidence, retention and replay."
+  local_focused: "PASS 47 tests across A2 identity, A2/PAPER retention integration, and Evolution Learning storage; includes forged A2 source rejection, no phantom reservation after restart, verified reservation replay, canonical A1 release, malformed proposed/admissible/rejected change rejection, mixed-case ordering, sparse evidence, retention and replay."
   local_build: "PASS pnpm run build on Node 24.19.0."
   preflight: "PASS pnpm run preflight on Node 24.19.0, pnpm 11.25.0."
   validate_full: "PASS pnpm run validate:full after final AIPOS handoff/state update."
   security_gate: "PASS pnpm run security:gate; raw high/critical 0, secrets 0."
   aipos: "PASS pnpm run preflight AIPOS YAML validation, validate:full, and work-order provenance after final AIPOS updates."
   diff_check: "PASS git diff --check after final AIPOS and handoff updates."
-  exact_head_ci: "PENDING; no predecessor receipt is reusable for this source successor."
-  independent_review: "PENDING; request one fresh review only after exact-head CI and required companion workflows are terminal PASS."
+  exact_head_ci: "PENDING on the substantive A1 assessment-validation successor; prior CI for 67410d1075aef57207591e7aafe5908cbfd6e069 is historical after the review repair."
+  independent_review: "Fresh review of 67410d1075aef57207591e7aafe5908cbfd6e069 found P2 in A1 change-entry validation; repair is locally validated and requires new exact-head CI, then one fresh review."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -59,4 +61,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Push the locally validated successor non-force to existing #2792, wait for all exact-head workflows and companions to become terminal PASS, then request one fresh independent review. Keep Draft; do not merge or deploy, and do not interfere with #2855/server archive deployment."
+next: "Commit and non-force push the locally validated substantive successor to existing #2792, wait for all exact-head workflows and companions to become terminal PASS, then request one fresh independent review. Keep Draft; do not merge or deploy, and do not interfere with #2855/server archive deployment."

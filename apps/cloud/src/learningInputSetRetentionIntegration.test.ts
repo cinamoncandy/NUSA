@@ -251,6 +251,72 @@ describe("A2 -> A7 integration over the production retention path", () => {
     }
   });
 
+  it("rejects malformed A1 change entries without releasing the durable A2 reservation", () => {
+    const directory = mkdtempSync(join(tmpdir(), "nusa-a2-a1-change-contract-"));
+    const databasePath = join(directory, "learning.sqlite");
+    let db = new SqliteDatabase(databasePath);
+    let learningLedger: SqliteEvolutionLearningLedger;
+    let fingerprint: string;
+    try {
+      const periodStore = new SqlitePersistedPaperPeriodStore(db);
+      seedPeriods(periodStore, ["p1"]);
+      const researchHistory = new SqliteResearchFactoryDecisionHistoryRepository(db);
+      researchHistory.append(researchRecord());
+      learningLedger = new SqliteEvolutionLearningLedger(db, 2);
+      const inputSets = new LearningInputSetLedger(learningLedger, evidenceAuthority(researchHistory, periodStore));
+      const inputSet = inputSetCiting("p1");
+      fingerprint = learningInputSetFingerprint(inputSet);
+      inputSets.append(inputSet);
+
+      const forged = decisionRecord(fingerprint, "2026-11-01T00:01:00.000Z");
+      for (const field of ["proposedChanges", "admissibleChanges", "rejectedChanges"] as const) {
+        const forgedPayload = JSON.parse(forged.hypothesis) as Record<string, unknown>;
+        forgedPayload[field] = [null];
+        assert.throws(
+          () => learningLedger.append({ ...forged, hypothesis: canonicalResearchJson(forgedPayload) }),
+          (error: unknown) => error instanceof Error && error.message.includes("INVALID_LEARNING_DECISION_RECEIPT"),
+          `${field} entries are validated before a generic A1 can release capacity`,
+        );
+      }
+      const forgedAssessmentPayload = JSON.parse(forged.hypothesis) as Record<string, unknown>;
+      const forgedAssessment = { surface: "longBarTickEvery", currentValue: 1, proposedValue: 2, verdict: "ADMISSIBLE", reason: "forged" };
+      forgedAssessmentPayload.proposedChanges = [forgedAssessment];
+      forgedAssessmentPayload.admissibleChanges = [forgedAssessment];
+      forgedAssessmentPayload.changeMagnitude = 1;
+      forgedAssessmentPayload.decisionOutcome = "ADMISSIBLE";
+      assert.throws(
+        () => learningLedger.append({ ...forged, hypothesis: canonicalResearchJson(forgedAssessmentPayload) }),
+        (error: unknown) => error instanceof Error && error.message.includes("INVALID_LEARNING_DECISION_RECEIPT"),
+        "a plausible-looking but noncanonical assessment cannot release capacity",
+      );
+      assert.equal(learningLedger.size(), 1, "malformed A1 does not persist or consume the reserved slot");
+      db.close();
+
+      db = new SqliteDatabase(databasePath);
+      learningLedger = new SqliteEvolutionLearningLedger(db, 2);
+      assert.equal(learningLedger.size(), 1, "restart preserves the unresolved A2 reservation");
+      const canonicalDecisionPayload = JSON.parse(forged.hypothesis) as Record<string, unknown>;
+      const canonicalAssessment = {
+        surface: "longBarTickEvery", currentValue: 1, proposedValue: 2, minimum: 1, maximum: 4,
+        maximumDeltaPerCycle: 1, verdict: "ADMISSIBLE", reason: "within the owner-defined aperture for one cycle",
+      };
+      canonicalDecisionPayload.proposedChanges = [canonicalAssessment];
+      canonicalDecisionPayload.admissibleChanges = [canonicalAssessment];
+      canonicalDecisionPayload.changeMagnitude = 1;
+      canonicalDecisionPayload.decisionOutcome = "ADMISSIBLE";
+      learningLedger.append({ ...forged, hypothesis: canonicalResearchJson(canonicalDecisionPayload) });
+      assert.equal(learningLedger.size(), 2, "the canonical matching A1 consumes the reservation exactly once");
+      assert.throws(() => learningLedger.append(createEvolutionLearningRecord({
+        opportunityId: "opp:unrelated-after-a1", problem: "unrelated", evidenceReferences: ["evidence:unrelated"],
+        hypothesis: "unrelated", changeReference: "unrelated", validationStatus: "VERIFIED", outcome: "SUCCESS",
+        failureReason: null, rollbackReference: null, reusable: true, recordedAt: "2026-11-01T00:02:00.000Z",
+      })), /CAPACITY_EXCEEDED/);
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("stores and replays a near-limit input set using the ledger's exact serialized byte count", () => {
     const { db, periodStore, researchHistory, close } = fixture();
     try {

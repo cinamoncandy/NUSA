@@ -3784,17 +3784,19 @@ current_learning_resume_failed_cycle:
 
 current_learning_a2_authority_reservation_20261024:
   work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
-  status: LOCAL_VALIDATED_PENDING_NEW_EXACT_HEAD_CI
+  status: LOCAL_VALIDATED_PENDING_REVIEW_REPAIR_EXACT_HEAD_CI
   pull_request: 2792
   branch: feat/learning-input-set-a2
   prior_exact_head: 7a7fc070ec3e48206049caa7b8ea82603b4892c8
+  reviewed_head: 67410d1075aef57207591e7aafe5908cbfd6e069
   local_successor: current branch successor (resolved from exact Git head)
-  first_broken_transition: "generic A2-shaped ledger append -> phantom A1 capacity reservation without canonical durable Research/PAPER evidence"
-  implementation: "Removed caller-injected authority verifier. Existing Evolution Learning storage boundary now verifies the hash-chained Research decision history and checksum-valid realized PAPER periods directly on the shared SQLite transaction, and uses the same read-only canonical readers when replaying A2 capacity reservations. New A2 records carry the authority-verified status; old rows reserve only if their durable source evidence still resolves."
-  validation: "Node v24.19.0; build PASS; focused A2 identity/retention/storage 46/46 PASS; preflight PASS; validate:full PASS; security:gate PASS (0 raw high/critical, 0 secrets); AIPOS YAML/provenance PASS; diff-check PASS. Final full gates rerun after AIPOS handoff update PASS."
+  first_broken_transition: "generic A1-shaped ledger append -> malformed change assessment releases a reserved A2 capacity slot"
+  implementation: "Storage re-derives every A1 change assessment using the frozen longBarTickEvery owner aperture, immutable/unknown surface rejection, bounded values and canonical reason; verifies canonical ordering, unique proposed surfaces, admissible/rejected partitions, magnitude, and outcome before replay or append can release A2 capacity."
+  validation: "Node v24.19.0; build PASS; focused A2 identity/retention/storage 47/47 PASS including malformed proposed/admissible/rejected arrays, forged assessment rejection, restart-preserved reservation and canonical A1 consumption; preflight PASS; validate:full PASS; security:gate PASS (0 raw high/critical, 0 secrets); diff-check PASS before final AIPOS refresh."
+  prior_exact_head_ci: "67410d1075aef57207591e7aafe5908cbfd6e069 CI 40106540162 and five required companions PASS; all historical after review repair."
+  independent_review: "Fresh review on 67410d1075aef57207591e7aafe5908cbfd6e069 found P2: validate each A1 change entry against canonical domain contract before releasing reservation."
   exact_head_ci: PENDING
-  independent_review: PENDING_AFTER_EXACT_HEAD_CI_GREEN
-  next: "Push the locally validated successor non-force to existing #2792; wait for exact-head CI and required companions, then request one fresh independent review only when all are green. Keep Draft; no #2855/server action."
+  next: "Complete final AIPOS/diff checks; commit substantive repair and provenance on existing #2792; non-force push; await new exact-head CI/companions, then request one fresh independent review. Keep Draft; no A1 progression, #2855/server action."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_a2_evidence_resolution_20261023:

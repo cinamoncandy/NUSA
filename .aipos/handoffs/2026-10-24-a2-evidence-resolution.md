@@ -51,3 +51,15 @@ Validation so far: Node `v24.19.0`; `pnpm build` PASS; all three focused A2 iden
 GitHub was freshly read: #2792 remains OPEN / Draft / mergeable at remote head `7a7fc070ec3e48206049caa7b8ea82603b4892c8`, protected base `9bb373516d3e2f6da200e4728c5e5b2708dd131e`; the P2 thread is on that head. All earlier CI/review receipts are historical once this repair is committed. No push has been made yet.
 
 Next: final AIPOS/diff checks; commit the substantive repair and its handoff on the existing branch; push non-force; wait for exact-head CI plus required companions; request exactly one fresh independent review only after green. Keep Draft. Do not proceed to A1 and do not touch #2855, server deployment, Oracle, or runtime.
+
+## Follow-up — A1 assessment reservation P2 (2026-10-25)
+
+Fresh independent review completed on exact head `67410d1075aef57207591e7aafe5908cbfd6e069` and found P2: the shared storage boundary accepted A1 change arrays by shallow type/length checks. A generic A1-shaped receipt with `proposedChanges: [null]` or arbitrary entries could release the matching A2 reservation before the canonical A1 later conflicted on its deterministic identity.
+
+Minimal repair on the existing A2 branch:
+
+- Storage now re-derives each change assessment against the existing frozen `longBarTickEvery` aperture and immutable/unknown-surface rules, requiring exact canonical assessment fields and reason.
+- Proposed changes must be canonical ordered and unique; `admissibleChanges` and `rejectedChanges` must exactly equal the corresponding derived partitions; magnitude and decision outcome are recomputed before an A1 releases A2 capacity.
+- Added a file-backed SQLite integration regression that rejects malformed entries in each of the three arrays and a forged assessment, restarts with the A2 reservation intact, then accepts a canonical owner-derived admissible assessment exactly once.
+
+Validation on Node `v24.19.0`: build PASS; focused A2/A1/storage tests 47/47 PASS; `pnpm run preflight` PASS; `pnpm run validate:full` PASS; `pnpm run security:gate` PASS (0 raw high/critical, 0 secrets); diff check PASS before final AIPOS refresh. Exact-head CI and companions at the predecessor are historical after this repair. Next: rerun AIPOS/diff checks, commit and non-force push the substantive repair on existing #2792, await exact-head CI/companions, then request one fresh independent review. Keep Draft; no A1 downstream, merge, deploy, #2855, or server/Oracle work.

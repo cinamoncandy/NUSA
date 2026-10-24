@@ -38,6 +38,16 @@ const LEARNING_DECISION_FIELDS = new Set([
   "reasonEvidence", "changeMagnitude", "allowedSurfaceVersion", "immutableSurfaceVersion", "decisionOutcome",
   "createdAt", "sourceCommit", "runtimeIdentity",
 ]);
+const LEARNING_DECISION_CHANGE_FIELDS = new Set([
+  "surface", "currentValue", "proposedValue", "minimum", "maximum", "maximumDeltaPerCycle", "verdict", "reason",
+]);
+const LEARNING_DECISION_IMMUTABLE_SURFACES = new Set([
+  "PAPER_ONLY", "liveAuthority", "productionMutationAllowed", "aiAuthority", "aiDecisionAuthority",
+  "minimumSample", "minimumSampleSize", "oosWindow", "oosRatio", "walkForward", "purge", "embargo",
+  "costGate", "costCompleteness", "leakageRules", "governance", "releaseAuthority", "brokerAuthority",
+  "orderAuthority", "withdrawalAuthority",
+]);
+const LEARNING_DECISION_IMMUTABLE_PREFIXES = ["risk", "qualification", "governance", "release", "live", "broker", "order"] as const;
 const LEARNING_POLICY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const LEARNING_BOUNDED_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
 const FORBIDDEN_KEY = /(?:password|authorization|cookie|credential|secret|token|nonce|signature|private|access[_-]?key)/i;
@@ -161,6 +171,44 @@ function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+/** Re-derive an A1 assessment at the storage boundary; array/object shape alone is not authority. */
+function canonicalLearningChangeAssessment(value: unknown): Record<string, unknown> | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return null;
+  const change = value as Record<string, unknown>;
+  if (Object.keys(change).some((key) => !LEARNING_DECISION_CHANGE_FIELDS.has(key))
+    || typeof change.surface !== "string" || !LEARNING_BOUNDED_ID.test(change.surface)
+    || typeof change.currentValue !== "number" || !Number.isFinite(change.currentValue)
+    || typeof change.proposedValue !== "number" || !Number.isFinite(change.proposedValue)) return null;
+
+  const surface = change.surface;
+  const currentValue = change.currentValue;
+  const proposedValue = change.proposedValue;
+  const immutable = LEARNING_DECISION_IMMUTABLE_SURFACES.has(surface)
+    || LEARNING_DECISION_IMMUTABLE_PREFIXES.some((prefix) => surface.toLowerCase().startsWith(prefix));
+  let expected: Record<string, unknown>;
+  if (immutable) {
+    expected = { surface, currentValue, proposedValue, verdict: "REJECTED", reason: "immutable surface: no learning decision may move it, whatever the evidence" };
+  } else if (surface !== "longBarTickEvery") {
+    expected = { surface, currentValue, proposedValue, verdict: "REJECTED", reason: "surface is not on the owner allowlist: learning may not invent a mutable field" };
+  } else {
+    const bounds = { minimum: 1, maximum: 4, maximumDeltaPerCycle: 1 };
+    if (!Number.isSafeInteger(currentValue) || !Number.isSafeInteger(proposedValue)) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "cadence values must be safe integers" };
+    } else if (currentValue < bounds.minimum || currentValue > bounds.maximum) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "current value is outside the owner bounds" };
+    } else if (proposedValue < bounds.minimum || proposedValue > bounds.maximum) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "proposed value is outside the owner bounds" };
+    } else if (Math.abs(proposedValue - currentValue) > bounds.maximumDeltaPerCycle) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "step exceeds the maximum delta allowed in one cycle" };
+    } else if (proposedValue === currentValue) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "proposal does not change the current value" };
+    } else {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "ADMISSIBLE", reason: "within the owner-defined aperture for one cycle" };
+    }
+  }
+  return canonicalResearchJson(change) === canonicalResearchJson(expected) ? expected : null;
+}
+
 function contentHash(record: EvolutionLearningRecord): string {
   return sha256(canonicalResearchJson(record));
 }
@@ -225,6 +273,24 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     || !Array.isArray(decision.proposedChanges) || decision.proposedChanges.length > 32
     || !Array.isArray(decision.admissibleChanges) || !Array.isArray(decision.rejectedChanges)
     || !Array.isArray(decision.reasonEvidence) || decision.reasonEvidence.length > 64) return false;
+  const proposedChanges: Record<string, unknown>[] = [];
+  for (const item of decision.proposedChanges) {
+    const assessment = canonicalLearningChangeAssessment(item);
+    if (assessment == null) return false;
+    proposedChanges.push(assessment);
+  }
+  const canonicalOrder = [...proposedChanges].sort((left, right) => compareCanonicalStrings(left.surface as string, right.surface as string)
+    || (left.currentValue as number) - (right.currentValue as number)
+    || (left.proposedValue as number) - (right.proposedValue as number));
+  if (canonicalResearchJson(proposedChanges) !== canonicalResearchJson(canonicalOrder)
+    || new Set(proposedChanges.map((change) => change.surface)).size !== proposedChanges.length) return false;
+  const admissibleChanges = proposedChanges.filter((change) => change.verdict === "ADMISSIBLE");
+  const rejectedChanges = proposedChanges.filter((change) => change.verdict === "REJECTED");
+  if (canonicalResearchJson(admissibleChanges) !== canonicalResearchJson(decision.admissibleChanges)
+    || canonicalResearchJson(rejectedChanges) !== canonicalResearchJson(decision.rejectedChanges)) return false;
+  const expectedMagnitude = admissibleChanges.reduce((largest, change) => Math.max(largest, Math.abs((change.proposedValue as number) - (change.currentValue as number))), 0);
+  const expectedOutcome = admissibleChanges.length > 0 ? "ADMISSIBLE" : proposedChanges.length > 0 ? "REJECTED" : "INSUFFICIENT";
+  if (decision.changeMagnitude !== expectedMagnitude || decision.decisionOutcome !== expectedOutcome) return false;
   const reasons = decision.reasonEvidence as unknown[];
   if (reasons.some((item, index) => typeof item !== "string" || !LEARNING_BOUNDED_ID.test(item) || (index > 0 && item <= (reasons[index - 1] as string)))) return false;
   const expectedReferences = [record.opportunityId, fingerprint, ...(reasons as string[])].sort(compareCanonicalStrings);
