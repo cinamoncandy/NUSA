@@ -7,6 +7,8 @@ import { createEvolutionLearningRecord, type EvolutionLearningRecord } from "../
 import { canonicalResearchJson } from "../../contracts/src/researchRuntime";
 import { SqliteDatabase } from "./index";
 import { EvolutionLearningLedgerError, SqliteEvolutionLearningLedger } from "./evolutionLearningLedger";
+import { SqlitePersistedPaperPeriodStore } from "./persistedPaperPeriodStore";
+import { SqliteResearchFactoryDecisionHistoryRepository } from "./researchFactoryDecisionHistoryRepository";
 
 const record = (opportunityId: string, recordedAt: string, overrides: Partial<EvolutionLearningRecord> = {}): EvolutionLearningRecord => createEvolutionLearningRecord({
   opportunityId,
@@ -24,6 +26,7 @@ const record = (opportunityId: string, recordedAt: string, overrides: Partial<Ev
 });
 
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
+const paperObservedAt = (id: string): number => 100 + (id.codePointAt(0) ?? 0) * 10 + (id.codePointAt(1) ?? 0);
 
 function inputSetRecord(recordedAt: string, paperId: string, researchId = "trial-1", paperIds: readonly string[] = [paperId]): { readonly fingerprint: string; readonly inputSet: Readonly<Record<string, unknown>>; readonly record: EvolutionLearningRecord } {
   const canonicalPaperIds = [...paperIds].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
@@ -33,9 +36,9 @@ function inputSetRecord(recordedAt: string, paperId: string, researchId = "trial
     researchEvidenceRecordIds: [researchId],
     researchEvidenceObservedAt: [1],
     paperEvidenceRecordIds: canonicalPaperIds,
-    paperEvidenceObservedAt: canonicalPaperIds.map(() => 2),
+    paperEvidenceObservedAt: canonicalPaperIds.map(paperObservedAt),
     researchLaneDigest: sha256(canonicalResearchJson({ lane: "research", recordIds: [researchId], observedAt: [1] })),
-    performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: canonicalPaperIds, observedAt: canonicalPaperIds.map(() => 2) })),
+    performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: canonicalPaperIds, observedAt: canonicalPaperIds.map(paperObservedAt) })),
     learningPolicyVersion: "learn-v1",
     researchPolicyVersion: "research-v1",
     riskPolicyVersion: "risk-v1",
@@ -52,13 +55,41 @@ function inputSetRecord(recordedAt: string, paperId: string, researchId = "trial
       evidenceReferences: [opportunityId, ...canonicalPaperIds.map((id) => `paper-period:${id}`)],
       hypothesis: canonicalResearchJson(inputSet),
       changeReference: "learn-v1",
-      validationStatus: "LEARNING_INPUT_SET",
+      validationStatus: "LEARNING_INPUT_SET_AUTHORITY_VERIFIED",
       outcome: "SUCCESS",
       failureReason: null,
       rollbackReference: null,
       reusable: true,
     }),
   };
+}
+
+function seedAuthorityEvidence(db: SqliteDatabase, ...inputSets: Readonly<Record<string, unknown>>[]): void {
+  const research = new SqliteResearchFactoryDecisionHistoryRepository(db);
+  const paper = new SqlitePersistedPaperPeriodStore(db);
+  for (const input of inputSets) {
+    const researchIds = input.researchEvidenceRecordIds as string[];
+    for (const evaluationId of researchIds) {
+      if (research.list().some((item) => item.evaluationId === evaluationId)) continue;
+      research.append({ candidateId: `candidate-${evaluationId}`, evaluationId, outcome: "REJECTED", reasons: [], observedAt: 1, authority: "PAPER_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    }
+    const paperIds = input.paperEvidenceRecordIds as string[];
+    const paperAt = input.paperEvidenceObservedAt as number[];
+    for (const [index, recordId] of paperIds.entries()) {
+      if (paper.listRecords().some((item) => item.recordId === recordId)) continue;
+      const observedAt = paperAt[index];
+      paper.append({
+        record: {
+          recordId, periodIndex: paper.listRecords().length, periodStartAt: observedAt - 1, periodEndAt: observedAt,
+          advisory: { schemaVersion: 1, generatedAt: "1970-01-01T00:00:00.000Z", policy: { maximumCandidateWeight: 1, minimumEvidenceBreadth: 1, maximumCandidateCount: 1, maximumFamilyWeight: 1 }, entries: [], excludedCandidateIds: [], reasons: [], provenance: { sourceDatasetIds: ["dataset-test"] } },
+          realizedReturns: {}, benchmarkReturn: 0, turnoverCostRate: 0,
+          costEvidence: { evidenceId: `cost-${recordId}`, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: "OBSERVED", evidenceFingerprintSha256: "a".repeat(64), observedAt, feeRate: 0, spreadRate: 0, slippageRate: 0 },
+          status: "COMPLETED",
+        },
+        candidateProvenance: [],
+      });
+    }
+  }
 }
 
 function decisionRecord(fingerprint: string, recordedAt: string, inputSet: Readonly<Record<string, unknown>>, extraEvidence: readonly string[] = [], identity: "cycle" | "fingerprint" = "cycle"): EvolutionLearningRecord {
@@ -190,6 +221,7 @@ test("an unrelated writer cannot consume the capacity reserved for an A2 input s
     let ledger = new SqliteEvolutionLearningLedger(db, 3);
     ledger.append(record("opp:existing", "2026-08-29T00:00:00.000Z"));
     const inputSet = inputSetRecord("2026-08-29T00:01:00.000Z", "p1");
+    seedAuthorityEvidence(db, inputSet.inputSet);
     ledger.append(inputSet.record);
 
     db.close();
@@ -219,13 +251,13 @@ test("a malformed namespace-shaped A2 record cannot reserve capacity after resta
   try {
     let ledger = new SqliteEvolutionLearningLedger(db, 2);
     const malformedA2 = inputSetRecord("2026-08-29T00:00:00.000Z", "p1");
-    ledger.append({ ...malformedA2.record, hypothesis: "{}" });
+    assert.throws(() => ledger.append({ ...malformedA2.record, hypothesis: "{}" }), (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "UNVERIFIED_LEARNING_INPUT_SET");
     db.close();
 
     db = new SqliteDatabase(filename);
     ledger = new SqliteEvolutionLearningLedger(db, 2);
     ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
-    assert.equal(ledger.size(), 2, "only a complete canonical A2 receipt consumes A1 capacity");
+    assert.equal(ledger.size(), 1, "a malformed A2 receipt consumes no A1 capacity");
   } finally {
     db.close();
     removeDatabasePath(filename);
@@ -238,13 +270,13 @@ test("a whitespace Research ID cannot reserve A1 capacity after restart", () => 
   try {
     let ledger = new SqliteEvolutionLearningLedger(db, 2);
     const malformedA2 = inputSetRecord("2026-08-29T00:00:00.000Z", "p1", " ");
-    ledger.append(malformedA2.record);
+    assert.throws(() => ledger.append(malformedA2.record), (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "UNVERIFIED_LEARNING_INPUT_SET");
     db.close();
 
     db = new SqliteDatabase(filename);
     ledger = new SqliteEvolutionLearningLedger(db, 2);
     ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
-    assert.equal(ledger.size(), 2, "a whitespace Research ID does not reserve capacity for an A1 decision");
+    assert.equal(ledger.size(), 1, "a whitespace Research ID is rejected and cannot reserve capacity");
   } finally {
     db.close();
     removeDatabasePath(filename);
@@ -256,6 +288,7 @@ test("canonical A2 PAPER IDs with mixed-case ordering retain their A1 reservatio
   try {
     const ledger = new SqliteEvolutionLearningLedger(db, 3);
     const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", "Z", "trial-1", ["Z", "a"]);
+    seedAuthorityEvidence(db, inputSet.inputSet);
     ledger.append(inputSet.record);
     ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:01:00.000Z", inputSet.inputSet));
     assert.equal(ledger.size(), 2, "mixed-case A2 references remain eligible for their canonical A1 receipt");
@@ -270,6 +303,7 @@ test("restart replay releases reservations for fingerprint-keyed A1 decisions", 
   try {
     let ledger = new SqliteEvolutionLearningLedger(db, 3);
     const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", "p1");
+    seedAuthorityEvidence(db, inputSet.inputSet);
     ledger.append(inputSet.record);
     ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:01:00.000Z", inputSet.inputSet, [], "fingerprint"));
 
@@ -291,6 +325,7 @@ test("only a canonical A1 receipt can release one matching A2 reservation", () =
     let ledger = new SqliteEvolutionLearningLedger(db, 4);
     const first = inputSetRecord("2026-08-29T00:00:00.000Z", "p1");
     const second = inputSetRecord("2026-08-29T00:01:00.000Z", "p2");
+    seedAuthorityEvidence(db, first.inputSet, second.inputSet);
     ledger.append(first.record);
     ledger.append(second.record);
     assert.throws(
@@ -333,6 +368,7 @@ test("replay does not resurrect an A2 reservation for the immediately preceding 
   try {
     let ledger = new SqliteEvolutionLearningLedger(db, 3);
     const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", "legacy-paper-period");
+    seedAuthorityEvidence(db, inputSet.inputSet);
     ledger.append(inputSet.record);
     const currentDecision = ledger.append(decisionRecord(inputSet.fingerprint, "2026-08-29T00:01:00.000Z", inputSet.inputSet));
 
