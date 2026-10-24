@@ -113,6 +113,22 @@ current_learning_hourly_recovery_20261012:
   remaining: "Actual cycles remain zero; baseline recognition repair and genuine Research-qualified candidate required."
   next: "Publish bounded hourly-evaluation increment; do not claim actual cycle completion or bypass baseline Research lineage."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_supersession_a5_20261023:
+  work_order: WO-LEARNING-20261023-A5-SUPERSESSION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AFTER_SECURITY_REGRESSION_FIX
+  branch: feat/supersession-a5
+  pull_request: 2796
+  parent_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
+  first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
+  validation: "Fresh npm advisories GHSA-xjj6-f33q-929c found undici 6.28.1/7.29.1 vulnerable in shared base. Existing canonical overrides updated to fixed 6.29.1/7.30.1; audit high=0 and security:gate PASS. Exact CI 40044601486 exposed an obsolete security-gate regression assertion; updated it to require 7.30.1/6.29.1 and reject 7.29.1/6.28.1. Node 24.19.0 focused A5/Evolution/worker 49/49 plus security-gate 10/10 PASS; build, preflight, validate:full, security:gate, provenance PASS. Exact-head CI pending."
+  prior_exact_head: bcbf23e5dac210be7db4291b1a9e34b40c28fc55
+  prior_exact_head_ci: "FAILED; run 40042338633. Coverage-core-3 worker.test failed only at UTC midnight because a Date.now-after-call strict >60s assertion observed a 60s minimum wait. Failure preserved; fixed deterministically with a fixed noon test clock, without changing runtime thresholds."
+  review_finding: "Fresh Codex review on b0e32e575 found P2 AIPOS parent/validation facts disagreed between state.yaml and the A5 work order. Successor bcbf23e5 aligns parent_head 05837941 and validation 158/158. Its CI failure was a UTC-midnight test-clock flake, now fixed on the current local successor; prior failure remains recorded."
+  next: "Commit corrected security-gate regression with all evidence, push non-force to #2796, run exact-head CI, request fresh independent review only after green."
+  blockers: "Cutoff/META owner and production trigger remain undefined; no production caller or Learning completion is claimed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_upgrade_20261012:
   work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
   status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_FRESH_CI
@@ -3702,10 +3718,10 @@ current_learning_meta_holdout_replay_20261018:
   status: VERIFYING
   branch: feat/meta-oos-a3
   pull_request: 2795
-  base_main: 3659e45e011032b71e37896eed7c3aef2580c153
-  head: a322adab2cb262997cbdc3b084ca7e3200836d75
-  ci_run: 39125139243
-  validation: "17 focused A3 tests and 1248 isolated test files PASS; build/typecheck/validate:full/security/AIPOS provenance PASS; lint PASS with 26 existing warnings. Exact-tree CI run 39125139243 PASS on head a322adab2cb262997cbdc3b084ca7e3200836d75. Initial bash ENOENT fixed by adding installed Git Bash to PATH; no assertions weakened."
+  base: 3828be38d57c83f8ed96641cedeef9d56434b84e
+  head: b36beb95610fee07d22b9137f86e703b7ecfd52d
+  ci_run: 39130068088
+  validation: "17 focused A3 tests and 1248 isolated test files PASS; build/typecheck/validate:full/security/AIPOS provenance PASS; lint PASS with 26 existing warnings. Exact-head CI run 39130068088 PASS on head b36beb95610fee07d22b9137f86e703b7ecfd52d, including validation, test, all five coverage shards, and aggregate coverage. Initial bash ENOENT fixed by adding installed Git Bash to PATH; no assertions weakened."
   finding: "Fixed durable META holdout replay idempotence on PR #2795. Remaining blockers: cutoff/META policies have no verified canonical owners, and read-only caller search found no production A3-to-A4 eligibility application path; A4 still accepts caller-provided eligibility."
   next: "Obtain canonical versioned cutoff and META policy owner specifications; then wire production A2/A1/A3/A4 and reconverge the stack. Fresh independent review remains required. Keep Draft; no Audit/Release until blockers are resolved."
   blockers:
