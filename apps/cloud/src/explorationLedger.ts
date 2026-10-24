@@ -72,14 +72,28 @@ export class LearningExplorationLedger {
   ) {}
 
   private attemptsFromRecords(records: readonly EvolutionLearningRecord[]): readonly ExplorationAttempt[] {
-    const candidates = records.filter((record) => record.validationStatus === RECORD_KIND || record.opportunityId.startsWith(ID_PREFIX));
-    const attempts = candidates.map(parseAttempt);
-    for (const attempt of attempts) {
+    const attempts: ExplorationAttempt[] = [];
+    const priorRecords: EvolutionLearningRecord[] = [];
+    for (const record of records) {
+      if (record.validationStatus !== RECORD_KIND && !record.opportunityId.startsWith(ID_PREFIX)) {
+        priorRecords.push(record);
+        continue;
+      }
+      const attempt = parseAttempt(record);
       const fingerprint = attempt.learningCycleId.slice("learning-cycle:".length);
-      const inputSet = this.inputSets.getByFingerprint(fingerprint, records);
+      // The authority record must precede this attempt in the same append-only snapshot. Looking
+      // at the full snapshot would retroactively authorize an A6 row with a later A2 receipt.
+      const inputSet = this.inputSets.getByFingerprint(fingerprint, priorRecords);
       if (inputSet == null || inputSet.learningCycleId !== attempt.learningCycleId) {
         throw new ExplorationError("A2_INPUT_NOT_DURABLE", "replayed exploration attempt has no matching canonical durable A2 input set");
       }
+      try {
+        this.families.requireMembership(attempt.strategyId, attempt.strategyVersion, attempt.familyId);
+      } catch {
+        throw new ExplorationError("UNREGISTERED_FAMILY_MEMBER", "replayed exploration attempt is not bound to a registered strategy-family member");
+      }
+      attempts.push(attempt);
+      priorRecords.push(record);
     }
     assertExplorationHistory(attempts);
     return Object.freeze(attempts);

@@ -203,6 +203,42 @@ describe("A6 durable exploration contract", () => {
     }
   });
 
+  it("replay rejects an A6 receipt that precedes its canonical A2 authority record", () => {
+    const filename = dbPath();
+    const state = setup(filename);
+    try {
+      state.exploration.propose(state.input.fingerprint, candidate());
+      const records = state.evolution.list();
+      const a2 = records.find((record) => record.opportunityId === `learning-input-set:${state.input.fingerprint}`);
+      const a6 = records.find((record) => record.validationStatus === "LEARNING_EXPLORATION");
+      assert.ok(a2);
+      assert.ok(a6);
+      const reordered = new LearningExplorationLedger({
+        list: () => [a6, a2],
+        appendWithValidation: () => { throw new Error("append must not run during replay"); },
+      }, state.inputSets, familyRegistry(), () => TIME);
+      assert.throws(reordered.list.bind(reordered), (error: unknown) => error instanceof ExplorationError && error.code === "A2_INPUT_NOT_DURABLE");
+    } finally {
+      state.db.close();
+      cleanup(filename);
+    }
+  });
+
+  it("replay revalidates strategy-family membership instead of trusting a durable-shaped receipt", () => {
+    const filename = dbPath();
+    const state = setup(filename);
+    try {
+      state.exploration.propose(state.input.fingerprint, candidate());
+      const familiesWithoutMember = new StrategyFamilyRegistry();
+      familiesWithoutMember.registerFamily({ familyId: "momentum", name: "Momentum", category: "TREND", thesis: "Registered family without this strategy member", lifecycle: "RESEARCHING" });
+      const replay = new LearningExplorationLedger(state.evolution, state.inputSets, familiesWithoutMember, () => TIME);
+      assert.throws(replay.list.bind(replay), (error: unknown) => error instanceof ExplorationError && error.code === "UNREGISTERED_FAMILY_MEMBER");
+    } finally {
+      state.db.close();
+      cleanup(filename);
+    }
+  });
+
   it("persists only the exact validated cost-model fields", () => {
     const filename = dbPath();
     const state = setup(filename);

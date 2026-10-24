@@ -1,10 +1,11 @@
 id: WO-LEARNING-20261023-A6-EXPLORATION
 title: "A6 durable, cycle-bound exploration assessment"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: LOCAL_VALIDATED_PENDING_A5_PARENT_SYNC_AND_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/supersession-a5
 base_head: b0e32e575b5cf96ab4b659fb06e8671db0c1ea71
+pending_parent_sync: 651fef857e3b8174e4debda74505dd3b31219e22
 branch: feat/exploration-a6
 pull_request: 2797
 authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
@@ -18,7 +19,8 @@ scope:
     - "Persist attempts through the existing Evolution Learning hash-chain ledger and validate cycle budget/family constraints within its serialized append transaction."
     - "Bound total receipts through the existing ledger capacity and validate all restart/replay history deterministically."
     - "Require the durable Evolution record timestamp to be canonical ISO form when replaying A6 receipts."
-    - "Resolve every replayed A6 learningCycleId against the canonical durable A2 receipt in the same ledger snapshot."
+    - "Resolve every replayed A6 learningCycleId against a canonical durable A2 receipt that precedes the A6 record in the same ledger snapshot; later A2 cannot retroactively authorize earlier A6."
+    - "Revalidate strategy-family membership during replay; a durable-shaped A6 receipt cannot outlive its registered family membership."
     - "Persist only the four validated cost-model fields in the candidate-derived descriptor; caller extras cannot poison replay."
     - "Reuse the canonical LearningInputSetLedger reader and evidence authority for both initial A2 lookup and in-transaction snapshot revalidation."
   exclude:
@@ -51,12 +53,13 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "A2/A1/A3/A4/A5/A6/M2 plus chain and retention tests: 138/138 PASS on Node 24.19.0; includes orphan A6/A2 replay rejection, extra cost-field exclusion, SQLite restart/replay, and serialized stale-writer coverage."
+  focused: "A2/A1/A3/A4/A5/A6/M2 plus chain and retention tests: 165/165 PASS on Node 24.19.0 before latest A5 parent sync; includes orphan and out-of-order A6/A2 replay rejection, strategy-family membership revalidation, extra cost-field exclusion, SQLite restart/replay, and serialized stale-writer coverage."
   build: PASS on Node 24.19.0 / pnpm 11.25.0
   preflight: PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 521-file AIPOS YAML checks PASS
   validate_full: PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS
   security_gate: PASS; no unmitigated finding or secret detected
   aipos_provenance: PASS
   diff_check: PASS
-  exact_head_ci: PENDING_AFTER_PUSH
-  independent_review: PENDING
+  exact_head_ci: PENDING_AFTER_A5_PARENT_SYNC_AND_PUSH
+  independent_review: PENDING_AFTER_CURRENT_EXACT_HEAD_CI
+  review_findings_repaired: "Fresh Codex review on e1950b1a found two P1s: full-snapshot lookup allowed a later A2 to retroactively authorize earlier A6, and replay skipped strategy-family membership validation. Repair enforces prior-record chronology and rechecks membership; regressions cover both. Previous head CI remains historical; current exact-head gates required after parent sync."
