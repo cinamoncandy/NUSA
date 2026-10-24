@@ -3784,19 +3784,33 @@ current_learning_resume_failed_cycle:
 
 current_learning_a2_authority_reservation_20261024:
   work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
-  status: LOCAL_VALIDATED_PENDING_REVIEW_REPAIR_EXACT_HEAD_CI
+  status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_MAJOR_FINDINGS
   pull_request: 2792
   branch: feat/learning-input-set-a2
   prior_exact_head: 7a7fc070ec3e48206049caa7b8ea82603b4892c8
   reviewed_head: 67410d1075aef57207591e7aafe5908cbfd6e069
-  local_successor: current branch successor (resolved from exact Git head)
+  exact_head: 8ff681511376160c542168674ff195feeb57e5af
   first_broken_transition: "generic A1-shaped ledger append -> malformed change assessment releases a reserved A2 capacity slot"
   implementation: "Storage re-derives every A1 change assessment using the frozen longBarTickEvery owner aperture, immutable/unknown surface rejection, bounded values and canonical reason; verifies canonical ordering, unique proposed surfaces, admissible/rejected partitions, magnitude, and outcome before replay or append can release A2 capacity."
   validation: "Node v24.19.0; build PASS; focused A2 identity/retention/storage 47/47 PASS including malformed proposed/admissible/rejected arrays, forged assessment rejection, restart-preserved reservation and canonical A1 consumption; preflight PASS; validate:full PASS; security:gate PASS (0 raw high/critical, 0 secrets); diff-check PASS before final AIPOS refresh."
   prior_exact_head_ci: "67410d1075aef57207591e7aafe5908cbfd6e069 CI 40106540162 and five required companions PASS; all historical after review repair."
-  independent_review: "Fresh review on 67410d1075aef57207591e7aafe5908cbfd6e069 found P2: validate each A1 change entry against canonical domain contract before releasing reservation."
+  predecessor_review_finding: "Fresh review on 67410d1075aef57207591e7aafe5908cbfd6e069 found P2: validate each A1 change entry against canonical domain contract before releasing reservation; repaired on successor head."
+  exact_head_ci: "PASS: run 40143048327; required Actual PAPER, capability guard, transport readiness, activation rehearsal, read-only broker, and Autopilot event bridge checks PASS on exact head."
+  fresh_independent_review: "Fresh exact-head Codex review comment 6390977571: no major issues; reviewed commit 8ff6815113. Advisory review only, not formal NUSA Validator acceptance."
+  next: "Continue with existing dependent PR #2793 synchronized to this exact A2 head. Keep Draft; no #2855/server action."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_a1_receipt_provenance_20261024:
+  work_order: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  pull_request: 2793
+  branch: feat/learning-decision-a1
+  current_a2_dependency_head: 8ff681511376160c542168674ff195feeb57e5af
+  first_broken_transition: "A1 successor synchronization -> verified canonical A2 payload and authority-bound capacity release"
+  validation: "Merged the current A2 branch locally; A1 storage now verifies A2 authority from canonical Research/PAPER readers within the existing append transaction, validates A1 against the exact durable A2 payload, accepts the immediately preceding canonical A1 receipt shape only for replay, and shares binary ordering. Focused A1/A2/storage suite 102/102 PASS; final preflight and full local gates pending."
   exact_head_ci: PENDING
-  next: "Complete final AIPOS/diff checks; commit substantive repair and provenance on existing #2792; non-force push; await new exact-head CI/companions, then request one fresh independent review. Keep Draft; no A1 progression, #2855/server action."
+  independent_review: PENDING_FRESH_EXACT_HEAD_REVIEW_AFTER_CI
+  next: "Complete Node 24.19 preflight and repository gates, inspect A1/A2 semantic merge, then verify remote #2793 head before non-force push. Request fresh independent review only after exact-head CI and required companions pass. Keep Draft; no merge, deployment, or server action."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_a2_evidence_resolution_20261023:
@@ -3812,16 +3826,15 @@ current_learning_a2_evidence_resolution_20261023:
 
 current_learning_a2_evidence_resolution_20261024:
   work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_MAJOR_FINDINGS
   pull_request: 2792
   branch: feat/learning-input-set-a2
-  prior_remote_head: d5e77af1bf8d8c7701919113d7d26bf8686a64e2
-  synchronized_candidate_head: c518e035b650ffaa2688036b847bfad1f65e7945
-  synchronized_base: 9bb373516d3e2f6da200e4728c5e5b2708dd131e
-  first_broken_transition: "synchronized A2 exact head -> fresh exact-head CI"
-  validation: "Node 24.19.0; focused A2/A1/storage tests 45 PASS; build, preflight, validate:full, security:gate, and diff-check PASS. Security gate is green after #2870 dependency remediation merged into main."
-  exact_head_ci: "PENDING; candidate c518e035b650ffaa2688036b847bfad1f65e7945 has not yet been pushed or validated remotely."
-  next: "Push non-force to existing #2792 branch; wait for all exact-head workflows; request fresh independent review only after green. Keep Draft. #2855/server deployment untouched."
+  exact_head: 8ff681511376160c542168674ff195feeb57e5af
+  first_broken_transition: "generic A1-shaped ledger append -> malformed change assessment releases a reserved A2 capacity slot"
+  validation: "Node 24.19.0; 47 focused A2 identity/retention/storage tests PASS; build, preflight, validate:full, security:gate, AIPOS and diff checks PASS."
+  exact_head_ci: "PASS: 40143048327 with all required companions and Autopilot event bridge PASS."
+  fresh_independent_review: "Comment 6390977571 on exact head 8ff681511376160c542168674ff195feeb57e5af: no major issues; advisory review, not formal NUSA Validator acceptance."
+  next: "A2 exact-head CI and fresh review completed; proceed to dependent A1 PR #2793. Keep Draft; #2855/server deployment remain separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:

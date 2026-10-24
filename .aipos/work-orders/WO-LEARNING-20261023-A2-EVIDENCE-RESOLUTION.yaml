@@ -1,13 +1,13 @@
 id: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
 title: "A2 must resolve input references through canonical durable evidence readers"
-status: LOCAL_VALIDATED_PENDING_NEW_EXACT_HEAD_CI
+status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_MAJOR_FINDINGS
 priority: P0
 owner_request: "Advance the closed learning loop in dependency order, starting with A2. Each PR requires relevant tests and pnpm run preflight on Node 24.19+, then fresh independent review after exact-head CI is green. Do not let this sequence block PR #2855 or the order-book archive server deployment; server deployment remains after #2855."
 source:
   pull_request: 2792
   branch: feat/learning-input-set-a2
   prior_exact_head: 7a7fc070ec3e48206049caa7b8ea82603b4892c8
-  synchronized_candidate_head: current branch successor (resolved from exact Git head)
+  exact_head: 8ff681511376160c542168674ff195feeb57e5af
   synchronized_base: 9bb373516d3e2f6da200e4728c5e5b2708dd131e
   first_broken_transition: "generic A2-shaped ledger append -> phantom A1 capacity reservation without durable Research/PAPER authority"
 scope:
@@ -52,8 +52,8 @@ verification:
   security_gate: "PASS pnpm run security:gate; raw high/critical 0, secrets 0."
   aipos: "PASS pnpm run preflight AIPOS YAML validation, validate:full, and work-order provenance after final AIPOS updates."
   diff_check: "PASS git diff --check after final AIPOS and handoff updates."
-  exact_head_ci: "PENDING on the substantive A1 assessment-validation successor; prior CI for 67410d1075aef57207591e7aafe5908cbfd6e069 is historical after the review repair."
-  independent_review: "Fresh review of 67410d1075aef57207591e7aafe5908cbfd6e069 found P2 in A1 change-entry validation; repair is locally validated and requires new exact-head CI, then one fresh review."
+  exact_head_ci: "PASS: run 40143048327 plus required Actual PAPER, capability guard, transport readiness, activation rehearsal, read-only broker, and Autopilot event bridge checks all passed on exact head 8ff681511376160c542168674ff195feeb57e5af."
+  independent_review: "Fresh exact-head review comment 6390977571 on 8ff681511376160c542168674ff195feeb57e5af: no major issues. Advisory review only; no formal NUSA Validator acceptance claimed."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -61,4 +61,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Commit and non-force push the locally validated substantive successor to existing #2792, wait for all exact-head workflows and companions to become terminal PASS, then request one fresh independent review. Keep Draft; do not merge or deploy, and do not interfere with #2855/server archive deployment."
+next: "A2 exact-head review and CI are complete. Continue sequentially with dependent PR #2793; keep #2792 Draft and do not merge or deploy or interfere with #2855/server archive deployment."

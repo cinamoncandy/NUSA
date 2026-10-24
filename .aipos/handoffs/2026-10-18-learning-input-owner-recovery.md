@@ -1,6 +1,6 @@
 # Learning input owner recovery
 
-Canonical PR: #2792 (`feat/learning-input-set-a2`), base `3659e45e011032b71e37896eed7c3aef2580c153`. This change is based on its current head `65a4db2620a799f696c52449c3c2cf451647d98f`; the separate `repair-2792-reconverge` worktree remains untouched.
+Canonical PR: #2792 (`feat/learning-input-set-a2`), base `3659e45e011032b71e37896eed7c3aef2580c153`. The latest parent head is `139b4319ba7b7600df6eae84f9b65a0ff43a3d43`; exact-head CI run `39128055923` passed. Independent Audit/Release have not run; keep #2792 Draft. The separate `repair-2792-reconverge` worktree remains untouched.
 
 ## Production source findings
 

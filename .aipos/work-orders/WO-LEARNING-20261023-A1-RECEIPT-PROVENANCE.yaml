@@ -1,0 +1,33 @@
+id: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
+title: Preserve full A2 provenance in durable A1 receipts and align evidence reference bounds
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+validation: "The dependent A1 branch is synchronized locally to A2 exact head 8ff681511376160c542168674ff195feeb57e5af. The existing SQLite Evolution ledger now performs canonical durable Research/PAPER authority resolution inside its serialized append, restores only authority-verified A2 reservations, and binds A1 release to the exact durable A2 payload while preserving the immediately preceding canonical A1 shape for replay. Existing A1 behavior and A2 verification contract are retained. Focused A1 decision, A2 identity/retention integration, and SQLite ledger tests pass 102/102; pnpm build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS YAML/provenance, and diff checks pass. No thresholds, authority, or historical production rows changed."
+review: "Predecessor review findings remain historical and repaired. The merged A2 head has a fresh independent review with no major issues. A new A1 exact-head review is required after the synchronized A1 candidate passes exact-head CI. No formal NUSA Validator acceptance is claimed."
+remaining: "Verify remote #2793 head is still 32f969e01c59dc9b7263a715031388b621693c85, commit the A2-synchronized substantive repair and push non-forcing, pass exact-head CI/companions and request one fresh independent review. Downstream Validator/Audit/Release/runtime and genuine Learning evidence remain pending."
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: 8ff681511376160c542168674ff195feeb57e5af
+issue: 2793
+scope: "Existing A1 LearningDecision, A2 LearningInputSetLedger, and existing EvolutionLearningLedger only. A1 re-resolves its durable A2 basis through the same canonical LearningEvidenceAuthority; storage reservation release binds the canonical A2 record to its durable payload."
+impact: "A1 receipt can independently re-resolve and verify its evidence basis after export, while malformed or oversized inputs fail closed before they can consume a reserved ledger slot."
+compatibility: "Keep the existing ledger schema and 16 KiB hypothesis bound. Oversized self-contained A1 receipts reject deterministically; no historical record rewrite or alternate store."
+acceptance:
+  - "A durable A1 receipt includes the complete A2 set and its existing fingerprint/cycle binding."
+  - "The storage ledger releases exactly one matching pending A2 reservation only for a self-contained A1 receipt bound to that A2 payload."
+  - "A reason evidence ID too long for the canonical 240-byte ledger reference fails at decision construction; a 240-byte ID persists in SQLite."
+  - "Existing exactly-once, restart/replay, tamper and fail-closed behavior remains intact."
+verification_commands:
+  - node --require ./tests/register-dist.cjs --test dist/apps/cloud/src/learningDecision.test.js dist/packages/storage/src/evolutionLearningLedger.test.js
+  - pnpm run build
+  - pnpm run preflight
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run aipos:provenance
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Push the locally validated A2-synchronized repair non-forcing after confirming remote head, pass exact-head CI and request fresh independent review; retain PAPER-only authority boundaries."
+version: 1
