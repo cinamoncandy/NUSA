@@ -4,7 +4,7 @@ status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/exploration-a6
-base_head: e1950b1a918bdb435e5ac613173d76520b19cd60
+base_head: d0b046b1e11876aa3a5c7164f95e4cc51629f79f
 branch: feat/learning-status-m2
 pull_request: 2798
 authority_impact: none-display-only-read-model
@@ -41,11 +41,11 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "A2/A1/A3/A4/A5/A6/M2/chain/retention focused suite: 176/176 PASS after syncing A6 `e1950b1a`; includes A6 A2 replay binding and exact cost-model descriptor regressions; includes explicit UNKNOWN/INVALID status and unverified-claim regressions."
+  focused: "Node 24.19.0/pnpm 11.25.0 after syncing A6 d0b046b1: M2 + A2/A1/A4/A5/A6/retention tests 162/162 PASS; A3 META partition tests 19/19 PASS."
   build: PASS on Node 24.19.0 / pnpm 11.25.0
   preflight: PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 522-file AIPOS YAML validation PASS
   validate_full: PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS
-  security_gate: PASS; no unmitigated finding or secret detected
-  aipos_provenance: PASS
-  exact_head_ci: PENDING_AFTER_SYNC_PUSH
-  independent_review: PENDING
+  security_gate: PASS; raw high/critical=0, unmitigated=0, secrets=0
+  aipos_provenance: PASS; work-order index PASS
+  exact_head_ci: PENDING_AFTER_PUSH
+  independent_review: PENDING_AFTER_EXACT_HEAD_CI
