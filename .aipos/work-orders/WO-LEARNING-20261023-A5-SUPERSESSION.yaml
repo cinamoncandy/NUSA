@@ -54,7 +54,8 @@ validation:
   validate_full: PASS
   security_gate: PASS
   diff_check: PASS
-  exact_head_ci: PENDING_AFTER_A3_SYNC_AND_A5_REPAIR
-  independent_review: PENDING
+  exact_head_ci: PENDING_AFTER_UTC_BOUNDARY_TEST_REPAIR
+  independent_review: PENDING_AFTER_CURRENT_EXACT_HEAD_CI
+  ci_failure_repair: "CI run 40042338633 failed only in tests/autopilot worker.test.ts at UTC midnight: the daily-quota production wait used the exact 60s minimum while the test compared against a later Date.now(). Fixed the test with a deterministic 2026-10-23T12:00:00Z clock; runtime behavior and thresholds unchanged. Failure receipt preserved."
 remaining: "No production caller or cutoff/META authority is defined. Exact-head CI and fresh independent review remain required."
-next: "Push the repaired A5 successor to the existing #2796 branch after confirming its remote head; run exact-head CI and request a fresh independent review only after it passes."
+next: "Commit this deterministic UTC-midnight test-clock repair with the state/work-order update; push non-force to the existing #2796 branch, run exact-head CI, then request fresh independent review only after it passes."
