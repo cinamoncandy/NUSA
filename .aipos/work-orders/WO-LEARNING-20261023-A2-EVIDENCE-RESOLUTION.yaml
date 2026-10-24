@@ -46,7 +46,7 @@ verification:
   validate_full: "PASS pnpm run validate:full on synchronized candidate."
   security_gate: "PASS pnpm run security:gate after protected main incorporated #2870 dependency remediation; zero high/critical findings and zero secrets. Previous d5e77af1 run is historical and failed against old dependency baseline."
   diff_check: "PASS git diff --check."
-  exact_head_ci: "PENDING for c518e035b650ffaa2688036b847bfad1f65e7945; no predecessor CI receipt reused."
+  exact_head_ci: "PENDING for the final pushed branch head after this AIPOS evidence update; no predecessor CI receipt reused."
   independent_review: "Prior exact-head review found a P2: localeCompare ordering disagreed with binary/code-unit ordering for mixed-case ids. Repair and SQLite restart/A1 reservation regression are present in the synchronized candidate; fresh review remains pending until exact-head CI is green."
 safety:
   paper_only: true
@@ -55,4 +55,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Push the locally validated synchronized successor to the existing #2792 branch, confirm all exact-head workflows terminal PASS, then request fresh independent review. Keep Draft; do not merge or deploy, and do not interfere with #2855/server archive deployment."
+next: "Push the locally validated synchronized successor and this AIPOS evidence to the existing #2792 branch, confirm all exact-head workflows terminal PASS, then request fresh independent review. Keep Draft; do not merge or deploy, and do not interfere with #2855/server archive deployment."
