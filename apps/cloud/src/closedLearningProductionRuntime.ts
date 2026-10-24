@@ -17,7 +17,7 @@ import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from 
 import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
 import { buildCanonicalPaperCandidatePerformance, PAPER_COVERED_DAY_SCORING_VERSION } from "./canonicalPaperCandidatePerformance";
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
-import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
+import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository, SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
 import { ClosedLearningLoopStatusTracker, tickErrorClass } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
@@ -101,6 +101,19 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     }
   }
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
+  // Bind A2 capacity reservation to the same canonical durable readers used by A2 itself. The
+  // storage transaction verifies citations before append and replay rechecks them after restart.
+  const history = new ClosedLearningResearchDecisionHistory(database);
+  const canonicalPaperEvidenceStore = new SqlitePersistedPaperPeriodStore(database);
+  const learningInputSetEvidenceAuthority = createLearningEvidenceAuthorityFromReaders({
+    readResearch: (recordId) => history.readEvidence(recordId),
+    readPaper: (recordId) => {
+      const record = canonicalPaperEvidenceStore.listRecords().find((item) => item.recordId === recordId);
+      return record == null ? undefined : Object.freeze({ recordId, recordedAt: record.periodEndAt });
+    },
+    readResearchSnapshot: () => history.listEvidence(),
+    readPaperSnapshot: () => Object.freeze(canonicalPaperEvidenceStore.listRecords().map((record) => Object.freeze({ recordId: record.recordId, recordedAt: record.periodEndAt }))),
+  });
   const learningLedger = new SqliteEvolutionLearningLedger(database);
   const challengerBindings = new PaperChallengerBindingLedger(learningLedger);
   // A qualified challenger always wins; until one exists the owner-approved PAPER baseline trades.
@@ -239,7 +252,6 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     executionQualityPolicy: closedLearningConfig.executionQualityPolicy,
   });
   const worker = new ClosedLearningResearchWorkerClient({ snapshotPath: closedLearningConfig.researchReplaySnapshotPath });
-  const history = new ClosedLearningResearchDecisionHistory(database);
   const artifacts = new FileQualifiedPaperChallengerArtifactStore(closedLearningConfig.qualifiedArtifactPath);
   const researchFactory = new ClosedLearningProductionResearchAdapter({ replayInput, worker, history, artifacts });
   const cycleRepository = new ClosedLearningEvolutionLedgerRepository(learningLedger);
@@ -251,15 +263,6 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // Canonical Strategy Governance approval for PAPER challengers (ADR-0018, amended): on by
     // default on the PAPER host; NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED makes candidates wait.
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
-  });
-  const learningInputSetEvidenceAuthority = createLearningEvidenceAuthorityFromReaders({
-    readResearch: (recordId) => history.readEvidence(recordId),
-    readPaper: (recordId) => {
-      const period = periods.listRealizedPeriods().find((item) => item.record.recordId === recordId);
-      return period == null ? undefined : Object.freeze({ recordId, recordedAt: period.record.periodEndAt });
-    },
-    readResearchSnapshot: () => history.listEvidence(),
-    readPaperSnapshot: readPaperEvidence,
   });
   // Research experiment composition is optional. When disabled, keep the canonical durable
   // decision-history and realized-period readers available; only absent research evidence should

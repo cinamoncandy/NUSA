@@ -12,6 +12,12 @@ export interface PersistedPaperPendingPeriod {
   readonly checksum: string;
 }
 
+export interface PersistedPaperPeriodReaderDatabase {
+  readonly connection: {
+    prepare(sql: string): { all(...params: unknown[]): unknown[] };
+  };
+}
+
 /** A storage receipt is not realized performance, strategy failure, or qualification. */
 export interface PaperPendingIneligibilityReason {
   readonly stage: "PERIOD_CLOSE";
@@ -226,6 +232,11 @@ function decodeDisposition(row: PersistedPaperPendingPeriod): PersistedPaperPend
   }
 }
 
+function readRealizedEnvelopes(db: PersistedPaperPeriodReaderDatabase): readonly PersistedPaperPeriodEnvelope[] {
+  const rows = db.connection.prepare(`SELECT record_id, payload_json, checksum FROM ${TABLE} ORDER BY period_index ASC, period_start_at ASC, record_id ASC`).all() as Array<Record<string, unknown>>;
+  return freeze(rows.map((row) => decodeEnvelope(row)));
+}
+
 export class SqlitePersistedPaperPeriodStore {
   public constructor(private readonly db: SqliteDatabase) {
     this.db.connection.exec(`
@@ -246,6 +257,11 @@ export class SqlitePersistedPaperPeriodStore {
         checksum TEXT NOT NULL
       );
     `);
+  }
+
+  /** Read the canonical checksum-verified history without running schema DDL (safe during recovery). */
+  public static readRecords(db: PersistedPaperPeriodReaderDatabase): readonly PersistedPaperPeriodRecord[] {
+    return freeze(readRealizedEnvelopes(db).map((envelope) => envelope.record));
   }
 
   public append(envelope: PersistedPaperPeriodEnvelope): PersistedPaperPeriodEnvelope {
@@ -448,8 +464,7 @@ export class SqlitePersistedPaperPeriodStore {
   }
 
   public list(): readonly PersistedPaperPeriodEnvelope[] {
-    const rows = this.db.connection.prepare(`SELECT record_id, payload_json, checksum FROM ${TABLE} ORDER BY period_index ASC, period_start_at ASC, record_id ASC`).all() as Array<Record<string, unknown>>;
-    return freeze(rows.map((row) => decodeEnvelope(row)));
+    return readRealizedEnvelopes(this.db);
   }
 
   public listRecords(): readonly PersistedPaperPeriodRecord[] { return freeze(this.list().map((envelope) => envelope.record)); }

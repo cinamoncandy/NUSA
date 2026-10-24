@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { EvolutionLearningRecord } from "../../../apps/autopilot/src/evolveLearningMemory";
 import { canonicalResearchJson } from "../../contracts/src/researchRuntime";
+import { SqlitePersistedPaperPeriodStore } from "./persistedPaperPeriodStore";
+import { SqliteResearchFactoryDecisionHistoryRepository } from "./researchFactoryDecisionHistoryRepository";
 
 const SCHEMA_VERSION = 1 as const;
 const GENESIS_HASH = "0".repeat(64);
@@ -27,6 +29,8 @@ const LEARNING_INPUT_SET_FIELDS = new Set([
 ]);
 const LEARNING_DECISION_ID = /^learning-decision(?::|-cycle-v1:)([a-f0-9]{64})$/;
 const LEARNING_INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
+const LEARNING_INPUT_SET_LEGACY_STATUS = "LEARNING_INPUT_SET";
+const LEARNING_INPUT_SET_AUTHORIZED_STATUS = "LEARNING_INPUT_SET_AUTHORITY_VERIFIED";
 const LEARNING_DECISION_PROBLEM = "NUSA learning decision: the bounded conclusion drawn from one learning input set";
 const LEARNING_DECISION_FIELDS = new Set([
   "schemaVersion", "learningCycleId", "learningInputSetFingerprint", "previousResearchSpecFingerprint",
@@ -229,7 +233,7 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
 }
 
 function canonicalLearningInputSetForReservation(record: EvolutionLearningRecord, fingerprint: string): boolean {
-  if (record.validationStatus !== "LEARNING_INPUT_SET" || record.problem !== LEARNING_INPUT_SET_PROBLEM
+  if ((record.validationStatus !== LEARNING_INPUT_SET_LEGACY_STATUS && record.validationStatus !== LEARNING_INPUT_SET_AUTHORIZED_STATUS) || record.problem !== LEARNING_INPUT_SET_PROBLEM
     || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true) return false;
   let payload: unknown;
   try { payload = JSON.parse(record.hypothesis); } catch { return false; }
@@ -273,16 +277,51 @@ function canonicalLearningInputSetForReservation(record: EvolutionLearningRecord
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
 }
 
+function isLearningInputSetCandidate(record: EvolutionLearningRecord): boolean {
+  return record.opportunityId.startsWith("learning-input-set:")
+    || record.validationStatus === LEARNING_INPUT_SET_LEGACY_STATUS
+    || record.validationStatus === LEARNING_INPUT_SET_AUTHORIZED_STATUS
+    || record.problem === LEARNING_INPUT_SET_PROBLEM;
+}
+
+function canonicalLearningInputSetEvidenceVerifier(db: EvolutionLearningLedgerDatabase): (inputSet: Record<string, unknown>) => boolean {
+  // These are the existing canonical, integrity-checking readers. PAPER uses its read-only path so
+  // ledger startup cannot introduce schema writes after recovery evidence has been prepared.
+  const research = new Map(new SqliteResearchFactoryDecisionHistoryRepository(db).list().map((item) => [item.evaluationId, item.observedAt]));
+  const paper = new Map(SqlitePersistedPaperPeriodStore.readRecords(db).map((item) => [item.recordId, item.periodEndAt]));
+  return (inputSet) => {
+    const researchIds = inputSet.researchEvidenceRecordIds as unknown[];
+    const researchAt = inputSet.researchEvidenceObservedAt as unknown[];
+    const paperIds = inputSet.paperEvidenceRecordIds as unknown[];
+    const paperAt = inputSet.paperEvidenceObservedAt as unknown[];
+    return researchIds.every((id, index) => research.get(id as string) === researchAt[index])
+      && paperIds.every((id, index) => paper.get(id as string) === paperAt[index]);
+  };
+}
+
+function hasVerifiedLearningInputSetAuthority(
+  record: EvolutionLearningRecord,
+  fingerprint: string,
+  verify: (inputSet: Record<string, unknown>) => boolean,
+): boolean {
+  if (!canonicalLearningInputSetForReservation(record, fingerprint)) return false;
+  try {
+    return verify(JSON.parse(record.hypothesis) as Record<string, unknown>);
+  } catch {
+    return false;
+  }
+}
+
 function isLearningDecisionCandidate(record: EvolutionLearningRecord): boolean {
   return record.validationStatus === "LEARNING_DECISION" || record.problem === LEARNING_DECISION_PROBLEM || LEARNING_DECISION_ID.test(record.opportunityId);
 }
 
-function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[]): Set<string> {
+function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[], verify: (inputSet: Record<string, unknown>) => boolean): Set<string> {
   const pending = new Set<string>();
   for (const record of records) {
-    if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
+    if (isLearningInputSetCandidate(record)) {
       const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-      if (match != null && canonicalLearningInputSetForReservation(record, match[1])) pending.add(match[1]);
+      if (match != null && hasVerifiedLearningInputSetAuthority(record, match[1], verify)) pending.add(match[1]);
       continue;
     }
     if (isLearningDecisionCandidate(record)) {
@@ -293,14 +332,11 @@ function pendingLearningDecisionFingerprints(records: readonly EvolutionLearning
   return pending;
 }
 
-function pendingReservationsAfterAppend(
-  pending: Set<string>,
-  record: EvolutionLearningRecord,
-): Set<string> {
+function pendingReservationsAfterAppend(pending: Set<string>, record: EvolutionLearningRecord, verify: (inputSet: Record<string, unknown>) => boolean): Set<string> {
   const next = new Set(pending);
-  if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
+  if (isLearningInputSetCandidate(record)) {
     const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-    if (match != null && canonicalLearningInputSetForReservation(record, match[1])) next.add(match[1]);
+    if (match != null && hasVerifiedLearningInputSetAuthority(record, match[1], verify)) next.add(match[1]);
   }
   if (isLearningDecisionCandidate(record)) {
     const matchingReservations = record.evidenceReferences.filter((reference) => next.has(reference));
@@ -342,7 +378,10 @@ export class SqliteEvolutionLearningLedger {
   private readonly maximumRecords: number;
   private cached: EvolutionLearningLedgerReplay;
 
-  public constructor(private readonly db: EvolutionLearningLedgerDatabase, maximumRecords = MAX_RECORDS) {
+  public constructor(
+    private readonly db: EvolutionLearningLedgerDatabase,
+    maximumRecords = MAX_RECORDS,
+  ) {
     if (!Number.isSafeInteger(maximumRecords) || maximumRecords < 1 || maximumRecords > MAX_RECORDS) invalid("INVALID_RETENTION", "learning ledger capacity is invalid");
     this.maximumRecords = maximumRecords;
     this.cached = this.replay();
@@ -350,25 +389,41 @@ export class SqliteEvolutionLearningLedger {
 
   public append(value: EvolutionLearningRecord): EvolutionLearningRecord {
     const record = normalize(value);
-    const current = this.replay();
-    const existing = current.records.find((item) => item.opportunityId === record.opportunityId);
-    if (existing != null) {
-      if (contentHash(existing) !== contentHash(record)) invalid("IDENTITY_CONFLICT", "learning opportunity was reused with different evidence");
-      return existing;
-    }
-    const pendingReservations = pendingLearningDecisionFingerprints(current.records);
-    if (isLearningDecisionCandidate(record)) {
-      const matchingReservations = record.evidenceReferences.filter((reference) => pendingReservations.has(reference));
-      if (matchingReservations.length !== 1 || !canonicalLearningDecisionForReservation(record, matchingReservations[0])) {
-        invalid("INVALID_LEARNING_DECISION_RECEIPT", "only a canonical A1 receipt bound to exactly one pending A2 input set may use reserved capacity");
+    return this.db.transaction(() => {
+      const current = this.replay();
+      const a2Candidate = isLearningInputSetCandidate(record);
+      const a2Match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
+      const hasStoredA2Candidate = current.records.some(isLearningInputSetCandidate);
+      let verifyInputSet: (inputSet: Record<string, unknown>) => boolean = () => false;
+      if (a2Candidate || hasStoredA2Candidate) {
+        try {
+          verifyInputSet = canonicalLearningInputSetEvidenceVerifier(this.db);
+        } catch {
+          if (!a2Candidate) invalid("LEARNING_INPUT_AUTHORITY_UNAVAILABLE", "durable A2 reservations cannot be reconstructed while canonical evidence readers are unavailable");
+        }
       }
-    }
-    const pending = pendingReservationsAfterAppend(pendingReservations, record);
-    if (current.records.length + 1 + pending.size > this.maximumRecords) invalid("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted or reserved for pending A1 decisions");
-    const previous = current.records.at(-1);
-    if (previous != null && Date.parse(record.recordedAt) < Date.parse(previous.recordedAt)) invalid("CHRONOLOGY_REGRESSION", "learning record timestamp regressed");
+      if (a2Candidate && (record.validationStatus !== LEARNING_INPUT_SET_AUTHORIZED_STATUS || a2Match == null
+        || !hasVerifiedLearningInputSetAuthority(record, a2Match[1], verifyInputSet))) {
+        invalid("UNVERIFIED_LEARNING_INPUT_SET", "A2-shaped records require canonical durable Research/PAPER authority before append or reservation");
+      }
 
-    this.db.transaction(() => {
+      const existing = current.records.find((item) => item.opportunityId === record.opportunityId);
+      if (existing != null) {
+        if (contentHash(existing) !== contentHash(record)) invalid("IDENTITY_CONFLICT", "learning opportunity was reused with different evidence");
+        return existing;
+      }
+      const pendingReservations = pendingLearningDecisionFingerprints(current.records, verifyInputSet);
+      if (isLearningDecisionCandidate(record)) {
+        const matchingReservations = record.evidenceReferences.filter((reference) => pendingReservations.has(reference));
+        if (matchingReservations.length !== 1 || !canonicalLearningDecisionForReservation(record, matchingReservations[0])) {
+          invalid("INVALID_LEARNING_DECISION_RECEIPT", "only a canonical A1 receipt bound to exactly one pending A2 input set may use reserved capacity");
+        }
+      }
+      const pending = pendingReservationsAfterAppend(pendingReservations, record, verifyInputSet);
+      if (current.records.length + 1 + pending.size > this.maximumRecords) invalid("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted or reserved for pending A1 decisions");
+      const previous = current.records.at(-1);
+      if (previous != null && Date.parse(record.recordedAt) < Date.parse(previous.recordedAt)) invalid("CHRONOLOGY_REGRESSION", "learning record timestamp regressed");
+
       const meta = readMeta(this.db.connection);
       if (meta.eventCount !== current.eventCount || meta.ledgerHash !== current.headHash) invalid("CONCURRENT_CHANGE", "learning ledger changed during append");
       const sequence = meta.eventCount + 1;
@@ -381,9 +436,9 @@ export class SqliteEvolutionLearningLedger {
       this.db.connection.prepare(
         "UPDATE evolution_learning_ledger_meta SET event_count = ?, ledger_hash = ? WHERE id = 1 AND schema_version = ?"
       ).run(sequence, currentEventHash, SCHEMA_VERSION);
+      this.cached = this.replay();
+      return this.cached.records.at(-1)!;
     });
-    this.cached = this.replay();
-    return this.cached.records.at(-1)!;
   }
 
   public replay(): EvolutionLearningLedgerReplay {

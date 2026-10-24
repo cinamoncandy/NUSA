@@ -1,20 +1,21 @@
 id: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
 title: "A2 must resolve input references through canonical durable evidence readers"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: LOCAL_VALIDATED_PENDING_NEW_EXACT_HEAD_CI
 priority: P0
 owner_request: "Advance the closed learning loop in dependency order, starting with A2. Each PR requires relevant tests and pnpm run preflight on Node 24.19+, then fresh independent review after exact-head CI is green. Do not let this sequence block PR #2855 or the order-book archive server deployment; server deployment remains after #2855."
 source:
   pull_request: 2792
   branch: feat/learning-input-set-a2
-  prior_exact_head: d5e77af1bf8d8c7701919113d7d26bf8686a64e2
-  synchronized_candidate_head: c518e035b650ffaa2688036b847bfad1f65e7945
+  prior_exact_head: 7a7fc070ec3e48206049caa7b8ea82603b4892c8
+  synchronized_candidate_head: current branch successor (resolved from exact Git head)
   synchronized_base: 9bb373516d3e2f6da200e4728c5e5b2708dd131e
-  first_broken_transition: "syntactically valid A2 evidence ids -> successful durable receipt without canonical Research/PAPER resolution"
+  first_broken_transition: "generic A2-shaped ledger append -> phantom A1 capacity reservation without durable Research/PAPER authority"
 scope:
-  - "Require the existing LearningEvidenceAuthority at the A2 durable ledger boundary."
+  - "Make A1 reservation contingent on verified durable Research/PAPER evidence, without accepting caller-injected verifier/trust callbacks."
+  - "Verify source identity through the existing hash-chain Research reader and checksum-valid PAPER period reader on the shared SQLite transaction boundary."
   - "Resolve every cited Research and PAPER identity and exact observedAt before append and before downstream read/replay."
   - "Reject missing, duplicate/ambiguous, malformed, or timestamp-mismatched canonical evidence fail-closed."
-  - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt in the existing hash-chained ledger."
+  - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt whose durable Research/PAPER source identities and exact timestamps still resolve."
   - "Use the same locale-independent code-unit ordering for persisted evidence references and canonical A2 reservation reconstruction."
   - "Reject sparse holes in every aligned persisted evidence-id and observation-time array before hashing, authority lookup, or append."
   - "Reuse existing Research history, realized PAPER period store, and Evolution Learning ledger; create no engine/store/scheduler."
@@ -27,6 +28,8 @@ acceptance:
   - "Observed timestamp must match canonical durable source exactly."
   - "Restart and replay re-resolve the same evidence identity and remain idempotent."
   - "Malformed namespace-shaped A2 rows cannot consume a durable A1 capacity reservation."
+  - "A forged generic A2-shaped append with a missing durable source is rejected and consumes no capacity after restart."
+  - "A verified A2 retains one reserved slot after restart; unrelated writes cannot use it and its matching canonical A1 consumes exactly one slot."
   - "Mixed-case canonical PAPER ids preserve the matching A1 reservation across file-backed restart and replay."
   - "Sparse caller-shaped A2 arrays fail before append and leave the existing ledger replayable with no reserved slot."
   - "Relevant A2 and storage regression tests pass."
@@ -40,14 +43,15 @@ validation_commands:
   - "pnpm run security:gate"
   - "git diff --check"
 verification:
-  local_focused: "PASS 45 tests across A2 identity/retention, Evolution Learning ledger, and A1 decision tests on synchronized candidate c518e035b650ffaa2688036b847bfad1f65e7945; includes mixed-case canonical ids preserving A1 reservation across SQLite restart/replay."
+  local_focused: "PASS 46 tests across A2 identity, A2/PAPER retention integration, and Evolution Learning storage; includes missing-source forged A2 rejection, no phantom reservation after restart, verified reservation replay, matching A1 release, mixed-case [A,a] ordering, sparse evidence, retention and replay."
   local_build: "PASS pnpm run build on Node 24.19.0."
   preflight: "PASS pnpm run preflight on Node 24.19.0, pnpm 11.25.0."
-  validate_full: "PASS pnpm run validate:full on synchronized candidate."
-  security_gate: "PASS pnpm run security:gate after protected main incorporated #2870 dependency remediation; zero high/critical findings and zero secrets. Previous d5e77af1 run is historical and failed against old dependency baseline."
-  diff_check: "PASS git diff --check."
-  exact_head_ci: "PENDING for the final pushed branch head after this AIPOS evidence update; no predecessor CI receipt reused."
-  independent_review: "Prior exact-head review found a P2: localeCompare ordering disagreed with binary/code-unit ordering for mixed-case ids. Repair and SQLite restart/A1 reservation regression are present in the synchronized candidate; fresh review remains pending until exact-head CI is green."
+  validate_full: "PASS pnpm run validate:full after final AIPOS handoff/state update."
+  security_gate: "PASS pnpm run security:gate; raw high/critical 0, secrets 0."
+  aipos: "PASS pnpm run preflight AIPOS YAML validation, validate:full, and work-order provenance after final AIPOS updates."
+  diff_check: "PASS git diff --check after final AIPOS and handoff updates."
+  exact_head_ci: "PENDING; no predecessor receipt is reusable for this source successor."
+  independent_review: "PENDING; request one fresh review only after exact-head CI and required companion workflows are terminal PASS."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -55,4 +59,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "Push the locally validated synchronized successor and this AIPOS evidence to the existing #2792 branch, confirm all exact-head workflows terminal PASS, then request fresh independent review. Keep Draft; do not merge or deploy, and do not interfere with #2855/server archive deployment."
+next: "Push the locally validated successor non-force to existing #2792, wait for all exact-head workflows and companions to become terminal PASS, then request one fresh independent review. Keep Draft; do not merge or deploy, and do not interfere with #2855/server archive deployment."
