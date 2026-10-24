@@ -40,9 +40,9 @@ function SignedBar({ bp, scaleBp, color }: { readonly bp: number; readonly scale
 /** The cost wall, measured: what an average shadow trade of the owner baseline gains, loses and pays in fees, and what is left. */
 export function CostWaterfall({ raw }: { readonly raw: unknown }) {
   const { cost } = buildLearningLoopPanels(raw);
-  if (cost == null) return <Missing title="거래 한 번의 손익" />;
-  return <View style={styles.block} testID="learning-cost-waterfall" accessibilityLabel={`거래 한 번의 손익. 거래 ${cost.trades}건 기준. ${cost.rows.map((r) => `${r.label} ${fmt(r.bp)}bp`).join(", ")}. ${cost.summary}`}>
-    <SectionLabel left="거래 한 번의 손익" right={`${cost.trades.toLocaleString("en-US")}건 · bp`} />
+  if (cost == null) return <Missing title="그림자 거래 한 번의 손익" />;
+  return <View style={styles.block} testID="learning-cost-waterfall" accessibilityLabel={`그림자 거래 한 번의 손익. 모의투자 주문이 아닌 기준 거래예요. 거래 ${cost.trades}건 기준. ${cost.rows.map((r) => `${r.label} ${fmt(r.bp)}bp`).join(", ")}. ${cost.summary}`}>
+    <SectionLabel left="그림자 거래 한 번의 손익" right={`${cost.trades.toLocaleString("en-US")}건 · bp`} />
     <View style={styles.rows}>
       {cost.rows.map((r) => <View key={r.label} style={styles.row}>
         <View style={styles.rowHead}>
@@ -82,7 +82,7 @@ export function OverfitGate({ raw }: { readonly raw: unknown }) {
     <SectionLabel left="새 데이터에서의 결과" right={overfit.overfitRatePercent == null ? null : `탈락 ${overfit.overfitRatePercent}%`} />
     <View style={styles.gate} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={[styles.gatePassed, { flex: overfit.holdoutPasses / total }]} />
-      <View style={[styles.gateLost, { flex: (total - overfit.holdoutPasses) / total }]} />
+      {overfit.discoveryPasses > 0 ? <View style={[styles.gateLost, { flex: (total - overfit.holdoutPasses) / total }]} /> : null}
     </View>
     <View style={styles.gateLegend}>
       <Text style={styles.rowLabel}>1차 통과 {overfit.discoveryPasses}개</Text>

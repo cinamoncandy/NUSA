@@ -61,8 +61,8 @@ export function buildLearningLoopPanels(raw: unknown): LearningLoopPanels {
     cost = Object.freeze({
       trades, winRatePercent: wins == null ? null : (wins / trades) * 100, scaleBp: scale,
       rows: Object.freeze([
-        Object.freeze({ label: "이긴 거래 평균 이익", bp: perGain, kind: "GAIN" as const }),
-        Object.freeze({ label: "진 거래 평균 손실", bp: -perLoss, kind: "LOSS" as const }),
+        Object.freeze({ label: "거래당 이익 기여", bp: perGain, kind: "GAIN" as const }),
+        Object.freeze({ label: "거래당 손실 기여", bp: -perLoss, kind: "LOSS" as const }),
         Object.freeze({ label: "수수료", bp: -perFee, kind: "COST" as const }),
         Object.freeze({ label: "거래당 순결과", bp: result, kind: "RESULT" as const }),
       ]),
