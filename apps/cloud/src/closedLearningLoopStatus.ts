@@ -44,6 +44,14 @@ export type ClosedLearningLoopStatus = {
   readonly evidence?: ClosedLearningEvidenceCorrelation;
   /** Research meta-learning report (packages/contracts/src/researchMetaLearning.ts), including the tick steering it applies. */
   readonly metaLearning?: ClosedLearningMetaLearningStatus;
+  /**
+   * v2 learning loop projection (learningLoopStatus.ts): latest input set, cycle, decision and
+   * application identities, meta-OOS eligibility, supersession and exploration standing.
+   *
+   * Display-only and one-directional: it is an output of recorded evidence and is never an input to a
+   * decision, an eligibility, or a scheduler.
+   */
+  readonly learning?: import("./learningLoopStatus").LearningLoopStatus;
 };
 
 export type ClosedLearningMetaLearningStatus = Readonly<{
