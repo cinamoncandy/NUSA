@@ -3134,10 +3134,10 @@ current_learning_chain12_20261023:
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: feat/learning-chain-12
   pull_request: 2799
-  base_parent: 538c620f73880e447f2c4f763c753473e5b86d88
-  validation: "Node 24.19.0/pnpm 11.25.0; chain12 + M2 tests 26/26 PASS; build, preflight, validate:full, security:gate, AIPOS provenance, diff-check PASS."
+  base_parent: 326e00e5a35d49263af3736aeee5b22bb37adcd0
+  validation: "After syncing M2 326e00e5 on Node 24.19.0/pnpm 11.25.0: closedLearningChain + learningLoopStatus tests 26/26 PASS; build, preflight, validate:full, security:gate (high/critical=0), AIPOS index/provenance, diff-check PASS. Exact-head CI pending push."
   blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined."
-  next: "Latest M2 parent CI is green; finalize and push the validated existing #2799 branch non-force, run exact-head CI, then request fresh independent review if green. Keep Draft; no deployment."
+  next: "Push this locally validated existing #2799 successor non-force; run exact-head CI and request fresh independent review only after green. Keep Draft; no deployment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_collection_reason:

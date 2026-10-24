@@ -4,7 +4,7 @@ status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/learning-status-m2
-base_head: 538c620f73880e447f2c4f763c753473e5b86d88
+base_head: 326e00e5a35d49263af3736aeee5b22bb37adcd0
 branch: feat/learning-chain-12
 pull_request: 2799
 authority_impact: bounded-learning-application-no-production-authority
@@ -38,12 +38,12 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "26/26 PASS: dist/apps/cloud/src/closedLearningChain.test.js and learningLoopStatus.test.js after syncing M2 head 538c620f."
+  focused: "Node 24.19.0/pnpm 11.25.0 after syncing M2 326e00e5: closedLearningChain + learningLoopStatus 26/26 PASS."
   build: PASS on Node 24.19.0 / pnpm 11.25.0
-  preflight: PASS on Node 24.19.0; platform portability, independent tests, Android contract, AIPOS YAML PASS
+  preflight: PASS on Node 24.19.0; portability, independent tests, Android contract, AIPOS YAML PASS
   validate_full: PASS
-  security_gate: PASS; no unmitigated findings or secrets detected
-  aipos_provenance: PASS
-  exact_head_ci: PENDING_AFTER_FINAL_M3_PUSH
+  security_gate: PASS; raw high/critical=0, unmitigated=0, secrets=0
+  aipos_provenance: PASS; work-order index PASS
+  exact_head_ci: PENDING_AFTER_PUSH_VALIDATION
   independent_review: PENDING_AFTER_EXACT_HEAD_CI
-next: "M2 exact-head CI 40041467269 is green. Finalize the current M3 source and metadata on the existing branch, run local gates, push non-force, run exact-head CI, and request a fresh independent review if green. Keep Draft and do not deploy."
+next: "M2 exact-head CI 40046598043 is green at 326e00e5. Push this validated M3 successor non-force, run exact-head CI, and request a fresh independent review only if green. Keep Draft and do not deploy."
