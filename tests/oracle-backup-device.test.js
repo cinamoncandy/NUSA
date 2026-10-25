@@ -149,6 +149,18 @@ test("direct disk device names are validated and ambiguous parent chains fail cl
   assert.notEqual(badName.status, 0);
   assert.match(badName.stderr, /verified local block device/);
 
+  const singleParentLayered = {
+    ...singleDisk({ stateSource: "/dev/mapper/nusa" }),
+    devices: {
+      "TYPE:/dev/mapper/nusa": "lvm",
+      "PKNAME:/dev/mapper/nusa": "sda",
+      "TYPE:/dev/sda": "disk",
+    },
+  };
+  const layered = runResolver({ ...singleParentLayered, blocks: ["/dev/mapper/nusa", "/dev/sda"] });
+  assert.notEqual(layered.status, 0);
+  assert.match(layered.stderr, /topology is ambiguous/);
+
   const multipleParents = {
     ...singleDisk({ stateSource: "/dev/mapper/nusa" }),
     devices: {

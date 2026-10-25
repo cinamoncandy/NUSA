@@ -190,10 +190,10 @@ backup_block_device_for_paths() {
     || { die "cannot resolve backup directory parent disk"; return 1; }
 
   if [[ "$state_type" == disk && -z "$state_parent" ]] && backup_device_is_direct_disk_name "$state_source"; then state_disk="$state_source"
-  elif [[ -n "$state_parent" && "$state_parent" != *$'\n'* && "$state_parent" =~ ^[A-Za-z0-9._-]+$ ]]; then state_disk="/dev/$state_parent"
+  elif [[ "$state_type" == part && -n "$state_parent" && "$state_parent" != *$'\n'* && "$state_parent" =~ ^[A-Za-z0-9._-]+$ ]]; then state_disk="/dev/$state_parent"
   else die "state database backing topology is ambiguous"; return 1; fi
   if [[ "$backup_type" == disk && -z "$backup_parent" ]] && backup_device_is_direct_disk_name "$backup_source"; then backup_disk="$backup_source"
-  elif [[ -n "$backup_parent" && "$backup_parent" != *$'\n'* && "$backup_parent" =~ ^[A-Za-z0-9._-]+$ ]]; then backup_disk="/dev/$backup_parent"
+  elif [[ "$backup_type" == part && -n "$backup_parent" && "$backup_parent" != *$'\n'* && "$backup_parent" =~ ^[A-Za-z0-9._-]+$ ]]; then backup_disk="/dev/$backup_parent"
   else die "backup directory backing topology is ambiguous"; return 1; fi
 
   backup_device_is_block "$state_disk" \
