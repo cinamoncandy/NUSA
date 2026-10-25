@@ -3655,6 +3655,17 @@ current_strategy_replication_intake_20261025:
   next: "Commit and publish the locally validated metadata-boundary repair to existing Draft PR 2878 once after confirming the remote head, then obtain successor exact-head CI and fresh non-author review/Validator. Formal NUSA Validator, production Scout/store wiring, and genuine Research/PAPER outcomes remain unverified."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_replication_review_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 72bb17b87ccdc952a8f44e727b975ea5716b05bc
+  review: "Fresh Codex review on predecessor found P1s for non-string/malformed provenance timestamps and placeholder fee/slippage assumptions, plus P2 for evidence fields lost by canonical JSON. The branch now requires timezone-bearing ISO timestamps, known cost assumptions, and non-empty canonical evidence records; undefined, sparse arrays, accessors, cycles, and non-JSON values fail closed."
+  validation: "Node 24.19 preflight PASS; focused Research intake 14/14 PASS; build/typecheck/validate:full/security:gate/lint PASS (45 existing warnings, 0 errors); pnpm test PASS (1281 isolated files); final build + focused tests on latest source PASS; git diff --check PASS."
+  next: "Confirm PR 2878 remote head still equals predecessor, commit source/tests/AIPOS together, push non-force to existing Draft PR, then obtain exact-successor CI and fresh non-author review/Validator. Do not self-approve or advance governance gates."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_validation_20261016:
   work_order: WO-RESEARCH-20261016-A-GRADE-VALIDATION
   status: FIRST_GATE_COMPLETENESS_LOCAL_VALIDATED

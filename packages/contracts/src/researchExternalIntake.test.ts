@@ -48,6 +48,15 @@ test("missing source or executable rule fails closed", () => {
   assert.throws(() => normalizeStrategyReplication(strategy({ variantOf: "bad-parent" })), /PARENT_INVALID/);
 });
 
+test("unknown economic assumptions and non-ISO provenance timestamps fail closed", () => {
+  assert.throws(() => normalizeStrategyReplication(strategy({ transactionCostAssumptions: "UNKNOWN" })), /COST_ASSUMPTIONS_INSUFFICIENT/);
+  assert.throws(() => normalizeStrategyReplication(strategy({ slippageAssumptions: "N/A" })), /COST_ASSUMPTIONS_INSUFFICIENT/);
+  assert.throws(() => normalizeStrategyReplication(strategy({ sourceObservedAt: 0 as never })), /PROVENANCE_INVALID/);
+  assert.throws(() => normalizeStrategyReplication(strategy({ sourceObservedAt: "0" })), /PROVENANCE_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ retrievedAt: 0 as never })), /NEWS_PROVENANCE_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ publishedAt: "0" })), /NEWS_PROVENANCE_INVALID/);
+});
+
 test("variant identity is separate and replication precommit binds existing canonical contract", () => {
   const original = normalizeStrategyReplication(strategy());
   const variant = normalizeStrategyReplication(strategy({ variantOf: original.strategyIdentity, signalDefinition: "close > prior high and news filter" }));
@@ -152,6 +161,7 @@ test("precommit requires PIT/OOS, dataset, fee and slippage bindings and cannot 
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { ...evaluationPlan, missingDataPolicy: "UNKNOWN" }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pit: true, oos: true }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, costPlan: { feeModelVersion: "fee-v1" }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
+  assert.throws(() => strategyReplicationPrecommit({ ...valid, costPlan: { feeAssumptions: "UNKNOWN", slippageAssumptions: "N/A" }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, createdAt: "2026-10-24T23:59:59Z" }), /PRECOMMIT_BINDING_INVALID/);
 });
 
@@ -167,6 +177,13 @@ test("replication receipt binds outcome to spec, precommit, dataset and preserve
   assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, negativeEvidence: [] }), /FINGERPRINT_MISMATCH/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: "c".repeat(40), observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /BINDING_INVALID/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-24T00:00:00Z", evidence: { result: "pass" } }), /BINDING_INVALID/);
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: undefined } }), /BINDING_INVALID/);
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { nested: { reason: undefined } } }), /BINDING_INVALID/);
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: {} }), /BINDING_INVALID/);
+  const sparseEvidence = new Array(1);
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { rows: sparseEvidence } }), /BINDING_INVALID/);
+  const accessorEvidence = Object.defineProperty({}, "reason", { enumerable: true, get: () => "evidence" });
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: accessorEvidence }), /BINDING_INVALID/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit: { ...precommit, fingerprint: "c".repeat(64) }, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /precommit fingerprint mismatch/);
   const unrelatedPrecommit = createResearchPrecommit({ schemaVersion: 1, experimentIdentity: "unrelated-experiment", candidateIdentity: "unrelated-candidate", strategyIdentity: spec.strategyIdentity, datasetBinding: precommit.datasetBinding, sourceSha: SHA, parameterPlan: { strategySpec: spec }, costPlan: precommit.costPlan, regimePlan: {}, evaluationPlan: precommit.evaluationPlan, validationPolicyIdentity: "policy-v1", createdAt: precommit.createdAt });
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit: unrelatedPrecommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /PRECOMMIT_MISMATCH/);

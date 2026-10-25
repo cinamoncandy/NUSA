@@ -76,6 +76,8 @@ acceptance:
   - Tests cover immutable news snapshot fingerprint, Research Intelligence discovery chronology/PIT, precommit-after-evidence ordering, social/rumor fail-closed behavior, fact/claim/inference separation, duplicate/syndication classification, explicit hypothesis-to-precommit continuity, and rejection of non-PIT observations.
   - Runtime-untrusted source/event/confidence taxonomy values and malformed evidence arrays fail closed rather than reaching PIT or hypothesis classification.
   - Optional StrategySpec metadata is runtime-validated and canonicalized before identity/precommit admission; news transmission channels are trimmed, deduplicated, and sorted before observation identity assignment.
+  - Strategy/news provenance timestamps are strict timezone-bearing ISO strings; placeholder fee/slippage assumptions are insufficient for precommit admission.
+  - Replication receipt evidence must be a non-empty canonical JSON object; undefined, sparse arrays, accessors, cycles, and non-JSON values fail closed before receipt fingerprinting.
   - Existing PAPER_ONLY and zero-authority safety invariants remain unchanged.
 verification_commands:
   - pnpm run build
@@ -112,8 +114,8 @@ completion_rule: >-
   that any collected external strategy is profitable, does not close the closed-learning loop,
   and does not authorize PAPER activation or LIVE trading by itself.
 next: >-
-  Push the locally validated StrategySpec optional-metadata and crypto-news transmission-channel
-  canonicalization repair to existing Draft PR #2878 once, then require exact-head CI and fresh
-  non-author review/Validator. Production Scout composition, durable result consumption, and
-  natural end-to-end Research/PAPER evidence remain follow-up work; do not claim them complete
-  from contract tests.
+  Push the locally validated provenance timestamp, known-cost-assumption, and canonical receipt
+  evidence repair to existing Draft PR #2878 once after confirming its remote head. Then require
+  successor exact-head CI and a fresh non-author review/Validator. Production Scout composition,
+  durable result consumption, and natural end-to-end Research/PAPER evidence remain follow-up
+  work; do not claim them complete from contract tests.
