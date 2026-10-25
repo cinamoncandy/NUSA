@@ -1,0 +1,45 @@
+id: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
+title: "Bound verified Oracle state-backup I/O to protect the PAPER writer lease"
+status: LOCAL_VALIDATED_PENDING_FRESH_EXACT_HEAD_CI
+owner: nusa-server-automation
+repository: cinamoncandy/NUSA
+issue: 2770
+pull_request: 2874
+base_branch: main
+base_commit: fa4c3ad43790d4c6b2916582ef2dee0b32b52118
+implementation_branch: fix/oracle-backup-io-priority
+authority_impact: none
+finding: "Oracle release run 40148117124 showed that the mandatory SQLite state backup can contend with the foreground PAPER runtime on the same block device; during the measured incident the PAPER writer lease and listener became unavailable while backup I/O was active."
+root_cause: "The existing verified backup performs substantial reads and writes against the persistent state database while the 1 GB Oracle host serves PAPER runtime and startup reads. The prior nice/ionice-only mitigation did not impose a bandwidth bound, and the host block scheduler is none."
+scope:
+  - "Keep the canonical sqlite-backup.js backup engine, VACUUM INTO, integrity verification, SHA-256 sidecar, retention, and release helper path."
+  - "Resolve the mounted filesystem backing the canonical state DB to one verified local block disk; fail closed for ambiguous, remote, layered, or non-block topology."
+  - "Run only the existing backup operation with low CPU priority and a 1 MiB/s read/write bandwidth cap in a transient systemd scope."
+  - "Set the outer Oracle release host job timeout to 120 minutes to fit the measured approximately 96-minute Sunday backup workload for the current approximately 957 MiB database. Keep PAPER readiness at 300 seconds and activation stability soak at 180 seconds."
+exclusions:
+  - "No Oracle deployment, service restart, database mutation, writer-lease reset, backup deletion, or host-helper installation is part of this work order."
+  - "Do not change writer lease TTL, heartbeat cadence, ownership predicate, readiness/soak budgets, backup integrity checks, retention policy, or PAPER/LIVE authority."
+  - "Do not add another backup engine, scheduler, runtime, or control plane."
+evidence:
+  - "Read-only Oracle topology inspection resolved /var/lib/nusa/state.sqlite to /dev/sda1 with parent /dev/sda (TYPE=disk); cgroup v2 io controller is available."
+  - "Host measurements showed about 0.8 MiB/s backup throughput under a 1 MiB/s cap, while foreground PAPER reads rose from about 10 MiB/s to about 14 MiB/s."
+  - "Current backup estimate is approximately 96 minutes for the Sunday path; existing activation/readiness and soak contracts remain unchanged."
+acceptance:
+  - "Focused tests prove topology resolution and fail-closed behavior, the enforced per-device read/write cap, and backup command ordering."
+  - "Existing verified backup integrity, checksum, and retention behavior remains in use."
+  - "Node 24.19 preflight, relevant tests, exact-head CI and companion workflows pass; fresh non-author review and governed Audit/Release are required before merge."
+  - "After governed merge, a canonical exact-main Oracle release measures backup and foreground runtime together; no runtime acceptance is claimed before that evidence exists."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  direct_db_mutation: false
+  expired_lease_revival: false
+rollback: "Revert the reviewed workflow/helper source change through the protected repository path. No host mutation or rollback is performed by this work order."
+verification_commands:
+  - node --test tests/oracle-backup-device.test.js tests/oracle-paper-release-workflow.test.js
+  - pnpm run preflight
+  - git diff --check
+validation: "After adding this work order/state receipt: Node 24.19 preflight, AIPOS index, validate:full, security:gate, 28 focused tests, ESLint, shell syntax, and git diff --check PASS. This content is not yet committed; exact-head CI and fresh independent review remain required after commit."
+next: "Commit the durable work order/state receipt, then obtain new exact-head CI and fresh independent review."
