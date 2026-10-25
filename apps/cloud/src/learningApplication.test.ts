@@ -434,6 +434,66 @@ describe("A4 - bounded application", () => {
     }
   });
 
+  it("closes another cycle's pending surface intent with its original provenance before a new mutation", () => {
+    const firstDecision = decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1);
+    const firstFingerprint = learningDecisionFingerprint(firstDecision);
+    const firstFields = {
+      learningDecisionFingerprint: firstFingerprint,
+      learningCycleId: firstDecision.learningCycleId,
+      previousResearchSpecFingerprint: firstDecision.previousResearchSpecFingerprint,
+      surface: "longBarTickEvery",
+      previousValue: 1,
+      requestedValue: 2,
+      boundedValue: 2,
+      applicationTimestamp: "2026-10-18T00:00:00.000Z",
+      runtimeIdentity: "runtime-original",
+      sourceCommit: "e".repeat(40),
+    };
+    const firstIntent = { schemaVersion: 1 as const, ...firstFields, intentFingerprint: learningApplicationIntentFingerprint(firstFields) };
+    const journal = memoryJournal();
+    journal.appendIntent(firstIntent);
+
+    const state = { value: 2 };
+    const base = ports(state);
+    let commits = 0;
+    const currentDecision = decisionWith([{ surface: "longBarTickEvery", currentValue: 2, proposedValue: 3 }], 2);
+    const recovered = applyBoundedChange(currentDecision, ELIGIBLE, {
+      ...base,
+      commit: (_surface, value) => { commits += 1; state.value = value; },
+      reconcileIntent: () => "APPLIED",
+    }, { ...CONTEXT, runtimeIdentity: "runtime-recovery", sourceCommit: "f".repeat(40) }, new ApplicationRegistry(), journal);
+
+    assert.equal(recovered.applicationOutcome, "APPLIED");
+    assert.equal(recovered.learningDecisionFingerprint, firstFingerprint);
+    assert.equal(recovered.learningCycleId, firstDecision.learningCycleId);
+    assert.equal(recovered.applicationTimestamp, firstFields.applicationTimestamp);
+    assert.equal(recovered.runtimeIdentity, firstFields.runtimeIdentity);
+    assert.equal(recovered.sourceCommit, firstFields.sourceCommit);
+    assert.equal(commits, 0, "recovery of the prior intent never also applies the newer decision");
+    assert.equal(state.value, 2);
+    assert.equal(journal.pendingIntentForSurface("longBarTickEvery"), undefined);
+  });
+
+  it("uses one exclusive lease identity per application surface across different cycles", () => {
+    const identities: string[] = [];
+    const state = { value: 1 };
+    const base = ports(state);
+    const port: ApplicationPorts = {
+      ...base,
+      withExclusiveApplicationLease: (identity, operation) => {
+        identities.push(identity);
+        return Object.freeze({ acquired: true, value: operation() });
+      },
+    };
+    const first = decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1);
+    const second = decisionWith([{ surface: "longBarTickEvery", currentValue: 2, proposedValue: 3 }], 2);
+    applyBoundedChange(first, ELIGIBLE, port, CONTEXT, new ApplicationRegistry());
+    applyBoundedChange(second, ELIGIBLE, port, CONTEXT, new ApplicationRegistry());
+    assert.equal(identities.length, 2);
+    assert.equal(identities[0], "learning-application:surface:longBarTickEvery");
+    assert.equal(identities[1], identities[0], "different cycles serialize on the same mutable surface");
+  });
+
   it("treats a decision whose premise is false as stale, not as a harmless no-op", () => {
     // The runtime is already at 2, which happens to equal the decision's target. Returning NOOP here
     // would imply the decision was correctly targeted, when in fact its premise (`currentValue = 1`)
@@ -553,6 +613,7 @@ describe("A4 falsification (section 18)", () => {
     const journal: LearningApplicationJournal = {
       terminalFor: () => undefined,
       pendingIntentFor: () => undefined,
+      pendingIntentForSurface: () => undefined,
       appendIntent: () => false,
       append: (receipt) => ({ receipt }),
     };
@@ -575,6 +636,7 @@ describe("A4 falsification (section 18)", () => {
     const tampered = { ...(JSON.parse(JSON.stringify(receipt)) as Record<string, unknown>) };
     tampered.appliedValue = 4;
     assert.throws(() => assertLearningApplicationReceipt(tampered), /does not match its own fingerprint/);
+    assert.throws(() => assertLearningApplicationReceipt({ ...receipt, unboundExtra: "value" }), /closed schema/);
   });
 
   it("the same content always yields the same application identity", () => {

@@ -1,5 +1,5 @@
 id: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
-title: "Make durable META holdout assignment replay idempotent"
+title: "Fail closed on unowned META partition assignment and validate durable replay"
 status: VERIFYING
 owner: nusa-development
 repository: cinamoncandy/NUSA
@@ -7,23 +7,26 @@ base_branch: main
 branch: feat/meta-oos-a3
 pull_request: 2795
 authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
-objective: "Allow an already durable A3 meta-holdout assignment to be read/replayed after restart without attempting a second single-use holdout claim, while rejecting changed input or a missing durable claim."
-first_broken_transition: "durable META holdout claim and assignment -> process restart -> exact assignment replay"
+objective: "Prevent caller-selected or malformed META partition assignments until canonical cycle-order policy ownership is defined; serialize cycle uniqueness checks with durable append and preserve strict receipt validation."
+first_broken_transition: "learning cycle -> caller-selected META partition -> durable assignment / eligibility"
 scope:
   include:
     - "Reuse the existing append-only Evolution Learning ledger and Research Holdout ledger."
-    - "Verify replayed assignment content against the durable fingerprint and require the holdout key to remain durably claimed."
-    - "Add a file-backed SQLite restart regression covering same-input replay, no duplicate assignment, and substitution rejection."
+    - "Fail closed before claim or append while canonical cycle-order partition owner/constants are undefined."
+    - "Validate the complete assignment schema and durable Evolution envelope on every read/replay."
+    - "Check cycle uniqueness against the current hash-chain snapshot inside the serialized Evolution ledger append transaction."
+    - "Add regressions for caller override, restart, forged eligibility inputs, malformed receipts, and concurrent cycle forks."
   exclude:
     - "Defining or changing canonical cutoff policy, META partition allocation policy, partition ratios, cadence, or owner."
     - "Wiring A2/A1/A3/A4 into production, changing qualification, or advancing learning performance claims."
     - "Audit, Release, merge, or deployment while the canonical cutoff/META policy owners remain unresolved."
 acceptance:
-  - "Same holdout assignment replays after a new database-backed ledger instance with identical receipt fingerprint and exactly one assignment."
-  - "Changed assignment content or a missing holdout claim fails closed."
+  - "No caller-selected train/validation/holdout assignment can claim or persist while policy authority is undefined."
+  - "Eligibility remains false and counts zero until canonical owner-defined partition policy exists."
+  - "Malformed assignment fields or durable envelope fail closed; valid existing ledger graph is checked atomically before append."
   - "Focused tests, all isolated tests, build, typecheck, preflight, validate:full, security, AIPOS provenance, and lint pass; lint has no errors."
   - "Exact-head CI and fresh independent review pass before any readiness transition."
-  - "Draft remains until the separate canonical cutoff and META policy blockers, full chain validation, and Audit/Release gates are resolved."
+  - "Draft remains until cutoff/META policy owners and production trigger are resolved, the full chain is validated, and Audit/Release gates pass."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -34,8 +37,10 @@ blockers:
   - "BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED"
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
 validation:
-  focused: "After reconverging reviewed A1 and A4 parent 3849e1e9ada0d0fe24964f444fea63f77721ede1, A3/A4 bridge + Evolution Learning ledger suite 37/37 PASS. Build PASS; Node 24.19.0 pnpm run preflight PASS; diff-check PASS. The A3 journal test adapter now models appendWithResult identity acquisition used by the A4 canonical ledger; eligibility floor unchanged."
+  prior_review: "Fresh review 5640768157 on 179ad181 found P1 comments 4369088597, 4369088598, 4369088600. Predecessor CI 40146442748 is historical after repair."
+  focused: "After reconverging current A4 parent f37566cc000be1d00850293d6e0a636103a32d23 into the existing A3 branch: Node 24.19.0 build PASS; A3 META OOS + A4 application + Evolution Learning ledger focused suites 61/61 PASS; preflight PASS; validate:full PASS; security:gate PASS (0 raw high/critical, 0 secrets); lint PASS (0 errors, 45 existing warnings); git diff --check PASS. A3 remains fail-closed with META_PARTITION_POLICY_UNDEFINED; no allocation policy/authority invented."
   full_suite: "pnpm test with installed Git Bash directories prepended to PATH: 1248 isolated test files PASS. Initial environment-only bash ENOENT was reproduced and corrected without changing test assertions."
   gates: "build PASS; typecheck PASS; validate:full PASS; security:gate PASS; aipos:yaml/provenance PASS; lint PASS with 26 existing warnings."
-  exact_head_ci: "Previous run 39124665789 was on an older A3 predecessor and is historical. New exact-head CI is required after the parent sync/test-adapter repair."
-  pending: "Fresh independent review. Audit/Release intentionally blocked by unresolved policy owners and production call-graph gaps."
+  parent_sync: "Merged current A4 exact head f37566cc000be1d00850293d6e0a636103a32d23 into A3 locally without conflict; A4 run 40148595895 CI SUCCESS and 40148595902 Mobile Native SUCCESS. A4 fresh independent review requested and pending."
+  exact_head_ci: "Pending A3 merge commit; predecessor run 40146442748 on 179ad181 is historical."
+  pending: "Finalize A3 parent-sync merge, push non-force to the existing #2795 branch, run exact-head CI/companions, then request fresh independent review. Audit/Release remain blocked by unresolved cutoff/META policy owners and production trigger owner."

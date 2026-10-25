@@ -35,6 +35,12 @@ import type { MetaOosEligibility } from "./learningApplication";
 export const META_OOS_SCHEMA_VERSION = 1;
 export const META_OOS_POLICY_VERSION = "meta-oos-v1";
 /**
+ * The architecture requires an owner-approved order-to-partition policy, but has not defined its
+ * partition constants or cycle-order cadence yet. Keep this unavailable until that decision is
+ * recorded; a caller-selected partition is never a substitute for the missing authority.
+ */
+const META_PARTITION_POLICY_VERSION: string | null = null;
+/**
  * Owner-fixed floor for granting application eligibility.
  *
  * One completed cycle per partition, so train, validation, and holdout each have coverage before a
@@ -167,6 +173,7 @@ function assertAssignmentInput(input: MetaOosAssignmentInput): void {
 
 /** Verifies a replay against the durable assignment without trying to consume its holdout twice. */
 export function assertMetaOosAssignmentReplay(input: MetaOosAssignmentInput, existing: MetaOosAssignment, holdouts: HoldoutClaimPort): void {
+  assertCanonicalPartitionPolicyAvailable();
   assertAssignmentInput(input);
   let claimIdentity: string | undefined;
   if (input.partition === "meta-holdout") {
@@ -187,22 +194,15 @@ export function assertMetaOosAssignmentReplay(input: MetaOosAssignmentInput, exi
  */
 export function assignMetaPartition(input: MetaOosAssignmentInput, holdouts: HoldoutClaimPort): MetaOosAssignment {
   assertAssignmentInput(input);
-
-  if (input.partition === "meta-holdout") {
-    if (input.holdoutKey == null || input.holdoutEvaluationId == null) {
-      throw new MetaOosError("HOLDOUT_REQUIRED", "a meta-holdout partition requires a holdout key and an evaluation id");
-    }
-    if (holdouts.isUsed(input.holdoutKey)) {
-      // Single-use: this held-out result has already been observed, so reusing it would fit the
-      // learning policy to the evidence meant to judge it.
-      throw new MetaOosError("HOLDOUT_CONTAMINATED", "meta-holdout result has already been observed and may not be reused for the same policy");
-    }
-    const claimed = holdouts.claim(input.holdoutKey, input.holdoutEvaluationId, input.cutoff);
-    if (claimed !== "CLAIMED") throw new MetaOosError("HOLDOUT_CONTAMINATED", "meta-holdout claim was already used");
-    return buildAssignment(input, holdoutClaimIdentity(input.holdoutKey));
-  }
-
+  void holdouts;
+  assertCanonicalPartitionPolicyAvailable();
   return buildAssignment(input);
+}
+
+function assertCanonicalPartitionPolicyAvailable(): void {
+  if (META_PARTITION_POLICY_VERSION == null) {
+    throw new MetaOosError("META_PARTITION_POLICY_UNDEFINED", "cycle-order partition constants have no verified canonical owner; caller-selected partition assignment is disabled");
+  }
 }
 
 /**
@@ -220,32 +220,14 @@ export function metaOosCyclesEligibility(
 ): MetaOosEligibility {
   if (typeof identity?.learningCycleId !== "string" || !CYCLE.test(identity.learningCycleId)) throw new MetaOosError("MALFORMED_ELIGIBILITY_IDENTITY", "eligibility cycle identity is invalid");
   if (typeof identity.learningDecisionFingerprint !== "string" || !SHA64.test(identity.learningDecisionFingerprint)) throw new MetaOosError("MALFORMED_ELIGIBILITY_IDENTITY", "eligibility decision fingerprint is invalid");
-  const recorded = partitionAssignments.filter((assignment) => assignment.partition === partition).length;
-  const counted = Math.min(cyclesEvaluated, recorded);
-
-  if (counted < META_MINIMUM_CYCLES_FOR_ELIGIBILITY) {
-    return Object.freeze({
-      eligible: false,
-      partition,
-      cyclesEvaluated: counted,
-      ...identity,
-      reason:
-        "meta-OOS " +
-        partition +
-        " has " +
-        String(counted) +
-        " completed cycle(s) of the " +
-        String(META_MINIMUM_CYCLES_FOR_ELIGIBILITY) +
-        " required; the minimum is owner-fixed and is not lowered to admit a sample",
-    });
-  }
-
+  void partitionAssignments;
+  void cyclesEvaluated;
   return Object.freeze({
-    eligible: true,
+    eligible: false,
     partition,
-    cyclesEvaluated: counted,
+    cyclesEvaluated: 0,
     ...identity,
-    reason: "meta-OOS " + partition + " has " + String(counted) + " completed cycle(s) meeting the owner-fixed minimum of " + String(META_MINIMUM_CYCLES_FOR_ELIGIBILITY),
+    reason: "meta-OOS cycle-order partition policy is undefined; no caller-selected or unverified assignment can establish eligibility",
   });
 }
 
@@ -270,8 +252,25 @@ export function assertMetaOosAssignment(value: unknown): asserts value is MetaOo
   if (candidate.schemaVersion !== META_OOS_SCHEMA_VERSION) throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta-OOS assignment schema version is unsupported");
   if (candidate.metaOosPolicyVersion !== META_OOS_POLICY_VERSION) throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta-OOS policy version is unsupported");
   if (typeof candidate.learningCycleId !== "string" || !CYCLE.test(candidate.learningCycleId)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "learning cycle id is invalid");
+  if (typeof candidate.learningDecisionFingerprint !== "string" || !SHA64.test(candidate.learningDecisionFingerprint)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "learning decision fingerprint is invalid");
   if (!META_PARTITIONS.includes(candidate.partition as MetaPartition)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta partition is outside the closed set");
+  assertBounded(candidate.policyVersion, "policy version");
+  if (!Number.isSafeInteger(candidate.cutoff) || (candidate.cutoff as number) < 0) throw new MetaOosError("MALFORMED_ASSIGNMENT", "cutoff must be a non-negative integer");
+  if (typeof candidate.assignedAt !== "string" || !Number.isFinite(Date.parse(candidate.assignedAt)) || new Date(candidate.assignedAt).toISOString() !== candidate.assignedAt) {
+    throw new MetaOosError("MALFORMED_ASSIGNMENT", "assigned at must be a canonical ISO timestamp");
+  }
   if (typeof candidate.assignmentFingerprint !== "string" || !SHA64.test(candidate.assignmentFingerprint)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "assignment fingerprint is invalid");
+  const requiredKeys = ["schemaVersion", "learningCycleId", "learningDecisionFingerprint", "partition", "policyVersion", "cutoff", "assignedAt", "metaOosPolicyVersion", "assignmentFingerprint"];
+  const expectedKeys = (candidate.partition === "meta-holdout" ? [...requiredKeys, "holdoutClaimIdentity"] : requiredKeys).sort();
+  const actualKeys = Object.keys(value as Record<string, unknown>).sort();
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
+    throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta-OOS assignment fields do not match the closed schema");
+  }
+  if (candidate.partition === "meta-holdout") {
+    if (typeof candidate.holdoutClaimIdentity !== "string" || !SHA64.test(candidate.holdoutClaimIdentity)) throw new MetaOosError("MALFORMED_ASSIGNMENT", "meta-holdout assignment requires a valid durable holdout claim identity");
+  } else if (Object.hasOwn(value, "holdoutClaimIdentity")) {
+    throw new MetaOosError("MALFORMED_ASSIGNMENT", "non-holdout assignment may not contain a holdout claim identity");
+  }
   // Only the derived fingerprint is stripped; the rest, including the schema and policy version,
   // must stay covered so a version bump is itself an identity change.
   const { assignmentFingerprint: recorded, ...content } = candidate as MetaOosAssignment;

@@ -7,7 +7,7 @@ repository: cinamoncandy/NUSA
 branch: feat/supersession-a5
 pull_request: 2796
 base_branch: feat/meta-oos-a3
-parent_head: 179ad1818925cd2a0087e7f59f9bbbe0aa485df2
+parent_head: c35931ef62dd5af661d00ab38e47cc76f8981f9f
 owner_request: "2026-10-23: continue Learning PRs from A2 upward; run relevant tests and pnpm run preflight on Node 24.19+, and request a fresh independent review after exact-head CI passes. Do not delay #2855 or the order-book archive deployment."
 authority_impact: immutable_learning_evidence_and_replay_correctness_only
 objective: "Complete A5 supersession as a deterministic, append-only chain with append-time graph validation, replay idempotency, atomic rehydration, and durable restart-safe records through the existing Evolution Learning ledger."
@@ -48,7 +48,7 @@ safety:
   fail_closed: true
 validation:
   node: "v24.19.0"
-  focused_current: "A3/A4/A5 supersession + Evolution ledger regressions: 62/62 PASS; tests/security-gate.test.js: 10/10 PASS after reconverging A3 and preserving both append APIs in one serialized transaction."
+  focused_current: "After merging current A3 exact head c35931ef62dd5af661d00ab38e47cc76f8981f9f: A3/A4/A5 supersession, Evolution ledger, and Autopilot worker regressions 95/95 PASS; tests/security-gate.test.js 10/10 PASS; both A3 appendWithValidation and A5 appendWithResult are preserved in one serialized transaction."
   focused: "A5 supersession + Evolution ledger + Autopilot worker regressions: 49/49 PASS after undici security floor update; previous 158/158 Learning suite remains prior source evidence."
   build: PASS
   preflight: "PASS on Node 24.19.0 after parent reconvergence"
@@ -61,5 +61,5 @@ validation:
   security_finding: "A6 exact-head CI 40043771127 observed npm audit high advisories 1243113/1243114 (GHSA-xjj6-f33q-929c) against undici 6.28.1 and 7.29.1, also present in protected main. Updated existing undici override floors to fixed 6.29.1 and 7.30.1; pnpm audit now reports high=0 and security:gate PASS. No audit threshold or exception changed."
   prior_exact_head_ci_pass: "651fef857e3b8174e4debda74505dd3b31219e22 CI 40042900064 PASS with companion workflows 40042880408 and 40042880403 PASS; historical after security dependency successor."
   ci_failure_repair: "CI run 40042338633 failed only in tests/autopilot worker.test.ts at UTC midnight: the daily-quota production wait used the exact 60s minimum while the test compared against a later Date.now(). Fixed the test with a deterministic 2026-10-23T12:00:00Z clock; runtime behavior and thresholds unchanged. Failure receipt preserved."
-remaining: "No production caller or cutoff/META authority is defined. Exact-head CI and fresh independent review remain required."
+remaining: "No production caller or cutoff/META authority is defined. A3 exact-head CI is still running; after that parent chain settles, exact-head A5 CI and a fresh independent review remain required."
 next: "Commit and non-force push the A3/A5 transaction integration to the existing #2796 branch, run exact-head CI, and request fresh independent review only after green."
