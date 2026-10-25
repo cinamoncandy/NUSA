@@ -4,7 +4,7 @@ status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/exploration-a6
-base_head: d0b046b1e11876aa3a5c7164f95e4cc51629f79f
+base_head: ec7705a5880cfe8230a2dba3ac6a8215e15b50c6
 branch: feat/learning-status-m2
 pull_request: 2798
 authority_impact: none-display-only-read-model
@@ -41,11 +41,11 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "Node 24.19.0/pnpm 11.25.0 after syncing A6 d0b046b1: M2 + A2/A1/A4/A5/A6/retention tests 162/162 PASS; A3 META partition tests 19/19 PASS."
-  build: PASS on Node 24.19.0 / pnpm 11.25.0
-  preflight: PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 522-file AIPOS YAML validation PASS
-  validate_full: PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS
-  security_gate: PASS; raw high/critical=0, unmitigated=0, secrets=0
-  aipos_provenance: PASS; work-order index PASS
+  focused: "After syncing A6 ec7705a5, selected M2/A6/A5/A4/A3/A2/A1/storage/worker/security-gate regression suite 220/220 PASS on Node 24.19.0 / pnpm 11.25.0."
+  build: "PASS after syncing A6 ec7705a5 on Node 24.19.0 / pnpm 11.25.0"
+  preflight: "PASS on Node 24.19.0; portability, platform-independent tests, Android release contract, and 522-file AIPOS YAML validation PASS"
+  validate_full: "PASS; repository truth, safety architecture, AI zero authority, architecture, AIPOS drift/conformance, and safety inputs PASS"
+  security_gate: "PASS; raw high/critical=0, unmitigated=0, secrets=0"
+  aipos_provenance: "PASS; work-order provenance reconciles only two pre-existing colliding historical IDs"
   exact_head_ci: PENDING_AFTER_PUSH
   independent_review: PENDING_AFTER_EXACT_HEAD_CI
