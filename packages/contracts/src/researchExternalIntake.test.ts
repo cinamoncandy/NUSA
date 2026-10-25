@@ -18,6 +18,14 @@ const strategy = (patch: Partial<StrategyReplicationInput> = {}): StrategyReplic
   strategyName: "Example", strategyFamily: "momentum", market: "krw-xrp", instruments: ["KRW-XRP"], timeframe: "1m", dataRequirements: ["UPBIT_PUBLIC_CANDLES"],
   signalDefinition: "close > prior high", entryRule: "enter on next open", exitRule: "close below prior low", positionSizing: "fixed fraction", riskManagement: "bounded stop", rebalanceFrequency: "per bar", transactionCostAssumptions: "NUSA fee model v1", slippageAssumptions: "NUSA slippage model v1", ...patch,
 });
+const reidentifyStrategy = (spec: ReturnType<typeof normalizeStrategyReplication>): string => {
+  const { strategyIdentity: _identity, reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, sourceObservedAt: _sourceObservedAt, sourceObservationFingerprint: _sourceObservationFingerprint, ...identityMaterial } = spec;
+  return createHash("sha256").update(canonicalResearchJson(identityMaterial), "utf8").digest("hex");
+};
+const reidentifyNews = (observation: ReturnType<typeof createCryptoNewsResearchObservation>): string => {
+  const { observationIdentity: _identity, ...material } = observation;
+  return createHash("sha256").update(canonicalResearchJson(material), "utf8").digest("hex");
+};
 
 test("public strategy normalization has stable identity and external metrics remain metadata", () => {
   const a = normalizeStrategyReplication(strategy({ reportedPerformance: { sharpe: 999 } }));
@@ -53,6 +61,17 @@ test("variant identity is separate and replication precommit binds existing cano
   assert.throws(() => strategyReplicationPrecommit({ spec: changedObservationTime, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" }), /IDENTITY/);
   const changedObservationProof = { ...original, sourceObservedAt: "2026-10-24T00:00:00.000Z", sourceObservationFingerprint: original.sourceObservationFingerprint };
   assert.throws(() => strategyReplicationPrecommit({ spec: changedObservationProof, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" }), /IDENTITY_INVALID/);
+});
+
+test("deserialized strategy specs are revalidated before precommit admission", () => {
+  const spec = normalizeStrategyReplication(strategy());
+  const makePrecommit = (candidate: typeof spec) => strategyReplicationPrecommit({ spec: candidate, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  const missingInstrument = { ...spec, instruments: [] } as unknown as typeof spec;
+  const forgedInstrument = { ...missingInstrument, strategyIdentity: reidentifyStrategy(missingInstrument) };
+  assert.throws(() => makePrecommit(forgedInstrument), /RULES_INSUFFICIENT/);
+  const blankExit = { ...spec, exitRule: " " };
+  const forgedExit = { ...blankExit, strategyIdentity: reidentifyStrategy(blankExit) };
+  assert.throws(() => makePrecommit(forgedExit), /RULES_INSUFFICIENT/);
 });
 
 const news = (patch: Partial<CryptoNewsResearchInput> = {}): CryptoNewsResearchInput => ({
@@ -155,4 +174,15 @@ test("untrusted runtime taxonomy and malformed evidence arrays fail closed", () 
   assert.throws(() => createCryptoNewsResearchObservation(news({ eventType: "BUY" as never })), /CLASSIFICATION_INVALID/);
   assert.throws(() => createCryptoNewsResearchObservation(news({ confidence: "CERTAIN" as never })), /CLASSIFICATION_INVALID/);
   assert.throws(() => createCryptoNewsResearchObservation(news({ entities: [42] as never })), /EVIDENCE_INVALID/);
+});
+
+test("PIT binding revalidates deserialized news fields even when identity is recomputed", () => {
+  const observation = createCryptoNewsResearchObservation(news());
+  const sourceRecord = createResearchIntelligenceRecord({ sourceId: "publisher", sourceType: "OTHER", sourceUrl: observation.sourceUrl, sourceVerification: "VERIFIED_PRIMARY_SOURCE", title: "Official filing", authors: ["Publisher"], publishedAt: observation.publishedAt!, discoveredAt: observation.firstObservedAt, rawContentSha256: observation.contentFingerprint, topic: ["REGULATION"], market: "CRYPTO", timeframe: "1h", method: "event study hypothesis", claimedContribution: "publisher claim", testableHypothesis: "Test whether filing events predict volatility", assumptions: [], requiredData: ["UPBIT_PUBLIC_CANDLES"] });
+  const forgedEvent = { ...observation, eventType: "BUY" as never };
+  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedEvent, observationIdentity: reidentifyNews(forgedEvent) }, sourceRecord), /BINDING_INVALID/);
+  const forgedConfidence = { ...observation, confidence: "CERTAIN" as never };
+  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedConfidence, observationIdentity: reidentifyNews(forgedConfidence) }, sourceRecord), /BINDING_INVALID/);
+  const forgedEvidence = { ...observation, observedFacts: [" "] };
+  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedEvidence, observationIdentity: reidentifyNews(forgedEvidence) }, sourceRecord), /BINDING_INVALID/);
 });

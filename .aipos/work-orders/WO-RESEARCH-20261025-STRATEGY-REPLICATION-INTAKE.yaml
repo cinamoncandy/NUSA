@@ -111,7 +111,8 @@ completion_rule: >-
   that any collected external strategy is profitable, does not close the closed-learning loop,
   and does not authorize PAPER activation or LIVE trading by itself.
 next: >-
-  Push the locally validated review-finding repairs to the existing Draft PR #2878, then run
-  exact-head CI and fresh non-author validation. Production Scout composition, durable result
-  consumption, and natural end-to-end Research/PAPER evidence remain follow-up work; do not
-  claim them complete from contract tests.
+  Push the locally validated successor with strategy-spec and crypto-news observation
+  revalidation to the existing Draft PR #2878, then run exact-head CI and fresh non-author
+  review/Validator. Production Scout composition, durable result consumption, and natural
+  end-to-end Research/PAPER evidence remain follow-up work; do not claim them complete from
+  contract tests.

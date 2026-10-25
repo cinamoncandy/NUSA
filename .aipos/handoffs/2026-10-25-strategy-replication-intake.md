@@ -112,3 +112,13 @@ Final local checks on the complete successor all PASS: focused intake tests 11/1
 P0 tracks remain separate: exact-main Oracle release run `40178950069` is still in the persistent-state backup job, so no manual host action is being overlapped; #2589 still awaits genuine exact-main runtime restart/replay evidence after the #2770 release. No runtime cycle, performance, Scout production wiring, or PAPER strategy acceptance is claimed here.
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
+## Fresh exact-head review repair — 2026-10-25
+
+On exact head `eb1a16ea5f615a2228e383d30f9eb041892a217c`, fresh Codex review found two additional P1 trust-boundary gaps: a deserialized StrategySpec could have required rules/lists changed and its public strategy identity recomputed before precommit admission; a deserialized crypto-news observation could similarly recompute its identity after changing taxonomy/confidence/evidence arrays and still reach PIT binding.
+
+The local successor re-runs the canonical strategy normalization factory and compares the normalized value at precommit admission. News binding reconstructs the observation through the canonical factory, checks normalized source fields and the exact unbound or bound identity/status shape, then retains the existing Research Intelligence and source snapshot checks. Regressions recompute identities for empty instruments, blank exit rules, invalid event/confidence enums, and blank facts before asserting rejection.
+
+Validation on this local successor: focused intake 13/13; Node 24.19 preflight; build; typecheck; `validate:full`; `security:gate`; lint (45 existing warnings, zero errors); `git diff --check`; full `pnpm test` (1,281 isolated test files) PASS. These local results do not bind to a remote SHA. Next: publish once on existing PR #2878, then obtain exact-head CI and fresh non-author review. Formal NUSA Validator, Audit/Release, production Scout composition, durable result consumption, and real Research/PAPER outcome remain outstanding. Oracle remains unchanged; latest read-only observation at 2026-10-25T12:35Z had runtime `c59b5224…`, healthy service, 45G root filesystem 94% used / 2.7G free, 68 realized periods, zero learning cycles, and missing sealed dataset manifest.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
