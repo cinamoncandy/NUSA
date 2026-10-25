@@ -1,0 +1,108 @@
+id: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+title: Strategy Replication-First Research Intake
+status: READY
+priority: P1
+risk: MEDIUM
+authority_impact: none
+parent_issue: 2735
+branch: feat/research-intelligence-precommit-bridge
+base_commit: 4bb02f4655044122a95e3dbb94bba65844c0f0cb
+owner_request: "Prioritize learning, reproducing, and validating already-published strategies before inventing new strategies from scratch."
+first_broken_transition: scout_strategy_record_to_deterministic_precommitted_replication_candidate
+objective: >-
+  Reuse NUSA's existing Reference/Research Intelligence, Hypothesis, Precommit, PIT/OOS,
+  and Strategy Governance paths to turn public or otherwise owner-authorized external
+  strategy evidence into deterministic, provenance-bound replication candidates. External
+  reported performance is untrusted metadata; only NUSA's own temporally-correct validation
+  may qualify a strategy for governed PAPER consideration.
+architecture_references:
+  - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+  - docs/NUSA_REFERENCE_INTELLIGENCE_PRINCIPLE.md
+  - .aipos/architecture.md
+  - .aipos/current-mission.yaml
+canonical_parent:
+  issue: 2735
+  note: "Extend the existing external-evidence candidate intake; do not create a second Research Factory, strategy engine, governance engine, scheduler, or canonical state store."
+knowledge_contract:
+  consumes:
+    - FOUNDATIONAL_INVESTMENT_KNOWLEDGE
+    - MARKET_KNOWLEDGE
+    - external_reference_evidence
+  produces:
+    - provenance_bound_research_candidate
+    - challengeable_learned_knowledge
+  rule: "Learning != Authority. External claims are never NUSA performance proof."
+scope:
+  - Reuse existing SCOUT/Research Intelligence records and external evidence contracts; do not build a new crawler in this work order.
+  - Normalize a reproducible external strategy into an explicit versioned StrategySpec or equivalent existing canonical type.
+  - Preserve source identity, source locator, publication/update time when available, strategy family, market/instruments, timeframe, data requirements, signal, entry, exit, sizing, risk, rebalance, fee/slippage assumptions, reported metrics, limitations, and evidence fingerprint.
+  - Keep observed/source facts separate from inferred interpretation and keep ORIGINAL_STRATEGY separate from POSSIBLE_VARIANT or later NUSA improvements.
+  - Mark unknown or absent fields UNKNOWN; never infer missing executable rules merely to make a strategy testable.
+  - Fail closed when provenance, deterministic identity, or critical executable rules are missing or contradictory.
+  - Derive deterministic canonical strategy identity and deduplicate exact duplicates while retaining family/variant relationships.
+  - Bridge accepted StrategySpec into the existing canonical Hypothesis/ResearchPrecommit path before evaluation.
+  - Bind precommit identity to source/evidence fingerprint, normalized spec hash, dataset/manifest identity, evaluation plan, cost assumptions, and relevant code/version identity where the existing contract supports them.
+  - Reproduce the original strategy first. Improvements, parameter searches, combinations, or AI-generated variants must be separate descendants and must never overwrite the original replication result.
+  - Use existing PIT/OOS/walk-forward, stress/adversarial, cost/slippage, Strategy Governance, and PAPER gates instead of creating parallel evaluators or promotion paths.
+  - Persist or expose a deterministic replication receipt/result that distinguishes REPRODUCED, NOT_REPRODUCED, INSUFFICIENT_EVIDENCE, and INVALID_INPUT (or existing canonical equivalents) without rewriting adverse evidence.
+  - Record replication failures, alpha decay, regime dependence, crowding, transaction-cost destruction, overfitting, look-ahead, survivorship, and data-snooping findings as useful negative evidence.
+  - Permit only NUSA-validated candidates to advance toward governed PAPER challenger consideration; no automatic promotion or activation is introduced.
+out_of_scope:
+  - New external crawling or scraping infrastructure.
+  - Reverse engineering or copying proprietary code, binaries, assets, secrets, credentials, or protected expressions.
+  - Treating external CAGR, Sharpe, win rate, drawdown, benchmark claims, stars, popularity, or paper conclusions as NUSA validation.
+  - Synthetic OHLCV, synthetic volume, history rewriting, fabricated receipts, or filling missing provenance by guesswork.
+  - Bypassing issue 2815 candle-provenance correctness or the canonical explicit OHLCV/UPBIT_PUBLIC_CANDLES manifest requirements for real performance claims.
+  - Automatic PAPER activation, LIVE trading, real-money mutation, risk relaxation, Deployment Gate bypass, or Risk Governor bypass.
+  - Replacing the existing Hypothesis/Precommit/Research/Strategy Governance architecture.
+acceptance:
+  - A valid reproducible public/authorized strategy record deterministically maps to one normalized strategy identity and one precommitted Research candidate before any evaluation result is known.
+  - Missing critical strategy rules, missing/ambiguous provenance, evidence fingerprint mismatch, or contradictory source identity fails closed without guessed defaults.
+  - The original published strategy is immutable as the replication baseline; variants and improvements receive separate identities and lineage.
+  - The same normalized source/spec produces deterministic identity and precommit material; material source/spec changes change the bound identity.
+  - Duplicate intake does not create duplicate canonical strategies or duplicate evaluation authority.
+  - External reported performance is stored only as attributed claim/evidence metadata and can never satisfy PIT/OOS, governance, or PAPER promotion gates.
+  - Candidate evaluation uses existing temporally-correct PIT/OOS or walk-forward controls and includes economically relevant fees/slippage assumptions.
+  - Candidate cannot create orders, mutate production state, bypass Strategy Governance/Risk/Deployment gates, or gain authority from external evidence.
+  - Replication success and failure are both retained as attributable, challengeable evidence; adverse results are not discarded or rewritten.
+  - Actual performance claims remain blocked when canonical dataset/provenance prerequisites are unmet, including unresolved #2815 or explicit OHLCV manifest requirements where applicable.
+  - Tests cover valid deterministic intake, missing required rules, ambiguous/missing provenance, fingerprint/spec tamper, duplicate intake, original-vs-variant separation, deterministic output, and high external reported returns that still cannot produce a NUSA pass.
+  - Existing PAPER_ONLY and zero-authority safety invariants remain unchanged.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+dependencies:
+  parent_issue: 2735
+  performance_data_integrity:
+    - 2815
+    - canonical explicit OHLCV manifest/provenance
+  note: "The intake/normalization bridge may be implemented and fixture-tested before real-market dataset gates close, but no real strategy performance success may be claimed from fixture or incomplete provenance."
+governance:
+  pr_mode: DRAFT_AFTER_LOCAL_VALIDATION
+  fresh_non_author_validator_required: true
+  audit_release_required_for_merge: true
+  self_approval: prohibited
+  self_merge: prohibited
+  no_ci_as_iterative_debugger: true
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+  automaticPromotion: prohibited
+  learningEqualsAuthority: false
+completion_rule: >-
+  Implementation, focused tests, repository validation, exact-head CI, fresh non-author
+  validation, and canonical governance must all be truthful. This work order does not prove
+  that any collected external strategy is profitable, does not close the closed-learning loop,
+  and does not authorize PAPER activation or LIVE trading by itself.
+next: >-
+  Recover exact existing Research Intelligence/Hypothesis/Precommit contracts, implement the
+  smallest deterministic Strategy Replication Intake bridge on this branch, run local focused
+  and repository gates, then open one Draft PR referencing #2735 only after local validation passes.
