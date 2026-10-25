@@ -32,6 +32,7 @@ export interface ResearchIntelligenceCollector {
 
 export interface ResearchIntelligenceMemory {
   list(): readonly ResearchIntelligenceRecord[];
+  get(recordId: string): ResearchIntelligenceRecord | null;
   append(record: ResearchIntelligenceRecord): ResearchIntelligenceRecord;
 }
 

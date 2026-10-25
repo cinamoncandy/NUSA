@@ -13,6 +13,28 @@ current_learning_identity_failure_20261014:
   next: "Persist actual post-close identity failure using existing ledger; no claimed cycle completion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_canonical_source_binding_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_FULL_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: f4c8d02212284752804f4c9c42b59ed1656836e9
+  finding: "Fresh review found that allowlisted sourceVerification values could still be caller-selected at news PIT binding. Binding now accepts only a canonical source record ID and injected reader; SQLite resolution validates stored row identity and semantic provenance before returning the source record."
+  validation: "Node 24.19 TypeScript compile and focused contracts/storage tests 19/19 PASS. Full preflight/build/typecheck/validate:full/security/lint/full test suite and exact-head CI are pending."
+  next: "Complete required local gates, verify current protected main and PR identity, commit substantive source/tests/AIPOS repair to the existing branch, then obtain exact-head CI and fresh non-author review. Formal Validator remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_canonical_source_binding_validated_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: f4c8d02212284752804f4c9c42b59ed1656836e9
+  finding: "Fresh review found caller-selectable source verification labels at crypto-news PIT binding. The binder now resolves only a canonical persisted Research Intelligence ID through the SQLite store, with row identity and semantic provenance checked before binding."
+  validation: "Node 24.19 preflight PASS; focused Research Intelligence and external intake tests 19/19 PASS; build/typecheck/validate:full/security:gate PASS; lint PASS with 45 warnings and 0 errors; pnpm test PASS (1281 isolated test files); diff check PASS."
+  next: "Commit the substantive repair to the existing PR branch after fresh remote identity check; obtain successor exact-head CI and fresh non-author review, then separate formal Validator. Production Scout composition and genuine Research/PAPER outcome remain unverified."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_taxonomy_parent_binding_20261025:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI

@@ -255,6 +255,11 @@ export interface CryptoNewsResearchObservation extends CryptoNewsResearchInput {
   readonly liveAuthority: "NONE"; readonly productionMutationAllowed: false; readonly aiAuthority: "ZERO_AUTHORITY";
 }
 
+/** Server-injected canonical reader. Untrusted intake supplies only a record ID, never a trust-claim object. */
+export interface CanonicalResearchIntelligenceRecordReader {
+  get(recordId: string): ResearchIntelligenceRecord | null;
+}
+
 function cryptoNewsInputFromObservation(observation: CryptoNewsResearchObservation): CryptoNewsResearchInput {
   return {
     sourceUrl: observation.sourceUrl, publisher: observation.publisher, originalPublisher: observation.originalPublisher,
@@ -289,8 +294,11 @@ export function createCryptoNewsResearchObservation(input: CryptoNewsResearchInp
 }
 
 /** Bind a captured snapshot to the existing Research Intelligence source-verification record. */
-export function bindCryptoNewsResearchIntelligence(observation: CryptoNewsResearchObservation, record: ResearchIntelligenceRecord): CryptoNewsResearchObservation {
-  if (!observation || typeof observation !== "object") throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
+export function bindCryptoNewsResearchIntelligence(observation: CryptoNewsResearchObservation, sourceRecordId: string, canonicalReader: CanonicalResearchIntelligenceRecordReader): CryptoNewsResearchObservation {
+  if (!observation || typeof observation !== "object" || !text(sourceRecordId) || !canonicalReader || typeof canonicalReader.get !== "function") throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
+  let record: ResearchIntelligenceRecord | null;
+  try { record = canonicalReader.get(sourceRecordId); } catch { throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID"); }
+  if (!record || record.recordId !== sourceRecordId) throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
   // Reconstruct only the untrusted observation inputs through the canonical
   // factory. A caller-recomputed observation hash must not turn an invalid enum,
   // malformed evidence list, or noncanonical field into PIT-eligible evidence.
@@ -386,8 +394,8 @@ export function verifyStrategyReplicationReceipt(receipt: StrategyReplicationRec
 }
 
 /** Explicit, pre-result hypothesis adapter. It never infers missing economic assumptions from news. */
-export function cryptoNewsResearchPrecommit(observation: CryptoNewsResearchObservation, sourceRecord: ResearchIntelligenceRecord, input: CryptoNewsHypothesisInput): { readonly classification: "RESEARCH_HYPOTHESIS_CANDIDATE"; readonly hypothesis: ResearchHypothesis; readonly precommit: ResearchPrecommit } {
-  const verifiedObservation = bindCryptoNewsResearchIntelligence(observation, sourceRecord);
+export function cryptoNewsResearchPrecommit(observation: CryptoNewsResearchObservation, sourceRecordId: string, canonicalReader: CanonicalResearchIntelligenceRecordReader, input: CryptoNewsHypothesisInput): { readonly classification: "RESEARCH_HYPOTHESIS_CANDIDATE"; readonly hypothesis: ResearchHypothesis; readonly precommit: ResearchPrecommit } {
+  const verifiedObservation = bindCryptoNewsResearchIntelligence(observation, sourceRecordId, canonicalReader);
   const { observationIdentity, ...observationMaterial } = verifiedObservation;
   if (!verifiedObservation || observationIdentity !== digest(observationMaterial) || verifiedObservation.scoutInferences.length === 0 || !validTimestamp(input.createdAt) || Date.parse(input.createdAt) < Date.parse(verifiedObservation.retrievedAt) || !validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan)) throw new Error("NEWS_HYPOTHESIS_EVIDENCE_INELIGIBLE");
   const semanticInput = { observationIdentity, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity };

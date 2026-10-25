@@ -63,6 +63,31 @@ export class SqliteResearchIntelligenceMemoryRepository {
     }));
   }
 
+  /** Resolve only a record already persisted with its canonical semantic provenance overlay. */
+  public get(recordId: string): ResearchIntelligenceRecord | null {
+    if (typeof recordId !== "string" || recordId.trim() === "") {
+      throw new Error("research intelligence record id is invalid");
+    }
+    const row = this.db.connection.prepare(
+      "SELECT record_id, source_id, source_type, content_fingerprint, hypothesis_semantic_fingerprint, discovered_at, payload_json FROM research_intelligence_records WHERE record_id = ?",
+    ).get(recordId) as Record<string, unknown> | undefined;
+    if (row == null) return null;
+    const record = decode(row);
+    validateStoredRow(row, record);
+    const expectedDigest = researchMemoryArtifactDigestV1(record);
+    const overlay = this.semantic.listSemantic().find(
+      (event) =>
+        event.artifact.artifactKind === "RESEARCH_INTELLIGENCE_RECORD" &&
+        event.artifact.artifactId === record.recordId &&
+        event.artifact.artifactContentSha256 === expectedDigest &&
+        event.artifact.artifactDigestKind === "CANONICAL_RESEARCH_INTELLIGENCE_SHA256_V1",
+    );
+    if (overlay == null) {
+      throw new Error("research intelligence semantic provenance mismatch");
+    }
+    return Object.freeze(record);
+  }
+
   public append(record: ResearchIntelligenceRecord): ResearchIntelligenceRecord {
     return this.db.transaction(() => {
       const existingRow = this.db.connection.prepare(

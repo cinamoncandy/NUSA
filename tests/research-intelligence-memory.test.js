@@ -14,6 +14,10 @@ const {
 const {
   SqliteResearchSemanticMemoryRepository,
 } = require("../dist/packages/storage/src/researchMemorySemantics.js");
+const {
+  createCryptoNewsResearchObservation,
+  bindCryptoNewsResearchIntelligence,
+} = require("../dist/packages/contracts/src/researchExternalIntake.js");
 
 function record(discoveredAt) {
   return createResearchIntelligenceRecord({
@@ -133,6 +137,66 @@ test("persisted payload tampering fails closed against semantic provenance", () 
       () => memory.list(),
       /semantic provenance mismatch/,
     );
+  } finally {
+    db.close();
+  }
+});
+
+test("news PIT binding resolves source verification only from persisted canonical Research Intelligence", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const memory = new SqliteResearchIntelligenceMemoryRepository(db);
+    const snapshot = "The official filing was published.";
+    const fingerprint = require("node:crypto").createHash("sha256").update(snapshot).digest("hex");
+    const observation = createCryptoNewsResearchObservation({
+      sourceUrl: "https://publisher.example/filing",
+      publisher: "Publisher",
+      publishedAt: "2026-10-24T00:00:00Z",
+      retrievedAt: "2026-10-25T00:00:00Z",
+      firstObservedAt: "2026-10-24T01:00:00Z",
+      contentSnapshot: snapshot,
+      contentFingerprint: fingerprint,
+      sourceType: "NEWS",
+      eventType: "REGULATION",
+      entities: ["SEC"],
+      assets: ["BTC"],
+      confidence: "MEDIUM",
+      observedFacts: ["filing published"],
+      publisherClaims: ["impact is bullish"],
+      scoutInferences: ["test whether volatility changes"],
+    });
+    const sourceRecord = createResearchIntelligenceRecord({
+      sourceId: "publisher:filing-1",
+      sourceType: "OTHER",
+      sourceUrl: observation.sourceUrl,
+      sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+      title: "Official filing",
+      authors: ["Publisher"],
+      publishedAt: observation.publishedAt,
+      discoveredAt: observation.firstObservedAt,
+      rawContentSha256: fingerprint,
+      topic: ["REGULATION"],
+      market: "CRYPTO",
+      timeframe: "1h",
+      method: "event study hypothesis",
+      claimedContribution: "publisher claim",
+      testableHypothesis: "Test whether filing events predict volatility",
+      assumptions: [],
+      requiredData: ["UPBIT_PUBLIC_CANDLES"],
+    });
+
+    assert.equal(memory.get(sourceRecord.recordId), null);
+    assert.throws(
+      () => bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId, memory),
+      /BINDING_INVALID/,
+      "an unpersisted caller-created trust claim must not qualify as source evidence",
+    );
+
+    memory.append(sourceRecord);
+    assert.equal(memory.get(sourceRecord.recordId).recordId, sourceRecord.recordId);
+    const bound = bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId, memory);
+    assert.equal(bound.coverageStatus, "PIT_ELIGIBLE");
+    assert.equal(bound.researchIntelligenceRecordId, sourceRecord.recordId);
   } finally {
     db.close();
   }
