@@ -594,6 +594,21 @@ export class SqliteEvolutionLearningLedger {
 
   /** Atomic identity acquisition for callers whose side effect must have one durable winner. */
   public appendWithResult(value: EvolutionLearningRecord): { readonly record: EvolutionLearningRecord; readonly inserted: boolean } {
+    return this.appendInternal(value, () => undefined);
+  }
+
+  /** Validate a graph constraint against the latest hash-chain snapshot in the append transaction. */
+  public appendWithValidation(
+    value: EvolutionLearningRecord,
+    validateCurrent: (records: readonly EvolutionLearningRecord[]) => void,
+  ): EvolutionLearningRecord {
+    return this.appendInternal(value, validateCurrent).record;
+  }
+
+  private appendInternal(
+    value: EvolutionLearningRecord,
+    validateCurrent: (records: readonly EvolutionLearningRecord[]) => void,
+  ): { readonly record: EvolutionLearningRecord; readonly inserted: boolean } {
     const record = normalize(value);
     return this.db.transaction(() => {
       const current = this.replay();
@@ -615,6 +630,7 @@ export class SqliteEvolutionLearningLedger {
       const existing = current.records.find((item) => item.opportunityId === record.opportunityId);
       if (existing != null) {
         if (contentHash(existing) !== contentHash(record)) invalid("IDENTITY_CONFLICT", "learning opportunity was reused with different evidence");
+        validateCurrent(current.records);
         return Object.freeze({ record: existing, inserted: false });
       }
       const pendingReservations = pendingLearningDecisionFingerprints(current.records, verifyInputSet);
@@ -636,6 +652,7 @@ export class SqliteEvolutionLearningLedger {
 
       const meta = readMeta(this.db.connection);
       if (meta.eventCount !== current.eventCount || meta.ledgerHash !== current.headHash) invalid("CONCURRENT_CHANGE", "learning ledger changed during append");
+      validateCurrent(current.records);
       const sequence = meta.eventCount + 1;
       const previousHash = meta.ledgerHash;
       const currentContentHash = contentHash(record);

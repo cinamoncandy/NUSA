@@ -3699,17 +3699,21 @@ current_autopilot_runner_readiness:
 
 current_learning_meta_holdout_replay_20261018:
   work_order: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
-  status: LOCAL_VALIDATED_SUCCESSOR_PENDING_EXACT_HEAD_CI
+  status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
   branch: feat/meta-oos-a3
   pull_request: 2795
-  predecessor_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
+  predecessor_head: 179ad1818925cd2a0087e7f59f9bbbe0aa485df2
   parent_a4_head: 3849e1e9ada0d0fe24964f444fea63f77721ede1
-  validation: "A3/A4 bridge and Evolution Learning ledger focused suite 37/37 PASS after reconverging reviewed A1 and A4 parent. Build PASS; Node 24.19.0 pnpm run preflight PASS; git diff --check PASS. Fixed the A3 test journal to implement A4's canonical appendWithResult transaction-winner API; no production semantics or eligibility floor changed."
-  finding: "Durable META assignment replay remains idempotent and owner-fixed. A3's eligibility floor is unchanged. Production Learning trigger/cutoff/META authority remains unresolved and no production A3-to-A4 caller is claimed."
-  next: "Commit/push the existing #2795 branch on A4 parent 3849e1e9, run exact-head CI and Mobile Native, then request fresh independent review after CI succeeds. Keep Draft; no Audit/Release/merge/runtime claim."
+  prior_exact_head_ci: 40146442748
+  prior_review_id: 5640768157
+  prior_review_p1_comment_ids: [4369088597, 4369088598, 4369088600]
+  validation: "On Node 24.19.0, repaired A3/A4 + Evolution Learning ledger focused suite 28/28 PASS; pnpm build PASS; pnpm run preflight PASS; pnpm run validate:full PASS; pnpm run security:gate PASS; git diff --check PASS. Prior 37/37 and CI run 40146442748 are historical to predecessor 179ad181 and do not validate this successor."
+  finding: "Fresh review of 179ad181 found three P1s: caller-selected partition could bias holdout, assignment uniqueness was not checked in the serialized append transaction, and malformed self-consistent durable receipts could omit required identity fields. Successor locally disables all partition assignment/eligibility until owner policy exists, validates exact receipt schema/envelope, and checks cycle uniqueness in the ledger append transaction. No cutoff/META allocation policy or production trigger owner is invented."
+  next: "Commit/push only the substantive repair to existing #2795 branch; run fresh exact-head CI and required companion workflows; after terminal green request a fresh independent review. Keep Draft; no Audit/Release/merge/runtime claim."
   blockers:
     - BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED
     - BLOCKED_META_PARTITION_POLICY_UNDEFINED
+    - BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_methods_20261013:

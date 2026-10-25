@@ -558,6 +558,38 @@ test("forbidden fields are rejected before they can be persisted", () => {
   }
 });
 
+test("appendWithValidation checks the latest durable snapshot atomically and rejects a cycle fork", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db);
+    const cycleId = `learning-cycle:${"a".repeat(64)}`;
+    const winner = record("meta-oos:" + "b".repeat(64), "2026-08-29T00:00:00.000Z", {
+      problem: "NUSA meta-OOS partition assignment: which cross-cycle partition judged this learning cycle",
+      evidenceReferences: [cycleId],
+      validationStatus: "META_OOS_ASSIGNMENT",
+    });
+    const staleCandidate = record("meta-oos:" + "c".repeat(64), "2026-08-29T00:01:00.000Z", {
+      problem: "NUSA meta-OOS partition assignment: which cross-cycle partition judged this learning cycle",
+      evidenceReferences: [cycleId],
+      validationStatus: "META_OOS_ASSIGNMENT",
+    });
+
+    ledger.append(winner);
+    assert.throws(
+      () => ledger.appendWithValidation(staleCandidate, (current) => {
+        assert.equal(current.length, 1, "validator runs inside the serialized append boundary");
+        if (current.some((entry) => entry.validationStatus === "META_OOS_ASSIGNMENT" && entry.evidenceReferences.includes(cycleId))) {
+          throw new Error("PARTITION_FORK");
+        }
+      }),
+      /PARTITION_FORK/,
+    );
+    assert.equal(ledger.size(), 1, "the losing successor never enters the durable hash chain");
+  } finally {
+    db.close();
+  }
+});
+
 test("hypothesis payload is bounded at 16 KiB of UTF-8 while allowing canonical Governance/PAPER receipts", () => {
   const db = new SqliteDatabase(":memory:");
   try {
