@@ -95,3 +95,20 @@ An additional trust-boundary pass found the receipt producer must verify the can
 The exact-head CI and required companions on `d07af20750787fa937cdae7ae2339c9e42a1f3aa` passed (CI run `40187825019`). Fresh Codex review on that head found three P1s: `sourceObservedAt` was not part of the strategy identity; precommit validation accepted boolean placeholders such as `{pit:true,oos:true}`; and a cloned Research Intelligence record with `publishedAt="UNKNOWN"` could evade timestamp chronology checks. The current local successor binds observation time into strategy identity, requires structured dataset/PIT/OOS/cost bindings, and reconstructs the Research Intelligence record through its canonical factory before checking publication/discovery times and chronology. Regression tests cover each finding.
 
 Local validation on this unpushed successor: focused intake tests 11/11, Node 24.19 `preflight`, build/typecheck, `validate:full`, `security:gate`, lint (45 existing warnings, 0 errors), `git diff --check`, and full `pnpm test` (1,281 isolated test files) all PASS. These results are local only and do not validate a GitHub head. The latest remote PR head remains `d07af20750787fa937cdae7ae2339c9e42a1f3aa`; its prior CI/review become historical after publishing the repair. Next: publish the validated code/AIPOS update once, then require fresh exact-head CI and fresh non-author review. Formal Validator, Audit/Release, production Scout composition, persisted result consumption, and natural Research/PAPER outcome remain outstanding. Oracle backup/deployment lane remains independent; no host mutation was performed here.
+
+## Latest continuation — expanded exact-head review repair on 2026-10-25
+
+Fresh repository/GitHub state: protected main `4bb02f4655044122a95e3dbb94bba65844c0f0cb`; PR #2878 remains OPEN/Draft/mergeable at head `f54e978dabf967c741ffba05ddbf02d68b2a9e1a`. Its exact-head CI `40188921438` and required companion workflows pass. The exact-head Codex review found additional P1s covering same-source recapture deduplication, PIT/OOS window overlap, latency/missing-data assumptions, adapter-produced precommit attribution, receipt structural validation, canonical Research Intelligence rebinding, and source snapshot verification at news binding.
+
+The current unpushed local successor now:
+
+- keeps strategy identity stable across repeated captures of the same canonical source snapshot and rules, while retaining a separate source-observation fingerprint inside each immutable precommit;
+- rejects overlapping or malformed explicit PIT/OOS windows and requires non-UNKNOWN latency and missing-data policies;
+- verifies replication receipts came from the canonical strategy adapter precommit and revalidates their structural fields before trusting the fingerprint;
+- requires news precommit to rebind through the canonical Research Intelligence record and re-hashes the exact captured snapshot at that trust boundary.
+
+Final local checks on the complete successor all PASS: focused intake tests 11/11; build; typecheck; Node 24.19 preflight; `validate:full`; `security:gate`; lint (45 existing warnings, 0 errors); `pnpm test` (1,281 isolated files); and `git diff --check`. The final full run included the snapshot re-hash regression. No source has been pushed yet; generated docs/audits outputs remain excluded.
+
+P0 tracks remain separate: exact-main Oracle release run `40178950069` is still in the persistent-state backup job, so no manual host action is being overlapped; #2589 still awaits genuine exact-main runtime restart/replay evidence after the #2770 release. No runtime cycle, performance, Scout production wiring, or PAPER strategy acceptance is claimed here.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.

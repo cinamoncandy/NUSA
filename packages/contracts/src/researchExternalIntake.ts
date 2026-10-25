@@ -52,6 +52,8 @@ export interface StrategyReplicationSpec extends Omit<StrategyReplicationInput, 
   readonly reportedPerformance: Readonly<Record<string, unknown>>; readonly instruments: readonly string[];
   readonly dataRequirements: readonly string[]; readonly knownLimitations: readonly string[];
   readonly residualUnknowns: readonly string[]; readonly strategyIdentity: string;
+  /** Binds this source capture time separately so repeated captures do not fork the strategy identity. */
+  readonly sourceObservationFingerprint: string;
   readonly externalPerformanceIsNusaEvidence: false;
   readonly authority: "PAPER_ONLY"; readonly liveAuthority: "NONE"; readonly realOrderAuthority: false;
   readonly realTransferAuthority: false; readonly productionMutationAllowed: false; readonly aiAuthority: "ZERO_AUTHORITY";
@@ -62,9 +64,13 @@ export function normalizeStrategyReplication(input: StrategyReplicationInput): S
   const required = [input.strategyName,input.strategyFamily,input.market,input.timeframe,input.signalDefinition,input.entryRule,input.exitRule,input.positionSizing,input.riskManagement,input.rebalanceFrequency,input.transactionCostAssumptions,input.slippageAssumptions];
   if (!required.every(text) || !Array.isArray(input.instruments) || input.instruments.length === 0 || !input.instruments.every(text) || !Array.isArray(input.dataRequirements) || input.dataRequirements.length === 0 || !input.dataRequirements.every(text)) throw new Error("STRATEGY_RULES_INSUFFICIENT");
   if (input.variantOf != null && !SHA256.test(input.variantOf)) throw new Error("STRATEGY_VARIANT_PARENT_INVALID");
+  const normalizedSourceUrl = canonicalUrl(input.sourceUrl);
+  const normalizedSourceFingerprint = input.sourceFingerprint.toLowerCase();
+  const normalizedSourceObservedAt = new Date(input.sourceObservedAt).toISOString();
+  const sourceObservationFingerprint = digest({ sourceUrl: normalizedSourceUrl, sourceFingerprint: normalizedSourceFingerprint, sourceObservedAt: normalizedSourceObservedAt });
   const core = {
     schemaVersion: 1 as const, kind: input.variantOf ? "NUSA_VARIANT" as const : "ORIGINAL_STRATEGY" as const,
-    sourceUrl: canonicalUrl(input.sourceUrl), sourceFingerprint: input.sourceFingerprint.toLowerCase(), sourceObservedAt: new Date(input.sourceObservedAt).toISOString(),
+    sourceUrl: normalizedSourceUrl, sourceFingerprint: normalizedSourceFingerprint, sourceObservedAt: normalizedSourceObservedAt, sourceObservationFingerprint,
     strategyName: clean(input.strategyName), strategyFamily: clean(input.strategyFamily), market: clean(input.market).toUpperCase(),
     instruments: Object.freeze([...new Set(input.instruments.map(clean))].sort()), timeframe: clean(input.timeframe), sourceSnapshot: input.sourceSnapshot,
     dataRequirements: Object.freeze([...new Set(input.dataRequirements.map(clean))].sort()),
@@ -82,33 +88,42 @@ export function normalizeStrategyReplication(input: StrategyReplicationInput): S
     authority: "PAPER_ONLY" as const, liveAuthority: "NONE" as const, realOrderAuthority: false as const,
     realTransferAuthority: false as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const,
   };
-  const { reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, ...identityMaterial } = core;
+  const { reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, sourceObservedAt: _sourceObservedAt, sourceObservationFingerprint: _sourceObservationFingerprint, ...identityMaterial } = core;
   return deepFreeze({ ...core, strategyIdentity: digest(identityMaterial) });
 }
 
 function verifyStrategyReplicationSpec(spec: StrategyReplicationSpec): void {
-  if (!spec || typeof spec !== "object" || spec.externalPerformanceIsNusaEvidence !== false || spec.authority !== "PAPER_ONLY" || spec.liveAuthority !== "NONE" || spec.realOrderAuthority !== false || spec.realTransferAuthority !== false || spec.productionMutationAllowed !== false || spec.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(spec.strategyIdentity) || typeof spec.sourceSnapshot !== "string" || sha256(spec.sourceSnapshot) !== spec.sourceFingerprint) throw new Error("STRATEGY_IDENTITY_INVALID");
-  const { strategyIdentity, reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, ...identityMaterial } = spec;
+  if (!spec || typeof spec !== "object" || spec.externalPerformanceIsNusaEvidence !== false || spec.authority !== "PAPER_ONLY" || spec.liveAuthority !== "NONE" || spec.realOrderAuthority !== false || spec.realTransferAuthority !== false || spec.productionMutationAllowed !== false || spec.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(spec.strategyIdentity) || typeof spec.sourceSnapshot !== "string" || sha256(spec.sourceSnapshot) !== spec.sourceFingerprint || !Number.isFinite(Date.parse(spec.sourceObservedAt)) || !SHA256.test(spec.sourceObservationFingerprint) || spec.sourceObservationFingerprint !== digest({ sourceUrl: spec.sourceUrl, sourceFingerprint: spec.sourceFingerprint, sourceObservedAt: spec.sourceObservedAt })) throw new Error("STRATEGY_IDENTITY_INVALID");
+  const { strategyIdentity, reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, sourceObservedAt: _sourceObservedAt, sourceObservationFingerprint: _sourceObservationFingerprint, ...identityMaterial } = spec;
   if (strategyIdentity !== digest(identityMaterial)) throw new Error("STRATEGY_IDENTITY_MISMATCH");
 }
 
 function plainRecord(value: unknown): value is Readonly<Record<string, unknown>> { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function hasText(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => text(record[key])); }
+function hasKnownText(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => text(record[key]) && !/^(?:UNKNOWN|N\/A|NOT\s+SPECIFIED)$/i.test(record[key]!.trim())); }
 function hasDigest(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => typeof record[key] === "string" && SHA256.test(record[key] as string)); }
-function validTimeWindow(value: unknown): boolean {
-  if (!plainRecord(value)) return false;
+function timeWindowBounds(value: unknown): { start: number; end: number } | undefined {
+  if (!plainRecord(value)) return undefined;
   const start = value.startAt ?? value.start ?? value.from;
   const end = value.endAt ?? value.end ?? value.to;
-  return text(start) && text(end) && Number.isFinite(Date.parse(start)) && Number.isFinite(Date.parse(end)) && Date.parse(start) < Date.parse(end);
+  if (!text(start) || !text(end)) return undefined;
+  const startMs = Date.parse(start), endMs = Date.parse(end);
+  return Number.isFinite(startMs) && Number.isFinite(endMs) && startMs < endMs ? { start: startMs, end: endMs } : undefined;
 }
+function validTimeWindow(value: unknown): boolean { return timeWindowBounds(value) !== undefined; }
 function validatePrecommitPlans(datasetBinding: unknown, evaluationPlan: unknown, costPlan: unknown): boolean {
   if (!plainRecord(datasetBinding) || !plainRecord(evaluationPlan) || !plainRecord(costPlan)) return false;
+  if (("pitWindow" in evaluationPlan && !timeWindowBounds(evaluationPlan.pitWindow)) || ("oosWindow" in evaluationPlan && !timeWindowBounds(evaluationPlan.oosWindow))) return false;
   const datasetBound = hasText(datasetBinding, ["manifest", "manifestId", "datasetId"]) || hasDigest(datasetBinding, ["manifestFingerprint", "datasetFingerprint", "datasetContentSha256"]);
   const pitBound = validTimeWindow(evaluationPlan.pitWindow) || text(evaluationPlan.pitPolicyVersion);
   const oosBound = validTimeWindow(evaluationPlan.oosWindow) || text(evaluationPlan.oosPolicyVersion) || hasDigest(evaluationPlan, ["walkForwardConfigHash"]);
+  const pitWindow = timeWindowBounds(evaluationPlan.pitWindow), oosWindow = timeWindowBounds(evaluationPlan.oosWindow);
+  const windowsAreDisjoint = !pitWindow || !oosWindow || oosWindow.start > pitWindow.end;
+  const latencyBound = hasKnownText(evaluationPlan, ["latencyAssumptions", "latencyModelVersion", "latencyPolicyVersion"]);
+  const missingDataBound = hasKnownText(evaluationPlan, ["missingDataPolicy", "missingDataBehavior", "missingDataAssumptions"]);
   const feeBound = hasText(costPlan, ["feeModelVersion", "feeModelIdentity", "feeAssumptions"]) || (typeof costPlan.feeBps === "number" && Number.isFinite(costPlan.feeBps) && costPlan.feeBps >= 0);
   const slippageBound = hasText(costPlan, ["slippageModelVersion", "slippageModelIdentity", "slippageAssumptions"]) || (typeof costPlan.slippageBps === "number" && Number.isFinite(costPlan.slippageBps) && costPlan.slippageBps >= 0);
-  return datasetBound && pitBound && oosBound && feeBound && slippageBound;
+  return datasetBound && pitBound && oosBound && windowsAreDisjoint && latencyBound && missingDataBound && feeBound && slippageBound;
 }
 
 export function strategyReplicationPrecommit(input: { spec: StrategyReplicationSpec; sourceSha: string; datasetBinding: Readonly<Record<string, unknown>>; evaluationPlan: Readonly<Record<string, unknown>>; costPlan: Readonly<Record<string, unknown>>; validationPolicyIdentity: string; createdAt: string }): ResearchPrecommit {
@@ -116,6 +131,13 @@ export function strategyReplicationPrecommit(input: { spec: StrategyReplicationS
   verifyStrategyReplicationSpec(spec);
   if (!validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan) || !text(input.validationPolicyIdentity) || !Number.isFinite(Date.parse(input.createdAt)) || Date.parse(input.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("STRATEGY_PRECOMMIT_BINDING_INVALID");
   return createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: spec.strategyIdentity, strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, sourceSha: input.sourceSha, parameterPlan: { strategySpec: spec }, costPlan: input.costPlan, regimePlan: {}, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
+}
+
+function verifyStrategyReplicationPrecommit(spec: StrategyReplicationSpec, precommit: ResearchPrecommit): void {
+  verifyResearchPrecommit(precommit);
+  const parameterSpec = plainRecord(precommit.parameterPlan) ? precommit.parameterPlan.strategySpec : undefined;
+  if (precommit.candidateIdentity !== spec.strategyIdentity || precommit.strategyIdentity !== spec.strategyIdentity || !plainRecord(parameterSpec) || canonicalResearchJson(parameterSpec) !== canonicalResearchJson(spec) || !validatePrecommitPlans(precommit.datasetBinding, precommit.evaluationPlan, precommit.costPlan) || precommit.experimentIdentity !== digest({ strategyIdentity: spec.strategyIdentity, datasetBinding: precommit.datasetBinding, evaluationPlan: precommit.evaluationPlan, costPlan: precommit.costPlan }) || Date.parse(precommit.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
+  verifyStrategyReplicationSpec(parameterSpec as unknown as StrategyReplicationSpec);
 }
 
 export interface CryptoNewsResearchInput {
@@ -179,7 +201,7 @@ export function bindCryptoNewsResearchIntelligence(observation: CryptoNewsResear
   }
   const expectedContentFingerprint = digest({ sourceType: record.sourceType, sourceId: record.sourceId, sourceUrl: record.sourceUrl, rawContentSha256: record.rawContentSha256.toLowerCase() });
   const expectedRecordId = `ri:${digest({ sourceType: record.sourceType, sourceId: record.sourceId, contentFingerprint: expectedContentFingerprint })}`;
-  if (digest(reconstructedRecord) !== digest(record) || observationIdentity !== digest(observationMaterial) || observation.snapshotIntegrity !== "VERIFIED" || observation.publishedAt === "UNKNOWN" || observation.contentFingerprint !== record.rawContentSha256.toLowerCase() || observation.sourceUrl !== record.sourceUrl || observation.publishedAt !== record.publishedAt || record.contentFingerprint !== expectedContentFingerprint || record.recordId !== expectedRecordId || record.sourceVerification !== "VERIFIED_PRIMARY_SOURCE" || record.validationStatus !== "SOURCE_VERIFIED" || record.evidenceQuality === "INVALID" || record.novelty === "DUPLICATE" || record.authority !== "PAPER_ONLY" || record.liveAuthority !== "NONE" || record.productionMutationAllowed !== false || record.aiAuthority !== "ZERO_AUTHORITY" || !Number.isFinite(Date.parse(record.publishedAt)) || !Number.isFinite(Date.parse(record.discoveredAt)) || Date.parse(record.publishedAt) > Date.parse(record.discoveredAt) || Date.parse(record.discoveredAt) !== Date.parse(observation.firstObservedAt) || Date.parse(record.discoveredAt) > Date.parse(observation.retrievedAt) || Date.parse(observation.firstObservedAt) > Date.parse(observation.retrievedAt) || observation.sourceType === "SOCIAL" || observation.sourceType === "RUMOR") throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
+  if (digest(reconstructedRecord) !== digest(record) || observationIdentity !== digest(observationMaterial) || observation.snapshotIntegrity !== "VERIFIED" || sha256(observation.contentSnapshot) !== observation.contentFingerprint.toLowerCase() || observation.publishedAt === "UNKNOWN" || observation.contentFingerprint !== record.rawContentSha256.toLowerCase() || observation.sourceUrl !== record.sourceUrl || observation.publishedAt !== record.publishedAt || record.contentFingerprint !== expectedContentFingerprint || record.recordId !== expectedRecordId || record.sourceVerification !== "VERIFIED_PRIMARY_SOURCE" || record.validationStatus !== "SOURCE_VERIFIED" || record.evidenceQuality === "INVALID" || record.novelty === "DUPLICATE" || record.authority !== "PAPER_ONLY" || record.liveAuthority !== "NONE" || record.productionMutationAllowed !== false || record.aiAuthority !== "ZERO_AUTHORITY" || !Number.isFinite(Date.parse(record.publishedAt)) || !Number.isFinite(Date.parse(record.discoveredAt)) || Date.parse(record.publishedAt) > Date.parse(record.discoveredAt) || Date.parse(record.discoveredAt) !== Date.parse(observation.firstObservedAt) || Date.parse(record.discoveredAt) > Date.parse(observation.retrievedAt) || Date.parse(observation.firstObservedAt) > Date.parse(observation.retrievedAt) || observation.sourceType === "SOCIAL" || observation.sourceType === "RUMOR") throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
   const core = { ...observationMaterial, verificationStatus: "SOURCE_VERIFIED" as const, coverageStatus: "PIT_ELIGIBLE" as const, researchIntelligenceRecordId: record.recordId };
   return deepFreeze({ ...core, observationIdentity: digest(core) });
 }
@@ -216,7 +238,7 @@ export function createStrategyReplicationReceipt(input: {
 }): StrategyReplicationReceipt {
   if (!input || typeof input !== "object" || !input.spec || !input.precommit) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
   verifyStrategyReplicationSpec(input.spec);
-  verifyResearchPrecommit(input.precommit);
+  verifyStrategyReplicationPrecommit(input.spec, input.precommit);
   if (!["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(input.result) || !text(input.datasetIdentity) || !text(input.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(input.evaluatorSourceSha) || input.evaluatorSourceSha.toLowerCase() !== input.precommit.sourceSha.toLowerCase() || !Number.isFinite(Date.parse(input.observedAt)) || Date.parse(input.observedAt) < Date.parse(input.precommit.createdAt) || !plainRecord(input.evidence) || Object.keys(input.evidence).length === 0 || !SHA256.test(input.precommit.fingerprint) || input.precommit.strategyIdentity !== input.spec.strategyIdentity || !validatePrecommitPlans(input.precommit.datasetBinding, input.precommit.evaluationPlan, input.precommit.costPlan)) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
   const datasetIdentityValues = [input.precommit.datasetBinding.manifest, input.precommit.datasetBinding.manifestId, input.precommit.datasetBinding.manifestFingerprint, input.precommit.datasetBinding.datasetId, input.precommit.datasetBinding.datasetFingerprint, input.precommit.datasetBinding.datasetContentSha256];
   if (!datasetIdentityValues.includes(input.datasetIdentity)) throw new Error("REPLICATION_RECEIPT_DATASET_MISMATCH");
@@ -226,18 +248,19 @@ export function createStrategyReplicationReceipt(input: {
 }
 
 export function verifyStrategyReplicationReceipt(receipt: StrategyReplicationReceipt): void {
-  if (!receipt || receipt.schemaVersion !== 1 || !["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(receipt.result) || receipt.authority !== "PAPER_ONLY" || receipt.liveAuthority !== "NONE" || receipt.productionMutationAllowed !== false || receipt.realOrderAuthority !== false || receipt.realTransferAuthority !== false || receipt.aiAuthority !== "ZERO_AUTHORITY") throw new Error("REPLICATION_RECEIPT_INVALID");
+  if (!receipt || receipt.schemaVersion !== 1 || !["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(receipt.result) || receipt.authority !== "PAPER_ONLY" || receipt.liveAuthority !== "NONE" || receipt.productionMutationAllowed !== false || receipt.realOrderAuthority !== false || receipt.realTransferAuthority !== false || receipt.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(receipt.strategyIdentity) || !SHA256.test(receipt.precommitFingerprint) || !text(receipt.datasetIdentity) || !text(receipt.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(receipt.evaluatorSourceSha) || !Number.isFinite(Date.parse(receipt.observedAt)) || !plainRecord(receipt.evidence) || Object.keys(receipt.evidence).length === 0 || !Array.isArray(receipt.negativeEvidence) || !receipt.negativeEvidence.every(text)) throw new Error("REPLICATION_RECEIPT_INVALID");
   const { receiptFingerprint, ...core } = receipt;
   if (!SHA256.test(receiptFingerprint) || digest(core) !== receiptFingerprint) throw new Error("REPLICATION_RECEIPT_FINGERPRINT_MISMATCH");
 }
 
 /** Explicit, pre-result hypothesis adapter. It never infers missing economic assumptions from news. */
-export function cryptoNewsResearchPrecommit(observation: CryptoNewsResearchObservation, input: CryptoNewsHypothesisInput): { readonly classification: "RESEARCH_HYPOTHESIS_CANDIDATE"; readonly hypothesis: ResearchHypothesis; readonly precommit: ResearchPrecommit } {
-  const { observationIdentity, ...observationMaterial } = observation;
-  if (!observation || observation.coverageStatus !== "PIT_ELIGIBLE" || observation.verificationStatus !== "SOURCE_VERIFIED" || !observation.researchIntelligenceRecordId || observationIdentity !== digest(observationMaterial) || observation.scoutInferences.length === 0 || !Number.isFinite(Date.parse(input.createdAt)) || Date.parse(input.createdAt) < Date.parse(observation.retrievedAt) || !validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan)) throw new Error("NEWS_HYPOTHESIS_EVIDENCE_INELIGIBLE");
+export function cryptoNewsResearchPrecommit(observation: CryptoNewsResearchObservation, sourceRecord: ResearchIntelligenceRecord, input: CryptoNewsHypothesisInput): { readonly classification: "RESEARCH_HYPOTHESIS_CANDIDATE"; readonly hypothesis: ResearchHypothesis; readonly precommit: ResearchPrecommit } {
+  const verifiedObservation = bindCryptoNewsResearchIntelligence(observation, sourceRecord);
+  const { observationIdentity, ...observationMaterial } = verifiedObservation;
+  if (!verifiedObservation || observationIdentity !== digest(observationMaterial) || verifiedObservation.scoutInferences.length === 0 || !Number.isFinite(Date.parse(input.createdAt)) || Date.parse(input.createdAt) < Date.parse(verifiedObservation.retrievedAt) || !validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan)) throw new Error("NEWS_HYPOTHESIS_EVIDENCE_INELIGIBLE");
   const semanticInput = { observationIdentity, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity };
   const base = digest(semanticInput);
-  const hypothesis = createResearchHypothesis({ hypothesisId: `news-hypothesis-${base.slice(0, 48)}`, candidateId: `news-candidate-${base.slice(0, 48)}`, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity, provenance: { author: "SCOUT_ADVISORY", sourceReferences: [observation.sourceUrl, observation.contentFingerprint, observation.observationIdentity] }, createdAt: input.createdAt });
-  const precommit = createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ hypothesisId: hypothesis.hypothesisId, observationIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: hypothesis.candidateId, strategyIdentity: hypothesis.candidateId, datasetBinding: { ...input.datasetBinding, newsObservationIdentity: observation.observationIdentity }, sourceSha: input.sourceSha, parameterPlan: { hypothesis, newsObservationIdentity: observation.observationIdentity }, costPlan: input.costPlan, regimePlan: { expectedRegime: input.expectedRegime }, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
+  const hypothesis = createResearchHypothesis({ hypothesisId: `news-hypothesis-${base.slice(0, 48)}`, candidateId: `news-candidate-${base.slice(0, 48)}`, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity, provenance: { author: "SCOUT_ADVISORY", sourceReferences: [verifiedObservation.sourceUrl, verifiedObservation.contentFingerprint, verifiedObservation.observationIdentity] }, createdAt: input.createdAt });
+  const precommit = createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ hypothesisId: hypothesis.hypothesisId, observationIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: hypothesis.candidateId, strategyIdentity: hypothesis.candidateId, datasetBinding: { ...input.datasetBinding, newsObservationIdentity: verifiedObservation.observationIdentity }, sourceSha: input.sourceSha, parameterPlan: { hypothesis, newsObservationIdentity: verifiedObservation.observationIdentity, researchIntelligenceRecordId: verifiedObservation.researchIntelligenceRecordId }, costPlan: input.costPlan, regimePlan: { expectedRegime: input.expectedRegime }, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
   return deepFreeze({ classification: "RESEARCH_HYPOTHESIS_CANDIDATE", hypothesis, precommit });
 }
