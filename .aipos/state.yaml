@@ -3837,6 +3837,31 @@ current_learning_a2_evidence_resolution_20261024:
   next: "A2 exact-head CI and fresh review completed; proceed to dependent A1 PR #2793. Keep Draft; #2855/server deployment remain separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_learning_a4_bounded_application_20261022:
+  work_order: WO-LEARNING-20261022-A4-APPLICATION
+  pull_request: 2794
+  branch: feat/learning-application-a4
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  exact_head_before_successor: 3d53b8b70521c3ffdf5d31beeb3bbdc0fb1e084f
+  first_broken_transition: "A1 ADMISSIBLE -> current owner spec + durable META-HOLDOUT eligibility -> bounded A4 application"
+  validation: "Successor changes: caller eligibility is removed; current spec identity is checked; durable write-ahead intent, restart reconciliation, fail-safe read-back, and provenance-bound receipts are enforced. Fresh review of f909604b found two P1 and one P2; fixes require well-formed META proof counters, closed-set recovery outcomes, and the existing canonical exclusive owner lease around the whole application operation. Node 24.19.0; focused A1/A2/A4 90/90 PASS; build, preflight, validate:full, security:gate, diff-check PASS. Successor exact-head CI/review pending."
+  remaining: "No production caller is wired. Keep Draft; exact-head CI, fresh independent review, canonical A3 authority and production runtime integration remain open."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_a4_capacity_20261023:
+  work_order: WO-LEARNING-20261022-A4-APPLICATION
+  status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  branch: feat/learning-application-a4
+  pr: 2794
+  previous_local_head: f37566cc000be1d00850293d6e0a636103a32d23
+  parent_head: 4ed23afe388e2afff7cad77c50328f42ce3565c2
+  remote_a4_predecessor: df2501ad067c73662bec272f310e17300634ae31
+  local_reconvergence_head: f37566cc000be1d00850293d6e0a636103a32d23
+  validation: "Current local successor on Node v24.19.0: build PASS; A4 application + Evolution ledger focused tests 54/54 PASS; preflight, validate:full, security:gate, and diff-check PASS. New regression covers self-consistent false APPLIED value and terminal provenance mismatch."
+  review_findings: "Fresh review on current predecessor f37566cc (comment IDs 4369190660 and 4369190662) found terminal provenance was not fully compared with durable intent and a self-consistent APPLIED receipt could claim a different appliedValue. Both repaired locally; exact-head CI/review required after push."
+  next: "Commit and push the substantive repair only to existing #2794; run exact-head CI and required companions, then request fresh independent review after green. Keep Draft; no release/merge/runtime claim."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_baseline_observation_20261013:
   work_order: WO-LEARNING-20261013-BASELINE-OBSERVATION
   status: DEPLOYED_RUNTIME_VERIFIED
