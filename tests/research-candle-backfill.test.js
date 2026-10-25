@@ -213,3 +213,13 @@ test("gap fill also fetches the newest closed minutes after the last stored clos
   assert.equal(store.latestCloseTime(MARKET, M), ANCHOR, "head caught up to the newest closed minute");
   assert.equal(store.count(MARKET, M), 121 + 300);
 });
+
+test("backfill yields to the event loop after each processed page", async () => {
+  const store = newStore();
+  const ex = exchange(ANCHOR - 24 * 3_600_000);
+  let yields = 0;
+  const result = await run(store, { targetSpanMs: 8 * 3_600_000, fetchPage: ex.fetchPage, yieldControl: async () => { yields += 1; } });
+  assert.equal(result.status, "COMPLETE");
+  assert.equal(yields, result.pages);
+  assert.ok(yields >= 2, "the fixture must exercise multiple bounded pages");
+});

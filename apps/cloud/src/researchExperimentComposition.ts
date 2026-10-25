@@ -272,7 +272,7 @@ export function composeResearchExperiments(input: {
     try {
       for (const market of settings.markets) {
         if (stopped) break;
-        const result = await backfillMarket({ market, targetSpanMs, nowMs: now(), store, fetchPage, sleep });
+        const result = await backfillMarket({ market, targetSpanMs, nowMs: now(), store, fetchPage, sleep, yieldControl: () => new Promise((resolve) => setImmediate(resolve)) });
         results.push(result);
         if (result.status === "COMPLETE") {
           const firstClose = store.earliestCloseTime(market, M);

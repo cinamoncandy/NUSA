@@ -151,12 +151,40 @@ export class SqliteResearchCandleStore {
   }
 
   public hasMaterialCoverage(market: string, intervalMs: number, fromCloseTimeMs: number, toCloseTimeMs: number, source: string, sourceFingerprint: string): boolean {
-    const candles = this.read(market, intervalMs, fromCloseTimeMs, toCloseTimeMs);
-    if (candles.length === 0) return false;
-    const materials = this.listMaterial(market, intervalMs, fromCloseTimeMs, toCloseTimeMs).filter((material) => material.source === source && material.sourceFingerprint === sourceFingerprint && material.evidenceFingerprintSha256 != null && /^[a-f0-9]{64}$/.test(material.evidenceFingerprintSha256));
+    // Load overlapping receipt metadata first, then checksum-verify their entire union plus the
+    // requested candle window with one SQLite read. The old implementation called listMaterial(),
+    // whose readMaterial() re-read and re-hashed every receipt range, then read each range yet
+    // again while building coverage. On production-sized history those repeated synchronous scans
+    // can starve the 30 s PAPER writer-lease heartbeat. We preserve the same material checksum and
+    // content-hash proofs below, but reconstruct them from one already-verified in-memory window.
+    const rows = this.db.connection.prepare(`SELECT market, interval_ms AS intervalMs, first_close_time_ms AS firstCloseTimeMs, last_close_time_ms AS lastCloseTimeMs, candle_count AS candleCount, store_content_sha256 AS storeContentSha256, source, source_fingerprint AS sourceFingerprint, evidence_fingerprint_sha256 AS evidenceFingerprintSha256, missing_buckets AS missingBuckets, incomplete_buckets AS incompleteBuckets, rejected_observations AS rejectedObservations, material_sha256 AS materialSha256 FROM ${MATERIAL_TABLE} WHERE market = ? AND interval_ms = ? AND first_close_time_ms <= ? AND last_close_time_ms >= ? ORDER BY first_close_time_ms, last_close_time_ms`).all(market, intervalMs, toCloseTimeMs, fromCloseTimeMs) as Array<ResearchDatasetMaterial & { materialSha256: string }>;
+    const materials = rows.filter((row) => row.source === source && row.sourceFingerprint === sourceFingerprint && row.evidenceFingerprintSha256 != null && /^[a-f0-9]{64}$/.test(row.evidenceFingerprintSha256));
+    if (materials.length === 0) return false;
+    let verificationFrom = fromCloseTimeMs;
+    let verificationTo = toCloseTimeMs;
+    for (const row of materials) {
+      const { materialSha256, storeContentSha256: _storeContentSha256, ...material } = row;
+      if (materialDigest(material) !== materialSha256) throw new ResearchCandleStoreError("DATASET_MATERIAL_MISMATCH", "dataset material checksum does not match");
+      if (!Number.isSafeInteger(row.firstCloseTimeMs) || !Number.isSafeInteger(row.lastCloseTimeMs) || row.lastCloseTimeMs < row.firstCloseTimeMs || !Number.isSafeInteger(row.candleCount) || row.candleCount < 1) throw new ResearchCandleStoreError("DATASET_MATERIAL_MISMATCH", "dataset material range is invalid");
+      verificationFrom = Math.min(verificationFrom, row.firstCloseTimeMs);
+      verificationTo = Math.max(verificationTo, row.lastCloseTimeMs);
+    }
+    const candles = this.read(market, intervalMs, verificationFrom, verificationTo);
+    const requested = candles.filter((candle) => candle.closeTimeMs >= fromCloseTimeMs && candle.closeTimeMs <= toCloseTimeMs);
+    if (requested.length === 0) return false;
+    const byClose = new Map(candles.map((candle) => [candle.closeTimeMs, candle] as const));
     const covered = new Set<number>();
-    for (const material of materials) for (const candle of this.read(market, intervalMs, material.firstCloseTimeMs, material.lastCloseTimeMs)) covered.add(candle.closeTimeMs);
-    return candles.every((candle) => covered.has(candle.closeTimeMs));
+    for (const row of materials) {
+      const receiptCandles: StoredResearchCandle[] = [];
+      for (let closeTimeMs = row.firstCloseTimeMs; closeTimeMs <= row.lastCloseTimeMs; closeTimeMs += intervalMs) {
+        const candle = byClose.get(closeTimeMs);
+        if (candle != null) receiptCandles.push(candle);
+      }
+      const content = createHash("sha256").update(JSON.stringify(receiptCandles.map((candle) => [candle.closeTimeMs, candle.open, candle.high, candle.low, candle.close])), "utf8").digest("hex");
+      if (receiptCandles.length !== row.candleCount || content !== row.storeContentSha256) throw new ResearchCandleStoreError("DATASET_MATERIAL_MISMATCH", "dataset material does not match candle collection");
+      for (const candle of receiptCandles) if (candle.closeTimeMs >= fromCloseTimeMs && candle.closeTimeMs <= toCloseTimeMs) covered.add(candle.closeTimeMs);
+    }
+    return requested.every((candle) => covered.has(candle.closeTimeMs));
   }
 
   /** Earliest stored close time for a market/interval, or undefined when empty. */

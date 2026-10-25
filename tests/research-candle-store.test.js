@@ -72,3 +72,16 @@ test("read rejects an invalid window and an invalid market", () => {
   assert.throws(() => store.read("nope", M, 1, 5), (e) => e.code === "INVALID_MARKET");
   db.close();
 });
+
+test("material coverage verifies the candle window once instead of re-reading every receipt range", () => {
+  const { db, store } = open();
+  const rows = [candle(0), candle(1), candle(2), candle(3)];
+  store.appendWithMaterial("KRW-BTC", M, rows.slice(0, 2), { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: "a".repeat(64), evidenceFingerprintSha256: "b".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+  store.appendWithMaterial("KRW-BTC", M, rows.slice(2), { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: "a".repeat(64), evidenceFingerprintSha256: "c".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+  const originalRead = store.read.bind(store);
+  let reads = 0;
+  store.read = (...args) => { reads += 1; return originalRead(...args); };
+  assert.equal(store.hasMaterialCoverage("KRW-BTC", M, 10 * M, 13 * M, "UPBIT_PUBLIC_CANDLES", "a".repeat(64)), true);
+  assert.equal(reads, 1, "coverage must not re-read each receipt range from SQLite");
+  db.close();
+});
