@@ -3651,8 +3651,8 @@ current_strategy_replication_intake_20261025:
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: feat/research-intelligence-precommit-bridge
   issue: 2735
-  validation: "PR 2878 c20ddbad CI 40184897800 and all required companions PASS; fresh Codex review found 6 P1s. Successor local repair now binds strategy SHA-256 to captured source snapshot, rejects blank instrument/data inputs, reconciles Research Intelligence discovery chronology, prevents pre-result timestamps, requires dataset/PIT/OOS/fee/slippage plan fields, and adds attributable fingerprinted success/failure replication receipts. Successor focused tests 11/11, preflight Node 24.19, build/typecheck, validate:full, security:gate, lint, git diff --check and pnpm test (1281 isolated files) PASS; exact-head CI/review required after push."
-  next: "Commit and push the locally validated six-finding repair to existing PR 2878; rerun exact-head workflows and fresh non-author review. Production Scout/store wiring and genuine Research/PAPER outcomes remain unverified."
+  validation: "PR 2878 c20ddbad CI 40184897800 and all required companions PASS; fresh Codex review found 6 P1s. Successor repair binds strategy SHA-256 to captured source snapshot, rejects blank instrument/data inputs, reconciles Research Intelligence discovery chronology, prevents pre-result timestamps, requires dataset/PIT/OOS/fee/slippage plan fields, and adds attributable fingerprinted success/failure replication receipts. Additional trust hardening verifies canonical ResearchPrecommit fingerprints before receipt creation. Latest local successor focused tests 11/11, preflight Node 24.19, build/typecheck, validate:full, security:gate, lint, git diff --check and pnpm test (1281 isolated files) PASS; exact-head CI/review required after push."
+  next: "Commit and push the locally validated review repairs to existing PR 2878; rerun exact-head workflows and fresh non-author review. Production Scout/store wiring and genuine Research/PAPER outcomes remain unverified."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_strategy_validation_20261016:

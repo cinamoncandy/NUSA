@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "./researchRuntime";
-import { createResearchPrecommit, type ResearchPrecommit } from "./researchPrecommit";
+import { createResearchPrecommit, verifyResearchPrecommit, type ResearchPrecommit } from "./researchPrecommit";
 import { createResearchHypothesis, type ResearchHypothesis, type ResearchHypothesisFamily } from "./researchHypothesisContract";
 import type { ResearchIntelligenceRecord } from "./researchIntelligence";
 
@@ -188,8 +188,10 @@ export function createStrategyReplicationReceipt(input: {
   evaluatorVersion: string; evaluatorSourceSha: string; observedAt: string; evidence: Readonly<Record<string, unknown>>;
   negativeEvidence?: readonly string[];
 }): StrategyReplicationReceipt {
+  if (!input || typeof input !== "object" || !input.spec || !input.precommit) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
   verifyStrategyReplicationSpec(input.spec);
-  if (!input || !["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(input.result) || !text(input.datasetIdentity) || !text(input.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(input.evaluatorSourceSha) || input.evaluatorSourceSha.toLowerCase() !== input.precommit.sourceSha.toLowerCase() || !Number.isFinite(Date.parse(input.observedAt)) || Date.parse(input.observedAt) < Date.parse(input.precommit.createdAt) || !plainRecord(input.evidence) || Object.keys(input.evidence).length === 0 || !SHA256.test(input.precommit.fingerprint) || input.precommit.strategyIdentity !== input.spec.strategyIdentity || !validatePrecommitPlans(input.precommit.datasetBinding, input.precommit.evaluationPlan, input.precommit.costPlan)) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
+  verifyResearchPrecommit(input.precommit);
+  if (!["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(input.result) || !text(input.datasetIdentity) || !text(input.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(input.evaluatorSourceSha) || input.evaluatorSourceSha.toLowerCase() !== input.precommit.sourceSha.toLowerCase() || !Number.isFinite(Date.parse(input.observedAt)) || Date.parse(input.observedAt) < Date.parse(input.precommit.createdAt) || !plainRecord(input.evidence) || Object.keys(input.evidence).length === 0 || !SHA256.test(input.precommit.fingerprint) || input.precommit.strategyIdentity !== input.spec.strategyIdentity || !validatePrecommitPlans(input.precommit.datasetBinding, input.precommit.evaluationPlan, input.precommit.costPlan)) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
   const datasetIdentityValues = [input.precommit.datasetBinding.manifest, input.precommit.datasetBinding.manifestId, input.precommit.datasetBinding.manifestFingerprint, input.precommit.datasetBinding.datasetId, input.precommit.datasetBinding.datasetFingerprint, input.precommit.datasetBinding.datasetContentSha256];
   if (!datasetIdentityValues.includes(input.datasetIdentity)) throw new Error("REPLICATION_RECEIPT_DATASET_MISMATCH");
   if (input.negativeEvidence !== undefined && (!Array.isArray(input.negativeEvidence) || !input.negativeEvidence.every(text))) throw new Error("REPLICATION_RECEIPT_EVIDENCE_INVALID");

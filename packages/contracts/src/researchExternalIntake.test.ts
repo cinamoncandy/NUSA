@@ -109,6 +109,7 @@ test("replication receipt binds outcome to spec, precommit, dataset and preserve
   assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, negativeEvidence: [] }), /FINGERPRINT_MISMATCH/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: "c".repeat(40), observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /BINDING_INVALID/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-24T00:00:00Z", evidence: { result: "pass" } }), /BINDING_INVALID/);
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit: { ...precommit, fingerprint: "c".repeat(64) }, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /precommit fingerprint mismatch/);
 });
 
 test("tampered snapshot, future publication, and syndication ambiguity fail PIT or remain non-promoted", () => {
