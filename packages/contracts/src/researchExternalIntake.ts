@@ -6,6 +6,9 @@ import type { ResearchIntelligenceRecord } from "./researchIntelligence";
 
 const SHA256 = /^[a-f0-9]{64}$/i;
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
+const NEWS_SOURCE_TYPES = new Set(["OFFICIAL", "NEWS", "SOCIAL", "RUMOR", "UNKNOWN"]);
+const NEWS_CONFIDENCE_LEVELS = new Set(["LOW", "MEDIUM", "HIGH", "UNKNOWN"]);
+const CRYPTO_EVENT_TYPES = new Set<CryptoEventType>(["REGULATION", "EXCHANGE", "ETF_FLOW", "SECURITY_EXPLOIT", "PROTOCOL", "TOKENOMICS", "LISTING_DELISTING", "MACRO", "LIQUIDITY", "WHALE_FLOW", "LEGAL", "TECHNICAL", "ADOPTION", "MINING", "STABLECOIN", "OTHER"]);
 const text = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 const digest = (v: unknown): string => createHash("sha256").update(canonicalResearchJson(v), "utf8").digest("hex");
 const clean = (v: string): string => v.trim().replace(/\s+/g, " ");
@@ -120,7 +123,9 @@ export interface CryptoNewsResearchObservation extends CryptoNewsResearchInput {
 
 export function createCryptoNewsResearchObservation(input: CryptoNewsResearchInput): CryptoNewsResearchObservation {
   if (!input || !text(input.publisher) || !SHA256.test(input.contentFingerprint) || !text(input.contentSnapshot) || !Number.isFinite(Date.parse(input.retrievedAt)) || !Number.isFinite(Date.parse(input.firstObservedAt)) || (input.publishedAt != null && !Number.isFinite(Date.parse(input.publishedAt)))) throw new Error("NEWS_PROVENANCE_INVALID");
-  if (!Array.isArray(input.observedFacts) || !Array.isArray(input.publisherClaims) || !Array.isArray(input.scoutInferences) || !Array.isArray(input.assets) || !Array.isArray(input.entities)) throw new Error("NEWS_EVIDENCE_INVALID");
+  if (!NEWS_SOURCE_TYPES.has(input.sourceType) || !CRYPTO_EVENT_TYPES.has(input.eventType) || !NEWS_CONFIDENCE_LEVELS.has(input.confidence)) throw new Error("NEWS_CLASSIFICATION_INVALID");
+  const stringArrays: readonly unknown[] = [input.observedFacts, input.publisherClaims, input.scoutInferences, input.assets, input.entities, input.corroboratingSources ?? [], input.jurisdictions ?? [], input.residualUnknowns ?? [], input.transmissionChannels ?? []];
+  if (stringArrays.some((value) => !Array.isArray(value) || !value.every(text))) throw new Error("NEWS_EVIDENCE_INVALID");
   const retrievedAt = new Date(input.retrievedAt).toISOString();
   const sourceUrl = canonicalUrl(input.sourceUrl, "NEWS_PROVENANCE_INVALID");
   const contentFingerprint = input.contentFingerprint.toLowerCase();

@@ -86,3 +86,10 @@ test("tampered snapshot, future publication, and syndication ambiguity fail PIT 
   const original = createCryptoNewsResearchObservation(news({ originalPublisher: "Original", syndicationClusterId: "cluster-1" }));
   assert.equal(classifyCryptoNewsDuplicate(original, repost), "DUPLICATE");
 });
+
+test("untrusted runtime taxonomy and malformed evidence arrays fail closed", () => {
+  assert.throws(() => createCryptoNewsResearchObservation(news({ sourceType: "UNKNOWN_SOURCE" as never })), /CLASSIFICATION_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ eventType: "BUY" as never })), /CLASSIFICATION_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ confidence: "CERTAIN" as never })), /CLASSIFICATION_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ entities: [42] as never })), /EVIDENCE_INVALID/);
+});

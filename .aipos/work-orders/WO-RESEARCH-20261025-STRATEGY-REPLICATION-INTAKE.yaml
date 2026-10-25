@@ -74,6 +74,7 @@ acceptance:
   - Actual performance claims remain blocked when canonical dataset/provenance prerequisites are unmet, including unresolved #2815 or explicit OHLCV manifest requirements where applicable.
   - Tests cover valid deterministic intake, missing required rules, ambiguous/missing provenance, fingerprint/spec tamper, duplicate intake, original-vs-variant separation, deterministic output, and high external reported returns that still cannot produce a NUSA pass.
   - Tests cover immutable news snapshot fingerprint, chronology/PIT, social/rumor fail-closed behavior, fact/claim/inference separation, duplicate/syndication classification, explicit hypothesis-to-precommit continuity, and rejection of non-PIT observations.
+  - Runtime-untrusted source/event/confidence taxonomy values and malformed evidence arrays fail closed rather than reaching PIT or hypothesis classification.
   - Existing PAPER_ONLY and zero-authority safety invariants remain unchanged.
 verification_commands:
   - pnpm run build
@@ -110,7 +111,7 @@ completion_rule: >-
   that any collected external strategy is profitable, does not close the closed-learning loop,
   and does not authorize PAPER activation or LIVE trading by itself.
 next: >-
-  Open one Draft PR on the existing branch referencing #2735 with this contract slice and its
-  explicit limits. Then run exact-head CI and fresh non-author validation. Production Scout
-  composition, durable result consumption, and natural end-to-end Research/PAPER evidence remain
-  follow-up work; do not claim them complete from contract tests.
+  Push the runtime-taxonomy repair to the existing Draft PR #2878, then run exact-head CI and
+  fresh non-author validation. Production Scout composition, durable result consumption, and
+  natural end-to-end Research/PAPER evidence remain follow-up work; do not claim them complete
+  from contract tests.

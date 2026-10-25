@@ -3651,8 +3651,8 @@ current_strategy_replication_intake_20261025:
   status: IN_PROGRESS
   branch: feat/research-intelligence-precommit-bridge
   issue: 2735
-  validation: "Strategy/news intake contracts: build/typecheck, validate:full, security:gate, lint, preflight (Node 24.19), git diff --check PASS; focused 7/7; pnpm test 1281 isolated files PASS after installing Electron with NODE_OPTIONS=--use-env-proxy. Exact-head CI/review pending."
-  next: "Open one Draft PR on the existing branch referencing #2735; request exact-head CI and fresh non-author validation. Production Scout/store wiring and genuine Research/PAPER outcomes remain unverified."
+  validation: "Runtime taxonomy allowlist repair: build/typecheck, validate:full, security:gate, lint, preflight (Node 24.19), git diff --check PASS; focused 8/8; pnpm test 1281 isolated files PASS. Initial PR 2878 head 2d13d51f is stale after this substantive repair; new exact-head CI/review required."
+  next: "Commit and push the runtime-boundary repair to PR 2878, then require exact-head CI and fresh non-author validation. Production Scout/store wiring and genuine Research/PAPER outcomes remain unverified."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_strategy_validation_20261016:

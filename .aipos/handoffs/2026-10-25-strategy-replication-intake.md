@@ -61,10 +61,10 @@ Implemented locally on the existing branch:
 - deterministic StrategyReplicationSpec normalization, ORIGINAL/VARIANT identity, external performance isolation, and bridge to existing `ResearchPrecommit`;
 - crypto news observation contract with content snapshot SHA-256 check, publication/first-observed/retrieval chronology, social/rumor fail-closed PIT status, separated facts/claims/inferences, and exact/syndication duplicate classification;
 - explicit-only news hypothesis adapter to existing `ResearchHypothesis` and `ResearchPrecommit` (requires caller-supplied testable assumptions; no order path);
-- 7 focused tests PASS; TypeScript build/typecheck, `validate:full`, `security:gate`, `lint`, Node 24.19 `preflight`, and `git diff --check` PASS.
+- 8 focused tests PASS; TypeScript build/typecheck, `validate:full`, `security:gate`, `lint`, Node 24.19 `preflight`, and `git diff --check` PASS.
 - `pnpm test` PASS: 1,281 isolated test files. Initial Electron installation failed because Node fetch did not use the session proxy; installing the official Electron package with `NODE_OPTIONS=--use-env-proxy` resolved the environment issue without source/test changes.
 
-No strategy has been proven profitable, persisted as an accepted research result, or approved for PAPER by this work order. The current implementation is a contract slice; production Scout composition, durable result consumption, exact-head CI, non-author validation, Audit/Release, and natural Research/PAPER outcomes remain outstanding. Last fresh protected main was `4bb02f4655044122a95e3dbb94bba65844c0f0cb`; branch head was `079e6a8e5f242173cc79d705a7d73e142b18840b` before this local change set.
+No strategy has been proven profitable, persisted as an accepted research result, or approved for PAPER by this work order. The current implementation is a contract slice; production Scout composition, durable result consumption, exact-head CI, non-author validation, Audit/Release, and natural Research/PAPER outcomes remain outstanding. PR #2878 head `2d13d51f...` was found to accept unknown runtime taxonomy values; the fix now validates source/event/confidence allowlists and malformed evidence arrays. All local gates, including 1,281 isolated tests, pass on that repaired working tree; a successor commit and fresh exact-head CI/review are required. Protected main remains `4bb02f4655044122a95e3dbb94bba65844c0f0cb`.
 
 Safety remains:
 
