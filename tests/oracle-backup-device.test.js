@@ -53,7 +53,12 @@ ${deviceCases}
 }
 ${resolver}
 backup_block_device_for_paths "$@"`;
-  return spawnSync("bash", ["-c", script, "nusa-test", "/var/lib/nusa/state.sqlite", "/var/backups/nusa"], { encoding: "utf8" });
+  // Pass the multiline harness over stdin. Windows CreateProcess quoting can
+  // corrupt a large `bash -c <script>` argument before Git Bash receives it.
+  return spawnSync("bash", ["-s", "--", "/var/lib/nusa/state.sqlite", "/var/backups/nusa"], {
+    encoding: "utf8",
+    input: script,
+  });
 }
 
 function singleDisk({ stateSource = "/dev/sda1", backupSource = stateSource, stateFs = "ext4", backupFs = stateFs } = {}) {

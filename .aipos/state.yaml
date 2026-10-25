@@ -2577,8 +2577,8 @@ current_ops_oracle_backup_io_throttle_20261025:
   previous_source_head: a48daf0a4350e0fdea528b811ac7f0b45f7f094f
   finding: "Oracle release backup I/O on the shared state-database disk can starve the foreground PAPER writer lease; nice/ionice alone does not provide a bandwidth bound on the measured host scheduler."
   evidence: "Read-only host evidence: state DB filesystem /dev/sda1 -> /dev/sda TYPE=disk; cgroup v2 io available; measured backup about 0.8 MiB/s while capped near 1 MiB/s with PAPER foreground reads improving from about 10 to 14 MiB/s. Current DB stat is 958,992,384 bytes (914.57 MiB); retain the conservative 957 MiB envelope. Six Sunday full-file phases at 0.8 MiB/s require ~119.6 min; +30% observed-workload variance = ~155.5 min, rounded to a backup-only 180 min bound. Stage/preflight/activation remains a separate 40 min job. This is script/budget evidence, not runtime acceptance."
-  validation: "Predecessor heads passed local and exact-head gates, but fresh review found first-rollout resolver ordering, timeout isolation, topology/unit wording, and evidence-overclaim defects. Successor validation and fresh exact-head CI/review are required."
-  next: "Validate the root-owned resolver, same-disk ext4/xfs fail-closed rules, exact 1048576 B/s command, and isolated backup timeout; then fresh exact-head CI/review. After governed merge, install the exact reviewed root helper before release."
+  validation: "Windows coverage at predecessor 0d1877e754946af9a38fa1dd16b74ce6f204be9c exposed an unterminated-quote Git Bash error from passing the multiline test script via bash -c. Harness now uses stdin/bash -s. Focused helper/workflow suite 29/29; Node 24.19 preflight, build, validate:full, security:gate (0 advisories/0 secrets), and diff check PASS. Exact-head CI and fresh independent review still required."
+  next: "Commit the portable stdin harness to the existing PR #2874 branch, then require fresh exact-head CI and independent Validator; no Oracle mutation before governed merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_health_guard_lock:
