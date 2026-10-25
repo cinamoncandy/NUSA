@@ -21,9 +21,11 @@ export async function clearCachedSnapshot(): Promise<void> {
 
 /**
  * Loads the stored snapshot once at launch (validated, endpoint-bound, expiring) and stores each fresh
- * READY snapshot at most once a minute. Returns null until loaded, when absent or invalid.
+ * READY snapshot at most once a minute. When the app leaves the foreground, the latest READY
+ * snapshot is flushed immediately so Android process suspension cannot leave the next resume with
+ * an older minute-throttled value. Returns null until loaded, when absent or invalid.
  */
-export function useCachedSnapshot(endpoint: string | null, fresh: Snapshot | null): CachedEntry<Snapshot> | null {
+export function useCachedSnapshot(endpoint: string | null, fresh: Snapshot | null, flushBeforeSuspend = false): CachedEntry<Snapshot> | null {
   const [cached, setCached] = useState<CachedEntry<Snapshot> | null>(null);
   const lastSavedAt = useRef<number | null>(null);
   useEffect(() => {
@@ -37,11 +39,11 @@ export function useCachedSnapshot(endpoint: string | null, fresh: Snapshot | nul
   useEffect(() => {
     if (fresh == null || endpoint == null) return;
     const now = Date.now();
-    if (!shouldSaveCache(lastSavedAt.current, now)) return;
+    if (!shouldSaveCache(lastSavedAt.current, now, flushBeforeSuspend)) return;
     const raw = serializeCache(fresh, now, endpoint);
     if (raw == null) return;
     lastSavedAt.current = now;
     void AsyncStorage.setItem(CACHE_KEY, raw).catch(() => undefined);
-  }, [fresh, endpoint]);
+  }, [fresh, endpoint, flushBeforeSuspend]);
   return cached;
 }

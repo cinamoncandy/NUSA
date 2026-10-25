@@ -41,6 +41,7 @@ test("saving is throttled to once a minute", () => {
   assert.equal(shouldSaveCache(NOW - 10_000, NOW), false);
   assert.equal(shouldSaveCache(NOW - 60_000, NOW), true);
   assert.equal(shouldSaveCache(NOW + 5_000, NOW), true, "a clock that moved back does not freeze saving");
+  assert.equal(shouldSaveCache(NOW - 10_000, NOW, true), true, "leaving the foreground flushes the latest READY snapshot even inside the minute throttle");
 });
 
 test("the age label is plain Korean and never claims freshness", () => {
@@ -58,7 +59,7 @@ test("HOME shows cached values only without a live snapshot or setup request, an
 });
 
 test("the app loads the cache per endpoint, stores only fresh READY snapshots, and clears it on sign-out", () => {
-  assert.match(app, /useCachedSnapshot\(getConfiguredPaperEndpoint\(\) \?\? null, operations\.status === "READY" \? operations\.snapshot : null\)/);
+  assert.match(app, /useCachedSnapshot\(getConfiguredPaperEndpoint\(\) \?\? null, operations\.status === "READY" \? operations\.snapshot : null, appState !== "active"\)/);
   assert.match(app, /void clearCachedSnapshot\(\); signOut\(\)/);
   assert.match(app, /cachedSnapshot=\{cachedSnapshot\}/);
 });
