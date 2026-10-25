@@ -203,7 +203,7 @@ test("replication receipt binds outcome to spec, precommit, dataset and preserve
 
 test("Research Intelligence canonical factory rejects forged runtime taxonomy values", () => {
   const valid = {
-    sourceId: "publisher", sourceType: "OTHER", sourceUrl: "https://example.org/research", sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+    sourceId: "publisher", sourceType: "OTHER", sourceUrl: "https://example.org/research", sourceVerification: "UNVERIFIED",
     title: "Research source", authors: ["Publisher"], publishedAt: "2026-10-24T00:00:00Z", discoveredAt: "2026-10-24T01:00:00Z",
     rawContentSha256: H, topic: ["REGULATION"], market: "CRYPTO", timeframe: "1h", method: "event study",
     claimedContribution: "source claim", testableHypothesis: "testable hypothesis", assumptions: [], requiredData: ["UPBIT_PUBLIC_CANDLES"],
@@ -217,6 +217,8 @@ test("Research Intelligence canonical factory rejects forged runtime taxonomy va
   for (const [field, value] of Object.entries(invalidTaxonomies)) {
     assert.throws(() => createResearchIntelligenceRecord({ ...valid, [field]: value } as never), new RegExp(`${field} is invalid`), field);
   }
+  assert.throws(() => createResearchIntelligenceRecord({ ...valid, sourceVerification: "VERIFIED_PRIMARY_SOURCE" } as never), /sourceVerification is invalid/);
+  assert.throws(() => createResearchIntelligenceRecord({ ...valid, validationStatus: "SOURCE_VERIFIED" } as never), /validationStatus is invalid/);
 });
 
 test("tampered snapshot, future publication, and syndication ambiguity fail PIT or remain non-promoted", () => {

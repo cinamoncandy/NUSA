@@ -117,6 +117,28 @@ current_strategy_intake_placeholder_identity_validated_20261026:
   next: "Confirm the existing PR and base identity; publish one substantive non-force successor; obtain exact-head CI and fresh non-author review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_source_authentication_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_FULL_SUITE_AND_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: f4394b25bfda06f5807193eddeedcb70e234e4d7
+  finding: "Fresh exact-head review found caller-created VERIFIED_PRIMARY_SOURCE / SOURCE_VERIFIED records could be persisted and bound to PIT without authenticating the source capture. Public creation now rejects those taxonomy values; canonical verification fetches an opaque arXiv response capture, binds the exact entry bytes and response hash, and SQLite append/read revalidate authenticated receipt and canonical record reconstruction."
+  validation: "Node 24.19 preflight, build/typecheck, validate:full, security:gate, lint (45 existing warnings/0 errors), focused Research Intelligence/Scout/contract tests 48/48, and git diff --check PASS. Full pnpm test had one stale fixture failure because it expected caller-selected SOURCE_VERIFIED; fixture corrected and affected tests PASS, full suite rerun pending."
+  next: "Rerun full pnpm test, then publish one substantive non-force successor to the existing PR and require exact-head CI plus fresh non-author review. Formal NUSA Validator remains separate; no Draft/governance/release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_source_authentication_full_validated_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: f4394b25bfda06f5807193eddeedcb70e234e4d7
+  finding: "Caller-forged trusted Research Intelligence taxonomy could be persisted and bound to news PIT. Canonical source capture now owns the HTTPS fetch and opaque capture capability; SQLite append requires authenticated capture, and persisted reads verify receipt and canonical record reconstruction."
+  validation: "Node 24.19 preflight; build; typecheck; validate:full; security:gate; lint (45 existing warnings/0 errors); focused Research Intelligence/Scout/contract tests 48/48; pnpm test PASS (1,282 isolated test files); git diff --check PASS."
+  next: "Verify protected main and existing remote branch identity, publish one substantive non-force successor, then obtain exact-head CI and fresh non-author review. Formal Validator remains separate; no Draft/governance/release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_taxonomy_parent_binding_20261025:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI

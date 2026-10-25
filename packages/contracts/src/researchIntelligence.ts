@@ -60,6 +60,17 @@ export interface ResearchIntelligenceAuthorityBoundary {
   readonly aiAuthority: "ZERO_AUTHORITY";
 }
 
+export interface ResearchIntelligenceSourceVerificationReceipt {
+  readonly schemaVersion: 1;
+  readonly verifierId: "ARXIV_API_V1";
+  readonly requestUrl: string;
+  readonly responseUrl: string;
+  readonly responseFingerprint: string;
+  readonly rawContentSha256: string;
+  readonly capturedAt: string;
+  readonly receiptFingerprint: string;
+}
+
 export interface ResearchIntelligenceSourceDefinition {
   readonly sourceType: ResearchIntelligenceSourceType;
   readonly sourceId: string;
@@ -120,6 +131,7 @@ export interface ResearchIntelligenceRecord extends ResearchIntelligenceAuthorit
   readonly sourceType: ResearchIntelligenceSourceType;
   readonly sourceUrl: string;
   readonly sourceVerification: ResearchIntelligenceSourceVerification;
+  readonly sourceVerificationReceipt?: ResearchIntelligenceSourceVerificationReceipt;
   readonly title: string;
   readonly authors: readonly string[];
   readonly publishedAt: string;
@@ -158,7 +170,8 @@ export interface ResearchIntelligenceRecordInput {
   readonly sourceId: string;
   readonly sourceType: ResearchIntelligenceSourceType;
   readonly sourceUrl: string;
-  readonly sourceVerification: ResearchIntelligenceSourceVerification;
+  /** Untrusted intake may report a claim, but cannot assign canonical verification. */
+  readonly sourceVerification: Exclude<ResearchIntelligenceSourceVerification, "VERIFIED_PRIMARY_SOURCE">;
   readonly title: string;
   readonly authors: readonly string[];
   readonly publishedAt: string;
@@ -184,7 +197,7 @@ export interface ResearchIntelligenceRecordInput {
   readonly overfittingRisk?: ResearchIntelligenceEstimate;
   readonly regimeDependence?: ResearchIntelligenceEstimate;
   readonly transactionCostSensitivity?: ResearchIntelligenceEstimate;
-  readonly validationStatus?: ResearchIntelligenceValidationStatus;
+  readonly validationStatus?: Exclude<ResearchIntelligenceValidationStatus, "SOURCE_VERIFIED">;
   readonly failureReason?: string;
   readonly relatedExistingResearch?: readonly string[];
   readonly axiomHandoffStatus?: ResearchIntelligenceHandoffStatus;
@@ -221,14 +234,14 @@ const SHA256 = /^[a-f0-9]{64}$/i;
 const ID = /^[A-Za-z0-9._:/-]{1,256}$/;
 const RESEARCH_INTELLIGENCE_TAXONOMIES = {
   sourceType: ["ARXIV", "SEMANTIC_SCHOLAR", "OPENREVIEW", "SSRN", "GITHUB", "INSTITUTION", "EXCHANGE", "JOURNAL", "DATASET", "OTHER"],
-  sourceVerification: ["VERIFIED_PRIMARY_SOURCE", "UNVERIFIED", "REJECTED"],
+  sourceVerification: ["UNVERIFIED", "REJECTED"],
   availability: ["AVAILABLE", "UNAVAILABLE", "UNKNOWN"],
   reproducibility: ["NOT_ATTEMPTED", "PARTIAL", "REPRODUCED", "FAILED", "CONFLICTING"],
   novelty: ["NEW", "INCREMENTAL", "DUPLICATE", "CONTRADICTORY", "REPLICATION", "SUPERSEDED"],
   evidenceQuality: ["PRIMARY_SOURCE_CLAIM_ONLY", "CODE_AVAILABLE_UNVERIFIED", "REPRODUCED", "INDEPENDENTLY_REPLICATED", "CONTRADICTORY", "INVALID"],
   estimate: ["LOW", "MEDIUM", "HIGH", "UNKNOWN"],
   relevance: ["HIGH", "MEDIUM", "LOW", "UNKNOWN"],
-  validationStatus: ["DISCOVERED", "SOURCE_VERIFIED", "HOLD", "ROUTED_TO_AXIOM", "REJECTED"],
+  validationStatus: ["DISCOVERED", "HOLD", "ROUTED_TO_AXIOM", "REJECTED"],
   handoffStatus: ["NOT_READY", "READY_FOR_AXIOM_REVIEW", "ROUTED_TO_AXIOM_REVIEW", "DUPLICATE_SUPPRESSED"],
 } as const;
 
@@ -394,9 +407,7 @@ export function createResearchIntelligenceRecord(
     regimeDependence: input.regimeDependence ?? "UNKNOWN",
     transactionCostSensitivity: input.transactionCostSensitivity ?? "UNKNOWN",
     researchPriority: "UNSCORED_INSUFFICIENT_EVIDENCE" as const,
-    validationStatus: input.validationStatus ?? (
-      input.sourceVerification === "VERIFIED_PRIMARY_SOURCE" ? "SOURCE_VERIFIED" : "DISCOVERED"
-    ),
+    validationStatus: input.validationStatus ?? "DISCOVERED",
     ...(input.failureReason == null ? {} : {
       failureReason: requireText(input.failureReason, "failureReason", 4_000),
     }),

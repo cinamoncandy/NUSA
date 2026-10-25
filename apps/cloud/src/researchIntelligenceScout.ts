@@ -9,6 +9,12 @@ import {
   type ResearchIntelligenceRecord,
   type ResearchIntelligenceRelevance,
 } from "../../../packages/contracts/src/researchIntelligence";
+import {
+  carryResearchIntelligenceSourceAuthentication,
+  fetchResearchIntelligenceSourceCapture,
+  issueResearchIntelligenceSourceVerificationReceipt,
+  isResearchIntelligenceSourceRecordAuthenticated,
+} from "../../../packages/contracts/src/researchIntelligenceVerificationInternal";
 
 import {
   summarizeJevResearchAttentionShadows,
@@ -63,7 +69,6 @@ export interface ResearchIntelligenceScoutResult {
 }
 
 export interface ArxivResearchIntelligenceCollectorOptions {
-  readonly fetchFn?: typeof fetch;
   readonly now?: () => Date;
   readonly maxResults?: number;
   readonly searchQuery?: string;
@@ -176,13 +181,11 @@ function testableReplicationHypothesis(title: string): string {
 
 export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceCollector {
   public readonly sourceId = "arxiv";
-  private readonly fetchFn: typeof fetch;
   private readonly now: () => Date;
   private readonly maxResults: number;
   private readonly searchQuery: string;
 
   public constructor(options: ArxivResearchIntelligenceCollectorOptions = {}) {
-    this.fetchFn = options.fetchFn ?? fetch;
     this.now = options.now ?? (() => new Date());
     this.maxResults = options.maxResults ?? 20;
     this.searchQuery = options.searchQuery ?? DEFAULT_ARXIV_QUERY;
@@ -199,16 +202,8 @@ export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceC
     url.searchParams.set("sortBy", "submittedDate");
     url.searchParams.set("sortOrder", "descending");
 
-    const response = await this.fetchFn(url, {
-      method: "GET",
-      headers: Object.freeze({
-        Accept: "application/atom+xml",
-        "User-Agent": "NUSA-Research-Intelligence/1.0 (PAPER_ONLY; research provenance collector)",
-      }),
-      redirect: "follow",
-    });
-    if (!response.ok) throw new Error("arXiv request failed with HTTP " + response.status);
-    const xml = await response.text();
+    const capture = await fetchResearchIntelligenceSourceCapture(url.toString(), "ARXIV_API_V1");
+    const xml = capture.responseBody;
     if (!xml.includes("<feed") || !xml.includes("<entry")) {
       throw new Error("arXiv response is not a usable Atom feed");
     }
@@ -226,12 +221,11 @@ export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceC
 
       const combined = title + "\n" + summary;
       const rawContentSha256 = createHash("sha256").update(entry, "utf8").digest("hex");
-      records.push(
-        createResearchIntelligenceRecord({
+      const unverifiedRecord = createResearchIntelligenceRecord({
           sourceId: arxivSourceId(entryId),
           sourceType: "ARXIV",
           sourceUrl: entryId,
-          sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+          sourceVerification: "UNVERIFIED",
           title,
           authors,
           publishedAt,
@@ -266,9 +260,9 @@ export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceC
           overfittingRisk: "UNKNOWN",
           regimeDependence: "UNKNOWN",
           transactionCostSensitivity: "UNKNOWN",
-          validationStatus: "SOURCE_VERIFIED",
-        }),
-      );
+          validationStatus: "DISCOVERED",
+        });
+      records.push(issueResearchIntelligenceSourceVerificationReceipt(unverifiedRecord, capture, entry, discoveredAt));
     }
 
     return Object.freeze(records.sort((left, right) => {
@@ -337,7 +331,10 @@ export class ResearchIntelligenceScout {
           candidate,
           Object.freeze([...historical, ...records]),
         );
-        let record = reclassifyResearchIntelligenceRecord(candidate, classification);
+        let record = carryResearchIntelligenceSourceAuthentication(
+          candidate,
+          reclassifyResearchIntelligenceRecord(candidate, classification),
+        );
 
         if (record.novelty === "DUPLICATE") {
           duplicatesSuppressed += 1;
@@ -356,8 +353,11 @@ export class ResearchIntelligenceScout {
 
         let handoffOutcome: JevResearchAttentionAxiomOutcome = "HANDOFF_FAILED_CLOSED";
         try {
+          if (!isResearchIntelligenceSourceRecordAuthenticated(record)) {
+            throw new Error("canonical source capture receipt is required before AXIOM handoff");
+          }
           const handoff = createAxiomResearchIntelligenceHandoff(record);
-          record = markResearchIntelligenceReadyForAxiom(record);
+          record = carryResearchIntelligenceSourceAuthentication(record, markResearchIntelligenceReadyForAxiom(record));
           axiomHandoffs.push(handoff);
           handoffOutcome = "HANDOFF";
         } catch {

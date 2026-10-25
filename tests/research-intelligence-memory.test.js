@@ -5,6 +5,10 @@ const {
   createResearchIntelligenceRecord,
 } = require("../dist/packages/contracts/src/researchIntelligence.js");
 const {
+  fetchResearchIntelligenceSourceCapture,
+  issueResearchIntelligenceSourceVerificationReceipt,
+} = require("../dist/packages/contracts/src/researchIntelligenceVerificationInternal.js");
+const {
   ResearchIntelligenceScout,
 } = require("../dist/apps/cloud/src/researchIntelligenceScout.js");
 const {
@@ -18,17 +22,34 @@ const {
   createCryptoNewsResearchObservation,
 } = require("../dist/packages/contracts/src/researchExternalIntake.js");
 
+const rawContent = "<entry><id>http://arxiv.org/abs/2603.29086v1</id><summary>Canonical test source capture: market microstructure and algorithmic trading.</summary></entry>";
+let sourceCapture;
+test.before(async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(`<feed>${rawContent}</feed>`, {
+    headers: { "content-type": "application/atom+xml" },
+  });
+  try {
+    sourceCapture = await fetchResearchIntelligenceSourceCapture(
+      "https://export.arxiv.org/api/query?id_list=2603.29086",
+      "ARXIV_API_V1",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 function record(discoveredAt) {
-  return createResearchIntelligenceRecord({
+  const unverified = createResearchIntelligenceRecord({
     sourceId: "arxiv:2603.29086",
     sourceType: "ARXIV",
     sourceUrl: "https://arxiv.org/abs/2603.29086",
-    sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+    sourceVerification: "UNVERIFIED",
     title: "Market microstructure and algorithmic trading test",
     authors: ["NUSA Test"],
     publishedAt: "2026-03-31T00:00:00.000Z",
     discoveredAt,
-    rawContentSha256: "a".repeat(64),
+    rawContentSha256: require("node:crypto").createHash("sha256").update(rawContent).digest("hex"),
     topic: ["market-microstructure"],
     market: "UNSPECIFIED",
     timeframe: "UNSPECIFIED",
@@ -49,8 +70,9 @@ function record(discoveredAt) {
     overfittingRisk: "UNKNOWN",
     regimeDependence: "UNKNOWN",
     transactionCostSensitivity: "UNKNOWN",
-    validationStatus: "SOURCE_VERIFIED",
+    validationStatus: "DISCOVERED",
   });
+  return issueResearchIntelligenceSourceVerificationReceipt(unverified, sourceCapture, rawContent, discoveredAt);
 }
 
 test("canonical semantic memory suppresses the same research across scout runs", async () => {
@@ -106,12 +128,47 @@ test("research intelligence memory fails closed on record identity conflict", ()
     memory.append(original);
 
     assert.throws(
-      () => memory.append(Object.freeze({
-        ...original,
-        discoveredAt: "2026-09-20T05:00:00.000Z",
-      })),
+      () => memory.append(record("2026-09-20T05:00:00.000Z")),
       /identity conflict/,
     );
+  } finally {
+    db.close();
+  }
+});
+
+test("SQLite source trust rejects caller taxonomy claims and rehydrates only canonical receipts", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const memory = new SqliteResearchIntelligenceMemoryRepository(db);
+    const authenticated = record("2026-09-20T04:00:00.000Z");
+    const { issueResearchIntelligenceSourceVerificationReceipt } = require("../dist/packages/contracts/src/researchIntelligenceVerificationInternal.js");
+    const unverified = createResearchIntelligenceRecord({
+      sourceId: authenticated.sourceId, sourceType: authenticated.sourceType, sourceUrl: authenticated.sourceUrl,
+      sourceVerification: "UNVERIFIED", title: authenticated.title, authors: authenticated.authors,
+      publishedAt: authenticated.publishedAt, discoveredAt: authenticated.discoveredAt,
+      rawContentSha256: authenticated.rawContentSha256, topic: authenticated.topic, market: authenticated.market,
+      timeframe: authenticated.timeframe, method: authenticated.method,
+      claimedContribution: authenticated.claimedContribution, testableHypothesis: authenticated.testableHypothesis,
+      assumptions: authenticated.assumptions, requiredData: authenticated.requiredData,
+    });
+    assert.throws(() => issueResearchIntelligenceSourceVerificationReceipt(
+      unverified,
+      { ...sourceCapture },
+      rawContent,
+      unverified.discoveredAt,
+    ), /CAPTURE_INVALID/, "a caller-copy of the receipt material is not an authenticated capture capability");
+    const callerClaim = Object.freeze({
+      ...authenticated,
+      sourceVerificationReceipt: undefined,
+      sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+      validationStatus: "SOURCE_VERIFIED",
+    });
+    assert.throws(() => memory.append(callerClaim), /not authenticated/);
+
+    memory.append(authenticated);
+    assert.equal(memory.get(authenticated.recordId).sourceVerificationReceipt.receiptFingerprint,
+      authenticated.sourceVerificationReceipt.receiptFingerprint);
+    assert.equal(memory.list().length, 1);
   } finally {
     db.close();
   }
@@ -145,12 +202,12 @@ test("only the canonical persisted Research Intelligence repository can bind new
   const db = new SqliteDatabase(":memory:");
   try {
     const memory = new SqliteResearchIntelligenceMemoryRepository(db);
-    const snapshot = "The official filing was published.";
+    const snapshot = rawContent;
     const fingerprint = require("node:crypto").createHash("sha256").update(snapshot).digest("hex");
     const observation = createCryptoNewsResearchObservation({
-      sourceUrl: "https://publisher.example/filing",
-      publisher: "Publisher",
-      publishedAt: "2026-10-24T00:00:00Z",
+      sourceUrl: "https://arxiv.org/abs/2603.29086",
+      publisher: "arXiv",
+      publishedAt: "2026-03-31T00:00:00.000Z",
       retrievedAt: "2026-10-25T00:00:00Z",
       firstObservedAt: "2026-10-24T01:00:00Z",
       contentSnapshot: snapshot,
@@ -164,29 +221,26 @@ test("only the canonical persisted Research Intelligence repository can bind new
       publisherClaims: ["impact is bullish"],
       scoutInferences: ["test whether volatility changes"],
     });
-    const sourceRecord = createResearchIntelligenceRecord({
-      sourceId: "publisher:filing-1",
-      sourceType: "OTHER",
-      sourceUrl: observation.sourceUrl,
-      sourceVerification: "VERIFIED_PRIMARY_SOURCE",
-      title: "Official filing",
-      authors: ["Publisher"],
-      publishedAt: observation.publishedAt,
-      discoveredAt: observation.firstObservedAt,
-      rawContentSha256: fingerprint,
-      topic: ["REGULATION"],
-      market: "CRYPTO",
-      timeframe: "1h",
-      method: "event study hypothesis",
-      claimedContribution: "publisher claim",
-      testableHypothesis: "Test whether filing events predict volatility",
-      assumptions: [],
-      requiredData: ["UPBIT_PUBLIC_CANDLES"],
+    const sourceRecord = record(observation.firstObservedAt);
+    const unverifiedSourceRecord = createResearchIntelligenceRecord({
+      sourceId: sourceRecord.sourceId, sourceType: sourceRecord.sourceType, sourceUrl: sourceRecord.sourceUrl,
+      sourceVerification: "UNVERIFIED", title: sourceRecord.title, authors: sourceRecord.authors,
+      publishedAt: sourceRecord.publishedAt, discoveredAt: sourceRecord.discoveredAt,
+      rawContentSha256: sourceRecord.rawContentSha256, topic: sourceRecord.topic, market: sourceRecord.market,
+      timeframe: sourceRecord.timeframe, method: sourceRecord.method,
+      claimedContribution: sourceRecord.claimedContribution, testableHypothesis: sourceRecord.testableHypothesis,
+      assumptions: sourceRecord.assumptions, requiredData: sourceRecord.requiredData,
     });
 
     assert.equal(memory.get(sourceRecord.recordId), null);
+    const forgedRecord = Object.freeze({
+      ...unverifiedSourceRecord,
+      sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+      validationStatus: "SOURCE_VERIFIED",
+    });
+    assert.throws(() => memory.append(forgedRecord), /not authenticated/);
     assert.throws(
-      () => memory.bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId, {
+      () => memory.bindCryptoNewsResearchIntelligence(observation, unverifiedSourceRecord.recordId, {
         get: () => sourceRecord,
       }),
       /BINDING_INVALID/,

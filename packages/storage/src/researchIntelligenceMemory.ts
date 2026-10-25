@@ -5,6 +5,10 @@ import { createResearchHypothesis } from "../../contracts/src/researchHypothesis
 import { createResearchPrecommit } from "../../contracts/src/researchPrecommit";
 import { createCryptoNewsResearchObservation, validateCryptoNewsPrecommitPlans, type CryptoNewsHypothesisInput, type CryptoNewsResearchInput, type CryptoNewsResearchObservation } from "../../contracts/src/researchExternalIntake";
 import { createResearchIntelligenceRecord, type ResearchIntelligenceRecord } from "../../contracts/src/researchIntelligence";
+import {
+  isResearchIntelligenceSourceRecordAuthenticated,
+  verifyPersistedResearchIntelligenceSourceReceipt,
+} from "../../contracts/src/researchIntelligenceVerificationInternal";
 import { researchMemoryArtifactDigestV1 } from "../../contracts/src/researchMemorySemantics";
 import { SqliteResearchSemanticMemoryRepository } from "./researchMemorySemantics";
 
@@ -52,9 +56,9 @@ function cryptoNewsInputFromObservation(observation: CryptoNewsResearchObservati
 }
 
 function reconstructResearchIntelligenceRecord(record: ResearchIntelligenceRecord): ResearchIntelligenceRecord {
-  return createResearchIntelligenceRecord({
+  const reconstructed = createResearchIntelligenceRecord({
     sourceId: record.sourceId, sourceType: record.sourceType, sourceUrl: record.sourceUrl,
-    sourceVerification: record.sourceVerification, title: record.title, authors: record.authors,
+    sourceVerification: "UNVERIFIED", title: record.title, authors: record.authors,
     publishedAt: record.publishedAt, discoveredAt: record.discoveredAt, rawContentSha256: record.rawContentSha256,
     topic: record.topic, market: record.market, timeframe: record.timeframe, method: record.method,
     claimedContribution: record.claimedContribution, testableHypothesis: record.testableHypothesis,
@@ -63,10 +67,26 @@ function reconstructResearchIntelligenceRecord(record: ResearchIntelligenceRecor
     novelty: record.novelty, evidenceQuality: record.evidenceQuality, nusaRelevance: record.nusaRelevance,
     implementationCost: record.implementationCost, expectedEconomicValue: record.expectedEconomicValue,
     leakageRisk: record.leakageRisk, overfittingRisk: record.overfittingRisk, regimeDependence: record.regimeDependence,
-    transactionCostSensitivity: record.transactionCostSensitivity, validationStatus: record.validationStatus,
+    transactionCostSensitivity: record.transactionCostSensitivity,
+    validationStatus: record.validationStatus === "SOURCE_VERIFIED" ? "DISCOVERED" : record.validationStatus,
     failureReason: record.failureReason, relatedExistingResearch: record.relatedExistingResearch,
     axiomHandoffStatus: record.axiomHandoffStatus,
   });
+  if (record.sourceVerification === "VERIFIED_PRIMARY_SOURCE" || record.validationStatus === "SOURCE_VERIFIED") {
+    if (!verifyPersistedResearchIntelligenceSourceReceipt(record) || !record.sourceVerificationReceipt) {
+      throw new Error("research intelligence source verification receipt is invalid");
+    }
+    return Object.freeze({
+      ...reconstructed,
+      sourceVerification: "VERIFIED_PRIMARY_SOURCE" as const,
+      validationStatus: "SOURCE_VERIFIED" as const,
+      sourceVerificationReceipt: record.sourceVerificationReceipt,
+    });
+  }
+  if (record.sourceVerificationReceipt !== undefined) {
+    throw new Error("research intelligence source verification receipt is invalid");
+  }
+  return reconstructed;
 }
 
 function validateStoredRow(
@@ -85,6 +105,13 @@ function validateStoredRow(
     record.productionMutationAllowed !== false ||
     record.aiAuthority !== "ZERO_AUTHORITY"
   ) {
+    throw new Error("research intelligence persisted row integrity violation");
+  }
+  if (!verifyPersistedResearchIntelligenceSourceReceipt(record)) {
+    throw new Error("research intelligence source verification receipt is invalid");
+  }
+  const reconstructed = reconstructResearchIntelligenceRecord(record);
+  if (canonicalResearchJson(reconstructed) !== canonicalResearchJson(record)) {
     throw new Error("research intelligence persisted row integrity violation");
   }
 }
@@ -231,6 +258,16 @@ export class SqliteResearchIntelligenceMemoryRepository {
   }
 
   public append(record: ResearchIntelligenceRecord): ResearchIntelligenceRecord {
+    if (!record || typeof record !== "object") throw new Error("research intelligence record is invalid");
+    const trusted = record.sourceVerification === "VERIFIED_PRIMARY_SOURCE" || record.validationStatus === "SOURCE_VERIFIED";
+    if (!verifyPersistedResearchIntelligenceSourceReceipt(record)
+      || (trusted && !isResearchIntelligenceSourceRecordAuthenticated(record))) {
+      throw new Error("research intelligence source verification is not authenticated");
+    }
+    const reconstructed = reconstructResearchIntelligenceRecord(record);
+    if (canonicalResearchJson(reconstructed) !== canonicalResearchJson(record)) {
+      throw new Error("research intelligence record is not canonical");
+    }
     return this.db.transaction(() => {
       const existingRow = this.db.connection.prepare(
         "SELECT record_id, source_id, source_type, content_fingerprint, hypothesis_semantic_fingerprint, discovered_at, payload_json FROM research_intelligence_records WHERE record_id = ?"
@@ -268,7 +305,7 @@ export class SqliteResearchIntelligenceMemoryRepository {
         validity: "REVALIDATION_REQUIRED",
         attribution: "MIXED_UNRESOLVED",
         evidenceOrigin:
-          record.sourceVerification === "VERIFIED_PRIMARY_SOURCE"
+          trusted
             ? "EXTERNAL_PRIMARY_SOURCE"
             : "UNKNOWN_UNTRUSTED",
         evaluatorSemanticsId: "research-intelligence-scout:v1",
