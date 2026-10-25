@@ -1,3 +1,4 @@
+import { createLeaseStartupWindow } from "./paperLeaseStartupWindow";
 import { buildMetaLearningStatus } from "./researchMetaLearningRuntime";
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
@@ -142,9 +143,17 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
+  // Timing only: the writer lease is owned from the repository constructor on, and its heartbeat cannot renew until
+  // the event loop turns, so everything composed synchronously below counts against the lease TTL.
+  const leaseWindow = createLeaseStartupWindow(30_000, (line) => console.log(line));
+  const repositoryStartedAt = performance.now();
   const paperRepository = config.paperInitialCapitalKrw === undefined
     ? undefined
     : new SqliteCloudPaperAccountRepository(database, { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) });
+  if (paperRepository != null) {
+    leaseWindow.leaseOwned(performance.now() - repositoryStartedAt);
+    setImmediate(() => leaseWindow.firstLoopTurn());
+  }
   const paperLoop = config.paperInitialCapitalKrw === undefined || paperRepository == null
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
