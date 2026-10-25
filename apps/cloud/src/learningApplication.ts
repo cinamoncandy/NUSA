@@ -591,6 +591,23 @@ export function assertLearningApplicationReceipt(value: unknown): asserts value 
     runtimeIdentity: candidate.runtimeIdentity ?? "",
     sourceCommit: candidate.sourceCommit ?? "",
   });
+  // A valid digest only proves that a payload is self-consistent. It does not prove that the
+  // declared outcome matches what the runtime says happened, so enforce the outcome contract too.
+  if (candidate.applicationOutcome === "APPLIED" && candidate.appliedValue !== candidate.boundedValue) {
+    throw new LearningApplicationError("MALFORMED_RECEIPT", "APPLIED receipt must record the bounded value as applied");
+  }
+  if (candidate.applicationOutcome === "REJECTED" && candidate.appliedValue !== candidate.previousValue) {
+    throw new LearningApplicationError("MALFORMED_RECEIPT", "REJECTED receipt must preserve the previous applied value");
+  }
+  if (candidate.applicationOutcome === "NOOP" && (candidate.previousValue !== candidate.boundedValue || candidate.appliedValue !== candidate.previousValue)) {
+    throw new LearningApplicationError("MALFORMED_RECEIPT", "NOOP receipt must preserve an unchanged bounded value");
+  }
+  if (candidate.applicationOutcome === "FAILED") {
+    const policy = MUTABLE_SURFACE_ALLOWLIST.find((entry) => entry.surface === candidate.surface);
+    if (policy == null || candidate.appliedValue !== policy.failSafeValue) {
+      throw new LearningApplicationError("MALFORMED_RECEIPT", "FAILED receipt must record the surface's canonical fail-safe value");
+    }
+  }
   const requiredKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "intentFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "appliedValue", "applicationOutcome", "applicationFingerprint", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "outcomeVersion"];
   const expectedKeys = (candidate.applicationOutcome === "FAILED" ? [...requiredKeys, "fallbackReason"] : candidate.applicationOutcome === "REJECTED" ? [...requiredKeys, "rejectionReason"] : requiredKeys).sort();
   const actualKeys = Object.keys(value as Record<string, unknown>).sort();

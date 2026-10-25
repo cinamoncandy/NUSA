@@ -151,10 +151,14 @@ export class LearningApplicationLedger {
     if (!HASH.test(fingerprint)) throw new LearningApplicationLedgerError("IDENTITY_DERIVATION_FAILED", "application fingerprint is not a SHA-256 digest");
     const opportunityId = `learning-application:${fingerprint}`;
 
-    if (receipt.applicationOutcome !== "REJECTED") {
-      const intentId = `learning-application-intent:${receipt.intentFingerprint}`;
-      const intentRecord = this.ledger.list().find((record) => record.opportunityId === intentId);
+    const intentId = `learning-application-intent:${receipt.intentFingerprint}`;
+    const intentRecord = this.ledger.list().find((record) => record.opportunityId === intentId);
+    const isRecoveryRejection = receipt.applicationOutcome === "REJECTED"
+      && receipt.rejectionReason === "recovery confirmed the previous intent was not applied; a new bounded attempt is required";
+    if (receipt.applicationOutcome !== "REJECTED" || isRecoveryRejection) {
       if (intentRecord == null) throw new LearningApplicationLedgerError("INTENT_REQUIRED", "terminal application receipt requires its durable write-ahead intent");
+    }
+    if (intentRecord != null) {
       const intent = parseIntent(intentRecord);
       if (intent.learningDecisionFingerprint !== receipt.learningDecisionFingerprint
         || intent.learningCycleId !== receipt.learningCycleId
@@ -162,8 +166,11 @@ export class LearningApplicationLedger {
         || intent.surface !== receipt.surface
         || intent.previousValue !== receipt.previousValue
         || intent.requestedValue !== receipt.requestedValue
-        || intent.boundedValue !== receipt.boundedValue) {
-        throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "terminal receipt does not match its durable intent");
+        || intent.boundedValue !== receipt.boundedValue
+        || intent.applicationTimestamp !== receipt.applicationTimestamp
+        || intent.runtimeIdentity !== receipt.runtimeIdentity
+        || intent.sourceCommit !== receipt.sourceCommit) {
+        throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "terminal receipt does not match its durable intent provenance");
       }
     }
 
