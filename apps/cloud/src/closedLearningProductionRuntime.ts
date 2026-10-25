@@ -202,6 +202,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     orderBookCollector,
     futuresCollector,
   );
+  // startCloudRuntime performs the last large synchronous composition step before the event loop
+  // can service the repository's interval heartbeat. Re-verify/renew the existing lease at this
+  // handoff so a valid lease that survived composition gets a fresh full TTL for the remaining
+  // bounded startup work. This never revives an expired lease: verifyWriterLease() uses the same
+  // conditional owner/expiry update and fails closed if composition already exceeded the TTL.
+  paperRepository?.verifyWriterLease();
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
   const requireCanonicalPaperAccount = (): PaperAccountState => {
