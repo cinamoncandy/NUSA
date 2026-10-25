@@ -192,3 +192,32 @@ test("backup refuses to run when the cgroup v2 io controller is not available", 
   assert.notEqual(run("cpuset cpu memory pids").status, 0);
   assert.notEqual(run("cpuset cpu ionice memory").status, 0);
 });
+
+test("backup verifies the applied io.max inside the transient scope before running node", () => {
+  const check = helper.match(/^BACKUP_SCOPE_CAP_CHECK='([^\n]*)'$/m)?.[1];
+  assert.ok(check, "root-owned helper must define the in-scope cap check");
+  const backupStart = helper.indexOf("  backup)");
+  const backupCase = helper.slice(backupStart, helper.indexOf("\n\n  preflight)", backupStart));
+  assert.match(backupCase, /backup_device_major_minor "\$backup_device"/);
+  assert.match(backupCase, /bash -c "\$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "\$backup_major_minor"/);
+  assert.ok(
+    backupCase.indexOf("backup-cap-check") < backupCase.indexOf("nice -n 19 runuser"),
+    "cap read-back must run before the backup command",
+  );
+  const fs2 = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const dir = fs2.mkdtempSync(path.join(os.tmpdir(), "nusa-cg-"));
+  const scoped = check.replace('"/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)"', JSON.stringify(dir));
+  const run = (ioMax) => {
+    const file = path.join(dir, "io.max");
+    fs2.rmSync(file, { force: true });
+    if (ioMax !== null) fs2.writeFileSync(file, ioMax);
+    return spawnSync("bash", ["-c", scoped, "backup-cap-check", "8:0", "true"], { encoding: "utf8" });
+  };
+  assert.equal(run("8:0 rbps=1048576 wbps=1048576 riops=max wiops=max\n").status, 0);
+  assert.notEqual(run("8:0 rbps=max wbps=max riops=max wiops=max\n").status, 0);
+  assert.notEqual(run("8:16 rbps=1048576 wbps=1048576 riops=max wiops=max\n").status, 0);
+  assert.notEqual(run("8:0 rbps=10485760 wbps=1048576 riops=max wiops=max\n").status, 0);
+  assert.notEqual(run(null).status, 0);
+});

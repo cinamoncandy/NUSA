@@ -418,6 +418,17 @@ backup_io_controller_available() {
   [[ " $controllers " == *" io "* ]]
 }
 
+# Runs inside the transient scope before the backup command. The root controller list cannot prove the
+# scope's own cgroup received the cap (an ancestor may disable io), so read the applied io.max back.
+BACKUP_SCOPE_CAP_CHECK='cg="/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)"; grep -Eq "^$1 .*rbps=1048576 .*wbps=1048576( |$)" "$cg/io.max" 2>/dev/null || { echo "nusa-release-step: backup scope io.max cap was not applied; refusing uncapped backup" >&2; exit 1; }; shift; exec "$@"'
+
+backup_device_major_minor() {
+  local mm
+  mm="$(lsblk -ndo MAJ:MIN -- "$1" 2>/dev/null | tr -d '[:space:]')" || return 1
+  [[ "$mm" =~ ^[0-9]+:[0-9]+$ ]] || return 1
+  printf '%s' "$mm"
+}
+
 verb="${1:-}"
 shift || true
 
@@ -434,11 +445,14 @@ case "$verb" in
     backup_device="$(backup_block_device_for_paths "$state_db" "$backup_dir")" \
       || die "backup storage topology could not be verified before backup"
     backup_io_controller_available || die "cgroup v2 io controller unavailable; refusing an unenforced backup cap"
+    backup_major_minor="$(backup_device_major_minor "$backup_device")" \
+      || die "backup device major:minor could not be resolved"
     # The numeric systemd bandwidth value is bytes/second: 1,048,576 is exactly 1 MiB/s.
     # Limit only this child in its transient cgroup; failure never falls back to an uncapped backup.
     exec systemd-run --quiet --collect --scope \
       -p "IOReadBandwidthMax=${backup_device} 1048576" \
       -p "IOWriteBandwidthMax=${backup_device} 1048576" \
+      bash -c "$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "$backup_major_minor" \
       nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" NUSA_BACKUP_DIR="$backup_dir" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 
