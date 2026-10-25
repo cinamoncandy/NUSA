@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import { BlurMask, Canvas, Fill, FractalNoise, Group, LinearGradient, Points, RadialGradient, RoundedRect, Rect, rect, rrect, vec } from "@shopify/react-native-skia";
 import { auraPalette } from "./designSystem";
 import { dotFieldLayout, isDotSupported, layoutDotMatrix, litIndices } from "./dotMatrix";
+import { entranceProgress, revealedCount } from "./auraMotion";
+import { useReducedMotion } from "./instrumentKit";
 
 /**
  * Aura kit (Learning tab): near-black ground, one green that glows, grain, dot-matrix numerals. Everything here is drawn with
@@ -12,6 +14,30 @@ import { dotFieldLayout, isDotSupported, layoutDotMatrix, litIndices } from "./d
 const RADIUS = 28;
 
 type Tone = "GREEN" | "DARK";
+
+/**
+ * One-shot entrance progress 0..1. Nothing plays until the OS has answered the reduce-motion question; under reduce-motion it
+ * jumps straight to 1. It stops requesting frames at 1, so there is no loop and no idle cost.
+ */
+export function useEntrance(durationMs: number, delayMs = 0): number {
+  const reduced = useReducedMotion();
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    if (reduced === null) return undefined;
+    if (reduced) { setProgress(1); return undefined; }
+    let frame = 0;
+    const started = Date.now();
+    const step = () => {
+      const p = entranceProgress(Date.now() - started, delayMs, durationMs);
+      setProgress(p);
+      if (p < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [reduced, durationMs, delayMs]);
+  return progress;
+}
+
 
 /** A rounded card with a grain-textured gradient. GREEN is the highlighted card; DARK is the quiet one with a green glow in one corner. */
 export function GrainCard({ height, tone = "GREEN", children, style, testID, accessibilityLabel }: {
@@ -60,21 +86,24 @@ export function GrainCard({ height, tone = "GREEN", children, style, testID, acc
 }
 
 /** Big dot-matrix text (digits, sign, dot, percent, slash, D). `glow` adds a soft blur under the dots. */
-export function DotNumeral({ text, pitch, color = auraPalette.text, glow = false, accessibilityLabel }: {
+export function DotNumeral({ text, pitch, color = auraPalette.text, glow = false, accessibilityLabel, delayMs = 250 }: {
   readonly text: string;
   readonly pitch: number;
   readonly color?: string;
   readonly glow?: boolean;
   readonly accessibilityLabel?: string;
+  readonly delayMs?: number;
 }) {
   const layout = useMemo(() => layoutDotMatrix(text, pitch), [text, pitch]);
+  const scan = useEntrance(650, delayMs);
+  const shown = useMemo(() => (scan >= 1 ? layout.dots : layout.dots.filter((dot) => dot.x <= scan * layout.width + pitch)), [layout, scan, pitch]);
   // Never draw a wrong number: a character without a dot glyph makes the whole numeral plain text instead.
   if (!isDotSupported(text)) return <Text style={{ color, fontSize: Math.max(12, pitch * 6) }} accessibilityLabel={accessibilityLabel ?? text}>{text}</Text>;
   if (layout.width <= 0) return null;
   const radius = Math.max(1, pitch * 0.34);
   return <Canvas style={{ width: layout.width, height: layout.height }} accessibilityLabel={accessibilityLabel ?? text} accessible>
-    {glow ? <Points points={layout.dots as { x: number; y: number }[]} mode="points" color={color} style="stroke" strokeWidth={radius * 3} strokeCap="round"><BlurMask blur={radius * 1.6} style="normal" /></Points> : null}
-    <Points points={layout.dots as { x: number; y: number }[]} mode="points" color={color} style="stroke" strokeWidth={radius * 2} strokeCap="round" />
+    {glow ? <Points points={shown as { x: number; y: number }[]} mode="points" color={color} style="stroke" strokeWidth={radius * 3} strokeCap="round"><BlurMask blur={radius * 1.6} style="normal" /></Points> : null}
+    <Points points={shown as { x: number; y: number }[]} mode="points" color={color} style="stroke" strokeWidth={radius * 2} strokeCap="round" />
   </Canvas>;
 }
 
@@ -86,6 +115,7 @@ export function DotField({ total, lit, columns, pitch, accessibilityLabel }: {
   readonly pitch: number;
   readonly accessibilityLabel: string;
 }) {
+  const sweep = useEntrance(900, 450);
   const geometry = useMemo(() => {
     const layout = dotFieldLayout(total, columns, pitch);
     const on = new Set(litIndices(total, lit));
@@ -98,11 +128,15 @@ export function DotField({ total, lit, columns, pitch, accessibilityLabel }: {
     return { layout, dim, bright };
   }, [total, lit, columns, pitch]);
   if (geometry.layout.rows === 0) return null;
+  // The lit dots switch on one by one (the count found); unlit ones stay dim until their turn.
+  const litNow = revealedCount(geometry.bright.length, sweep);
+  const brightNow = sweep >= 1 ? geometry.bright : geometry.bright.slice(0, litNow);
+  const waiting = sweep >= 1 ? geometry.dim : geometry.dim.concat(geometry.bright.slice(litNow));
   const r = Math.max(1, pitch * 0.2);
   return <Canvas style={{ width: geometry.layout.width, height: geometry.layout.height }} accessible accessibilityLabel={accessibilityLabel}>
-    <Points points={geometry.dim} mode="points" color={auraPalette.unlit} style="stroke" strokeWidth={r * 2} strokeCap="round" />
-    <Points points={geometry.bright} mode="points" color={auraPalette.neon} style="stroke" strokeWidth={r * 4.4} strokeCap="round"><BlurMask blur={r * 2.2} style="normal" /></Points>
-    <Points points={geometry.bright} mode="points" color={auraPalette.text} style="stroke" strokeWidth={r * 2.6} strokeCap="round" />
+    <Points points={waiting} mode="points" color={auraPalette.unlit} style="stroke" strokeWidth={r * 2} strokeCap="round" />
+    <Points points={brightNow} mode="points" color={auraPalette.neon} style="stroke" strokeWidth={r * 4.4} strokeCap="round"><BlurMask blur={r * 2.2} style="normal" /></Points>
+    <Points points={brightNow} mode="points" color={auraPalette.text} style="stroke" strokeWidth={r * 2.6} strokeCap="round" />
   </Canvas>;
 }
 
@@ -113,6 +147,7 @@ export function TickSlider({ ratio, color = auraPalette.neon, width, height = 22
   readonly width: number;
   readonly height?: number;
 }) {
+  const slide = useEntrance(700, 450);
   const ticks = useMemo(() => {
     const points: { x: number; y: number }[] = [];
     for (let x = 2; x < width; x += 7) points.push({ x, y: height / 2 });
@@ -120,7 +155,7 @@ export function TickSlider({ ratio, color = auraPalette.neon, width, height = 22
   }, [width, height]);
   if (width <= 0) return null;
   const clamped = Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio)) : 0;
-  const x = Math.round(clamped * (width - 3));
+  const x = Math.round(clamped * slide * (width - 3));
   return <Canvas style={{ width, height }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none">
     <Points points={ticks} mode="points" color={auraPalette.muted} style="stroke" strokeWidth={1.4} strokeCap="round" />
     <RoundedRect x={x} y={1} width={3} height={height - 2} r={1.5} color={color}><BlurMask blur={3} style="solid" /></RoundedRect>

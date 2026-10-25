@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { dotFieldLayout, layoutDotMatrix } from "./dotMatrix";
 import { auraPalette, readableFont } from "./designSystem";
 import { DotField, DotNumeral, GrainCard, TickSlider } from "./auraKit";
+import { Reveal, useReducedMotion } from "./instrumentKit";
 import { buildStudyTimeline } from "./learningPanelsModel";
 import { buildLearningLoopPanels } from "./learningLoopModel";
 
@@ -20,6 +21,12 @@ const fmt = (n: number): string => (n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1));
 const signedInt = (n: number): string => (n > 0 ? `+${n}` : `${n}`);
 const toneColor = (bp: number): string => (bp < 0 ? auraPalette.loss : auraPalette.neon);
 
+/** One-shot card entrance (rise + fade, staggered); skipped under reduce-motion by Reveal. */
+function Entering({ index, children }: { readonly index: number; readonly children: React.ReactNode }) {
+  const reduced = useReducedMotion();
+  return <Reveal index={index} reducedMotion={reduced}>{children}</Reveal>;
+}
+
 function Chip({ children }: { readonly children: string }) {
   return <View style={styles.chip}><Text style={styles.chipText}>{children}</Text></View>;
 }
@@ -27,7 +34,7 @@ function Chip({ children }: { readonly children: string }) {
 /** Registered studies: dot-matrix dates on a quiet card, the next verdict lit. Dates are the frozen designs' verdict times. */
 export function StudyTimeline({ nowMs }: { readonly nowMs: number }) {
   const rows = buildStudyTimeline(nowMs);
-  return <GrainCard tone="DARK" style={styles.card} testID="learning-studies" accessibilityLabel={`사전 등록 연구. ${rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}`}>
+  return <Entering index={3}><GrainCard tone="DARK" style={styles.card} testID="learning-studies" accessibilityLabel={`사전 등록 연구. ${rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}`}>
     <Chip>사전 등록 연구</Chip>
     <View style={styles.studyList}>
       {rows.map((r) => <View key={r.id} style={styles.studyRow}>
@@ -39,7 +46,7 @@ export function StudyTimeline({ nowMs }: { readonly nowMs: number }) {
       </View>)}
     </View>
     <Text style={styles.note}>대부분의 연구가 실패할 가능성이 높아요. 실패도 그대로 기록해요.</Text>
-  </GrainCard>;
+  </GrainCard></Entering>;
 }
 
 /** The cost wall, measured: what an average shadow trade of the owner baseline gains, loses and pays in fees, and what is left. */
@@ -50,7 +57,7 @@ export function CostWaterfall({ raw }: { readonly raw: unknown }) {
   const sliderWidth = Math.max(120, width - CARD_MARGIN * 2 - CARD_PADDING * 2);
   const result = cost.rows.find((r) => r.kind === "RESULT");
   const parts = cost.rows.filter((r) => r.kind !== "RESULT");
-  return <GrainCard tone="DARK" style={styles.card} testID="learning-cost-waterfall"
+  return <Entering index={1}><GrainCard tone="DARK" style={styles.card} testID="learning-cost-waterfall"
     accessibilityLabel={`그림자 거래 한 번의 손익. 모의투자 주문이 아닌 기준 거래예요. 거래 ${cost.trades}건 기준. ${cost.rows.map((r) => `${r.label} ${fmt(r.bp)}bp`).join(", ")}. ${cost.summary}`}>
     <Chip>{`그림자 거래 한 번의 손익 · ${cost.trades.toLocaleString("en-US")}건`}</Chip>
     {result == null ? null : <View style={styles.numeralRow}>
@@ -67,14 +74,14 @@ export function CostWaterfall({ raw }: { readonly raw: unknown }) {
       </View>)}
     </View>
     <Text style={styles.note}>{cost.summary}{cost.winRatePercent == null ? "" : ` 이긴 비율은 ${cost.winRatePercent.toFixed(0)}%예요.`} 세 눈금은 같은 크기로 맞췄어요.</Text>
-  </GrainCard>;
+  </GrainCard></Entering>;
 }
 
 /** The owner baseline's PAPER result over the periods the learner consumed, and against buying everything. */
 export function PaperResultBars({ raw }: { readonly raw: unknown }) {
   const { paper } = buildLearningLoopPanels(raw);
   if (paper == null) return <Missing title="모의투자 성과" />;
-  return <GrainCard tone="DARK" style={styles.card} testID="learning-paper-result" accessibilityLabel={`모의투자 성과. ${paper.summary}`}>
+  return <Entering index={2}><GrainCard tone="DARK" style={styles.card} testID="learning-paper-result" accessibilityLabel={`모의투자 성과. ${paper.summary}`}>
     <Chip>{paper.periods == null ? "모의투자 성과" : `모의투자 성과 · ${paper.periods}구간`}</Chip>
     <View style={styles.pairRow}>
       {paper.netBp == null ? null : <View style={styles.pairCell}>
@@ -87,7 +94,7 @@ export function PaperResultBars({ raw }: { readonly raw: unknown }) {
       </View>}
     </View>
     <Text style={styles.note}>{paper.summary}</Text>
-  </GrainCard>;
+  </GrainCard></Entering>;
 }
 
 /** First screen passes against the independent holdout: the number that survived new data, over every setting that was tried. */
@@ -103,7 +110,7 @@ export function OverfitGate({ raw }: { readonly raw: unknown }) {
   const fieldWidth = field == null ? 0 : dotFieldLayout(field, 16, 10).width;
   const inner = width - CARD_MARGIN * 2 - CARD_PADDING * 2;
   const stacked = field != null && numeralWidth + fieldWidth + 14 > inner;
-  return <GrainCard tone="GREEN" style={styles.hero} testID="learning-overfit-gate" accessibilityLabel={`새 데이터에서의 결과. ${overfit.summary}`}>
+  return <Entering index={0}><GrainCard tone="GREEN" style={styles.hero} testID="learning-overfit-gate" accessibilityLabel={`새 데이터에서의 결과. ${overfit.summary}`}>
     <View style={styles.heroTop}>
       <Chip>새 데이터 독립 검증 합격</Chip>
       {overfit.overfitRatePercent == null ? null : <Chip>{`탈락 ${overfit.overfitRatePercent}%`}</Chip>}
@@ -118,14 +125,14 @@ export function OverfitGate({ raw }: { readonly raw: unknown }) {
       <Chip>{field == null ? `1차 통과 ${overfit.discoveryPasses}개 → 합격 ${overfit.holdoutPasses}개` : `${field}개 시도 → 1차 ${overfit.discoveryPasses}개 → 합격 ${overfit.holdoutPasses}개`}</Chip>
     </View>
     <View style={styles.heroNoteBox}><Text style={styles.heroNote}>{overfit.summary} 기준은 낮추지 않아요.</Text></View>
-  </GrainCard>;
+  </GrainCard></Entering>;
 }
 
 function Missing({ title }: { readonly title: string }) {
-  return <GrainCard tone="DARK" style={styles.card} accessibilityLabel={`${title}. 서버에서 아직 받지 못했어요`}>
+  return <Entering index={0}><GrainCard tone="DARK" style={styles.card} accessibilityLabel={`${title}. 서버에서 아직 받지 못했어요`}>
     <Chip>{title}</Chip>
     <Text style={styles.note}>서버에서 아직 받지 못했어요. 값을 지어내지 않고 비워 둬요.</Text>
-  </GrainCard>;
+  </GrainCard></Entering>;
 }
 
 const styles = StyleSheet.create({
