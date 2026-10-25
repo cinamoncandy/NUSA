@@ -103,6 +103,22 @@ export const calmPalette = Object.freeze({
   loss: "#FF5C5C",
 } as const);
 
+/** Aura palette (Learning tab, reference direction: near-black ground, one green that glows, grain). Presentation only. */
+export const auraPalette = Object.freeze({
+  ground: "#0A0C0A",
+  card: "#111511",
+  text: "#F1F5F0",
+  muted: "#9AA39A",
+  deep: "#04200E",
+  mid: "#0E6B2A",
+  bright: "#2FD35C",
+  neon: "#3CFF7A",
+  unlit: "#2B3A2E",
+  loss: "#FF6A5C",
+  attention: "#FFC266",
+  scrim: "rgba(8,10,8,0.62)",
+} as const);
+
 /** calm-v1: the whole app shares the calm palette. Cards blend into the ground (no boxes), white is the normal and primary tone, amber is attention only and red is loss/halt only. Identical in light and dark. */
 const fieldSurface = Object.freeze({
   background: calmPalette.ground, surface: calmPalette.ground, surfaceRaised: "#0A1017", surfaceSunken: calmPalette.ground,
