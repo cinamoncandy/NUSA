@@ -286,7 +286,7 @@ test("a whitespace Research ID cannot reserve A1 capacity after restart", () => 
 test("canonical A2 PAPER IDs with mixed-case ordering retain their A1 reservation", () => {
   const db = new SqliteDatabase(":memory:");
   try {
-    const ledger = new SqliteEvolutionLearningLedger(db, 3);
+    const ledger = new SqliteEvolutionLearningLedger(db, 5);
     const inputSet = inputSetRecord("2026-08-29T00:00:00.000Z", "Z", "trial-1", ["Z", "a"]);
     seedAuthorityEvidence(db, inputSet.inputSet);
     ledger.append(inputSet.record);
@@ -473,6 +473,73 @@ test("an A4 intent is rejected before persistence when both intent and terminal 
       (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "CAPACITY_EXCEEDED",
     );
     assert.equal(ledger.size(), 3, "no orphan intent is persisted when its terminal receipt cannot be guaranteed");
+  } finally {
+    db.close();
+  }
+});
+
+test("an A4 recovery rejection closes only its matching reserved intent slot", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const ledger = new SqliteEvolutionLearningLedger(db, 5);
+    const decisionFingerprint = "a".repeat(64);
+    const learningCycleId = `learning-cycle:${"b".repeat(64)}`;
+    const previousResearchSpecFingerprint = "c".repeat(64);
+    const intentFields = {
+      learningDecisionFingerprint: decisionFingerprint,
+      learningCycleId,
+      previousResearchSpecFingerprint,
+      surface: "longBarTickEvery",
+      previousValue: 1,
+      requestedValue: 2,
+      boundedValue: 2,
+      applicationTimestamp: "2026-08-29T00:01:00.000Z",
+      runtimeIdentity: "runtime-test",
+      sourceCommit: "d".repeat(40),
+    };
+    const intentFingerprint = sha256(canonicalResearchJson(intentFields));
+    const intent = { schemaVersion: 1, ...intentFields, intentFingerprint };
+    const intentOpportunityId = `learning-application-intent:${intentFingerprint}`;
+    ledger.append(record("opp:one", "2026-08-29T00:00:00.000Z"));
+    ledger.append(record(intentOpportunityId, "2026-08-29T00:01:00.000Z", {
+      problem: "NUSA learning application write-ahead intent: bounded state change planned before mutation",
+      evidenceReferences: [intentOpportunityId, decisionFingerprint, learningCycleId, previousResearchSpecFingerprint],
+      hypothesis: canonicalResearchJson(intent),
+      changeReference: "longBarTickEvery",
+      validationStatus: "LEARNING_APPLICATION_INTENT",
+    }));
+    ledger.append(record("opp:two", "2026-08-29T00:02:00.000Z"));
+
+    const receiptFields = {
+      learningDecisionFingerprint: decisionFingerprint,
+      learningCycleId,
+      previousResearchSpecFingerprint,
+      intentFingerprint,
+      surface: "longBarTickEvery",
+      previousValue: 1,
+      requestedValue: 2,
+      boundedValue: 2,
+      appliedValue: 1,
+      applicationOutcome: "REJECTED",
+      rejectionReason: "recovery confirmed the previous intent was not applied; a new bounded attempt is required",
+      applicationTimestamp: intentFields.applicationTimestamp,
+      runtimeIdentity: intentFields.runtimeIdentity,
+      sourceCommit: intentFields.sourceCommit,
+    };
+    const applicationFingerprint = sha256(canonicalResearchJson({
+      ...receiptFields,
+      fallbackReason: null,
+    }));
+    const receipt = { schemaVersion: 1, ...receiptFields, applicationFingerprint, outcomeVersion: "learning-application-outcome-v1" };
+    ledger.append(record(`learning-application:${applicationFingerprint}`, "2026-08-29T00:03:00.000Z", {
+      problem: "NUSA learning application: one admitted decision change bounded and applied exactly once",
+      evidenceReferences: [`learning-application:${applicationFingerprint}`, decisionFingerprint, learningCycleId],
+      hypothesis: canonicalResearchJson(receipt),
+      changeReference: "longBarTickEvery",
+      validationStatus: "LEARNING_APPLICATION",
+    }));
+    ledger.append(record("opp:capacity-released", "2026-08-29T00:04:00.000Z"));
+    assert.equal(ledger.size(), 5, "recovery rejection releases its reserved terminal slot for a later writer");
   } finally {
     db.close();
   }

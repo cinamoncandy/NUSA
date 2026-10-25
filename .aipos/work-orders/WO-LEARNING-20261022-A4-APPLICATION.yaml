@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261022-A4-APPLICATION
 title: "A4 bounded Research-policy application with durable intent and fail-closed META authority"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
 priority: P0
 authority_impact: bounded-research-policy-application
 owner_request: "2026-10-22: progress the Learning stack from A2 upward; each PR requires focused tests, Node 24.19+ preflight, green exact-head CI, then a fresh independent review. Do not delay #2855 or the order-book archive deployment."
@@ -18,11 +18,19 @@ review_findings:
     - "Receipt timestamp/runtime/source provenance was already included in the fingerprint and is regression-tested; no duplicate identity mechanism was added."
   addressed_locally_20261025:
     - "Malformed A4 intent namespace/status mismatches now fail closed instead of being ignored and leaving terminal receipt capacity unreserved."
+  addressed_locally_20261025_followup:
+    - "Use one exclusive lock identity per mutable surface across all cycles, so different cycle decisions cannot mutate the same surface concurrently."
+    - "Resolve any pending intent on that surface before a newer decision is evaluated; persist recovery with the original intent's cycle, decision, timestamp, runtime, and source identities."
+    - "A recovery REJECTED receipt releases only its matching reserved terminal slot; arbitrary or mismatched rejection records do not release capacity."
+    - "Reject unknown fields on durable application intents and receipts so unbound provenance cannot enter the canonical ledger."
 validation:
   node: "v24.19.0"
-  focused: "After reconverging existing A4 and reviewed A1 parent 4ed23afe388e2afff7cad77c50328f42ce3565c2, A4 + A1/A2 SQLite ledger regression 48/48 PASS; build PASS; Node v24.19.0 pnpm run preflight PASS; validate:full PASS; security:gate PASS (0 unmitigated); git diff --check PASS. A new fail-closed regression covers mismatched A4 intent namespace/status. Exact-head CI and fresh review of the successor are pending; prior CI/review at ac67553e are historical."
-remaining: "Exact-head CI, fresh non-author review, canonical A3 owner/policy integration, and a production caller remain required. Keep Draft; no Audit/Release/merge/runtime change."
-next: "Finalize and push the existing #2794 successor on reviewed parent 4ed23afe; require exact-head CI green, then request fresh independent review."
+  prior_review: "Exact-head review comments on 3849e1e9 include P1 IDs 4354716464, 4354716473, 4354716480, 4354839823, 4354839828, 4356054560, 4356054567, 4364881582, and 4364881587; P2 ID 4369049595. Successor repairs are local; predecessor CI/review evidence is historical."
+  focused: "Node v24.19.0; build PASS; A4 application/ledger + Evolution Learning storage tests 51/51 PASS, including cross-cycle pending-intent recovery with original provenance, per-surface lease identity, exact receipt schema, and recovered-rejection capacity release; pnpm run preflight PASS; git diff --check PASS."
+  full_gates: "After final repair: pnpm run validate:full PASS; pnpm run security:gate PASS (0 raw high/critical, 0 secrets); pnpm run lint PASS with 0 errors and 45 existing warnings; git diff --check PASS."
+  exact_head_ci: "Pending; current remote predecessor 3849e1e9 is historical after this local repair."
+remaining: "Run validate:full/security; commit and push the existing #2794 successor; exact-head CI and fresh independent review remain required. Canonical A3 owner/policy integration and a production caller remain separate unresolved authorities. Keep Draft; no Audit/Release/merge/runtime change."
+next: "Complete full gates, push non-force to existing #2794 branch, run exact-head CI/required companions, then request one fresh independent review only after green."
 safety:
   mode: PAPER_ONLY
   liveAuthority: NONE

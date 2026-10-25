@@ -117,6 +117,13 @@ export class LearningApplicationLedger {
   }
 
   public pendingIntentFor(decisionFingerprint: string, surface: string): LearningApplicationIntent | undefined {
+    const intent = this.pendingIntentForSurface(surface);
+    if (intent?.learningDecisionFingerprint === decisionFingerprint) return intent;
+    return undefined;
+  }
+
+  /** Any unresolved intent blocks a newer decision from mutating the same surface. */
+  public pendingIntentForSurface(surface: string): LearningApplicationIntent | undefined {
     const completed = new Set<string>();
     const receipts = this.ledger.list().filter((record) => APPLICATION_RECORD.test(record.opportunityId)).map(parseReceipt);
     for (const receipt of receipts) completed.add(receipt.intentFingerprint);
@@ -125,9 +132,9 @@ export class LearningApplicationLedger {
       if (!APPLICATION_INTENT_RECORD.test(record.opportunityId)) continue;
       const intent = parseIntent(record);
       if (record.opportunityId !== `learning-application-intent:${intent.intentFingerprint}`) throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "application intent does not match its ledger identity");
-      if (intent.learningDecisionFingerprint === decisionFingerprint && intent.surface === surface && !completed.has(intent.intentFingerprint)) intents.push(intent);
+      if (intent.surface === surface && !completed.has(intent.intentFingerprint)) intents.push(intent);
     }
-    if (intents.length > 1 && new Set(intents.map((intent) => intent.intentFingerprint)).size > 1) throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "multiple pending intents exist for the same decision and surface");
+    if (intents.length > 1 && new Set(intents.map((intent) => intent.intentFingerprint)).size > 1) throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "multiple pending intents exist for the same surface");
     return intents[0];
   }
 
