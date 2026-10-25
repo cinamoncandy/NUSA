@@ -38,10 +38,10 @@
   "reason": "Local implementation is not completion. Build/typecheck, final exact-head CI, a separate fresh non-author review, canonical Audit/Release, merge, and deployed control-plane runtime evidence remain required.",
   "postMergeRuntime": {
     "oracleReleaseRun": 39010145930,
-    "oracleReleaseConclusion": "FAILURE",
+    "oracleReleaseConclusion": "cancelled",
     "failedMain": "8eff53fc362b588817d885eff1598d172848790e",
     "rollbackMain": "58a8e4fbb32fcc8dee018bd6563982e4e3ba0a8c",
-    "failureTransition": "abandoned writer lease recovery -> bounded startup/readiness convergence",
+    "hostObservedBeforeCancellation": "abandoned writer lease recovery -> bounded startup/readiness convergence",
     "followupIssue": 2770,
     "runtimeAccepted": false
   }
