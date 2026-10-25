@@ -353,7 +353,11 @@ case "$verb" in
   backup)
     state_db="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_CLOUD_STATE_DB_PATH:-}")"
     [[ "$state_db" = /* ]] || die "Cloud state path must be absolute before backup"
-    exec runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" node "$(script_in "$(active_release)" sqlite-backup.js)"
+    # A verified backup is mandatory, but on the 1 GB Oracle host its VACUUM/integrity scan can
+    # saturate the same disk the foreground PAPER writer uses for its 30 s lease heartbeat. Keep
+    # the backup best-effort for CPU and idle-class for block I/O; correctness and completion gates
+    # remain unchanged, while the serving runtime gets priority under contention.
+    exec ionice -c 3 nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 
   preflight)
