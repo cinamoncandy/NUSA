@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { canonicalResearchJson } from "./researchRuntime";
 import { createResearchPrecommit } from "./researchPrecommit";
-import { bindCryptoNewsResearchIntelligence, classifyCryptoNewsDuplicate, createCryptoNewsResearchObservation, createStrategyReplicationReceipt, cryptoNewsResearchPrecommit, normalizeStrategyReplication, strategyReplicationPrecommit, verifyStrategyReplicationReceipt, type CryptoNewsResearchInput, type StrategyReplicationInput } from "./researchExternalIntake";
+import { classifyCryptoNewsDuplicate, createCryptoNewsResearchObservation, createStrategyReplicationReceipt, normalizeStrategyReplication, strategyReplicationPrecommit, verifyStrategyReplicationReceipt, type CryptoNewsResearchInput, type StrategyReplicationInput } from "./researchExternalIntake";
 import { createResearchIntelligenceRecord } from "./researchIntelligence";
 
 const H = "a".repeat(64), SHA = "b".repeat(40);
@@ -22,11 +22,6 @@ const reidentifyStrategy = (spec: ReturnType<typeof normalizeStrategyReplication
   const { strategyIdentity: _identity, reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, sourceObservedAt: _sourceObservedAt, sourceObservationFingerprint: _sourceObservationFingerprint, ...identityMaterial } = spec;
   return createHash("sha256").update(canonicalResearchJson(identityMaterial), "utf8").digest("hex");
 };
-const reidentifyNews = (observation: ReturnType<typeof createCryptoNewsResearchObservation>): string => {
-  const { observationIdentity: _identity, ...material } = observation;
-  return createHash("sha256").update(canonicalResearchJson(material), "utf8").digest("hex");
-};
-
 test("public strategy normalization has stable identity and external metrics remain metadata", () => {
   const a = normalizeStrategyReplication(strategy({ reportedPerformance: { sharpe: 999 } }));
   const b = normalizeStrategyReplication(strategy({ sourceUrl: "https://EXAMPLE.org/strategy#section", sourceObservedAt: "2026-10-26T00:00:00.000Z", instruments: ["KRW-XRP", "KRW-XRP"], reportedPerformance: { sharpe: 999_999 } }));
@@ -131,29 +126,11 @@ test("news without publication time cannot be PIT evidence", () => {
   assert.equal(record.coverageStatus, "UNKNOWN");
 });
 
-test("verified news hypothesis requires explicit assumptions and binds an immutable existing precommit", () => {
+test("captured news remains unverified until the canonical storage owner resolves its source record", () => {
   const observation = createCryptoNewsResearchObservation(news());
-  const sourceRecord = createResearchIntelligenceRecord({ sourceId: "publisher", sourceType: "OTHER", sourceUrl: observation.sourceUrl, sourceVerification: "VERIFIED_PRIMARY_SOURCE", title: "Official filing", authors: ["Publisher"], publishedAt: observation.publishedAt!, discoveredAt: observation.firstObservedAt, rawContentSha256: observation.contentFingerprint, topic: ["REGULATION"], market: "CRYPTO", timeframe: "1h", method: "event study hypothesis", claimedContribution: "publisher claim", testableHypothesis: "Test whether filing events predict volatility", assumptions: [], requiredData: ["UPBIT_PUBLIC_CANDLES"] });
-  const canonicalReader = { get: (recordId: string) => recordId === sourceRecord.recordId ? sourceRecord : null };
-  const verified = bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId, canonicalReader);
-  assert.throws(() => bindCryptoNewsResearchIntelligence(observation, "ri:caller-invented", canonicalReader), /BINDING_INVALID/);
-  const tamperedSnapshot = { ...observation, contentSnapshot: "tampered", snapshotIntegrity: "VERIFIED" as const, verificationStatus: "SOURCE_VERIFIED" as const, coverageStatus: "PIT_ELIGIBLE" as const, researchIntelligenceRecordId: sourceRecord.recordId };
-  const { observationIdentity: _priorObservationIdentity, ...tamperedMaterial } = tamperedSnapshot;
-  const forgedSnapshot = { ...tamperedSnapshot, observationIdentity: createHash("sha256").update(canonicalResearchJson(tamperedMaterial), "utf8").digest("hex") };
-  assert.throws(() => bindCryptoNewsResearchIntelligence(forgedSnapshot, sourceRecord.recordId, canonicalReader), /BINDING_INVALID/);
-  const rumor = createCryptoNewsResearchObservation(news({ sourceType: "RUMOR" }));
-  assert.throws(() => cryptoNewsResearchPrecommit(rumor, sourceRecord.recordId, canonicalReader, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-25T02:00:00Z", datasetBinding: { manifest: "manifest-v1" }, evaluationPlan, costPlan, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /BINDING_INVALID/);
-  const result = cryptoNewsResearchPrecommit(verified, sourceRecord.recordId, canonicalReader, { family: "VOLATILITY", rationale: "Test measured volatility after official filings", mechanism: "Information arrival may change uncertainty", targetMarket: "KRW-BTC", expectedRegime: "high information arrival", invalidationCondition: "No out-of-sample volatility response", holdingPeriodMs: 3_600_000, capacityAssumptions: { maxNotional: 1_000_000, maxParticipationRate: 0.01 }, transactionCostSensitivity: 0.8, createdAt: "2026-10-25T02:00:00Z", datasetBinding: { manifest: "manifest-v1" }, evaluationPlan, costPlan, sourceSha: SHA, validationPolicyIdentity: "policy-v1" });
-  assert.equal(result.classification, "RESEARCH_HYPOTHESIS_CANDIDATE");
-  assert.equal(result.precommit.candidateIdentity, result.hypothesis.candidateId);
-  assert.equal(result.precommit.datasetBinding.newsObservationIdentity, verified.observationIdentity);
-  assert.equal((result.precommit.parameterPlan.hypothesis as { provenance: { author: string } }).provenance.author, "SCOUT_ADVISORY");
-  assert.throws(() => cryptoNewsResearchPrecommit(verified, sourceRecord.recordId, canonicalReader, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-24T23:00:00Z", datasetBinding: { manifest: "manifest-v1" }, evaluationPlan, costPlan, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /EVIDENCE_INELIGIBLE/);
-  assert.throws(() => cryptoNewsResearchPrecommit(verified, sourceRecord.recordId, canonicalReader, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-25T02:00:00Z", datasetBinding: {}, evaluationPlan: {}, costPlan: {}, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /EVIDENCE_INELIGIBLE/);
-  assert.throws(() => cryptoNewsResearchPrecommit(verified, sourceRecord.recordId, canonicalReader, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-25T02:00:00Z", datasetBinding: { manifest: true }, evaluationPlan: { pit: true, oos: true }, costPlan: { fees: true, slippage: true }, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /EVIDENCE_INELIGIBLE/);
-  const lateRecord = createResearchIntelligenceRecord({ sourceId: "publisher", sourceType: "OTHER", sourceUrl: observation.sourceUrl, sourceVerification: "VERIFIED_PRIMARY_SOURCE", title: "Official filing", authors: ["Publisher"], publishedAt: observation.publishedAt!, discoveredAt: "2026-10-25T03:00:00Z", rawContentSha256: observation.contentFingerprint, topic: ["REGULATION"], market: "CRYPTO", timeframe: "1h", method: "event study hypothesis", claimedContribution: "publisher claim", testableHypothesis: "Test whether filing events predict volatility", assumptions: [], requiredData: ["UPBIT_PUBLIC_CANDLES"] });
-  assert.throws(() => bindCryptoNewsResearchIntelligence(observation, lateRecord.recordId, { get: (recordId) => recordId === lateRecord.recordId ? lateRecord : null }), /BINDING_INVALID/);
-  assert.throws(() => bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId, { get: (recordId) => recordId === sourceRecord.recordId ? { ...sourceRecord, publishedAt: "UNKNOWN" } : null }), /BINDING_INVALID/);
+  assert.equal(observation.verificationStatus, "UNVERIFIED");
+  assert.equal(observation.coverageStatus, "UNKNOWN");
+  assert.equal(observation.researchIntelligenceRecordId, undefined);
 });
 
 test("strategy source snapshot must match its fingerprint and list values cannot normalize to blanks", () => {
@@ -250,18 +227,9 @@ test("untrusted runtime taxonomy and malformed evidence arrays fail closed", () 
   assert.throws(() => createCryptoNewsResearchObservation(news({ expectedHorizon: "   " })), /EVIDENCE_INVALID/);
 });
 
-test("PIT binding revalidates deserialized news fields even when identity is recomputed", () => {
-  const observation = createCryptoNewsResearchObservation(news());
-  const sourceRecord = createResearchIntelligenceRecord({ sourceId: "publisher", sourceType: "OTHER", sourceUrl: observation.sourceUrl, sourceVerification: "VERIFIED_PRIMARY_SOURCE", title: "Official filing", authors: ["Publisher"], publishedAt: observation.publishedAt!, discoveredAt: observation.firstObservedAt, rawContentSha256: observation.contentFingerprint, topic: ["REGULATION"], market: "CRYPTO", timeframe: "1h", method: "event study hypothesis", claimedContribution: "publisher claim", testableHypothesis: "Test whether filing events predict volatility", assumptions: [], requiredData: ["UPBIT_PUBLIC_CANDLES"] });
-  const canonicalReader = { get: (recordId: string) => recordId === sourceRecord.recordId ? sourceRecord : null };
-  const forgedEvent = { ...observation, eventType: "BUY" as never };
-  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedEvent, observationIdentity: reidentifyNews(forgedEvent) }, sourceRecord.recordId, canonicalReader), /BINDING_INVALID/);
-  const forgedConfidence = { ...observation, confidence: "CERTAIN" as never };
-  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedConfidence, observationIdentity: reidentifyNews(forgedConfidence) }, sourceRecord.recordId, canonicalReader), /BINDING_INVALID/);
-  const forgedEvidence = { ...observation, observedFacts: [" "] };
-  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedEvidence, observationIdentity: reidentifyNews(forgedEvidence) }, sourceRecord.recordId, canonicalReader), /BINDING_INVALID/);
-  const forgedCluster = { ...observation, syndicationClusterId: 7 as never };
-  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedCluster, observationIdentity: reidentifyNews(forgedCluster) }, sourceRecord.recordId, canonicalReader), /BINDING_INVALID/);
-  const forgedDirection = { ...observation, expectedDirection: { trade: "BUY" } as never };
-  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedDirection, observationIdentity: reidentifyNews(forgedDirection) }, sourceRecord.recordId, canonicalReader), /BINDING_INVALID/);
+test("news observation factory rejects malformed runtime taxonomy and provenance before PIT binding", () => {
+  assert.throws(() => createCryptoNewsResearchObservation(news({ eventType: "BUY" as never })), /CLASSIFICATION_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ confidence: "CERTAIN" as never })), /CLASSIFICATION_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ observedFacts: [" "] })), /EVIDENCE_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ syndicationClusterId: 7 as never })), /EVIDENCE_INVALID/);
 });

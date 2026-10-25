@@ -16,7 +16,6 @@ const {
 } = require("../dist/packages/storage/src/researchMemorySemantics.js");
 const {
   createCryptoNewsResearchObservation,
-  bindCryptoNewsResearchIntelligence,
 } = require("../dist/packages/contracts/src/researchExternalIntake.js");
 
 function record(discoveredAt) {
@@ -142,7 +141,7 @@ test("persisted payload tampering fails closed against semantic provenance", () 
   }
 });
 
-test("news PIT binding resolves source verification only from persisted canonical Research Intelligence", () => {
+test("only the canonical persisted Research Intelligence repository can bind news PIT evidence and create its precommit", () => {
   const db = new SqliteDatabase(":memory:");
   try {
     const memory = new SqliteResearchIntelligenceMemoryRepository(db);
@@ -187,16 +186,58 @@ test("news PIT binding resolves source verification only from persisted canonica
 
     assert.equal(memory.get(sourceRecord.recordId), null);
     assert.throws(
-      () => bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId, memory),
+      () => memory.bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId, {
+        get: () => sourceRecord,
+      }),
       /BINDING_INVALID/,
-      "an unpersisted caller-created trust claim must not qualify as source evidence",
+      "an unpersisted caller-created trust claim and caller-supplied reader must not qualify as source evidence",
     );
 
     memory.append(sourceRecord);
     assert.equal(memory.get(sourceRecord.recordId).recordId, sourceRecord.recordId);
-    const bound = bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId, memory);
+    const bound = memory.bindCryptoNewsResearchIntelligence(observation, sourceRecord.recordId);
     assert.equal(bound.coverageStatus, "PIT_ELIGIBLE");
     assert.equal(bound.researchIntelligenceRecordId, sourceRecord.recordId);
+
+    const input = {
+      family: "VOLATILITY",
+      rationale: "Test measured volatility after official filings",
+      mechanism: "Information arrival may change uncertainty",
+      targetMarket: "KRW-BTC",
+      expectedRegime: "high information arrival",
+      invalidationCondition: "No out-of-sample volatility response",
+      holdingPeriodMs: 3_600_000,
+      capacityAssumptions: { maxNotional: 1_000_000, maxParticipationRate: 0.01 },
+      transactionCostSensitivity: 0.8,
+      createdAt: "2026-10-25T02:00:00Z",
+      datasetBinding: { manifest: "manifest-v1" },
+      evaluationPlan: {
+        pitWindow: { startAt: "2026-01-01T00:00:00Z", endAt: "2026-06-01T00:00:00Z" },
+        oosWindow: { startAt: "2026-06-02T00:00:00Z", endAt: "2026-07-01T00:00:00Z" },
+        latencyAssumptions: "next-bar execution with 250ms modeled delay",
+        missingDataPolicy: "reject incomplete windows",
+      },
+      costPlan: { feeModelVersion: "fee-v1", slippageModelVersion: "slippage-v1" },
+      sourceSha: "b".repeat(40),
+      validationPolicyIdentity: "policy-v1",
+    };
+    const result = memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, input);
+    assert.equal(result.classification, "RESEARCH_HYPOTHESIS_CANDIDATE");
+    assert.equal(result.precommit.candidateIdentity, result.hypothesis.candidateId);
+    assert.equal(result.precommit.datasetBinding.newsObservationIdentity, bound.observationIdentity);
+    assert.equal(result.precommit.parameterPlan.hypothesis.provenance.author, "SCOUT_ADVISORY");
+    assert.throws(() => memory.cryptoNewsResearchPrecommit(observation, "ri:caller-invented", input), /BINDING_INVALID/);
+    assert.throws(() => memory.cryptoNewsResearchPrecommit(createCryptoNewsResearchObservation({
+      sourceUrl: observation.sourceUrl, publisher: "Publisher", publishedAt: observation.publishedAt,
+      retrievedAt: observation.retrievedAt, firstObservedAt: observation.firstObservedAt,
+      contentSnapshot: snapshot, contentFingerprint: fingerprint, sourceType: "RUMOR", eventType: "REGULATION",
+      entities: ["SEC"], assets: ["BTC"], confidence: "MEDIUM", observedFacts: ["filing published"],
+      publisherClaims: ["impact is bullish"], scoutInferences: ["test whether volatility changes"],
+    }), sourceRecord.recordId, input), /BINDING_INVALID/);
+
+    const contractIntake = require("../dist/packages/contracts/src/researchExternalIntake.js");
+    assert.equal(contractIntake.bindCryptoNewsResearchIntelligence, undefined);
+    assert.equal(contractIntake.cryptoNewsResearchPrecommit, undefined);
   } finally {
     db.close();
   }

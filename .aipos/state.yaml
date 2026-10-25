@@ -35,6 +35,28 @@ current_strategy_intake_canonical_source_binding_validated_20261025:
   next: "Commit the substantive repair to the existing PR branch after fresh remote identity check; obtain successor exact-head CI and fresh non-author review, then separate formal Validator. Production Scout composition and genuine Research/PAPER outcome remain unverified."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_canonical_store_binding_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_FULL_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: c007a0d2fae8c8769322df010263bc93cc3f82f1
+  finding: "Fresh exact-head review found the injected reader still caller-forgeable. The contracts package no longer exports news PIT promotion; only the canonical SQLite Research Intelligence repository resolves a source record ID internally and verifies its persisted row plus semantic provenance before binding."
+  validation: "Node 24.19 TypeScript compile PASS. Focused/full gates pending for this successor."
+  next: "Run focused and required local gates; confirm PR/main identity; publish one substantive non-force successor; obtain exact-head CI and fresh independent review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_canonical_store_binding_local_validated_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: c007a0d2fae8c8769322df010263bc93cc3f82f1
+  finding: "The caller-supplied reader P1 was closed by removing trust-promoting contract exports; the canonical SQLite Research Intelligence repository now accepts only a source record ID and validates persisted row plus semantic provenance internally."
+  validation: "Node 24.19 preflight, focused contracts 15/15, Research Intelligence storage 4/4, build, typecheck, validate:full, security:gate, lint (45 warnings/0 errors), pnpm test (1281 isolated test files), AIPOS drift/provenance, and git diff --check PASS."
+  next: "Confirm remote branch identity, publish one substantive non-force successor commit, then obtain exact-head CI and fresh non-author review. Formal NUSA Validator remains separate; production Scout composition and genuine Research/PAPER outcome remain unverified."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_taxonomy_parent_binding_20261025:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI

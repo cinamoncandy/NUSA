@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "./researchRuntime";
 import { createResearchPrecommit, verifyResearchPrecommit, type ResearchPrecommit } from "./researchPrecommit";
-import { createResearchHypothesis, type ResearchHypothesis, type ResearchHypothesisFamily } from "./researchHypothesisContract";
-import { createResearchIntelligenceRecord, type ResearchIntelligenceRecord } from "./researchIntelligence";
+import type { ResearchHypothesisFamily } from "./researchHypothesisContract";
 
 const SHA256 = /^[a-f0-9]{64}$/i;
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
@@ -217,6 +216,11 @@ function validatePrecommitPlans(datasetBinding: unknown, evaluationPlan: unknown
   return datasetBound && pitBound && oosBound && windowsAreDisjoint && latencyBound && missingDataBound && feeBound && slippageBound;
 }
 
+/** Pure plan-shape validator; it confers no source or execution authority. */
+export function validateCryptoNewsPrecommitPlans(datasetBinding: unknown, evaluationPlan: unknown, costPlan: unknown): boolean {
+  return validatePrecommitPlans(datasetBinding, evaluationPlan, costPlan);
+}
+
 export function strategyReplicationPrecommit(input: { spec: StrategyReplicationSpec; parentSpec?: StrategyReplicationSpec; sourceSha: string; datasetBinding: Readonly<Record<string, unknown>>; evaluationPlan: Readonly<Record<string, unknown>>; costPlan: Readonly<Record<string, unknown>>; validationPolicyIdentity: string; createdAt: string }): ResearchPrecommit {
   const { spec } = input;
   verifyStrategyReplicationSpec(spec, input.parentSpec);
@@ -255,28 +259,6 @@ export interface CryptoNewsResearchObservation extends CryptoNewsResearchInput {
   readonly liveAuthority: "NONE"; readonly productionMutationAllowed: false; readonly aiAuthority: "ZERO_AUTHORITY";
 }
 
-/** Server-injected canonical reader. Untrusted intake supplies only a record ID, never a trust-claim object. */
-export interface CanonicalResearchIntelligenceRecordReader {
-  get(recordId: string): ResearchIntelligenceRecord | null;
-}
-
-function cryptoNewsInputFromObservation(observation: CryptoNewsResearchObservation): CryptoNewsResearchInput {
-  return {
-    sourceUrl: observation.sourceUrl, publisher: observation.publisher, originalPublisher: observation.originalPublisher,
-    publishedAt: observation.publishedAt === "UNKNOWN" ? undefined : observation.publishedAt,
-    retrievedAt: observation.retrievedAt, firstObservedAt: observation.firstObservedAt,
-    contentSnapshot: observation.contentSnapshot, contentFingerprint: observation.contentFingerprint,
-    sourceType: observation.sourceType, syndicationClusterId: observation.syndicationClusterId,
-    corroboratingSources: observation.corroboratingSources, eventType: observation.eventType,
-    entities: observation.entities, assets: observation.assets, jurisdictions: observation.jurisdictions,
-    confidence: observation.confidence, observedFacts: observation.observedFacts,
-    publisherClaims: observation.publisherClaims, scoutInferences: observation.scoutInferences,
-    residualUnknowns: observation.residualUnknowns, expectedDirection: observation.expectedDirection,
-    expectedMagnitude: observation.expectedMagnitude, expectedHorizon: observation.expectedHorizon,
-    transmissionChannels: observation.transmissionChannels,
-  };
-}
-
 export function createCryptoNewsResearchObservation(input: CryptoNewsResearchInput): CryptoNewsResearchObservation {
   if (!input || !text(input.publisher) || !SHA256.test(input.contentFingerprint) || !text(input.contentSnapshot) || !validTimestamp(input.retrievedAt) || !validTimestamp(input.firstObservedAt) || (input.publishedAt != null && !validTimestamp(input.publishedAt))) throw new Error("NEWS_PROVENANCE_INVALID");
   if (!NEWS_SOURCE_TYPES.has(input.sourceType) || !CRYPTO_EVENT_TYPES.has(input.eventType) || !NEWS_CONFIDENCE_LEVELS.has(input.confidence)) throw new Error("NEWS_CLASSIFICATION_INVALID");
@@ -290,53 +272,6 @@ export function createCryptoNewsResearchObservation(input: CryptoNewsResearchInp
   const snapshotMatches = sha256(input.contentSnapshot) === contentFingerprint;
   const firstObservedAt = new Date(input.firstObservedAt).toISOString();
   const core = { ...input, sourceUrl, publisher: clean(input.publisher), originalPublisher: input.originalPublisher === undefined ? "UNKNOWN" : clean(input.originalPublisher), ...(input.syndicationClusterId === undefined ? {} : { syndicationClusterId: clean(input.syndicationClusterId) }), ...(input.expectedDirection === undefined ? {} : { expectedDirection: clean(input.expectedDirection) }), ...(input.expectedMagnitude === undefined ? {} : { expectedMagnitude: clean(input.expectedMagnitude) }), ...(input.expectedHorizon === undefined ? {} : { expectedHorizon: clean(input.expectedHorizon) }), publishedAt: input.publishedAt == null ? "UNKNOWN" : new Date(input.publishedAt).toISOString(), retrievedAt, firstObservedAt, contentFingerprint, contentSnapshot: input.contentSnapshot, corroboratingSources: [...new Set((input.corroboratingSources ?? []).map(clean))].sort(), entities: [...new Set(input.entities.map(clean))].sort(), assets: [...new Set(input.assets.map(clean))].sort(), jurisdictions: [...new Set((input.jurisdictions ?? []).map(clean))].sort(), observedFacts: [...input.observedFacts.map(clean)].sort(), publisherClaims: [...input.publisherClaims.map(clean)].sort(), scoutInferences: [...input.scoutInferences.map(clean)].sort(), residualUnknowns: [...new Set((input.residualUnknowns ?? []).map(clean))].sort(), transmissionChannels: [...new Set((input.transmissionChannels ?? []).map(clean))].sort(), snapshotIntegrity: snapshotMatches ? "VERIFIED" as const : "MISMATCH" as const, verificationStatus: "UNVERIFIED" as const, coverageStatus: "UNKNOWN" as const, materiality: "OBSERVATION" as const, classification: "OBSERVATION" as const, schemaVersion: 1 as const, authority: "PAPER_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const };
-  return deepFreeze({ ...core, observationIdentity: digest(core) });
-}
-
-/** Bind a captured snapshot to the existing Research Intelligence source-verification record. */
-export function bindCryptoNewsResearchIntelligence(observation: CryptoNewsResearchObservation, sourceRecordId: string, canonicalReader: CanonicalResearchIntelligenceRecordReader): CryptoNewsResearchObservation {
-  if (!observation || typeof observation !== "object" || !text(sourceRecordId) || !canonicalReader || typeof canonicalReader.get !== "function") throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
-  let record: ResearchIntelligenceRecord | null;
-  try { record = canonicalReader.get(sourceRecordId); } catch { throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID"); }
-  if (!record || record.recordId !== sourceRecordId) throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
-  // Reconstruct only the untrusted observation inputs through the canonical
-  // factory. A caller-recomputed observation hash must not turn an invalid enum,
-  // malformed evidence list, or noncanonical field into PIT-eligible evidence.
-  let normalizedObservation: CryptoNewsResearchObservation;
-  try {
-    normalizedObservation = createCryptoNewsResearchObservation(cryptoNewsInputFromObservation(observation));
-  } catch {
-    throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
-  }
-  const { observationIdentity, ...observationMaterial } = observation;
-  let reconstructedRecord: ResearchIntelligenceRecord;
-  try {
-    reconstructedRecord = createResearchIntelligenceRecord({
-      sourceId: record.sourceId, sourceType: record.sourceType, sourceUrl: record.sourceUrl,
-      sourceVerification: record.sourceVerification, title: record.title, authors: record.authors,
-      publishedAt: record.publishedAt, discoveredAt: record.discoveredAt, rawContentSha256: record.rawContentSha256,
-      topic: record.topic, market: record.market, timeframe: record.timeframe, method: record.method,
-      claimedContribution: record.claimedContribution, testableHypothesis: record.testableHypothesis,
-      assumptions: record.assumptions, requiredData: record.requiredData, codeAvailable: record.codeAvailable,
-      datasetAvailable: record.datasetAvailable, reproducibilityStatus: record.reproducibilityStatus,
-      novelty: record.novelty, evidenceQuality: record.evidenceQuality, nusaRelevance: record.nusaRelevance,
-      implementationCost: record.implementationCost, expectedEconomicValue: record.expectedEconomicValue,
-      leakageRisk: record.leakageRisk, overfittingRisk: record.overfittingRisk, regimeDependence: record.regimeDependence,
-      transactionCostSensitivity: record.transactionCostSensitivity, validationStatus: record.validationStatus,
-      failureReason: record.failureReason, relatedExistingResearch: record.relatedExistingResearch,
-      axiomHandoffStatus: record.axiomHandoffStatus,
-    });
-  } catch {
-    throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
-  }
-  const expectedContentFingerprint = digest({ sourceType: record.sourceType, sourceId: record.sourceId, sourceUrl: record.sourceUrl, rawContentSha256: record.rawContentSha256.toLowerCase() });
-  const expectedRecordId = `ri:${digest({ sourceType: record.sourceType, sourceId: record.sourceId, contentFingerprint: expectedContentFingerprint })}`;
-  const { observationIdentity: _normalizedIdentity, ...normalizedCore } = normalizedObservation;
-  const expectedBoundCore = { ...normalizedCore, verificationStatus: "SOURCE_VERIFIED" as const, coverageStatus: "PIT_ELIGIBLE" as const, researchIntelligenceRecordId: expectedRecordId };
-  const rawIdentityValid = observationIdentity === digest(normalizedCore) && observation.verificationStatus === "UNVERIFIED" && observation.coverageStatus === "UNKNOWN" && observation.researchIntelligenceRecordId === undefined;
-  const boundIdentityValid = observationIdentity === digest(expectedBoundCore) && observation.verificationStatus === "SOURCE_VERIFIED" && observation.coverageStatus === "PIT_ELIGIBLE" && observation.researchIntelligenceRecordId === expectedRecordId;
-  if (canonicalResearchJson(cryptoNewsInputFromObservation(observation)) !== canonicalResearchJson(cryptoNewsInputFromObservation(normalizedObservation)) || (!rawIdentityValid && !boundIdentityValid) || observation.snapshotIntegrity !== "VERIFIED" || observation.schemaVersion !== 1 || observation.materiality !== "OBSERVATION" || !["OBSERVATION", "UNKNOWN"].includes(observation.classification) || observation.authority !== "PAPER_ONLY" || observation.liveAuthority !== "NONE" || observation.productionMutationAllowed !== false || observation.aiAuthority !== "ZERO_AUTHORITY" || digest(reconstructedRecord) !== digest(record) || sha256(observation.contentSnapshot) !== observation.contentFingerprint.toLowerCase() || observation.publishedAt === "UNKNOWN" || observation.contentFingerprint !== record.rawContentSha256.toLowerCase() || observation.sourceUrl !== record.sourceUrl || observation.publishedAt !== record.publishedAt || record.contentFingerprint !== expectedContentFingerprint || record.recordId !== expectedRecordId || record.sourceVerification !== "VERIFIED_PRIMARY_SOURCE" || record.validationStatus !== "SOURCE_VERIFIED" || record.evidenceQuality === "INVALID" || record.novelty === "DUPLICATE" || record.authority !== "PAPER_ONLY" || record.liveAuthority !== "NONE" || record.productionMutationAllowed !== false || record.aiAuthority !== "ZERO_AUTHORITY" || !validTimestamp(record.publishedAt) || !validTimestamp(record.discoveredAt) || Date.parse(record.publishedAt) > Date.parse(record.discoveredAt) || Date.parse(record.discoveredAt) !== Date.parse(observation.firstObservedAt) || Date.parse(record.discoveredAt) > Date.parse(observation.retrievedAt) || Date.parse(observation.firstObservedAt) > Date.parse(observation.retrievedAt) || observation.sourceType === "SOCIAL" || observation.sourceType === "RUMOR") throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
-  const core = { ...observationMaterial, verificationStatus: "SOURCE_VERIFIED" as const, coverageStatus: "PIT_ELIGIBLE" as const, researchIntelligenceRecordId: record.recordId };
   return deepFreeze({ ...core, observationIdentity: digest(core) });
 }
 
@@ -391,16 +326,4 @@ export function verifyStrategyReplicationReceipt(receipt: StrategyReplicationRec
   if (receipt.strategyIdentity !== precommit.strategyIdentity || !datasetIdentityValues.includes(receipt.datasetIdentity) || receipt.evaluatorSourceSha.toLowerCase() !== precommit.sourceSha.toLowerCase() || Date.parse(receipt.observedAt) < Date.parse(precommit.createdAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
   const { receiptFingerprint, ...core } = receipt;
   if (!SHA256.test(receiptFingerprint) || digest(core) !== receiptFingerprint) throw new Error("REPLICATION_RECEIPT_FINGERPRINT_MISMATCH");
-}
-
-/** Explicit, pre-result hypothesis adapter. It never infers missing economic assumptions from news. */
-export function cryptoNewsResearchPrecommit(observation: CryptoNewsResearchObservation, sourceRecordId: string, canonicalReader: CanonicalResearchIntelligenceRecordReader, input: CryptoNewsHypothesisInput): { readonly classification: "RESEARCH_HYPOTHESIS_CANDIDATE"; readonly hypothesis: ResearchHypothesis; readonly precommit: ResearchPrecommit } {
-  const verifiedObservation = bindCryptoNewsResearchIntelligence(observation, sourceRecordId, canonicalReader);
-  const { observationIdentity, ...observationMaterial } = verifiedObservation;
-  if (!verifiedObservation || observationIdentity !== digest(observationMaterial) || verifiedObservation.scoutInferences.length === 0 || !validTimestamp(input.createdAt) || Date.parse(input.createdAt) < Date.parse(verifiedObservation.retrievedAt) || !validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan)) throw new Error("NEWS_HYPOTHESIS_EVIDENCE_INELIGIBLE");
-  const semanticInput = { observationIdentity, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity };
-  const base = digest(semanticInput);
-  const hypothesis = createResearchHypothesis({ hypothesisId: `news-hypothesis-${base.slice(0, 48)}`, candidateId: `news-candidate-${base.slice(0, 48)}`, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity, provenance: { author: "SCOUT_ADVISORY", sourceReferences: [verifiedObservation.sourceUrl, verifiedObservation.contentFingerprint, verifiedObservation.observationIdentity] }, createdAt: input.createdAt });
-  const precommit = createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ hypothesisId: hypothesis.hypothesisId, observationIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: hypothesis.candidateId, strategyIdentity: hypothesis.candidateId, datasetBinding: { ...input.datasetBinding, newsObservationIdentity: verifiedObservation.observationIdentity }, sourceSha: input.sourceSha, parameterPlan: { hypothesis, newsObservationIdentity: verifiedObservation.observationIdentity, researchIntelligenceRecordId: verifiedObservation.researchIntelligenceRecordId }, costPlan: input.costPlan, regimePlan: { expectedRegime: input.expectedRegime }, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
-  return deepFreeze({ classification: "RESEARCH_HYPOTHESIS_CANDIDATE", hypothesis, precommit });
 }
