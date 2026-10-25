@@ -72,3 +72,33 @@ test("read rejects an invalid window and an invalid market", () => {
   assert.throws(() => store.read("nope", M, 1, 5), (e) => e.code === "INVALID_MARKET");
   db.close();
 });
+
+test("material coverage verifies the candle window once instead of re-reading every receipt range", () => {
+  const { db, store } = open();
+  const rows = [candle(0), candle(1), candle(2), candle(3)];
+  store.appendWithMaterial("KRW-BTC", M, rows.slice(0, 2), { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: "a".repeat(64), evidenceFingerprintSha256: "b".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+  store.appendWithMaterial("KRW-BTC", M, rows.slice(2), { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: "a".repeat(64), evidenceFingerprintSha256: "c".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+  const originalRead = store.read.bind(store);
+  let reads = 0;
+  store.read = (...args) => { reads += 1; return originalRead(...args); };
+  assert.equal(store.hasMaterialCoverage("KRW-BTC", M, 10 * M, 13 * M, "UPBIT_PUBLIC_CANDLES", "a".repeat(64)), true);
+  assert.equal(reads, 1, "coverage must not re-read each receipt range from SQLite");
+  db.close();
+});
+
+test("material coverage accepts a verified receipt that extends beyond the requested window", () => {
+  const { db, store } = open();
+  const rows = [candle(0), candle(1), candle(2), candle(3)];
+  store.appendWithMaterial("KRW-BTC", M, rows, { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: "d".repeat(64), evidenceFingerprintSha256: "e".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+  assert.equal(store.hasMaterialCoverage("KRW-BTC", M, 11 * M, 12 * M, "UPBIT_PUBLIC_CANDLES", "d".repeat(64)), true);
+  db.close();
+});
+
+test("material coverage remains fail-closed when receipt metadata is tampered", () => {
+  const { db, store } = open();
+  const rows = [candle(0), candle(1)];
+  store.appendWithMaterial("KRW-BTC", M, rows, { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: "f".repeat(64), evidenceFingerprintSha256: "1".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+  db.connection.prepare("UPDATE research_dataset_material SET candle_count = candle_count + 1 WHERE market = ?").run("KRW-BTC");
+  assert.throws(() => store.hasMaterialCoverage("KRW-BTC", M, 10 * M, 11 * M, "UPBIT_PUBLIC_CANDLES", "f".repeat(64)), (error) => error instanceof ResearchCandleStoreError && error.code === "DATASET_MATERIAL_MISMATCH");
+  db.close();
+});
