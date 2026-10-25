@@ -19,6 +19,8 @@ import { LearningDecisionLedger } from "./learningDecisionLedger";
 import { LearningInputSetLedger } from "./learningInputSetLedger";
 import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
+import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/persistedPaperPeriodStore";
+import { SqliteResearchFactoryDecisionHistoryRepository } from "../../../packages/storage/src/researchFactoryDecisionHistoryRepository";
 
 const POLICIES = {
   learningPolicyVersion: "learn-v1",
@@ -45,6 +47,28 @@ const testEvidenceAuthority = (fixture = inputSet()) => {
     readPaperSnapshot: () => [...paper.values()],
   });
 };
+
+function seedCanonicalLearningEvidence(db: SqliteDatabase, fixture: ReturnType<typeof inputSet>): void {
+  const research = new SqliteResearchFactoryDecisionHistoryRepository(db);
+  const paper = new SqlitePersistedPaperPeriodStore(db);
+  fixture.researchEvidenceRecordIds.forEach((evaluationId, index) => {
+    if (!research.list().some((item) => item.evaluationId === evaluationId)) {
+      research.append({ candidateId: `candidate-${index}`, evaluationId, outcome: "REJECTED", reasons: [], observedAt: fixture.researchEvidenceObservedAt[index], authority: "PAPER_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    }
+  });
+  fixture.paperEvidenceRecordIds.forEach((recordId, index) => {
+    if (!paper.listRecords().some((item) => item.recordId === recordId)) {
+      const at = fixture.paperEvidenceObservedAt[index];
+      paper.append({ record: {
+        recordId, periodIndex: paper.listRecords().length, periodStartAt: Math.max(0, at - 10), periodEndAt: at,
+        advisory: { schemaVersion: 1, generatedAt: "1970-01-01T00:00:00.000Z", policy: { maximumCandidateWeight: 1, minimumEvidenceBreadth: 1, maximumCandidateCount: 1, maximumFamilyWeight: 1 }, entries: [], excludedCandidateIds: [], reasons: [], provenance: { sourceDatasetIds: ["dataset-test"] } },
+        realizedReturns: {}, benchmarkReturn: 0, turnoverCostRate: 0,
+        costEvidence: { evidenceId: `cost-${recordId}`, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: "OBSERVED", evidenceFingerprintSha256: "a".repeat(64), observedAt: at, feeRate: 0, spreadRate: 0, slippageRate: 0 },
+        status: "COMPLETED",
+      }, candidateProvenance: [] });
+    }
+  });
+}
 
 const SPEC_A = "a".repeat(64);
 
@@ -387,6 +411,7 @@ describe("A1 durable exactly-once - section 43", () => {
         paperEvidence: [],
         policies: POLICIES,
       });
+      seedCanonicalLearningEvidence(db, inputSet);
       new LearningInputSetLedger(ledger, testEvidenceAuthority(inputSet)).append(inputSet);
       const decision = buildLearningDecision(decisionInput({ inputSet, reasonEvidence: [reference] }));
       assert.equal(new LearningDecisionLedger(ledger, testEvidenceAuthority(inputSet)).append(decision).replayed, false);
@@ -487,7 +512,7 @@ describe("A1 durable exactly-once - section 43", () => {
     const { records, ledger } = fakeLedger();
     const input = decisionInput();
     new LearningInputSetLedger(ledger, testEvidenceAuthority()).append(input.inputSet);
-    const a2 = records.find((record) => record.validationStatus === "LEARNING_INPUT_SET")!;
+    const a2 = records.find((record) => record.validationStatus === "LEARNING_INPUT_SET_AUTHORITY_VERIFIED")!;
     a2.evidenceReferences = [a2.opportunityId];
     assert.throws(() => new LearningDecisionLedger(ledger, testEvidenceAuthority()).append(buildLearningDecision(input)), /metadata does not match/);
   });
@@ -521,6 +546,7 @@ describe("A1 durable exactly-once - section 43", () => {
       const inputSetLedger = new LearningInputSetLedger(ledger, testEvidenceAuthority());
       const decisionLedger = new LearningDecisionLedger(ledger, testEvidenceAuthority());
       const input = decisionInput();
+      seedCanonicalLearningEvidence(db, input.inputSet);
       const inputSetReceipt = inputSetLedger.append(input.inputSet);
       assert.equal(inputSetReceipt.replayed, false);
       const decision = buildLearningDecision(input);

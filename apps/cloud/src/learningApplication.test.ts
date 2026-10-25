@@ -80,6 +80,12 @@ function memoryJournal(): LearningApplicationLedger {
   const records: Array<Record<string, unknown>> = [];
   return new LearningApplicationLedger({
     append: (record: Record<string, unknown>) => { records.push(record); return record; },
+    appendWithResult: (record: Record<string, unknown>) => {
+      const existing = records.find((candidate) => candidate.opportunityId === record.opportunityId);
+      if (existing != null) return { record: existing, inserted: false };
+      records.push(record);
+      return { record, inserted: true };
+    },
     list: () => records as never,
   } as never, () => Date.parse(CONTEXT.applicationTimestamp));
 }
@@ -238,6 +244,12 @@ describe("A4 - bounded application", () => {
           ledgerRecords.push(record);
           return record;
         },
+        appendWithResult: (record: Record<string, unknown>) => {
+          const existing = ledgerRecords.find((candidate) => candidate.opportunityId === record.opportunityId);
+          if (existing != null) return { record: existing, inserted: false };
+          ledgerRecords.push(record);
+          return { record, inserted: true };
+        },
         list: () => ledgerRecords as never,
       } as never,
       () => Date.parse(CONTEXT.applicationTimestamp),
@@ -260,6 +272,12 @@ describe("A4 - bounded application", () => {
     const records: Array<Record<string, unknown>> = [];
     const ledger = new LearningApplicationLedger({
       append: (record: Record<string, unknown>) => { records.push(record); return record; },
+      appendWithResult: (record: Record<string, unknown>) => {
+        const existing = records.find((candidate) => candidate.opportunityId === record.opportunityId);
+        if (existing != null) return { record: existing, inserted: false };
+        records.push(record);
+        return { record, inserted: true };
+      },
       list: () => records as never,
     } as never, () => Date.parse(CONTEXT.applicationTimestamp));
     const base = ports(state);
@@ -299,6 +317,12 @@ describe("A4 - bounded application", () => {
     const records: Array<Record<string, unknown>> = [];
     const ledger = new LearningApplicationLedger({
       append: (record: Record<string, unknown>) => { records.push(record); return record; },
+      appendWithResult: (record: Record<string, unknown>) => {
+        const existing = records.find((candidate) => candidate.opportunityId === record.opportunityId);
+        if (existing != null) return { record: existing, inserted: false };
+        records.push(record);
+        return { record, inserted: true };
+      },
       list: () => records as never,
     } as never, () => Date.parse(CONTEXT.applicationTimestamp));
     ledger.appendIntent(intent);
@@ -504,6 +528,43 @@ describe("A4 falsification (section 18)", () => {
     assert.equal(state.value, 1);
     assert.equal(receipt.appliedValue, 1);
     assert.equal(commits, 2, "the fail-safe was committed after the partial write");
+  });
+
+  it("rejects a fail-safe target outside the owner-defined surface contract", () => {
+    const state = { value: 1 };
+    let commits = 0;
+    const port: ApplicationPorts = {
+      ...ports(state),
+      commit: (_surface, value) => { commits += 1; if (value === 2) throw new Error("write failed"); state.value = value; },
+      failSafeValue: () => 999,
+    };
+    assert.throws(
+      () => applyBoundedChange(decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1), ELIGIBLE, port, CONTEXT, new ApplicationRegistry()),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "FAIL_SAFE_TARGET_INVALID",
+    );
+    assert.equal(commits, 1, "the invalid fallback never reaches the setter");
+    assert.equal(state.value, 1);
+  });
+
+  it("does not mutate when a concurrent writer already claimed the durable intent", () => {
+    const state = { value: 1 };
+    const base = ports(state);
+    let commits = 0;
+    const journal: LearningApplicationJournal = {
+      terminalFor: () => undefined,
+      pendingIntentFor: () => undefined,
+      appendIntent: () => false,
+      append: (receipt) => ({ receipt }),
+    };
+    assert.throws(
+      () => applyBoundedChange(decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1), ELIGIBLE, {
+        ...base,
+        commit: () => { commits += 1; },
+      }, CONTEXT, new ApplicationRegistry(), journal),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "APPLICATION_INTENT_ALREADY_CLAIMED",
+    );
+    assert.equal(commits, 0);
+    assert.equal(state.value, 1);
   });
 
   it("receipts are self-verifying and a tampered one is rejected", () => {

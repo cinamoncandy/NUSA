@@ -1,18 +1,23 @@
 id: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
 title: "A2 must resolve input references through canonical durable evidence readers"
-status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_FINDINGS
+status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_MAJOR_FINDINGS
 priority: P0
 owner_request: "Advance the closed learning loop in dependency order, starting with A2. Each PR requires relevant tests and pnpm run preflight on Node 24.19+, then fresh independent review after exact-head CI is green. Do not let this sequence block PR #2855 or the order-book archive server deployment; server deployment remains after #2855."
 source:
   pull_request: 2792
   branch: feat/learning-input-set-a2
-  prior_exact_head: 4d7750f37a08e7a8196dad25552340fdff27fe00
-  first_broken_transition: "syntactically valid A2 evidence ids -> successful durable receipt without canonical Research/PAPER resolution"
+  prior_exact_head: 7a7fc070ec3e48206049caa7b8ea82603b4892c8
+  exact_head: 8ff681511376160c542168674ff195feeb57e5af
+  synchronized_base: 9bb373516d3e2f6da200e4728c5e5b2708dd131e
+  first_broken_transition: "generic A2-shaped ledger append -> phantom A1 capacity reservation without durable Research/PAPER authority"
 scope:
-  - "Require the existing LearningEvidenceAuthority at the A2 durable ledger boundary."
+  - "Make A1 reservation contingent on verified durable Research/PAPER evidence, without accepting caller-injected verifier/trust callbacks."
+  - "Verify source identity through the existing hash-chain Research reader and checksum-valid PAPER period reader on the shared SQLite transaction boundary."
   - "Resolve every cited Research and PAPER identity and exact observedAt before append and before downstream read/replay."
   - "Reject missing, duplicate/ambiguous, malformed, or timestamp-mismatched canonical evidence fail-closed."
-  - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt in the existing hash-chained ledger."
+  - "Only reconstruct A2->A1 capacity reservation from a complete canonical A2 receipt whose durable Research/PAPER source identities and exact timestamps still resolve."
+  - "Before an A1 receipt releases reserved capacity, re-derive every proposed/admissible/rejected change assessment against the frozen owner allowlist and verify the arrays, magnitude, and outcome are mutually consistent."
+  - "Use the same locale-independent code-unit ordering for persisted evidence references and canonical A2 reservation reconstruction."
   - "Reject sparse holes in every aligned persisted evidence-id and observation-time array before hashing, authority lookup, or append."
   - "Reuse existing Research history, realized PAPER period store, and Evolution Learning ledger; create no engine/store/scheduler."
 exclusions:
@@ -24,6 +29,10 @@ acceptance:
   - "Observed timestamp must match canonical durable source exactly."
   - "Restart and replay re-resolve the same evidence identity and remain idempotent."
   - "Malformed namespace-shaped A2 rows cannot consume a durable A1 capacity reservation."
+  - "A forged generic A2-shaped append with a missing durable source is rejected and consumes no capacity after restart."
+  - "A verified A2 retains one reserved slot after restart; unrelated writes cannot use it and its matching canonical A1 consumes exactly one slot."
+  - "Mixed-case canonical PAPER ids preserve the matching A1 reservation across file-backed restart and replay."
+  - "Malformed A1 change entries cannot release the A2 reservation before or after restart; canonical owner-derived assessments can release exactly one matching slot."
   - "Sparse caller-shaped A2 arrays fail before append and leave the existing ledger replayable with no reserved slot."
   - "Relevant A2 and storage regression tests pass."
   - "pnpm run preflight passes on Node >=24.19."
@@ -36,13 +45,15 @@ validation_commands:
   - "pnpm run security:gate"
   - "git diff --check"
 verification:
-  local_focused: "PASS 44/44 A2, A1, retention integration, and SQLite Evolution Learning ledger tests, including sparse-array append rejection and whitespace-ID reservation rejection after restart."
-  local_build: "PASS TypeScript build."
-  preflight: "PASS Node 24.19.0, sqlite available, portability/platform-independent/mobile/AIPOS validators."
-  validate_full: "PASS architecture truth, safety architecture, AI zero-authority, architecture, AIPOS drift/conformance, safety invariants/input validators."
-  security_gate: "PASS; no unmitigated advisories or secrets."
-  exact_head_ci: "PASS: run 39903170341 and required companion workflows passed on exact head 4d7750f37a08e7a8196dad25552340fdff27fe00."
-  independent_review: "Fresh Codex review submitted and completed on exact head 4d7750f37a08e7a8196dad25552340fdff27fe00 at 2026-10-23T05:07:53Z; no inline findings were produced. This is advisory review evidence, not formal NUSA Validator acceptance."
+  local_focused: "PASS 47 tests across A2 identity, A2/PAPER retention integration, and Evolution Learning storage; includes forged A2 source rejection, no phantom reservation after restart, verified reservation replay, canonical A1 release, malformed proposed/admissible/rejected change rejection, mixed-case ordering, sparse evidence, retention and replay."
+  local_build: "PASS pnpm run build on Node 24.19.0."
+  preflight: "PASS pnpm run preflight on Node 24.19.0, pnpm 11.25.0."
+  validate_full: "PASS pnpm run validate:full after final AIPOS handoff/state update."
+  security_gate: "PASS pnpm run security:gate; raw high/critical 0, secrets 0."
+  aipos: "PASS pnpm run preflight AIPOS YAML validation, validate:full, and work-order provenance after final AIPOS updates."
+  diff_check: "PASS git diff --check after final AIPOS and handoff updates."
+  exact_head_ci: "PASS: run 40143048327 plus required Actual PAPER, capability guard, transport readiness, activation rehearsal, read-only broker, and Autopilot event bridge checks all passed on exact head 8ff681511376160c542168674ff195feeb57e5af."
+  independent_review: "Fresh exact-head review comment 6390977571 on 8ff681511376160c542168674ff195feeb57e5af: no major issues. Advisory review only; no formal NUSA Validator acceptance claimed."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -50,4 +61,4 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next: "A2 is complete through exact-head CI and fresh review; continue in dependency order with A1 PR #2793, which is being synchronized to this A2 head. Keep #2792 Draft; do not deploy or interfere with #2855/server archive deployment."
+next: "A2 exact-head review and CI are complete. Continue sequentially with dependent PR #2793; keep #2792 Draft and do not merge or deploy or interfere with #2855/server archive deployment."
