@@ -158,6 +158,9 @@ test("precommit requires PIT/OOS, dataset, fee and slippage bindings and cannot 
   assert.throws(() => strategyReplicationPrecommit({ ...valid, datasetBinding: {}, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pitWindow: evaluationPlan.pitWindow }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { ...evaluationPlan, oosWindow: { startAt: "2026-05-01T00:00:00Z", endAt: "2026-07-01T00:00:00Z" } }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
+  for (const invalidStart of ["2026-02-30T00:00:00Z", "2026-06-02T00:00:00", "2026-06-02"]) {
+    assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { ...evaluationPlan, oosWindow: { startAt: invalidStart, endAt: "2026-07-01T00:00:00Z" } }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
+  }
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { ...evaluationPlan, latencyAssumptions: " " }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { ...evaluationPlan, missingDataPolicy: "UNKNOWN" }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pit: true, oos: true }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);

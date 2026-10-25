@@ -186,7 +186,11 @@ function timeWindowBounds(value: unknown): { start: number; end: number } | unde
   if (!plainRecord(value)) return undefined;
   const start = value.startAt ?? value.start ?? value.from;
   const end = value.endAt ?? value.end ?? value.to;
-  if (!text(start) || !text(end)) return undefined;
+  // Evaluation windows are PIT evidence boundaries. Date.parse accepts
+  // date-only/local strings and normalizes impossible calendar dates, so
+  // require the same explicit, calendar-valid timezone-bearing timestamps
+  // used by the intake provenance contract.
+  if (!validTimestamp(start) || !validTimestamp(end)) return undefined;
   const startMs = Date.parse(start), endMs = Date.parse(end);
   return Number.isFinite(startMs) && Number.isFinite(endMs) && startMs < endMs ? { start: startMs, end: endMs } : undefined;
 }

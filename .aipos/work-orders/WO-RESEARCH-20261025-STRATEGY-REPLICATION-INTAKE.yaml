@@ -77,6 +77,7 @@ acceptance:
   - Runtime-untrusted source/event/confidence taxonomy values and malformed evidence arrays fail closed rather than reaching PIT or hypothesis classification.
   - Optional StrategySpec metadata is runtime-validated and canonicalized before identity/precommit admission; news transmission channels are trimmed, deduplicated, and sorted before observation identity assignment.
   - Strategy/news provenance timestamps are strict calendar-valid, timezone-bearing ISO strings; placeholder fee/slippage assumptions are insufficient for precommit admission.
+  - Explicit PIT/OOS evaluation-window boundaries use the same strict timezone-bearing, calendar-valid timestamp contract; impossible dates, date-only strings, and timezone-ambiguous values fail closed.
   - Replication receipt evidence must be a non-empty canonical JSON object; undefined, sparse arrays, accessors, cycles, and non-JSON values fail closed before receipt fingerprinting.
   - Existing PAPER_ONLY and zero-authority safety invariants remain unchanged.
 verification_commands:
@@ -114,8 +115,10 @@ completion_rule: >-
   that any collected external strategy is profitable, does not close the closed-learning loop,
   and does not authorize PAPER activation or LIVE trading by itself.
 next: >-
-  Push the locally validated provenance timestamp, known-cost-assumption, and canonical receipt
-  evidence repair to existing Draft PR #2878 once after confirming its remote head. Then require
-  successor exact-head CI and a fresh non-author review/Validator. Production Scout composition,
-  durable result consumption, and natural end-to-end Research/PAPER evidence remain follow-up
-  work; do not claim them complete from contract tests.
+  The current successor closes a PIT/OOS boundary parsing gap discovered because Date.parse
+  normalizes impossible calendar dates and accepts timezone-ambiguous values. Focused tests
+  (14/14), build, Node 24.19 preflight, validate:full, security:gate, lint, and the full 1,281
+  isolated-file suite pass locally. Confirm the existing Draft PR #2878 remote head, commit this
+  substantive fix with its test/AIPOS evidence, push non-force, then require new exact-head
+  workflows and fresh non-author review/Validator. Production Scout composition, durable result
+  consumption, and natural end-to-end Research/PAPER evidence remain follow-up work.

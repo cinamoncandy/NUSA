@@ -3687,6 +3687,17 @@ current_strategy_validation_20261016:
   next: "Finish exact-head gate repair; extend existing Research Factory policy/precommit/receipt identity next, no new engine or fabricated statistical/PAPER evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_window_boundary_hardening_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: ab65dea11a23d7046b0d38bf7a5ade7291bf16d0
+  finding: "PIT/OOS timeWindowBounds used permissive Date.parse, which accepts timezone-ambiguous/date-only values and normalizes impossible calendar dates. Window bounds now reuse the strict timezone-bearing calendar-valid timestamp validator; regressions reject February 30, timezone-less timestamps, and date-only strings."
+  validation: "Node 24.19 pnpm preflight PASS; focused Research intake 14/14 PASS; build PASS; validate:full PASS; security:gate PASS; lint PASS (45 pre-existing warnings, 0 errors); pnpm test PASS (1281 isolated files); git diff --check PASS. Prior ab65dea exact-head workflows are historical after this source change."
+  next: "Commit substantive source/test/AIPOS repair and push non-force to existing Draft PR 2878 after remote-head check. Obtain successor exact-head CI and fresh non-author review; Formal NUSA Validator remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ui_app_icon_flow:
   work_order: WO-UI-20261007-APP-ICON-FLOW
   status: READY_FOR_REVIEW
