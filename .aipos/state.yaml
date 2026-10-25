@@ -100,10 +100,10 @@ current_learning_exploration_a6_20261023:
   status: PARENT_SYNCED_LOCAL_VALIDATION_PASS_PENDING_EXACT_HEAD_CI
   branch: feat/exploration-a6
   pull_request: 2797
-  base_parent: 078db80a49074f934496163c48997d0952362c39
-  validation: "After current A5/A3/A4 parent sync, build PASS; A6 focused 13/13 and combined A2/A1/A3/A4/A5/A6/storage/worker/security-gate suite 205/205 PASS on Node 24.19.0. Updated A6 tests to seed/read actual canonical hash-chain Research and checksum-verified PAPER stores after the new authority verifier correctly rejected mocked sources. Preflight PASS (strict AIPOS YAML 521 files), validate:full PASS, security:gate PASS (raw high/critical=0, secrets=0), AIPOS provenance PASS, diff-check PASS. A5 CI run 40149667563 is still in progress; A6 exact CI is pending push."
+  base_parent: fc3e216509b0c735c9b1aa4f6465ef8e85d655d7
+  validation: "After syncing A5 fc3e2165 (merge commit 598d20d4), build PASS and selected A6/A5/A4/A3/A2/A1/storage/worker/security-gate regression suite 198/198 PASS on Node 24.19.0. A6 fixtures use actual canonical hash-chain Research and checksum-verified PAPER stores. Final preflight/full/security/provenance are pending after this AIPOS update; exact-head CI pending push."
   blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined. Keep stacked PR Draft; no Audit/Release/merge/deployment."
-  next: "Push the validated parent integration and canonical fixture repair non-force to existing feat/exploration-a6; run exact-head CI and request fresh independent review only after green. Keep Draft and do not claim production wiring."
+  next: "Finish Node 24.19 preflight/full/security/provenance on A5 fc3e2165, then push the existing #2797 branch non-force, run exact-head CI, and request fresh independent review only after green. Keep Draft and do not claim production wiring."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_fatal_shutdown_20261015:
