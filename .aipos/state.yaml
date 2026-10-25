@@ -2232,6 +2232,72 @@ current_comparable_evaluator_failure_slice:
   scope: "Resolve lifecycle failure, structural-domination, and promotion-support facts from canonical hash-chain-validated Research Memory; only CURRENT canonical empirical evidence with exact evaluator semantics and independence groups may affect advisory RETIRE/PROMOTE."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_closed_loop_convergence_support_20261019:
+  work_order: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
+  status: LATEST_MAIN_5084744_LOCAL_GATES_PASS_PENDING_REMOTE_SYNC_AND_EXACT_HEAD_CI
+  pr: 2808
+  branch: codex/pending-disposition-main-20261018
+  pre_sync_head: 070294b019638472933a35799fef77e493f04b6e
+  latest_main: 5084744b4b5b6f2b02e558b867281528584c8098
+  prior_sync_merge_commit: 97b50704a53529b38194f652dac0437e20b0f793
+  latest_main_merge_commit: "Self-referential SHA is intentionally not embedded; verify the exact GitHub PR head after the expected-old-head ref update."
+  prior_sync_code_head: 97b50704a53529b38194f652dac0437e20b0f793
+  latest_main_composition: "Protected main advanced to 5084744b4b5b6f2b02e558b867281528584c8098. Remote #2808 head 68226b2df7090485d3d79377e67f2f4aba8b4ed7 is 74 main commits behind with merge base 269d28c7a71390715c869864c968f658684db5bd. Only .aipos/state.yaml and apps/cloud/src/runtime.ts overlap between the post-merge-base main delta and PR delta; three-way merge completed without conflicts, retained the display/read-only main changes plus the PR sourceRuntimeSha binding, and still exposes no production markPendingIneligible caller. Candidate Git tree before metadata refresh was c95efb425eff0738b44ba9f602204cbed0226ec1."
+  implementation_parent_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
+  repair_commit: eb35bda01
+  validated_evidence_head: ad20ea228639983c634e89b58dcd44783ef5764d
+  observed_main: 5084744b4b5b6f2b02e558b867281528584c8098
+  pre_latest_sync_head: 68226b2df7090485d3d79377e67f2f4aba8b4ed7
+  latest_candidate_tree_before_metadata_refresh: c95efb425eff0738b44ba9f602204cbed0226ec1
+  latest_main_ahead_commits: 74
+  latest_overlap_paths: [.aipos/state.yaml, apps/cloud/src/runtime.ts]
+  main_delta_assessment: "Against remote #2808 head 68226b2, protected main 5084744 is 74 commits ahead from merge base 269d28c. Net semantic overlap is limited to AIPOS state and runtime.ts; the runtime overlap is additive and production disposition activation remains absent. All pre-5084744 CI/review receipts are historical after this synchronization."
+  validator_finding_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
+  validator_finding: "Fresh exact-head review identified P2: markPendingIneligible raw-inserts a later successor without checking whether its periodId was reserved by an earlier immutable disposition whose successor is retired/finalized."
+  followup_finding_head: ff29b9b23c662d95fbe44e8e4c9e544ef974e015
+  followup_finding: "Fresh exact-head review found a second P2: markPendingIneligible can reserve a successor periodId already present in realized history because disposition reservation checks only immutable dispositions; finalization later fails with RECORD_ID_CONFLICT."
+  repair: "Before terminalizing the current row, reject a proposed successor periodId or periodIndex already present in immutable disposition history; transaction rollback preserves the original pending row. Regression covers old successor ID reuse at a different later index and confirms a fresh ID still succeeds."
+  historical_local_validation: "Frozen-lockfile install with scripts initially disabled; after process-local Git Bash PATH and pnpm rebuild electron for the existing locked dependency, pnpm test PASS across 1,256 isolated test files; build PASS; focused regression 3/3 PASS; pnpm run validate:full PASS."
+  earlier_repair_head_ci: PASS
+  earlier_repair_head: 8d9825f45cc08997475c1c27fd461bcfc2b33be6
+  earlier_exact_head_ci_run: 39350584569
+  earlier_exact_head_paper_run: 39350584589
+  earlier_exact_head_capability_run: 39350584556
+  earlier_exact_head_activation_run: 39350584622
+  earlier_exact_head_read_only_broker_run: 39350584594
+  earlier_exact_head_transport_run: 39350584637
+  previous_evidence_head: ff29b9b23c662d95fbe44e8e4c9e544ef974e015
+  previous_exact_head_ci_run: 39351410003
+  previous_exact_head_paper_run: 39351410040
+  previous_exact_head_capability_run: 39351410021
+  previous_exact_head_activation_run: 39351410011
+  previous_exact_head_read_only_broker_run: 39351410016
+  previous_exact_head_transport_run: 39351410051
+  historical_pre_sync_head_ci: PASS
+  pre_sync_head_ci_run: 39353280367
+  pre_sync_head_companion_runs: [39353280374, 39353280433, 39353280387, 39353280354, 39353280356]
+  prior_sync_local_validation: "Historical only: the 3276554-based sync passed typecheck/build/full test (1,257 isolated files)/preflight/validate:full/diff-check; later main changes are not covered."
+  latest_main_local_validation: "On the 5084744 + remote #2808 head 68226b2 integrated candidate: frozen-lockfile install PASS including security backports; git diff --cached --check PASS; AIPOS YAML/work-order provenance/drift/cross-AI conformance PASS; safety tier 9/9 PASS; validate:full PASS including preflight, repository truth, architecture/research/surfaces, AI ZERO_AUTHORITY, safety invariants and safety inputs. Whole-project root typecheck reached the 601s host bound and a narrowed changed-surface typecheck reached the 300s bound without emitting TypeScript diagnostics; the 954MiB Oracle validation host was swap-constrained. Architecture tier source validators passed; only desktop-runtime validation was not runnable because dist was intentionally not built. Build/full isolated suite are delegated to fresh exact-head CI rather than repeating the same local whole-project compiler bottleneck. No source/assertion/gate relaxation."
+  current_head_ci: PENDING_POST_SYNC
+  current_head_companion_workflows: PENDING_POST_SYNC
+  historical_exact_head_ci_run: 39352610567
+  historical_exact_head_paper_run: 39352610565
+  historical_exact_head_capability_run: 39352610641
+  historical_exact_head_activation_run: 39352610564
+  historical_exact_head_read_only_broker_run: 39352610635
+  historical_exact_head_transport_run: 39352610703
+  historical_non_author_review: "PASS/no major issues at exact head ad20ea228639983c634e89b58dcd44783ef5764d; comment 6281080931; summary reports has_any_findings=false and has_unresolved_findings=false."
+  resolved_review_threads: [PRRT_kwDOTUbne86uJ_ar, PRRT_kwDOTUbne86uKaAQ]
+  formal_validator: PENDING_EXACT_HEAD_P0_P1_P2_RECEIPT
+  legacy_prior_validated_head: 580fa559d438fcef899ae3ff95ade24ddf9619df
+  legacy_prior_exact_head_ci_run: 39248868980
+  legacy_prior_failed_merge_run: 39242585445
+  validation: "Remote PR head 68226b2df7090485d3d79377e67f2f4aba8b4ed7 has historical exact-head workflow evidence only and is stale against protected main 5084744b4b5b6f2b02e558b867281528584c8098. A conflict-free local integration candidate is staged, but fresh local validation, exact remote tree identity, new exact-head CI/companions, formal Validator, Independent Audit, Release, merge, and genuine candidate-bound PAPER learning-loop proof remain pending. No risk/qualification/cost/sample/OOS or authority gate changed."
+  evidence: .aipos/handoffs/2026-10-19-closed-loop-convergence-support.md
+  next: "Complete fresh validation of the local 5084744b4b5b6f2b02e558b867281528584c8098 + 68226b2df7090485d3d79377e67f2f4aba8b4ed7 candidate, then create one merge commit with those exact parents and update only the existing PR branch if both refs remain unchanged. Require six fresh exact-head workflows, zero unresolved threads, and a formal non-author P0/P1/P2 Validator on the resulting SHA. Keep Draft until Validator ACCEPTED; only then enter canonical Independent Audit/Release. Do not activate production disposition."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+
 current_cloudflare_runtime_github_credential_preflight:
   work_order: WO-20260927-PR2067-RUNTIME-GITHUB-CREDENTIAL
   status: READY_FOR_REVIEW
@@ -2490,18 +2556,69 @@ current_mobile_home_simplify:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 
+
+current_ops_backup_retention_buckets_20261021:
+  work_order: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
+  status: VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_CI
+  issue: 1949
+  branch: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
+  base_sha: 345539210a96f9dd4292b848318043fe23afc7f4
+  finding: "Oracle root hit 91% during backup because daily/weekly retention counted release snapshots instead of distinct UTC day/week buckets; current backups contain multiple same-day and same-week copies."
+  next: "Validate calendar-bucket retention -> exact-head CI/Validator -> governed merge -> reviewed backup run -> disk guard evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_oracle_health_guard_lock:
+  work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
+  status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  issue: 1949
+  pull_request: 2818
+  branch: ops/health-guard-source-1949
+  local_checkout_branch: ops/health-guard-source-1949
+  base_commit: 7255ea23934df417ac68c42c44de6673d07f803a
+  main_sync_commit: 2fe6ca103795f3e1a105d059ba51426847e9425e
+  latest_main_sync_commit: 8b8f88eb76bbbdc3d5659e1ebc45896727c14b3b
+  latest_protected_main: 7255ea23934df417ac68c42c44de6673d07f803a
+  prior_successor_now_historical: ec109f98187f6a7e30ef16c35165d0a78762276f
+  latest_main_sync_local_validation: "35 focused tests: 29 PASS / 6 Linux-specific SKIP; validate:full PASS; security:gate PASS (0 secrets, 0 unmitigated advisories); typecheck PASS; build PASS. These are pre-AIPOS-receipt local results; new exact-head workflows still required."
+  validator_findings_repaired: "Fresh formal Validator on exact head 899dccdd3b198c2370d72c32da2ab994ec001066: P0=0, P1=1, P2=1, CHANGES_REQUESTED. P1: unprivileged precreation/locking of /run/lock/nusa-paper-activation.lock; P2: child-shell paths not inherited by flock -c. Moved the single shared exclusion to /run/nusa-paper-activation/activation.lock and verify root:root 0700 directory plus root:root 0600 regular inode in both callers; fixed flock tests to pass paths via environment."
+  latest_local_validation: "On the implementation before latest unrelated main sync (bcdfa448575aaaa4c06572772102448610f5c995 over main 1b4a242941492f61bc4587f96c8ac2694b586352), focused tests 9/9 PASS, shell syntax PASS, validate:full PASS, security:gate PASS, typecheck/build PASS, AIPOS YAML/drift and diff checks PASS. After protected main 7255ea23934df417ac68c42c44de6673d07f803a was merged at 8b8f88eb76bbbdc3d5659e1ebc45896727c14b3b, current focused tests 9/9 and shell syntax/diff checks PASS. The main delta is disjoint mobile UI/docs work; fresh exact-head CI covers the merged tree."
+  runtime_followup: "Exact-main Oracle release run 39423404154 deployed 1b4a242941492f61bc4587f96c8ac2694b586352; authenticated readiness, Autopilot readiness and 180s soak PASS. At 2026-10-20T13:26Z local/public health, process/workload health, MCP and Upbit relay PASS; runtime heartbeat/market events advanced, source SHA matched, PAPER ledger remains 314 fills with no new orders/fills, 68 realized periods and 0 durable cycles, manifest-not-found skips remain. Disk 90%, nusa-disk-guard succeeded at 13:20 UTC, failed units 0. Physical mobile app device unavailable."
+  finding: "Fresh main sync confirms a TOCTOU race: health guard uses pgrep suppression before marker mutation/restart while canonical release activation has no shared exclusion. The prior work order excluded the only canonical activation path despite requiring suppression."
+  scope_amendment: "Owner approved one shared flock across canonical release verbs that move the active release, install active units, or restart PAPER, plus the health guard. Validator P1 requires the shared inode to be protected from unprivileged precreation; repair preserves the single exclusion domain at /run/nusa-paper-activation/activation.lock with root:root 0700 directory and root:root 0600 inode. No new helper, scheduler, watchdog, control plane, or host installation. Guard rechecks workload and marker conditions under lock."
+  prior_exact_head: bf742859fd549c04d1fb1353b27999a3240ca9ca
+  prior_exact_head_workflows: "All six required workflows PASS: CI 39383215746; Actual PAPER 39383215742; Capability Guard 39383215782; Activation 39383215627; Transport 39383215667; Read-only Broker 39383215624."
+  prior_validator_request_comment: 6285334358
+  verification: "Earlier successor ec109f98187f6a7e30ef16c35165d0a78762276f had six exact-head workflows PASS but is historical. Protected main 1b4a242941492f61bc4587f96c8ac2694b586352 was merged at bcdfa448575aaaa4c06572772102448610f5c995; main later advanced with disjoint mobile UI/docs changes to 7255ea23934df417ac68c42c44de6673d07f803a, merged at 8b8f88eb76bbbdc3d5659e1ebc45896727c14b3b. The prior exact-head CI 39429964928 was cancelled when this current-main sync superseded its head; a new exact-head run is required after this receipt update. No host installation or mutation."
+  prior_repair_validation: "Previous main sync validation: focused suite 6 PASS / 3 util-linux flock SKIP; Git POSIX sh syntax PASS; validate:full PASS; security:gate PASS (0 secrets, 0 unmitigated advisories); typecheck/build PASS. Those results are historical; current successor uses latest_local_validation above."
+  next: "Commit this latest-main AIPOS/runtime receipt, then require fresh exact-head six workflows and fresh non-author Validator; then Audit, Release, merge. Only after merge install the reviewed health guard + release helper together through the documented canonical path. Do not alter the disk guard policy or delete host data."
+  safety:
+    paper_only: true
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+
 current_ops_oracle_stability_rollback_20261019:
   work_order: WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK
-  status: CURRENT_MAIN_RECONVERGED_VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION
-  branch: fix/oracle-stability-rollback-2770
+  status: NATURAL_RELEASE_ROUTE_PROOF_FAILURE_REPRODUCED_MINIMAL_FIX_PENDING_FRESH_EXACT_HEAD_VALIDATION
+  branch: fix/oracle-readiness-route-proof-2770
   issue: 2770
-  pull_request: 2819
-  base_sha: 91db289a392f08aaf367cc15bec16f852d2b4edb
+  previous_pull_request: 2819
+  base_sha: 4027b2c82c79a24543fe1f739d7f0e9b0e2d6a0b
   previous_validated_head: e7ef7ee02ceef1300747705585861c5f57f3922b
   current_main_at_reconvergence: bedc3b75e79062d86702d89323d6f6eecc73274b
   finding: "Oracle release 39242644208 passed initial authenticated PAPER readiness and Autopilot readiness, then false-rolled back when the first 5-second stability /ready proof timed out with SUPERVISOR_ACTIVE_LISTENER_BOUND; rollback also left Autopilot executing the rejected release until one bounded service restart reconverged cwd."
-  validation: "Reconverged head e7ef7ee02ceef1300747705585861c5f57f3922b had all six exact-head workflows PASS. Fresh non-author Validator found one P1 only: this state entry still described main reconvergence as pending after bedc3b75e79062d86702d89323d6f6eecc73274b had already been merged. This successor updates execution state only; e7ef7ee receipts are historical and fresh exact-head CI/Validator remain mandatory."
-  next: "Fresh exact-head CI/companions -> fresh non-author Validator with zero actionable findings -> deterministic Audit/Release -> install exact merged root-owned helper -> natural exact-main Oracle release and 180-second soak proof."
+  follow_up_release: 39471191806
+  follow_up_source_sha: 4027b2c82c79a24543fe1f739d7f0e9b0e2d6a0b
+  follow_up_finding: "Fresh exact-main Oracle release authenticated /ready and the first mobile-owner route, but the second mobile-owner route proof exhausted its shared 15-second window under startup event-loop load and timed out. Canonical rollback restored the prior release; authenticated readiness and Autopilot readiness then passed on rollback."
+  validation: "Historical route-proof head 0dddbad6ebe4aba8dcb0872863457a91576a64fd passed focused tests 42/42, exact-head CI run 39475231503, and companion workflows; fresh Codex review found one P2 AIPOS next-action mismatch. Successor dfc6a49b83f724b018cf4ec540cd53866e3f2fe4 corrected that record but exact-head CI run 39514441549 failed Security gate because newly published advisories affected locked vite 7.3.6 and launch-editor 2.14.1. This successor applies patched versions 7.3.7 and 2.14.2; local security gate, typecheck, validate:full, focused tests, and AIPOS validators pass. Fresh Codex review of 453ca5a found a P2 because the Oracle runbook still specified a 15-second route proof; this successor updates it to the implemented 30-second bound. All prior CI/review is historical; fresh exact-head CI/review remain required."
+  next: "The bounded 30-second route-proof change and contract tests are implemented; AIPOS recovery state is reconciled; the two newly vulnerable toolchain dependencies are patched. Validate this successor exact head with CI and fresh non-author review; after zero actionable findings, proceed to deterministic Audit/Release, governed merge, exact reviewed root-helper installation, and exact-main Oracle release."
+  follow_up_security_gate:
+    failed_head: dfc6a49b83f724b018cf4ec540cd53866e3f2fe4
+    failed_run: 39514441549
+    failed_step: Security gate
+    cause: "Current advisory data marked vite 7.3.6 and launch-editor 2.14.1 as unmitigated high vulnerabilities; both versions were in the protected-main lockfile and this PR introduced neither dependency."
+    fix: "Set canonical pnpm workspace overrides to patched vite 7.3.7 and launch-editor 2.14.2 and regenerate the frozen lockfile."
+    local_validation: "security-gate-backports PASS; raw high/critical=1 and remaining advisory compensated by the existing exact braces backport; unmitigated=0; typecheck PASS; validate:full PASS; route-proof tests 42/42 PASS. Successor exact-head CI required."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_stage_space:
@@ -2591,6 +2708,58 @@ current_research_continuous_experiments:
   branch: claude/nusa-repository-j93sd8-research-scheduler
   authority_impact: research-evidence-only
   remaining: stage_2_composition_then_stage_3_tests_then_owner_approved_deploy
+
+current_ops_sqlite_attestation_nonforgeability_20261021:
+  work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+  status: HISTORICAL_SUPERSEDED_BY_CURRENT_SQLITE_CONTINUATION
+  branch: fix/sqlite-integrity-attestation-2770
+  issue: 2770
+  pull_request: 2855
+  protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
+  pr_reported_base_sha_before_sync: 94726afcfc0fdadf267df0b0ecb8494abd801e98
+  main_sync: "Protected main 21241b67e153bb8db15e566168fe3daef44b2cbf merged into PR head b745449433f458463242f83f4affc7754c898ded; resolve resulting remote head dynamically after push."
+  local_validation_tree_before_aipos_amend: 215ba83ed2b63fdf3a17e81184cea8c083167c86
+  finding_head: 9e4d668829247a397018089fc6bd981f5ad81db0
+  source_repair_commit: dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4
+  finding: "Fresh Codex review on exact head 9e4d668829247a397018089fc6bd981f5ad81db0 found two current P1s: post-preload replacement of Module.prototype.require could bypass the pinned Module._load and fabricate sqliteIntegrityBootstrap exports, and the durable handoff still described the already-committed loader repair as local/pending."
+  repair: "Source repair dd60977f35e9ae81fccaaac65b1bc110a6fe0ac4 captures the native Module.prototype.require descriptor during the trusted preload and pins it non-writable/non-configurable alongside Module._load and Module._cache. The exact adversarial child-process regression verifies replacement is refused, a corrupt SQLite file remains rejected, and the forged require path is never invoked. Full-file quick_check, four AI scoped checks, hash-chain replay, startup/recovery ordering, writer-lease semantics, Research child heap propagation, and the 300-second readiness budget remain unchanged. This durable successor reconciles every recovery record to the committed repair and actual remaining gates."
+  validation: "Exact head 9e4d668829247a397018089fc6bd981f5ad81db0 completed/success on CI 39708723397, Mobile Native 39708723564, Research advisory 39708723368, Transport 39708723488, Activation 39708723348, Capability 39708723272, Actual PAPER 39708723273, Read-only Broker 39708723438, and Android Guard 39708723475 before fresh review exposed the require-dispatch and stale-handoff P1s. Those receipts become historical after dd60977f. On the dd60977f source tree, changed storage transpile diagnostics PASS, the exact Module.prototype.require attack regression PASS, focused PAPER startup/writer-lease tests PASS 23/23, and git diff --check PASS. Full local tsc is not claimed because this Oracle validation host hit its existing ~258 MiB Node heap ceiling and exited OOM."
+  next: "Historical repair lineage only. Use current_ops_sqlite_resolver_pin_20261022 for the active PR #2855 head, review findings, and required gates."
+  runtime: "Oracle health/readiness, deployed source SHA, genuine PAPER fill/PnL, restart/replay, and learning-loop acceptance remain UNVERIFIED; no Oracle mutation or runtime acceptance is claimed."
+  latest_local_validation: "Supersedes historical validation above for merged code tree 215ba83ed2b63fdf3a17e81184cea8c083167c86: build PASS; typecheck PASS; SQLite startup/writer-lease and changed-main mobile regressions 38/38 PASS; validate:full PASS; AIPOS provenance PASS; security:gate PASS (0 unmitigated, 0 secrets); lint PASS with 36 warnings; diff-check PASS. New PR exact-head workflows, fresh non-author review, and formal Validator are pending."
+  latest_main_transition: "Protected main 21241b67e153bb8db15e566168fe3daef44b2cbf is merged into PR head b745449433f458463242f83f4affc7754c898ded in local successor; remote PR head must be resolved after fast-forward push."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_ops_sqlite_resolver_pin_20261022:
+  work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
+  status: RECOVERY_RECORD_P1_CORRECTED_PENDING_SUCCESSOR_EXACT_HEAD_GATES
+  branch: fix/sqlite-integrity-attestation-2770
+  issue: 2770
+  pull_request: 2855
+  finding_head: 4b6785323535b37bf0b0275ec7eb0f9f803d9d69
+  protected_main_sha: 21241b67e153bb8db15e566168fe3daef44b2cbf
+  source_repair: "Trusted preload publishes the frozen SQLite integrity boundary on Node Module; storage uses raw CommonJS node:module import-assignment and preload-captured native DatabaseSync constructor, prepare, and get through the immutable boundary. Canonical and standalone storage opens use the captured native constructor, so replacing node:sqlite.DatabaseSync after preload cannot redirect integrity checking to another database. Legacy Cloud PAPER systemd scrubs NODE_OPTIONS and preloads the boundary before the supervisor; supervisor strips NODE_OPTIONS and preloads it before the database-owning child. AI stores share only the checked canonical connection and retain scoped checks/hash-chain replay."
+  latest_review_findings: "The separate fresh NUSA Validator on parent 4e5b0e75da292c23c4028251f4bd1e79fdd9f53b returned P0=0, P1=0, P2=5, ACCEPTED_WITH_CONDITIONS; this does not meet the explicit ACCEPTED gate. Its candidate-bootstrap artifact condition was repaired in scripts/oracle-validate.js and committed/pushed on PR head 4b6785323535b37bf0b0275ec7eb0f9f803d9d69. Fresh Codex review on that exact head found P1 4348034655: the state, work order, and handoff still instructed repeating the completed commit/push. This recovery-record-only successor corrects that stale instruction. Prior-head reviews and Validator receipts remain historical."
+  previous_exact_head_workflows: "On 4b6785323535b37bf0b0275ec7eb0f9f803d9d69, CI 39773522607 and the eight companion workflows all completed SUCCESS. These receipts are historical after this recovery-record successor; resolve current checks dynamically from GitHub."
+  local_validation:
+    native_constructor_capture_and_post_preload_export_poison_regression: PASS
+    focused_sqlite_startup_writer_lease_research_recovery_tests: PASS_46_OF_46
+    post_load_prototype_poison_corrupt_db_reproduction: REJECTED_FORGED_CALLS_0
+    focused_startup_integrity_adversarial_tests: PASS_4_OF_4
+    cloud_paper_supervisor_preload_and_env_tests: PASS_7_OF_7
+    aipos_yaml: PASS_514_FILES
+    aipos_drift: PASS
+    aipos_provenance: PASS
+    aipos_cross_ai: PASS
+    diff_check: PASS
+    aipos_record_corrections: PASS
+    candidate_bootstrap_preflight_tests: PASS_2_OF_2
+    relevant_oracle_and_sqlite_regressions: PASS_69_OF_69
+    validate_full: PASS
+    security_gate: PASS_0_UNMITIGATED_0_SECRETS
+  formal_validator: "PARENT_4E5B0E75_ACCEPTED_WITH_CONDITIONS; successor requires fresh exact-head P0/P1/P2 and explicit ACCEPTED"
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: "Resolve the current PR #2855 head and exact-head workflows dynamically. Require fresh non-author review with no current actionable P0/P1 and a separate formal NUSA Validator receipt bound to that exact SHA with P0/P1/P2 and explicit ACCEPTED. Only then proceed to Independent Audit, Release authorization, protected merge, and exact-main Oracle acceptance. Do not repeat the candidate-bootstrap source repair or recovery-record commit/push; keep Draft/HOLD and do not mutate Oracle."
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
   status: READY_FOR_REVIEW
@@ -3703,7 +3872,7 @@ current_autopilot_2595_decision_diagnostics:
   current_main_build_typecheck_validation_head: c1f59727db893d9c5aaa40653e986dcf02f7c1d4
   published_head_binding: REQUIRE_FRESH_EXACT_HEAD_CI_AUDIT_RELEASE_IN_CANONICAL_PR_RECEIPT
   prior_increment_head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
-  status: LOCAL_VALIDATION_PASS_EXACT_HEAD_GATES_PENDING
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_PASS_EXACT_HEAD_GATES_PENDING
   first_broken_transition: "locally validated diagnostics increment -> fresh exact-head CI and independent Audit"
   validation: "Current-main be703b22: dispatcher/consumer and canonical Autopilot suite 143/143 PASS; full build, typecheck and preflight PASS. Prior unchanged diagnostics paths: validate:full and changed-file lint PASS. YAML/provenance PASS. PR2619 first CI 38129284192 failed on a non-secret test credential fixture; explicit example-key placeholder repair passed dispatcher/consumer 50/50, lint and security gate (zero findings). Independent review repair: effective terminal recovery STOP retained separately from rejected diagnostics; valid provider retry/exhaustion retains transport and upstream HTTP status. Dispatcher/consumer 52/52 PASS; focused changed-file lint and preflight PASS. Fresh exact-head CI remains required."
   next_permitted_action: "Publish the locally validated diagnostics residual on the existing diagnostics branch; independent Audit, canonical Release and naturally eligible canary remain required."

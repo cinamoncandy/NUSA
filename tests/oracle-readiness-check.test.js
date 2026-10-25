@@ -201,7 +201,7 @@ test("Oracle readiness separates the long startup deadline from a bounded owner-
   assert.equal(source.split("Date.now() + routeProofWaitMs").length - 1, 1);
   assert.ok(source.includes("awaitReadiness(deadline)"));
   assert.ok(source.includes("awaitExpectedStatus(path, 405, routeDeadline)"));
-  assert.match(source, /NUSA_READY_ROUTE_PROOF_WAIT_MS \|\| 15_000/);
+  assert.match(source, /NUSA_READY_ROUTE_PROOF_WAIT_MS \|\| 30_000/);
   assert.match(source, /routeProofWaitMs > 30_000/);
   assert.ok(source.includes('requestStatus("/ready"'));
 });

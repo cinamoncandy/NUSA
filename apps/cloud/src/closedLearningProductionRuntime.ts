@@ -1,3 +1,4 @@
+import { createLeaseStartupWindow } from "./paperLeaseStartupWindow";
 import { buildMetaLearningStatus } from "./researchMetaLearningRuntime";
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
@@ -5,7 +6,7 @@ import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
 import { readOrderBookStudyResult } from "./researchStudyResult";
 import { MarketMicrostructureRecorder, microstructureRecorderEnabled } from "./marketMicrostructureRecorder";
 import { SqliteMarketMicrostructureStore } from "../../../packages/storage/src/marketMicrostructureStore";
-import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled } from "./researchOrderBookCollector";
+import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled, researchOrderBookRetention } from "./researchOrderBookCollector";
 import { ResearchFuturesCollector, researchFuturesCollectorEnabled } from "./researchFuturesCollector";
 import { SqliteFuturesPublicStore } from "../../../packages/storage/src/futuresPublicStore";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
@@ -126,22 +127,33 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Evidence validation is read-only and can be expensive. Do it before owning the renewable
   // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
-  let longBarTickEvery = 1;
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
-  researchExperiments?.prepareRecovery();
+  let researchExperiments: ReturnType<typeof composeResearchExperiments>;
   try {
-  // Cloud AI durability opens the same canonical SQLite file and performs its own full-file
-  // fail-closed integrity checks. Complete those checks before acquiring the renewable PAPER
-  // writer lease; otherwise a production-sized database can starve the lease heartbeat before
-  // the HTTP listener and closed-learning scheduler become serviceable. This changes ordering
-  // only: AI remains zero-authority and uses the same durable stores.
-  const cloudAiRuntime = createCloudAiRuntime(env);
+  // Cloud AI durability uses the exact canonical SQLite connection that already completed the
+  // full-file startup quick_check. This avoids reopening and rescanning the same production-sized
+  // file while preserving each AI store's table-scoped quick_check and hash-chain replay. Keep this
+  // before research recovery preparation and the renewable PAPER writer lease: its schema
+  // initialization must not invalidate prepared SQLite change-tracking evidence, and its startup
+  // I/O must not starve the lease heartbeat.
+  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteDatabase: database });
+
+  let longBarTickEvery = 1;
+  researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
+  researchExperiments?.prepareRecovery();
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
+  // Timing only: the writer lease is owned from the repository constructor on, and its heartbeat cannot renew until
+  // the event loop turns, so everything composed synchronously below counts against the lease TTL.
+  const leaseWindow = createLeaseStartupWindow(30_000, (line) => console.log(line));
+  const repositoryStartedAt = performance.now();
   const paperRepository = config.paperInitialCapitalKrw === undefined
     ? undefined
     : new SqliteCloudPaperAccountRepository(database, { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) });
+  if (paperRepository != null) {
+    leaseWindow.leaseOwned(performance.now() - repositoryStartedAt);
+    setImmediate(() => leaseWindow.firstLoopTurn());
+  }
   const paperLoop = config.paperInitialCapitalKrw === undefined || paperRepository == null
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
@@ -151,8 +163,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // Research-only recording of the public order book and trades already streamed (Upbit keeps no history of either).
   const microstructureRecorder = microstructureRecorderEnabled(env) ? new MarketMicrostructureRecorder(new SqliteMarketMicrostructureStore(database)) : undefined;
   // Research-only all-KRW order book, once a minute; markets the WebSocket recorder samples are left to it.
+  const orderBookRetention = researchOrderBookRetention(env);
+  if (orderBookRetention.warning != null) console.warn(orderBookRetention.warning);
   const orderBookCollector = researchOrderBookCollectorEnabled(env)
-    ? new ResearchOrderBookCollector(new SqliteMarketMicrostructureStore(database), { skipMarkets: () => microstructureRecorder?.recordedMarkets() ?? new Set<string>() })
+    ? new ResearchOrderBookCollector(new SqliteMarketMicrostructureStore(database), { skipMarkets: () => microstructureRecorder?.recordedMarkets() ?? new Set<string>(), retentionMs: orderBookRetention.retentionMs })
     : undefined;
   // Research-only public Binance futures data (BTCUSDT, ETHUSDT); never an order path.
   const futuresCollector = researchFuturesCollectorEnabled(env) ? new ResearchFuturesCollector(new SqliteFuturesPublicStore(database)) : undefined;
@@ -449,7 +463,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         if (persistable != null && !writeBaselineShadowRecord(config.cloudStateDbPath, persistable)) baselineShadow.markUnpersisted();
       }
       refreshDurableCycles();
-      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
+      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods(), pendingPeriods.dispositions()); } catch { /* display only */ }
       try { loopStatus.observeRuleReplay(latestBaselineRuleReplay(periods.listRealizedPeriods())); } catch { loopStatus.observeRuleReplay(undefined); }
     })().catch((error: unknown) => { loopStatus.observeError(Date.now(), tickErrorClass(error)); persistLastBlocked(); throw error; });
     closedLearningTick = task;

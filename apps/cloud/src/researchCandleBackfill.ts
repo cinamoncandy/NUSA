@@ -89,6 +89,8 @@ export interface BackfillInput {
   readonly sleep: (ms: number) => Promise<void>;
   readonly pageDelayMs?: number;
   readonly maxPages?: number;
+  /** Cooperative production yield after each bounded page write/verification step. */
+  readonly yieldControl?: () => Promise<void>;
 }
 
 const iso = (ms: number): string => new Date(ms).toISOString().slice(0, 19);
@@ -175,6 +177,10 @@ export async function backfillMarket(input: BackfillInput): Promise<BackfillResu
     } catch (error) {
       return result("ERROR", typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "STORE_FAILED");
     }
+    // Give the HTTP loop and PAPER writer-lease heartbeat a turn after each synchronous
+    // SQLite page write/receipt check. The default remains a no-op for deterministic tests and
+    // non-production callers; production supplies setImmediate below.
+    await (input.yieldControl?.() ?? Promise.resolve());
     if (reached() && receiptsComplete()) return result("COMPLETE");
     if (parsed.oldestStartMs <= goal) return result("INCOMPLETE", "SOURCE_RECEIPTS_INCOMPLETE"); // the source reaches the target but some stored candles lack verified receipts
     cursor = iso(parsed.oldestStartMs);

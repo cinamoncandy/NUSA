@@ -47,6 +47,34 @@ export interface PersonalPaperTodayRealized {
   readonly evaluatedAt: number;
 }
 
+/**
+ * Display only: the learning loop's measured numbers for the app's 학습 tab, copied from the closed-learning status (meta-learning ledger,
+ * realized PAPER periods, owner-baseline shadow trades). Integers only (signed where a basis-point result can be negative); any field the
+ * runtime cannot read consistently is omitted instead of guessed. It is measurement, never an input to Risk, qualification or Research.
+ */
+export interface PersonalPaperLearningLoop {
+  /** Recorded Research experiments and the configurations they tested. */
+  readonly experiments?: number;
+  readonly configurations?: number;
+  readonly discoveryPasses?: number;
+  readonly holdoutPasses?: number;
+  /** Share (0-100) of discovery passes that failed the holdout, as the ledger reports it. */
+  readonly overfitRatePercent?: number;
+  /** Realized PAPER periods the learner consumed, and the owner baseline's result over them in basis points (signed). */
+  readonly paperPeriodsConsumed?: number;
+  readonly paperNetBp?: number;
+  /** Net result minus the buy-everything benchmark over the same periods, in basis points (signed). */
+  readonly paperExcessBp?: number;
+  /** Shadow trades of the owner baseline: count, wins, and the sum of gross gains, gross losses and fees in basis points (non-negative). */
+  readonly shadowSince?: number;
+  readonly shadowTrades?: number;
+  readonly shadowWins?: number;
+  readonly shadowGrossGainBp?: number;
+  readonly shadowGrossLossBp?: number;
+  readonly shadowFeeBp?: number;
+  readonly evaluatedAt: number;
+}
+
 /** Display only: how far Research candidates got (from the closed-learning loop's meta-learning ledger). Non-negative integers. */
 export interface PersonalPaperLearningFunnel {
   /** Configurations tested in recorded experiments. */
@@ -66,6 +94,26 @@ export interface PersonalPaperDecisionTrace {
   readonly bucketMs: number;
   readonly decisions: readonly number[];
   readonly orders: readonly number[];
+}
+
+/** Display only: one open PAPER futures position as the app's futures tab shows it. */
+export interface PersonalPaperFuturesPosition {
+  readonly symbol: string;
+  readonly side: "LONG" | "SHORT";
+  readonly quantity: number;
+  readonly entryPrice: number;
+  readonly markPrice: number;
+  readonly unrealizedPnl: number;
+  /** Distance from the mark price to the liquidation price as a 0..1 ratio of the mark price. */
+  readonly liquidationDistanceRatio: number;
+}
+
+/** Display only: the PAPER futures state for the app's futures tab. Absent until the futures engine actually trades; never invented. */
+export interface PersonalPaperFuturesSnapshot {
+  readonly positions: readonly PersonalPaperFuturesPosition[];
+  /** Today's realized loss as a 0..1 ratio of futures capital. */
+  readonly dayLossRatio: number;
+  readonly consecutiveLosses: number;
 }
 
 export interface PersonalPaperRuntimeHeartbeat {
@@ -104,8 +152,12 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly todayRealized?: PersonalPaperTodayRealized;
   /** Display only: candidates tested -> discovery -> holdout -> cycles. Absent when the closed-learning loop reports no ledger. */
   readonly learningFunnel?: PersonalPaperLearningFunnel;
+  /** Display only: measured learning-loop numbers (see PersonalPaperLearningLoop). Absent when the closed-learning loop reports no ledger. */
+  readonly learningLoop?: PersonalPaperLearningLoop;
   /** Display only: the same window's decisions and orders per 5 minutes, for the app's decision terrain. Absent without a canonical PAPER boundary. */
   readonly decisionTrace?: PersonalPaperDecisionTrace;
+  /** Display only: PAPER futures positions and limit usage. Absent while the futures engine has not traded; a malformed value is dropped on its own. */
+  readonly futures?: PersonalPaperFuturesSnapshot;
   /** Epoch ms from which the counters above have been counted (the window start, or the runtime start if later). */
   readonly buyCountsSince?: number;
   /** Coded `STATUS:REASON` of the latest PAPER boundary decision (why an order was or was not placed). */
@@ -407,6 +459,24 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   if (record.lossLimit !== undefined) dropBadLossMarkers(record.lossLimit as Record<string, unknown>);
   if (record.todayRealized !== undefined && !isValidTodayRealized(record.todayRealized)) delete record.todayRealized;
   if (record.decisionTrace !== undefined && !isValidDecisionTrace(record.decisionTrace)) delete record.decisionTrace;
+  if (record.futures !== undefined && !isValidFuturesSnapshot(record.futures)) delete record.futures;
+  if (record.learningLoop !== undefined && !isValidLearningLoop(record.learningLoop)) delete record.learningLoop;
+}
+
+const LEARNING_LOOP_COUNT_KEYS = ["experiments", "configurations", "discoveryPasses", "holdoutPasses", "paperPeriodsConsumed", "shadowSince", "shadowTrades", "shadowWins", "shadowGrossGainBp", "shadowGrossLossBp", "shadowFeeBp"] as const;
+const LEARNING_LOOP_SIGNED_KEYS = ["paperNetBp", "paperExcessBp"] as const;
+/** Display only. Unknown keys, non-integers, out-of-range values and a part larger than its whole make the whole object unusable. */
+function isValidLearningLoop(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const allowed = new Set<string>(["evaluatedAt", "overfitRatePercent", ...LEARNING_LOOP_COUNT_KEYS, ...LEARNING_LOOP_SIGNED_KEYS]);
+  if (Object.keys(v).some((k) => !allowed.has(k)) || !isTimeMs(v.evaluatedAt)) return false;
+  const int = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x);
+  for (const k of LEARNING_LOOP_COUNT_KEYS) if (v[k] !== undefined && !(int(v[k]) && v[k] >= 0 && v[k] <= 1e15)) return false;
+  for (const k of LEARNING_LOOP_SIGNED_KEYS) if (v[k] !== undefined && !(int(v[k]) && Math.abs(v[k]) <= 10_000_000)) return false;
+  if (v.overfitRatePercent !== undefined && !(int(v.overfitRatePercent) && v.overfitRatePercent >= 0 && v.overfitRatePercent <= 100)) return false;
+  const le = (a: unknown, b: unknown) => a === undefined || b === undefined || (a as number) <= (b as number);
+  return le(v.discoveryPasses, v.configurations) && le(v.holdoutPasses, v.discoveryPasses) && le(v.shadowWins, v.shadowTrades);
 }
 
 function isValidDecisionTrace(value: unknown): boolean {
@@ -414,6 +484,20 @@ function isValidDecisionTrace(value: unknown): boolean {
   const v = value as Record<string, unknown>;
   const buckets = (a: unknown): boolean => Array.isArray(a) && a.length === 288 && a.every((n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0 && n <= 10_000_000);
   return isTimeMs(v.since) && v.bucketMs === 300_000 && buckets(v.decisions) && buckets(v.orders);
+}
+
+function isValidFuturesSnapshot(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const ratio = (n: unknown): boolean => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1;
+  const price = (n: unknown): boolean => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 1_000_000_000;
+  if (!Array.isArray(v.positions) || v.positions.length > 50 || !ratio(v.dayLossRatio) || !isCount(v.consecutiveLosses)) return false;
+  return v.positions.every((p: unknown) => {
+    if (p == null || typeof p !== "object" || Array.isArray(p)) return false;
+    const q = p as Record<string, unknown>;
+    return typeof q.symbol === "string" && /^[A-Z0-9_-]{2,20}$/.test(q.symbol) && (q.side === "LONG" || q.side === "SHORT") && price(q.quantity) && price(q.entryPrice) && price(q.markPrice)
+      && typeof q.unrealizedPnl === "number" && Number.isFinite(q.unrealizedPnl) && Math.abs(q.unrealizedPnl) <= 1_000_000_000_000 && ratio(q.liquidationDistanceRatio);
+  });
 }
 
 function isValidTodayRealized(value: unknown): boolean {

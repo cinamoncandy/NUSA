@@ -32,7 +32,7 @@ if (process.env.NUSA_DRY_RUN === "1") {
 
 const timeoutMs = Number(process.env.NUSA_READY_TIMEOUT_MS || 5000);
 const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 300_000);
-const routeProofWaitMs = Number(process.env.NUSA_READY_ROUTE_PROOF_WAIT_MS || 15_000);
+const routeProofWaitMs = Number(process.env.NUSA_READY_ROUTE_PROOF_WAIT_MS || 30_000);
 const retryDelayMs = Number(process.env.NUSA_READY_RETRY_DELAY_MS || 1_000);
 if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 300_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 300000]");
 if (!Number.isSafeInteger(routeProofWaitMs) || routeProofWaitMs < 1 || routeProofWaitMs > 30_000) throw new Error("NUSA_READY_ROUTE_PROOF_WAIT_MS must be an integer in [1, 30000]");

@@ -13,10 +13,15 @@ export interface DecisionTrace { readonly since: number; readonly decisions: rea
 export interface TerrainRow {
   /** KST hour of day this row covers (the window starts at 09). */
   readonly hour: number;
+  /** Epoch ms at which this hour starts. */
+  readonly startAt: number;
   /** 12 heights in 0..1, null where unobserved. */
   readonly values: readonly (number | null)[];
   /** 0..1 positions inside the row where a PAPER order was placed. */
   readonly orders: readonly number[];
+  /** Observed decisions and PAPER orders in this hour (unobserved buckets are not counted), or null without a trace. */
+  readonly decisionCount: number | null;
+  readonly orderCount: number | null;
 }
 export interface DecisionTerrainModel {
   /** Oldest first; the last row is the current hour. */
@@ -60,13 +65,15 @@ export function buildDecisionTerrain(input: { readonly trace: unknown; readonly 
   const rows: TerrainRow[] = [];
   for (let r = first; r <= nowHour; r += 1) {
     const values: (number | null)[] = [], orders: number[] = [];
+    let decisionCount = 0, orderCount = 0;
     for (let j = 0; j < PER_ROW; j += 1) {
       const b = r * PER_ROW + j;
       if (!observed(b)) { values.push(null); continue; }
       values.push(Math.sqrt(usable!.decisions[b]! / scale));
+      decisionCount += usable!.decisions[b]!; orderCount += usable!.orders[b]!;
       if (usable!.orders[b]! > 0) orders.push((j + 0.5) / PER_ROW);
     }
-    rows.push(Object.freeze({ hour: (9 + r) % 24, values: Object.freeze(values), orders: Object.freeze(orders) }));
+    rows.push(Object.freeze({ hour: (9 + r) % 24, startAt: windowStart + r * HOUR_MS, values: Object.freeze(values), orders: Object.freeze(orders), decisionCount: usable == null ? null : decisionCount, orderCount: usable == null ? null : orderCount }));
   }
   let thisHour: number | null = null;
   if (usable != null) { thisHour = 0; for (let j = 0; j < PER_ROW; j += 1) if (observed(nowHour * PER_ROW + j)) thisHour += usable.decisions[nowHour * PER_ROW + j]!; }

@@ -80,7 +80,7 @@ test("mobile foundation exposes the canonical four-destination PAPER/LIVE presen
   const primaryNavigation = fs.readFileSync(path.join(mobile, "src", "primaryNavigation.tsx"), "utf8");
   assert.match(app, /useState<PrimaryDestination>\("Home"\)/);
   assert.match(app, /<PrimaryNavigation/);
-  assert.match(navigation, /\["Home", "Paper", "Live", "More"\]/);
+  assert.match(navigation, /\["Home", "Paper", "Live", "Futures", "More"\]/);
   assert.match(primaryNavigation, /accessibilityRole="tab"/);
   assert.match(app, /const theme =/);
 });
