@@ -3699,17 +3699,17 @@ current_autopilot_runner_readiness:
 
 current_learning_meta_holdout_replay_20261018:
   work_order: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
-  status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  status: LOCAL_VALIDATED_PARENT_SYNC_PENDING_EXACT_HEAD_CI
   branch: feat/meta-oos-a3
   pull_request: 2795
   predecessor_head: 179ad1818925cd2a0087e7f59f9bbbe0aa485df2
-  parent_a4_head: 3849e1e9ada0d0fe24964f444fea63f77721ede1
+  parent_a4_head: f37566cc000be1d00850293d6e0a636103a32d23
   prior_exact_head_ci: 40146442748
   prior_review_id: 5640768157
   prior_review_p1_comment_ids: [4369088597, 4369088598, 4369088600]
-  validation: "On Node 24.19.0, repaired A3/A4 + Evolution Learning ledger focused suite 28/28 PASS; pnpm build PASS; pnpm run preflight PASS; pnpm run validate:full PASS; pnpm run security:gate PASS; git diff --check PASS. Prior 37/37 and CI run 40146442748 are historical to predecessor 179ad181 and do not validate this successor."
+  validation: "After reconverging A4 parent f37566cc000be1d00850293d6e0a636103a32d23 locally without conflict: Node 24.19.0 build PASS; A3 META OOS + A4 application + Evolution ledger tests 61/61 PASS; preflight PASS; validate:full PASS; security:gate PASS (0 raw high/critical, 0 secrets); lint PASS (0 errors, 45 existing warnings); diff-check PASS. A4 CI 40148595895 and Mobile Native 40148595902 SUCCESS; A4 independent review requested and pending. A3 merge commit exact CI is pending."
   finding: "Fresh review of 179ad181 found three P1s: caller-selected partition could bias holdout, assignment uniqueness was not checked in the serialized append transaction, and malformed self-consistent durable receipts could omit required identity fields. Successor locally disables all partition assignment/eligibility until owner policy exists, validates exact receipt schema/envelope, and checks cycle uniqueness in the ledger append transaction. No cutoff/META allocation policy or production trigger owner is invented."
-  next: "Commit/push only the substantive repair to existing #2795 branch; run fresh exact-head CI and required companion workflows; after terminal green request a fresh independent review. Keep Draft; no Audit/Release/merge/runtime claim."
+  next: "Finalize the A4 parent-sync merge commit and A3 AIPOS record; push non-force to the existing #2795 branch, run fresh exact-head CI and required companions; after terminal green request a fresh independent review. Keep Draft; no Audit/Release/merge/runtime claim."
   blockers:
     - BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED
     - BLOCKED_META_PARTITION_POLICY_UNDEFINED
@@ -3869,15 +3869,16 @@ current_learning_a4_bounded_application_20261022:
 
 current_learning_a4_capacity_20261023:
   work_order: WO-LEARNING-20261022-A4-APPLICATION
-  status: LOCAL_VALIDATED_SUCCESSOR_PENDING_EXACT_HEAD_CI
+  status: LOCAL_VALIDATED_PENDING_FRESH_NONAUTHOR_REVIEW
   branch: feat/learning-application-a4
   pr: 2794
   previous_local_head: e130c254
   parent_head: 4ed23afe388e2afff7cad77c50328f42ce3565c2
   remote_a4_predecessor: df2501ad067c73662bec272f310e17300634ae31
   local_reconvergence_head: fe516f5f44f757c319c0f2edc23fbfe94b6becb4
-  validation: "A4 + A1/A2 SQLite ledger tests 48/48 PASS; build PASS; Node 24.19.0 preflight PASS; validate:full PASS; security:gate PASS (0 unmitigated); diff-check PASS. A4 successor preserves A2 source-authority and A1 reservation/replay in the SQLite transaction, reserves the terminal A4 receipt, and rejects intent namespace/status mismatch fail-closed. Exact CI and review request on predecessor ac67553e are historical after this local repair."
-  next: "Commit and push this substantive fail-closed repair to existing #2794; run exact-head CI and Mobile Native; request fresh independent review only after canonical CI is green. Keep Draft; no release/merge/runtime claim."
+  validation: "Exact successor f37566cc000be1d00850293d6e0a636103a32d23 on Node 24.19.0: build PASS; focused A4/A1/A2 SQLite ledger tests 51/51 PASS; preflight, validate:full, security:gate, lint (0 errors; 45 existing warnings), and diff-check PASS. Exact-head CI 40148595895 SUCCESS and Mobile Native 40148595902 SUCCESS (Android debug included). Fresh non-author review requested on exact head; no result yet."
+  review_findings: "Fresh exact-head review comments on 3849e1e9: P1 IDs 4354716464, 4354716473, 4354716480, 4354839823, 4354839828, 4356054560, 4356054567, 4364881582, 4364881587; P2 ID 4369049595. Earlier findings listed under the work order were addressed in prior commits; this successor addresses the remaining surface-pending and provenance issues."
+  next: "Await fresh independent review of exact head f37566cc000be1d00850293d6e0a636103a32d23; keep Draft and no release/merge/runtime claim."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:

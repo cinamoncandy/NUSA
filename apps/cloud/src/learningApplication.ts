@@ -105,6 +105,7 @@ export interface LearningApplicationIntent {
 export interface LearningApplicationJournal {
   terminalFor(decisionFingerprint: string, surface: string): LearningApplicationReceipt | undefined;
   pendingIntentFor(decisionFingerprint: string, surface: string): LearningApplicationIntent | undefined;
+  pendingIntentForSurface(surface: string): LearningApplicationIntent | undefined;
   /** Returns true only for the invocation that durably created the write-ahead claim. */
   appendIntent(intent: LearningApplicationIntent): boolean;
   append(receipt: LearningApplicationReceipt): { readonly receipt: LearningApplicationReceipt };
@@ -315,7 +316,9 @@ export function applyBoundedChange(
   if (ports == null || typeof ports !== "object" || journal == null || typeof journal !== "object") throw new LearningApplicationError("MALFORMED_PORTS", "application ports and durable journal are required");
 
   const admittedChange = decision.decisionOutcome === "ADMISSIBLE" ? decision.admissibleChanges[0] : undefined;
-  const leaseIdentity = decision.learningCycleId + "|" + (admittedChange?.surface ?? "none");
+  // Serialize by mutation surface across cycles. A per-cycle key would allow two decisions to
+  // race through the same canonical setter and strand each other's write-ahead intents.
+  const leaseIdentity = admittedChange == null ? "learning-application:none" : "learning-application:surface:" + admittedChange.surface;
   if (typeof ports.withExclusiveApplicationLease !== "function") throw new LearningApplicationError("APPLICATION_OWNER_UNAVAILABLE", "canonical exclusive application owner is required");
   const leased = ports.withExclusiveApplicationLease(leaseIdentity, () => applyBoundedChangeUnderLease(decision, ports, context, journal, registry));
   if (leased == null || leased.acquired !== true) throw new LearningApplicationError("APPLICATION_OWNER_BUSY", "canonical application owner did not grant the exclusive lease; no mutation was attempted");
@@ -355,56 +358,11 @@ function applyBoundedChangeUnderLease(
   const existing = registry.recorded(fingerprint, change.surface);
   if (existing != null && existing.applicationOutcome !== "REJECTED") return existing;
 
-  const priorIntent = journal.pendingIntentFor(fingerprint, change.surface);
+  const priorIntent = journal.pendingIntentForSurface(change.surface);
   if (priorIntent != null) {
-    const reconciliation = ports.reconcileIntent?.(priorIntent) ?? "UNKNOWN";
-    if (reconciliation !== "APPLIED" && reconciliation !== "NOT_APPLIED" && reconciliation !== "UNKNOWN") {
-      throw new LearningApplicationError("APPLICATION_INTENT_UNRESOLVED", "canonical reconciliation returned an unsupported result; no mutation was attempted");
-    }
-    if (reconciliation === "UNKNOWN") throw new LearningApplicationError("APPLICATION_INTENT_UNRESOLVED", "durable application intent cannot be reconciled safely; no mutation was attempted");
-    if (reconciliation === "APPLIED") {
-      const appliedValue = ports.readCurrent(change.surface);
-      if (appliedValue !== priorIntent.boundedValue) throw new LearningApplicationError("APPLICATION_INTENT_READBACK_MISMATCH", "reconciled applied intent does not match canonical state");
-      const recovered = buildReceipt({
-        learningDecisionFingerprint: fingerprint,
-        learningCycleId: decision.learningCycleId,
-        previousResearchSpecFingerprint: decision.previousResearchSpecFingerprint,
-        intentFingerprint: priorIntent.intentFingerprint,
-        surface: change.surface,
-        previousValue: priorIntent.previousValue,
-        requestedValue: priorIntent.requestedValue,
-        boundedValue: priorIntent.boundedValue,
-        appliedValue,
-        applicationOutcome: "APPLIED",
-        applicationTimestamp: context.applicationTimestamp,
-        runtimeIdentity: context.runtimeIdentity,
-        sourceCommit: context.sourceCommit,
-      });
-      const durable = journal.append(recovered).receipt;
-      registry.record(durable);
-      return durable;
-    }
-    // A negative recovery result closes the interrupted attempt; a separate fresh invocation may
-    // retry only after this receipt is durable and the canonical owner lease is reacquired.
-    const rejected = buildReceipt({
-      learningDecisionFingerprint: fingerprint,
-      learningCycleId: decision.learningCycleId,
-      previousResearchSpecFingerprint: priorIntent.previousResearchSpecFingerprint,
-      intentFingerprint: priorIntent.intentFingerprint,
-      surface: priorIntent.surface,
-      previousValue: priorIntent.previousValue,
-      requestedValue: priorIntent.requestedValue,
-      boundedValue: priorIntent.boundedValue,
-      appliedValue: ports.readCurrent(priorIntent.surface),
-      applicationOutcome: "REJECTED",
-      rejectionReason: "recovery confirmed the previous intent was not applied; a new bounded attempt is required",
-      applicationTimestamp: context.applicationTimestamp,
-      runtimeIdentity: context.runtimeIdentity,
-      sourceCommit: context.sourceCommit,
-    });
-    const durable = journal.append(rejected).receipt;
-    registry.record(durable);
-    return durable;
+    // Resolve any older intent on this surface before considering the new decision. A single
+    // invocation closes that prior attempt and never mutates for both decisions.
+    return recoverIntent(priorIntent, ports, journal, registry);
   }
 
   // Meta-OOS eligibility is checked before any surface is touched, so a system without A3 cannot
@@ -577,6 +535,42 @@ function applyBoundedChangeUnderLease(
   return durable;
 }
 
+function recoverIntent(
+  intent: LearningApplicationIntent,
+  ports: ApplicationPorts,
+  journal: LearningApplicationJournal,
+  registry: ApplicationRegistry,
+): LearningApplicationReceipt {
+  const reconciliation = ports.reconcileIntent?.(intent) ?? "UNKNOWN";
+  if (reconciliation !== "APPLIED" && reconciliation !== "NOT_APPLIED" && reconciliation !== "UNKNOWN") {
+    throw new LearningApplicationError("APPLICATION_INTENT_UNRESOLVED", "canonical reconciliation returned an unsupported result; no mutation was attempted");
+  }
+  if (reconciliation === "UNKNOWN") throw new LearningApplicationError("APPLICATION_INTENT_UNRESOLVED", "durable application intent cannot be reconciled safely; no mutation was attempted");
+  const appliedValue = ports.readCurrent(intent.surface);
+  if (reconciliation === "APPLIED" && appliedValue !== intent.boundedValue) {
+    throw new LearningApplicationError("APPLICATION_INTENT_READBACK_MISMATCH", "reconciled applied intent does not match canonical state");
+  }
+  const receipt = buildReceipt({
+    learningDecisionFingerprint: intent.learningDecisionFingerprint,
+    learningCycleId: intent.learningCycleId,
+    previousResearchSpecFingerprint: intent.previousResearchSpecFingerprint,
+    intentFingerprint: intent.intentFingerprint,
+    surface: intent.surface,
+    previousValue: intent.previousValue,
+    requestedValue: intent.requestedValue,
+    boundedValue: intent.boundedValue,
+    appliedValue,
+    applicationOutcome: reconciliation === "APPLIED" ? "APPLIED" : "REJECTED",
+    ...(reconciliation === "NOT_APPLIED" ? { rejectionReason: "recovery confirmed the previous intent was not applied; a new bounded attempt is required" } : {}),
+    applicationTimestamp: intent.applicationTimestamp,
+    runtimeIdentity: intent.runtimeIdentity,
+    sourceCommit: intent.sourceCommit,
+  });
+  const durable = journal.append(receipt).receipt;
+  registry.record(durable);
+  return durable;
+}
+
 /** Fails closed on anything that is not exactly an application receipt. */
 export function assertLearningApplicationReceipt(value: unknown): asserts value is LearningApplicationReceipt {
   if (value == null || typeof value !== "object") throw new LearningApplicationError("MALFORMED_RECEIPT", "application receipt is required");
@@ -597,6 +591,10 @@ export function assertLearningApplicationReceipt(value: unknown): asserts value 
     runtimeIdentity: candidate.runtimeIdentity ?? "",
     sourceCommit: candidate.sourceCommit ?? "",
   });
+  const requiredKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "intentFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "appliedValue", "applicationOutcome", "applicationFingerprint", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "outcomeVersion"];
+  const expectedKeys = (candidate.applicationOutcome === "FAILED" ? [...requiredKeys, "fallbackReason"] : candidate.applicationOutcome === "REJECTED" ? [...requiredKeys, "rejectionReason"] : requiredKeys).sort();
+  const actualKeys = Object.keys(value as Record<string, unknown>).sort();
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) throw new LearningApplicationError("MALFORMED_RECEIPT", "application receipt fields do not match the closed schema");
   const { schemaVersion: _schema, outcomeVersion: _outcome, applicationFingerprint: recorded, ...content } = candidate as LearningApplicationReceipt;
   if (applicationFingerprint(content) !== recorded) throw new LearningApplicationError("IDENTITY_CONFLICT", "application receipt does not match its own fingerprint");
 }
@@ -611,5 +609,8 @@ export function assertLearningApplicationIntent(value: unknown): asserts value i
   for (const field of ["previousValue", "requestedValue", "boundedValue"] as const) if (!Number.isFinite(candidate[field])) throw new LearningApplicationError("MALFORMED_INTENT", field + " must be finite");
   assertContext({ applicationTimestamp: candidate.applicationTimestamp ?? "", runtimeIdentity: candidate.runtimeIdentity ?? "", sourceCommit: candidate.sourceCommit ?? "" });
   const { schemaVersion: _schema, intentFingerprint: recorded, ...content } = candidate as LearningApplicationIntent;
+  const expectedKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "intentFingerprint"].sort();
+  const actualKeys = Object.keys(value as Record<string, unknown>).sort();
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) throw new LearningApplicationError("MALFORMED_INTENT", "application intent fields do not match the closed schema");
   if (typeof recorded !== "string" || !SHA64.test(recorded) || learningApplicationIntentFingerprint(content) !== recorded) throw new LearningApplicationError("IDENTITY_CONFLICT", "application intent does not match its own fingerprint");
 }

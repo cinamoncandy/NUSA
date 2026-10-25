@@ -38,8 +38,9 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
 validation:
   prior_review: "Fresh review 5640768157 on 179ad181 found P1 comments 4369088597, 4369088598, 4369088600. Predecessor CI 40146442748 is historical after repair."
-  focused: "Successor local validation on Node 24.19.0: A3/A4 + Evolution ledger tests 28/28 PASS; build, preflight, validate:full, security:gate, and diff-check PASS. A3 fails closed with META_PARTITION_POLICY_UNDEFINED until owner policy exists; no policy constants or authority were invented."
+  focused: "After reconverging current A4 parent f37566cc000be1d00850293d6e0a636103a32d23 into the existing A3 branch: Node 24.19.0 build PASS; A3 META OOS + A4 application + Evolution Learning ledger focused suites 61/61 PASS; preflight PASS; validate:full PASS; security:gate PASS (0 raw high/critical, 0 secrets); lint PASS (0 errors, 45 existing warnings); git diff --check PASS. A3 remains fail-closed with META_PARTITION_POLICY_UNDEFINED; no allocation policy/authority invented."
   full_suite: "pnpm test with installed Git Bash directories prepended to PATH: 1248 isolated test files PASS. Initial environment-only bash ENOENT was reproduced and corrected without changing test assertions."
   gates: "build PASS; typecheck PASS; validate:full PASS; security:gate PASS; aipos:yaml/provenance PASS; lint PASS with 26 existing warnings."
-  exact_head_ci: "Pending; predecessor run 40146442748 on 179ad181 is historical."
-  pending: "Commit/push successor, exact-head CI/companions, then fresh independent review. Audit/Release remain blocked by unresolved cutoff/META policy owners and production trigger owner."
+  parent_sync: "Merged current A4 exact head f37566cc000be1d00850293d6e0a636103a32d23 into A3 locally without conflict; A4 run 40148595895 CI SUCCESS and 40148595902 Mobile Native SUCCESS. A4 fresh independent review requested and pending."
+  exact_head_ci: "Pending A3 merge commit; predecessor run 40146442748 on 179ad181 is historical."
+  pending: "Finalize A3 parent-sync merge, push non-force to the existing #2795 branch, run exact-head CI/companions, then request fresh independent review. Audit/Release remain blocked by unresolved cutoff/META policy owners and production trigger owner."

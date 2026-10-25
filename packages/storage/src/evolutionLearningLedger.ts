@@ -508,9 +508,11 @@ function pendingLearningApplicationIntents(records: readonly EvolutionLearningRe
     try { parsed = JSON.parse(record.hypothesis); } catch { continue; }
     if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) continue;
     const receipt = parsed as Record<string, unknown>;
-    if (!["APPLIED", "NOOP", "FAILED"].includes(receipt.applicationOutcome as string)) continue;
+    if (!["APPLIED", "NOOP", "FAILED", "REJECTED"].includes(receipt.applicationOutcome as string)) continue;
     const { schemaVersion: receiptSchema, outcomeVersion, applicationFingerprint } = receipt;
-    const expectedReceiptKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "intentFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "appliedValue", "applicationOutcome", "applicationFingerprint", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "outcomeVersion", ...(Object.hasOwn(receipt, "fallbackReason") ? ["fallbackReason"] : []), ...(Object.hasOwn(receipt, "rejectionReason") ? ["rejectionReason"] : [])].sort();
+    const optionalReceiptKeys = receipt.applicationOutcome === "FAILED" ? ["fallbackReason"]
+      : receipt.applicationOutcome === "REJECTED" ? ["rejectionReason"] : [];
+    const expectedReceiptKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "intentFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "appliedValue", "applicationOutcome", "applicationFingerprint", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "outcomeVersion", ...optionalReceiptKeys].sort();
     const receiptDigest = sha256(canonicalResearchJson({
       learningDecisionFingerprint: receipt.learningDecisionFingerprint,
       learningCycleId: receipt.learningCycleId,
@@ -534,12 +536,16 @@ function pendingLearningApplicationIntents(records: readonly EvolutionLearningRe
       || ![receipt.learningDecisionFingerprint, receipt.previousResearchSpecFingerprint, receipt.intentFingerprint].every((value) => typeof value === "string" && SHA256.test(value))) continue;
     const intent = pending.get(receipt.intentFingerprint as string);
     if (intent == null) continue;
+    if (receipt.applicationOutcome === "REJECTED"
+      && receipt.rejectionReason !== "recovery confirmed the previous intent was not applied; a new bounded attempt is required") continue;
     if (receipt.learningDecisionFingerprint !== intent.learningDecisionFingerprint || receipt.learningCycleId !== intent.learningCycleId
       || receipt.previousResearchSpecFingerprint !== intent.previousResearchSpecFingerprint || receipt.surface !== intent.surface
       || receipt.previousValue !== intent.previousValue || receipt.requestedValue !== intent.requestedValue || receipt.boundedValue !== intent.boundedValue) continue;
     const refs = [record.opportunityId, receipt.learningDecisionFingerprint as string, receipt.learningCycleId as string].sort();
     if (record.problem !== "NUSA learning application: one admitted decision change bounded and applied exactly once"
-      || record.outcome !== "SUCCESS" || record.rollbackReference !== null || record.reusable !== true
+      || record.changeReference !== receipt.surface || record.outcome !== "SUCCESS"
+      || record.failureReason !== (receipt.fallbackReason ?? null) || record.rollbackReference !== null || record.reusable !== true
+      || !Number.isFinite(Date.parse(record.recordedAt)) || new Date(record.recordedAt).toISOString() !== record.recordedAt
       || record.evidenceReferences.length !== refs.length || record.evidenceReferences.some((reference, index) => reference !== refs[index])) continue;
     pending.delete(receipt.intentFingerprint as string);
   }
