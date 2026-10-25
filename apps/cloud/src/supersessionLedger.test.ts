@@ -209,3 +209,40 @@ test("A5 validates the graph again inside the serialized append when another wri
     cleanup(filename);
   }
 });
+
+test("A5 preserves a concurrent cycle rejection when the winning edge is elsewhere in the graph", () => {
+  const filename = pathForTest();
+  const db = new SqliteDatabase(filename);
+  try {
+    const evolution = new SqliteEvolutionLearningLedger(db);
+    const racingPort = {
+      list: () => evolution.list(),
+      appendWithValidation: (
+        record: EvolutionLearningRecord,
+        validateCurrent: (records: readonly EvolutionLearningRecord[]) => void,
+      ) => {
+        new LearningSupersessionLedger(evolution, () => Date.parse("2026-10-22T00:00:00.000Z")).supersede({
+          surface: "longBarTickEvery",
+          previousDecisionFingerprint: A,
+          nextDecisionFingerprint: B,
+          reason: "competing edge creates the cycle boundary",
+          timestamp: "2026-10-22T00:00:00.000Z",
+        });
+        return evolution.appendWithValidation(record, validateCurrent);
+      },
+    };
+    const staleCaller = new LearningSupersessionLedger(racingPort, () => Date.parse("2026-10-22T00:00:00.000Z"));
+    assert.throws(() => staleCaller.supersede({
+      surface: "longBarTickEvery",
+      previousDecisionFingerprint: B,
+      nextDecisionFingerprint: A,
+      reason: "stale edge would close a cycle",
+      timestamp: "2026-10-22T00:00:00.000Z",
+    }), (error: unknown) => error instanceof SupersessionError && error.code === "SUPERSESSION_CYCLE");
+    assert.equal(evolution.size(), 1, "the losing cyclic edge is not appended");
+    assert.equal(new LearningSupersessionLedger(evolution).registry().successorOf(A, "longBarTickEvery")?.nextDecisionFingerprint, B);
+  } finally {
+    db.close();
+    cleanup(filename);
+  }
+});

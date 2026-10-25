@@ -1,11 +1,11 @@
 id: WO-LEARNING-20261023-A6-EXPLORATION
 title: "A6 durable, cycle-bound exploration assessment"
-status: PARENT_SYNCED_LOCAL_VALIDATION_PASS_PENDING_EXACT_HEAD_CI
+status: PARENT_SYNCED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/supersession-a5
-base_head: 09d75bfc6e12cfef56986e708633338b8daedf87
-parent_sync: "Merged A5 exact head 09d75bfc after CI 40045059478 PASS; A5 fresh independent review is pending. This brings undici security fix 6.29.1/7.30.1."
+base_head: fc3e216509b0c735c9b1aa4f6465ef8e85d655d7
+parent_sync: "Locally merged current A5 successor fc3e216509b0c735c9b1aa4f6465ef8e85d655d7 (merge commit 598d20d4), based on A3 c35931ef62dd5af661d00ab38e47cc76f8981f9f. The parent adds a deterministic concurrent cycle-classification repair; A3 appendWithValidation and A5 appendWithResult remain in one serialized ledger transaction."
 branch: feat/exploration-a6
 pull_request: 2797
 authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
@@ -53,15 +53,15 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "182/182 PASS on Node 24.19.0 after parent 09d75bfc sync, including both repaired review findings and undici security regression"
+  focused: "After syncing A5 fc3e2165, the selected A6/A5/A4/A3/A2/A1/storage/worker/security-gate regression suite passes 198/198 on Node 24.19.0. The earlier A6 fixture repair remains: tests seed and read actual checksum/hash-chain-backed Research and PAPER stores; no verification rule is weakened."
   prior_focused: "165/165 PASS before latest A5 parent sync; includes orphan and out-of-order A6/A2 replay rejection, strategy-family membership revalidation, extra cost-field exclusion, SQLite restart/replay, and serialized stale-writer coverage."
-  build: "PASS on Node 24.19.0 / pnpm 11.25.0 after parent 09d75bfc sync"
-  preflight: "PASS on Node 24.19.0 after parent sync; portability, platform-independent tests, Android release contract, and 521-file AIPOS checks PASS"
-  validate_full: PASS
-  security_gate: "PASS; pnpm audit high=0/critical=0 with undici 6.29.1/7.30.1"
-  aipos_provenance: PASS
+  build: "PASS after A5 fc3e2165 parent sync on Node 24.19.0 / pnpm 11.25.0; changed-test fast runner correctly skips outside primary pull_request CI"
+  preflight: "PASS on Node 24.19.0; strict 521-file AIPOS YAML check included"
+  validate_full: "PASS after A5 fc3e2165 parent sync; architecture, safety, AI zero-authority, AIPOS drift/conformance, and repository architecture validators pass"
+  security_gate: "PASS; raw high/critical=0, secrets=0, unmitigated=0"
+  aipos_provenance: "PASS; only pre-existing colliding historical IDs are reported"
   diff_check: PASS
   exact_head_ci: PENDING_AFTER_PUSH
   independent_review: PENDING_AFTER_CURRENT_EXACT_HEAD_CI
   prior_exact_head_ci_failure: "A6 head 7b2a610c CI run 40043771127 failed security:gate before #2796 undici override repair; this failure is preserved and superseded by parent 09d75bfc, whose exact-head CI passed."
-  review_findings_repaired: "Fresh Codex review on e1950b1a found two P1s: full-snapshot lookup allowed a later A2 to retroactively authorize earlier A6, and replay skipped strategy-family membership validation. Repair enforces prior-record chronology and rechecks membership; regressions cover both. Previous head CI remains historical; current exact-head gates required after parent sync."
+  review_findings_repaired: "Fresh Codex review on e1950b1a found two P1s: full-snapshot lookup allowed a later A2 to retroactively authorize earlier A6, and replay skipped strategy-family membership validation. Repair enforces prior-record chronology and rechecks membership; regressions cover both. Latest source change repairs only invalid test fixtures rejected by the canonical A2 verifier; no verification rule was weakened."
