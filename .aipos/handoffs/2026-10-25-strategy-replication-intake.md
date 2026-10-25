@@ -148,3 +148,14 @@ Fresh non-author Codex review on PR #2878 head `72bb17b87ccdc952a8f44e727b975ea5
 Validation on the final local source: Node 24.19 `pnpm run preflight`; focused intake 14/14; build; typecheck; `validate:full`; `security:gate`; lint (45 existing warnings, zero errors); `pnpm test` (1,281 isolated files); and `git diff --check` PASS. Current PR head remains `72bb17b87ccdc952a8f44e727b975ea5716b05bc`; all prior CI/review receipts are predecessor evidence for this repair and must not be reused. The successor has not yet been committed/pushed; fresh exact-head workflows and fresh non-author review are required afterwards. Formal NUSA Validator, Audit/Release, merge, production Scout wiring, durable result consumption, and genuine Research/PAPER outcomes remain incomplete. Oracle remains untouched.
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
+
+## Fresh exact-head review repair — persisted variant parent lineage, 2026-10-26
+
+Fresh Codex review on PR #2878 head `0d43f3de0b8eb737d72a8630574f37a9d2d7f5cd` found a P1: a syntactically valid `variantOf` identity and caller-supplied parent spec could produce a variant precommit and receipt without proving that the original baseline existed in canonical storage. The repair binds the parent original precommit into the variant precommit, verifies its immutable original spec and PIT/OOS/cost plan, and makes the existing `SqliteResearchPrecommitRepository` resolve the exact persisted parent before storing a variant. Reads revalidate lineage so pre-existing orphan variant rows fail closed; no parallel store was added.
+
+Regression coverage proves: (1) a caller-created original precommit cannot authorize a variant until the original is persisted, (2) the variant succeeds after the exact original precommit is stored, (3) legacy orphan rows are rejected on read, and (4) receipt creation rejects a variant with its parent removed even if the altered precommit fingerprint is recomputed. Node 24.19 preflight, build/typecheck, focused contract/storage tests 18/18, validate:full, security:gate, lint (45 warnings / 0 errors), and the full isolated suite (1,282 test files) passed. The final added receipt regression also passed focused tests and a build. Oracle remains untouched.
+
+The source tree has not yet been committed; the `0d43f3de...` CI and review are historical for the successor. Next: recheck PR/base/head, update AIPOS validation history, publish one non-force commit, then exact-head CI and fresh non-author review. Formal Validator, Audit/Release, merge, production Scout composition, and genuine Research/PAPER outcomes remain incomplete.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.

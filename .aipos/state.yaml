@@ -69,6 +69,18 @@ current_strategy_intake_final_local_validated_20261026:
   next: "Commit/push one substantive successor to the existing Draft PR; await exact-head CI and fresh non-author review. Formal Validator remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_persisted_variant_parent_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 0d43f3de0b8eb737d72a8630574f37a9d2d7f5cd
+  finding: "Fresh exact-head review found that a caller-provided original spec and syntactically valid variantOf could authorize an orphan descendant without a persisted canonical parent."
+  fix: "Bind the exact original ResearchPrecommit into variant lineage; canonical SQLite create and get now verify the exact persisted original spec/precommit and fail closed on orphan writes and legacy orphan reads."
+  validation: "Node 24.19 preflight; focused contract/storage 18/18; build/typecheck; validate:full; security:gate; lint (45 warnings/0 errors); pnpm test (1282 isolated files); final receipt-orphan focused regression/build and git diff checks PASS."
+  next: "Fresh verify PR/main identity, publish one substantive non-force successor, then exact-head CI and fresh non-author review. Formal NUSA Validator is separate; Draft/Audit/Release/merge and Oracle changes remain prohibited."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_placeholder_identity_repair_20261026:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: IMPLEMENTED_PENDING_FULL_LOCAL_GATES

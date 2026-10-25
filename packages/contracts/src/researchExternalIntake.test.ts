@@ -61,11 +61,14 @@ test("variant identity is separate and replication precommit binds existing cano
   const variant = normalizeStrategyReplication(variantInput, original);
   assert.equal(variant.kind, "NUSA_VARIANT");
   assert.notEqual(variant.strategyIdentity, original.strategyIdentity);
-  const variantPrecommit = strategyReplicationPrecommit({ spec: variant, parentSpec: original, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  const originalPrecommit = strategyReplicationPrecommit({ spec: original, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  assert.throws(() => strategyReplicationPrecommit({ spec: variant, parentSpec: original, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" }), /PARENT_PRECOMMIT_REQUIRED/);
+  const variantPrecommit = strategyReplicationPrecommit({ spec: variant, parentSpec: original, parentPrecommit: originalPrecommit, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
   assert.equal((variantPrecommit.parameterPlan as { parentStrategySpec: typeof original }).parentStrategySpec.strategyIdentity, original.strategyIdentity);
   assert.throws(() => strategyReplicationPrecommit({ spec: variant, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" }), /PARENT_REQUIRED/);
-  const orphanedPrecommit = { ...variantPrecommit, parameterPlan: { strategySpec: variant } };
-  assert.throws(() => createStrategyReplicationReceipt({ result: "INSUFFICIENT_EVIDENCE", spec: variant, precommit: orphanedPrecommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: "parent removed" } }), /precommit fingerprint mismatch/);
+  const { fingerprint: _fingerprint, ...orphanInput } = variantPrecommit;
+  const orphanedPrecommit = createResearchPrecommit({ ...orphanInput, parameterPlan: { strategySpec: variant } });
+  assert.throws(() => createStrategyReplicationReceipt({ result: "INSUFFICIENT_EVIDENCE", spec: variant, precommit: orphanedPrecommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: "parent removed" } }), /STRATEGY_VARIANT_PARENT_PRECOMMIT_REQUIRED/);
   const precommit = strategyReplicationPrecommit({ spec: original, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
   assert.equal(precommit.strategyIdentity, original.strategyIdentity);
   const forged = { ...original, entryRule: "forged after normalization" };
