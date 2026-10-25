@@ -93,10 +93,12 @@ jobs:
     # Only the privileged release steps run on the dedicated host. Build and dependency
     # installation stay on GitHub-hosted hardware, away from the 1 GB PAPER runtime host.
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    # The measured 1 MiB/s backup cap can require about 96 minutes on a 957 MiB weekly snapshot:
-    # VACUUM INTO, daily integrity/hash, weekly copy, and weekly integrity/hash. Keep a two-hour
-    # outer job bound without changing the separate 300 s startup or 180 s activation-soak limits.
-    timeout-minutes: 120
+    # Budget from the observed production envelope: 957 MiB / 0.8 MiB/s * six full-file
+    # Sunday phases = 119.6 min; add 30% backup variance and 15 min for artifact/stage,
+    # preflight, activation, 300 s readiness, and 180 s soak, then round up to 30 min.
+    # This is a bounded job timeout, not a runtime acceptance claim. Keep the independent
+    # readiness and activation-soak limits unchanged.
+    timeout-minutes: 180
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       NUSA_DEPLOY_ROOT: /opt/nusa

@@ -2576,9 +2576,9 @@ current_ops_oracle_backup_io_throttle_20261025:
   base_sha: fa4c3ad43790d4c6b2916582ef2dee0b32b52118
   previous_source_head: a48daf0a4350e0fdea528b811ac7f0b45f7f094f
   finding: "Oracle release backup I/O on the shared state-database disk can starve the foreground PAPER writer lease; nice/ionice alone does not provide a bandwidth bound on the measured host scheduler."
-  evidence: "Read-only host evidence: state DB filesystem /dev/sda1 -> /dev/sda TYPE=disk; cgroup v2 io available; measured backup about 0.8 MiB/s at a 1 MiB/s cap with PAPER foreground read throughput improving from about 10 to 14 MiB/s. Estimated Sunday verified backup path is about 96 minutes for the current ~957 MiB DB."
-  validation: "After adding this AIPOS record: Node 24.19 preflight, AIPOS index, validate:full, security:gate, focused 28/28, ESLint, shell syntax, and diff checks PASS. Exact-head CI and fresh independent review remain required after commit."
-  next: "Validate this AIPOS update, commit the durable operational record, then pass fresh exact-head CI, independent review, Audit, Release, and protected merge before any Oracle deployment."
+  evidence: "Read-only host evidence: state DB filesystem /dev/sda1 -> /dev/sda TYPE=disk; cgroup v2 io available; measured backup about 0.8 MiB/s at a 1 MiB/s cap with PAPER foreground read throughput improving from about 10 to 14 MiB/s. Current DB stat is 958,992,384 bytes (914.57 MiB); retain the prior conservative 957 MiB envelope. Six full-file Sunday phases at 0.8 MiB/s require ~119.6 min; with 30% backup margin and 15 min non-backup reserve, round up to a 180 min outer bound. This is a budget estimate, not runtime acceptance."
+  validation: "Original d41762769678e7bec235b2ce7685390b9165994b passed Node 24.19 preflight, AIPOS index, validate:full, security:gate, focused 28/28, ESLint, shell syntax, and diff checks. Fresh exact-head review found the 120-minute budget unsupported; successor validation and CI are required."
+  next: "Run budget regression and full local gates on the corrected 180-minute bound, then obtain exact-head CI and fresh independent review; no Oracle mutation before governed merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_health_guard_lock:

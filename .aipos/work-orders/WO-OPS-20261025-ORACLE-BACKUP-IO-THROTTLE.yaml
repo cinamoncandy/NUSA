@@ -15,7 +15,7 @@ scope:
   - "Keep the canonical sqlite-backup.js backup engine, VACUUM INTO, integrity verification, SHA-256 sidecar, retention, and release helper path."
   - "Resolve the mounted filesystem backing the canonical state DB to one verified local block disk; fail closed for ambiguous, remote, layered, or non-block topology."
   - "Run only the existing backup operation with low CPU priority and a 1 MiB/s read/write bandwidth cap in a transient systemd scope."
-  - "Set the outer Oracle release host job timeout to 120 minutes to fit the measured approximately 96-minute Sunday backup workload for the current approximately 957 MiB database. Keep PAPER readiness at 300 seconds and activation stability soak at 180 seconds."
+  - "Set the outer Oracle release host job timeout to 180 minutes. Budget from the conservative 957 MiB observed production envelope, 0.8 MiB/s measured capped throughput, six full-file Sunday phases (~119.6 minutes), 30% backup variance, and a 15-minute reserve for remaining release work; round up to the next 30-minute boundary. Keep PAPER readiness at 300 seconds and activation stability soak at 180 seconds."
 exclusions:
   - "No Oracle deployment, service restart, database mutation, writer-lease reset, backup deletion, or host-helper installation is part of this work order."
   - "Do not change writer lease TTL, heartbeat cadence, ownership predicate, readiness/soak budgets, backup integrity checks, retention policy, or PAPER/LIVE authority."
@@ -23,9 +23,9 @@ exclusions:
 evidence:
   - "Read-only Oracle topology inspection resolved /var/lib/nusa/state.sqlite to /dev/sda1 with parent /dev/sda (TYPE=disk); cgroup v2 io controller is available."
   - "Host measurements showed about 0.8 MiB/s backup throughput under a 1 MiB/s cap, while foreground PAPER reads rose from about 10 MiB/s to about 14 MiB/s."
-  - "Current backup estimate is approximately 96 minutes for the Sunday path; existing activation/readiness and soak contracts remain unchanged."
+  - "The previous ~96-minute estimate omitted repeated full-file integrity/hash/copy phases. Six phases at 957 MiB and 0.8 MiB/s require ~119.6 minutes before margin. The 180-minute outer job budget provides 30% backup variance plus a 15-minute non-backup reserve, rounded up; this estimate is not production acceptance evidence. A fresh read-only stat measured the live DB at 958,992,384 bytes (914.57 MiB), below the conservative 957 MiB envelope."
 acceptance:
-  - "Focused tests prove topology resolution and fail-closed behavior, the enforced per-device read/write cap, and backup command ordering."
+  - "Focused tests prove topology resolution and fail-closed behavior, the enforced per-device read/write cap, backup command ordering, and the timeout calculation from measured size/throughput/phases plus fixed reserve and margin."
   - "Existing verified backup integrity, checksum, and retention behavior remains in use."
   - "Node 24.19 preflight, relevant tests, exact-head CI and companion workflows pass; fresh non-author review and governed Audit/Release are required before merge."
   - "After governed merge, a canonical exact-main Oracle release measures backup and foreground runtime together; no runtime acceptance is claimed before that evidence exists."
@@ -41,5 +41,5 @@ verification_commands:
   - node --test tests/oracle-backup-device.test.js tests/oracle-paper-release-workflow.test.js
   - pnpm run preflight
   - git diff --check
-validation: "After adding this work order/state receipt: Node 24.19 preflight, AIPOS index, validate:full, security:gate, 28 focused tests, ESLint, shell syntax, and git diff --check PASS. This content is not yet committed; exact-head CI and fresh independent review remain required after commit."
-next: "Commit the durable work order/state receipt, then obtain new exact-head CI and fresh independent review."
+validation: "Original head d41762769678e7bec235b2ce7685390b9165994b had Node 24.19 preflight, AIPOS index, validate:full, security:gate, 28 focused tests, ESLint, shell syntax, and diff checks PASS. A fresh review found the 120-minute budget unsupported because it omitted six full-file phases; successor must rerun focused tests, preflight, validate:full, security:gate, AIPOS validation, and diff checks before exact-head CI and fresh independent review."
+next: "Validate the corrected bounded timeout calculation and durable AIPOS record, commit to the existing PR branch, then obtain new exact-head CI and fresh independent review."

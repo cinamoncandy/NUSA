@@ -90,7 +90,23 @@ test("the privileged backup uses the configured runtime state database", () => {
 
 test("the measured backup I/O cap fits the bounded host job without extending readiness or soak gates", () => {
   const release = workflow.slice(workflow.indexOf("  release:"));
-  assert.match(release, /timeout-minutes: 120/, "the host job must allow the measured capped Sunday backup to finish");
+  // Conservative production envelope recorded by WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE.
+  // Six full-file phases are VACUUM INTO, daily integrity/hash, weekly copy, and weekly
+  // integrity/hash. The 15-minute non-backup reserve includes the existing readiness and soak.
+  const databaseMiB = 957;
+  const observedMiBPerSecond = 0.8;
+  const fullFilePhases = 6;
+  const backupSafetyMargin = 0.30;
+  const nonBackupReserveMinutes = 15;
+  const roundUpToMinutes = 30;
+  const rawBackupMinutes = (databaseMiB * fullFilePhases) / observedMiBPerSecond / 60;
+  const requiredMinutes = rawBackupMinutes * (1 + backupSafetyMargin) + nonBackupReserveMinutes;
+  const budgetedMinutes = Math.ceil(requiredMinutes / roundUpToMinutes) * roundUpToMinutes;
+  const timeout = Number(release.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+
+  assert.equal(Math.round(rawBackupMinutes * 10) / 10, 119.6);
+  assert.equal(budgetedMinutes, 180);
+  assert.ok(timeout >= budgetedMinutes, "outer job timeout must cover measured backup, margin, and release reserve");
   assert.match(readiness, /NUSA_READY_STARTUP_WAIT_MS \|\| 300_000/);
   assert.match(readiness, /startupWaitMs > 300_000/);
   assert.match(wrapper, /POST_ACTIVATION_SOAK_SECONDS=180/);
