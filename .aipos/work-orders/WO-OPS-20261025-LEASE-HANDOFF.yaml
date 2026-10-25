@@ -1,0 +1,48 @@
+id: WO-OPS-20261025-LEASE-HANDOFF
+title: "Renew the existing PAPER writer lease at the synchronous startup handoff"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 2770
+base_branch: main
+base_commit: fa4c3ad43790d4c6b2916582ef2dee0b32b52118
+implementation_branch: fix/2770-lease-handoff
+authority_impact: paper_runtime_recovery
+objective: "After startCloudRuntime completes its synchronous composition, renew only a still-valid lease owned by this process before closed-learning scheduling begins, preserving the 30-second lease contract and fail-closed ownership semantics."
+root_cause: "Production evidence showed the writer lease could be acquired before a long synchronous startup composition, leaving little or no lease time for the first event-loop heartbeat. The existing timer cannot run during synchronous work."
+scope:
+  - "Reuse SqliteCloudPaperAccountRepository.verifyWriterLease at the post-startCloudRuntime handoff."
+  - "If verification fails after listener construction, stop the partially started runtime and propagate the original error."
+  - "Add deterministic integration regressions for a valid lease after 25 seconds of synchronous composition, an expired lease after 30.001 seconds, and owner mismatch."
+exclusions:
+  - "Do not change lease TTL, heartbeat interval, takeover predicate, startup timeout, Risk, or readiness budget."
+  - "Do not revive expired/missing/corrupt leases or take over a different owner."
+  - "Do not change historical ledger/database state outside isolated test fixtures."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuses the existing PAPER writer lease and production runtime composition; adds no scheduler, writer, control plane, store, or authority."
+  references:
+    - apps/cloud/src/closedLearningProductionRuntime.ts
+    - apps/cloud/src/paperTradingExecutionLoop.ts
+    - tests/research-startup-recovery.test.js
+    - tests/paper-startup-lease-budget-2770.test.js
+acceptance:
+  - "A still-valid current-owner lease renews immediately after startCloudRuntime returns and before closed-learning timers are scheduled."
+  - "An expired lease, missing lease, or owner mismatch remains fail-closed; no takeover or TTL extension occurs."
+  - "A partial runtime created before a failed handoff is stopped."
+  - "PAPER writer lease liveness and startup budget regressions remain green without changing the 30-second TTL or existing heartbeat."
+  - "Exact-head CI and required companions pass; fresh non-author review, formal validation, Audit, Release, and protected merge remain required."
+safety:
+  PAPER_ONLY: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - node --test tests/research-startup-recovery.test.js tests/paper-startup-lease-budget-2770.test.js tests/paper-writer-lease-liveness.test.js
+  - pnpm run build
+  - pnpm run preflight
+  - git diff --check
+validation: "Local focused tests 50/50 PASS, build/typecheck PASS, Node 24.19 preflight PASS, git diff --check PASS. Exact-head CI is pending."
+next: "Push the existing fix/2770-lease-handoff branch non-force, run exact-head workflows, request fresh independent review only after CI is green, then follow Formal Validator → Audit → Release → protected merge. No Oracle mutation before governed exact-main release."
