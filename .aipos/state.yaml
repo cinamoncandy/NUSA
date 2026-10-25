@@ -106,6 +106,18 @@ current_learning_exploration_a6_20261023:
   next: "Push the validated A5 fc3e2165 parent integration non-force to the existing #2797 branch, run exact-head CI, and request fresh independent review only after green. Keep Draft and do not claim production wiring."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_learning_status_m2_20261023:
+  work_order: WO-LEARNING-20261023-M2-STATUS-PROJECTION
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  branch: feat/learning-status-m2
+  pull_request: 2798
+  base_parent: ec7705a5880cfe8230a2dba3ac6a8215e15b50c6
+  validation: "After syncing A6 ec7705a5, selected M2/A6/A5/A4/A3/A2/A1/storage/worker/security-gate regression suite 220/220 PASS; build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff-check PASS. Exact-head CI pending push; earlier CI 40041467269 is historical."
+  blockers: "Cutoff/META policy owners and production Learning trigger remain unresolved; status projection does not address them or claim production integration."
+  next: "Push the validated A6 ec7705a5 parent sync non-force to the existing #2798 branch, run exact-head CI, and request fresh independent review only after green. Keep Draft; no server action."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+
 current_learning_fatal_shutdown_20261015:
   work_order: WO-OPS-20261015-LEARNING-FATAL-SHUTDOWN
   status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
