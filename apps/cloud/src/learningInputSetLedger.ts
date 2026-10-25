@@ -33,7 +33,8 @@ const INPUT_SET_RECORD = /^learning-input-set:[a-f0-9]{64}$/;
 // Keep one shared-ledger slot available for the A1 decision belonging to this A2 input set.
 const MAX_RECORDS = MAX_EVOLUTION_LEARNING_LEDGER_RECORDS - 1;
 const INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
-const INPUT_SET_STATUS = "LEARNING_INPUT_SET";
+const INPUT_SET_LEGACY_STATUS = "LEARNING_INPUT_SET";
+const INPUT_SET_STATUS = "LEARNING_INPUT_SET_AUTHORITY_VERIFIED";
 
 function assertStoredMetadata(record: EvolutionLedgerRecord, inputSet: LearningInputSet, fingerprint: string): void {
   const opportunityId = `learning-input-set:${fingerprint}`;
@@ -45,7 +46,7 @@ function assertStoredMetadata(record: EvolutionLedgerRecord, inputSet: LearningI
     record.opportunityId !== opportunityId
     || record.problem !== INPUT_SET_PROBLEM
     || record.changeReference !== inputSet.learningPolicyVersion
-    || record.validationStatus !== INPUT_SET_STATUS
+    || (record.validationStatus !== INPUT_SET_STATUS && record.validationStatus !== INPUT_SET_LEGACY_STATUS)
     || record.outcome !== "SUCCESS"
     || record.failureReason !== null
     || record.rollbackReference !== null
@@ -172,7 +173,7 @@ export class LearningInputSetLedger {
       evidenceReferences: Object.freeze([opportunityId, ...periodReferences]),
       hypothesis: canonicalResearchJson(inputSet),
       changeReference: inputSet.learningPolicyVersion,
-      validationStatus: "LEARNING_INPUT_SET",
+      validationStatus: INPUT_SET_STATUS,
       // `outcome` is a closed enum shared with cycle records. Here it denotes only that the record
       // was formed correctly; it is never a performance claim. The discriminative field is
       // `validationStatus`, and PERFORMANCE_IMPROVEMENT stays UNPROVEN regardless.

@@ -49,6 +49,8 @@ export interface MutableSurfaceDefinition {
   readonly surface: string;
   readonly minimum: number;
   readonly maximum: number;
+  /** Owner-defined recovery value; A4 may only use this exact value after an application failure. */
+  readonly failSafeValue: number;
   /** Largest step one cycle may take, independent of the absolute bounds. */
   readonly maximumDeltaPerCycle: number;
 }
@@ -61,7 +63,7 @@ export interface MutableSurfaceDefinition {
  * to add a row here at runtime.
  */
 export const MUTABLE_SURFACE_ALLOWLIST: readonly MutableSurfaceDefinition[] = Object.freeze([
-  Object.freeze({ surface: "longBarTickEvery", minimum: 1, maximum: 4, maximumDeltaPerCycle: 1 }),
+  Object.freeze({ surface: "longBarTickEvery", minimum: 1, maximum: 4, failSafeValue: 1, maximumDeltaPerCycle: 1 }),
 ]);
 
 /**
