@@ -190,6 +190,64 @@ for (const competingOwner of [false, true]) {
   });
 }
 
+for (const handoff of [
+  { name: "valid current owner", advanceMs: 25_000, expected: "renewed" },
+  { name: "expired owner", advanceMs: 30_001, expected: "fail-closed" },
+  { name: "mismatched owner", advanceMs: 25_000, expected: "fail-closed", replaceOwner: true },
+]) {
+  test(`production renews only a still-valid lease after synchronous runtime composition (${handoff.name})`, async (t) => {
+    const db = new storage.SqliteDatabase(":memory:");
+    const directory = mkdtempSync(join(tmpdir(), "nusa-startup-lease-handoff-"));
+    const runtimeEnv = { ...env, NUSA_CLOUD_RESEARCH_EXPERIMENTS: "0", NUSA_CLOUD_STATE_DB_PATH: join(directory, "state.sqlite") };
+    let now = 1_000_000;
+    let repository;
+    let runtimeStopped = 0;
+    const realVerify = SqliteCloudPaperAccountRepository.prototype.verifyWriterLease;
+    let handoffCalls = 0;
+    t.mock.method(Date, "now", () => now);
+    t.mock.method(storage, "SqliteDatabase", function () { return db; });
+    t.mock.method(SqliteCloudPaperAccountRepository.prototype, "verifyWriterLease", function () {
+      handoffCalls++;
+      return realVerify.call(this);
+    });
+    t.mock.method(runtime, "startCloudRuntime", (...args) => {
+      repository = args[5];
+      const acquired = db.connection.prepare("SELECT account_id, owner_id, lease_until_ms FROM cloud_paper_writer_leases").get();
+      assert.ok(acquired, "writer lease must be acquired before the listener/runtime composition");
+      assert.equal(acquired.lease_until_ms, 1_030_000);
+      if (handoff.replaceOwner) db.connection.prepare("UPDATE cloud_paper_writer_leases SET owner_id = ? WHERE account_id = ?").run("different-owner", acquired.account_id);
+      now += handoff.advanceMs; // Deterministic synchronous startCloudRuntime composition delay.
+      return {
+        stop: async () => { runtimeStopped++; },
+        listPaperRealizedPeriods: () => [],
+        nextPaperRealizedPeriodIndex: () => 0,
+      };
+    });
+
+    try {
+      if (handoff.expected === "renewed") {
+        const composition = startClosedLearningProductionRuntime(runtimeEnv);
+        const renewed = db.connection.prepare("SELECT lease_until_ms FROM cloud_paper_writer_leases").get();
+        assert.equal(handoffCalls, 1, "the existing lease is verified at the post-composition handoff");
+        assert.equal(renewed.lease_until_ms, now + 30_000, "the valid lease receives one fresh existing TTL");
+        await composition.handle.stop();
+        assert.equal(runtimeStopped, 1);
+      } else {
+        assert.throws(() => startClosedLearningProductionRuntime(runtimeEnv), /PAPER_WRITER_LEASE_LOST/);
+        assert.equal(handoffCalls, 1);
+        assert.equal(runtimeStopped, 1, "a listener/runtime created before failed handoff is stopped");
+        const row = db.connection.prepare("SELECT owner_id, lease_until_ms FROM cloud_paper_writer_leases").get();
+        if (handoff.advanceMs > 30_000) assert.equal(row.lease_until_ms, 1_030_000, "expired lease is not revived");
+        if (handoff.replaceOwner) assert.equal(row.owner_id, "different-owner", "handoff does not take over a different owner");
+      }
+    } finally {
+      repository?.close();
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
 for (const table of ["research_evaluation_ledger", "research_promotion_audit", "research_promotion_commands", "research_candidates"]) {
   test(`same-connection corruption of ${table} invalidates prepared evidence`, () => {
     const db = new storage.SqliteDatabase(":memory:");
