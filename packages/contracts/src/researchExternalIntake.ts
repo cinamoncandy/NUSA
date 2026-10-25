@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "./researchRuntime";
 import { createResearchPrecommit, verifyResearchPrecommit, type ResearchPrecommit } from "./researchPrecommit";
 import { createResearchHypothesis, type ResearchHypothesis, type ResearchHypothesisFamily } from "./researchHypothesisContract";
-import type { ResearchIntelligenceRecord } from "./researchIntelligence";
+import { createResearchIntelligenceRecord, type ResearchIntelligenceRecord } from "./researchIntelligence";
 
 const SHA256 = /^[a-f0-9]{64}$/i;
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
@@ -82,26 +82,32 @@ export function normalizeStrategyReplication(input: StrategyReplicationInput): S
     authority: "PAPER_ONLY" as const, liveAuthority: "NONE" as const, realOrderAuthority: false as const,
     realTransferAuthority: false as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const,
   };
-  const { sourceObservedAt: _observedAt, reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, ...identityMaterial } = core;
+  const { reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, ...identityMaterial } = core;
   return deepFreeze({ ...core, strategyIdentity: digest(identityMaterial) });
 }
 
 function verifyStrategyReplicationSpec(spec: StrategyReplicationSpec): void {
   if (!spec || typeof spec !== "object" || spec.externalPerformanceIsNusaEvidence !== false || spec.authority !== "PAPER_ONLY" || spec.liveAuthority !== "NONE" || spec.realOrderAuthority !== false || spec.realTransferAuthority !== false || spec.productionMutationAllowed !== false || spec.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(spec.strategyIdentity) || typeof spec.sourceSnapshot !== "string" || sha256(spec.sourceSnapshot) !== spec.sourceFingerprint) throw new Error("STRATEGY_IDENTITY_INVALID");
-  const { strategyIdentity, sourceObservedAt: _observedAt, reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, ...identityMaterial } = spec;
+  const { strategyIdentity, reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, ...identityMaterial } = spec;
   if (strategyIdentity !== digest(identityMaterial)) throw new Error("STRATEGY_IDENTITY_MISMATCH");
 }
 
 function plainRecord(value: unknown): value is Readonly<Record<string, unknown>> { return value !== null && typeof value === "object" && !Array.isArray(value); }
-function hasValue(value: unknown): boolean { return text(value) || (typeof value === "number" && Number.isFinite(value)) || value === true || (Array.isArray(value) && value.length > 0) || (plainRecord(value) && Object.keys(value).length > 0); }
-function hasAnyKey(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => hasValue(record[key])); }
+function hasText(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => text(record[key])); }
+function hasDigest(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => typeof record[key] === "string" && SHA256.test(record[key] as string)); }
+function validTimeWindow(value: unknown): boolean {
+  if (!plainRecord(value)) return false;
+  const start = value.startAt ?? value.start ?? value.from;
+  const end = value.endAt ?? value.end ?? value.to;
+  return text(start) && text(end) && Number.isFinite(Date.parse(start)) && Number.isFinite(Date.parse(end)) && Date.parse(start) < Date.parse(end);
+}
 function validatePrecommitPlans(datasetBinding: unknown, evaluationPlan: unknown, costPlan: unknown): boolean {
   if (!plainRecord(datasetBinding) || !plainRecord(evaluationPlan) || !plainRecord(costPlan)) return false;
-  const datasetBound = hasAnyKey(datasetBinding, ["manifest", "manifestId", "manifestFingerprint", "datasetId", "datasetFingerprint", "datasetContentSha256"]);
-  const pitBound = evaluationPlan.pit === true || hasAnyKey(evaluationPlan, ["pitWindow", "pointInTime", "pitPolicyVersion"]);
-  const oosBound = evaluationPlan.oos === true || hasAnyKey(evaluationPlan, ["oosWindow", "outOfSample", "walkForward", "walkForwardConfigHash"]);
-  const feeBound = hasAnyKey(costPlan, ["feeModelVersion", "feeModelIdentity", "feeAssumptions", "fees"]);
-  const slippageBound = hasAnyKey(costPlan, ["slippageModelVersion", "slippageModelIdentity", "slippageAssumptions", "slippage"]);
+  const datasetBound = hasText(datasetBinding, ["manifest", "manifestId", "datasetId"]) || hasDigest(datasetBinding, ["manifestFingerprint", "datasetFingerprint", "datasetContentSha256"]);
+  const pitBound = validTimeWindow(evaluationPlan.pitWindow) || text(evaluationPlan.pitPolicyVersion);
+  const oosBound = validTimeWindow(evaluationPlan.oosWindow) || text(evaluationPlan.oosPolicyVersion) || hasDigest(evaluationPlan, ["walkForwardConfigHash"]);
+  const feeBound = hasText(costPlan, ["feeModelVersion", "feeModelIdentity", "feeAssumptions"]) || (typeof costPlan.feeBps === "number" && Number.isFinite(costPlan.feeBps) && costPlan.feeBps >= 0);
+  const slippageBound = hasText(costPlan, ["slippageModelVersion", "slippageModelIdentity", "slippageAssumptions"]) || (typeof costPlan.slippageBps === "number" && Number.isFinite(costPlan.slippageBps) && costPlan.slippageBps >= 0);
   return datasetBound && pitBound && oosBound && feeBound && slippageBound;
 }
 
@@ -151,9 +157,29 @@ export function createCryptoNewsResearchObservation(input: CryptoNewsResearchInp
 /** Bind a captured snapshot to the existing Research Intelligence source-verification record. */
 export function bindCryptoNewsResearchIntelligence(observation: CryptoNewsResearchObservation, record: ResearchIntelligenceRecord): CryptoNewsResearchObservation {
   const { observationIdentity, ...observationMaterial } = observation;
+  let reconstructedRecord: ResearchIntelligenceRecord;
+  try {
+    reconstructedRecord = createResearchIntelligenceRecord({
+      sourceId: record.sourceId, sourceType: record.sourceType, sourceUrl: record.sourceUrl,
+      sourceVerification: record.sourceVerification, title: record.title, authors: record.authors,
+      publishedAt: record.publishedAt, discoveredAt: record.discoveredAt, rawContentSha256: record.rawContentSha256,
+      topic: record.topic, market: record.market, timeframe: record.timeframe, method: record.method,
+      claimedContribution: record.claimedContribution, testableHypothesis: record.testableHypothesis,
+      assumptions: record.assumptions, requiredData: record.requiredData, codeAvailable: record.codeAvailable,
+      datasetAvailable: record.datasetAvailable, reproducibilityStatus: record.reproducibilityStatus,
+      novelty: record.novelty, evidenceQuality: record.evidenceQuality, nusaRelevance: record.nusaRelevance,
+      implementationCost: record.implementationCost, expectedEconomicValue: record.expectedEconomicValue,
+      leakageRisk: record.leakageRisk, overfittingRisk: record.overfittingRisk, regimeDependence: record.regimeDependence,
+      transactionCostSensitivity: record.transactionCostSensitivity, validationStatus: record.validationStatus,
+      failureReason: record.failureReason, relatedExistingResearch: record.relatedExistingResearch,
+      axiomHandoffStatus: record.axiomHandoffStatus,
+    });
+  } catch {
+    throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
+  }
   const expectedContentFingerprint = digest({ sourceType: record.sourceType, sourceId: record.sourceId, sourceUrl: record.sourceUrl, rawContentSha256: record.rawContentSha256.toLowerCase() });
   const expectedRecordId = `ri:${digest({ sourceType: record.sourceType, sourceId: record.sourceId, contentFingerprint: expectedContentFingerprint })}`;
-  if (observationIdentity !== digest(observationMaterial) || observation.snapshotIntegrity !== "VERIFIED" || observation.contentFingerprint !== record.rawContentSha256.toLowerCase() || observation.sourceUrl !== record.sourceUrl || observation.publishedAt !== record.publishedAt || record.contentFingerprint !== expectedContentFingerprint || record.recordId !== expectedRecordId || record.sourceVerification !== "VERIFIED_PRIMARY_SOURCE" || record.validationStatus !== "SOURCE_VERIFIED" || record.evidenceQuality === "INVALID" || record.novelty === "DUPLICATE" || record.authority !== "PAPER_ONLY" || record.liveAuthority !== "NONE" || record.productionMutationAllowed !== false || record.aiAuthority !== "ZERO_AUTHORITY" || Date.parse(record.publishedAt) > Date.parse(record.discoveredAt) || Date.parse(record.discoveredAt) !== Date.parse(observation.firstObservedAt) || Date.parse(record.discoveredAt) > Date.parse(observation.retrievedAt) || Date.parse(observation.firstObservedAt) > Date.parse(observation.retrievedAt) || observation.sourceType === "SOCIAL" || observation.sourceType === "RUMOR") throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
+  if (digest(reconstructedRecord) !== digest(record) || observationIdentity !== digest(observationMaterial) || observation.snapshotIntegrity !== "VERIFIED" || observation.publishedAt === "UNKNOWN" || observation.contentFingerprint !== record.rawContentSha256.toLowerCase() || observation.sourceUrl !== record.sourceUrl || observation.publishedAt !== record.publishedAt || record.contentFingerprint !== expectedContentFingerprint || record.recordId !== expectedRecordId || record.sourceVerification !== "VERIFIED_PRIMARY_SOURCE" || record.validationStatus !== "SOURCE_VERIFIED" || record.evidenceQuality === "INVALID" || record.novelty === "DUPLICATE" || record.authority !== "PAPER_ONLY" || record.liveAuthority !== "NONE" || record.productionMutationAllowed !== false || record.aiAuthority !== "ZERO_AUTHORITY" || !Number.isFinite(Date.parse(record.publishedAt)) || !Number.isFinite(Date.parse(record.discoveredAt)) || Date.parse(record.publishedAt) > Date.parse(record.discoveredAt) || Date.parse(record.discoveredAt) !== Date.parse(observation.firstObservedAt) || Date.parse(record.discoveredAt) > Date.parse(observation.retrievedAt) || Date.parse(observation.firstObservedAt) > Date.parse(observation.retrievedAt) || observation.sourceType === "SOCIAL" || observation.sourceType === "RUMOR") throw new Error("NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID");
   const core = { ...observationMaterial, verificationStatus: "SOURCE_VERIFIED" as const, coverageStatus: "PIT_ELIGIBLE" as const, researchIntelligenceRecordId: record.recordId };
   return deepFreeze({ ...core, observationIdentity: digest(core) });
 }

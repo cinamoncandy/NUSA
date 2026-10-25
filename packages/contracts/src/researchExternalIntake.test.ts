@@ -9,6 +9,8 @@ const strategySnapshot = "Published strategy rules: enter next open, exit below 
 const strategyFingerprint = createHash("sha256").update(strategySnapshot).digest("hex");
 const newsSnapshot = "The official filing was published.";
 const newsFingerprint = createHash("sha256").update(newsSnapshot).digest("hex");
+const evaluationPlan = { pitWindow: { startAt: "2026-01-01T00:00:00Z", endAt: "2026-06-01T00:00:00Z" }, oosWindow: { startAt: "2026-06-01T00:00:00Z", endAt: "2026-07-01T00:00:00Z" } };
+const costPlan = { feeModelVersion: "fee-v1", slippageModelVersion: "slippage-v1" };
 const strategy = (patch: Partial<StrategyReplicationInput> = {}): StrategyReplicationInput => ({
   sourceUrl: "https://example.org/strategy", sourceFingerprint: strategyFingerprint, sourceSnapshot: strategySnapshot, sourceObservedAt: "2026-10-25T00:00:00.000Z",
   strategyName: "Example", strategyFamily: "momentum", market: "krw-xrp", instruments: ["KRW-XRP"], timeframe: "1m", dataRequirements: ["UPBIT_PUBLIC_CANDLES"],
@@ -18,7 +20,8 @@ const strategy = (patch: Partial<StrategyReplicationInput> = {}): StrategyReplic
 test("public strategy normalization has stable identity and external metrics remain metadata", () => {
   const a = normalizeStrategyReplication(strategy({ reportedPerformance: { sharpe: 999 } }));
   const b = normalizeStrategyReplication(strategy({ sourceUrl: "https://EXAMPLE.org/strategy#section", sourceObservedAt: "2026-10-26T00:00:00.000Z", instruments: ["KRW-XRP", "KRW-XRP"], reportedPerformance: { sharpe: 999_999 } }));
-  assert.equal(a.strategyIdentity, b.strategyIdentity);
+  assert.notEqual(a.strategyIdentity, b.strategyIdentity, "source observation time is identity-bound");
+  assert.equal(a.strategyIdentity, normalizeStrategyReplication(strategy({ reportedPerformance: { sharpe: -999 } })).strategyIdentity, "external result claims do not alter strategy rules identity");
   assert.equal(a.sourceUrl, b.sourceUrl);
   assert.equal(a.externalPerformanceIsNusaEvidence, false);
   assert.equal(a.realOrderAuthority, false);
@@ -39,10 +42,12 @@ test("variant identity is separate and replication precommit binds existing cano
   const variant = normalizeStrategyReplication(strategy({ variantOf: original.strategyIdentity, signalDefinition: "close > prior high and news filter" }));
   assert.equal(variant.kind, "NUSA_VARIANT");
   assert.notEqual(variant.strategyIdentity, original.strategyIdentity);
-  const precommit = strategyReplicationPrecommit({ spec: original, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan: { pit: true, oos: true }, costPlan: { feeModelVersion: "fee-v1", slippageModelVersion: "slippage-v1" }, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  const precommit = strategyReplicationPrecommit({ spec: original, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
   assert.equal(precommit.strategyIdentity, original.strategyIdentity);
   const forged = { ...original, entryRule: "forged after normalization" };
-  assert.throws(() => strategyReplicationPrecommit({ spec: forged, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan: { pit: true, oos: true }, costPlan: { feeModelVersion: "fee-v1", slippageModelVersion: "slippage-v1" }, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" }), /IDENTITY_MISMATCH/);
+  assert.throws(() => strategyReplicationPrecommit({ spec: forged, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" }), /IDENTITY_MISMATCH/);
+  const changedObservationTime = { ...original, sourceObservedAt: "2026-10-24T00:00:00.000Z" };
+  assert.throws(() => strategyReplicationPrecommit({ spec: changedObservationTime, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" }), /IDENTITY_MISMATCH/);
 });
 
 const news = (patch: Partial<CryptoNewsResearchInput> = {}): CryptoNewsResearchInput => ({
@@ -70,16 +75,17 @@ test("verified news hypothesis requires explicit assumptions and binds an immuta
   const observation = createCryptoNewsResearchObservation(news());
   const sourceRecord = createResearchIntelligenceRecord({ sourceId: "publisher", sourceType: "OTHER", sourceUrl: observation.sourceUrl, sourceVerification: "VERIFIED_PRIMARY_SOURCE", title: "Official filing", authors: ["Publisher"], publishedAt: observation.publishedAt!, discoveredAt: observation.firstObservedAt, rawContentSha256: observation.contentFingerprint, topic: ["REGULATION"], market: "CRYPTO", timeframe: "1h", method: "event study hypothesis", claimedContribution: "publisher claim", testableHypothesis: "Test whether filing events predict volatility", assumptions: [], requiredData: ["UPBIT_PUBLIC_CANDLES"] });
   const verified = bindCryptoNewsResearchIntelligence(observation, sourceRecord);
-  const result = cryptoNewsResearchPrecommit(verified, { family: "VOLATILITY", rationale: "Test measured volatility after official filings", mechanism: "Information arrival may change uncertainty", targetMarket: "KRW-BTC", expectedRegime: "high information arrival", invalidationCondition: "No out-of-sample volatility response", holdingPeriodMs: 3_600_000, capacityAssumptions: { maxNotional: 1_000_000, maxParticipationRate: 0.01 }, transactionCostSensitivity: 0.8, createdAt: "2026-10-25T02:00:00Z", datasetBinding: { manifest: "manifest-v1" }, evaluationPlan: { pit: true, oos: true }, costPlan: { feeModelVersion: "fee-v1", slippageModelVersion: "slippage-v1" }, sourceSha: SHA, validationPolicyIdentity: "policy-v1" });
+  const result = cryptoNewsResearchPrecommit(verified, { family: "VOLATILITY", rationale: "Test measured volatility after official filings", mechanism: "Information arrival may change uncertainty", targetMarket: "KRW-BTC", expectedRegime: "high information arrival", invalidationCondition: "No out-of-sample volatility response", holdingPeriodMs: 3_600_000, capacityAssumptions: { maxNotional: 1_000_000, maxParticipationRate: 0.01 }, transactionCostSensitivity: 0.8, createdAt: "2026-10-25T02:00:00Z", datasetBinding: { manifest: "manifest-v1" }, evaluationPlan, costPlan, sourceSha: SHA, validationPolicyIdentity: "policy-v1" });
   assert.equal(result.classification, "RESEARCH_HYPOTHESIS_CANDIDATE");
   assert.equal(result.precommit.candidateIdentity, result.hypothesis.candidateId);
   assert.equal(result.precommit.datasetBinding.newsObservationIdentity, verified.observationIdentity);
   assert.equal((result.precommit.parameterPlan.hypothesis as { provenance: { author: string } }).provenance.author, "SCOUT_ADVISORY");
-  assert.throws(() => cryptoNewsResearchPrecommit(verified, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-24T23:00:00Z", datasetBinding: { manifest: "manifest-v1" }, evaluationPlan: { pit: true, oos: true }, costPlan: { feeModelVersion: "fee-v1", slippageModelVersion: "slippage-v1" }, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /EVIDENCE_INELIGIBLE/);
+  assert.throws(() => cryptoNewsResearchPrecommit(verified, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-24T23:00:00Z", datasetBinding: { manifest: "manifest-v1" }, evaluationPlan, costPlan, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /EVIDENCE_INELIGIBLE/);
   assert.throws(() => cryptoNewsResearchPrecommit(verified, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-25T02:00:00Z", datasetBinding: {}, evaluationPlan: {}, costPlan: {}, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /EVIDENCE_INELIGIBLE/);
-  assert.throws(() => cryptoNewsResearchPrecommit(observation, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-25T02:00:00Z", datasetBinding: {}, evaluationPlan: {}, costPlan: {}, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /INELIGIBLE/);
+  assert.throws(() => cryptoNewsResearchPrecommit(verified, { family: "VOLATILITY", rationale: "r", mechanism: "m", targetMarket: "KRW-BTC", expectedRegime: "regime", invalidationCondition: "invalidated", holdingPeriodMs: 1000, capacityAssumptions: { maxNotional: 1, maxParticipationRate: 0.1 }, transactionCostSensitivity: 0.5, createdAt: "2026-10-25T02:00:00Z", datasetBinding: { manifest: true }, evaluationPlan: { pit: true, oos: true }, costPlan: { fees: true, slippage: true }, sourceSha: SHA, validationPolicyIdentity: "policy-v1" }), /EVIDENCE_INELIGIBLE/);
   const lateRecord = createResearchIntelligenceRecord({ sourceId: "publisher", sourceType: "OTHER", sourceUrl: observation.sourceUrl, sourceVerification: "VERIFIED_PRIMARY_SOURCE", title: "Official filing", authors: ["Publisher"], publishedAt: observation.publishedAt!, discoveredAt: "2026-10-25T03:00:00Z", rawContentSha256: observation.contentFingerprint, topic: ["REGULATION"], market: "CRYPTO", timeframe: "1h", method: "event study hypothesis", claimedContribution: "publisher claim", testableHypothesis: "Test whether filing events predict volatility", assumptions: [], requiredData: ["UPBIT_PUBLIC_CANDLES"] });
   assert.throws(() => bindCryptoNewsResearchIntelligence(observation, lateRecord), /BINDING_INVALID/);
+  assert.throws(() => bindCryptoNewsResearchIntelligence(observation, { ...sourceRecord, publishedAt: "UNKNOWN" }), /BINDING_INVALID/);
 });
 
 test("strategy source snapshot must match its fingerprint and list values cannot normalize to blanks", () => {
@@ -90,16 +96,17 @@ test("strategy source snapshot must match its fingerprint and list values cannot
 
 test("precommit requires PIT/OOS, dataset, fee and slippage bindings and cannot predate source evidence", () => {
   const spec = normalizeStrategyReplication(strategy());
-  const valid = { spec, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan: { pit: true, oos: true }, costPlan: { feeModelVersion: "fee-v1", slippageModelVersion: "slippage-v1" }, validationPolicyIdentity: "policy-v1" };
+  const valid = { spec, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1" };
   assert.throws(() => strategyReplicationPrecommit({ ...valid, datasetBinding: {}, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
-  assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pit: true }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
+  assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pitWindow: evaluationPlan.pitWindow }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
+  assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pit: true, oos: true }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, costPlan: { feeModelVersion: "fee-v1" }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, createdAt: "2026-10-24T23:59:59Z" }), /PRECOMMIT_BINDING_INVALID/);
 });
 
 test("replication receipt binds outcome to spec, precommit, dataset and preserves adverse evidence", () => {
   const spec = normalizeStrategyReplication(strategy());
-  const precommit = strategyReplicationPrecommit({ spec, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan: { pit: true, oos: true }, costPlan: { feeModelVersion: "fee-v1", slippageModelVersion: "slippage-v1" }, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  const precommit = strategyReplicationPrecommit({ spec, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
   const receipt = createStrategyReplicationReceipt({ result: "NOT_REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: "cost-adjusted OOS failed" }, negativeEvidence: ["transaction costs destroyed edge"] });
   assert.equal(receipt.result, "NOT_REPRODUCED");
   assert.equal(receipt.precommitFingerprint, precommit.fingerprint);
