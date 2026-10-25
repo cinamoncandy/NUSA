@@ -3850,15 +3850,15 @@ current_learning_a4_bounded_application_20261022:
 
 current_learning_a4_capacity_20261023:
   work_order: WO-LEARNING-20261022-A4-APPLICATION
-  status: LOCAL_VALIDATED_A1_REVIEWED_PARENT_RECONVERGED_SUCCESSOR_READY
+  status: LOCAL_VALIDATED_SUCCESSOR_PENDING_EXACT_HEAD_CI
   branch: feat/learning-application-a4
   pr: 2794
   previous_local_head: e130c254
   parent_head: 4ed23afe388e2afff7cad77c50328f42ce3565c2
   remote_a4_predecessor: df2501ad067c73662bec272f310e17300634ae31
   local_reconvergence_head: fe516f5f44f757c319c0f2edc23fbfe94b6becb4
-  validation: "After reconverging existing A4 and reviewed A1 parent, A4 + A1/A2 SQLite ledger tests 47/47 PASS; build PASS; Node 24.19.0 preflight PASS; validate:full PASS; security:gate PASS (0 unmitigated); diff-check PASS. The A4 successor changes preserve atomic A2 source-authority validation while reserving durable terminal A4 receipt capacity, fail-safe bounds, and the SQLite intent-claim winner."
-  next: "Finalize the existing #2794 successor on parent 4ed23afe, rerun exact-head CI, then request one fresh independent review only after CI is green. Keep Draft; no release/merge/runtime claim."
+  validation: "A4 + A1/A2 SQLite ledger tests 48/48 PASS; build PASS; Node 24.19.0 preflight PASS; validate:full PASS; security:gate PASS (0 unmitigated); diff-check PASS. A4 successor preserves A2 source-authority and A1 reservation/replay in the SQLite transaction, reserves the terminal A4 receipt, and rejects intent namespace/status mismatch fail-closed. Exact CI and review request on predecessor ac67553e are historical after this local repair."
+  next: "Commit and push this substantive fail-closed repair to existing #2794; run exact-head CI and Mobile Native; request fresh independent review only after canonical CI is green. Keep Draft; no release/merge/runtime claim."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:

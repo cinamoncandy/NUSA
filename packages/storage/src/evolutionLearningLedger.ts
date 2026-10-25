@@ -474,7 +474,9 @@ function pendingLearningApplicationIntents(records: readonly EvolutionLearningRe
   for (const record of records) {
     const intentMatch = LEARNING_APPLICATION_INTENT_ID.exec(record.opportunityId);
     if (record.validationStatus === "LEARNING_APPLICATION_INTENT" || intentMatch != null) {
-      if (intentMatch == null || record.validationStatus !== "LEARNING_APPLICATION_INTENT") continue;
+      if (intentMatch == null || record.validationStatus !== "LEARNING_APPLICATION_INTENT") {
+        invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent namespace and validation status do not match");
+      }
       let parsed: unknown;
       try { parsed = JSON.parse(record.hypothesis); } catch { invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent payload is malformed"); }
       if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent payload is not an object");

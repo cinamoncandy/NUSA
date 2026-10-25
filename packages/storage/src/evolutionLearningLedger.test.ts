@@ -478,6 +478,25 @@ test("an A4 intent is rejected before persistence when both intent and terminal 
   }
 });
 
+test("A4 intent namespace and validation status mismatches fail closed", () => {
+  for (const [opportunityId, validationStatus] of [
+    ["opp:mislabelled-intent", "LEARNING_APPLICATION_INTENT"],
+    [`learning-application-intent:${"a".repeat(64)}`, "VERIFIED_IMPROVEMENT"],
+  ] as const) {
+    const db = new SqliteDatabase(":memory:");
+    try {
+      const ledger = new SqliteEvolutionLearningLedger(db, 4);
+      assert.throws(
+        () => ledger.append(record(opportunityId, "2026-08-29T00:03:00.000Z", { validationStatus })),
+        (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_LEARNING_APPLICATION_INTENT",
+      );
+      assert.equal(ledger.size(), 0, "an ambiguous intent cannot enter the ledger without capacity reservation");
+    } finally {
+      db.close();
+    }
+  }
+});
+
 test("replay does not resurrect an A2 reservation for the immediately preceding canonical A1 receipt format", () => {
   const filename = databasePath();
   let db = new SqliteDatabase(filename);

@@ -16,9 +16,11 @@ review_findings:
     - "Only the transaction that created the write-ahead intent may mutate; an already-claimed intent fails closed."
     - "Fail-safe target must equal the owner-declared surface fail-safe and remain inside the immutable bounds before it reaches the setter."
     - "Receipt timestamp/runtime/source provenance was already included in the fingerprint and is regression-tested; no duplicate identity mechanism was added."
+  addressed_locally_20261025:
+    - "Malformed A4 intent namespace/status mismatches now fail closed instead of being ignored and leaving terminal receipt capacity unreserved."
 validation:
   node: "v24.19.0"
-  focused: "After reconverging existing A4 and reviewed A1 parent 4ed23afe388e2afff7cad77c50328f42ce3565c2, A4 + A1/A2 SQLite ledger regression 47/47 PASS; build PASS; Node v24.19.0 pnpm run preflight PASS; validate:full PASS; security:gate PASS (0 unmitigated); git diff --check PASS. Exact-head CI and fresh review of the A4 successor are pending."
+  focused: "After reconverging existing A4 and reviewed A1 parent 4ed23afe388e2afff7cad77c50328f42ce3565c2, A4 + A1/A2 SQLite ledger regression 48/48 PASS; build PASS; Node v24.19.0 pnpm run preflight PASS; validate:full PASS; security:gate PASS (0 unmitigated); git diff --check PASS. A new fail-closed regression covers mismatched A4 intent namespace/status. Exact-head CI and fresh review of the successor are pending; prior CI/review at ac67553e are historical."
 remaining: "Exact-head CI, fresh non-author review, canonical A3 owner/policy integration, and a production caller remain required. Keep Draft; no Audit/Release/merge/runtime change."
 next: "Finalize and push the existing #2794 successor on reviewed parent 4ed23afe; require exact-head CI green, then request fresh independent review."
 safety:
