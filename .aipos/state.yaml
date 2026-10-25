@@ -3857,7 +3857,7 @@ current_learning_a4_capacity_20261023:
   parent_head: 4ed23afe388e2afff7cad77c50328f42ce3565c2
   remote_a4_predecessor: df2501ad067c73662bec272f310e17300634ae31
   local_reconvergence_head: fe516f5f44f757c319c0f2edc23fbfe94b6becb4
-  validation: "Successor on Node 24.19.0: build PASS; A4/A1/A2 SQLite ledger focused tests 51/51 PASS; preflight PASS. Added cross-cycle per-surface exclusive lock, pending-intent recovery with original provenance, exact receipt schemas, and matching REJECTED reservation release. validate:full/security:gate remain pending after this final repair."
+  validation: "Successor on Node 24.19.0: build PASS; A4/A1/A2 SQLite ledger focused tests 51/51 PASS; preflight, validate:full, security:gate, lint (0 errors; 45 existing warnings), and diff-check PASS. Outcome-specific receipt schema rejects unrelated optional fields. Run 40148380895 was cancelled because this final schema refinement landed while it was running; it is not acceptance evidence."
   review_findings: "Fresh exact-head review comments on 3849e1e9: P1 IDs 4354716464, 4354716473, 4354716480, 4354839823, 4354839828, 4356054560, 4356054567, 4364881582, 4364881587; P2 ID 4369049595. Earlier findings listed under the work order were addressed in prior commits; this successor addresses the remaining surface-pending and provenance issues."
   next: "Run validate:full/security:gate, then push only to existing #2794; exact-head CI plus Mobile Native (if required) and fresh independent review after green. Keep Draft; no release/merge/runtime claim."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

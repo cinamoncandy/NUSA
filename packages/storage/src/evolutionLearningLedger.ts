@@ -510,7 +510,9 @@ function pendingLearningApplicationIntents(records: readonly EvolutionLearningRe
     const receipt = parsed as Record<string, unknown>;
     if (!["APPLIED", "NOOP", "FAILED", "REJECTED"].includes(receipt.applicationOutcome as string)) continue;
     const { schemaVersion: receiptSchema, outcomeVersion, applicationFingerprint } = receipt;
-    const expectedReceiptKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "intentFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "appliedValue", "applicationOutcome", "applicationFingerprint", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "outcomeVersion", ...(Object.hasOwn(receipt, "fallbackReason") ? ["fallbackReason"] : []), ...(Object.hasOwn(receipt, "rejectionReason") ? ["rejectionReason"] : [])].sort();
+    const optionalReceiptKeys = receipt.applicationOutcome === "FAILED" ? ["fallbackReason"]
+      : receipt.applicationOutcome === "REJECTED" ? ["rejectionReason"] : [];
+    const expectedReceiptKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "intentFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "appliedValue", "applicationOutcome", "applicationFingerprint", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "outcomeVersion", ...optionalReceiptKeys].sort();
     const receiptDigest = sha256(canonicalResearchJson({
       learningDecisionFingerprint: receipt.learningDecisionFingerprint,
       learningCycleId: receipt.learningCycleId,
