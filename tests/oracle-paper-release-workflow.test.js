@@ -77,7 +77,10 @@ test("the privileged backup uses the configured runtime state database", () => {
   assert.ok(backup.length > 0);
   assert.match(backup, /source "\$RUNTIME_ENV"/, "backup must read the canonical runtime env without printing it");
   assert.match(backup, /NUSA_CLOUD_STATE_DB_PATH/);
-  assert.match(backup, /ionice -c 3 nice -n 19 runuser -u "\$SERVICE_USER"/, "backup must yield CPU and block-I/O priority to the foreground PAPER runtime");
+  assert.match(backup, /systemd-run --quiet --collect --scope/, "backup must run in a dedicated transient cgroup");
+  assert.match(backup, /IOReadBandwidthMax=\/dev\/sda 5M/);
+  assert.match(backup, /IOWriteBandwidthMax=\/dev\/sda 5M/);
+  assert.match(backup, /nice -n 19 runuser -u "\$SERVICE_USER"/, "backup must yield CPU priority to the foreground PAPER runtime");
   assert.match(backup, /env NUSA_DB="\$state_db"/, "sqlite-backup must target the configured durable runtime database");
   assert.match(backup, /Cloud state path must be absolute before backup/);
 });
