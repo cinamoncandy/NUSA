@@ -84,3 +84,25 @@ test("empty input and bad configuration fail closed", () => {
   assert.throws(() => aggregateClosedCandles({ ...base, observations: [], maxInternalGapMs: 0 }));
   assert.throws(() => aggregateClosedCandles({ ...base, observations: [], maxInternalGapMs: M + 1 }));
 });
+
+test("multiple per-tick source fingerprints with one stable source are accepted and aggregated deterministically", () => {
+  const hex = (n) => n.toString(16).padStart(64, "0");
+  const obs = [...dense(0, [100, 101, 102, 103]), ...dense(1, [103, 110, 100, 104])].map((o, i) => ({ ...o, source: "UPBIT_PUBLIC_TICKER", sourceFingerprint: hex(i + 1) }));
+  const r = aggregateClosedCandles({ ...base, observations: obs });
+  assert.equal(r.source, "UPBIT_PUBLIC_TICKER");
+  assert.match(r.sourceFingerprint, /^[a-f0-9]{64}$/);
+  assert.match(r.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
+  const r2 = aggregateClosedCandles({ ...base, observations: obs });
+  assert.equal(r.sourceFingerprint, r2.sourceFingerprint);
+});
+
+test("genuinely mixed source identity fails closed", () => {
+  const obs = [...dense(0, [100, 101, 102, 103])].map((o) => ({ ...o, source: "UPBIT_PUBLIC_TICKER", sourceFingerprint: "0".repeat(64) }));
+  const mixed = [{ ...obs[0], source: "OTHER_PROVIDER" }];
+  assert.throws(() => aggregateClosedCandles({ ...base, observations: [...obs, ...mixed] }));
+});
+
+test("malformed per-tick source fingerprint fails closed", () => {
+  const obs = [...dense(0, [100, 101, 102, 103])].map((o) => ({ ...o, source: "UPBIT_PUBLIC_TICKER", sourceFingerprint: "not-hex" }));
+  assert.throws(() => aggregateClosedCandles({ ...base, observations: obs }));
+});

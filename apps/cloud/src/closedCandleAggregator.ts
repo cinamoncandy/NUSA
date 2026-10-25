@@ -98,7 +98,25 @@ export function aggregateClosedCandles(input: {
   });
   const missingBuckets = starts.length < 2 ? 0 : (starts[starts.length - 1] - starts[0]) / intervalMs + 1 - starts.length;
   const sources = new Set(input.observations.map((observation) => observation.source).filter((value): value is string => value != null));
-  const sourceFingerprints = new Set(input.observations.map((observation) => observation.sourceFingerprint).filter((value): value is string => value != null));
-  if (sources.size > 1 || sourceFingerprints.size > 1) throw new Error("mixed observation provenance is not supported");
-  return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles), ...(sources.size === 1 ? { source: [...sources][0] } : {}), ...(sourceFingerprints.size === 1 ? { sourceFingerprint: [...sourceFingerprints][0] } : {}) });
+  // Stable source identity must be singular: genuinely mixed providers are fail-closed.
+  if (sources.size > 1) throw new Error("mixed observation source identity is not supported");
+  // Per-event source fingerprints are event-level provenance and legitimately differ across ticks.
+  // Validate their shape when present, but never reject a window merely because they differ.
+  for (const observation of input.observations) {
+    if (observation.source != null && (typeof observation.source !== "string" || observation.source.trim() === "")) throw new Error("invalid observation source identity");
+    if (observation.sourceFingerprint != null && (typeof observation.sourceFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(observation.sourceFingerprint))) throw new Error("invalid observation source fingerprint");
+    if (observation.evidenceFingerprintSha256 != null && (typeof observation.evidenceFingerprintSha256 !== "string" || !/^[a-f0-9]{64}$/.test(observation.evidenceFingerprintSha256))) throw new Error("invalid observation evidence fingerprint");
+  }
+  // Derive a deterministic aggregate/window provenance fingerprint from the ordered, identity-bound
+  // observation evidence. Ordering is part of the digest so non-deterministic input order is detectable.
+  const aggregateFingerprint = input.observations.length === 0
+    ? undefined
+    : createHash("sha256").update(JSON.stringify(input.observations.map((observation) => [observation.observedAt, observation.price, observation.source ?? null, observation.sourceFingerprint ?? null, observation.evidenceFingerprintSha256 ?? null])), "utf8").digest("hex");
+  const evidenceHasAny = input.observations.some((observation) => observation.evidenceFingerprintSha256 != null);
+  const evidenceAggregateFingerprint = input.observations.length === 0
+    ? undefined
+    : (evidenceHasAny
+      ? createHash("sha256").update(JSON.stringify(input.observations.map((observation) => observation.evidenceFingerprintSha256 ?? null)), "utf8").digest("hex")
+      : aggregateFingerprint);
+  return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles), ...(sources.size === 1 ? { source: [...sources][0] } : {}), ...(aggregateFingerprint == null ? {} : { sourceFingerprint: aggregateFingerprint }), ...(aggregateFingerprint == null ? {} : { evidenceFingerprintSha256: evidenceAggregateFingerprint }) });
 }
