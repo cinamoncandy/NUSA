@@ -3697,6 +3697,25 @@ current_autopilot_runner_readiness:
   authority_impact: none
   finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
 
+current_learning_meta_holdout_replay_20261018:
+  work_order: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
+  status: LOCAL_VALIDATED_PARENT_SYNC_PENDING_EXACT_HEAD_CI
+  branch: feat/meta-oos-a3
+  pull_request: 2795
+  predecessor_head: c35931ef62dd5af661d00ab38e47cc76f8981f9f
+  parent_a4_head: ddbb3a1b6b07503464f7938b4f713ee2dc983bdb
+  prior_exact_head_ci: 40146442748
+  prior_review_id: 5640768157
+  prior_review_p1_comment_ids: [4369088597, 4369088598, 4369088600]
+  validation: "Local parent reconvergence of A4 ddbb3a1b6b07503464f7938b4f713ee2dc983bdb into the existing A3 branch: Node v24.19.0 build PASS; A3 META OOS + A4 application + Evolution ledger tests 64/64 PASS; pnpm run preflight PASS; git diff --check PASS. Exact A3 merge-head CI and fresh independent review are not yet run."
+  finding: "Fresh review of predecessor 179ad181 found three P1s: caller-selected partition could bias holdout, assignment uniqueness was not checked in the serialized append transaction, and malformed self-consistent durable receipts could omit required identity fields. Current A3 keeps all partition assignment/eligibility disabled until owner policy exists, validates exact receipt schema/envelope, and checks cycle uniqueness atomically. No cutoff/META allocation policy or production trigger owner is invented."
+  next: "Finalize the existing A4 parent-sync merge, push non-force to existing #2795, run exact-head CI/required companions and pnpm preflight, then request one fresh independent review after green. Keep Draft; no Audit/Release/merge/runtime claim."
+  blockers:
+    - BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED
+    - BLOCKED_META_PARTITION_POLICY_UNDEFINED
+    - BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_methods_20261013:
   work_order: WO-RESEARCH-20261013-LEARNING-METHODS
   status: COMPLETED_ANALYSIS
@@ -3850,16 +3869,14 @@ current_learning_a4_bounded_application_20261022:
 
 current_learning_a4_capacity_20261023:
   work_order: WO-LEARNING-20261022-A4-APPLICATION
-  status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_MAJOR_ISSUES
   branch: feat/learning-application-a4
   pr: 2794
   previous_local_head: f37566cc000be1d00850293d6e0a636103a32d23
   parent_head: 4ed23afe388e2afff7cad77c50328f42ce3565c2
-  remote_a4_predecessor: df2501ad067c73662bec272f310e17300634ae31
-  local_reconvergence_head: f37566cc000be1d00850293d6e0a636103a32d23
-  validation: "Current local successor on Node v24.19.0: build PASS; A4 application + Evolution ledger focused tests 54/54 PASS; preflight, validate:full, security:gate, and diff-check PASS. New regression covers self-consistent false APPLIED value and terminal provenance mismatch."
-  review_findings: "Fresh review on current predecessor f37566cc (comment IDs 4369190660 and 4369190662) found terminal provenance was not fully compared with durable intent and a self-consistent APPLIED receipt could claim a different appliedValue. Both repaired locally; exact-head CI/review required after push."
-  next: "Commit and push the substantive repair only to existing #2794; run exact-head CI and required companions, then request fresh independent review after green. Keep Draft; no release/merge/runtime claim."
+  validation: "Exact A4 head ddbb3a1b6b07503464f7938b4f713ee2dc983bdb on Node v24.19.0: build PASS; focused A4/Evolution ledger tests 54/54 PASS; preflight, validate:full, security:gate, AIPOS provenance, and diff-check PASS. Exact-head CI 40151548885 SUCCESS. Android Native 40151532880 foundation-smoke PASS; Android debug APK job remains in progress."
+  review_findings: "Fresh Codex review receipt on exact ddbb3a1b6b07503464f7938b4f713ee2dc983bdb says no major issues. Earlier findings were repaired; no formal Validator/Audit/Release is claimed."
+  next: "Continue existing A3 parent reconvergence and exact validation. Keep #2794 Draft; do not release, merge, or deploy."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:

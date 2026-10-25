@@ -1,28 +1,33 @@
-# Learning input owner recovery
+# Learning Loop recovery and convergence state
 
-Canonical PR: #2792 (`feat/learning-input-set-a2`), base `3659e45e011032b71e37896eed7c3aef2580c153`. The latest parent head is `139b4319ba7b7600df6eae84f9b65a0ff43a3d43`; exact-head CI run `39128055923` passed. Independent Audit/Release have not run; keep #2792 Draft. The separate `repair-2792-reconverge` worktree remains untouched.
+Fresh GitHub snapshot, 2026-10-18: protected `main` is `3659e45e011032b71e37896eed7c3aef2580c153`.
+
+## Canonical stack
+
+| PR | Base SHA | Head SHA | State | Exact-head CI |
+|---|---|---|---|---|
+| #2792 A2 | `3659e45e` | `139b4319` | OPEN/Draft | PASS, run `39128055923` |
+| #2793 A1 | `139b4319` | `efbd298d` | OPEN/Draft | PASS, run `39128656554` |
+| #2794 A4 | `efbd298d` | `3828be38` | OPEN/Draft | PASS, run `39129139123` |
+| #2795 A3 | `3828be38` | `8d01ad3d` | OPEN/Draft | PASS, exact-head run `39129578519`; production partition owner unresolved |
+
+The #2795 repair worktree containing existing local changes is untouched. A separate clean worktree reconverged the canonical PR onto #2794 `3828be38` and exact-head CI passed. Audit/Release/merge have not run for this stack. Keep all PRs Draft until required checks and independent Audit pass.
 
 ## Production source findings
 
-- Lane A Research decisions are durably recorded in `research_factory_decision_history`; `SqliteResearchFactoryDecisionHistoryRepository.list()` verifies the full hash chain and metadata before returning records.
-- Lane B realized PAPER periods are read through the canonical production period reader; the evidence timestamp is the persisted `periodEndAt`.
-- The existing `learningEvidenceAuthority` on the closed-learning coordinator reads a different Research evaluation ledger and is not the A2 canonical Research decision source.
-- The production composition now exposes a separate `learningInputSetEvidenceAuthority` backed by the durable Research decision history and realized-period ledger. A2 construction/append is not yet wired.
-
-## Verification on the local PR-head worktree
-
-- New canonical Research evidence read-back test covers exact timestamp, ghost ID, and corrupted-chain fail-closed behavior: 4/4 history tests PASS.
-- Typecheck, build, `validate:full`, safety invariants, and `git diff --check` PASS.
-- Implementation commit `5d780808f2f8d948299064abe0b1460a72c88a50`; exact-head CI run `39119847026` PASS.
-- Current A2 contract correction removes META partition membership from the input-set fingerprint and rejects stale callers that still supply it; A2/retention focused tests 19/19 PASS, typecheck/build PASS, full isolated suite 1,245/1,245 PASS, `validate:full`, `security:gate`, AIPOS provenance, and preflight PASS. Lint PASS with 26 existing warnings.
-- Independent Audit, Release, merge, and runtime acceptance have not run; PR remains Draft.
+- Research decisions are durably recorded in `research_factory_decision_history`; its repository verifies the hash chain before read-back.
+- Realized PAPER evidence is read from the canonical period ledger using persisted `periodEndAt`.
+- The current A1 composition exposes the A2 evidence readers, but does not construct or append A2 input sets in the production caller graph.
+- The canonical closed-window boundary exists as `periodEndAt`, but cutoff wiring and canonical policy identities are unresolved. Do not infer values from `Date.now`, maximum evidence timestamps, caller input, or test fixtures.
+- A2 no longer fingerprints META partition membership; it rejects stale callers/receipts that still supply it. META assignment must follow A1 and use a canonical durable owner, not a caller-selected partition.
+- The production A3 cycle-order/assignment owner and A3-to-A4 eligibility wiring are not verified.
 
 ## FIRST_BROKEN_TRANSITION
 
-`canonical LearningInputSet owner inputs (cutoff + policy identities) → A2 durable receipt → A1 Decision → A3 durable META assignment → A4 eligibility`
+`canonical cutoff + policy owners → A2 build/append/read-back → A1 Decision → canonical durable META assignment/HOLDOUT → A4 eligibility/application`
 
-The confirmed A2 contract contains evidence, cutoff and policy identities; it does not contain A3 partition membership. Binding META membership into A2 would create a cycle because A3 assignment also requires the A1 Decision fingerprint derived from A2. A2 now rejects that field, preserving the acyclic order above. The canonical closed-window boundary exists as durable PAPER `periodEndAt`, but it is not yet wired into A2. No canonical owner for all four policy identities or caller-independent META cycle-order allocator is production-wired. Do not invent values, use `Date.now`/maximum evidence time, or promote test fixtures to production authority. Preserve strict `recordedAt < cutoff`.
+Local checks for the current A2/A1/A4/A3 reconvergence: build, typecheck, `validate:full`, `security:gate`, lint, and 83 focused tests PASS. Lint has 26 existing warnings. Exact-head CI passed for A2 (`39128055923`), A1 (`39128656554`), A4 (`39129139123`), and A3 (`39129578519`). No independent Audit, Release, merge, or genuine end-to-end runtime/restart/replay evidence is established.
 
-Next: bind the durable closed-window boundary and exact policy identities into A2, append/read back the receipt, bind A1 to that receipt, then assign A3 from canonical cycle order. Keep PR Draft; no Audit, Release, merge, or runtime acceptance until its gates pass.
+Next: obtain owner-approved META partition sizes/promotion constants and wire caller-independent durable cycle-order assignment. The specification defines order-based assignment but leaves the owner-set sizes unspecified; the existing AI temporal helper partitions prediction timestamps and is not a Learning-cycle owner. Also resolve canonical cutoff/policy identities before production A2→A1→A3→A4 wiring. Do not promote guessed authority.
 
-`PAPER_ONLY`; `liveAuthority=NONE`; `productionMutationAllowed=false`; `aiAuthority=ZERO_AUTHORITY`. `LEARNING_LOOP_VERIFIED=false`; `PERFORMANCE_IMPROVEMENT=UNPROVEN`.
+Preserve `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, and `aiAuthority=ZERO_AUTHORITY`. `LEARNING_LOOP_VERIFIED=false`; `PERFORMANCE_IMPROVEMENT=UNPROVEN`; `AUTOPILOT_VERIFIED_COMPLETION_LOOP=false`.

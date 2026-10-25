@@ -1,0 +1,46 @@
+id: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
+title: "Fail closed on unowned META partition assignment and validate durable replay"
+status: VERIFYING
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: feat/meta-oos-a3
+pull_request: 2795
+authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
+objective: "Prevent caller-selected or malformed META partition assignments until canonical cycle-order policy ownership is defined; serialize cycle uniqueness checks with durable append and preserve strict receipt validation."
+first_broken_transition: "learning cycle -> caller-selected META partition -> durable assignment / eligibility"
+scope:
+  include:
+    - "Reuse the existing append-only Evolution Learning ledger and Research Holdout ledger."
+    - "Fail closed before claim or append while canonical cycle-order partition owner/constants are undefined."
+    - "Validate the complete assignment schema and durable Evolution envelope on every read/replay."
+    - "Check cycle uniqueness against the current hash-chain snapshot inside the serialized Evolution ledger append transaction."
+    - "Add regressions for caller override, restart, forged eligibility inputs, malformed receipts, and concurrent cycle forks."
+  exclude:
+    - "Defining or changing canonical cutoff policy, META partition allocation policy, partition ratios, cadence, or owner."
+    - "Wiring A2/A1/A3/A4 into production, changing qualification, or advancing learning performance claims."
+    - "Audit, Release, merge, or deployment while the canonical cutoff/META policy owners remain unresolved."
+acceptance:
+  - "No caller-selected train/validation/holdout assignment can claim or persist while policy authority is undefined."
+  - "Eligibility remains false and counts zero until canonical owner-defined partition policy exists."
+  - "Malformed assignment fields or durable envelope fail closed; valid existing ledger graph is checked atomically before append."
+  - "Focused tests, all isolated tests, build, typecheck, preflight, validate:full, security, AIPOS provenance, and lint pass; lint has no errors."
+  - "Exact-head CI and fresh independent review pass before any readiness transition."
+  - "Draft remains until cutoff/META policy owners and production trigger are resolved, the full chain is validated, and Audit/Release gates pass."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+blockers:
+  - "BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED"
+  - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
+validation:
+  prior_review: "Fresh review 5640768157 on 179ad181 found P1 comments 4369088597, 4369088598, 4369088600. Predecessor CI 40146442748 is historical after repair."
+  focused: "After reconverging A4 ddbb3a1b6b07503464f7938b4f713ee2dc983bdb into the existing A3 branch: Node 24.19.0 build PASS; A3 META OOS + A4 application + Evolution Learning ledger focused suites 64/64 PASS; pnpm run preflight PASS; git diff --check PASS. Exact A3 merge-head CI and fresh independent review are not yet run. A3 remains fail-closed with META_PARTITION_POLICY_UNDEFINED; no allocation policy/authority invented."
+  full_suite: "pnpm test with installed Git Bash directories prepended to PATH: 1248 isolated test files PASS. Initial environment-only bash ENOENT was reproduced and corrected without changing test assertions."
+  gates: "build PASS; typecheck PASS; validate:full PASS; security:gate PASS; aipos:yaml/provenance PASS; lint PASS with 26 existing warnings."
+  parent_sync: "The A4 exact head ddbb3a1b6b07503464f7938b4f713ee2dc983bdb is locally merged into the existing A3 branch. A4 CI 40151548885 is SUCCESS and fresh Codex review on that exact SHA reports no major issues; Android Native APK job remains in progress."
+  exact_head_ci: "Pending push of the A3 parent-sync merge; predecessor run 40146442748 on 179ad181 is historical."
+  pending: "Finalize and push the parent-sync merge non-force to existing #2795, run exact-head CI/companions and preflight, then request fresh independent review. Audit/Release remain blocked by unresolved cutoff/META policy owners and production trigger owner."
