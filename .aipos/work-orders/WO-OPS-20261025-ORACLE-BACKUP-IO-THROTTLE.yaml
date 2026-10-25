@@ -42,5 +42,5 @@ verification_commands:
   - node --test tests/oracle-backup-device.test.js tests/oracle-paper-release-workflow.test.js
   - pnpm run preflight
   - git diff --check
-validation: "Successor local validation PASS: Node 24.19.0 pnpm run preflight; embedded-helper topology/workflow tests 29/29; pnpm run validate:full; pnpm run security:gate (0 advisories, 0 secrets); AIPOS YAML/index; ESLint; bash -n; git diff --check. Exact-head CI and fresh independent review remain required after commit. The exact-byte cap has not yet been remeasured on the host."
-next: "Push the substantive helper/workflow fix to existing PR #2874, then obtain exact-head CI and a fresh independent Validator; no Oracle mutation before governed merge."
+validation: "Successor local validation PASS: Node 24.19.0 pnpm run preflight; embedded-helper topology/workflow tests 29/29; pnpm run validate:full; pnpm run security:gate (0 advisories, 0 secrets); AIPOS YAML/index; ESLint; bash -n; git diff --check. Exact-head CI exposed a Windows runner incompatibility in the test harness because it used temporary executables/PATH; the harness was changed to inject shell functions and now passes locally on the same focused tests and pnpm run build. The previous exact-head CI is historical; fresh exact-head CI and independent review remain required after this repair commit. The exact-byte cap has not yet been remeasured on the host."
+next: "Commit the portable test-harness repair to existing PR #2874, then obtain fresh exact-head CI and independent Validator; no Oracle mutation before governed merge."

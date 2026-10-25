@@ -1,8 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const helper = fs.readFileSync("deploy/oracle/nusa-release-step.sh", "utf8");
@@ -14,21 +12,9 @@ assert.ok(directoryPredicate, "root-owned helper must define the backup-director
 assert.ok(resolver, "root-owned helper must contain the canonical backup topology resolver");
 
 function runResolver({ mounts, devices, blocks = ["/dev/sda1", "/dev/sda"] }) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-backup-topology-"));
-  const bin = path.join(root, "bin");
-  fs.mkdirSync(bin);
-  const mapPath = path.join(root, "map.json");
-  fs.writeFileSync(mapPath, JSON.stringify({ mounts, devices }));
-  const fakeFindmnt = `#!/usr/bin/env node
-const fs=require("node:fs"); const m=JSON.parse(fs.readFileSync(process.env.NUSA_TEST_TOPOLOGY,"utf8"));
-const a=process.argv.slice(2); const o=a[a.indexOf("--output")+1]; const p=a[a.indexOf("--target")+1];
-const v=m.mounts[o+":"+p]; if(v===undefined) process.exit(2); process.stdout.write(v+"\\n");`;
-  const fakeLsblk = `#!/usr/bin/env node
-const fs=require("node:fs"); const m=JSON.parse(fs.readFileSync(process.env.NUSA_TEST_TOPOLOGY,"utf8"));
-const a=process.argv.slice(2); const o=a[a.indexOf("--output")+1]; const p=a[a.length-1];
-const v=m.devices[o+":"+p]; if(v===undefined) process.exit(2); process.stdout.write(v+"\\n");`;
-  fs.writeFileSync(path.join(bin, "findmnt"), fakeFindmnt, { mode: 0o755 });
-  fs.writeFileSync(path.join(bin, "lsblk"), fakeLsblk, { mode: 0o755 });
+  const quote = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
+  const mountCases = Object.entries(mounts).map(([key, value]) => `${quote(key)}) printf '%s\\n' ${quote(value)} ;;`).join("\n");
+  const deviceCases = Object.entries(devices).map(([key, value]) => `${quote(key)}) printf '%s\\n' ${quote(value)} ;;`).join("\n");
   const allowedBlocks = new Set(blocks);
   const blockOverride = `backup_device_is_block() { case "$1" in ${[...allowedBlocks].map((item) => `${item}) return 0 ;;`).join(" ")} *) return 1 ;; esac; }`;
   const script = `set -uo pipefail
@@ -37,14 +23,33 @@ ${blockPredicate}
 ${directoryPredicate}
 ${blockOverride}
 backup_path_is_directory() { return 0; }
+findmnt() {
+  local output="" target="" previous="" arg
+  for arg in "$@"; do
+    if [[ "$previous" == --output ]]; then output="$arg"; fi
+    if [[ "$previous" == --target ]]; then target="$arg"; fi
+    previous="$arg"
+  done
+  case "$output:$target" in
+${mountCases}
+    *) return 2 ;;
+  esac
+}
+lsblk() {
+  local output="" device="" previous="" arg
+  for arg in "$@"; do
+    if [[ "$previous" == --output ]]; then output="$arg"; fi
+    device="$arg"
+    previous="$arg"
+  done
+  case "$output:$device" in
+${deviceCases}
+    *) return 2 ;;
+  esac
+}
 ${resolver}
 backup_block_device_for_paths "$@"`;
-  const result = spawnSync("bash", ["-c", script, "nusa-test", "/var/lib/nusa/state.sqlite", "/var/backups/nusa"], {
-    encoding: "utf8",
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, NUSA_TEST_TOPOLOGY: mapPath },
-  });
-  fs.rmSync(root, { recursive: true, force: true });
-  return result;
+  return spawnSync("bash", ["-c", script, "nusa-test", "/var/lib/nusa/state.sqlite", "/var/backups/nusa"], { encoding: "utf8" });
 }
 
 function singleDisk({ stateSource = "/dev/sda1", backupSource = stateSource, stateFs = "ext4", backupFs = stateFs } = {}) {
