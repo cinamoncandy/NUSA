@@ -193,7 +193,7 @@ function AuthenticatedApp() {
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
   // Last-known values for the launch screen only; never a live reading. Called before any early return so the hook order never changes.
   useEffect(() => { if (operations.status === "READY") markStartup("firstData"); }, [operations.status]);
-  const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, operations.status === "READY" ? operations.snapshot : null);
+  const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, operations.status === "READY" ? operations.snapshot : null, appState !== "active");
   const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());
   const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);

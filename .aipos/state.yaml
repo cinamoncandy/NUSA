@@ -2435,6 +2435,16 @@ current_mobile_recovering_quiet:
   branch: claude/nusa-repository-j93sd8-recovering-home
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
+current_mobile_background_cache_resume_20261025:
+  work_order: WO-UI-20261025-BACKGROUND-CACHE-RESUME
+  status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+  branch: fix/mobile-background-cache-resume
+  authority_impact: none
+  finding: "Existing mobile lifecycle already suspends polling/WebSocket in background and immediately revalidates/refreshes on foreground, but the presentation cache was throttled to one save per minute and did not guarantee the newest READY snapshot was persisted before Android suspension."
+  validation: "Static lifecycle/source contract PASS; git diff --check PASS. Oracle authoring worktree has no node_modules, so Node 24 typecheck/mobile test execution is intentionally deferred to exact-head CI rather than installing/building on the small canonical server."
+  next: "Commit/push the scoped mobile cache flush, open Draft PR, require exact-head CI/companions and fresh non-author review before Audit/Release. Physical Galaxy background/resume feel remains HUMAN_ENVIRONMENT_ONLY after governed build."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_mobile_contour_core:
   work_order: WO-UI-20261001-CONTOUR-CORE
   status: READY_FOR_REVIEW
