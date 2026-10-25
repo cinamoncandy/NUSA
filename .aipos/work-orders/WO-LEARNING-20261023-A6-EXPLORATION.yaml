@@ -56,10 +56,10 @@ validation:
   focused: "After syncing A5 fc3e2165, the selected A6/A5/A4/A3/A2/A1/storage/worker/security-gate regression suite passes 198/198 on Node 24.19.0. The earlier A6 fixture repair remains: tests seed and read actual checksum/hash-chain-backed Research and PAPER stores; no verification rule is weakened."
   prior_focused: "165/165 PASS before latest A5 parent sync; includes orphan and out-of-order A6/A2 replay rejection, strategy-family membership revalidation, extra cost-field exclusion, SQLite restart/replay, and serialized stale-writer coverage."
   build: "PASS after A5 fc3e2165 parent sync on Node 24.19.0 / pnpm 11.25.0; changed-test fast runner correctly skips outside primary pull_request CI"
-  preflight: "PENDING final A5 fc3e2165 parent/AIPOS synchronization"
-  validate_full: "PENDING final A5 fc3e2165 parent/AIPOS synchronization"
-  security_gate: "PENDING final A5 fc3e2165 parent/AIPOS synchronization"
-  aipos_provenance: PENDING_FINAL_A5_PARENT_SYNC
+  preflight: "PASS on Node 24.19.0; strict 521-file AIPOS YAML check included"
+  validate_full: "PASS after A5 fc3e2165 parent sync; architecture, safety, AI zero-authority, AIPOS drift/conformance, and repository architecture validators pass"
+  security_gate: "PASS; raw high/critical=0, secrets=0, unmitigated=0"
+  aipos_provenance: "PASS; only pre-existing colliding historical IDs are reported"
   diff_check: PASS
   exact_head_ci: PENDING_AFTER_PUSH
   independent_review: PENDING_AFTER_CURRENT_EXACT_HEAD_CI
