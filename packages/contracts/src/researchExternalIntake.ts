@@ -73,7 +73,7 @@ export interface StrategyReplicationSpec extends Omit<StrategyReplicationInput, 
   readonly realTransferAuthority: false; readonly productionMutationAllowed: false; readonly aiAuthority: "ZERO_AUTHORITY";
 }
 
-export function normalizeStrategyReplication(input: StrategyReplicationInput): StrategyReplicationSpec {
+export function normalizeStrategyReplication(input: StrategyReplicationInput, parentSpec?: StrategyReplicationSpec): StrategyReplicationSpec {
   if (!input || !/^https?:\/\//i.test(input.sourceUrl) || !SHA256.test(input.sourceFingerprint) || typeof input.sourceSnapshot !== "string" || input.sourceSnapshot.length === 0 || input.sourceSnapshot.length > 1_000_000 || sha256(input.sourceSnapshot) !== input.sourceFingerprint.toLowerCase() || !validTimestamp(input.sourceObservedAt)) throw new Error("STRATEGY_SOURCE_PROVENANCE_INVALID");
   const required = [input.strategyName,input.strategyFamily,input.market,input.timeframe,input.signalDefinition,input.entryRule,input.exitRule,input.positionSizing,input.riskManagement,input.rebalanceFrequency,input.transactionCostAssumptions,input.slippageAssumptions];
   if (!required.every(text) || !Array.isArray(input.instruments) || input.instruments.length === 0 || !input.instruments.every(text) || !Array.isArray(input.dataRequirements) || input.dataRequirements.length === 0 || !input.dataRequirements.every(text)) throw new Error("STRATEGY_RULES_INSUFFICIENT");
@@ -82,6 +82,13 @@ export function normalizeStrategyReplication(input: StrategyReplicationInput): S
   const optionalTextArrays: readonly unknown[] = [input.knownLimitations ?? [], input.residualUnknowns ?? []];
   if (optionalTextValues.some((value) => value !== undefined && !text(value)) || (input.sourceCodeAvailable !== undefined && !["YES", "NO", "UNKNOWN"].includes(input.sourceCodeAvailable)) || optionalTextArrays.some((value) => !Array.isArray(value) || !value.every(text)) || (input.reportedPerformance !== undefined && !plainRecord(input.reportedPerformance))) throw new Error("STRATEGY_METADATA_INVALID");
   if (input.variantOf != null && !SHA256.test(input.variantOf)) throw new Error("STRATEGY_VARIANT_PARENT_INVALID");
+  if (input.variantOf != null) {
+    if (!parentSpec) throw new Error("STRATEGY_VARIANT_PARENT_REQUIRED");
+    verifyStrategyReplicationSpec(parentSpec);
+    if (parentSpec.kind !== "ORIGINAL_STRATEGY" || parentSpec.strategyIdentity !== input.variantOf) throw new Error("STRATEGY_VARIANT_PARENT_MISMATCH");
+  } else if (parentSpec !== undefined) {
+    throw new Error("STRATEGY_VARIANT_PARENT_UNEXPECTED");
+  }
   const normalizedSourceUrl = canonicalUrl(input.sourceUrl);
   const normalizedSourceFingerprint = input.sourceFingerprint.toLowerCase();
   const normalizedSourceObservedAt = new Date(input.sourceObservedAt).toISOString();
@@ -110,7 +117,7 @@ export function normalizeStrategyReplication(input: StrategyReplicationInput): S
   return deepFreeze({ ...core, strategyIdentity: digest(identityMaterial) });
 }
 
-function verifyStrategyReplicationSpec(spec: StrategyReplicationSpec): void {
+function verifyStrategyReplicationSpec(spec: StrategyReplicationSpec, parentSpec?: StrategyReplicationSpec): void {
   if (!spec || typeof spec !== "object" || spec.externalPerformanceIsNusaEvidence !== false || spec.authority !== "PAPER_ONLY" || spec.liveAuthority !== "NONE" || spec.realOrderAuthority !== false || spec.realTransferAuthority !== false || spec.productionMutationAllowed !== false || spec.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(spec.strategyIdentity) || typeof spec.sourceSnapshot !== "string" || sha256(spec.sourceSnapshot) !== spec.sourceFingerprint || !validTimestamp(spec.sourceObservedAt) || !SHA256.test(spec.sourceObservationFingerprint) || spec.sourceObservationFingerprint !== digest({ sourceUrl: spec.sourceUrl, sourceFingerprint: spec.sourceFingerprint, sourceObservedAt: spec.sourceObservedAt })) throw new Error("STRATEGY_IDENTITY_INVALID");
   // Deserialized specs are untrusted inputs too. Re-run the canonical factory so
   // a caller cannot recompute a public identity around blank rules or malformed
@@ -128,7 +135,7 @@ function verifyStrategyReplicationSpec(spec: StrategyReplicationSpec): void {
     knownLimitations: spec.knownLimitations, lookaheadRisk: spec.lookaheadRisk, survivorshipBiasRisk: spec.survivorshipBiasRisk,
     dataSnoopingRisk: spec.dataSnoopingRisk, overfittingRisk: spec.overfittingRisk, residualUnknowns: spec.residualUnknowns,
     ...(spec.variantOf ? { variantOf: spec.variantOf } : {}),
-  });
+  }, parentSpec);
   if (normalized.strategyIdentity !== spec.strategyIdentity) throw new Error("STRATEGY_IDENTITY_MISMATCH");
   if (canonicalResearchJson(normalized) !== canonicalResearchJson(spec)) throw new Error("STRATEGY_SPEC_NOT_CANONICAL");
   const { strategyIdentity, reportedPerformance: _reportedPerformance, benchmark: _benchmark, sourceTestPeriod: _testPeriod, sourceOutOfSampleEvidence: _oos, sourceWalkForwardEvidence: _walkForward, authorOrPublisher: _publisher, publicationDate: _publicationDate, sourceCodeAvailable: _sourceCode, sourceObservedAt: _sourceObservedAt, sourceObservationFingerprint: _sourceObservationFingerprint, ...identityMaterial } = spec;
@@ -210,18 +217,20 @@ function validatePrecommitPlans(datasetBinding: unknown, evaluationPlan: unknown
   return datasetBound && pitBound && oosBound && windowsAreDisjoint && latencyBound && missingDataBound && feeBound && slippageBound;
 }
 
-export function strategyReplicationPrecommit(input: { spec: StrategyReplicationSpec; sourceSha: string; datasetBinding: Readonly<Record<string, unknown>>; evaluationPlan: Readonly<Record<string, unknown>>; costPlan: Readonly<Record<string, unknown>>; validationPolicyIdentity: string; createdAt: string }): ResearchPrecommit {
+export function strategyReplicationPrecommit(input: { spec: StrategyReplicationSpec; parentSpec?: StrategyReplicationSpec; sourceSha: string; datasetBinding: Readonly<Record<string, unknown>>; evaluationPlan: Readonly<Record<string, unknown>>; costPlan: Readonly<Record<string, unknown>>; validationPolicyIdentity: string; createdAt: string }): ResearchPrecommit {
   const { spec } = input;
-  verifyStrategyReplicationSpec(spec);
+  verifyStrategyReplicationSpec(spec, input.parentSpec);
   if (!validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan) || !text(input.validationPolicyIdentity) || !validTimestamp(input.createdAt) || Date.parse(input.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("STRATEGY_PRECOMMIT_BINDING_INVALID");
-  return createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: spec.strategyIdentity, strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, sourceSha: input.sourceSha, parameterPlan: { strategySpec: spec }, costPlan: input.costPlan, regimePlan: {}, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
+  return createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: spec.strategyIdentity, strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, sourceSha: input.sourceSha, parameterPlan: { strategySpec: spec, ...(input.parentSpec ? { parentStrategySpec: input.parentSpec } : {}) }, costPlan: input.costPlan, regimePlan: {}, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
 }
 
 function verifyStrategyReplicationPrecommit(spec: StrategyReplicationSpec, precommit: ResearchPrecommit): void {
   verifyResearchPrecommit(precommit);
-  const parameterSpec = plainRecord(precommit.parameterPlan) ? precommit.parameterPlan.strategySpec : undefined;
+  const parameterPlan = plainRecord(precommit.parameterPlan) ? precommit.parameterPlan : undefined;
+  const parameterSpec = parameterPlan?.strategySpec;
+  const parentSpec = parameterPlan?.parentStrategySpec as StrategyReplicationSpec | undefined;
   if (precommit.candidateIdentity !== spec.strategyIdentity || precommit.strategyIdentity !== spec.strategyIdentity || !plainRecord(parameterSpec) || canonicalResearchJson(parameterSpec) !== canonicalResearchJson(spec) || !validatePrecommitPlans(precommit.datasetBinding, precommit.evaluationPlan, precommit.costPlan) || precommit.experimentIdentity !== digest({ strategyIdentity: spec.strategyIdentity, datasetBinding: precommit.datasetBinding, evaluationPlan: precommit.evaluationPlan, costPlan: precommit.costPlan }) || !validTimestamp(precommit.createdAt) || Date.parse(precommit.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
-  verifyStrategyReplicationSpec(parameterSpec as unknown as StrategyReplicationSpec);
+  verifyStrategyReplicationSpec(parameterSpec as unknown as StrategyReplicationSpec, parentSpec);
 }
 
 export interface CryptoNewsResearchInput {
@@ -354,7 +363,6 @@ export function createStrategyReplicationReceipt(input: {
   negativeEvidence?: readonly string[];
 }): StrategyReplicationReceipt {
   if (!input || typeof input !== "object" || !input.spec || !input.precommit) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
-  verifyStrategyReplicationSpec(input.spec);
   verifyStrategyReplicationPrecommit(input.spec, input.precommit);
   const canonicalEvidence = canonicalEvidenceRecord(input.evidence);
   if (!["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(input.result) || !text(input.datasetIdentity) || !text(input.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(input.evaluatorSourceSha) || input.evaluatorSourceSha.toLowerCase() !== input.precommit.sourceSha.toLowerCase() || !validTimestamp(input.observedAt) || Date.parse(input.observedAt) < Date.parse(input.precommit.createdAt) || !canonicalEvidence || !SHA256.test(input.precommit.fingerprint) || input.precommit.strategyIdentity !== input.spec.strategyIdentity || !validatePrecommitPlans(input.precommit.datasetBinding, input.precommit.evaluationPlan, input.precommit.costPlan)) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
@@ -365,9 +373,14 @@ export function createStrategyReplicationReceipt(input: {
   return deepFreeze({ ...core, receiptFingerprint: digest(core) });
 }
 
-export function verifyStrategyReplicationReceipt(receipt: StrategyReplicationReceipt): void {
+export function verifyStrategyReplicationReceipt(receipt: StrategyReplicationReceipt, precommit: ResearchPrecommit): void {
   const canonicalEvidence = canonicalEvidenceRecord(receipt?.evidence);
-  if (!receipt || receipt.schemaVersion !== 1 || !["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(receipt.result) || receipt.authority !== "PAPER_ONLY" || receipt.liveAuthority !== "NONE" || receipt.productionMutationAllowed !== false || receipt.realOrderAuthority !== false || receipt.realTransferAuthority !== false || receipt.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(receipt.strategyIdentity) || !SHA256.test(receipt.precommitFingerprint) || !text(receipt.datasetIdentity) || !text(receipt.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(receipt.evaluatorSourceSha) || !validTimestamp(receipt.observedAt) || !canonicalEvidence || canonicalResearchJson(canonicalEvidence) !== canonicalResearchJson(receipt.evidence) || !Array.isArray(receipt.negativeEvidence) || !receipt.negativeEvidence.every(text)) throw new Error("REPLICATION_RECEIPT_INVALID");
+  if (!receipt || !precommit || !SHA256.test(precommit.fingerprint) || receipt.precommitFingerprint !== precommit.fingerprint || receipt.schemaVersion !== 1 || !["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(receipt.result) || receipt.authority !== "PAPER_ONLY" || receipt.liveAuthority !== "NONE" || receipt.productionMutationAllowed !== false || receipt.realOrderAuthority !== false || receipt.realTransferAuthority !== false || receipt.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(receipt.strategyIdentity) || !SHA256.test(receipt.precommitFingerprint) || !text(receipt.datasetIdentity) || !text(receipt.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(receipt.evaluatorSourceSha) || !validTimestamp(receipt.observedAt) || !canonicalEvidence || canonicalResearchJson(canonicalEvidence) !== canonicalResearchJson(receipt.evidence) || !Array.isArray(receipt.negativeEvidence) || !receipt.negativeEvidence.every(text)) throw new Error("REPLICATION_RECEIPT_INVALID");
+  const precommitSpec = plainRecord(precommit.parameterPlan) ? precommit.parameterPlan.strategySpec : undefined;
+  if (!plainRecord(precommitSpec)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
+  verifyStrategyReplicationPrecommit(precommitSpec as unknown as StrategyReplicationSpec, precommit);
+  const datasetIdentityValues = [precommit.datasetBinding.manifest, precommit.datasetBinding.manifestId, precommit.datasetBinding.manifestFingerprint, precommit.datasetBinding.datasetId, precommit.datasetBinding.datasetFingerprint, precommit.datasetBinding.datasetContentSha256];
+  if (receipt.strategyIdentity !== precommit.strategyIdentity || !datasetIdentityValues.includes(receipt.datasetIdentity) || receipt.evaluatorSourceSha.toLowerCase() !== precommit.sourceSha.toLowerCase() || Date.parse(receipt.observedAt) < Date.parse(precommit.createdAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
   const { receiptFingerprint, ...core } = receipt;
   if (!SHA256.test(receiptFingerprint) || digest(core) !== receiptFingerprint) throw new Error("REPLICATION_RECEIPT_FINGERPRINT_MISMATCH");
 }

@@ -219,6 +219,24 @@ export interface AxiomResearchIntelligenceHandoff extends ResearchIntelligenceAu
 
 const SHA256 = /^[a-f0-9]{64}$/i;
 const ID = /^[A-Za-z0-9._:/-]{1,256}$/;
+const RESEARCH_INTELLIGENCE_TAXONOMIES = {
+  sourceType: ["ARXIV", "SEMANTIC_SCHOLAR", "OPENREVIEW", "SSRN", "GITHUB", "INSTITUTION", "EXCHANGE", "JOURNAL", "DATASET", "OTHER"],
+  sourceVerification: ["VERIFIED_PRIMARY_SOURCE", "UNVERIFIED", "REJECTED"],
+  availability: ["AVAILABLE", "UNAVAILABLE", "UNKNOWN"],
+  reproducibility: ["NOT_ATTEMPTED", "PARTIAL", "REPRODUCED", "FAILED", "CONFLICTING"],
+  novelty: ["NEW", "INCREMENTAL", "DUPLICATE", "CONTRADICTORY", "REPLICATION", "SUPERSEDED"],
+  evidenceQuality: ["PRIMARY_SOURCE_CLAIM_ONLY", "CODE_AVAILABLE_UNVERIFIED", "REPRODUCED", "INDEPENDENTLY_REPLICATED", "CONTRADICTORY", "INVALID"],
+  estimate: ["LOW", "MEDIUM", "HIGH", "UNKNOWN"],
+  relevance: ["HIGH", "MEDIUM", "LOW", "UNKNOWN"],
+  validationStatus: ["DISCOVERED", "SOURCE_VERIFIED", "HOLD", "ROUTED_TO_AXIOM", "REJECTED"],
+  handoffStatus: ["NOT_READY", "READY_FOR_AXIOM_REVIEW", "ROUTED_TO_AXIOM_REVIEW", "DUPLICATE_SUPPRESSED"],
+} as const;
+
+function requireTaxonomy(value: unknown, allowed: readonly string[], field: string): void {
+  if (typeof value !== "string" || !allowed.includes(value)) {
+    throw new Error(`${field} is invalid`);
+  }
+}
 
 function sha256(value: unknown): string {
   return createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
@@ -273,6 +291,29 @@ export function researchIntelligenceHypothesisSemanticFingerprint(input: {
 export function createResearchIntelligenceRecord(
   input: ResearchIntelligenceRecordInput,
 ): ResearchIntelligenceRecord {
+  if (!input || typeof input !== "object") throw new Error("research intelligence input is invalid");
+  requireTaxonomy(input.sourceType, RESEARCH_INTELLIGENCE_TAXONOMIES.sourceType, "sourceType");
+  requireTaxonomy(input.sourceVerification, RESEARCH_INTELLIGENCE_TAXONOMIES.sourceVerification, "sourceVerification");
+  for (const [field, value] of [
+    ["codeAvailable", input.codeAvailable],
+    ["datasetAvailable", input.datasetAvailable],
+  ] as const) if (value !== undefined) requireTaxonomy(value, RESEARCH_INTELLIGENCE_TAXONOMIES.availability, field);
+  for (const [field, value] of [
+    ["reproducibilityStatus", input.reproducibilityStatus],
+  ] as const) if (value !== undefined) requireTaxonomy(value, RESEARCH_INTELLIGENCE_TAXONOMIES.reproducibility, field);
+  if (input.novelty !== undefined) requireTaxonomy(input.novelty, RESEARCH_INTELLIGENCE_TAXONOMIES.novelty, "novelty");
+  if (input.evidenceQuality !== undefined) requireTaxonomy(input.evidenceQuality, RESEARCH_INTELLIGENCE_TAXONOMIES.evidenceQuality, "evidenceQuality");
+  if (input.nusaRelevance !== undefined) requireTaxonomy(input.nusaRelevance, RESEARCH_INTELLIGENCE_TAXONOMIES.relevance, "nusaRelevance");
+  for (const [field, value] of [
+    ["implementationCost", input.implementationCost],
+    ["expectedEconomicValue", input.expectedEconomicValue],
+    ["leakageRisk", input.leakageRisk],
+    ["overfittingRisk", input.overfittingRisk],
+    ["regimeDependence", input.regimeDependence],
+    ["transactionCostSensitivity", input.transactionCostSensitivity],
+  ] as const) if (value !== undefined) requireTaxonomy(value, RESEARCH_INTELLIGENCE_TAXONOMIES.estimate, field);
+  if (input.validationStatus !== undefined) requireTaxonomy(input.validationStatus, RESEARCH_INTELLIGENCE_TAXONOMIES.validationStatus, "validationStatus");
+  if (input.axiomHandoffStatus !== undefined) requireTaxonomy(input.axiomHandoffStatus, RESEARCH_INTELLIGENCE_TAXONOMIES.handoffStatus, "axiomHandoffStatus");
   if (!ID.test(input.sourceId)) throw new Error("sourceId is invalid");
   if (!SHA256.test(input.rawContentSha256)) throw new Error("rawContentSha256 must be SHA-256");
   const sourceUrl = requireHttps(input.sourceUrl);

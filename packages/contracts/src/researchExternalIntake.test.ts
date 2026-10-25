@@ -60,9 +60,17 @@ test("unknown economic assumptions and non-ISO provenance timestamps fail closed
 
 test("variant identity is separate and replication precommit binds existing canonical contract", () => {
   const original = normalizeStrategyReplication(strategy());
-  const variant = normalizeStrategyReplication(strategy({ variantOf: original.strategyIdentity, signalDefinition: "close > prior high and news filter" }));
+  const variantInput = strategy({ variantOf: original.strategyIdentity, signalDefinition: "close > prior high and news filter" });
+  assert.throws(() => normalizeStrategyReplication(variantInput), /PARENT_REQUIRED/);
+  assert.throws(() => normalizeStrategyReplication(variantInput, normalizeStrategyReplication(strategy({ strategyName: "Other parent" }))), /PARENT_MISMATCH/);
+  const variant = normalizeStrategyReplication(variantInput, original);
   assert.equal(variant.kind, "NUSA_VARIANT");
   assert.notEqual(variant.strategyIdentity, original.strategyIdentity);
+  const variantPrecommit = strategyReplicationPrecommit({ spec: variant, parentSpec: original, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  assert.equal((variantPrecommit.parameterPlan as { parentStrategySpec: typeof original }).parentStrategySpec.strategyIdentity, original.strategyIdentity);
+  assert.throws(() => strategyReplicationPrecommit({ spec: variant, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" }), /PARENT_REQUIRED/);
+  const orphanedPrecommit = { ...variantPrecommit, parameterPlan: { strategySpec: variant } };
+  assert.throws(() => createStrategyReplicationReceipt({ result: "INSUFFICIENT_EVIDENCE", spec: variant, precommit: orphanedPrecommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: "parent removed" } }), /precommit fingerprint mismatch/);
   const precommit = strategyReplicationPrecommit({ spec: original, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
   assert.equal(precommit.strategyIdentity, original.strategyIdentity);
   const forged = { ...original, entryRule: "forged after normalization" };
@@ -176,9 +184,11 @@ test("replication receipt binds outcome to spec, precommit, dataset and preserve
   assert.equal(receipt.result, "NOT_REPRODUCED");
   assert.equal(receipt.precommitFingerprint, precommit.fingerprint);
   assert.deepEqual(receipt.negativeEvidence, ["transaction costs destroyed edge"]);
-  verifyStrategyReplicationReceipt(receipt);
+  verifyStrategyReplicationReceipt(receipt, precommit);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "other-dataset", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /DATASET_MISMATCH/);
-  assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, negativeEvidence: [] }), /FINGERPRINT_MISMATCH/);
+  assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, negativeEvidence: [] }, precommit), /FINGERPRINT_MISMATCH/);
+  assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, datasetIdentity: "other-dataset" }, precommit), /PRECOMMIT_MISMATCH/);
+  assert.throws(() => verifyStrategyReplicationReceipt(receipt, { ...precommit, datasetBinding: { ...precommit.datasetBinding, manifest: "different-dataset" } }), /PRECOMMIT_MISMATCH|fingerprint mismatch/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: "c".repeat(40), observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /BINDING_INVALID/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-24T00:00:00Z", evidence: { result: "pass" } }), /BINDING_INVALID/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: undefined } }), /BINDING_INVALID/);
@@ -194,7 +204,25 @@ test("replication receipt binds outcome to spec, precommit, dataset and preserve
   const malformedCore = { ...receipt, datasetIdentity: "", observedAt: "not-a-date", evidence: {} };
   const { receiptFingerprint: _oldFingerprint, ...malformedWithoutFingerprint } = malformedCore;
   const forgedReceipt = { ...malformedWithoutFingerprint, receiptFingerprint: createHash("sha256").update(canonicalResearchJson(malformedWithoutFingerprint), "utf8").digest("hex") };
-  assert.throws(() => verifyStrategyReplicationReceipt(forgedReceipt), /RECEIPT_INVALID/);
+  assert.throws(() => verifyStrategyReplicationReceipt(forgedReceipt, precommit), /RECEIPT_INVALID/);
+});
+
+test("Research Intelligence canonical factory rejects forged runtime taxonomy values", () => {
+  const valid = {
+    sourceId: "publisher", sourceType: "OTHER", sourceUrl: "https://example.org/research", sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+    title: "Research source", authors: ["Publisher"], publishedAt: "2026-10-24T00:00:00Z", discoveredAt: "2026-10-24T01:00:00Z",
+    rawContentSha256: H, topic: ["REGULATION"], market: "CRYPTO", timeframe: "1h", method: "event study",
+    claimedContribution: "source claim", testableHypothesis: "testable hypothesis", assumptions: [], requiredData: ["UPBIT_PUBLIC_CANDLES"],
+  } as const;
+  const invalidTaxonomies = {
+    sourceType: "FAKE_SOURCE", sourceVerification: "TRUSTED", codeAvailable: "FORGED", datasetAvailable: "FORGED",
+    reproducibilityStatus: "PASSED", novelty: "UNIQUE", evidenceQuality: "TRUSTED", nusaRelevance: "CERTAIN",
+    implementationCost: "FREE", expectedEconomicValue: "PROVEN", leakageRisk: "NONE", overfittingRisk: "NONE",
+    regimeDependence: "LOWISH", transactionCostSensitivity: "NONE", validationStatus: "APPROVED", axiomHandoffStatus: "AUTO_ACCEPTED",
+  };
+  for (const [field, value] of Object.entries(invalidTaxonomies)) {
+    assert.throws(() => createResearchIntelligenceRecord({ ...valid, [field]: value } as never), new RegExp(`${field} is invalid`), field);
+  }
 });
 
 test("tampered snapshot, future publication, and syndication ambiguity fail PIT or remain non-promoted", () => {

@@ -12,6 +12,18 @@ current_learning_identity_failure_20261014:
   issue: 2589
   next: "Persist actual post-close identity failure using existing ledger; no claimed cycle completion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_taxonomy_parent_binding_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 7969db661b45c3068480afe76eb4a3e1103cf59d
+  finding: "Fresh exact-head review found two P1s: caller-forged Research Intelligence taxonomy values could be reconstructed into trusted source/evidence fields, and variantOf accepted an arbitrary SHA without binding a verified original parent. Canonical record creation now validates all runtime taxonomy allowlists; variants require a verified matching ORIGINAL_STRATEGY parent, which is retained in and revalidated from the immutable precommit. Receipt verification also binds the receipt dataset identity to that precommit."
+  validation: "Focused Research intake 15/15 PASS; pnpm build PASS; Node 24.19 pnpm run preflight PASS; pnpm run typecheck PASS; pnpm run validate:full PASS; pnpm run security:gate PASS; pnpm run lint PASS (45 existing warnings, 0 errors); pnpm test PASS (1281 isolated test files); git diff --check PASS. Exact-head CI/review for this successor pending."
+  next: "Confirm the existing PR 2878 remote branch remains at predecessor 7969db661b45c3068480afe76eb4a3e1103cf59d, commit the substantive repair and AIPOS evidence, push non-force, then obtain exact-successor CI and fresh non-author review/Validator. Keep Draft; no Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_parameter_boundary_20261013:
   work_order: WO-LEARNING-20261013-STRATEGY-PARAMETER-BOUNDARY
   status: LOCAL_VALIDATED_PENDING_CI
