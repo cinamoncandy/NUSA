@@ -3666,6 +3666,17 @@ current_strategy_replication_review_20261025:
   next: "Confirm PR 2878 remote head still equals predecessor, commit source/tests/AIPOS together, push non-force to existing Draft PR, then obtain exact-successor CI and fresh non-author review/Validator. Do not self-approve or advance governance gates."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_timestamp_hardening_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 66601c752e34399ab2b6733ea00f49239451482b
+  finding: "Date.parse normalizes an impossible calendar date such as 2026-02-30 into a later valid date. Timestamp provenance now checks timezone-bearing ISO syntax, Gregorian calendar day/month/leap-year validity, clock fields, and parseability before PIT chronology admission."
+  validation: "Node 24.19 preflight, focused Research intake tests 14/14, build, AIPOS drift/conformance/provenance, and git diff --check PASS. Full pnpm test (1281 isolated files), typecheck, validate:full, security:gate, and lint passed immediately before this calendar-specific refinement; exact-head CI for the successor remains required."
+  next: "Commit with regression and AIPOS update, push non-force to existing PR 2878, await exact-head CI/companions, then fresh non-author review. Formal Validator remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_validation_20261016:
   work_order: WO-RESEARCH-20261016-A-GRADE-VALIDATION
   status: FIRST_GATE_COMPLETENESS_LOCAL_VALIDATED

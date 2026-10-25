@@ -53,6 +53,7 @@ test("unknown economic assumptions and non-ISO provenance timestamps fail closed
   assert.throws(() => normalizeStrategyReplication(strategy({ slippageAssumptions: "N/A" })), /COST_ASSUMPTIONS_INSUFFICIENT/);
   assert.throws(() => normalizeStrategyReplication(strategy({ sourceObservedAt: 0 as never })), /PROVENANCE_INVALID/);
   assert.throws(() => normalizeStrategyReplication(strategy({ sourceObservedAt: "0" })), /PROVENANCE_INVALID/);
+  assert.throws(() => normalizeStrategyReplication(strategy({ sourceObservedAt: "2026-02-30T00:00:00Z" })), /PROVENANCE_INVALID/);
   assert.throws(() => createCryptoNewsResearchObservation(news({ retrievedAt: 0 as never })), /NEWS_PROVENANCE_INVALID/);
   assert.throws(() => createCryptoNewsResearchObservation(news({ publishedAt: "0" })), /NEWS_PROVENANCE_INVALID/);
 });
