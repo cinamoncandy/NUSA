@@ -173,3 +173,22 @@ test("direct disk device names are validated and ambiguous parent chains fail cl
   assert.notEqual(ambiguous.status, 0);
   assert.match(ambiguous.stderr, /topology is ambiguous/);
 });
+
+test("backup refuses to run when the cgroup v2 io controller is not available", () => {
+  const predicate = helper.match(/^backup_io_controller_available\(\) \{[\s\S]*?^\}/m)?.[0];
+  assert.ok(predicate, "root-owned helper must define the io controller preflight");
+  const backupStart = helper.indexOf("  backup)");
+  const backupCase = helper.slice(backupStart, helper.indexOf("\n\n  preflight)", backupStart));
+  assert.ok(
+    backupCase.indexOf("backup_io_controller_available ||") !== -1
+      && backupCase.indexOf("backup_io_controller_available ||") < backupCase.indexOf("exec systemd-run"),
+    "controller check must precede the capped backup exec",
+  );
+  const run = (controllers) => spawnSync("bash", ["-s"], {
+    input: `${predicate.replace("/sys/fs/cgroup/cgroup.controllers", "/dev/fd/3")}\nbackup_io_controller_available 3<<<'${controllers}'`,
+    encoding: "utf8",
+  });
+  assert.equal(run("cpuset cpu io memory pids").status, 0);
+  assert.notEqual(run("cpuset cpu memory pids").status, 0);
+  assert.notEqual(run("cpuset cpu ionice memory").status, 0);
+});

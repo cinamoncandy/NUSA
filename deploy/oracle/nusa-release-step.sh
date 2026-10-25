@@ -411,6 +411,13 @@ prove_post_activation_stability() {
   printf '%s\n' "nusa-release-step: ${POST_ACTIVATION_SOAK_SECONDS}s stability soak passed for $expected_sha"
 }
 
+backup_io_controller_available() {
+  # systemd-run accepts IO*BandwidthMax even when the io controller is absent and then enforces nothing.
+  local controllers
+  controllers="$(cat /sys/fs/cgroup/cgroup.controllers 2>/dev/null)" || return 1
+  [[ " $controllers " == *" io "* ]]
+}
+
 verb="${1:-}"
 shift || true
 
@@ -426,6 +433,7 @@ case "$verb" in
     # and backup destination must map to one verified ext4/xfs disk before any backup work begins.
     backup_device="$(backup_block_device_for_paths "$state_db" "$backup_dir")" \
       || die "backup storage topology could not be verified before backup"
+    backup_io_controller_available || die "cgroup v2 io controller unavailable; refusing an unenforced backup cap"
     # The numeric systemd bandwidth value is bytes/second: 1,048,576 is exactly 1 MiB/s.
     # Limit only this child in its transient cgroup; failure never falls back to an uncapped backup.
     exec systemd-run --quiet --collect --scope \
