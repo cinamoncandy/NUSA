@@ -1,126 +1,167 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { SectionLabel } from "./instrumentKit";
-import { calmColors, calmToneColor } from "./uiKitModel";
-import { readableFont } from "./designSystem";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { dotFieldLayout, layoutDotMatrix } from "./dotMatrix";
+import { auraPalette, readableFont } from "./designSystem";
+import { DotField, DotNumeral, GrainCard, TickSlider } from "./auraKit";
+import { Reveal, useReducedMotion } from "./instrumentKit";
 import { buildStudyTimeline } from "./learningPanelsModel";
 import { buildLearningLoopPanels } from "./learningLoopModel";
 
-const fmt = (n: number): string => (n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1));
-const rowColor = (kind: "GAIN" | "LOSS" | "COST" | "RESULT", bp: number): string =>
-  kind === "RESULT" ? (bp < 0 ? calmColors.attention : calmColors.text) : kind === "GAIN" ? calmColors.text : calmColors.muted;
+/**
+ * Learning tab panels in the aura direction: near-black ground, one green that glows, grain, dot-matrix numerals.
+ * Every number comes from buildLearningLoopPanels / buildStudyTimeline (real server values or nothing). The graphics encode the
+ * values: lit dots = the real count, marker position = the real ratio. Motion is one-shot (cards rise, numerals scan in) and skipped under reduce-motion.
+ */
+const CARD_MARGIN = 16;
+const CARD_PADDING = 18;
+const MAX_FIELD_DOTS = 400;
+const NUMERAL_PAD = 12;
 
-/** Registered studies: a vertical line, one dot per study, the next verdict highlighted. Dates are the frozen designs' verdict times. */
+const fmt = (n: number): string => (n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1));
+const signedInt = (n: number): string => (n > 0 ? `+${n}` : `${n}`);
+const toneColor = (bp: number): string => (bp < 0 ? auraPalette.loss : auraPalette.neon);
+
+/** One-shot card entrance (rise + fade, staggered); skipped under reduce-motion by Reveal. */
+function Entering({ index, children }: { readonly index: number; readonly children: React.ReactNode }) {
+  const reduced = useReducedMotion();
+  return <Reveal index={index} reducedMotion={reduced}>{children}</Reveal>;
+}
+
+function Chip({ children }: { readonly children: string }) {
+  return <View style={styles.chip}><Text style={styles.chipText}>{children}</Text></View>;
+}
+
+/** Registered studies: dot-matrix dates on a quiet card, the next verdict lit. Dates are the frozen designs' verdict times. */
 export function StudyTimeline({ nowMs }: { readonly nowMs: number }) {
   const rows = buildStudyTimeline(nowMs);
-  return <View style={styles.block} testID="learning-studies" accessibilityLabel={rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}>
-    <SectionLabel left="사전 등록 연구" right="사전 등록" />
-    <View style={styles.tl}>
-      <View style={styles.tlLine} />
-      {rows.map((r) => <View key={r.id} style={styles.ev}>
-        <View style={[styles.dot, r.next ? styles.dotNext : null]} />
-        <Text style={styles.date}>{r.dateLabel}</Text>
-        <Text style={styles.evName}>{r.name}</Text>
-        <Text style={[styles.evStatus, { color: calmToneColor(r.tone) }]}>{r.status}</Text>
+  return <Entering index={3}><GrainCard tone="DARK" style={styles.card} testID="learning-studies" accessibilityLabel={`사전 등록 연구. ${rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}`}>
+    <Chip>사전 등록 연구</Chip>
+    <View style={styles.studyList}>
+      {rows.map((r) => <View key={r.id} style={styles.studyRow}>
+        <DotNumeral text={r.dateLabel} pitch={4} color={r.next ? auraPalette.neon : auraPalette.muted} glow={r.next} accessibilityLabel={r.dateLabel} />
+        <View style={styles.studyCopy}>
+          <Text style={[styles.studyName, r.next ? styles.studyNameNext : null]}>{r.name}</Text>
+          <Text style={styles.studyStatus}>{r.status}</Text>
+        </View>
       </View>)}
     </View>
     <Text style={styles.note}>대부분의 연구가 실패할 가능성이 높아요. 실패도 그대로 기록해요.</Text>
-  </View>;
-}
-
-/** One signed bar on a zero axis: positive to the right, negative to the left. */
-function SignedBar({ bp, scaleBp, color }: { readonly bp: number; readonly scaleBp: number; readonly color: string }) {
-  const half = Math.min(1, Math.abs(bp) / scaleBp) * 50;
-  return <View style={styles.axis} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-    <View style={styles.zero} />
-    <View style={[styles.signed, bp >= 0 ? { left: "50%", width: `${half}%` } : { right: "50%", width: `${half}%` }, { backgroundColor: color }]} />
-  </View>;
+  </GrainCard></Entering>;
 }
 
 /** The cost wall, measured: what an average shadow trade of the owner baseline gains, loses and pays in fees, and what is left. */
 export function CostWaterfall({ raw }: { readonly raw: unknown }) {
   const { cost } = buildLearningLoopPanels(raw);
+  const { width } = useWindowDimensions();
   if (cost == null) return <Missing title="그림자 거래 한 번의 손익" />;
-  return <View style={styles.block} testID="learning-cost-waterfall" accessibilityLabel={`그림자 거래 한 번의 손익. 모의투자 주문이 아닌 기준 거래예요. 거래 ${cost.trades}건 기준. ${cost.rows.map((r) => `${r.label} ${fmt(r.bp)}bp`).join(", ")}. ${cost.summary}`}>
-    <SectionLabel left="그림자 거래 한 번의 손익" right={`${cost.trades.toLocaleString("en-US")}건 · bp`} />
-    <View style={styles.rows}>
-      {cost.rows.map((r) => <View key={r.label} style={styles.row}>
+  const sliderWidth = Math.max(120, width - CARD_MARGIN * 2 - CARD_PADDING * 2);
+  const result = cost.rows.find((r) => r.kind === "RESULT");
+  const parts = cost.rows.filter((r) => r.kind !== "RESULT");
+  return <Entering index={1}><GrainCard tone="DARK" style={styles.card} testID="learning-cost-waterfall"
+    accessibilityLabel={`그림자 거래 한 번의 손익. 모의투자 주문이 아닌 기준 거래예요. 거래 ${cost.trades}건 기준. ${cost.rows.map((r) => `${r.label} ${fmt(r.bp)}bp`).join(", ")}. ${cost.summary}`}>
+    <Chip>{`그림자 거래 한 번의 손익 · ${cost.trades.toLocaleString("en-US")}건`}</Chip>
+    {result == null ? null : <View style={styles.numeralRow}>
+      <DotNumeral text={result.bp.toFixed(1)} pitch={7} color={toneColor(result.bp)} glow accessibilityLabel={`${result.label} ${fmt(result.bp)}bp`} />
+      <Text style={styles.unit}>bp</Text>
+    </View>}
+    <View style={styles.sliders}>
+      {parts.map((r) => <View key={r.label} style={styles.sliderRow}>
         <View style={styles.rowHead}>
-          <Text style={[styles.rowLabel, r.kind === "RESULT" ? styles.rowLabelStrong : null]}>{r.label}</Text>
-          <Text style={[styles.rowValue, { color: rowColor(r.kind, r.bp) }]}>{fmt(r.bp)}</Text>
+          <Text style={styles.rowLabel}>{r.label}</Text>
+          <Text style={[styles.rowValue, { color: r.kind === "GAIN" ? auraPalette.neon : r.kind === "LOSS" ? auraPalette.loss : auraPalette.attention }]}>{fmt(r.bp)}</Text>
         </View>
-        <SignedBar bp={r.bp} scaleBp={cost.scaleBp} color={rowColor(r.kind, r.bp)} />
+        <TickSlider width={sliderWidth} ratio={Math.abs(r.bp) / cost.scaleBp} color={r.kind === "GAIN" ? auraPalette.neon : r.kind === "LOSS" ? auraPalette.loss : auraPalette.attention} />
       </View>)}
     </View>
-    <Text style={styles.note}>{cost.summary}{cost.winRatePercent == null ? "" : ` 이긴 비율은 ${cost.winRatePercent.toFixed(0)}%예요.`}</Text>
-  </View>;
+    <Text style={styles.note}>{cost.summary}{cost.winRatePercent == null ? "" : ` 이긴 비율은 ${cost.winRatePercent.toFixed(0)}%예요.`} 세 눈금은 같은 크기로 맞췄어요.</Text>
+  </GrainCard></Entering>;
 }
 
 /** The owner baseline's PAPER result over the periods the learner consumed, and against buying everything. */
 export function PaperResultBars({ raw }: { readonly raw: unknown }) {
   const { paper } = buildLearningLoopPanels(raw);
   if (paper == null) return <Missing title="모의투자 성과" />;
-  const rows = [paper.netBp == null ? null : { label: "모의투자 순결과", bp: paper.netBp }, paper.excessBp == null ? null : { label: "전부 사기 대비", bp: paper.excessBp }].filter((x): x is { label: string; bp: number } => x != null);
-  return <View style={styles.block} testID="learning-paper-result" accessibilityLabel={`모의투자 성과. ${paper.summary}`}>
-    <SectionLabel left="모의투자 성과" right={paper.periods == null ? "bp" : `${paper.periods}구간 · bp`} />
-    <View style={styles.rows}>
-      {rows.map((r) => <View key={r.label} style={styles.row}>
-        <View style={styles.rowHead}><Text style={styles.rowLabel}>{r.label}</Text><Text style={[styles.rowValue, { color: r.bp < 0 ? calmColors.attention : calmColors.text }]}>{r.bp > 0 ? `+${r.bp}` : `${r.bp}`}</Text></View>
-        <SignedBar bp={r.bp} scaleBp={paper.scaleBp} color={r.bp < 0 ? calmColors.attention : calmColors.text} />
-      </View>)}
+  return <Entering index={2}><GrainCard tone="DARK" style={styles.card} testID="learning-paper-result" accessibilityLabel={`모의투자 성과. ${paper.summary}`}>
+    <Chip>{paper.periods == null ? "모의투자 성과" : `모의투자 성과 · ${paper.periods}구간`}</Chip>
+    <View style={styles.pairRow}>
+      {paper.netBp == null ? null : <View style={styles.pairCell}>
+        <DotNumeral text={signedInt(paper.netBp)} pitch={6} color={toneColor(paper.netBp)} glow accessibilityLabel={`순결과 ${signedInt(paper.netBp)}bp`} />
+        <Text style={styles.cellLabel}>순결과 bp</Text>
+      </View>}
+      {paper.excessBp == null ? null : <View style={styles.pairCell}>
+        <DotNumeral text={signedInt(paper.excessBp)} pitch={6} color={toneColor(paper.excessBp)} glow accessibilityLabel={`전부 사기 대비 ${signedInt(paper.excessBp)}bp`} />
+        <Text style={styles.cellLabel}>전부 사기 대비 bp</Text>
+      </View>}
     </View>
     <Text style={styles.note}>{paper.summary}</Text>
-  </View>;
+  </GrainCard></Entering>;
 }
 
-/** First screen passes against the independent holdout: the number that survived new data. */
+/** First screen passes against the independent holdout: the number that survived new data, over every setting that was tried. */
 export function OverfitGate({ raw }: { readonly raw: unknown }) {
   const { overfit } = buildLearningLoopPanels(raw);
+  const { width } = useWindowDimensions();
   if (overfit == null) return <Missing title="새 데이터에서의 결과" />;
-  const total = Math.max(overfit.discoveryPasses, 1);
-  return <View style={styles.block} testID="learning-overfit-gate" accessibilityLabel={`새 데이터에서의 결과. ${overfit.summary}`}>
-    <SectionLabel left="새 데이터에서의 결과" right={overfit.overfitRatePercent == null ? null : `탈락 ${overfit.overfitRatePercent}%`} />
-    <View style={styles.gate} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View style={[styles.gatePassed, { flex: overfit.holdoutPasses / total }]} />
-      {overfit.discoveryPasses > 0 ? <View style={[styles.gateLost, { flex: (total - overfit.holdoutPasses) / total }]} /> : null}
+  const tried = overfit.configurations;
+  // The dot field only draws a sane number of dots; a huge or inconsistent count falls back to the text chip below.
+  const field = tried != null && tried >= overfit.discoveryPasses && tried <= MAX_FIELD_DOTS ? tried : null;
+  const numeralText = String(overfit.holdoutPasses);
+  const numeralWidth = layoutDotMatrix(numeralText, 13).width + NUMERAL_PAD * 2;
+  const fieldWidth = field == null ? 0 : dotFieldLayout(field, 16, 10).width;
+  const inner = width - CARD_MARGIN * 2 - CARD_PADDING * 2;
+  const stacked = field != null && numeralWidth + fieldWidth + 14 > inner;
+  return <Entering index={0}><GrainCard tone="GREEN" style={styles.hero} testID="learning-overfit-gate" accessibilityLabel={`새 데이터에서의 결과. ${overfit.summary}`}>
+    <View style={styles.heroTop}>
+      <Chip>새 데이터 독립 검증 합격</Chip>
+      {overfit.overfitRatePercent == null ? null : <Chip>{`탈락 ${overfit.overfitRatePercent}%`}</Chip>}
     </View>
-    <View style={styles.gateLegend}>
-      <Text style={styles.rowLabel}>1차 통과 {overfit.discoveryPasses}개</Text>
-      <Text style={[styles.rowValue, { color: overfit.holdoutPasses === 0 ? calmColors.attention : calmColors.text }]}>독립 검증 합격 {overfit.holdoutPasses}개</Text>
+    <View style={[styles.heroBody, stacked ? styles.heroBodyStacked : null]}>
+      <View style={styles.numeralScrim}>
+        <DotNumeral text={numeralText} pitch={13} color={auraPalette.text} glow accessibilityLabel={`독립 검증 합격 ${overfit.holdoutPasses}개`} />
+      </View>
+      {field == null ? null : <DotField total={field} lit={overfit.discoveryPasses} columns={16} pitch={10} accessibilityLabel={`시도한 설정 ${field}개 중 1차 통과 ${overfit.discoveryPasses}개가 밝게 표시돼요`} />}
     </View>
-    <Text style={styles.note}>{overfit.summary} 기준은 낮추지 않아요.</Text>
-  </View>;
+    <View style={styles.heroFoot}>
+      <Chip>{field == null ? `1차 통과 ${overfit.discoveryPasses}개 → 합격 ${overfit.holdoutPasses}개` : `${field}개 시도 → 1차 ${overfit.discoveryPasses}개 → 합격 ${overfit.holdoutPasses}개`}</Chip>
+    </View>
+    <View style={styles.heroNoteBox}><Text style={styles.heroNote}>{overfit.summary} 기준은 낮추지 않아요.</Text></View>
+  </GrainCard></Entering>;
 }
 
 function Missing({ title }: { readonly title: string }) {
-  return <View style={styles.block} accessibilityLabel={`${title}. 서버에서 아직 받지 못했어요`}>
-    <SectionLabel left={title} right={null} />
+  return <Entering index={0}><GrainCard tone="DARK" style={styles.card} accessibilityLabel={`${title}. 서버에서 아직 받지 못했어요`}>
+    <Chip>{title}</Chip>
     <Text style={styles.note}>서버에서 아직 받지 못했어요. 값을 지어내지 않고 비워 둬요.</Text>
-  </View>;
+  </GrainCard></Entering>;
 }
 
 const styles = StyleSheet.create({
-  block: { paddingHorizontal: 20, marginTop: 22, gap: 12 },
-  note: { color: calmColors.muted, fontSize: readableFont(12), lineHeight: 18 },
-  tl: { paddingLeft: 26, gap: 20, marginTop: 6 },
-  tlLine: { position: "absolute", left: 5, top: 8, bottom: 8, width: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
-  ev: { gap: 2 },
-  dot: { position: "absolute", left: -26, top: 9, width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: calmColors.muted, backgroundColor: calmColors.ground },
-  dotNext: { borderColor: calmColors.order, backgroundColor: calmColors.order },
-  date: { color: calmColors.text, fontSize: 34, fontWeight: "500", letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
-  evName: { color: calmColors.text, fontSize: readableFont(14), fontWeight: "500" },
-  evStatus: { fontSize: readableFont(12) },
-  rows: { gap: 14 },
-  row: { gap: 6 },
+  card: { marginHorizontal: CARD_MARGIN, marginTop: 12, gap: 14, padding: CARD_PADDING },
+  hero: { marginHorizontal: CARD_MARGIN, marginTop: 16, gap: 14, padding: CARD_PADDING },
+  heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  heroBody: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14, paddingVertical: 6 },
+  heroBodyStacked: { flexDirection: "column", alignItems: "flex-start" },
+  numeralScrim: { backgroundColor: auraPalette.scrim, borderRadius: 18, padding: NUMERAL_PAD },
+  heroFoot: { flexDirection: "row" },
+  heroNoteBox: { backgroundColor: auraPalette.scrim, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
+  heroNote: { color: auraPalette.text, fontSize: readableFont(12), lineHeight: 18 },
+  chip: { alignSelf: "flex-start", backgroundColor: auraPalette.scrim, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
+  chipText: { color: auraPalette.text, fontSize: readableFont(12), fontWeight: "600" },
+  note: { color: auraPalette.muted, fontSize: readableFont(12), lineHeight: 18 },
+  numeralRow: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
+  unit: { color: auraPalette.muted, fontSize: readableFont(14), fontWeight: "500", paddingBottom: 2 },
+  sliders: { gap: 12 },
+  sliderRow: { gap: 6 },
   rowHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 10 },
-  rowLabel: { color: calmColors.muted, fontSize: readableFont(13) },
-  rowLabelStrong: { color: calmColors.text },
+  rowLabel: { color: auraPalette.muted, fontSize: readableFont(13) },
   rowValue: { fontSize: readableFont(15), fontWeight: "500", fontVariant: ["tabular-nums"] },
-  axis: { height: 10, justifyContent: "center" },
-  zero: { position: "absolute", left: "50%", top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: calmColors.muted },
-  signed: { position: "absolute", top: 2, height: 6, borderRadius: 1 },
-  gate: { flexDirection: "row", height: 10, borderRadius: 2, overflow: "hidden", backgroundColor: calmColors.line },
-  gatePassed: { backgroundColor: calmColors.order },
-  gateLost: { backgroundColor: calmColors.attention, opacity: 0.55 },
-  gateLegend: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
+  pairRow: { flexDirection: "row", gap: 28, flexWrap: "wrap" },
+  pairCell: { gap: 8 },
+  cellLabel: { color: auraPalette.muted, fontSize: readableFont(12) },
+  studyList: { gap: 16 },
+  studyRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  studyCopy: { flex: 1, gap: 2 },
+  studyName: { color: auraPalette.muted, fontSize: readableFont(14), fontWeight: "500" },
+  studyNameNext: { color: auraPalette.text },
+  studyStatus: { color: auraPalette.muted, fontSize: readableFont(12) },
 });
