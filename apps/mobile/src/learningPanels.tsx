@@ -10,7 +10,7 @@ import { buildLearningLoopPanels } from "./learningLoopModel";
 /**
  * Learning tab panels in the aura direction: near-black ground, one green that glows, grain, dot-matrix numerals.
  * Every number comes from buildLearningLoopPanels / buildStudyTimeline (real server values or nothing). The graphics encode the
- * values: lit dots = the real count, marker position = the real ratio. Static, so reduce-motion has nothing to turn off.
+ * values: lit dots = the real count, marker position = the real ratio. Motion is one-shot (cards rise, numerals scan in) and skipped under reduce-motion.
  */
 const CARD_MARGIN = 16;
 const CARD_PADDING = 18;

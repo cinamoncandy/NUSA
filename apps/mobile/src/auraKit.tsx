@@ -8,8 +8,9 @@ import { useReducedMotion } from "./instrumentKit";
 
 /**
  * Aura kit (Learning tab): near-black ground, one green that glows, grain, dot-matrix numerals. Everything here is drawn with
- * Skia, so it looks the same on every device and needs no font or image asset. Static (no animation) by design: nothing
- * moves, so there is nothing to disable for reduce-motion. Presentation only; it never decides or invents a value.
+ * Skia, so it looks the same on every device and needs no font or image asset. Motion is one-shot only (see useEntrance: numeral
+ * scan-in, lit dots switching on, marker slide); nothing loops, and under reduce-motion everything starts at its final state.
+ * Presentation only; it never decides or invents a value.
  */
 const RADIUS = 28;
 
