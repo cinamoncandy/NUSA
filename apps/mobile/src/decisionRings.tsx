@@ -4,7 +4,7 @@ import { HoloSphere } from "./holoSphere";
 import { useTheme } from "./ThemeProvider";
 import { fieldFonts } from "./fieldFonts";
 import { buildDecisionRings, type DecisionRingsInput } from "./decisionRingsModel";
-import { fieldHero, fieldRadii } from "./designSystem";
+import { fieldHero, fieldRadii, labelFont } from "./designSystem";
 import { holoChipPlacement } from "./holoModel";
 
 // Home hero: the reported PAPER decision count over the NUSA flow field: a pulse down the chain per new decision,
@@ -60,6 +60,6 @@ const styles = StyleSheet.create({
   detail: { fontSize: 13, textAlign: "center", maxWidth: 300, lineHeight: 19 },
   legend: { alignItems: "center", gap: 4 },
   chip: { position: "absolute", paddingVertical: 3, paddingHorizontal: 7, borderRadius: 3, borderWidth: 1, borderColor: fieldHero.limeChipBorder, backgroundColor: fieldHero.chipGround },
-  chipText: { fontSize: 11, color: fieldHero.lime },
-  legendText: { fontSize: 10.5 },
+  chipText: { fontSize: labelFont(11), color: fieldHero.lime },
+  legendText: { fontSize: labelFont(10.5) },
 });
