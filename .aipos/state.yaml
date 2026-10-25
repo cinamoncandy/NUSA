@@ -116,7 +116,7 @@ current_learning_hourly_recovery_20261012:
 
 current_learning_supersession_a5_20261023:
   work_order: WO-LEARNING-20261023-A5-SUPERSESSION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: AIPOS_SYNC_PENDING_FINAL_CI
   branch: feat/supersession-a5
   pull_request: 2796
   parent_head: 075f6c6aa6481c0f4507f8dde2e18c6526c1c25c

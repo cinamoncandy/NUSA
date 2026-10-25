@@ -1,6 +1,6 @@
 id: WO-LEARNING-20261023-A5-SUPERSESSION
 title: "Persist and validate append-only Learning supersession lineage"
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: AIPOS_EVIDENCE_SYNC_PENDING_EXACT_HEAD_CI
 priority: P0
 owner: nusa-development
 repository: cinamoncandy/NUSA
@@ -57,11 +57,12 @@ validation:
   security_gate: "PASS; no raw high/critical findings, no secrets, no unmitigated findings"
   diff_check: PASS
   lint: "PASS with 0 errors and 45 existing warnings"
-  exact_head_ci: PENDING_AFTER_PUSH
-  independent_review: REQUEST_AFTER_EXACT_HEAD_CI_PASS
+  validated_head_before_aipos_sync: 642ea8e5265888efe34cf58c638f7275ad6b91fd
+  exact_head_ci: "PASS; CI run 40154220666 on 642ea8e5265888efe34cf58c638f7275ad6b91fd. AIPOS evidence sync will create a new head, which requires fresh exact-head CI."
+  independent_review: "Requested via issue comment 6392462628 for head 642ea8e5265888efe34cf58c638f7275ad6b91fd; refresh required after AIPOS evidence sync."
   latest_ci_failure: "Run 40044601486: validation/security gate PASS, coverage-core-0 failed tests/security-gate.test.js assertion expecting undici 7.29.1/6.28.1. The regression assertion is corrected to require the new fixed 7.30.1/6.29.1 versions and reject the vulnerable prior pins; no gate weakened."
   security_finding: "A6 exact-head CI 40043771127 observed npm audit high advisories 1243113/1243114 (GHSA-xjj6-f33q-929c) against undici 6.28.1 and 7.29.1, also present in protected main. Updated existing undici override floors to fixed 6.29.1 and 7.30.1; pnpm audit now reports high=0 and security:gate PASS. No audit threshold or exception changed."
   prior_exact_head_ci_pass: "651fef857e3b8174e4debda74505dd3b31219e22 CI 40042900064 PASS with companion workflows 40042880408 and 40042880403 PASS; historical after security dependency successor."
   ci_failure_repair: "CI run 40042338633 failed only in tests/autopilot worker.test.ts at UTC midnight: the daily-quota production wait used the exact 60s minimum while the test compared against a later Date.now(). Fixed the test with a deterministic 2026-10-23T12:00:00Z clock; runtime behavior and thresholds unchanged. Failure receipt preserved."
-remaining: "Exact-head CI and fresh independent review are required after this parent reconvergence. No production caller or cutoff/META authority is defined; this PR does not claim production learning completion."
-next: "Run preflight, validate:full, and security:gate on the reconverged A5 branch, then commit and non-force push to feat/supersession-a5. Require exact-head CI; keep the PR Draft and do not self-approve or merge."
+remaining: "The reconverged code head passed CI; the AIPOS evidence sync creates a new head, so exact-head CI and fresh independent review of that tip remain required. No production caller or cutoff/META authority is defined; this PR does not claim production learning completion."
+next: "Commit and non-force push the AIPOS CI/review receipt update to feat/supersession-a5; dispatch exact-head CI for the new tip, then request a fresh independent review of that exact head. Keep Draft."
