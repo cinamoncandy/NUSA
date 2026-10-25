@@ -66,3 +66,16 @@ test("legacy orphan variant rows fail closed on canonical precommit reads", () =
   } finally { db.close(); }
 });
 
+test("parent payload stored under a different fingerprint key cannot establish lineage", () => {
+  const { db, repo } = fixture();
+  try {
+    const original = normalizeStrategyReplication(strategy());
+    const variant = normalizeStrategyReplication(strategy({ variantOf: original.strategyIdentity, signalDefinition: "close > prior high plus regime filter" }), original);
+    const originalPrecommit = precommit(original);
+    const variantPrecommit = precommit(variant, original, originalPrecommit);
+    db.connection.prepare("INSERT INTO research_precommits(fingerprint,experiment_identity,payload_json,created_at) VALUES(?,?,?,?)").run("f".repeat(64), originalPrecommit.experimentIdentity, JSON.stringify(originalPrecommit), originalPrecommit.createdAt);
+
+    assert.throws(() => repo.create(variantPrecommit), /STRATEGY_VARIANT_PARENT_NOT_PERSISTED/);
+  } finally { db.close(); }
+});
+

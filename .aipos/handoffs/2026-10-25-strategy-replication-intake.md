@@ -159,3 +159,8 @@ Regression coverage proves: (1) a caller-created original precommit cannot autho
 The source tree has not yet been committed; the `0d43f3de...` CI and review are historical for the successor. Next: recheck PR/base/head, update AIPOS validation history, publish one non-force commit, then exact-head CI and fresh non-author review. Formal Validator, Audit/Release, merge, production Scout composition, and genuine Research/PAPER outcomes remain incomplete.
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
+
+Final storage-key integrity check — 2026-10-26
+
+The canonical parent lookup also binds the SQLite row primary key to the stored original precommit fingerprint. A row containing a valid parent payload under a different key cannot establish variant lineage. A regression covers that malformed durable row. Final local validation was rerun: preflight, validate:full, security:gate, lint (45 existing warnings / 0 errors), build/typecheck, and all 1,282 isolated test files PASS; focused contracts/storage are 19/19 PASS. The b0f279ab GitHub runs do not include this final check and will not be reused.

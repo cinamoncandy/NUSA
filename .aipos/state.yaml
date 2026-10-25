@@ -69,6 +69,18 @@ current_strategy_intake_final_local_validated_20261026:
   next: "Commit/push one substantive successor to the existing Draft PR; await exact-head CI and fresh non-author review. Formal Validator remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_parent_storage_key_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: b0f279ab38add287cc09c6ed54ce30dd3f41a30c
+  finding: "Variant lineage parent lookup also needed to bind the canonical row primary key to the original payload fingerprint."
+  fix: "Canonical parent resolution now checks stored row key, verified parent fingerprint, exact original spec, and exact parent precommit; write and read reject orphan or mismatched-key rows."
+  validation: "Node 24.19 preflight; focused contracts/storage 19/19; build/typecheck; validate:full; security:gate; lint (45 warnings/0 errors); pnpm test (1282 isolated files); AIPOS YAML/drift/provenance and git diff checks PASS."
+  next: "Fresh verify PR/main identity, publish a substantive non-force successor, then obtain exact-head CI and fresh non-author review. Formal NUSA Validator is separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_persisted_variant_parent_20261026:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
