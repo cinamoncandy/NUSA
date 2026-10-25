@@ -37,3 +37,10 @@ test("the aura components animate only through the one-shot hook, which honours 
   const panels = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/learningPanels.tsx"), "utf8");
   assert.equal((panels.match(/<Entering index=/g) || []).length, 5, "every card enters through Reveal");
 });
+
+test("every Points draw in the aura kit is guarded against an empty list (Skia throws 'Points array must not be empty')", () => {
+  const kit = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/auraKit.tsx"), "utf8");
+  const draws = kit.split("\n").filter((line) => line.includes("<Points"));
+  assert.ok(draws.length >= 6);
+  for (const line of draws) assert.match(line, /nonEmpty\(/, line.trim().slice(0, 80));
+});

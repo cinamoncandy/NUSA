@@ -13,6 +13,10 @@ import { useReducedMotion } from "./instrumentKit";
  */
 const RADIUS = 28;
 
+/** Skia throws on an empty point list ("Points array must not be empty"), which a not-yet-started entrance or a zero count produces. */
+const nonEmpty = (points: readonly { x: number; y: number }[]): boolean => points.length > 0;
+
+
 type Tone = "GREEN" | "DARK";
 
 /**
@@ -102,8 +106,8 @@ export function DotNumeral({ text, pitch, color = auraPalette.text, glow = false
   if (layout.width <= 0) return null;
   const radius = Math.max(1, pitch * 0.34);
   return <Canvas style={{ width: layout.width, height: layout.height }} accessibilityLabel={accessibilityLabel ?? text} accessible>
-    {glow ? <Points points={shown as { x: number; y: number }[]} mode="points" color={color} style="stroke" strokeWidth={radius * 3} strokeCap="round"><BlurMask blur={radius * 1.6} style="normal" /></Points> : null}
-    <Points points={shown as { x: number; y: number }[]} mode="points" color={color} style="stroke" strokeWidth={radius * 2} strokeCap="round" />
+    {glow && nonEmpty(shown) ? <Points points={shown as { x: number; y: number }[]} mode="points" color={color} style="stroke" strokeWidth={radius * 3} strokeCap="round"><BlurMask blur={radius * 1.6} style="normal" /></Points> : null}
+    {nonEmpty(shown) ? <Points points={shown as { x: number; y: number }[]} mode="points" color={color} style="stroke" strokeWidth={radius * 2} strokeCap="round" /> : null}
   </Canvas>;
 }
 
@@ -134,9 +138,9 @@ export function DotField({ total, lit, columns, pitch, accessibilityLabel }: {
   const waiting = sweep >= 1 ? geometry.dim : geometry.dim.concat(geometry.bright.slice(litNow));
   const r = Math.max(1, pitch * 0.2);
   return <Canvas style={{ width: geometry.layout.width, height: geometry.layout.height }} accessible accessibilityLabel={accessibilityLabel}>
-    <Points points={waiting} mode="points" color={auraPalette.unlit} style="stroke" strokeWidth={r * 2} strokeCap="round" />
-    <Points points={brightNow} mode="points" color={auraPalette.neon} style="stroke" strokeWidth={r * 4.4} strokeCap="round"><BlurMask blur={r * 2.2} style="normal" /></Points>
-    <Points points={brightNow} mode="points" color={auraPalette.text} style="stroke" strokeWidth={r * 2.6} strokeCap="round" />
+    {nonEmpty(waiting) ? <Points points={waiting} mode="points" color={auraPalette.unlit} style="stroke" strokeWidth={r * 2} strokeCap="round" /> : null}
+    {nonEmpty(brightNow) ? <Points points={brightNow} mode="points" color={auraPalette.neon} style="stroke" strokeWidth={r * 4.4} strokeCap="round"><BlurMask blur={r * 2.2} style="normal" /></Points> : null}
+    {nonEmpty(brightNow) ? <Points points={brightNow} mode="points" color={auraPalette.text} style="stroke" strokeWidth={r * 2.6} strokeCap="round" /> : null}
   </Canvas>;
 }
 
@@ -157,7 +161,7 @@ export function TickSlider({ ratio, color = auraPalette.neon, width, height = 22
   const clamped = Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio)) : 0;
   const x = Math.round(clamped * slide * (width - 3));
   return <Canvas style={{ width, height }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none">
-    <Points points={ticks} mode="points" color={auraPalette.muted} style="stroke" strokeWidth={1.4} strokeCap="round" />
+    {nonEmpty(ticks) ? <Points points={ticks} mode="points" color={auraPalette.muted} style="stroke" strokeWidth={1.4} strokeCap="round" /> : null}
     <RoundedRect x={x} y={1} width={3} height={height - 2} r={1.5} color={color}><BlurMask blur={3} style="solid" /></RoundedRect>
     <RoundedRect x={x} y={1} width={3} height={height - 2} r={1.5} color={color} />
   </Canvas>;
