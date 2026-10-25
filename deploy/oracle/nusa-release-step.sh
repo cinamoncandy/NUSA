@@ -142,6 +142,67 @@ script_in() {
   printf '%s' "$path"
 }
 
+# The resolver is part of this root-owned helper so the very first deployment does not depend on
+# a resolver script in the old active release. Constrain both source and destination filesystems:
+# systemd can cap one block device only, so multi-device/unsupported filesystems and split backup
+# storage must fail closed instead of leaving part of the backup I/O unbounded.
+backup_device_is_block() {
+  [[ "$1" =~ ^/dev/[A-Za-z0-9._/-]+$ && -b "$1" ]]
+}
+
+backup_path_is_directory() { [[ -d "$1" ]]; }
+
+backup_block_device_for_paths() {
+  local state_db="$1" backup_dir="$2"
+  local state_source state_fstype backup_source backup_fstype
+  local state_type backup_type state_parent backup_parent state_disk backup_disk
+  [[ "$state_db" = /* && "$backup_dir" = /* ]] || { die "backup paths must be absolute"; return 1; }
+  backup_path_is_directory "$backup_dir" || { die "backup directory must exist before topology verification"; return 1; }
+
+  state_source="$(findmnt --noheadings --raw --output SOURCE --target "$state_db")" \
+    || { die "cannot resolve state database filesystem"; return 1; }
+  state_fstype="$(findmnt --noheadings --raw --output FSTYPE --target "$state_db")" \
+    || { die "cannot resolve state database filesystem type"; return 1; }
+  backup_source="$(findmnt --noheadings --raw --output SOURCE --target "$backup_dir")" \
+    || { die "cannot resolve backup directory filesystem"; return 1; }
+  backup_fstype="$(findmnt --noheadings --raw --output FSTYPE --target "$backup_dir")" \
+    || { die "cannot resolve backup directory filesystem type"; return 1; }
+  [[ "$state_fstype" == ext4 || "$state_fstype" == xfs ]] \
+    || { die "state database filesystem type is not supported for single-device I/O limiting"; return 1; }
+  [[ "$backup_fstype" == ext4 || "$backup_fstype" == xfs ]] \
+    || { die "backup directory filesystem type is not supported for single-device I/O limiting"; return 1; }
+  backup_device_is_block "$state_source" \
+    || { die "state database filesystem source is not a verified local block device"; return 1; }
+  backup_device_is_block "$backup_source" \
+    || { die "backup directory filesystem source is not a verified local block device"; return 1; }
+
+  state_type="$(lsblk --noheadings --raw --nodeps --output TYPE "$state_source")" \
+    || { die "cannot resolve state database block topology"; return 1; }
+  backup_type="$(lsblk --noheadings --raw --nodeps --output TYPE "$backup_source")" \
+    || { die "cannot resolve backup directory block topology"; return 1; }
+  state_parent="$(lsblk --noheadings --raw --output PKNAME "$state_source")" \
+    || { die "cannot resolve state database parent disk"; return 1; }
+  backup_parent="$(lsblk --noheadings --raw --output PKNAME "$backup_source")" \
+    || { die "cannot resolve backup directory parent disk"; return 1; }
+
+  if [[ "$state_type" == disk && -z "$state_parent" ]]; then state_disk="$state_source"
+  elif [[ -n "$state_parent" && "$state_parent" != *$'\n'* && "$state_parent" =~ ^[A-Za-z0-9._-]+$ ]]; then state_disk="/dev/$state_parent"
+  else die "state database backing topology is ambiguous"; return 1; fi
+  if [[ "$backup_type" == disk && -z "$backup_parent" ]]; then backup_disk="$backup_source"
+  elif [[ -n "$backup_parent" && "$backup_parent" != *$'\n'* && "$backup_parent" =~ ^[A-Za-z0-9._-]+$ ]]; then backup_disk="/dev/$backup_parent"
+  else die "backup directory backing topology is ambiguous"; return 1; fi
+
+  backup_device_is_block "$state_disk" \
+    && [[ "$(lsblk --noheadings --raw --nodeps --output TYPE "$state_disk")" == disk ]] \
+    || { die "state database backing device is not a verified disk"; return 1; }
+  backup_device_is_block "$backup_disk" \
+    && [[ "$(lsblk --noheadings --raw --nodeps --output TYPE "$backup_disk")" == disk ]] \
+    || { die "backup directory backing device is not a verified disk"; return 1; }
+  [[ "$state_disk" == "$backup_disk" ]] \
+    || { die "backup directory and state database are on different backing disks"; return 1; }
+  printf '%s' "$state_disk"
+}
+
 unit_in() {
   local dir="$1"
   local name="$2"
@@ -352,17 +413,17 @@ shift || true
 case "$verb" in
   backup)
     state_db="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_CLOUD_STATE_DB_PATH:-}")"
+    backup_dir="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_BACKUP_DIR:-/var/backups/nusa}")"
     [[ "$state_db" = /* ]] || die "Cloud state path must be absolute before backup"
-    # Resolve the database filesystem's actual backing disk before applying an I/O cap. Unknown,
-    # remote, layered, or ambiguous storage fails closed instead of running an uncapped backup.
-    backup_device="$(node "$(script_in "$(active_release)" oracle-backup-device.js)" "$state_db")" \
-      || die "Cloud state backing disk could not be verified before backup"
-    # Host measurements show that 5 MB/s still competes with the foreground PAPER writer; 1 MB/s
-    # reduced backup throughput below 1 MB/s and let PAPER I/O recover. Limit only this child in its
-    # transient cgroup while preserving backup integrity and completion semantics.
+    # Resolve from the installed root-owned helper, not from the old active release. Both database
+    # and backup destination must map to one verified ext4/xfs disk before any backup work begins.
+    backup_device="$(backup_block_device_for_paths "$state_db" "$backup_dir")" \
+      || die "backup storage topology could not be verified before backup"
+    # The numeric systemd bandwidth value is bytes/second: 1,048,576 is exactly 1 MiB/s.
+    # Limit only this child in its transient cgroup; failure never falls back to an uncapped backup.
     exec systemd-run --quiet --collect --scope \
-      -p "IOReadBandwidthMax=${backup_device} 1M" \
-      -p "IOWriteBandwidthMax=${backup_device} 1M" \
+      -p "IOReadBandwidthMax=${backup_device} 1048576" \
+      -p "IOWriteBandwidthMax=${backup_device} 1048576" \
       nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 

@@ -93,11 +93,11 @@ jobs:
     # Only the privileged release steps run on the dedicated host. Build and dependency
     # installation stay on GitHub-hosted hardware, away from the 1 GB PAPER runtime host.
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    # Budget from the observed production envelope: 957 MiB / 0.8 MiB/s * six full-file
-    # Sunday phases = 119.6 min; add 30% backup variance and 15 min for artifact/stage,
-    # preflight, activation, 300 s readiness, and 180 s soak, then round up to 30 min.
-    # This is a bounded job timeout, not a runtime acceptance claim. Keep the independent
-    # readiness and activation-soak limits unchanged.
+    # Six full-file Sunday phases at the observed 0.8 MiB/s require 119.6 min for the
+    # conservative 957 MiB envelope. The backup step has its own 160 min timeout (30% margin,
+    # rounded up); the 180 min job timeout adds 15 min for other release work, rounded to 10 min.
+    # The 15 min reserve exceeds the 11m01s non-backup time in successful run 40035259574.
+    # These are bounded estimates, not runtime acceptance evidence; readiness=300s and soak=180s.
     timeout-minutes: 180
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
@@ -155,6 +155,7 @@ jobs:
 
       - name: Back up persistent state before touching the release
         if: steps.source_fresh.outputs.fresh == 'true'
+        timeout-minutes: 160
         run: sudo "$STEP" backup
 
       - name: Stage the immutable release directory
