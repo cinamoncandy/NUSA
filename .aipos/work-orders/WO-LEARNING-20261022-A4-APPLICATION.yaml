@@ -23,14 +23,18 @@ review_findings:
     - "Resolve any pending intent on that surface before a newer decision is evaluated; persist recovery with the original intent's cycle, decision, timestamp, runtime, and source identities."
     - "A recovery REJECTED receipt releases only its matching reserved terminal slot; arbitrary or mismatched rejection records do not release capacity."
     - "Reject unknown fields on durable application intents and receipts so unbound provenance cannot enter the canonical ledger; the storage reservation reader allows only the outcome-specific optional receipt field."
+  addressed_locally_20261025_outcome_provenance:
+    - "Reject self-consistent APPLIED receipts whose appliedValue differs from boundedValue; also enforce REJECTED/NOOP value semantics and the surface's canonical FAILED fail-safe value."
+    - "Bind applicationTimestamp, runtimeIdentity, and sourceCommit from every terminal receipt to its durable intent, including recovery rejections; require the durable intent for outcomes that claim a mutation or close a recovered intent."
+    - "The canonical SQLite ledger independently rejects terminal receipt outcome/provenance forgeries before append and does not release a mismatched intent reservation."
 validation:
   node: "v24.19.0"
   prior_review: "Exact-head review comments on 3849e1e9 include P1 IDs 4354716464, 4354716473, 4354716480, 4354839823, 4354839828, 4356054560, 4356054567, 4364881582, and 4364881587; P2 ID 4369049595. Successor repairs are local; predecessor CI/review evidence is historical."
-  focused: "Node v24.19.0; build PASS; A4 application/ledger + Evolution Learning storage tests 51/51 PASS, including cross-cycle pending-intent recovery with original provenance, per-surface lease identity, exact receipt schema, and recovered-rejection capacity release; pnpm run preflight PASS; git diff --check PASS."
-  full_gates: "After the final receipt-schema refinement: pnpm run validate:full PASS; pnpm run security:gate PASS (0 raw high/critical, 0 secrets); pnpm run lint PASS with 0 errors and 45 existing warnings; git diff --check PASS."
-  exact_head_ci: "Prior run 40148380895 was cancelled because the outcome-specific receipt schema was tightened while it was running; it is not acceptance evidence. Fresh CI is required after pushing the final successor."
-remaining: "Run validate:full/security; commit and push the existing #2794 successor; exact-head CI and fresh independent review remain required. Canonical A3 owner/policy integration and a production caller remain separate unresolved authorities. Keep Draft; no Audit/Release/merge/runtime change."
-next: "Complete full gates, push non-force to existing #2794 branch, run exact-head CI/required companions, then request one fresh independent review only after green."
+  focused: "Node v24.19.0; build PASS; A4 application/ledger + Evolution Learning storage tests 54/54 PASS. Added self-consistent false-APPLIED-value and mismatched intent-provenance falsification; preflight PASS; validate:full PASS; security:gate PASS (raw high/critical=0, secrets=0); diff-check PASS."
+  full_gates: "Node v24.19.0 pnpm run preflight, pnpm run validate:full, pnpm run security:gate, and git diff --check all PASS after the 2026-10-25 receipt outcome/provenance repair."
+  exact_head_ci: "Exact head ddbb3a1b6b07503464f7938b4f713ee2dc983bdb: CI run 40151548885 SUCCESS; fresh Codex review receipt on the same SHA reports no major issues. Android Native 40151532880 foundation-smoke passed; android-debug APK build was still in progress at last check."
+remaining: "The Android debug artifact job is still running. Canonical A3 owner/policy integration and a production caller remain separate unresolved authorities. Keep Draft; no Audit/Release/merge/runtime change."
+next: "Finish relevant A4 workflow status, then continue the existing A3 parent reconvergence and exact-head validation. Do not claim A4 release acceptance."
 safety:
   mode: PAPER_ONLY
   liveAuthority: NONE

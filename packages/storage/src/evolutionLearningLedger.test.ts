@@ -440,6 +440,72 @@ test("an A4 intent reserves its terminal receipt slot against unrelated ledger w
   }
 });
 
+test("the canonical ledger rejects self-consistent A4 receipts with a false outcome or intent provenance", () => {
+  for (const variant of ["outcome", "provenance"] as const) {
+    const db = new SqliteDatabase(":memory:");
+    try {
+      const ledger = new SqliteEvolutionLearningLedger(db, 8);
+      const decisionFingerprint = "a".repeat(64);
+      const learningCycleId = `learning-cycle:${"b".repeat(64)}`;
+      const previousResearchSpecFingerprint = "c".repeat(64);
+      const intentFields = {
+        learningDecisionFingerprint: decisionFingerprint,
+        learningCycleId,
+        previousResearchSpecFingerprint,
+        surface: "longBarTickEvery",
+        previousValue: 1,
+        requestedValue: 2,
+        boundedValue: 2,
+        applicationTimestamp: "2026-08-29T00:00:00.000Z",
+        runtimeIdentity: "runtime-original",
+        sourceCommit: "d".repeat(40),
+      };
+      const intentFingerprint = sha256(canonicalResearchJson(intentFields));
+      const intentId = `learning-application-intent:${intentFingerprint}`;
+      const intent = { schemaVersion: 1, ...intentFields, intentFingerprint };
+      ledger.append(record(intentId, "2026-08-29T00:00:00.000Z", {
+        problem: "NUSA learning application write-ahead intent: bounded state change planned before mutation",
+        evidenceReferences: [intentId, decisionFingerprint, learningCycleId, previousResearchSpecFingerprint],
+        hypothesis: canonicalResearchJson(intent),
+        changeReference: "longBarTickEvery",
+        validationStatus: "LEARNING_APPLICATION_INTENT",
+      }));
+
+      const receiptFields = {
+        learningDecisionFingerprint: decisionFingerprint,
+        learningCycleId,
+        previousResearchSpecFingerprint,
+        intentFingerprint,
+        surface: "longBarTickEvery",
+        previousValue: 1,
+        requestedValue: 2,
+        boundedValue: 2,
+        appliedValue: variant === "outcome" ? 1 : 2,
+        applicationOutcome: "APPLIED",
+        applicationTimestamp: intentFields.applicationTimestamp,
+        runtimeIdentity: variant === "provenance" ? "runtime-forged" : intentFields.runtimeIdentity,
+        sourceCommit: intentFields.sourceCommit,
+      };
+      const applicationFingerprint = sha256(canonicalResearchJson({ ...receiptFields, fallbackReason: null, rejectionReason: null }));
+      const receipt = { schemaVersion: 1, ...receiptFields, applicationFingerprint, outcomeVersion: "learning-application-outcome-v1" };
+      assert.throws(
+        () => ledger.append(record(`learning-application:${applicationFingerprint}`, "2026-08-29T00:01:00.000Z", {
+          problem: "NUSA learning application: one admitted decision change bounded and applied exactly once",
+          evidenceReferences: [`learning-application:${applicationFingerprint}`, decisionFingerprint, learningCycleId],
+          hypothesis: canonicalResearchJson(receipt),
+          changeReference: "longBarTickEvery",
+          validationStatus: "LEARNING_APPLICATION",
+        })),
+        (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "INVALID_LEARNING_APPLICATION_RECEIPT",
+        `ledger must reject self-consistent ${variant} forgery`,
+      );
+      assert.equal(ledger.size(), 1, "invalid terminal evidence never becomes durable");
+    } finally {
+      db.close();
+    }
+  }
+});
+
 test("an A4 intent is rejected before persistence when both intent and terminal slots cannot be reserved", () => {
   const db = new SqliteDatabase(":memory:");
   try {

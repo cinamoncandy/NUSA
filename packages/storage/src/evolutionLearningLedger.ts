@@ -533,14 +533,28 @@ function pendingLearningApplicationIntents(records: readonly EvolutionLearningRe
     if (receiptSchema !== 1 || outcomeVersion !== "learning-application-outcome-v1"
       || Object.keys(receipt).sort().join("|") !== expectedReceiptKeys.join("|")
       || applicationFingerprint !== terminalMatch[1] || receiptDigest !== terminalMatch[1]
-      || ![receipt.learningDecisionFingerprint, receipt.previousResearchSpecFingerprint, receipt.intentFingerprint].every((value) => typeof value === "string" && SHA256.test(value))) continue;
+      || ![receipt.learningDecisionFingerprint, receipt.previousResearchSpecFingerprint, receipt.intentFingerprint].every((value) => typeof value === "string" && SHA256.test(value))) {
+      invalid("INVALID_LEARNING_APPLICATION_RECEIPT", "application receipt identity or closed schema is invalid");
+    }
+    if ((receipt.applicationOutcome === "APPLIED" && receipt.appliedValue !== receipt.boundedValue)
+      || (receipt.applicationOutcome === "REJECTED" && receipt.appliedValue !== receipt.previousValue)
+      || (receipt.applicationOutcome === "NOOP" && (receipt.previousValue !== receipt.boundedValue || receipt.appliedValue !== receipt.previousValue))) {
+      invalid("INVALID_LEARNING_APPLICATION_RECEIPT", "application receipt values do not match its terminal outcome");
+    }
     const intent = pending.get(receipt.intentFingerprint as string);
-    if (intent == null) continue;
-    if (receipt.applicationOutcome === "REJECTED"
-      && receipt.rejectionReason !== "recovery confirmed the previous intent was not applied; a new bounded attempt is required") continue;
+    const isRecoveryRejection = receipt.applicationOutcome === "REJECTED"
+      && receipt.rejectionReason === "recovery confirmed the previous intent was not applied; a new bounded attempt is required";
+    if (intent == null) {
+      if (receipt.applicationOutcome !== "REJECTED" || isRecoveryRejection) invalid("INVALID_LEARNING_APPLICATION_RECEIPT", "terminal application outcome has no matching durable intent");
+      continue;
+    }
     if (receipt.learningDecisionFingerprint !== intent.learningDecisionFingerprint || receipt.learningCycleId !== intent.learningCycleId
       || receipt.previousResearchSpecFingerprint !== intent.previousResearchSpecFingerprint || receipt.surface !== intent.surface
-      || receipt.previousValue !== intent.previousValue || receipt.requestedValue !== intent.requestedValue || receipt.boundedValue !== intent.boundedValue) continue;
+      || receipt.previousValue !== intent.previousValue || receipt.requestedValue !== intent.requestedValue || receipt.boundedValue !== intent.boundedValue
+      || receipt.applicationTimestamp !== intent.applicationTimestamp || receipt.runtimeIdentity !== intent.runtimeIdentity || receipt.sourceCommit !== intent.sourceCommit) {
+      invalid("INVALID_LEARNING_APPLICATION_RECEIPT", "terminal application receipt does not match its durable intent provenance");
+    }
+    if (receipt.applicationOutcome === "REJECTED" && !isRecoveryRejection) continue;
     const refs = [record.opportunityId, receipt.learningDecisionFingerprint as string, receipt.learningCycleId as string].sort();
     if (record.problem !== "NUSA learning application: one admitted decision change bounded and applied exactly once"
       || record.changeReference !== receipt.surface || record.outcome !== "SUCCESS"
