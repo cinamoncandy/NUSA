@@ -34,8 +34,8 @@ blockers:
   - "BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED"
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
 validation:
-  focused: "metaOos: 17/17 PASS; file-backed restart verifies replay, no duplicate durable assignment, and changed holdout rejection."
+  focused: "After reconverging reviewed A1 and A4 parent 3849e1e9ada0d0fe24964f444fea63f77721ede1, A3/A4 bridge + Evolution Learning ledger suite 37/37 PASS. Build PASS; Node 24.19.0 pnpm run preflight PASS; diff-check PASS. The A3 journal test adapter now models appendWithResult identity acquisition used by the A4 canonical ledger; eligibility floor unchanged."
   full_suite: "pnpm test with installed Git Bash directories prepended to PATH: 1248 isolated test files PASS. Initial environment-only bash ENOENT was reproduced and corrected without changing test assertions."
   gates: "build PASS; typecheck PASS; validate:full PASS; security:gate PASS; aipos:yaml/provenance PASS; lint PASS with 26 existing warnings."
-  exact_head_ci: "PASS; workflow_dispatch run 39124665789 completed SUCCESS on da2033ba8c939ba837e167cbab6ccf2b1fbcdfbc, including validation and aggregate coverage. This is exact-tree CI evidence, not Audit or Release."
+  exact_head_ci: "Previous run 39124665789 was on an older A3 predecessor and is historical. New exact-head CI is required after the parent sync/test-adapter repair."
   pending: "Fresh independent review. Audit/Release intentionally blocked by unresolved policy owners and production call-graph gaps."

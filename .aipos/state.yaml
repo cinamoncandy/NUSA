@@ -3699,15 +3699,14 @@ current_autopilot_runner_readiness:
 
 current_learning_meta_holdout_replay_20261018:
   work_order: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
-  status: VERIFYING
+  status: LOCAL_VALIDATED_SUCCESSOR_PENDING_EXACT_HEAD_CI
   branch: feat/meta-oos-a3
   pull_request: 2795
-  base_main: 3659e45e011032b71e37896eed7c3aef2580c153
-  head: a322adab2cb262997cbdc3b084ca7e3200836d75
-  ci_run: 39125139243
-  validation: "17 focused A3 tests and 1248 isolated test files PASS; build/typecheck/validate:full/security/AIPOS provenance PASS; lint PASS with 26 existing warnings. Exact-tree CI run 39125139243 PASS on head a322adab2cb262997cbdc3b084ca7e3200836d75. Initial bash ENOENT fixed by adding installed Git Bash to PATH; no assertions weakened."
-  finding: "Fixed durable META holdout replay idempotence on PR #2795. Remaining blockers: cutoff/META policies have no verified canonical owners, and read-only caller search found no production A3-to-A4 eligibility application path; A4 still accepts caller-provided eligibility."
-  next: "Obtain canonical versioned cutoff and META policy owner specifications; then wire production A2/A1/A3/A4 and reconverge the stack. Fresh independent review remains required. Keep Draft; no Audit/Release until blockers are resolved."
+  predecessor_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
+  parent_a4_head: 3849e1e9ada0d0fe24964f444fea63f77721ede1
+  validation: "A3/A4 bridge and Evolution Learning ledger focused suite 37/37 PASS after reconverging reviewed A1 and A4 parent. Build PASS; Node 24.19.0 pnpm run preflight PASS; git diff --check PASS. Fixed the A3 test journal to implement A4's canonical appendWithResult transaction-winner API; no production semantics or eligibility floor changed."
+  finding: "Durable META assignment replay remains idempotent and owner-fixed. A3's eligibility floor is unchanged. Production Learning trigger/cutoff/META authority remains unresolved and no production A3-to-A4 caller is claimed."
+  next: "Commit/push the existing #2795 branch on A4 parent 3849e1e9, run exact-head CI and Mobile Native, then request fresh independent review after CI succeeds. Keep Draft; no Audit/Release/merge/runtime claim."
   blockers:
     - BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED
     - BLOCKED_META_PARTITION_POLICY_UNDEFINED

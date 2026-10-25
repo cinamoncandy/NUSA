@@ -314,8 +314,15 @@ describe("A3 -> A4 - the eligibility bridge is the thing that keeps the door shu
 
   function journal(): LearningApplicationLedger {
     const records: Array<Record<string, unknown>> = [];
+    const appendWithResult = (record: Record<string, unknown>) => {
+      const existing = records.find((item) => item.opportunityId === record.opportunityId);
+      if (existing != null) return Object.freeze({ record: existing, inserted: false });
+      records.push(record);
+      return Object.freeze({ record, inserted: true });
+    };
     return new LearningApplicationLedger({
-      append: (record: Record<string, unknown>) => { records.push(record); return record; },
+      append: (record: Record<string, unknown>) => appendWithResult(record).record,
+      appendWithResult,
       list: () => records as never,
     } as never, () => Date.parse(CONTEXT.applicationTimestamp));
   }
