@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
-import { BlurMask, Canvas, Fill, FractalNoise, LinearGradient, Points, RadialGradient, RoundedRect, Rect, vec } from "@shopify/react-native-skia";
+import { StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
+import { BlurMask, Canvas, Fill, FractalNoise, Group, LinearGradient, Points, RadialGradient, RoundedRect, Rect, rect, rrect, vec } from "@shopify/react-native-skia";
 import { auraPalette } from "./designSystem";
-import { dotFieldLayout, layoutDotMatrix, litIndices } from "./dotMatrix";
+import { dotFieldLayout, isDotSupported, layoutDotMatrix, litIndices } from "./dotMatrix";
 
 /**
  * Aura kit (Learning tab): near-black ground, one green that glows, grain, dot-matrix numerals. Everything here is drawn with
@@ -37,21 +37,23 @@ export function GrainCard({ height, tone = "GREEN", children, style, testID, acc
     accessibilityLabel={accessibilityLabel}
   >
     {size.w > 0 && size.h > 0 ? <Canvas style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <RoundedRect x={0} y={0} width={size.w} height={size.h} r={RADIUS}>
-        {tone === "GREEN"
-          ? <LinearGradient start={vec(0, 0)} end={vec(size.w, size.h)} colors={[auraPalette.deep, auraPalette.mid, auraPalette.bright]} positions={[0, 0.58, 1]} />
-          : <LinearGradient start={vec(0, 0)} end={vec(size.w, size.h)} colors={[auraPalette.card, auraPalette.ground]} />}
-      </RoundedRect>
-      {tone === "DARK"
-        ? <Rect x={0} y={0} width={size.w} height={size.h}>
-          <RadialGradient c={vec(size.w * 0.92, size.h * 0.08)} r={Math.max(size.w, size.h) * 0.7} colors={[auraPalette.mid, auraPalette.deep, "transparent"]} positions={[0, 0.5, 1]} />
-        </Rect>
-        : <Rect x={0} y={0} width={size.w} height={size.h}>
-          <RadialGradient c={vec(size.w * 0.18, size.h * 0.12)} r={Math.max(size.w, size.h) * 0.75} colors={[auraPalette.neon, "transparent"]} positions={[0, 1]} />
-        </Rect>}
-      <Fill opacity={tone === "GREEN" ? 0.22 : 0.12} blendMode="softLight">
-        <FractalNoise freqX={0.85} freqY={0.85} octaves={3} seed={7} />
-      </Fill>
+      <Group clip={rrect(rect(0, 0, size.w, size.h), RADIUS, RADIUS)}>
+        <RoundedRect x={0} y={0} width={size.w} height={size.h} r={RADIUS}>
+          {tone === "GREEN"
+            ? <LinearGradient start={vec(0, 0)} end={vec(size.w, size.h)} colors={[auraPalette.deep, auraPalette.mid, auraPalette.bright]} positions={[0, 0.58, 1]} />
+            : <LinearGradient start={vec(0, 0)} end={vec(size.w, size.h)} colors={[auraPalette.card, auraPalette.ground]} />}
+        </RoundedRect>
+        {tone === "DARK"
+          ? <Rect x={0} y={0} width={size.w} height={size.h}>
+            <RadialGradient c={vec(size.w, 0)} r={Math.max(size.w, size.h) * 0.4} colors={[auraPalette.mid, auraPalette.deep, "transparent"]} positions={[0, 0.5, 1]} />
+          </Rect>
+          : <Rect x={0} y={0} width={size.w} height={size.h}>
+            <RadialGradient c={vec(size.w * 0.9, size.h * 0.1)} r={Math.max(size.w, size.h) * 0.6} colors={[auraPalette.neon, "transparent"]} positions={[0, 1]} />
+          </Rect>}
+        <Fill opacity={tone === "GREEN" ? 0.22 : 0.12} blendMode="softLight">
+          <FractalNoise freqX={0.85} freqY={0.85} octaves={3} seed={7} />
+        </Fill>
+      </Group>
     </Canvas> : null}
     {children}
   </View>;
@@ -66,6 +68,8 @@ export function DotNumeral({ text, pitch, color = auraPalette.text, glow = false
   readonly accessibilityLabel?: string;
 }) {
   const layout = useMemo(() => layoutDotMatrix(text, pitch), [text, pitch]);
+  // Never draw a wrong number: a character without a dot glyph makes the whole numeral plain text instead.
+  if (!isDotSupported(text)) return <Text style={{ color, fontSize: Math.max(12, pitch * 6) }} accessibilityLabel={accessibilityLabel ?? text}>{text}</Text>;
   if (layout.width <= 0) return null;
   const radius = Math.max(1, pitch * 0.34);
   return <Canvas style={{ width: layout.width, height: layout.height }} accessibilityLabel={accessibilityLabel ?? text} accessible>

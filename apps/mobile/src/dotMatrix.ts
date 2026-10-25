@@ -33,6 +33,12 @@ export function glyphFor(ch: string): readonly string[] {
   return GLYPHS[key] ?? GLYPHS[" "];
 }
 
+/** True when every character of `text` has a glyph. Callers draw plain text instead when it is false, so a wrong number is never drawn. */
+export function isDotSupported(text: string): boolean {
+  const chars = Array.from(text);
+  return chars.length > 0 && chars.every((ch) => (ch === "\u2212" ? "-" : ch) in GLYPHS);
+}
+
 /** Lays out `text` on a square pitch grid. One blank column separates glyphs. Coordinates are dot centres. */
 export function layoutDotMatrix(text: string, pitch: number): DotLayout {
   if (!Number.isFinite(pitch) || pitch <= 0) return Object.freeze({ width: 0, height: 0, dots: Object.freeze([]) });

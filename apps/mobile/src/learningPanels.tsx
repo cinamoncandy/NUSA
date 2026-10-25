@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { dotFieldLayout, layoutDotMatrix } from "./dotMatrix";
 import { auraPalette, readableFont } from "./designSystem";
 import { DotField, DotNumeral, GrainCard, TickSlider } from "./auraKit";
 import { buildStudyTimeline } from "./learningPanelsModel";
@@ -12,6 +13,8 @@ import { buildLearningLoopPanels } from "./learningLoopModel";
  */
 const CARD_MARGIN = 16;
 const CARD_PADDING = 18;
+const MAX_FIELD_DOTS = 400;
+const NUMERAL_PAD = 12;
 
 const fmt = (n: number): string => (n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1));
 const signedInt = (n: number): string => (n > 0 ? `+${n}` : `${n}`);
@@ -90,16 +93,25 @@ export function PaperResultBars({ raw }: { readonly raw: unknown }) {
 /** First screen passes against the independent holdout: the number that survived new data, over every setting that was tried. */
 export function OverfitGate({ raw }: { readonly raw: unknown }) {
   const { overfit } = buildLearningLoopPanels(raw);
+  const { width } = useWindowDimensions();
   if (overfit == null) return <Missing title="새 데이터에서의 결과" />;
   const tried = overfit.configurations;
-  const field = tried != null && tried >= overfit.discoveryPasses ? tried : null;
+  // The dot field only draws a sane number of dots; a huge or inconsistent count falls back to the text chip below.
+  const field = tried != null && tried >= overfit.discoveryPasses && tried <= MAX_FIELD_DOTS ? tried : null;
+  const numeralText = String(overfit.holdoutPasses);
+  const numeralWidth = layoutDotMatrix(numeralText, 13).width + NUMERAL_PAD * 2;
+  const fieldWidth = field == null ? 0 : dotFieldLayout(field, 16, 10).width;
+  const inner = width - CARD_MARGIN * 2 - CARD_PADDING * 2;
+  const stacked = field != null && numeralWidth + fieldWidth + 14 > inner;
   return <GrainCard tone="GREEN" style={styles.hero} testID="learning-overfit-gate" accessibilityLabel={`새 데이터에서의 결과. ${overfit.summary}`}>
     <View style={styles.heroTop}>
       <Chip>새 데이터 독립 검증 합격</Chip>
       {overfit.overfitRatePercent == null ? null : <Chip>{`탈락 ${overfit.overfitRatePercent}%`}</Chip>}
     </View>
-    <View style={styles.heroBody}>
-      <DotNumeral text={String(overfit.holdoutPasses)} pitch={13} color={auraPalette.text} glow accessibilityLabel={`독립 검증 합격 ${overfit.holdoutPasses}개`} />
+    <View style={[styles.heroBody, stacked ? styles.heroBodyStacked : null]}>
+      <View style={styles.numeralScrim}>
+        <DotNumeral text={numeralText} pitch={13} color={auraPalette.text} glow accessibilityLabel={`독립 검증 합격 ${overfit.holdoutPasses}개`} />
+      </View>
       {field == null ? null : <DotField total={field} lit={overfit.discoveryPasses} columns={16} pitch={10} accessibilityLabel={`시도한 설정 ${field}개 중 1차 통과 ${overfit.discoveryPasses}개가 밝게 표시돼요`} />}
     </View>
     <View style={styles.heroFoot}>
@@ -121,6 +133,8 @@ const styles = StyleSheet.create({
   hero: { marginHorizontal: CARD_MARGIN, marginTop: 16, gap: 14, padding: CARD_PADDING },
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" },
   heroBody: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14, paddingVertical: 6 },
+  heroBodyStacked: { flexDirection: "column", alignItems: "flex-start" },
+  numeralScrim: { backgroundColor: auraPalette.scrim, borderRadius: 18, padding: NUMERAL_PAD },
   heroFoot: { flexDirection: "row" },
   heroNoteBox: { backgroundColor: auraPalette.scrim, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
   heroNote: { color: auraPalette.text, fontSize: readableFont(12), lineHeight: 18 },

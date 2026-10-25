@@ -45,3 +45,14 @@ test("the dot field layout rounds rows up", () => {
   assert.equal(d.dotFieldLayout(17, 16, 10).rows, 2);
   assert.equal(d.dotFieldLayout(0, 16, 10).rows, 0);
 });
+
+test("a numeral is drawn only when every character has a glyph, so a wrong number is never shown", () => {
+  for (const ok of ["0", "-13.1", "−13.1", "+2", "-17", "0.0", "10-29", "D-4", "100%"]) assert.equal(d.isDotSupported(ok), true, ok);
+  for (const bad of ["", "1e+21", "NaN", "Infinity", "1,5", "a", "\u{1F600}"]) assert.equal(d.isDotSupported(bad), false, bad);
+});
+
+test("the exact strings the Learning tab draws lay out with the expected glyph count", () => {
+  assert.equal(d.layoutDotMatrix("0", 1).dots.length, 19, "the zero glyph has 19 lit cells");
+  assert.equal(d.layoutDotMatrix("-13.1", 1).width, 26, "5+1+5+1+5+1+2+1+5 columns");
+  assert.equal(d.layoutDotMatrix("+2", 1).width, 11);
+});
