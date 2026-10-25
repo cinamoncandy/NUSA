@@ -612,17 +612,22 @@ export class SqliteEvolutionLearningLedger {
     return this.appendWithResult(value).record;
   }
 
-  /** Atomic identity acquisition for callers whose side effect must have one durable winner. */
-  public appendWithResult(value: EvolutionLearningRecord): { readonly record: EvolutionLearningRecord; readonly inserted: boolean } {
-    return this.appendInternal(value, () => undefined);
-  }
-
-  /** Validate a graph constraint against the latest hash-chain snapshot in the append transaction. */
+  /**
+   * Append while validating the exact hash-chain snapshot inside the same serialized
+   * write transaction. Domain adapters use this for graph constraints that span records;
+   * a competing writer either commits first and is visible to the validator, or changes
+   * the ledger head and makes this append fail closed.
+   */
   public appendWithValidation(
     value: EvolutionLearningRecord,
     validateCurrent: (records: readonly EvolutionLearningRecord[]) => void,
   ): EvolutionLearningRecord {
     return this.appendInternal(value, validateCurrent).record;
+  }
+
+  /** Atomic identity acquisition for callers whose side effect must have one durable winner. */
+  public appendWithResult(value: EvolutionLearningRecord): { readonly record: EvolutionLearningRecord; readonly inserted: boolean } {
+    return this.appendInternal(value, () => undefined);
   }
 
   private appendInternal(

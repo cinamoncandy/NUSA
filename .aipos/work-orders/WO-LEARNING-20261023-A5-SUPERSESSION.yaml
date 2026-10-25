@@ -1,0 +1,68 @@
+id: WO-LEARNING-20261023-A5-SUPERSESSION
+title: "Persist and validate append-only Learning supersession lineage"
+status: AIPOS_EVIDENCE_SYNC_PENDING_EXACT_HEAD_CI
+priority: P0
+owner: nusa-development
+repository: cinamoncandy/NUSA
+branch: feat/supersession-a5
+pull_request: 2796
+base_branch: feat/meta-oos-a3
+parent_head: 075f6c6aa6481c0f4507f8dde2e18c6526c1c25c
+owner_request: "2026-10-23: continue Learning PRs from A2 upward; run relevant tests and pnpm run preflight on Node 24.19+, and request a fresh independent review after exact-head CI passes. Do not delay #2855 or the order-book archive deployment."
+authority_impact: immutable_learning_evidence_and_replay_correctness_only
+objective: "Complete A5 supersession as a deterministic, append-only chain with append-time graph validation, replay idempotency, atomic rehydration, and durable restart-safe records through the existing Evolution Learning ledger."
+first_broken_transition: "concurrent cycle rejection -> stable domain error classification while preserving append-only graph integrity"
+scope:
+  include:
+    - "Reject cycle, merge, reactivation, and fork edges before mutating the registry."
+    - "Treat predecessor + successor + surface as edge identity; preserve the first immutable link on metadata-only replay."
+    - "Make batch rehydration all-or-nothing and bounded."
+    - "Validate graph constraints again against the current hash-chain snapshot inside the existing serialized append transaction."
+    - "Reject canonical link payloads exceeding the existing Evolution hypothesis bound before the generic record factory can truncate them."
+    - "Validate the complete durable Evolution envelope during replay, including evidence references, policy/status, outcome, failure/rollback fields, reusable flag, and canonical recordedAt."
+    - "Reuse the existing append-only hash-chained Evolution Learning SQLite ledger; create no second store."
+    - "Add file-backed SQLite restart, replay, and no-duplicate regressions."
+  exclude:
+    - "Canonical cutoff policy, META partition allocation policy, ratios, cadence, or owner."
+    - "Production A2/A1/A3/A4 caller wiring or any qualification, risk, Governance, Release, or execution authority."
+    - "Audit, Release, merge, deployment, or claiming a completed Learning cycle."
+acceptance:
+  - "A5 append rejects cycle, merge, reactivation, and fork edges without changing history."
+  - "Same edge replay with changed reason/timestamp returns the original immutable link and appends no record."
+  - "Rehydration validates on a staged registry and commits no partial batch on failure."
+  - "A stale concurrent claimant cannot append a fork after another writer commits; the ledger transaction observes the winning link and rejects the loser with the original domain classification, including SUPERSESSION_CYCLE, without relabeling it as a durable write failure."
+  - "An oversized canonical payload is rejected before append and leaves the ledger unchanged."
+  - "A hash-chain-valid but noncanonical supersession envelope fails closed during replay."
+  - "Durable links use the existing Evolution Learning ledger and survive SQLite close/reopen with identical identity and zero duplicate rows."
+  - "Node 24.19+ focused tests, pnpm run preflight, build, validate:full, security:gate, and exact-head CI pass; fresh independent review is requested only after exact-head CI is green."
+  - "PR remains Draft; unresolved cutoff/META owner and production-trigger dependencies remain explicit."
+blockers:
+  - "BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED"
+  - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
+  - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+validation:
+  node: "v24.19.0"
+  focused_current: "A3/A4/A5/ledger/worker focused suites 99/99 PASS on Node 24.19.0 after parent reconvergence; prior 45/45 A5-only result is historical."
+  focused: "A3/A4/A5/ledger/worker tests 99/99 PASS on Node 24.19.0; typecheck, build, preflight, validate:full, security:gate, and diff-check PASS; lint 0 errors and 45 existing warnings."
+  build: PASS
+  typecheck: PASS
+  preflight: "PASS on Node 24.19.0 after parent reconvergence"
+  validate_full: "PASS after parent reconvergence"
+  security_gate: "PASS; no raw high/critical findings, no secrets, no unmitigated findings"
+  diff_check: PASS
+  lint: "PASS with 0 errors and 45 existing warnings"
+  validated_head_before_aipos_sync: 642ea8e5265888efe34cf58c638f7275ad6b91fd
+  exact_head_ci: "PASS; CI run 40154220666 on 642ea8e5265888efe34cf58c638f7275ad6b91fd. AIPOS evidence sync will create a new head, which requires fresh exact-head CI."
+  independent_review: "Requested via issue comment 6392462628 for head 642ea8e5265888efe34cf58c638f7275ad6b91fd; refresh required after AIPOS evidence sync."
+  latest_ci_failure: "Run 40044601486: validation/security gate PASS, coverage-core-0 failed tests/security-gate.test.js assertion expecting undici 7.29.1/6.28.1. The regression assertion is corrected to require the new fixed 7.30.1/6.29.1 versions and reject the vulnerable prior pins; no gate weakened."
+  security_finding: "A6 exact-head CI 40043771127 observed npm audit high advisories 1243113/1243114 (GHSA-xjj6-f33q-929c) against undici 6.28.1 and 7.29.1, also present in protected main. Updated existing undici override floors to fixed 6.29.1 and 7.30.1; pnpm audit now reports high=0 and security:gate PASS. No audit threshold or exception changed."
+  prior_exact_head_ci_pass: "651fef857e3b8174e4debda74505dd3b31219e22 CI 40042900064 PASS with companion workflows 40042880408 and 40042880403 PASS; historical after security dependency successor."
+  ci_failure_repair: "CI run 40042338633 failed only in tests/autopilot worker.test.ts at UTC midnight: the daily-quota production wait used the exact 60s minimum while the test compared against a later Date.now(). Fixed the test with a deterministic 2026-10-23T12:00:00Z clock; runtime behavior and thresholds unchanged. Failure receipt preserved."
+remaining: "The reconverged code head passed CI; the AIPOS evidence sync creates a new head, so exact-head CI and fresh independent review of that tip remain required. No production caller or cutoff/META authority is defined; this PR does not claim production learning completion."
+next: "Commit and non-force push the AIPOS CI/review receipt update to feat/supersession-a5; dispatch exact-head CI for the new tip, then request a fresh independent review of that exact head. Keep Draft."
