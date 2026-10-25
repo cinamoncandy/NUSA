@@ -87,18 +87,80 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  backup:
+    name: Back up exact-main Cloud PAPER state
+    needs: prepare
+    # Backup is isolated from activation so a slow verified backup can fail before any release
+    # switch. The step budget is derived from the observed production envelope below; it does not
+    # consume the separate 40-minute stage/preflight/activation job budget.
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 190
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      STEP: /opt/nusa/bin/nusa-release-step
+      BUNDLE_SHA: ${{ needs.prepare.outputs.bundle_sha }}
+    steps:
+      - name: Recheck exact protected main before backup
+        id: source_fresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$MAIN_SHA" != "$SOURCE_SHA" ]; then
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SUPERSEDED: protected main moved after build; stale Oracle backup/release is a non-terminal no-op"
+            exit 0
+          fi
+          echo "fresh=true" >> "$GITHUB_OUTPUT"
+
+      - name: Free disk by pruning superseded releases (bounded)
+        if: steps.source_fresh.outputs.fresh == 'true'
+        run: sudo "$STEP" prune
+
+      - name: Download built release for helper identity proof
+        if: steps.source_fresh.outputs.fresh == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nusa-paper-release
+          path: ${{ runner.temp }}
+
+      - name: Verify and unpack exact source for helper identity proof
+        if: steps.source_fresh.outputs.fresh == 'true'
+        run: |
+          set -euo pipefail
+          [[ "$BUNDLE_SHA" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Missing bundle digest"; exit 1; }
+          echo "$BUNDLE_SHA  $RUNNER_TEMP/nusa-release.tar.gz" | sha256sum --check --status
+          RELEASE_TREE="$RUNNER_TEMP/nusa-backup-proof-$GITHUB_RUN_ID"
+          mkdir -p "$RELEASE_TREE"
+          tar -xzf "$RUNNER_TEMP/nusa-release.tar.gz" -C "$RELEASE_TREE"
+          rm -- "$RUNNER_TEMP/nusa-release.tar.gz"
+          echo "RELEASE_TREE=$RELEASE_TREE" >> "$GITHUB_ENV"
+
+      - name: Require reviewed root-owned helper exact match before backup
+        if: steps.source_fresh.outputs.fresh == 'true'
+        run: |
+          set -euo pipefail
+          cmp --silent "$STEP" "$RELEASE_TREE/deploy/oracle/nusa-release-step.sh" || {
+            echo "::error::Host release helper differs from exact reviewed source. Install the exact reviewed root-owned helper before backup/release."
+            exit 1
+          }
+
+      - name: Back up persistent state before release mutation
+        if: steps.source_fresh.outputs.fresh == 'true'
+        # Conservative observed envelope: 957 MiB * six Sunday full-file phases / 0.8 MiB/s
+        # = 119.6 min; add 30% variance = 155.5 min, then round up to 180 min. The timeout
+        # is local to backup, so it cannot terminate a switched-but-unproven activation.
+        timeout-minutes: 180
+        run: sudo "$STEP" backup
+
   release:
     name: Release exact-main Cloud PAPER runtime
-    needs: prepare
-    # Only the privileged release steps run on the dedicated host. Build and dependency
-    # installation stay on GitHub-hosted hardware, away from the 1 GB PAPER runtime host.
+    needs: [prepare, backup]
+    # Backup has its own bounded job/step above. Keep the release mutation window independently
+    # bounded so stage/preflight/activation cannot inherit a long backup timeout.
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    # Budget from the observed production envelope: 957 MiB / 0.8 MiB/s * six full-file
-    # Sunday phases = 119.6 min; add 30% backup variance and 15 min for artifact/stage,
-    # preflight, activation, 300 s readiness, and 180 s soak, then round up to 30 min.
-    # This is a bounded job timeout, not a runtime acceptance claim. Keep the independent
-    # readiness and activation-soak limits unchanged.
-    timeout-minutes: 180
+    timeout-minutes: 40
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       NUSA_DEPLOY_ROOT: /opt/nusa
@@ -114,15 +176,10 @@ jobs:
           MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           if [ "$MAIN_SHA" != "$SOURCE_SHA" ]; then
             echo "fresh=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::SUPERSEDED: protected main moved after build; stale Oracle release is a non-terminal no-op"
+            echo "::notice::SUPERSEDED: protected main moved after backup; stale Oracle release is a non-terminal no-op"
             exit 0
           fi
           echo "fresh=true" >> "$GITHUB_OUTPUT"
-
-      - name: Free disk by pruning superseded releases (bounded)
-        # The helper preserves the active release and the recorded rollback release, validates every
-        # candidate before deleting any additional superseded release, and never touches state or backups.
-        run: sudo "$STEP" prune
 
       - name: Download built release
         if: steps.source_fresh.outputs.fresh == 'true'
@@ -152,10 +209,6 @@ jobs:
             echo "::error::Host release helper differs from exact reviewed source. Install the reviewed root-owned helper before releasing."
             exit 1
           }
-
-      - name: Back up persistent state before touching the release
-        if: steps.source_fresh.outputs.fresh == 'true'
-        run: sudo "$STEP" backup
 
       - name: Stage the immutable release directory
         if: steps.source_fresh.outputs.fresh == 'true'
@@ -191,7 +244,6 @@ jobs:
           CURRENT_RELEASE="$(readlink -f "$NUSA_DEPLOY_ROOT/current" || echo UNKNOWN)"
           echo "requestedSource=$SOURCE_SHA"
           echo "currentRelease=$CURRENT_RELEASE"
-          # A green run is not proof of a deploy: a superseded source skips every host step. Name the outcome.
           if [ "$SOURCE_FRESH" != "true" ]; then
             RESULT=SKIPPED_MAIN_MOVED
           elif [ "$JOB_STATUS" != "success" ]; then

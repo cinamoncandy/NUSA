@@ -43,16 +43,15 @@ test("the release requires successful exact-source CI, found by a paginated look
 });
 
 test("the small PAPER host receives a sealed build instead of installing or building dependencies", () => {
-  const prepare = workflow.slice(workflow.indexOf("  prepare:"), workflow.indexOf("  release:"));
-  const release = workflow.slice(workflow.indexOf("  release:"));
+  const prepare = workflow.slice(workflow.indexOf("  prepare:"), workflow.indexOf("  backup:"));
+  const hostJobs = workflow.slice(workflow.indexOf("  backup:"));
   assert.match(prepare, /runs-on: ubuntu-latest/);
   assert.match(prepare, /pnpm install --frozen-lockfile/);
   assert.match(prepare, /pnpm run build/);
-  assert.match(release, /needs: prepare/);
-  assert.match(release, /runs-on: \[self-hosted, Linux, nusa-paper-host\]/);
-  assert.match(release, /sha256sum --check --status/);
-  assert.ok(release.indexOf("sha256sum --check --status") < release.indexOf('"$STEP" backup'));
-  assert.doesNotMatch(release, /pnpm install|pnpm run build/);
+  assert.match(hostJobs, /runs-on: \[self-hosted, Linux, nusa-paper-host\]/);
+  assert.match(hostJobs, /sha256sum --check --status/);
+  assert.ok(hostJobs.indexOf("sha256sum --check --status") < hostJobs.indexOf('"$STEP" backup'));
+  assert.doesNotMatch(hostJobs, /pnpm install|pnpm run build/);
 });
 
 test("the host drops only the verified temporary archive after extraction", () => {
@@ -62,51 +61,58 @@ test("the host drops only the verified temporary archive after extraction", () =
   orderIn(unpack, ["sha256sum --check --status", 'tar -xzf "$RUNNER_TEMP/nusa-release.tar.gz"', 'rm -- "$RUNNER_TEMP/nusa-release.tar.gz"']);
 });
 
-test("the host privileged helper must exactly match the reviewed release helper before backup", () => {
-  const release = workflow.slice(workflow.indexOf("  release:"));
-  const helperGate = release.indexOf("Require reviewed host release helper exact match");
-  const backup = release.indexOf("Back up persistent state before touching the release");
-  assert.ok(helperGate > 0 && helperGate < backup, "helper drift must fail before any backup or release mutation");
-  assert.match(release, /cmp --silent "\$STEP" "\$RELEASE_TREE\/deploy\/oracle\/nusa-release-step\.sh"/);
-  assert.match(release, /Host release helper differs from exact reviewed source/);
+test("the host privileged helper must exactly match reviewed source before the isolated backup", () => {
+  const backupJob = workflow.slice(workflow.indexOf("  backup:"), workflow.indexOf("  release:"));
+  const helperGate = backupJob.indexOf("Require reviewed root-owned helper exact match before backup");
+  const backup = backupJob.indexOf("Back up persistent state before release mutation");
+  assert.ok(helperGate > 0 && helperGate < backup, "helper drift must fail before backup starts");
+  assert.match(backupJob, /cmp --silent "\$STEP" "\$RELEASE_TREE\/deploy\/oracle\/nusa-release-step\.sh"/);
+  assert.match(backupJob, /Install the exact reviewed root-owned helper before backup\/release/);
 });
 
-test("the privileged backup uses the configured runtime state database", () => {
+test("the privileged backup resolves both paths inside the reviewed root-owned helper and fails closed on unsupported topology", () => {
   const backupStart = wrapper.indexOf("  backup)");
   const backupEnd = wrapper.indexOf("\n\n  preflight)", backupStart);
   const backup = wrapper.slice(backupStart, backupEnd);
-  assert.ok(backup.length > 0);
-  assert.match(backup, /source "\$RUNTIME_ENV"/, "backup must read the canonical runtime env without printing it");
+  const resolver = wrapper.slice(wrapper.indexOf("resolve_backup_disk_for_path()"), wrapper.indexOf("# Serialize every canonical operation"));
+  assert.ok(backup.length > 0 && resolver.length > 0);
   assert.match(backup, /NUSA_CLOUD_STATE_DB_PATH/);
-  assert.match(backup, /oracle-backup-device\.js/, "the backup must verify the actual backing disk before applying an I/O cap");
-  assert.match(backup, /IOReadBandwidthMax=\$\{backup_device\} 1M/);
-  assert.match(backup, /IOWriteBandwidthMax=\$\{backup_device\} 1M/);
-  assert.ok(backup.indexOf("oracle-backup-device.js") < backup.indexOf("systemd-run"), "topology validation must fail before the backup process starts");
-  assert.match(backup, /systemd-run --quiet --collect --scope/, "backup must run in a dedicated transient cgroup");
-  assert.match(backup, /nice -n 19 runuser -u "\$SERVICE_USER"/, "backup must yield CPU priority to the foreground PAPER runtime");
-  assert.match(backup, /env NUSA_DB="\$state_db"/, "sqlite-backup must target the configured durable runtime database");
-  assert.match(backup, /Cloud state path must be absolute before backup/);
+  assert.match(backup, /NUSA_BACKUP_DIR/);
+  assert.match(backup, /resolve_backup_io_disk "\$state_db" "\$backup_dir"/);
+  assert.doesNotMatch(backup, /oracle-backup-device\.js/, "root backup must not execute a release-owned topology resolver");
+  assert.match(resolver, /ext4\|xfs/, "bounded backup supports only explicitly reviewed local filesystems");
+  assert.match(resolver, /block topology is unsupported for bounded backup/);
+  assert.match(resolver, /must resolve to the same backing disk/);
+  assert.match(wrapper, /readonly BACKUP_IO_BYTES_PER_SECOND=1048576/);
+  assert.match(backup, /IOReadBandwidthMax=\$\{backup_device\} \$\{BACKUP_IO_BYTES_PER_SECOND\}/);
+  assert.match(backup, /IOWriteBandwidthMax=\$\{backup_device\} \$\{BACKUP_IO_BYTES_PER_SECOND\}/);
+  assert.ok(backup.indexOf("resolve_backup_io_disk") < backup.indexOf("systemd-run"), "topology validation must finish before the backup process starts");
+  assert.match(backup, /systemd-run --quiet --collect --scope/);
+  assert.match(backup, /nice -n 19 runuser -u "\$SERVICE_USER"/);
+  assert.match(backup, /env NUSA_DB="\$state_db" NUSA_BACKUP_DIR="\$backup_dir"/);
 });
 
-test("the measured backup I/O cap fits the bounded host job without extending readiness or soak gates", () => {
-  const release = workflow.slice(workflow.indexOf("  release:"));
-  // Conservative production envelope recorded by WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE.
-  // Six full-file phases are VACUUM INTO, daily integrity/hash, weekly copy, and weekly
-  // integrity/hash. The 15-minute non-backup reserve includes the existing readiness and soak.
+test("the calculated long backup budget is isolated from the short activation job", () => {
+  const backupJob = workflow.slice(workflow.indexOf("  backup:"), workflow.indexOf("  release:"));
+  const releaseJob = workflow.slice(workflow.indexOf("  release:"));
   const databaseMiB = 957;
   const observedMiBPerSecond = 0.8;
   const fullFilePhases = 6;
   const backupSafetyMargin = 0.30;
-  const nonBackupReserveMinutes = 15;
   const roundUpToMinutes = 30;
   const rawBackupMinutes = (databaseMiB * fullFilePhases) / observedMiBPerSecond / 60;
-  const requiredMinutes = rawBackupMinutes * (1 + backupSafetyMargin) + nonBackupReserveMinutes;
-  const budgetedMinutes = Math.ceil(requiredMinutes / roundUpToMinutes) * roundUpToMinutes;
-  const timeout = Number(release.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+  const requiredBackupMinutes = rawBackupMinutes * (1 + backupSafetyMargin);
+  const budgetedBackupMinutes = Math.ceil(requiredBackupMinutes / roundUpToMinutes) * roundUpToMinutes;
+  const backupStep = backupJob.slice(backupJob.indexOf("Back up persistent state before release mutation"));
+  const backupStepTimeout = Number(backupStep.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+  const releaseTimeout = Number(releaseJob.match(/timeout-minutes:\s*(\d+)/)?.[1]);
 
   assert.equal(Math.round(rawBackupMinutes * 10) / 10, 119.6);
-  assert.equal(budgetedMinutes, 180);
-  assert.ok(timeout >= budgetedMinutes, "outer job timeout must cover measured backup, margin, and release reserve");
+  assert.equal(Math.round(requiredBackupMinutes * 10) / 10, 155.5);
+  assert.equal(budgetedBackupMinutes, 180);
+  assert.equal(backupStepTimeout, budgetedBackupMinutes, "backup-only timeout must be derived from the recorded production envelope");
+  assert.ok(backupStepTimeout - requiredBackupMinutes >= 20, "calculated backup envelope needs at least twenty minutes of explicit margin");
+  assert.equal(releaseTimeout, 40, "stage/preflight/activation keeps its independent short host-job budget");
   assert.match(readiness, /NUSA_READY_STARTUP_WAIT_MS \|\| 300_000/);
   assert.match(readiness, /startupWaitMs > 300_000/);
   assert.match(wrapper, /POST_ACTIVATION_SOAK_SECONDS=180/);
@@ -377,14 +383,14 @@ test("rollback restores a legacy release that predates the Autopilot systemd uni
   assert.match(installUnits, /die "missing nusa-autopilot\.service/, "forward activation must still fail closed when the unit is missing");
 });
 
-test("superseded releases are pruned before the host is touched so a full disk cannot fail the backup", () => {
-  const release = workflow.slice(workflow.indexOf("  release:"));
-  const recheck = release.indexOf("Recheck exact protected main before host mutation");
-  const prune = release.indexOf('sudo "$STEP" prune');
-  const download = release.indexOf("Download built release");
-  const backup = release.indexOf('"$STEP" backup');
-  assert.ok(prune > recheck && prune < download, "prune must run after the main recheck and before the download");
+test("superseded releases are pruned before backup artifact expansion so a full disk cannot fail the backup", () => {
+  const backupJob = workflow.slice(workflow.indexOf("  backup:"), workflow.indexOf("  release:"));
+  const recheck = backupJob.indexOf("Recheck exact protected main before backup");
+  const prune = backupJob.indexOf('sudo "$STEP" prune');
+  const download = backupJob.indexOf("Download built release for helper identity proof");
+  const backup = backupJob.indexOf('"$STEP" backup');
+  assert.ok(prune > recheck && prune < download, "prune must run after the main recheck and before the backup artifact download");
   assert.ok(prune < backup, "prune must free space before the backup");
-  assert.equal(release.split('"$STEP" prune').length - 1, 1, "prune is invoked exactly once");
-  assert.doesNotMatch(release, /rm -rf|find .* -delete/, "the workflow itself never deletes; only the bounded helper does");
+  assert.equal(workflow.split('"$STEP" prune').length - 1, 1, "prune is invoked exactly once");
+  assert.doesNotMatch(workflow, /rm -rf|find .* -delete/, "the workflow itself never deletes; only the bounded helper does");
 });

@@ -13,9 +13,9 @@ finding: "Oracle release run 40148117124 showed that the mandatory SQLite state 
 root_cause: "The existing verified backup performs substantial reads and writes against the persistent state database while the 1 GB Oracle host serves PAPER runtime and startup reads. The prior nice/ionice-only mitigation did not impose a bandwidth bound, and the host block scheduler is none."
 scope:
   - "Keep the canonical sqlite-backup.js backup engine, VACUUM INTO, integrity verification, SHA-256 sidecar, retention, and release helper path."
-  - "Resolve the mounted filesystem backing the canonical state DB to one verified local block disk; fail closed for ambiguous, remote, layered, or non-block topology."
-  - "Run only the existing backup operation with low CPU priority and a 1 MiB/s read/write bandwidth cap in a transient systemd scope."
-  - "Set the outer Oracle release host job timeout to 180 minutes. Budget from the conservative 957 MiB observed production envelope, 0.8 MiB/s measured capped throughput, six full-file Sunday phases (~119.6 minutes), 30% backup variance, and a 15-minute reserve for remaining release work; round up to the next 30-minute boundary. Keep PAPER readiness at 300 seconds and activation stability soak at 180 seconds."
+  - "Resolve both the canonical state DB and backup directory inside the reviewed root-owned release helper; allow only ext4/xfs on one direct disk (or one partition of it), require both paths to share that disk, and fail closed otherwise."
+  - "Run only the existing backup operation with low CPU priority and an exact 1048576 B/s (1 MiB/s) read/write bandwidth cap in a transient systemd scope."
+  - "Isolate backup from activation. Give only the backup step a calculated 180-minute timeout: 957 MiB / 0.8 MiB/s * six Sunday full-file phases = ~119.6 minutes; add 30% observed-workload variance = ~155.5 minutes and round up to 180. Keep the separate stage/preflight/activation job at 40 minutes, PAPER readiness at 300 seconds, and activation stability soak at 180 seconds."
 exclusions:
   - "No Oracle deployment, service restart, database mutation, writer-lease reset, backup deletion, or host-helper installation is part of this work order."
   - "Do not change writer lease TTL, heartbeat cadence, ownership predicate, readiness/soak budgets, backup integrity checks, retention policy, or PAPER/LIVE authority."
@@ -23,9 +23,9 @@ exclusions:
 evidence:
   - "Read-only Oracle topology inspection resolved /var/lib/nusa/state.sqlite to /dev/sda1 with parent /dev/sda (TYPE=disk); cgroup v2 io controller is available."
   - "Host measurements showed about 0.8 MiB/s backup throughput under a 1 MiB/s cap, while foreground PAPER reads rose from about 10 MiB/s to about 14 MiB/s."
-  - "The previous ~96-minute estimate omitted repeated full-file integrity/hash/copy phases. Six phases at 957 MiB and 0.8 MiB/s require ~119.6 minutes before margin. The 180-minute outer job budget provides 30% backup variance plus a 15-minute non-backup reserve, rounded up; this estimate is not production acceptance evidence. A fresh read-only stat measured the live DB at 958,992,384 bytes (914.57 MiB), below the conservative 957 MiB envelope."
+  - "The previous ~96-minute estimate omitted repeated full-file integrity/hash/copy phases. Six phases at 957 MiB and 0.8 MiB/s require ~119.6 minutes; adding 30% observed-workload variance gives ~155.5 minutes, rounded to a backup-only 180-minute bound. This is a budgeting model, not proof of runtime throughput or enforcement. The separate mutation/activation job remains 40 minutes. A fresh read-only stat measured the live DB at 958,992,384 bytes (914.57 MiB), below the conservative 957 MiB envelope."
 acceptance:
-  - "Focused tests prove topology resolution and fail-closed behavior, the enforced per-device read/write cap, backup command ordering, and the timeout calculation from measured size/throughput/phases plus fixed reserve and margin."
+  - "Focused tests verify the reviewed helper decision logic and command construction: ext4/xfs allowlist, same-disk requirement, fail-closed branches, exact 1048576 B/s cgroup properties, backup-before-release ordering, and the timeout calculation. Actual kernel enforcement and throughput remain post-merge host evidence."
   - "Existing verified backup integrity, checksum, and retention behavior remains in use."
   - "Node 24.19 preflight, relevant tests, exact-head CI and companion workflows pass; fresh non-author review and governed Audit/Release are required before merge."
   - "After governed merge, a canonical exact-main Oracle release measures backup and foreground runtime together; no runtime acceptance is claimed before that evidence exists."
@@ -38,8 +38,8 @@ safety:
   expired_lease_revival: false
 rollback: "Revert the reviewed workflow/helper source change through the protected repository path. No host mutation or rollback is performed by this work order."
 verification_commands:
-  - node --test tests/oracle-backup-device.test.js tests/oracle-paper-release-workflow.test.js
+  - node --test tests/oracle-paper-release-workflow.test.js
   - pnpm run preflight
   - git diff --check
-validation: "Original head d41762769678e7bec235b2ce7685390b9165994b had Node 24.19 preflight, AIPOS index, validate:full, security:gate, 28 focused tests, ESLint, shell syntax, and diff checks PASS. A fresh review found the 120-minute budget unsupported because it omitted six full-file phases; successor must rerun focused tests, preflight, validate:full, security:gate, AIPOS validation, and diff checks before exact-head CI and fresh independent review."
-next: "Validate the corrected bounded timeout calculation and durable AIPOS record, commit to the existing PR branch, then obtain new exact-head CI and fresh independent review."
+validation: "Predecessor heads passed full local/CI gates but fresh non-author review found bootstrap ordering, timeout isolation, unit wording/topology coverage, and evidence-wording defects. This successor embeds device selection in the reviewed root helper, validates state+backup filesystem topology, isolates the calculated backup timeout from activation, and must rerun focused tests, preflight, validate:full, security:gate, AIPOS validation, exact-head CI, and fresh independent review."
+next: "Validate root-helper topology resolution, backup-only timeout isolation, and exact-byte cgroup command construction; then obtain new exact-head CI and fresh independent review. After governed merge, install the exact reviewed root-owned helper before canonical Oracle release."

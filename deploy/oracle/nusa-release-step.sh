@@ -37,8 +37,49 @@ readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=30000
 readonly POST_ACTIVATION_READY_WINDOW_MS=30000
 readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000
 readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500
+readonly BACKUP_IO_BYTES_PER_SECOND=1048576
+readonly DEFAULT_BACKUP_DIR=/var/backups/nusa
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
+
+resolve_backup_disk_for_path() {
+  local target="${1:-}" label="${2:-path}" source fstype source_type parent disk disk_type
+  [[ "$target" = /* ]] || die "$label must be absolute before backup"
+  [ -e "$target" ] || die "$label does not exist before backup: $target"
+  source="$(findmnt --noheadings --raw --output SOURCE --target "$target")" || die "$label filesystem source could not be resolved"
+  fstype="$(findmnt --noheadings --raw --output FSTYPE --target "$target")" || die "$label filesystem type could not be resolved"
+  case "$fstype" in
+    ext4|xfs) ;;
+    *) die "$label filesystem type is unsupported for bounded backup: $fstype" ;;
+  esac
+  [[ "$source" =~ ^/dev/[A-Za-z0-9._/-]+$ ]] || die "$label filesystem source is not a local block device"
+  [ -b "$source" ] || die "$label filesystem source is not a block device: $source"
+  source_type="$(lsblk --noheadings --raw --nodeps --output TYPE -- "$source")" || die "$label block type could not be resolved"
+  case "$source_type" in
+    disk)
+      [[ "$source" =~ ^/dev/[A-Za-z0-9._-]+$ ]] || die "$label direct disk path is unsafe"
+      disk="$source"
+      ;;
+    part)
+      parent="$(lsblk --noheadings --raw --nodeps --output PKNAME -- "$source")" || die "$label parent disk could not be resolved"
+      [[ "$parent" =~ ^[A-Za-z0-9._-]+$ ]] || die "$label parent disk identity is ambiguous"
+      disk="/dev/$parent"
+      ;;
+    *) die "$label block topology is unsupported for bounded backup: $source_type" ;;
+  esac
+  [ -b "$disk" ] || die "$label backing disk is not a block device: $disk"
+  disk_type="$(lsblk --noheadings --raw --nodeps --output TYPE -- "$disk")" || die "$label backing disk type could not be resolved"
+  [ "$disk_type" = disk ] || die "$label backing device is not a single physical/virtual disk"
+  printf '%s' "$disk"
+}
+
+resolve_backup_io_disk() {
+  local state_db="${1:-}" backup_dir="${2:-}" state_disk backup_disk
+  state_disk="$(resolve_backup_disk_for_path "$state_db" "Cloud state path")"
+  backup_disk="$(resolve_backup_disk_for_path "$backup_dir" "Backup directory")"
+  [ "$state_disk" = "$backup_disk" ] || die "Cloud state and backup directory must resolve to the same backing disk"
+  printf '%s' "$state_disk"
+}
 
 # Serialize every canonical operation that can change the active release or PAPER service.
 # flock is released by the kernel when this process exits, including abnormal termination.
@@ -352,18 +393,23 @@ shift || true
 case "$verb" in
   backup)
     state_db="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_CLOUD_STATE_DB_PATH:-}")"
+    backup_dir="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_BACKUP_DIR:-$DEFAULT_BACKUP_DIR}")"
     [[ "$state_db" = /* ]] || die "Cloud state path must be absolute before backup"
-    # Resolve the database filesystem's actual backing disk before applying an I/O cap. Unknown,
-    # remote, layered, or ambiguous storage fails closed instead of running an uncapped backup.
-    backup_device="$(node "$(script_in "$(active_release)" oracle-backup-device.js)" "$state_db")" \
-      || die "Cloud state backing disk could not be verified before backup"
-    # Host measurements show that 5 MB/s still competes with the foreground PAPER writer; 1 MB/s
-    # reduced backup throughput below 1 MB/s and let PAPER I/O recover. Limit only this child in its
-    # transient cgroup while preserving backup integrity and completion semantics.
+    [[ "$backup_dir" = /* ]] || die "Backup directory must be absolute before backup"
+    if [ ! -e "$backup_dir" ]; then install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 -- "$backup_dir"; fi
+    [[ -d "$backup_dir" && ! -L "$backup_dir" ]] || die "Backup directory must be a real directory"
+    # Device selection lives in this reviewed root-owned helper. Never execute a release-owned
+    # resolver as root before that release has been staged. ext4/xfs on one direct disk (or a
+    # partition of one disk) is the only supported topology; the backup destination must resolve
+    # to that same disk. Any other topology fails closed before sqlite-backup.js starts.
+    backup_device="$(resolve_backup_io_disk "$state_db" "$backup_dir")"
+    # Use an exact binary byte rate: 1048576 B/s = 1 MiB/s. The transient scope applies the cap
+    # only to the canonical backup child; failure to create/enforce the scope is a backup failure,
+    # never a fallback to an uncapped backup.
     exec systemd-run --quiet --collect --scope \
-      -p "IOReadBandwidthMax=${backup_device} 1M" \
-      -p "IOWriteBandwidthMax=${backup_device} 1M" \
-      nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" node "$(script_in "$(active_release)" sqlite-backup.js)"
+      -p "IOReadBandwidthMax=${backup_device} ${BACKUP_IO_BYTES_PER_SECOND}" \
+      -p "IOWriteBandwidthMax=${backup_device} ${BACKUP_IO_BYTES_PER_SECOND}" \
+      nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" NUSA_BACKUP_DIR="$backup_dir" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 
   preflight)
