@@ -23,12 +23,11 @@ import {
  * different content is an identity conflict, not a version bump.
  */
 
-type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
+type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "appendWithResult" | "list">;
 
 const HASH = /^[a-f0-9]{64}$/;
 const APPLICATION_RECORD = /^learning-application:[a-f0-9]{64}$/;
 const APPLICATION_INTENT_RECORD = /^learning-application-intent:[a-f0-9]{64}$/;
-const MAX_RECORDS = 10_000;
 
 export class LearningApplicationLedgerError extends Error {
   public constructor(readonly code: string, message: string) {
@@ -73,7 +72,7 @@ export class LearningApplicationLedger {
   public constructor(private readonly ledger: EvolutionLedgerPort, private readonly now: () => number = Date.now) {}
 
   /** Durable write-ahead record; must succeed before the application owner mutates state. */
-  public appendIntent(intent: LearningApplicationIntent): void {
+  public appendIntent(intent: LearningApplicationIntent): boolean {
     assertLearningApplicationIntent(intent);
     const opportunityId = `learning-application-intent:${intent.intentFingerprint}`;
     const existing = this.ledger.list().find((record) => record.opportunityId === opportunityId);
@@ -82,12 +81,11 @@ export class LearningApplicationLedger {
       if (replayed.intentFingerprint !== intent.intentFingerprint || canonicalResearchJson(replayed) !== canonicalResearchJson(intent)) {
         throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "application intent identity was reused with different content");
       }
-      return;
+      return false;
     }
-    if (this.ledger.list().length >= MAX_RECORDS) throw new LearningApplicationLedgerError("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted");
     const timestamp = this.now();
     if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new LearningApplicationLedgerError("INVALID_CLOCK", "durable clock is invalid");
-    const record = this.ledger.append({
+    const result = this.ledger.appendWithResult({
       opportunityId,
       problem: "NUSA learning application write-ahead intent: bounded state change planned before mutation",
       evidenceReferences: Object.freeze([opportunityId, intent.learningDecisionFingerprint, intent.learningCycleId, intent.previousResearchSpecFingerprint]),
@@ -100,8 +98,11 @@ export class LearningApplicationLedger {
       reusable: true,
       recordedAt: new Date(timestamp).toISOString(),
     });
+    if (!result.inserted) return false;
+    const record = result.record;
     const replayed = parseIntent(record);
     if (replayed.intentFingerprint !== intent.intentFingerprint) throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "application intent did not survive canonical replay identically");
+    return true;
   }
 
   public terminalFor(decisionFingerprint: string, surface: string): LearningApplicationReceipt | undefined {
@@ -165,9 +166,6 @@ export class LearningApplicationLedger {
       if (replayed.applicationFingerprint !== fingerprint) throw new LearningApplicationLedgerError("IDENTITY_CONFLICT", "application identity was reused with different content");
       return Object.freeze({ receipt: replayed, fingerprint, recordedAt: existing.recordedAt, replayed: true });
     }
-
-    const recorded = this.ledger.list().length;
-    if (recorded >= MAX_RECORDS) throw new LearningApplicationLedgerError("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted");
 
     const timestamp = this.now();
     if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new LearningApplicationLedgerError("INVALID_CLOCK", "durable clock is invalid");

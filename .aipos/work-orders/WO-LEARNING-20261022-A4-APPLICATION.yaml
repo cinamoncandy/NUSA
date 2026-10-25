@@ -11,11 +11,16 @@ review_findings:
     - "Malformed eligibility must be rejected unless eligible is boolean and cyclesEvaluated is a non-negative safe integer."
     - "Unsupported restart reconciliation values must remain unresolved and never fall through to another mutation."
     - "Application read/intent/mutation/receipt must run under the existing canonical exclusive application-owner lease; lease contention fails closed."
+  addressed_locally_20261023:
+    - "Reserve terminal A4 receipt capacity atomically with its durable intent in the existing SQLite ledger; unrelated writers cannot consume the promised slot."
+    - "Only the transaction that created the write-ahead intent may mutate; an already-claimed intent fails closed."
+    - "Fail-safe target must equal the owner-declared surface fail-safe and remain inside the immutable bounds before it reaches the setter."
+    - "Receipt timestamp/runtime/source provenance was already included in the fingerprint and is regression-tested; no duplicate identity mechanism was added."
 validation:
   node: "v24.19.0"
-  focused: "A1/A2/A4 regression suite 90/90 PASS; build PASS; pnpm run preflight PASS; validate:full PASS; security:gate PASS; git diff --check PASS. Exact-head CI and fresh review pending after this successor commit."
-remaining: "Exact-head CI, fresh non-author review, A3 owner/policy integration, and a production caller remain required. Keep Draft; no Audit/Release/merge/runtime change."
-next: "Wait for A1 exact-head independent review before final A4 base synchronization; then push this substantive repair on the existing #2794 branch, run exact-head CI, and request a fresh independent review."
+  focused: "After reconverging existing A4 and reviewed A1 parent 4ed23afe388e2afff7cad77c50328f42ce3565c2, A4 + A1/A2 SQLite ledger regression 47/47 PASS; build PASS; Node v24.19.0 pnpm run preflight PASS; validate:full PASS; security:gate PASS (0 unmitigated); git diff --check PASS. Exact-head CI and fresh review of the A4 successor are pending."
+remaining: "Exact-head CI, fresh non-author review, canonical A3 owner/policy integration, and a production caller remain required. Keep Draft; no Audit/Release/merge/runtime change."
+next: "Finalize and push the existing #2794 successor on reviewed parent 4ed23afe; require exact-head CI green, then request fresh independent review."
 safety:
   mode: PAPER_ONLY
   liveAuthority: NONE

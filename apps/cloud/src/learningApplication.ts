@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { assessChange, assertLearningDecision, assertLearningDecisionPremisesMatchCurrentSpec, learningDecisionFingerprint, type LearningDecision, type LearningDecisionCurrentResearchSpec } from "./learningDecision";
+import { assessChange, assertLearningDecision, assertLearningDecisionPremisesMatchCurrentSpec, learningDecisionFingerprint, MUTABLE_SURFACE_ALLOWLIST, type LearningDecision, type LearningDecisionCurrentResearchSpec } from "./learningDecision";
 
 /**
  * A4 - bounded application, plus M3 integration with the existing steering surface.
@@ -105,7 +105,8 @@ export interface LearningApplicationIntent {
 export interface LearningApplicationJournal {
   terminalFor(decisionFingerprint: string, surface: string): LearningApplicationReceipt | undefined;
   pendingIntentFor(decisionFingerprint: string, surface: string): LearningApplicationIntent | undefined;
-  appendIntent(intent: LearningApplicationIntent): void;
+  /** Returns true only for the invocation that durably created the write-ahead claim. */
+  appendIntent(intent: LearningApplicationIntent): boolean;
   append(receipt: LearningApplicationReceipt): { readonly receipt: LearningApplicationReceipt };
 }
 
@@ -476,7 +477,7 @@ function applyBoundedChangeUnderLease(
       runtimeIdentity: context.runtimeIdentity,
       sourceCommit: context.sourceCommit,
     });
-    journal.appendIntent(intent);
+    if (journal.appendIntent(intent) !== true) throw new LearningApplicationError("APPLICATION_INTENT_ALREADY_CLAIMED", "another application attempt already owns the durable intent; no mutation was attempted");
     const receipt = buildReceipt({
       learningDecisionFingerprint: fingerprint,
       learningCycleId: decision.learningCycleId,
@@ -511,7 +512,9 @@ function applyBoundedChangeUnderLease(
   });
   // Write-ahead identity is durable before the runtime surface changes. If the process dies after
   // commit but before the outcome receipt, restart reconciliation must prove what happened.
-  if (priorIntent == null) journal.appendIntent(intent);
+  if (priorIntent == null && journal.appendIntent(intent) !== true) {
+    throw new LearningApplicationError("APPLICATION_INTENT_ALREADY_CLAIMED", "another application attempt already owns the durable intent; no mutation was attempted");
+  }
 
   try {
     ports.commit(change.surface, boundedValue);
@@ -521,6 +524,11 @@ function applyBoundedChangeUnderLease(
     // The preserved fail-safe: an execution failure falls back rather than leaving a half-applied
     // policy, and the receipt says so instead of reporting success.
     const fallback = ports.failSafeValue(change.surface);
+    const surfacePolicy = MUTABLE_SURFACE_ALLOWLIST.find((candidate) => candidate.surface === change.surface);
+    if (surfacePolicy == null || fallback !== surfacePolicy.failSafeValue || !Number.isSafeInteger(fallback)
+      || fallback < surfacePolicy.minimum || fallback > surfacePolicy.maximum) {
+      throw new LearningApplicationError("FAIL_SAFE_TARGET_INVALID", "canonical fail-safe target does not match the owner-defined surface contract");
+    }
     try {
       ports.commit(change.surface, fallback);
     } catch {

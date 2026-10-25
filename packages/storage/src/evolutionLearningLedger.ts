@@ -28,6 +28,8 @@ const LEARNING_INPUT_SET_FIELDS = new Set([
   "canonicalOrderingVersion",
 ]);
 const LEARNING_DECISION_ID = /^learning-decision(?::|-cycle-v1:)([a-f0-9]{64})$/;
+const LEARNING_APPLICATION_INTENT_ID = /^learning-application-intent:([a-f0-9]{64})$/;
+const LEARNING_APPLICATION_ID = /^learning-application:([a-f0-9]{64})$/;
 const LEARNING_INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
 const LEARNING_INPUT_SET_LEGACY_STATUS = "LEARNING_INPUT_SET";
 const LEARNING_INPUT_SET_AUTHORIZED_STATUS = "LEARNING_INPUT_SET_AUTHORITY_VERIFIED";
@@ -462,6 +464,86 @@ function pendingReservationsAfterAppend(
   return next;
 }
 
+/**
+ * An A4 write-ahead intent promises one terminal receipt. Keep that slot reserved in the same
+ * append boundary as A2's input/decision reservation so unrelated writers cannot strand a
+ * completed runtime mutation without durable terminal evidence.
+ */
+function pendingLearningApplicationIntents(records: readonly EvolutionLearningRecord[]): Map<string, Record<string, unknown>> {
+  const pending = new Map<string, Record<string, unknown>>();
+  for (const record of records) {
+    const intentMatch = LEARNING_APPLICATION_INTENT_ID.exec(record.opportunityId);
+    if (record.validationStatus === "LEARNING_APPLICATION_INTENT" || intentMatch != null) {
+      if (intentMatch == null || record.validationStatus !== "LEARNING_APPLICATION_INTENT") continue;
+      let parsed: unknown;
+      try { parsed = JSON.parse(record.hypothesis); } catch { invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent payload is malformed"); }
+      if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent payload is not an object");
+      const intent = parsed as Record<string, unknown>;
+      const { schemaVersion, intentFingerprint, ...content } = intent;
+      const expectedKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "intentFingerprint"].sort();
+      if (Object.keys(intent).sort().join("|") !== expectedKeys.join("|") || schemaVersion !== 1
+        || intentFingerprint !== intentMatch[1] || sha256(canonicalResearchJson(content)) !== intentMatch[1]
+        || !SHA256.test(intent.learningDecisionFingerprint as string) || !/^learning-cycle:[a-f0-9]{64}$/.test(intent.learningCycleId as string)
+        || !SHA256.test(intent.previousResearchSpecFingerprint as string)
+        || typeof intent.surface !== "string" || !LEARNING_BOUNDED_ID.test(intent.surface)
+        || ![intent.previousValue, intent.requestedValue, intent.boundedValue].every((value) => typeof value === "number" && Number.isSafeInteger(value))
+        || ![intent.applicationTimestamp, intent.runtimeIdentity, intent.sourceCommit].every((value) => typeof value === "string" && LEARNING_BOUNDED_ID.test(value))) {
+        invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent identity or fields are invalid");
+      }
+      const references = [record.opportunityId, intent.learningDecisionFingerprint as string, intent.learningCycleId as string, intent.previousResearchSpecFingerprint as string].sort();
+      if (record.problem !== "NUSA learning application write-ahead intent: bounded state change planned before mutation"
+        || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true
+        || record.evidenceReferences.length !== references.length || record.evidenceReferences.some((reference, index) => reference !== references[index])) {
+        invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent record metadata is invalid");
+      }
+      pending.set(intentMatch[1], intent);
+      continue;
+    }
+
+    const terminalMatch = LEARNING_APPLICATION_ID.exec(record.opportunityId);
+    if (terminalMatch == null || record.validationStatus !== "LEARNING_APPLICATION") continue;
+    let parsed: unknown;
+    try { parsed = JSON.parse(record.hypothesis); } catch { continue; }
+    if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const receipt = parsed as Record<string, unknown>;
+    if (!["APPLIED", "NOOP", "FAILED"].includes(receipt.applicationOutcome as string)) continue;
+    const { schemaVersion: receiptSchema, outcomeVersion, applicationFingerprint } = receipt;
+    const expectedReceiptKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "intentFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "appliedValue", "applicationOutcome", "applicationFingerprint", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "outcomeVersion", ...(Object.hasOwn(receipt, "fallbackReason") ? ["fallbackReason"] : []), ...(Object.hasOwn(receipt, "rejectionReason") ? ["rejectionReason"] : [])].sort();
+    const receiptDigest = sha256(canonicalResearchJson({
+      learningDecisionFingerprint: receipt.learningDecisionFingerprint,
+      learningCycleId: receipt.learningCycleId,
+      previousResearchSpecFingerprint: receipt.previousResearchSpecFingerprint,
+      intentFingerprint: receipt.intentFingerprint,
+      surface: receipt.surface,
+      previousValue: receipt.previousValue,
+      requestedValue: receipt.requestedValue,
+      boundedValue: receipt.boundedValue,
+      appliedValue: receipt.appliedValue,
+      applicationOutcome: receipt.applicationOutcome,
+      fallbackReason: receipt.fallbackReason ?? null,
+      rejectionReason: receipt.rejectionReason ?? null,
+      applicationTimestamp: receipt.applicationTimestamp,
+      runtimeIdentity: receipt.runtimeIdentity,
+      sourceCommit: receipt.sourceCommit,
+    }));
+    if (receiptSchema !== 1 || outcomeVersion !== "learning-application-outcome-v1"
+      || Object.keys(receipt).sort().join("|") !== expectedReceiptKeys.join("|")
+      || applicationFingerprint !== terminalMatch[1] || receiptDigest !== terminalMatch[1]
+      || ![receipt.learningDecisionFingerprint, receipt.previousResearchSpecFingerprint, receipt.intentFingerprint].every((value) => typeof value === "string" && SHA256.test(value))) continue;
+    const intent = pending.get(receipt.intentFingerprint as string);
+    if (intent == null) continue;
+    if (receipt.learningDecisionFingerprint !== intent.learningDecisionFingerprint || receipt.learningCycleId !== intent.learningCycleId
+      || receipt.previousResearchSpecFingerprint !== intent.previousResearchSpecFingerprint || receipt.surface !== intent.surface
+      || receipt.previousValue !== intent.previousValue || receipt.requestedValue !== intent.requestedValue || receipt.boundedValue !== intent.boundedValue) continue;
+    const refs = [record.opportunityId, receipt.learningDecisionFingerprint as string, receipt.learningCycleId as string].sort();
+    if (record.problem !== "NUSA learning application: one admitted decision change bounded and applied exactly once"
+      || record.outcome !== "SUCCESS" || record.rollbackReference !== null || record.reusable !== true
+      || record.evidenceReferences.length !== refs.length || record.evidenceReferences.some((reference, index) => reference !== refs[index])) continue;
+    pending.delete(receipt.intentFingerprint as string);
+  }
+  return pending;
+}
+
 function eventHash(sequence: number, record: EvolutionLearningRecord, previousHash: string): string {
   return sha256(canonicalEvent(sequence, record, previousHash));
 }
@@ -505,6 +587,11 @@ export class SqliteEvolutionLearningLedger {
   }
 
   public append(value: EvolutionLearningRecord): EvolutionLearningRecord {
+    return this.appendWithResult(value).record;
+  }
+
+  /** Atomic identity acquisition for callers whose side effect must have one durable winner. */
+  public appendWithResult(value: EvolutionLearningRecord): { readonly record: EvolutionLearningRecord; readonly inserted: boolean } {
     const record = normalize(value);
     return this.db.transaction(() => {
       const current = this.replay();
@@ -523,11 +610,10 @@ export class SqliteEvolutionLearningLedger {
         || !hasVerifiedLearningInputSetAuthority(record, a2Match[1], verifyInputSet))) {
         invalid("UNVERIFIED_LEARNING_INPUT_SET", "A2-shaped records require canonical durable Research/PAPER authority before append or reservation");
       }
-
       const existing = current.records.find((item) => item.opportunityId === record.opportunityId);
       if (existing != null) {
         if (contentHash(existing) !== contentHash(record)) invalid("IDENTITY_CONFLICT", "learning opportunity was reused with different evidence");
-        return existing;
+        return Object.freeze({ record: existing, inserted: false });
       }
       const pendingReservations = pendingLearningDecisionFingerprints(current.records, verifyInputSet);
       if (isLearningDecisionCandidate(record)) {
@@ -541,7 +627,8 @@ export class SqliteEvolutionLearningLedger {
         }
       }
       const pending = pendingReservationsAfterAppend(pendingReservations, record, verifyInputSet);
-      if (current.records.length + 1 + pending.size > this.maximumRecords) invalid("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted or reserved for pending A1 decisions");
+      const applicationReservations = pendingLearningApplicationIntents([...current.records, record]);
+      if (current.records.length + 1 + pending.size + applicationReservations.size > this.maximumRecords) invalid("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted or reserved for pending A1/A4 receipts");
       const previous = current.records.at(-1);
       if (previous != null && Date.parse(record.recordedAt) < Date.parse(previous.recordedAt)) invalid("CHRONOLOGY_REGRESSION", "learning record timestamp regressed");
 
@@ -558,7 +645,7 @@ export class SqliteEvolutionLearningLedger {
         "UPDATE evolution_learning_ledger_meta SET event_count = ?, ledger_hash = ? WHERE id = 1 AND schema_version = ?"
       ).run(sequence, currentEventHash, SCHEMA_VERSION);
       this.cached = this.replay();
-      return this.cached.records.at(-1)!;
+      return Object.freeze({ record: this.cached.records.at(-1)!, inserted: true });
     });
   }
 

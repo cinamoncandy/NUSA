@@ -3848,6 +3848,19 @@ current_learning_a4_bounded_application_20261022:
   remaining: "No production caller is wired. Keep Draft; exact-head CI, fresh independent review, canonical A3 authority and production runtime integration remain open."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_learning_a4_capacity_20261023:
+  work_order: WO-LEARNING-20261022-A4-APPLICATION
+  status: LOCAL_VALIDATED_A1_REVIEWED_PARENT_RECONVERGED_SUCCESSOR_READY
+  branch: feat/learning-application-a4
+  pr: 2794
+  previous_local_head: e130c254
+  parent_head: 4ed23afe388e2afff7cad77c50328f42ce3565c2
+  remote_a4_predecessor: df2501ad067c73662bec272f310e17300634ae31
+  local_reconvergence_head: fe516f5f44f757c319c0f2edc23fbfe94b6becb4
+  validation: "After reconverging existing A4 and reviewed A1 parent, A4 + A1/A2 SQLite ledger tests 47/47 PASS; build PASS; Node 24.19.0 preflight PASS; validate:full PASS; security:gate PASS (0 unmitigated); diff-check PASS. The A4 successor changes preserve atomic A2 source-authority validation while reserving durable terminal A4 receipt capacity, fail-safe bounds, and the SQLite intent-claim winner."
+  next: "Finalize the existing #2794 successor on parent 4ed23afe, rerun exact-head CI, then request one fresh independent review only after CI is green. Keep Draft; no release/merge/runtime claim."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_learning_baseline_observation_20261013:
   work_order: WO-LEARNING-20261013-BASELINE-OBSERVATION
   status: DEPLOYED_RUNTIME_VERIFIED
