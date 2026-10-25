@@ -18,6 +18,7 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   "-": [".....", ".....", ".....", "#####", ".....", ".....", "....."],
   "+": [".....", "..#..", "..#..", "#####", "..#..", "..#..", "....."],
   ".": ["..", "..", "..", "..", "..", "##", "##"],
+  ",": ["..", "..", "..", "..", "##", "##", "#."],
   "%": ["##..#", "##.#.", "...#.", "..#..", ".#...", ".#.##", "#..##"],
   "/": ["....#", "...#.", "...#.", "..#..", ".#...", ".#...", "#...."],
   "D": ["####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."],
@@ -79,4 +80,11 @@ export function dotFieldLayout(total: number, columns: number, pitch: number): D
   const cols = Math.max(1, Math.floor(columns));
   const rows = total > 0 ? Math.ceil(total / cols) : 0;
   return Object.freeze({ columns: cols, rows, width: cols * pitch, height: rows * pitch });
+}
+
+/** The largest pitch (<= maxPitch, in 0.5 steps) at which `text` fits `maxWidth`, so long amounts shrink instead of overflowing. */
+export function fitPitch(text: string, maxWidth: number, maxPitch: number): number {
+  const columns = layoutDotMatrix(text, 1).width;
+  if (!(columns > 0) || !Number.isFinite(maxWidth) || maxWidth <= 0 || !Number.isFinite(maxPitch) || maxPitch <= 0) return Math.max(0, Number.isFinite(maxPitch) ? maxPitch : 0);
+  return Math.max(1, Math.min(maxPitch, Math.floor((maxWidth / columns) * 2) / 2));
 }

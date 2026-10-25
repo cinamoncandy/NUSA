@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { InstrumentHero, Odometer, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
+import { useWindowDimensions } from "react-native";
+import { InstrumentHero, Reveal, useReducedMotion } from "./instrumentKit";
+import { DotNumeral, GrainCard } from "./auraKit";
+import { fitPitch } from "./dotMatrix";
+import { splitHeroLines } from "./learningScreenModel";
 import { DecisionCore } from "./decisionCore";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
-import { fieldFonts } from "./fieldFonts";
-import { readableFont } from "./designSystem";
+import { auraPalette, readableFont } from "./designSystem";
 
 interface Props {
   readonly tone: CalmTone;
@@ -23,33 +26,52 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCo
   const [width, setWidth] = useState(0);
   const live = !dim && decisionCount != null;
   return <View style={dim ? styles.dim : undefined} testID="now-hero">
-    <InstrumentHero index="01 / 지금" lines={[{ text: headline, color: calmToneColor(tone) }]} />
+    <InstrumentHero index="01 / 지금" lines={splitHeroLines(headline).map((text) => ({ text, color: calmToneColor(tone) }))} label={headline} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
     <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
       {width > 0 ? <DecisionCore tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} width={width} reducedMotion={reduced} /> : null}
     </View>
-    <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
-      <SectionLabel left="판단 · 오늘" right={live ? "LIVE" : "—"} live={live} />
-      {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={44} reducedMotion={reduced} />}
+    <Reveal index={2} reducedMotion={reduced}>
+      <AuraCount label="판단 · 오늘" value={decisionCount == null ? "—" : Math.round(decisionCount).toLocaleString("en-US")} tone="NORMAL" hero live={live} />
     </Reveal>
-    <View style={styles.ledger}>
-      {stats.filter((s) => s.label !== "판단").map((s, i) => <Reveal key={s.label} index={3 + i} reducedMotion={reduced} style={styles.row}>
-        <Text style={[fieldFonts.mono, styles.rowLabel]}>{s.label}</Text>
-        <Text style={[fieldFonts.mono, styles.rowValue, { color: calmToneColor(s.tone) }]}>{s.value}</Text>
+    <View style={styles.pair}>
+      {stats.filter((s) => s.label !== "판단").map((s, i) => <Reveal key={s.label} index={3 + i} reducedMotion={reduced} style={styles.pairCell}>
+        <AuraCount label={s.label} value={s.value} tone={s.tone} />
       </Reveal>)}
     </View>
   </View>;
 }
 
-/** Account value in the instrument language: a section label, the amount in the mono display face, and the change since the start. */
+/** One count as an aura card: a chip label and the number in dot-matrix (plain text when the server has not sent it). The first card is the highlighted green one. */
+function AuraCount({ label, value, tone, hero = false, live = false }: { readonly label: string; readonly value: string; readonly tone: CalmTone; readonly hero?: boolean; readonly live?: boolean }) {
+  const { width } = useWindowDimensions();
+  const inner = Math.max(120, (hero ? width - 32 : (width - 32 - 12) / 2) - 36);
+  const pitch = fitPitch(value, inner, hero ? 9 : 6);
+  const color = tone === "ORDER" ? auraPalette.neon : auraPalette.text;
+  return <GrainCard tone={hero ? "GREEN" : "DARK"} style={hero ? styles.heroCard : styles.countCard} accessibilityLabel={`${label} ${value}`}>
+    <View style={styles.chip}><Text style={styles.chipText}>{live ? `${label} · LIVE` : label}</Text></View>
+    <DotNumeral text={value} pitch={pitch} color={color} glow={hero} accessibilityLabel={`${label} ${value}`} />
+  </GrainCard>;
+}
+
+/** Account value as an aura card: the amount in dot-matrix and the change since the start in text. Presentation only. */
 export function InstrumentEquity({ value, caption, tone, dim }: { readonly value: string; readonly caption: string | null; readonly tone: CalmTone; readonly dim: boolean }) {
   const reduced = useReducedMotion();
+  const { width } = useWindowDimensions();
+  const digits = value.startsWith("\u20A9") ? value.slice(1) : value;
+  const inner = Math.max(120, width - 32 - 36 - 24);
+  const pitch = fitPitch(digits, inner, 6);
   // The dim sits on an outer View: Reveal animates opacity itself and would override it.
   return <View style={dim ? styles.dim : undefined}>
-    <Reveal index={6} reducedMotion={reduced} style={styles.equity}>
-      <SectionLabel left="평가금액" right="모의투자" />
-      <Text style={[fieldFonts.displayStrong, styles.equityValue]} accessibilityRole="header">{value}</Text>
-      {caption ? <Text style={[fieldFonts.mono, styles.equityCaption, { color: calmToneColor(tone) }]}>{caption}</Text> : null}
+    <Reveal index={6} reducedMotion={reduced}>
+      <GrainCard tone="DARK" style={styles.equityCard} accessibilityLabel={`평가금액 모의투자 ${value}${caption ? `. ${caption}` : ""}`}>
+        <View style={styles.chip}><Text style={styles.chipText}>평가금액 · 모의투자</Text></View>
+        <View style={styles.equityRow}>
+          {value === digits ? null : <Text style={styles.won}>{"\u20A9"}</Text>}
+          <DotNumeral text={digits} pitch={pitch} color={auraPalette.text} accessibilityLabel={value} />
+        </View>
+        {caption ? <Text style={[styles.equityCaption, { color: calmToneColor(tone) }]}>{caption}</Text> : null}
+      </GrainCard>
     </Reveal>
   </View>;
 }
@@ -60,13 +82,14 @@ const styles = StyleSheet.create({
   dim: { opacity: 0.55 },
   sub: { paddingHorizontal: 20, marginTop: 10 },
   panelWrap: { paddingHorizontal: 20, marginTop: 18 },
-  equity: { paddingHorizontal: 20, marginTop: 22 },
-  equityValue: { color: calmColors.text, fontSize: 34, lineHeight: 40, letterSpacing: -1, fontVariant: ["tabular-nums"] },
-  equityCaption: { fontSize: readableFont(12), marginTop: 4, letterSpacing: 0.4 },
-  countWrap: { paddingHorizontal: 20, marginTop: 14 },
-  empty: { color: calmColors.muted, fontSize: 44 },
-  ledger: { paddingHorizontal: 20, marginTop: 16 },
-  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
-  rowLabel: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 1 },
-  rowValue: { fontSize: readableFont(14) },
+  heroCard: { marginHorizontal: 16, marginTop: 14, gap: 14, padding: 18 },
+  pair: { flexDirection: "row", gap: 12, paddingHorizontal: 16, marginTop: 12 },
+  pairCell: { flex: 1 },
+  countCard: { gap: 12, padding: 18 },
+  equityCard: { marginHorizontal: 16, marginTop: 12, gap: 12, padding: 18 },
+  equityRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  won: { color: auraPalette.muted, fontSize: readableFont(18), fontWeight: "500", paddingBottom: 2 },
+  equityCaption: { fontSize: readableFont(12), lineHeight: 18 },
+  chip: { alignSelf: "flex-start", backgroundColor: auraPalette.scrim, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
+  chipText: { color: auraPalette.text, fontSize: readableFont(12), fontWeight: "600" },
 });

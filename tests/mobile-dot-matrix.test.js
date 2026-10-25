@@ -48,11 +48,22 @@ test("the dot field layout rounds rows up", () => {
 
 test("a numeral is drawn only when every character has a glyph, so a wrong number is never shown", () => {
   for (const ok of ["0", "-13.1", "−13.1", "+2", "-17", "0.0", "10-29", "D-4", "100%"]) assert.equal(d.isDotSupported(ok), true, ok);
-  for (const bad of ["", "1e+21", "NaN", "Infinity", "1,5", "a", "\u{1F600}"]) assert.equal(d.isDotSupported(bad), false, bad);
+  for (const bad of ["", "1e+21", "NaN", "Infinity", "1;5", "a", "\u{1F600}"]) assert.equal(d.isDotSupported(bad), false, bad);
 });
 
 test("the exact strings the Learning tab draws lay out with the expected glyph count", () => {
   assert.equal(d.layoutDotMatrix("0", 1).dots.length, 19, "the zero glyph has 19 lit cells");
   assert.equal(d.layoutDotMatrix("-13.1", 1).width, 26, "5+1+5+1+5+1+2+1+5 columns");
   assert.equal(d.layoutDotMatrix("+2", 1).width, 11);
+});
+
+test("amounts with thousands separators draw, and a long amount shrinks to fit instead of overflowing", () => {
+  assert.equal(d.isDotSupported("10,000,000"), true);
+  assert.equal(d.isDotSupported("₩10,000,000"), false, "the won sign has no glyph, so the caller prints it as text");
+  assert.ok(d.fitPitch("10,000,000", 1000, 6) === 6, "short text keeps the max pitch");
+  const small = d.fitPitch("1,234,567,890,123", 200, 6);
+  assert.ok(small < 6 && small >= 1);
+  assert.ok(d.layoutDotMatrix("1,234,567,890,123", small).width <= 200 + 1e-9 || small === 1, "fits the width unless clamped at the floor");
+  assert.equal(d.fitPitch("0", 0, 6), 6, "no width information keeps the max");
+  assert.equal(d.fitPitch("0", 100, Number.NaN), 0);
 });
