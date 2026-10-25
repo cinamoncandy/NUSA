@@ -127,16 +127,16 @@ current_learning_hourly_recovery_20261012:
 
 current_learning_supersession_a5_20261023:
   work_order: WO-LEARNING-20261023-A5-SUPERSESSION
-  status: LOCAL_VALIDATED_PARENT_SYNC_PENDING_EXACT_HEAD_CI
+  status: REVIEW_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   branch: feat/supersession-a5
   pull_request: 2796
   parent_head: c35931ef62dd5af661d00ab38e47cc76f8981f9f
   first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
-  validation: "Reconverged the existing #2796 branch with A3 exact head c35931ef62dd5af661d00ab38e47cc76f8981f9f. Resolved the shared Evolution ledger API so appendWithResult reservation semantics and appendWithValidation graph checks execute inside one serialized append transaction; preserved both A3 and A5 callers. Node 24.19.0 build PASS; A3/A4/A5 + Evolution ledger + Autopilot worker focused tests 95/95 PASS; tests/security-gate.test.js 10/10 PASS; pnpm run preflight, validate:full, security:gate, lint (0 errors; 45 existing warnings), and diff-check PASS. Current A3 exact-head CI run 40149447554 is still in progress; new A5 exact-head CI has not run."
+  validation: "A3/A4/A5/A6 parent integration is in current A5 head. Latest A5 reviewer P2 4365462320 found that concurrent cycle errors could be mislabeled as DURABLE_WRITE_FAILED. Preserved the original SupersessionError after checking for a competing idempotent winner or same-position fork. New deterministic competing-edge cycle regression passes. Build PASS; A5 supersession/ledger + worker + security-gate focused tests 45/45 PASS on Node 24.19.0; preflight/full/security gates are running for the repaired successor. Previous 078db80 CI run 40149667563 was SUCCESS but is historical after this repair."
   prior_exact_head: bcbf23e5dac210be7db4291b1a9e34b40c28fc55
   prior_exact_head_ci: "FAILED; run 40042338633. Coverage-core-3 worker.test failed only at UTC midnight because a Date.now-after-call strict >60s assertion observed a 60s minimum wait. Failure preserved; fixed deterministically with a fixed noon test clock, without changing runtime thresholds."
   review_finding: "Fresh Codex review on b0e32e575 found P2 AIPOS parent/validation facts disagreed between state.yaml and the A5 work order. Successor bcbf23e5 aligns parent_head 05837941 and validation 158/158. Its CI failure was a UTC-midnight test-clock flake, now fixed on the current local successor; prior failure remains recorded."
-  next: "Commit and non-force push the resolved A3/A5 parent integration to the existing #2796 branch; run exact-head CI and required companion, then request fresh independent review only after green."
+  next: "Finish preflight/validate:full/security on the A5 cycle-error repair, commit and non-force push to the existing #2796 branch, run exact-head CI, then request fresh independent review only after green."
   blockers: "Cutoff/META owner and production trigger remain undefined; no production caller or Learning completion is claimed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 

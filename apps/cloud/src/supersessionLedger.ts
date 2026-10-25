@@ -137,7 +137,7 @@ export class LearningSupersessionLedger {
         current.rehydrate(this.linksFromRecords(records));
         current.supersede(input);
       });
-    } catch {
+    } catch (appendError) {
       // The existing ledger serializes concurrent appends. Re-read only to classify an
       // idempotent same-edge winner; all other persistence errors remain fail-closed.
       try {
@@ -147,6 +147,7 @@ export class LearningSupersessionLedger {
       } catch (readError) {
         if (readError instanceof SupersessionError && readError.code !== "DURABLE_WRITE_FAILED") throw readError;
       }
+      if (appendError instanceof SupersessionError && appendError.code !== "DURABLE_WRITE_FAILED") throw appendError;
       throw new SupersessionError("DURABLE_WRITE_FAILED", "durable supersession append failed");
     }
 
