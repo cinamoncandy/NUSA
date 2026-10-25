@@ -31,9 +31,9 @@ function cleanup(filename: string): void {
   rmSync(dirname(filename), { recursive: true, force: true });
 }
 
-function inputSet() {
+function inputSet(cutoffTimestamp = TIME) {
   return buildLearningInputSet({
-    cutoffTimestamp: TIME,
+    cutoffTimestamp,
     researchEvidence: [{ recordId: "trial-a", recordedAt: TIME - 10_000 }],
     paperEvidence: [{ recordId: "period-a", recordedAt: TIME - 5_000 }],
     policies: { learningPolicyVersion: "learning-v1", researchPolicyVersion: "research-v1", riskPolicyVersion: "risk-v1", governancePolicyVersion: "governance-v1" },
@@ -192,6 +192,91 @@ describe("A6 durable exploration contract", () => {
       assert.equal(first.verdict, "ALLOTTED");
       assert.equal(near.verdict, "SUPPRESSED_NEAR_DUPLICATE");
       assert.equal(near.allotmentRemaining, EXPLORATION_ALLOTMENT_PER_CYCLE - 1);
+    } finally {
+      state.db.close();
+      cleanup(filename);
+    }
+  });
+
+  it("keeps exact and near-duplicate diversity history across A2 cycles while resetting only the cycle allotment", () => {
+    const filename = dbPath();
+    const state = setup(filename);
+    try {
+      const first = state.exploration.propose(state.input.fingerprint, candidate());
+      const nextCycle = state.inputSets.append(inputSet(TIME + 1_000));
+      const exactRepeat = state.exploration.propose(nextCycle.fingerprint, candidate({ candidateId: "candidate-next-cycle" }));
+      assert.equal(first.verdict, "ALLOTTED");
+      assert.equal(exactRepeat.verdict, "SUPPRESSED_EXACT_DUPLICATE");
+      assert.equal(exactRepeat.allotmentRemaining, EXPLORATION_ALLOTMENT_PER_CYCLE, "the new cycle retains its full allotment");
+
+      const secondFamilyAttempt = state.exploration.propose(state.input.fingerprint, candidate({
+        candidateId: "candidate-second-family-attempt",
+        parametersCanonicalJson: "{\"fast\":5,\"slow\":11}",
+      }));
+      assert.equal(secondFamilyAttempt.verdict, "ALLOTTED");
+
+      const nearRepeat = state.exploration.propose(nextCycle.fingerprint, candidate({
+        candidateId: "candidate-near-next-cycle",
+        parametersCanonicalJson: "{\"fast\":4,\"slow\":10}",
+        datasetId: "dataset-next-cycle",
+        datasetContentSha256: HASH("dataset-next-cycle"),
+        evaluationWindowStart: "2026-02-01T00:00:00.000Z",
+        evaluationWindowEnd: "2026-07-30T00:00:00.000Z",
+      }));
+      assert.equal(nearRepeat.verdict, "ALLOTTED", "a genuinely different configuration may use the new cycle allotment");
+      const familyCeiling = state.exploration.propose(nextCycle.fingerprint, candidate({
+        candidateId: "candidate-family-ceiling",
+        parametersCanonicalJson: "{\"fast\":6,\"slow\":12}",
+      }));
+      assert.equal(familyCeiling.verdict, "SUPPRESSED_FAMILY_CEILING", "family repetition also uses durable cross-cycle diversity history");
+      assert.equal(familyCeiling.familyRepetitionCount, FAMILY_REPETITION_CEILING);
+      assert.equal(familyCeiling.allotmentRemaining, EXPLORATION_ALLOTMENT_PER_CYCLE - 1, "family suppression does not spend another new-cycle slot");
+      assert.equal(state.exploration.list().length, 5, "both cycles remain replayable from the canonical ledger");
+    } finally {
+      state.db.close();
+      cleanup(filename);
+    }
+  });
+
+  it("canonicalizes equivalent ISO timestamp spellings before configuration identity hashing", () => {
+    const filename = dbPath();
+    const state = setup(filename);
+    try {
+      const canonical = state.exploration.propose(state.input.fingerprint, candidate());
+      const equivalent = state.exploration.propose(state.input.fingerprint, candidate({
+        evaluationWindowStart: "2026-01-01T00:00:00Z",
+        evaluationWindowEnd: "2026-06-30T00:00:00Z",
+      }));
+      assert.equal(equivalent.configurationIdentity, canonical.configurationIdentity);
+      assert.equal(equivalent.configurationDescriptor.evaluationWindowStart, "2026-01-01T00:00:00.000Z");
+      assert.equal(equivalent.configurationDescriptor.evaluationWindowEnd, "2026-06-30T00:00:00.000Z");
+      assert.equal(state.exploration.list().length, 1, "equivalent timestamps replay the original durable attempt");
+    } finally {
+      state.db.close();
+      cleanup(filename);
+    }
+  });
+
+  it("verifies each preceding A2 evidence snapshot once when replaying several A6 receipts in one cycle", () => {
+    const filename = dbPath();
+    const state = setup(filename);
+    try {
+      for (let index = 1; index <= 3; index += 1) {
+        state.exploration.propose(state.input.fingerprint, candidate({
+          candidateId: `candidate-${index}`,
+          parametersCanonicalJson: canonicalResearchJson({ fast: index + 10, slow: index + 20 }),
+        }));
+      }
+      const checked: string[] = [];
+      const countedInputSets = {
+        getByFingerprint: (fingerprint: string, snapshot?: Parameters<typeof state.inputSets.getByFingerprint>[1]) => {
+          checked.push(fingerprint);
+          return state.inputSets.getByFingerprint(fingerprint, snapshot);
+        },
+      };
+      const replay = new LearningExplorationLedger(state.evolution, countedInputSets, familyRegistry(), () => TIME);
+      assert.equal(replay.list().length, 3);
+      assert.deepEqual(checked, [state.input.fingerprint], "all same-cycle A6 receipts share one verified A2 lookup");
     } finally {
       state.db.close();
       cleanup(filename);

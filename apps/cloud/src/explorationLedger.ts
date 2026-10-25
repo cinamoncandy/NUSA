@@ -4,7 +4,7 @@ import type { ResearchCandidateSpecification } from "../../../packages/contracts
 import { validateResearchCandidateSpecification } from "../../../packages/contracts/src/researchCandidateSpecification";
 import type { EvolutionLearningRecord } from "../../autopilot/src/evolveLearningMemory";
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
-import type { LearningInputSetLedger } from "./learningInputSetLedger";
+import type { LearningInputSetLedger, LearningInputSetReceipt } from "./learningInputSetLedger";
 import { StrategyFamilyRegistry } from "./strategyFamilyRegistry";
 import {
   assertExplorationAttempt,
@@ -74,6 +74,7 @@ export class LearningExplorationLedger {
   private attemptsFromRecords(records: readonly EvolutionLearningRecord[]): readonly ExplorationAttempt[] {
     const attempts: ExplorationAttempt[] = [];
     const priorRecords: EvolutionLearningRecord[] = [];
+    const verifiedInputSets = new Map<string, LearningInputSetReceipt | undefined>();
     for (const record of records) {
       if (record.validationStatus !== RECORD_KIND && !record.opportunityId.startsWith(ID_PREFIX)) {
         priorRecords.push(record);
@@ -82,8 +83,10 @@ export class LearningExplorationLedger {
       const attempt = parseAttempt(record);
       const fingerprint = attempt.learningCycleId.slice("learning-cycle:".length);
       // The authority record must precede this attempt in the same append-only snapshot. Looking
-      // at the full snapshot would retroactively authorize an A6 row with a later A2 receipt.
-      const inputSet = this.inputSets.getByFingerprint(fingerprint, priorRecords);
+      // at the full snapshot would retroactively authorize an A6 row with a later A2 receipt. Cache
+      // this full evidence-store verification once per preceding A2 identity, not once per A6 row.
+      if (!verifiedInputSets.has(fingerprint)) verifiedInputSets.set(fingerprint, this.inputSets.getByFingerprint(fingerprint, priorRecords));
+      const inputSet = verifiedInputSets.get(fingerprint);
       if (inputSet == null || inputSet.learningCycleId !== attempt.learningCycleId) {
         throw new ExplorationError("A2_INPUT_NOT_DURABLE", "replayed exploration attempt has no matching canonical durable A2 input set");
       }

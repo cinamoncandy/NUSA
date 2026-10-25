@@ -90,8 +90,9 @@ function candidateShape(candidate: ResearchCandidateSpecification, families: Str
       spreadBps: candidate.costModel.spreadBps,
       turnoverAssumption: candidate.costModel.turnoverAssumption,
     }),
-    evaluationWindowStart: candidate.evaluationWindowStart,
-    evaluationWindowEnd: candidate.evaluationWindowEnd,
+    // Equivalent ISO spellings must not mint different Research configuration identities.
+    evaluationWindowStart: new Date(candidate.evaluationWindowStart).toISOString(),
+    evaluationWindowEnd: new Date(candidate.evaluationWindowEnd).toISOString(),
   });
   const configurationIdentity = sha256(canonicalResearchJson(configurationDescriptor));
   // Near duplicate deliberately excludes dataset/window/cost so a renamed or re-evaluated copy
@@ -119,9 +120,9 @@ function stableString(value: unknown): value is string {
 
 function expectedReason(verdict: ExplorationVerdict, familyId: string): string {
   switch (verdict) {
-    case "SUPPRESSED_EXACT_DUPLICATE": return "the canonical candidate configuration was already attempted in this learning cycle";
-    case "SUPPRESSED_NEAR_DUPLICATE": return "the same registered family configuration was already attempted in this learning cycle";
-    case "SUPPRESSED_FAMILY_CEILING": return "registered family " + familyId + " has reached its owner-set repetition ceiling of " + String(FAMILY_REPETITION_CEILING);
+    case "SUPPRESSED_EXACT_DUPLICATE": return "the canonical candidate configuration was already attempted in prior durable Learning history";
+    case "SUPPRESSED_NEAR_DUPLICATE": return "the same registered family configuration was already attempted in prior durable Learning history";
+    case "SUPPRESSED_FAMILY_CEILING": return "registered family " + familyId + " has reached its owner-set durable-history repetition ceiling of " + String(FAMILY_REPETITION_CEILING);
     case "EXHAUSTED": return "owner-set exploration allotment of " + String(EXPLORATION_ALLOTMENT_PER_CYCLE) + " for this learning cycle is exhausted";
     case "ALLOTTED": return "within the owner-set exploration allotment; all required evaluation and governance gates remain";
   }
@@ -134,9 +135,10 @@ function deriveAttempt(
 ): ExplorationAttempt {
   if (!CYCLE_ID.test(cycleId)) throw new ExplorationError("INVALID_CYCLE_ID", "a canonical A2 learning cycle identity is required");
   const current = history.filter((attempt) => attempt.learningCycleId === cycleId);
-  const exactDuplicate = current.some((attempt) => attempt.configurationIdentity === shape.configurationIdentity);
-  const nearDuplicateCount = current.filter((attempt) => attempt.nearDuplicateKey === shape.nearDuplicateKey).length;
-  const familyAttempts = current.filter((attempt) => attempt.familyId === shape.familyId && attempt.verdict === "ALLOTTED").length;
+  // Diversity is durable across cycles; only the hard exploration allotment resets at the A2 cycle boundary.
+  const exactDuplicate = history.some((attempt) => attempt.configurationIdentity === shape.configurationIdentity);
+  const nearDuplicateCount = history.filter((attempt) => attempt.nearDuplicateKey === shape.nearDuplicateKey).length;
+  const familyAttempts = history.filter((attempt) => attempt.familyId === shape.familyId && attempt.verdict === "ALLOTTED").length;
   const allotted = current.filter((attempt) => attempt.verdict === "ALLOTTED").length;
   const remaining = Math.max(0, EXPLORATION_ALLOTMENT_PER_CYCLE - allotted);
   const verdict: ExplorationVerdict = exactDuplicate
@@ -194,6 +196,8 @@ export function assertExplorationAttempt(value: unknown): asserts value is Explo
     || ![descriptor.parametersSha256, descriptor.datasetContentSha256].every((item) => typeof item === "string" && HASH.test(item))
     || typeof descriptor.codeSha !== "string" || !CODE_SHA.test(descriptor.codeSha)
     || !Number.isFinite(Date.parse(descriptor.evaluationWindowStart as string)) || !Number.isFinite(Date.parse(descriptor.evaluationWindowEnd as string))
+    || new Date(descriptor.evaluationWindowStart as string).toISOString() !== descriptor.evaluationWindowStart
+    || new Date(descriptor.evaluationWindowEnd as string).toISOString() !== descriptor.evaluationWindowEnd
     || Date.parse(descriptor.evaluationWindowStart as string) >= Date.parse(descriptor.evaluationWindowEnd as string)) {
     throw new ExplorationError("MALFORMED_ATTEMPT", "configuration descriptor identity is malformed");
   }

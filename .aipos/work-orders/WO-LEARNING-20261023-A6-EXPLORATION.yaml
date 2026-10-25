@@ -16,7 +16,7 @@ scope:
     - "Require the durable A2 input-set receipt and derive learningCycleId from it."
     - "Validate candidate specifications with the existing Research Candidate contract and strategy family membership with the existing StrategyFamilyRegistry."
     - "Derive configuration/near-duplicate identity from canonical candidate fields; do not accept caller-selected experiment/family/configuration identity claims."
-    - "Persist attempts through the existing Evolution Learning hash-chain ledger and validate cycle budget/family constraints within its serialized append transaction."
+    - "Persist attempts through the existing Evolution Learning hash-chain ledger; keep only the numeric allotment budget per A2 cycle and derive exact/near duplicate and family-diversity history from all prior durable A6 attempts within its serialized append transaction."
     - "Bound total receipts through the existing ledger capacity and validate all restart/replay history deterministically."
     - "Require the durable Evolution record timestamp to be canonical ISO form when replaying A6 receipts."
     - "Resolve every replayed A6 learningCycleId against a canonical durable A2 receipt that precedes the A6 record in the same ledger snapshot; later A2 cannot retroactively authorize earlier A6."
@@ -26,11 +26,12 @@ scope:
   exclude:
     - "Defining cutoff/META policy or changing A2/A3 owner policy."
     - "Adding a production Learning caller, scheduler, store, candidate-generation engine, qualification, Governance, or PAPER execution path."
-    - "Changing exploration allotment/family ceiling or any OOS, cost, sample, qualification, Risk, capital, or authority threshold."
+    - "Changing the numeric exploration allotment/family ceiling or any OOS, cost, sample, qualification, Risk, capital, or authority threshold."
     - "Audit, Release, merge, deployment, or runtime completion claims while canonical cutoff/META owners and production trigger remain unresolved."
 acceptance:
   - "A6 accepts only an existing durable A2 fingerprint; a caller-reconstructed or missing input set fails closed."
-  - "Same canonical candidate configuration within the same learningCycleId produces one durable receipt across retries and SQLite restart."
+  - "Same canonical candidate configuration across durable Learning history is suppressed; retry identity remains idempotent within the same learningCycleId across SQLite restart."
+  - "Exact/near duplicate and family-diversity counters survive A2 cycle boundaries while the fixed allotment resets for each new A2 cycle."
   - "Different A6 receipts share the cycle allotment; same-family ceiling and near-duplicate suppression cannot be bypassed by caller naming."
   - "A stale concurrent writer cannot append a verdict derived from an obsolete history snapshot."
   - "Malformed/tampered receipt fields, counters, gates, or replay order fail closed."
@@ -53,15 +54,15 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "After syncing A5 fc3e2165, the selected A6/A5/A4/A3/A2/A1/storage/worker/security-gate regression suite passes 198/198 on Node 24.19.0. The earlier A6 fixture repair remains: tests seed and read actual checksum/hash-chain-backed Research and PAPER stores; no verification rule is weakened."
+  focused: "After fresh A6 review findings 4365462782 (P1), 4365462784 (P2), and 4369242151 (P2), Node 24.19.0 build PASS and A6/A2 focused tests PASS 37/37. Regressions prove cross-cycle exact/near-duplicate and family diversity, per-cycle allotment reset, canonical timestamp identity, and one A2 evidence verification per cycle during replay."
   prior_focused: "165/165 PASS before latest A5 parent sync; includes orphan and out-of-order A6/A2 replay rejection, strategy-family membership revalidation, extra cost-field exclusion, SQLite restart/replay, and serialized stale-writer coverage."
   build: "PASS after A5 fc3e2165 parent sync on Node 24.19.0 / pnpm 11.25.0; changed-test fast runner correctly skips outside primary pull_request CI"
-  preflight: "PASS on Node 24.19.0; strict 521-file AIPOS YAML check included"
-  validate_full: "PASS after A5 fc3e2165 parent sync; architecture, safety, AI zero-authority, AIPOS drift/conformance, and repository architecture validators pass"
-  security_gate: "PASS; raw high/critical=0, secrets=0, unmitigated=0"
-  aipos_provenance: "PASS; only pre-existing colliding historical IDs are reported"
+  preflight: "PASS on Node 24.19.0 after code repair; strict AIPOS YAML check included"
+  validate_full: "PASS on Node 24.19.0 after code repair; architecture, safety, AI zero-authority, AIPOS drift/conformance, and repository architecture validators pass"
+  security_gate: "PASS after code repair; raw high/critical=0, secrets=0, unmitigated=0"
+  aipos_provenance: "PASS after code repair; only pre-existing colliding historical IDs are reported"
   diff_check: PASS
-  exact_head_ci: PENDING_AFTER_PUSH
-  independent_review: PENDING_AFTER_CURRENT_EXACT_HEAD_CI
+  exact_head_ci: PENDING_AFTER_SUCCESSOR_PUSH
+  independent_review: "Current predecessor ec7705a5 review identified the findings above; request a fresh review on the successor only after exact-head CI turns green."
   prior_exact_head_ci_failure: "A6 head 7b2a610c CI run 40043771127 failed security:gate before #2796 undici override repair; this failure is preserved and superseded by parent 09d75bfc, whose exact-head CI passed."
-  review_findings_repaired: "Fresh Codex review on e1950b1a found two P1s: full-snapshot lookup allowed a later A2 to retroactively authorize earlier A6, and replay skipped strategy-family membership validation. Repair enforces prior-record chronology and rechecks membership; regressions cover both. Latest source change repairs only invalid test fixtures rejected by the canonical A2 verifier; no verification rule was weakened."
+  review_findings_repaired: "Current review P1: diversity was incorrectly reset across A2 cycles. Exact/near duplicate and family counters now read all prior durable A6 attempts while only allotment is cycle-scoped. P2: candidate timestamps normalize to canonical ISO before hashing and durable validation rejects noncanonical spellings. P2: replay caches canonical A2 verification per fingerprint, preventing repeated full Research/PAPER store scans for every same-cycle A6 row. No evaluation threshold or safety gate was weakened."
