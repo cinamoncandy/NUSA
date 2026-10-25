@@ -185,7 +185,6 @@ function canonicalEvidenceRecord(value: unknown): Readonly<Record<string, unknow
     return undefined;
   }
 }
-function hasText(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => text(record[key])); }
 function hasKnownText(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => knownText(record[key])); }
 function hasDigest(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => typeof record[key] === "string" && SHA256.test(record[key] as string)); }
 function timeWindowBounds(value: unknown): { start: number; end: number } | undefined {
@@ -204,9 +203,9 @@ function validTimeWindow(value: unknown): boolean { return timeWindowBounds(valu
 function validatePrecommitPlans(datasetBinding: unknown, evaluationPlan: unknown, costPlan: unknown): boolean {
   if (!plainRecord(datasetBinding) || !plainRecord(evaluationPlan) || !plainRecord(costPlan)) return false;
   if (("pitWindow" in evaluationPlan && !timeWindowBounds(evaluationPlan.pitWindow)) || ("oosWindow" in evaluationPlan && !timeWindowBounds(evaluationPlan.oosWindow))) return false;
-  const datasetBound = hasText(datasetBinding, ["manifest", "manifestId", "datasetId"]) || hasDigest(datasetBinding, ["manifestFingerprint", "datasetFingerprint", "datasetContentSha256"]);
-  const pitBound = validTimeWindow(evaluationPlan.pitWindow) || text(evaluationPlan.pitPolicyVersion);
-  const oosBound = validTimeWindow(evaluationPlan.oosWindow) || text(evaluationPlan.oosPolicyVersion) || hasDigest(evaluationPlan, ["walkForwardConfigHash"]);
+  const datasetBound = hasKnownText(datasetBinding, ["manifest", "manifestId", "datasetId"]) || hasDigest(datasetBinding, ["manifestFingerprint", "datasetFingerprint", "datasetContentSha256"]);
+  const pitBound = validTimeWindow(evaluationPlan.pitWindow) || knownText(evaluationPlan.pitPolicyVersion);
+  const oosBound = validTimeWindow(evaluationPlan.oosWindow) || knownText(evaluationPlan.oosPolicyVersion) || hasDigest(evaluationPlan, ["walkForwardConfigHash"]);
   const pitWindow = timeWindowBounds(evaluationPlan.pitWindow), oosWindow = timeWindowBounds(evaluationPlan.oosWindow);
   const windowsAreDisjoint = !pitWindow || !oosWindow || oosWindow.start > pitWindow.end;
   const latencyBound = hasKnownText(evaluationPlan, ["latencyAssumptions", "latencyModelVersion", "latencyPolicyVersion"]);
@@ -224,7 +223,7 @@ export function validateCryptoNewsPrecommitPlans(datasetBinding: unknown, evalua
 export function strategyReplicationPrecommit(input: { spec: StrategyReplicationSpec; parentSpec?: StrategyReplicationSpec; sourceSha: string; datasetBinding: Readonly<Record<string, unknown>>; evaluationPlan: Readonly<Record<string, unknown>>; costPlan: Readonly<Record<string, unknown>>; validationPolicyIdentity: string; createdAt: string }): ResearchPrecommit {
   const { spec } = input;
   verifyStrategyReplicationSpec(spec, input.parentSpec);
-  if (!validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan) || !text(input.validationPolicyIdentity) || !validTimestamp(input.createdAt) || Date.parse(input.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("STRATEGY_PRECOMMIT_BINDING_INVALID");
+  if (!validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan) || !knownText(input.validationPolicyIdentity) || !validTimestamp(input.createdAt) || Date.parse(input.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("STRATEGY_PRECOMMIT_BINDING_INVALID");
   return createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: spec.strategyIdentity, strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, sourceSha: input.sourceSha, parameterPlan: { strategySpec: spec, ...(input.parentSpec ? { parentStrategySpec: input.parentSpec } : {}) }, costPlan: input.costPlan, regimePlan: {}, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
 }
 
@@ -308,22 +307,29 @@ export function createStrategyReplicationReceipt(input: {
   if (!input || typeof input !== "object" || !input.spec || !input.precommit) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
   verifyStrategyReplicationPrecommit(input.spec, input.precommit);
   const canonicalEvidence = canonicalEvidenceRecord(input.evidence);
-  if (!["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(input.result) || !text(input.datasetIdentity) || !text(input.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(input.evaluatorSourceSha) || input.evaluatorSourceSha.toLowerCase() !== input.precommit.sourceSha.toLowerCase() || !validTimestamp(input.observedAt) || Date.parse(input.observedAt) < Date.parse(input.precommit.createdAt) || !canonicalEvidence || !SHA256.test(input.precommit.fingerprint) || input.precommit.strategyIdentity !== input.spec.strategyIdentity || !validatePrecommitPlans(input.precommit.datasetBinding, input.precommit.evaluationPlan, input.precommit.costPlan)) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
+  if (!["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(input.result) || !knownText(input.datasetIdentity) || !knownText(input.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(input.evaluatorSourceSha) || input.evaluatorSourceSha.toLowerCase() !== input.precommit.sourceSha.toLowerCase() || !validTimestamp(input.observedAt) || Date.parse(input.observedAt) < Date.parse(input.precommit.createdAt) || !canonicalEvidence || !SHA256.test(input.precommit.fingerprint) || input.precommit.strategyIdentity !== input.spec.strategyIdentity || !validatePrecommitPlans(input.precommit.datasetBinding, input.precommit.evaluationPlan, input.precommit.costPlan)) throw new Error("REPLICATION_RECEIPT_BINDING_INVALID");
   const datasetIdentityValues = [input.precommit.datasetBinding.manifest, input.precommit.datasetBinding.manifestId, input.precommit.datasetBinding.manifestFingerprint, input.precommit.datasetBinding.datasetId, input.precommit.datasetBinding.datasetFingerprint, input.precommit.datasetBinding.datasetContentSha256];
   if (!datasetIdentityValues.includes(input.datasetIdentity)) throw new Error("REPLICATION_RECEIPT_DATASET_MISMATCH");
   if (input.negativeEvidence !== undefined && (!Array.isArray(input.negativeEvidence) || !input.negativeEvidence.every(text))) throw new Error("REPLICATION_RECEIPT_EVIDENCE_INVALID");
-  const core = { schemaVersion: 1 as const, result: input.result, strategyIdentity: input.spec.strategyIdentity, precommitFingerprint: input.precommit.fingerprint, datasetIdentity: input.datasetIdentity, evaluatorVersion: clean(input.evaluatorVersion), evaluatorSourceSha: input.evaluatorSourceSha.toLowerCase(), observedAt: new Date(input.observedAt).toISOString(), evidence: canonicalEvidence, negativeEvidence: Object.freeze([...(input.negativeEvidence ?? [])].map(clean).sort()), authority: "PAPER_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, realOrderAuthority: false as const, realTransferAuthority: false as const, aiAuthority: "ZERO_AUTHORITY" as const };
+  const core = { schemaVersion: 1 as const, result: input.result, strategyIdentity: input.spec.strategyIdentity, precommitFingerprint: input.precommit.fingerprint, datasetIdentity: clean(input.datasetIdentity), evaluatorVersion: clean(input.evaluatorVersion), evaluatorSourceSha: input.evaluatorSourceSha.toLowerCase(), observedAt: new Date(input.observedAt).toISOString(), evidence: canonicalEvidence, negativeEvidence: Object.freeze([...new Set((input.negativeEvidence ?? []).map(clean))].sort()), authority: "PAPER_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, realOrderAuthority: false as const, realTransferAuthority: false as const, aiAuthority: "ZERO_AUTHORITY" as const };
   return deepFreeze({ ...core, receiptFingerprint: digest(core) });
 }
 
 export function verifyStrategyReplicationReceipt(receipt: StrategyReplicationReceipt, precommit: ResearchPrecommit): void {
   const canonicalEvidence = canonicalEvidenceRecord(receipt?.evidence);
-  if (!receipt || !precommit || !SHA256.test(precommit.fingerprint) || receipt.precommitFingerprint !== precommit.fingerprint || receipt.schemaVersion !== 1 || !["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(receipt.result) || receipt.authority !== "PAPER_ONLY" || receipt.liveAuthority !== "NONE" || receipt.productionMutationAllowed !== false || receipt.realOrderAuthority !== false || receipt.realTransferAuthority !== false || receipt.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(receipt.strategyIdentity) || !SHA256.test(receipt.precommitFingerprint) || !text(receipt.datasetIdentity) || !text(receipt.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(receipt.evaluatorSourceSha) || !validTimestamp(receipt.observedAt) || !canonicalEvidence || canonicalResearchJson(canonicalEvidence) !== canonicalResearchJson(receipt.evidence) || !Array.isArray(receipt.negativeEvidence) || !receipt.negativeEvidence.every(text)) throw new Error("REPLICATION_RECEIPT_INVALID");
+  if (!receipt || !precommit || !SHA256.test(precommit.fingerprint) || receipt.precommitFingerprint !== precommit.fingerprint || receipt.schemaVersion !== 1 || !["REPRODUCED", "NOT_REPRODUCED", "INSUFFICIENT_EVIDENCE", "INVALID_INPUT"].includes(receipt.result) || receipt.authority !== "PAPER_ONLY" || receipt.liveAuthority !== "NONE" || receipt.productionMutationAllowed !== false || receipt.realOrderAuthority !== false || receipt.realTransferAuthority !== false || receipt.aiAuthority !== "ZERO_AUTHORITY" || !SHA256.test(receipt.strategyIdentity) || !SHA256.test(receipt.precommitFingerprint) || !knownText(receipt.datasetIdentity) || !knownText(receipt.evaluatorVersion) || !/^[a-f0-9]{40}$/i.test(receipt.evaluatorSourceSha) || !validTimestamp(receipt.observedAt) || !canonicalEvidence || canonicalResearchJson(canonicalEvidence) !== canonicalResearchJson(receipt.evidence) || !Array.isArray(receipt.negativeEvidence) || !receipt.negativeEvidence.every(text)) throw new Error("REPLICATION_RECEIPT_INVALID");
   const precommitSpec = plainRecord(precommit.parameterPlan) ? precommit.parameterPlan.strategySpec : undefined;
   if (!plainRecord(precommitSpec)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
   verifyStrategyReplicationPrecommit(precommitSpec as unknown as StrategyReplicationSpec, precommit);
   const datasetIdentityValues = [precommit.datasetBinding.manifest, precommit.datasetBinding.manifestId, precommit.datasetBinding.manifestFingerprint, precommit.datasetBinding.datasetId, precommit.datasetBinding.datasetFingerprint, precommit.datasetBinding.datasetContentSha256];
   if (receipt.strategyIdentity !== precommit.strategyIdentity || !datasetIdentityValues.includes(receipt.datasetIdentity) || receipt.evaluatorSourceSha.toLowerCase() !== precommit.sourceSha.toLowerCase() || Date.parse(receipt.observedAt) < Date.parse(precommit.createdAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
+  let canonicalReceipt: StrategyReplicationReceipt;
+  try {
+    canonicalReceipt = createStrategyReplicationReceipt({ result: receipt.result, spec: precommitSpec as unknown as StrategyReplicationSpec, precommit, datasetIdentity: receipt.datasetIdentity, evaluatorVersion: receipt.evaluatorVersion, evaluatorSourceSha: receipt.evaluatorSourceSha, observedAt: receipt.observedAt, evidence: receipt.evidence, negativeEvidence: receipt.negativeEvidence });
+  } catch {
+    throw new Error("REPLICATION_RECEIPT_INVALID");
+  }
+  if (canonicalResearchJson(canonicalReceipt) !== canonicalResearchJson(receipt)) throw new Error("REPLICATION_RECEIPT_NON_CANONICAL");
   const { receiptFingerprint, ...core } = receipt;
   if (!SHA256.test(receiptFingerprint) || digest(core) !== receiptFingerprint) throw new Error("REPLICATION_RECEIPT_FINGERPRINT_MISMATCH");
 }

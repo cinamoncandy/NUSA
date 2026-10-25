@@ -143,7 +143,10 @@ test("precommit requires PIT/OOS, dataset, fee and slippage bindings and cannot 
   const spec = normalizeStrategyReplication(strategy());
   const valid = { spec, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1" };
   assert.throws(() => strategyReplicationPrecommit({ ...valid, datasetBinding: {}, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
+  assert.throws(() => strategyReplicationPrecommit({ ...valid, datasetBinding: { manifest: "UNKNOWN" }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pitWindow: evaluationPlan.pitWindow }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
+  assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pitPolicyVersion: "UNKNOWN", oosWindow: evaluationPlan.oosWindow, latencyAssumptions: evaluationPlan.latencyAssumptions, missingDataPolicy: evaluationPlan.missingDataPolicy }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
+  assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { pitWindow: evaluationPlan.pitWindow, oosPolicyVersion: "N/A", latencyAssumptions: evaluationPlan.latencyAssumptions, missingDataPolicy: evaluationPlan.missingDataPolicy }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { ...evaluationPlan, oosWindow: { startAt: "2026-05-01T00:00:00Z", endAt: "2026-07-01T00:00:00Z" } }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   for (const invalidStart of ["2026-02-30T00:00:00Z", "2026-06-02T00:00:00", "2026-06-02"]) {
     assert.throws(() => strategyReplicationPrecommit({ ...valid, evaluationPlan: { ...evaluationPlan, oosWindow: { startAt: invalidStart, endAt: "2026-07-01T00:00:00Z" } }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
@@ -159,13 +162,15 @@ test("precommit requires PIT/OOS, dataset, fee and slippage bindings and cannot 
 test("replication receipt binds outcome to spec, precommit, dataset and preserves adverse evidence", () => {
   const spec = normalizeStrategyReplication(strategy());
   const precommit = strategyReplicationPrecommit({ spec, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
-  const receipt = createStrategyReplicationReceipt({ result: "NOT_REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: "cost-adjusted OOS failed" }, negativeEvidence: ["transaction costs destroyed edge"] });
+  const receipt = createStrategyReplicationReceipt({ result: "NOT_REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: "cost-adjusted OOS failed" }, negativeEvidence: ["transaction costs destroyed edge", "unstable across regimes"] });
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "UNKNOWN", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /RECEIPT_BINDING_INVALID/);
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "N/A", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /RECEIPT_BINDING_INVALID/);
   assert.equal(receipt.result, "NOT_REPRODUCED");
   assert.equal(receipt.precommitFingerprint, precommit.fingerprint);
-  assert.deepEqual(receipt.negativeEvidence, ["transaction costs destroyed edge"]);
+  assert.deepEqual(receipt.negativeEvidence, ["transaction costs destroyed edge", "unstable across regimes"]);
   verifyStrategyReplicationReceipt(receipt, precommit);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "other-dataset", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /DATASET_MISMATCH/);
-  assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, negativeEvidence: [] }, precommit), /FINGERPRINT_MISMATCH/);
+  assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, negativeEvidence: [] }, precommit), /FINGERPRINT_MISMATCH|NON_CANONICAL/);
   assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, datasetIdentity: "other-dataset" }, precommit), /PRECOMMIT_MISMATCH/);
   assert.throws(() => verifyStrategyReplicationReceipt(receipt, { ...precommit, datasetBinding: { ...precommit.datasetBinding, manifest: "different-dataset" } }), /PRECOMMIT_MISMATCH|fingerprint mismatch/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: "c".repeat(40), observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /BINDING_INVALID/);
@@ -184,6 +189,13 @@ test("replication receipt binds outcome to spec, precommit, dataset and preserve
   const { receiptFingerprint: _oldFingerprint, ...malformedWithoutFingerprint } = malformedCore;
   const forgedReceipt = { ...malformedWithoutFingerprint, receiptFingerprint: createHash("sha256").update(canonicalResearchJson(malformedWithoutFingerprint), "utf8").digest("hex") };
   assert.throws(() => verifyStrategyReplicationReceipt(forgedReceipt, precommit), /RECEIPT_INVALID/);
+  const withRecomputedFingerprint = (candidate: Record<string, unknown>) => {
+    const { receiptFingerprint: _fingerprint, ...candidateCore } = candidate;
+    return { ...candidateCore, receiptFingerprint: createHash("sha256").update(canonicalResearchJson(candidateCore), "utf8").digest("hex") };
+  };
+  assert.throws(() => verifyStrategyReplicationReceipt(withRecomputedFingerprint({ ...receipt, evaluatorVersion: " replicator-v1 " }) as never, precommit), /RECEIPT_NON_CANONICAL/);
+  assert.throws(() => verifyStrategyReplicationReceipt(withRecomputedFingerprint({ ...receipt, evaluatorSourceSha: SHA.toUpperCase() }) as never, precommit), /RECEIPT_NON_CANONICAL/);
+  assert.throws(() => verifyStrategyReplicationReceipt(withRecomputedFingerprint({ ...receipt, negativeEvidence: [...receipt.negativeEvidence].reverse() }) as never, precommit), /RECEIPT_NON_CANONICAL/);
 });
 
 test("Research Intelligence canonical factory rejects forged runtime taxonomy values", () => {

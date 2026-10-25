@@ -57,6 +57,42 @@ current_strategy_intake_canonical_store_binding_local_validated_20261026:
   next: "Confirm remote branch identity, publish one substantive non-force successor commit, then obtain exact-head CI and fresh non-author review. Formal NUSA Validator remains separate; production Scout composition and genuine Research/PAPER outcome remain unverified."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_final_local_validated_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 186cbcf7ed2163404c7f1ce3bf31650d74d5967e
+  finding: "Exact-head review found placeholder dataset/PIT/OOS identities and non-canonical replication receipts."
+  fix: "Strategy and news precommit paths reject UNKNOWN/N/A dataset and policy identities; receipt verification reconstructs canonical fields before accepting its fingerprint."
+  validation: "Final source tree: Node 24.19 preflight; contracts 15/15; storage 4/4; build/typecheck; validate:full; security:gate; lint (45 warnings/0 errors); pnpm test (1281 isolated files); AIPOS YAML/drift/provenance and git diff checks PASS."
+  next: "Commit/push one substantive successor to the existing Draft PR; await exact-head CI and fresh non-author review. Formal Validator remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_placeholder_identity_repair_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: IMPLEMENTED_PENDING_FULL_LOCAL_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 186cbcf7ed2163404c7f1ce3bf31650d74d5967e
+  finding: "Fresh review found placeholder dataset and PIT/OOS policy IDs could satisfy presence checks, and receipt verification did not enforce canonical casing/whitespace/order."
+  fix: "Require known non-placeholder identifiers and reconstruct the canonical receipt during verification; add placeholder and recomputed-fingerprint tampering regressions."
+  validation: "Focused contract tests 15/15 and Research Intelligence storage tests 4/4 PASS. Full local gates pending."
+  next: "Complete full local gates, verify PR/main identity, publish a substantive non-force successor, then obtain exact-head CI and fresh independent review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_placeholder_identity_validated_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 186cbcf7ed2163404c7f1ce3bf31650d74d5967e
+  finding: "Fresh exact-head review found placeholder dataset/PIT/OOS identities and non-canonical receipt verification."
+  fix: "Require known non-placeholder dataset, policy, and evaluator identifiers; reconstruct and compare canonical receipt form before accepting its fingerprint."
+  validation: "Node 24.19 preflight; focused contracts 15/15; storage 4/4; build/typecheck; validate:full; security:gate; lint (45 warnings/0 errors); pnpm test (1281 isolated files); AIPOS and diff checks PASS."
+  next: "Confirm the existing PR and base identity; publish one substantive non-force successor; obtain exact-head CI and fresh non-author review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_taxonomy_parent_binding_20261025:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI

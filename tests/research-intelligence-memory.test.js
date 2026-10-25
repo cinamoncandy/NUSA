@@ -226,6 +226,8 @@ test("only the canonical persisted Research Intelligence repository can bind new
     assert.equal(result.precommit.candidateIdentity, result.hypothesis.candidateId);
     assert.equal(result.precommit.datasetBinding.newsObservationIdentity, bound.observationIdentity);
     assert.equal(result.precommit.parameterPlan.hypothesis.provenance.author, "SCOUT_ADVISORY");
+    assert.throws(() => memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, validationPolicyIdentity: "UNKNOWN" }), /HYPOTHESIS_EVIDENCE_INELIGIBLE/);
+    assert.throws(() => memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, datasetBinding: { manifest: "N/A" } }), /HYPOTHESIS_EVIDENCE_INELIGIBLE/);
     assert.throws(() => memory.cryptoNewsResearchPrecommit(observation, "ri:caller-invented", input), /BINDING_INVALID/);
     assert.throws(() => memory.cryptoNewsResearchPrecommit(createCryptoNewsResearchObservation({
       sourceUrl: observation.sourceUrl, publisher: "Publisher", publishedAt: observation.publishedAt,

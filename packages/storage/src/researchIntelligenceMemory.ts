@@ -19,6 +19,7 @@ const decode = (row: Record<string, unknown>): ResearchIntelligenceRecord =>
 const digest = (value: unknown): string => createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+const knownText = (value: unknown): value is string => text(value) && !/^(?:UNKNOWN|N\/A|NOT\s+SPECIFIED)$/i.test(value.trim());
 const validTimestamp = (value: unknown): value is string => {
   if (typeof value !== "string") return false;
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
@@ -221,7 +222,7 @@ export class SqliteResearchIntelligenceMemoryRepository {
   ) {
     const verifiedObservation = this.bindCryptoNewsResearchIntelligence(observation, sourceRecordId);
     const { observationIdentity, ...observationMaterial } = verifiedObservation;
-    if (!verifiedObservation || observationIdentity !== digest(observationMaterial) || verifiedObservation.scoutInferences.length === 0 || !validTimestamp(input.createdAt) || Date.parse(input.createdAt) < Date.parse(verifiedObservation.retrievedAt) || !validateCryptoNewsPrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan)) throw new Error("NEWS_HYPOTHESIS_EVIDENCE_INELIGIBLE");
+    if (!verifiedObservation || observationIdentity !== digest(observationMaterial) || verifiedObservation.scoutInferences.length === 0 || !validTimestamp(input.createdAt) || Date.parse(input.createdAt) < Date.parse(verifiedObservation.retrievedAt) || !knownText(input.validationPolicyIdentity) || !validateCryptoNewsPrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan)) throw new Error("NEWS_HYPOTHESIS_EVIDENCE_INELIGIBLE");
     const semanticInput = { observationIdentity, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity };
     const base = digest(semanticInput);
     const hypothesis = createResearchHypothesis({ hypothesisId: `news-hypothesis-${base.slice(0, 48)}`, candidateId: `news-candidate-${base.slice(0, 48)}`, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity, provenance: { author: "SCOUT_ADVISORY", sourceReferences: [verifiedObservation.sourceUrl, verifiedObservation.contentFingerprint, verifiedObservation.observationIdentity] }, createdAt: input.createdAt });
