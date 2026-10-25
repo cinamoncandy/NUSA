@@ -72,10 +72,10 @@ The script writes mode `0640`, prints only metadata, and reports `restartRequire
 Before a release switch:
 
 ```bash
-sudo -u nusa node scripts/sqlite-backup.js
+sudo /opt/nusa/bin/nusa-release-step backup
 ```
 
-The backup uses SQLite `VACUUM INTO`, runs `PRAGMA integrity_check`, writes a SHA-256 sidecar, retains one verified snapshot per UTC calendar bucket for the most recent 7 daily buckets and 4 weekly buckets (same-day/same-week release duplicates are pruned), and never changes application Evidence or trading state.
+The canonical root-owned release helper validates the runtime database filesystem and resolves its local backing disk before backup; unknown or ambiguous storage fails closed. It runs the existing SQLite `VACUUM INTO` backup inside a transient systemd cgroup capped at 1 MiB/s read and write with low CPU priority, then runs `PRAGMA integrity_check` and writes a SHA-256 sidecar. It retains one verified snapshot per UTC calendar bucket for the most recent 7 daily buckets and 4 weekly buckets (same-day/same-week release duplicates are pruned), and never changes application Evidence or trading state. The cap only limits backup throughput; backup completion and integrity remain required.
 
 Verify that the command reports `status=PASS` before continuing.
 

@@ -353,12 +353,17 @@ case "$verb" in
   backup)
     state_db="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_CLOUD_STATE_DB_PATH:-}")"
     [[ "$state_db" = /* ]] || die "Cloud state path must be absolute before backup"
-    # A verified backup is mandatory, but on the 1 GB Oracle host its VACUUM/integrity scan can
-    # saturate the same /dev/sda device the foreground PAPER writer uses for its 30 s lease heartbeat.
-    # The host currently uses the blk-mq `none` scheduler, so ionice classes alone do not provide a
-    # reliable service boundary. Put only the backup child in a transient cgroup with a hard 5 MB/s
-    # read/write ceiling, and also lower its CPU priority. Backup correctness/completion is unchanged.
-    exec systemd-run --quiet --collect --scope       -p "IOReadBandwidthMax=/dev/sda 5M"       -p "IOWriteBandwidthMax=/dev/sda 5M"       nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" node "$(script_in "$(active_release)" sqlite-backup.js)"
+    # Resolve the database filesystem's actual backing disk before applying an I/O cap. Unknown,
+    # remote, layered, or ambiguous storage fails closed instead of running an uncapped backup.
+    backup_device="$(node "$(script_in "$(active_release)" oracle-backup-device.js)" "$state_db")" \
+      || die "Cloud state backing disk could not be verified before backup"
+    # Host measurements show that 5 MB/s still competes with the foreground PAPER writer; 1 MB/s
+    # reduced backup throughput below 1 MB/s and let PAPER I/O recover. Limit only this child in its
+    # transient cgroup while preserving backup integrity and completion semantics.
+    exec systemd-run --quiet --collect --scope \
+      -p "IOReadBandwidthMax=${backup_device} 1M" \
+      -p "IOWriteBandwidthMax=${backup_device} 1M" \
+      nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 
   preflight)
