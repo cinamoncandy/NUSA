@@ -2611,6 +2611,16 @@ current_ops_oracle_health_guard_lock:
     productionMutationAllowed: false
     aiAuthority: ZERO_AUTHORITY
 
+current_ops_oracle_lease_handoff:
+  work_order: WO-OPS-20261025-LEASE-HANDOFF
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  issue: 2770
+  branch: fix/2770-lease-handoff
+  separate_backup_io_pr: 2874
+  validation: "Startup handoff renewal with cleanup on failed lease verification; focused tests 50/50 PASS; build and Node 24.19 preflight PASS. Exact-head CI and independent review pending."
+  next: "Complete exact-head validation and independent/governed review before any deployment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_stability_rollback_20261019:
   work_order: WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK
   status: NATURAL_RELEASE_ROUTE_PROOF_FAILURE_REPRODUCED_MINIMAL_FIX_PENDING_FRESH_EXACT_HEAD_VALIDATION

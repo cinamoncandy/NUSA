@@ -104,6 +104,15 @@ test("the listener and the scheduler both start only after the writer lease is h
   assert.ok(scheduler > listener, "the closed-learning scheduler must start after the runtime it is scheduled against");
 });
 
+test("the synchronous runtime-composition handoff renews only an already-valid writer lease", () => {
+  const listener = runtimeSource.indexOf("const baseHandle = startCloudRuntime(");
+  const handoff = runtimeSource.indexOf("paperRepository?.verifyWriterLease();", listener);
+  const scheduler = runtimeSource.indexOf("rolloverTimer = setInterval(scheduleTick,", handoff);
+  assert.ok(listener > 0 && handoff > listener, "lease handoff must run after the last large synchronous runtime composition step");
+  assert.ok(scheduler > handoff, "lease handoff must complete before closed-learning scheduling begins");
+  assert.match(runtimeSource.slice(listener, handoff + 80), /never revives an expired lease|fails closed if composition already exceeded the TTL/);
+});
+
 // ---- risk hot path ---------------------------------------------------------------------------
 
 test("a PAPER risk evaluation prepares no full-file integrity scan", () => {
