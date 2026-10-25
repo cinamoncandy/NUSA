@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useWindowDimensions } from "react-native";
 import { InstrumentHero, Reveal, useReducedMotion } from "./instrumentKit";
 import { DotNumeral, GrainCard } from "./auraKit";
 import { fitPitch } from "./dotMatrix";
 import { splitHeroLines } from "./learningScreenModel";
-import { DecisionCore } from "./decisionCore";
+import { DecisionField } from "./decisionField";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
 import { auraPalette, readableFont } from "./designSystem";
 
@@ -23,14 +23,11 @@ interface Props {
 /** "지금" instrument view for every state without the risk gate: hero line, the decision core, the decision odometer, ledger. Presentation only. */
 export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCount, stats }: Props) {
   const reduced = useReducedMotion();
-  const [width, setWidth] = useState(0);
   const live = !dim && decisionCount != null;
   return <View style={dim ? styles.dim : undefined} testID="now-hero">
     <InstrumentHero index="01 / 지금" lines={splitHeroLines(headline).map((text) => ({ text, color: calmToneColor(tone) }))} label={headline} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
-    <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
-      {width > 0 ? <DecisionCore tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} width={width} reducedMotion={reduced} /> : null}
-    </View>
+    <DecisionField decisionCount={decisionCount} orderCount={orderCount} live={live} reducedMotion={reduced} />
     <Reveal index={2} reducedMotion={reduced}>
       <AuraCount label="판단 · 오늘" value={decisionCount == null ? "—" : Math.round(decisionCount).toLocaleString("en-US")} tone="NORMAL" hero live={live} />
     </Reveal>
@@ -81,7 +78,6 @@ const instrumentSub = { color: calmColors.muted, fontSize: readableFont(14), lin
 const styles = StyleSheet.create({
   dim: { opacity: 0.55 },
   sub: { paddingHorizontal: 20, marginTop: 10 },
-  panelWrap: { paddingHorizontal: 20, marginTop: 18 },
   heroCard: { marginHorizontal: 16, marginTop: 14, gap: 14, padding: 18 },
   pair: { flexDirection: "row", gap: 12, paddingHorizontal: 16, marginTop: 12 },
   pairCell: { flex: 1 },
