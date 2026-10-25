@@ -635,8 +635,58 @@ describe("A4 falsification (section 18)", () => {
 
     const tampered = { ...(JSON.parse(JSON.stringify(receipt)) as Record<string, unknown>) };
     tampered.appliedValue = 4;
-    assert.throws(() => assertLearningApplicationReceipt(tampered), /does not match its own fingerprint/);
+    assert.throws(() => assertLearningApplicationReceipt(tampered), /APPLIED receipt must record the bounded value|does not match its own fingerprint/);
     assert.throws(() => assertLearningApplicationReceipt({ ...receipt, unboundExtra: "value" }), /closed schema/);
+  });
+
+  it("rejects a self-consistent APPLIED receipt whose value contradicts the outcome", () => {
+    const state = { value: 1 };
+    const receipt = applyBoundedChange(
+      decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1),
+      ELIGIBLE,
+      ports(state),
+      CONTEXT,
+      new ApplicationRegistry(),
+    );
+    const { applicationFingerprint: _fingerprint, schemaVersion: _schema, outcomeVersion: _version, ...fields } = receipt;
+    const forgedFields = { ...fields, appliedValue: receipt.previousValue };
+    const forged = {
+      ...forgedFields,
+      schemaVersion: receipt.schemaVersion,
+      outcomeVersion: receipt.outcomeVersion,
+      applicationFingerprint: applicationFingerprint(forgedFields),
+    };
+
+    assert.throws(() => assertLearningApplicationReceipt(forged), /APPLIED receipt must record the bounded value/);
+  });
+
+  it("binds recovery terminal provenance to the durable write-ahead intent", () => {
+    const database = new SqliteDatabase(":memory:");
+    try {
+      const journal = new LearningApplicationLedger(new SqliteEvolutionLearningLedger(database), () => Date.parse(CONTEXT.applicationTimestamp));
+      const state = { value: 1 };
+      const receipt = applyBoundedChange(
+        decisionWith([{ surface: "longBarTickEvery", currentValue: 1, proposedValue: 2 }], 1),
+        ELIGIBLE,
+        ports(state),
+        CONTEXT,
+        new ApplicationRegistry(),
+        journal,
+      );
+      const { applicationFingerprint: _fingerprint, schemaVersion: _schema, outcomeVersion: _version, ...fields } = receipt;
+      const forgedFields = { ...fields, runtimeIdentity: "recovery-runtime" };
+      const forged = {
+        ...forgedFields,
+        schemaVersion: receipt.schemaVersion,
+        outcomeVersion: receipt.outcomeVersion,
+        applicationFingerprint: applicationFingerprint(forgedFields),
+      };
+
+      assert.throws(() => journal.append(forged), /does not match its durable intent provenance/);
+      assert.equal(journal.summary().applicationsRecorded, 1, "the mismatched receipt never enters the durable ledger");
+    } finally {
+      database.close();
+    }
   });
 
   it("the same content always yields the same application identity", () => {

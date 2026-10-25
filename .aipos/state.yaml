@@ -3853,13 +3853,13 @@ current_learning_a4_capacity_20261023:
   status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
   branch: feat/learning-application-a4
   pr: 2794
-  previous_local_head: e130c254
+  previous_local_head: f37566cc000be1d00850293d6e0a636103a32d23
   parent_head: 4ed23afe388e2afff7cad77c50328f42ce3565c2
   remote_a4_predecessor: df2501ad067c73662bec272f310e17300634ae31
-  local_reconvergence_head: fe516f5f44f757c319c0f2edc23fbfe94b6becb4
-  validation: "Successor on Node 24.19.0: build PASS; A4/A1/A2 SQLite ledger focused tests 51/51 PASS; preflight, validate:full, security:gate, lint (0 errors; 45 existing warnings), and diff-check PASS. Outcome-specific receipt schema rejects unrelated optional fields. Run 40148380895 was cancelled because this final schema refinement landed while it was running; it is not acceptance evidence."
-  review_findings: "Fresh exact-head review comments on 3849e1e9: P1 IDs 4354716464, 4354716473, 4354716480, 4354839823, 4354839828, 4356054560, 4356054567, 4364881582, 4364881587; P2 ID 4369049595. Earlier findings listed under the work order were addressed in prior commits; this successor addresses the remaining surface-pending and provenance issues."
-  next: "Run validate:full/security:gate, then push only to existing #2794; exact-head CI plus Mobile Native (if required) and fresh independent review after green. Keep Draft; no release/merge/runtime claim."
+  local_reconvergence_head: f37566cc000be1d00850293d6e0a636103a32d23
+  validation: "Current local successor on Node v24.19.0: build PASS; A4 application + Evolution ledger focused tests 54/54 PASS; preflight, validate:full, security:gate, and diff-check PASS. New regression covers self-consistent false APPLIED value and terminal provenance mismatch."
+  review_findings: "Fresh review on current predecessor f37566cc (comment IDs 4369190660 and 4369190662) found terminal provenance was not fully compared with durable intent and a self-consistent APPLIED receipt could claim a different appliedValue. Both repaired locally; exact-head CI/review required after push."
+  next: "Commit and push the substantive repair only to existing #2794; run exact-head CI and required companions, then request fresh independent review after green. Keep Draft; no release/merge/runtime claim."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:
