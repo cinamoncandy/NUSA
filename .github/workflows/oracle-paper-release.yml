@@ -93,9 +93,10 @@ jobs:
     # Only the privileged release steps run on the dedicated host. Build and dependency
     # installation stay on GitHub-hosted hardware, away from the 1 GB PAPER runtime host.
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    # Activation itself owns a bounded 3-minute stability soak. Keep the whole host job bounded
-    # while leaving enough room for backup/staging on the small Oracle PAPER host.
-    timeout-minutes: 40
+    # The measured 1 MiB/s backup cap can require about 96 minutes on a 957 MiB weekly snapshot:
+    # VACUUM INTO, daily integrity/hash, weekly copy, and weekly integrity/hash. Keep a two-hour
+    # outer job bound without changing the separate 300 s startup or 180 s activation-soak limits.
+    timeout-minutes: 120
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       NUSA_DEPLOY_ROOT: /opt/nusa

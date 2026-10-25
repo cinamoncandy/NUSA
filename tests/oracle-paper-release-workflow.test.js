@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const workflow = fs.readFileSync(".github/workflows/oracle-paper-release.yml", "utf8");
 const wrapper = fs.readFileSync("deploy/oracle/nusa-release-step.sh", "utf8").replaceAll("\r\n", "\n");
 const runbook = fs.readFileSync("docs/operations/oracle-p1-008-runbook.md", "utf8");
+const readiness = fs.readFileSync("scripts/oracle-readiness-check.js", "utf8");
 
 /**
  * The Oracle PAPER host drifted behind protected main with nothing able to correct it (#1816).
@@ -85,6 +86,14 @@ test("the privileged backup uses the configured runtime state database", () => {
   assert.match(backup, /nice -n 19 runuser -u "\$SERVICE_USER"/, "backup must yield CPU priority to the foreground PAPER runtime");
   assert.match(backup, /env NUSA_DB="\$state_db"/, "sqlite-backup must target the configured durable runtime database");
   assert.match(backup, /Cloud state path must be absolute before backup/);
+});
+
+test("the measured backup I/O cap fits the bounded host job without extending readiness or soak gates", () => {
+  const release = workflow.slice(workflow.indexOf("  release:"));
+  assert.match(release, /timeout-minutes: 120/, "the host job must allow the measured capped Sunday backup to finish");
+  assert.match(readiness, /NUSA_READY_STARTUP_WAIT_MS \|\| 300_000/);
+  assert.match(readiness, /startupWaitMs > 300_000/);
+  assert.match(wrapper, /POST_ACTIVATION_SOAK_SECONDS=180/);
 });
 
 test("the workflow runs the release verbs in the runbook's order", () => {
